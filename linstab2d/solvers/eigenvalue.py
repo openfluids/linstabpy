@@ -1,0 +1,187 @@
+"""Temporal and adjoint eigenvalue solvers for the assembled LNSE operator."""
+
+from __future__ import annotations
+
+import logging
+
+import numpy as np
+import scipy.sparse as sp
+import scipy.sparse.linalg as spla
+
+logger = logging.getLogger(__name__)
+
+
+def _log_solver_backend() -> None:
+    """Log whether scikit-umfpack is available for sparse factorization."""
+
+    try:
+        import sksparse  # type: ignore
+    except Exception:
+        logger.info("scikit-umfpack not detected; SciPy LU backend will be used")
+    else:
+        logger.info(
+            "scikit-umfpack detected (%s); LU factorization may use UMFPACK",
+            getattr(sksparse, "__version__", "installed"),
+        )
+
+
+def _check_inputs_shape(operator: sp.spmatrix, n_modes: int) -> tuple[sp.csc_matrix, int]:
+    """Validate input dimensions for eigensolvers and return CSC copy."""
+    if n_modes <= 0:
+        raise ValueError("n_modes must be a positive integer")
+    if operator.shape[0] != operator.shape[1]:
+        raise ValueError("L0 must be a square matrix")
+    if n_modes > operator.shape[0]:
+        raise ValueError("n_modes cannot exceed matrix size")
+    return sp.csc_matrix(operator, dtype=complex), operator.shape[0]
+
+
+def _normalize_in_weighted_inner(
+    vectors: np.ndarray,
+    W_diag: np.ndarray | None,
+) -> np.ndarray:
+    """Normalise columns in the weighted inner product using ``W_diag``."""
+    if W_diag is None:
+        return vectors
+
+    W = np.asarray(W_diag)
+    if W.ndim != 1:
+        raise ValueError("W_diag must be one-dimensional")
+    if vectors.shape[0] != W.size:
+        raise ValueError("W_diag length must match eigenvector length")
+    if np.any(W == 0):
+        raise ValueError("W_diag contains zero entries; cannot normalise")
+
+    normed = np.array(vectors, dtype=complex, copy=True)
+    for i in range(vectors.shape[1]):
+        v = vectors[:, i]
+        norm_sq = np.real(np.vdot(v, W * v))
+        if norm_sq <= 0.0:
+            continue
+        normed[:, i] = v / np.sqrt(norm_sq)
+    return normed
+
+
+def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
+    order = np.argsort(np.abs(values - target))
+    return values[order], vectors[:, order]
+
+
+def _eigs_near_target(
+    operator: sp.csc_matrix,
+    n_modes: int,
+    target: complex,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Solve a shift-invert EVP near ``target`` with one LU factorization."""
+    ndof = operator.shape[0]
+    if ndof <= 2 or n_modes >= ndof - 1:
+        dense = np.asarray(operator.toarray())
+        all_vals, all_vecs = np.linalg.eig(dense)
+        order = np.argsort(np.abs(all_vals - target))
+        sel = order[:n_modes]
+        return all_vals[sel], all_vecs[:, sel]
+
+    I = sp.eye(ndof, format="csc", dtype=complex)
+    shifted = operator - target * I
+
+    lu = spla.splu(shifted)
+    op_inv = spla.LinearOperator(
+        shape=(ndof, ndof),
+        matvec=lu.solve,
+        dtype=complex,
+    )
+
+    logger.info("  eigs with shift-invert sigma = %.6g%+.6gj ...", np.real(target), np.imag(target))
+    eigenvalues, eigenvectors = spla.eigs(
+        operator,
+        k=n_modes,
+        which="LM",
+        sigma=target,
+        OPinv=op_inv,
+        tol=np.finfo(float).eps,
+    )
+    return eigenvalues, eigenvectors
+
+
+def temporal_eigenvalues(
+    L0: sp.spmatrix,
+    n_modes: int,
+    target: float | complex,
+    W_diag: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute temporal eigenvalues of ``L0 / (-1j)`` near a target.
+
+    Parameters
+    ----------
+    L0:
+        State matrix from ``build_lnse_operator``.
+    n_modes:
+        Number of eigenpairs requested.
+    target:
+        Target temporal frequency ``omega`` for the shift-invert search.
+    W_diag:
+        Optional weight vector for normalising eigenvectors in ``v^H W v``.
+
+    Returns
+    -------
+    omega:
+        Temporal eigenvalues ``omega = -i * eig(L0)``.
+    modes:
+        Right eigenvectors corresponding to ``omega``.
+    """
+    _log_solver_backend()
+    operator, _ = _check_inputs_shape(L0, n_modes)
+
+    temporal_operator = 1j * operator
+    omega = complex(target)
+    eigenvalues, eigenvectors = _eigs_near_target(temporal_operator, n_modes, omega)
+    eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
+
+    if W_diag is not None:
+        eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
+
+    return eigenvalues, eigenvectors
+
+
+def _build_adjoint_operator(
+    L0: sp.csc_matrix,
+    W_diag: np.ndarray,
+    invW_diag: np.ndarray,
+) -> sp.csc_matrix:
+    """Build the W-weighted adjoint operator ``W^{-1} L0^* W``."""
+    W = np.asarray(W_diag)
+    invW = np.asarray(invW_diag)
+    if W.shape != invW.shape:
+        raise ValueError("W_diag and invW_diag must be the same shape")
+    if W.ndim != 1:
+        raise ValueError("W_diag and invW_diag must be one-dimensional")
+    if W.size != L0.shape[0]:
+        raise ValueError("W vector lengths must match L0 shape")
+    if np.any(invW == 0):
+        raise ValueError("invW_diag contains zero entries")
+
+    return sp.diags(invW, format="csc") @ (L0.conj().T @ sp.diags(W, format="csc"))
+
+
+def adjoint_eigenvalues(
+    L0: sp.spmatrix,
+    n_modes: int,
+    target: float | complex,
+    W_diag: np.ndarray,
+    invW_diag: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute adjoint temporal eigenvalues near a target with W weighting.
+
+    The adjoint operator is formed as ``W^{-1} L0^* W`` and eigendecomposed
+    with shift-invert at ``target``.
+    """
+    _log_solver_backend()
+    operator, _ = _check_inputs_shape(L0, n_modes)
+    adjoint_op = _build_adjoint_operator(operator, W_diag, invW_diag)
+
+    omega = complex(target)
+    eigenvalues, eigenvectors = _eigs_near_target(adjoint_op, n_modes, omega)
+    eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
+    eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
+
+    return eigenvalues, eigenvectors
