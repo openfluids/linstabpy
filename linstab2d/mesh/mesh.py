@@ -164,6 +164,11 @@ class Mesh:
         else:
             x = np.linspace(xrange[0], xrange[1], nx)
         y = np.linspace(yrange[0], yrange[1], ny)
+        if y_symmetry and np.isclose(y[0], 0.0) and not np.isclose(y[-1], 0.0):
+            # Avoid a radial coordinate exactly at the axis for cylindrical
+            # meshes; MATLAb-style axisymmetric operators use pole stencils
+            # with a dy/2 interior first point.
+            y[0] = np.max([y[1] / 2.0, y[1] * 1e-14])
         X, Y = np.meshgrid(x, y)  # shape (ny, nx)
 
         ny_full, nx_full = X.shape
@@ -453,8 +458,8 @@ class Mesh:
 
         x_flat = self.X.ravel(order="F")
         y_flat = self.Y.ravel(order="F")
-        dx = x_flat[1] - x_flat[0] if x_flat.size > 1 else 1.0
-        dy = y_flat[1] - y_flat[0] if y_flat.size > 1 else 1.0
+        dx = self.X[0, 1] - self.X[0, 0] if self.X.shape[1] > 1 else 1.0
+        dy = self.Y[1, 0] - self.Y[0, 0] if self.Y.shape[0] > 1 else 1.0
 
         (
             Dx_g,
@@ -604,6 +609,10 @@ def _build_operators(
         raise ValueError("used_ind entries must index flattened mesh points")
     if np.unique(used_ind).size != used_ind.size:
         raise ValueError("used_ind must not contain duplicates")
+    if np.isclose(dx, 0.0):
+        dx = 1.0
+    if np.isclose(dy, 0.0):
+        dy = 1.0
 
     global_to_local = np.full(full_n, -1, dtype=int)
     global_to_local[used_ind] = np.arange(ngp)
@@ -663,7 +672,7 @@ def _build_operators(
         for i_seg in range(len(dom_bounds) - 1):
             seg = dom[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
             n_seg = seg.size
-            if n_seg < 2:
+            if n_seg < 3:
                 continue
 
             fd_ord = fd_order
@@ -701,7 +710,7 @@ def _build_operators(
         for i_seg in range(len(dom_bounds) - 1):
             seg = dom[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
             n_seg = seg.size
-            if n_seg < 2:
+            if n_seg < 3:
                 continue
 
             fd_ord = fd_order

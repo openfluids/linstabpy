@@ -80,6 +80,8 @@ The Blasius example takes ~11 minutes on a single core (150k x 150k sparse opera
 - NumPy, SciPy, Matplotlib
 - scikit-umfpack (optional, faster sparse LU)
 
+The project uses SuperLU as the default sparse LU backend. UMFPACK is kept as an optional optimization path for local benchmarking when available in the environment.
+
 All dependencies are installed by `install.sh` via [uv](https://docs.astral.sh/uv/).
 
 ## Citing

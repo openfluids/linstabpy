@@ -70,7 +70,8 @@ def filter_O10_diffMat(
     f_dw4_i = (105.0 - 210.0 * alpha_f) / 512.0
     f_dw4_j = (-15.0 + 30.0 * alpha_f) / 128.0
     f_dw4_k = (45.0 - 90.0 * alpha_f) / 1024.0
-    f_dw4_m = (-5.0 + 10.0 * alpha_f) / 512.0
+    f_dw4_l = (-5.0 + 10.0 * alpha_f) / 512.0
+    f_dw4_m = (1.0 - 2.0 * alpha_f) / 1024.0
 
     f_dw3_d = (-1.0 + 2.0 * alpha_f) / 1024.0
     f_dw3_e = (5.0 + 502.0 * alpha_f) / 512.0

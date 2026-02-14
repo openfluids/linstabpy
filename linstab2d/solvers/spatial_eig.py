@@ -15,21 +15,19 @@ def _eigs_generalized(
     Lc: sp.spmatrix,
     R: sp.spmatrix,
     n_modes: int,
-    omega: float | complex,
     target: float | complex,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Solve ``(Lc + omega*Lw) x = lambda R x`` near ``target``."""
+    """Solve ``A x = lambda R x`` near ``target`` via shift-invert."""
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")
 
-    Lc = sp.csc_matrix(Lc, dtype=complex)
+    A = sp.csc_matrix(Lc, dtype=complex)
     R = sp.csc_matrix(R, dtype=complex)
-    if Lc.shape[0] != Lc.shape[1] or R.shape != Lc.shape:
+    if A.shape[0] != A.shape[1] or R.shape != A.shape:
         raise ValueError("Lc and R must have identical square shapes")
-    if n_modes > Lc.shape[0]:
+    if n_modes > A.shape[0]:
         raise ValueError("n_modes cannot exceed matrix size")
 
-    A = Lc + omega * R
     if A.shape[0] <= 2 or n_modes >= A.shape[0] - 1:
         dense = np.asarray(A.toarray())
         dense_R = np.asarray(R.toarray())
@@ -75,5 +73,5 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
-    eigenvalues, eigenvectors = _eigs_generalized(Lc + omega * Lw, R, n_modes, omega, target)
+    eigenvalues, eigenvectors = _eigs_generalized(Lc + omega * Lw, R, n_modes, target)
     return eigenvalues, eigenvectors

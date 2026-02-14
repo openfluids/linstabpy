@@ -265,11 +265,17 @@ def _build_sbp_with_pole(n: int, dz: float, order: int):
     D2_asymm = D2.copy()
 
     for j in range(w):
-        D1_sym[j, : w + j + 1] = D1p[j, w - j : 2 * w - j + 1] / dz
-        D1_asymm[j, : w + j + 1] = D1m[j, w - j : 2 * w - j + 1] / dz
+        src_sym = D1p[j, w - j : 2 * w - j + 1]
+        src_asymm = D1m[j, w - j : 2 * w - j + 1]
+        n = min(src_sym.size, w + j + 1)
+        D1_sym[j, :n] = src_sym[:n] / dz
+        D1_asymm[j, :n] = src_asymm[:n] / dz
 
-        D2_sym[j, : w + j + 1] = D2p[j, w - j : 2 * w - j + 1] / dz**2
-        D2_asymm[j, : w + j + 1] = D2m[j, w - j : 2 * w - j + 1] / dz**2
+        src2_sym = D2p[j, w - j : 2 * w - j + 1]
+        src2_asymm = D2m[j, w - j : 2 * w - j + 1]
+        n2 = min(src2_sym.size, w + j + 1)
+        D2_sym[j, :n2] = src2_sym[:n2] / dz**2
+        D2_asymm[j, :n2] = src2_asymm[:n2] / dz**2
 
     return (
         D1.tocsr(),

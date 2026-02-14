@@ -717,6 +717,8 @@ def compute_cylindrical_coefficients(
     # ------------------------------------------------------------------
     # Step 1: Build derived coefficients from physical thermodynamic inputs.
     # ------------------------------------------------------------------
+    R = np.asarray(R, dtype=float)
+    R = np.maximum(R, 1e-14)
     c1 = (kappa - 1.0) * Re * Pr * Ma**2
     c2 = kappa * Ma**2
     cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)

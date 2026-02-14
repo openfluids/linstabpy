@@ -301,18 +301,29 @@ def load_jet(mesh) -> BaseFlow:
     z_1D = np.asarray(data["z_1D"], dtype=float).ravel()
     shape = (r_1D.size, z_1D.size)
 
-    if tuple(mesh.X.shape) != shape:
-        raise ValueError(
-            "M09jet mesh shape mismatch; expected "
-            f"{shape} from r_1D/z_1D, got {mesh.X.shape}"
+    Xq = np.asarray(mesh.X, dtype=float)
+    Yq = np.asarray(mesh.Y, dtype=float)
+    X_data, Y_data = np.meshgrid(z_1D, r_1D, indexing="xy")
+
+    def _load_field(name: str) -> np.ndarray:
+        full = _as_grid(data[name], shape, name)
+        if tuple(mesh.X.shape) == shape:
+            return full
+        return _interp_regular_grid_linear(
+            Xq,
+            Yq,
+            X_data,
+            Y_data,
+            full,
         )
 
-    RHO = _as_grid(data["RHO"], shape, "RHO")
-    T = _as_grid(data["T"], shape, "T")
-    # Cylindrical velocity mapping to Cartesian base-flow conventions
-    U = _as_grid(data["W"], shape, "W")
-    V = _as_grid(data["U"], shape, "U")
-    W = _as_grid(data["V"], shape, "V")
+    RHO = _load_field("RHO")
+    T = _load_field("T")
+    # MATLAB base-flow file stores [radial, azimuthal, axial] as [U, V, W].
+    # LinStab2D Python baseflow keeps [streamwise, radial, azimuthal].
+    U_axial = _load_field("W")
+    V_radial = _load_field("U")
+    W_azimuthal = _load_field("V")
 
     return BaseFlow(
         Re=1.0e4,
@@ -321,9 +332,9 @@ def load_jet(mesh) -> BaseFlow:
         kappa=1.4,
         T_0=288.15,
         RHO=RHO,
-        U=U,
-        V=V,
-        W=W,
+        U=U_axial,
+        V=V_radial,
+        W=W_azimuthal,
         T=T,
     )
 

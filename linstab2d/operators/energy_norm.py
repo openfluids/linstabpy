@@ -71,7 +71,8 @@ def compute_chu_norm(
     if model.lower() == "axy":
         if R is None:
             raise ValueError("R is required when model='axy'")
-        W_int = np.asarray(W_int) * np.asarray(R)
+        R = np.asarray(R, dtype=float)
+        W_int = np.asarray(W_int) * np.maximum(R, 1e-14)
 
     Ma2 = Ma ** 2
 
