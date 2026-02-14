@@ -12,7 +12,7 @@ import scipy.sparse as sp
 
 
 # Border character -> idx dict key
-_BORDER_MAP: dict[str, str] = {"l": "li", "r": "ri", "b": "bi", "t": "ti"}
+_BORDER_MAP: dict[str, str] = {"l": "li", "r": "ri", "b": "bi", "t": "ti", "m": "mi"}
 
 # Variable character -> block index (0-based)
 _VARIABLE_MAP: dict[str, int] = {"r": 0, "u": 1, "v": 2, "w": 3, "T": 4}
@@ -37,12 +37,13 @@ def apply_dirichlet(
     L0 : sparse matrix, shape (5*ngp, 5*ngp)
         The LNSE operator.
     idx : dict
-        Boundary index dict with keys ``'bi'``, ``'ti'``, ``'li'``,
-        ``'ri'`` containing 0-based indices into the grid point array
-        (length ``ngp``).
+        Boundary index dict with keys ``'bi'``, ``'ti'``, ``'li'``, ``'ri'``,
+        and ``'mi'`` (mask boundary), containing 0-based indices into the
+        grid point array (length ``ngp``).
     borders : str
-        Which borders to apply BCs on.  Characters from ``'lrbt'``:
-        ``l`` = left, ``r`` = right, ``b`` = bottom, ``t`` = top.
+        Which borders to apply BCs on.  Characters from ``'lrbtm'``:
+        ``l`` = left, ``r`` = right, ``b`` = bottom, ``t`` = top,
+        ``m`` = mask/inner boundary.
     variables : str
         Which variables to apply BCs for.  Characters from ``'ruvwT'``:
         ``r`` = rho, ``u`` = u, ``v`` = v, ``w`` = w, ``T`` = T.
@@ -73,7 +74,7 @@ def apply_dirichlet(
         border_key = _BORDER_MAP.get(b)
         if border_key is None:
             raise ValueError(
-                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't'"
+                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't', 'm'"
             )
         grid_pts = idx[border_key]
 
@@ -124,7 +125,7 @@ def _collect_dirichlet_indices(
         border_key = _BORDER_MAP.get(b)
         if border_key is None:
             raise ValueError(
-                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't'"
+                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't', 'm'"
             )
         grid_pts = idx[border_key]
 

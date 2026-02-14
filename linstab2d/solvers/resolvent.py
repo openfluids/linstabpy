@@ -33,11 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 def _log_solver_backend() -> None:
-    """Log whether scikit-umfpack is available.
+    """Log solver-backend intent and availability.
 
-    The runtime plan expects SciPy's LU factorization to fall back to UMFPACK
-    when scikit-umfpack is installed. We keep this as a defensive check and
-    continue with whatever backend is available at runtime.
+    Default behavior is to use SciPy's built-in SuperLU path (via ``spla.splu``),
+    with UMFPACK retained as an optional drop-in path when ``scikit-umfpack`` is
+    available. Keep this as a runtime contract: robust default first, optional
+    performance path available for future benchmarking.
     """
 
     try:
@@ -45,8 +46,11 @@ def _log_solver_backend() -> None:
     except Exception:
         logger.info("scikit-umfpack not detected; SciPy LU backend will be used")
     else:
-        logger.info("scikit-umfpack detected (%s); LU factorization may use UMFPACK",
-                    getattr(sksparse, "__version__", "installed"))
+        logger.info(
+            "scikit-umfpack detected (%s); SciPy may route LU to UMFPACK; "
+            "SuperLU remains default unless explicitly toggled by SciPy runtime path.",
+            getattr(sksparse, "__version__", "installed"),
+        )
 
 
 def resolvent_analysis(

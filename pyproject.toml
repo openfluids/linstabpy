@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools >= 68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linstab2d"
+version = "0.1.0"
+description = "Stability and resolvent analysis of compressible viscous flows"
+requires-python = ">= 3.10"
+license = "GPL-3.0-or-later"
+authors = [
+    { name = "Ricardo Frantz" },
+]
+dependencies = [
+    "numpy >= 1.23",
+    "scipy >= 1.10",
+    "matplotlib >= 3.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov"]
+fast = ["scikit-umfpack"]
+
+[project.urls]
+Repository = "https://github.com/ricardofrantz/LinStab2D.py"
+
+[tool.setuptools]
+packages = ["linstab2d"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: tests taking > 30s (deselect with -m 'not slow')"]
