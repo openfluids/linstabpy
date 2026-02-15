@@ -92,14 +92,25 @@ def _eigs_near_target(
     )
 
     logger.info("  eigs with shift-invert sigma = %.6g%+.6gj ...", np.real(target), np.imag(target))
-    eigenvalues, eigenvectors = spla.eigs(
-        operator,
-        k=n_modes,
-        which="LM",
-        sigma=target,
-        OPinv=op_inv,
-        tol=np.finfo(float).eps,
-    )
+    try:
+        eigenvalues, eigenvectors = spla.eigs(
+            operator,
+            k=n_modes,
+            which="LM",
+            sigma=target,
+            OPinv=op_inv,
+            tol=np.finfo(float).eps,
+        )
+    except spla.ArpackNoConvergence as e:
+        logger.warning(
+            "ARPACK did not fully converge (%d/%d eigenvectors); "
+            "returning partial result",
+            e.eigenvalues.size, n_modes,
+        )
+        if e.eigenvalues.size == 0:
+            raise
+        eigenvalues = e.eigenvalues
+        eigenvectors = e.eigenvectors
     return eigenvalues, eigenvectors
 
 

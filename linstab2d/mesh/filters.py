@@ -341,15 +341,27 @@ def build_mesh_filters(
 
     def filter_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        filtered = lu_Mx.solve(Fx_Fz @ arr)
-        filtered = lu_Mz.solve(filtered)
+        if np.iscomplexobj(arr):
+            # Real filter applied to complex data — split real/imaginary
+            re = lu_Mz.solve(lu_Mx.solve(Fx_Fz @ arr.real))
+            im = lu_Mz.solve(lu_Mx.solve(Fx_Fz @ arr.imag))
+            filtered = re + 1j * im
+        else:
+            filtered = lu_Mx.solve(Fx_Fz @ arr)
+            filtered = lu_Mz.solve(filtered)
         return _from_columns(filtered, scalar_input)
 
     def filter_ct_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        adj = lu_Mz.solve(arr, trans="H")
-        adj = lu_Mx.solve(adj, trans="H")
-        adj = Fz_Fx_T @ adj
+        if np.iscomplexobj(arr):
+            # Real adjoint filter applied to complex data
+            re = Fz_Fx_T @ lu_Mx.solve(lu_Mz.solve(arr.real, trans="T"), trans="T")
+            im = Fz_Fx_T @ lu_Mx.solve(lu_Mz.solve(arr.imag, trans="T"), trans="T")
+            adj = re + 1j * im
+        else:
+            adj = lu_Mz.solve(arr, trans="H")
+            adj = lu_Mx.solve(adj, trans="H")
+            adj = Fz_Fx_T @ adj
         return _from_columns(adj, scalar_input)
 
     return MeshFilters(filter=filter_fn, filter_ct=filter_ct_fn)
@@ -408,7 +420,14 @@ def _build_2d_filter_pair(
 
 
 def _is_no_filter(alpha_filter: float | str) -> bool:
-    """Whether the requested filter is disabled."""
+    """Whether the requested filter is disabled.
+
+    Only the string ``'none'`` (or empty string) disables filtering.
+    Numeric ``0.0`` is a *valid* filter strength (maximum-strength explicit
+    10th-order filter, M = I) — this matches the MATLAB convention where
+    ``alpha_filter = 0`` produces real filter matrices and the no-filter
+    sentinel is the string ``'none'``.
+    """
     if isinstance(alpha_filter, str):
         return alpha_filter.lower() == "none" or alpha_filter == ""
-    return bool(alpha_filter == 0.0)
+    return False

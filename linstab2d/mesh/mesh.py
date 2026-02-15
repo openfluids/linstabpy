@@ -110,7 +110,7 @@ class Mesh:
     W_asymm: np.ndarray | None
     idx: dict
     sponge: np.ndarray | None = None
-    alpha_filter: float | str = 0.0
+    alpha_filter: float | str = "none"
     filters: MeshFilters | None = None
 
     # ------------------------------------------------------------------
@@ -127,7 +127,7 @@ class Mesh:
         fd_order: int,
         y_symmetry: bool = False,
         x_periodicity: bool = False,
-        alpha_filter: float | str = 0.0,
+        alpha_filter: float | str = "none",
     ) -> Mesh:
         """Build a uniform rectangular mesh with SBP operators.
 
@@ -269,7 +269,14 @@ class Mesh:
     ) -> Mesh:
         """Return a new mesh deformed to the given physical coordinates.
 
-        Phase 2 supports full 2-D deformation via the full Jacobian update.
+        Matches MATLAB ``DeformMesh.m`` exactly with three branches:
+
+        - **X-only** (``X_new`` given, ``Y_new`` is None): 1-D chain rule
+          on the x-derivative operators only.
+        - **Y-only** (``Y_new`` given, ``X_new`` is None): 1-D chain rule
+          on the y-derivative operators only.
+        - **Full 2-D** (both given): full Jacobian transformation of all
+          derivative operators.
 
         Parameters
         ----------
@@ -283,107 +290,46 @@ class Mesh:
         Mesh
             A new ``Mesh`` with updated coordinates, operators, and weights.
         """
-        if Y_new is None:
-            Y_new = self.Y
-        if X_new is None:
-            X_new = self.X
-        if Y_new.shape != self.Y.shape or X_new.shape != self.X.shape:
-            raise ValueError("Y_new and X_new must have the same shape as X, Y")
+        if Y_new is None and X_new is None:
+            return self
 
-        # Flat arrays in the active index space
+        x_only = X_new is not None and Y_new is None
+        y_only = Y_new is not None and X_new is None
+
+        if X_new is not None and X_new.shape != self.X.shape:
+            raise ValueError("X_new must have the same shape as X")
+        if Y_new is not None and Y_new.shape != self.Y.shape:
+            raise ValueError("Y_new must have the same shape as Y")
+
+        X_out = X_new if X_new is not None else self.X
+        Y_out = Y_new if Y_new is not None else self.Y
+
         p = self.used_ind
-        x = X_new.ravel(order="F")[p]
-        y = Y_new.ravel(order="F")[p]
-
         Dx = self.Dx
         D2x = self.D2x
         Dy = self.Dy
         D2y = self.D2y
 
-        # Jacobian of the mapping from computational to physical space
-        J11 = Dx @ x
-        J12 = Dy @ x
-        J21 = Dx @ y
-        J22 = Dy @ y
-        detJ = J11 * J22 - J12 * J21
-        if np.any(np.abs(detJ) < 1e-15):
-            raise ValueError("Degenerate mapping: Jacobian determinant is near zero")
+        if x_only:
+            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                self._deform_x_only(X_new, p)
+        elif y_only:
+            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                self._deform_y_only(Y_new, p)
+        else:
+            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                self._deform_full_2d(X_new, Y_new, p)
 
-        inv_det = 1.0 / detJ
-        Ji11 = J22 * inv_det
-        Ji12 = -J12 * inv_det
-        Ji21 = -J21 * inv_det
-        Ji22 = J11 * inv_det
-
-        # Optional derivative blocks for y-symmetric operators
-        Dy_symm = self.Dy_symm
-        D2y_symm = self.D2y_symm
-        Dy_asymm = self.Dy_asymm
-        D2y_asymm = self.D2y_asymm
-
-        Dx_new = _axm_diag(Ji11, Dx) + _axm_diag(Ji12, Dy)
-        Dy_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, Dy)
-
-        Dxy = Dx @ Dy
-        Dyx = Dy @ Dx
-        D2x_new, Dxy_new, Dyx_new, D2y_new = _transform_second_derivatives(
-            Ji11,
-            Ji12,
-            Ji21,
-            Ji22,
-            D2x,
-            D2y,
-            Dxy,
-            Dyx,
-            Dx,
-            Dy,
-            x,
-            y,
-        )
-
-        Dxy_symm_new = None
-        Dyx_symm_new = None
-        Dxy_asymm_new = None
-        Dyx_asymm_new = None
-        D2y_symm_new = None
-        D2y_asymm_new = None
-        if self.y_symmetry and Dy_symm is not None and D2y_symm is not None:
-            Dy_symm_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, Dy_symm)
-            Dy_asymm_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, Dy_asymm)
-
-            _, Dxy_symm_new, Dyx_symm_new, D2y_symm_new = _transform_second_derivatives(
-                Ji11,
-                Ji12,
-                Ji21,
-                Ji22,
-                D2x,
-                D2y_symm,
-                self.Dxy_symm,
-                self.Dyx_symm,
-                Dx,
-                Dy_symm,
-                x,
-                y,
-            )
-            _, Dxy_asymm_new, Dyx_asymm_new, D2y_asymm_new = _transform_second_derivatives(
-                Ji11,
-                Ji12,
-                Ji21,
-                Ji22,
-                D2x,
-                D2y_asymm,
-                self.Dxy_asymm,
-                self.Dyx_asymm,
-                Dx,
-                Dy_asymm,
-                x,
-                y,
-            )
-
-        # Weights multiply by |detJ| for mapped coordinates.
+        # Update integration weights: W_new = W * |det|
         W_new = self.W.copy()
         w_flat = W_new.ravel(order="F")
-        w_flat[p] *= np.abs(detJ)
+        w_flat[p] *= np.abs(det)
         W_new = w_flat.reshape(W_new.shape, order="F")
 
         W_symm_new = None
@@ -391,28 +337,28 @@ class Mesh:
         if self.W_symm is not None:
             W_symm_new = self.W_symm.copy()
             w_flat = W_symm_new.ravel(order="F")
-            w_flat[p] *= np.abs(detJ)
+            w_flat[p] *= np.abs(det)
             W_symm_new = w_flat.reshape(W_symm_new.shape, order="F")
 
         if self.W_asymm is not None:
             W_asymm_new = self.W_asymm.copy()
             w_flat = W_asymm_new.ravel(order="F")
-            w_flat[p] *= np.abs(detJ)
+            w_flat[p] *= np.abs(det)
             W_asymm_new = w_flat.reshape(W_asymm_new.shape, order="F")
 
         idx_new = _build_indices(
-            X_new,
-            Y_new,
+            X_out,
+            Y_out,
             self.used_ind,
             x_periodicity=self.x_periodicity,
             y_symmetry=self.y_symmetry,
             mask=np.ones_like(self.X, dtype=bool),
         )
-        filters_new = build_mesh_filters(X_new, Y_new, self.used_ind, self.alpha_filter)
+        filters_new = build_mesh_filters(X_out, Y_out, self.used_ind, self.alpha_filter)
 
         return Mesh(
-            X=X_new.copy(),
-            Y=Y_new.copy(),
+            X=X_out.copy(),
+            Y=Y_out.copy(),
             ngp=self.used_ind.size,
             used_ind=self.used_ind.copy(),
             y_symmetry=self.y_symmetry,
@@ -439,6 +385,151 @@ class Mesh:
             alpha_filter=self.alpha_filter,
             filters=filters_new,
         )
+
+    def _deform_x_only(self, X_new, p):
+        """1-D chain-rule deformation in x (MATLAB DeformMesh branch 1)."""
+        x = X_new.ravel(order="F")[p]
+        Dx = self.Dx
+        D2x = self.D2x
+        Dy = self.Dy
+
+        x2p = Dx @ x          # dx_new / dx_comp
+        x2pp = D2x @ x        # d²x_new / dx_comp²
+
+        inv_x2p = 1.0 / x2p
+        Dx_new = _axm_diag(inv_x2p, Dx)
+        D2x_new = _axm_diag(inv_x2p ** 2, D2x) - _axm_diag(x2pp * inv_x2p ** 3, Dx)
+        Dy_new = Dy
+        D2y_new = self.D2y
+        Dxy_new = Dx_new @ Dy
+        Dyx_new = Dy @ Dx_new
+        det = x2p
+
+        # y-symmetry variants: Dy unchanged, mixed derivatives use Dx_new
+        Dy_symm_new = self.Dy_symm
+        D2y_symm_new = self.D2y_symm
+        Dy_asymm_new = self.Dy_asymm
+        D2y_asymm_new = self.D2y_asymm
+        Dxy_symm_new = Dx_new @ self.Dxy_symm.T.T if self.Dy_symm is not None else None
+        Dyx_symm_new = None
+        Dxy_asymm_new = None
+        Dyx_asymm_new = None
+
+        if self.y_symmetry and self.Dy_symm is not None:
+            Dxy_symm_new = Dx_new @ self.Dy_symm
+            Dyx_symm_new = self.Dy_symm @ Dx_new
+            Dxy_asymm_new = Dx_new @ self.Dy_asymm
+            Dyx_asymm_new = self.Dy_asymm @ Dx_new
+
+        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
+
+    def _deform_y_only(self, Y_new, p):
+        """1-D chain-rule deformation in y (MATLAB DeformMesh branch 2)."""
+        y = Y_new.ravel(order="F")[p]
+        Dx = self.Dx
+        Dy = self.Dy
+        D2y = self.D2y
+
+        y2p = Dy @ y           # dy_new / dy_comp
+        y2pp = D2y @ y         # d²y_new / dy_comp²
+
+        inv_y2p = 1.0 / y2p
+        Dx_new = Dx
+        D2x_new = self.D2x
+        Dy_new = _axm_diag(inv_y2p, Dy)
+        D2y_new = _axm_diag(inv_y2p ** 2, D2y) - _axm_diag(y2pp * inv_y2p ** 3, Dy)
+        Dxy_new = Dx @ Dy_new
+        Dyx_new = Dy_new @ Dx
+        det = y2p
+
+        # y-symmetry variants
+        Dy_symm_new = None
+        D2y_symm_new = None
+        Dy_asymm_new = None
+        D2y_asymm_new = None
+        Dxy_symm_new = None
+        Dyx_symm_new = None
+        Dxy_asymm_new = None
+        Dyx_asymm_new = None
+
+        if self.y_symmetry and self.Dy_symm is not None:
+            Dy_symm_new = _axm_diag(inv_y2p, self.Dy_symm)
+            D2y_symm_new = (_axm_diag(inv_y2p ** 2, self.D2y_symm)
+                            - _axm_diag(y2pp * inv_y2p ** 3, self.Dy_symm))
+            Dy_asymm_new = _axm_diag(inv_y2p, self.Dy_asymm)
+            D2y_asymm_new = (_axm_diag(inv_y2p ** 2, self.D2y_asymm)
+                             - _axm_diag(y2pp * inv_y2p ** 3, self.Dy_asymm))
+            Dxy_symm_new = Dx @ Dy_symm_new
+            Dyx_symm_new = Dy_symm_new @ Dx
+            Dxy_asymm_new = Dx @ Dy_asymm_new
+            Dyx_asymm_new = Dy_asymm_new @ Dx
+
+        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
+
+    def _deform_full_2d(self, X_new, Y_new, p):
+        """Full 2-D Jacobian deformation (MATLAB DeformMesh branch 3)."""
+        x = X_new.ravel(order="F")[p]
+        y = Y_new.ravel(order="F")[p]
+
+        Dx = self.Dx
+        D2x = self.D2x
+        Dy = self.Dy
+        D2y = self.D2y
+
+        J11 = Dx @ x
+        J12 = Dy @ x
+        J21 = Dx @ y
+        J22 = Dy @ y
+        detJ = J11 * J22 - J12 * J21
+        if np.any(np.abs(detJ) < 1e-15):
+            raise ValueError("Degenerate mapping: Jacobian determinant is near zero")
+
+        inv_det = 1.0 / detJ
+        Ji11 = J22 * inv_det
+        Ji12 = -J12 * inv_det
+        Ji21 = -J21 * inv_det
+        Ji22 = J11 * inv_det
+
+        Dx_new = _axm_diag(Ji11, Dx) + _axm_diag(Ji12, Dy)
+        Dy_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, Dy)
+
+        Dxy = Dx @ Dy
+        Dyx = Dy @ Dx
+        D2x_new, Dxy_new, Dyx_new, D2y_new = _transform_second_derivatives(
+            Ji11, Ji12, Ji21, Ji22, D2x, D2y, Dxy, Dyx, Dx, Dy, x, y,
+        )
+
+        Dy_symm_new = None
+        D2y_symm_new = None
+        Dy_asymm_new = None
+        D2y_asymm_new = None
+        Dxy_symm_new = None
+        Dyx_symm_new = None
+        Dxy_asymm_new = None
+        Dyx_asymm_new = None
+
+        if self.y_symmetry and self.Dy_symm is not None and self.D2y_symm is not None:
+            Dy_symm_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, self.Dy_symm)
+            Dy_asymm_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, self.Dy_asymm)
+
+            _, Dxy_symm_new, Dyx_symm_new, D2y_symm_new = _transform_second_derivatives(
+                Ji11, Ji12, Ji21, Ji22, D2x, self.D2y_symm,
+                self.Dxy_symm, self.Dyx_symm, Dx, self.Dy_symm, x, y,
+            )
+            _, Dxy_asymm_new, Dyx_asymm_new, D2y_asymm_new = _transform_second_derivatives(
+                Ji11, Ji12, Ji21, Ji22, D2x, self.D2y_asymm,
+                self.Dxy_asymm, self.Dyx_asymm, Dx, self.Dy_asymm, x, y,
+            )
+
+        det = detJ
+
+        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
+                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
 
     def mask(self, mask_array: np.ndarray) -> Mesh:
         """Return a new mesh masked by a boolean keep-mask.
@@ -635,42 +726,40 @@ def _build_operators(
         Dy_asymm = None
         D2y_asymm = None
 
+    # Coordinates of used points (local indexing)
+    x_used = x_flat[used_ind]
+    y_used = y_flat[used_ind]
+
     periodic_period = None
     if x_periodicity and np.any(active_mask_1d):
         periodic_period = _build_periodic_1d_operators(nx, dx, fd_order)
 
     # --- X derivative matrices (loop over horizontal lines) -----------
-    for j in range(ny):
-        row_start = j * nx
-        row_slice = np.arange(row_start, row_start + nx)
-        active_row = row_slice[active_mask_1d[row_slice]]
-
-        if active_row.size == 0:
+    # Match MATLAB AddDW2mesh: iterate over unique y-values and collect
+    # all used points at each y-level, then build 1-D FD along x.
+    y_unique = np.sort(np.unique(y_used))
+    for yval in y_unique:
+        pos = np.where(y_used == yval)[0]
+        if pos.size == 0:
             continue
 
-        if x_periodicity and active_row.size == nx:
-            row_local = global_to_local[row_slice]
-            row_local = row_local[row_local >= 0]
-            if row_local.size == 0:
-                continue
-
+        if x_periodicity and pos.size == nx:
             D1_1d, D2_1d = periodic_period
-            Dx[np.ix_(row_local, row_local)] = D1_1d
-            D2x[np.ix_(row_local, row_local)] = D2_1d
-
-            w_full[row_slice] *= dx
+            Dx[np.ix_(pos, pos)] = D1_1d
+            D2x[np.ix_(pos, pos)] = D2_1d
+            w_full[used_ind[pos]] *= dx
             continue
 
-        # Non-periodic: split by gaps and build each segment independently.
-        order = np.argsort(x_flat[active_row])
-        dom = active_row[order]
-        x_line = x_flat[dom]
+        # Sort by x-coordinate and split by gaps.
+        order = np.argsort(x_used[pos])
+        pos = pos[order]
+        x_line = x_used[pos]
         dx_line = np.diff(x_line) / dx
         breaks = np.where(dx_line > 1.5)[0]
-        dom_bounds = np.concatenate(([0], breaks + 1, [dom.size]))
+        dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
 
         for i_seg in range(len(dom_bounds) - 1):
-            seg = dom[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
+            seg = pos[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
             n_seg = seg.size
             if n_seg < 3:
                 continue
@@ -681,34 +770,33 @@ def _build_operators(
 
             D1_1d, D2_1d = build_sbp_matrix(n_seg, dx, fd_ord)
 
-            seg_local = global_to_local[seg]
-            seg_local = seg_local[seg_local >= 0]
-            if seg_local.size < 2:
-                continue
-            idx = np.ix_(seg_local, seg_local)
+            idx = np.ix_(seg, seg)
             Dx[idx] = D1_1d
             D2x[idx] = D2_1d
 
-            w_full[seg] *= dx
-            w_full[seg[0]] *= 0.5
-            w_full[seg[-1]] *= 0.5
+            global_seg = used_ind[seg]
+            w_full[global_seg] *= dx
+            w_full[global_seg[0]] *= 0.5
+            w_full[global_seg[-1]] *= 0.5
 
     # --- Y derivative matrices (loop over vertical lines) -------------
-    for i in range(nx):
-        col = np.arange(i, full_n, nx)
-        active_col = col[active_mask_1d[col]]
-        if active_col.size == 0:
+    # Match MATLAB AddDW2mesh: iterate over unique x-values and collect
+    # all used points at each x-level, then build 1-D FD along y.
+    x_unique = np.sort(np.unique(x_used))
+    for xval in x_unique:
+        pos = np.where(x_used == xval)[0]
+        if pos.size == 0:
             continue
 
-        order = np.argsort(y_flat[active_col])
-        dom = active_col[order]
-        y_line = y_flat[dom]
+        order = np.argsort(y_used[pos])
+        pos = pos[order]
+        y_line = y_used[pos]
         dy_line = np.diff(y_line) / dy
         breaks = np.where(dy_line > 1.5)[0]
-        dom_bounds = np.concatenate(([0], breaks + 1, [dom.size]))
+        dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
 
         for i_seg in range(len(dom_bounds) - 1):
-            seg = dom[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
+            seg = pos[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
             n_seg = seg.size
             if n_seg < 3:
                 continue
@@ -730,12 +818,7 @@ def _build_operators(
                     fd_ord,
                 )
 
-            seg_local = global_to_local[seg]
-            seg_local = seg_local[seg_local >= 0]
-            if seg_local.size < 2:
-                continue
-
-            idx = np.ix_(seg_local, seg_local)
+            idx = np.ix_(seg, seg)
             Dy[idx] = D1_base
             D2y[idx] = D2_base
             if y_symmetry:
@@ -744,9 +827,10 @@ def _build_operators(
                 Dy_asymm[idx] = D1_asym if D1_asym is not None else D1_base
                 D2y_asymm[idx] = D2_asym if D2_asym is not None else D2_base
 
-            w_full[seg] *= dy
-            w_full[seg[0]] *= 0.5
-            w_full[seg[-1]] *= 0.5
+            global_seg = used_ind[seg]
+            w_full[global_seg] *= dy
+            w_full[global_seg[0]] *= 0.5
+            w_full[global_seg[-1]] *= 0.5
 
     Dx_g = Dx.tocsr()
     D2x_g = D2x.tocsr()
@@ -812,7 +896,12 @@ def _build_indices(
     y_symmetry: bool,
     mask: np.ndarray,
 ) -> dict:
-    """Build reduced index sets for boundaries and mask edges."""
+    """Build reduced index sets for boundaries and mask edges.
+
+    Indices are local (0-based into the ``used_ind`` array).  Boundary
+    detection uses a 2-D boolean mask that is flattened in Fortran order
+    to match the column-major convention used throughout the package.
+    """
     del y_symmetry
     if np.asarray(mask).shape != X.shape:
         raise ValueError("mask must match X and Y shape")
@@ -822,20 +911,38 @@ def _build_indices(
     global_to_local = np.full(full_n, -1, dtype=int)
     global_to_local[used_ind] = np.arange(used_ind.size)
 
-    def _to_local(ind_mask: np.ndarray) -> np.ndarray:
-        local = global_to_local[np.flatnonzero(ind_mask)]
-        local = local[local >= 0]
-        return np.asarray(local, dtype=int)
+    def _boundary_to_local(row_mask_2d: np.ndarray) -> np.ndarray:
+        """Convert a 2-D boolean boundary mask to local indices.
 
-    bi = _to_local(mask_2d[0, :])
-    ti = _to_local(mask_2d[-1, :])
+        ``row_mask_2d`` must have the same shape as ``X``; True entries
+        mark the boundary points.  The mask is flattened in Fortran order
+        to obtain global flat indices, which are then mapped to local
+        indices via ``global_to_local``.
+        """
+        global_idx = np.flatnonzero(row_mask_2d.ravel(order="F"))
+        local = global_to_local[global_idx]
+        return local[local >= 0]
+
+    # Bottom row (row 0) and top row (row -1)
+    bi_mask = np.zeros_like(mask_2d)
+    bi_mask[0, :] = mask_2d[0, :]
+    bi = _boundary_to_local(bi_mask)
+
+    ti_mask = np.zeros_like(mask_2d)
+    ti_mask[-1, :] = mask_2d[-1, :]
+    ti = _boundary_to_local(ti_mask)
 
     if x_periodicity:
         li = np.array([], dtype=int)
         ri = np.array([], dtype=int)
     else:
-        li = _to_local(mask_2d[:, 0])
-        ri = _to_local(mask_2d[:, -1])
+        li_mask = np.zeros_like(mask_2d)
+        li_mask[:, 0] = mask_2d[:, 0]
+        li = _boundary_to_local(li_mask)
+
+        ri_mask = np.zeros_like(mask_2d)
+        ri_mask[:, -1] = mask_2d[:, -1]
+        ri = _boundary_to_local(ri_mask)
 
     neigh = np.zeros_like(mask_2d, dtype=int)
     neigh[1:, :] += mask_2d[:-1, :].astype(int)
@@ -851,7 +958,7 @@ def _build_indices(
         neigh[:, :-1] += mask_2d[:, 1:].astype(int)
 
     mi_mask = mask_2d & (neigh < 4)
-    mi = _to_local(mi_mask)
+    mi = _boundary_to_local(mi_mask)
 
     return {"bi": bi, "ti": ti, "li": li, "ri": ri, "mi": mi}
 
