@@ -5,25 +5,19 @@ deformation, masking, pole stencils, and periodic operators.
 
 Notes on the 2-D operator layout
 ---------------------------------
-The 2-D operator assembly in ``_build_operators`` uses a flat-index loop
-``for j in range(ny): row_start = j * nx`` with column-major (Fortran-order)
-flattening.  When ``nx == ny`` these slices coincide with columns in column-
-major layout, so the operators are well-defined.  For ``nx != ny`` the flat
-slices span mixed grid lines and the operators produce incorrect results.
+The 2-D operator assembly in ``_build_operators`` iterates over unique
+coordinate values to build 1-D SBP operators along each grid line
+(matching MATLAB ``AddDW2mesh.m``).  Data is flattened in column-major
+(Fortran) order to match MATLAB indexing.  The operators satisfy the
+standard convention:
 
-On a square mesh with domain [0, L]^2 and ``nx == ny``, the 2-D operators
-obey:
-    - ``Dx @ x_flat = 0``  (Dx does NOT differentiate along x)
-    - ``Dx @ y_flat = -1``  (Dx differentiates along y with negative sign)
-    - ``Dy @ y_flat = 0``  (Dy does NOT differentiate along y)
-    - ``Dy @ x_flat = -1``  (Dy differentiates along x with negative sign)
+    - ``Dx @ x_flat = 1``  (Dx differentiates along x)
+    - ``Dx @ y_flat = 0``  (Dx does not differentiate along y)
+    - ``Dy @ y_flat = 1``  (Dy differentiates along y)
+    - ``Dy @ x_flat = 0``  (Dy does not differentiate along x)
 
-The sign flip comes from the SBP minus-boundary convention in ``build_sbp_matrix``
-(rows at j < r use ``+a_b1``, rows at j > n-r use ``-a_b1``).
-
-Accordingly, 2-D operator-accuracy tests use square grids (``nx == ny``),
-while structural tests (shapes, boundary indices, sparsity) can use any
-conftest fixture.
+This works for both square (``nx == ny``) and rectangular (``nx != ny``)
+grids.
 
 Pole-condition operators (``build_sbp_pole_matrices``) only work for
 **order 2**; higher orders raise a broadcasting error in the Mohseni
@@ -394,6 +388,40 @@ class TestMeshCreation:
         for key in ("bi", "ti", "li", "ri"):
             assert key in mesh.idx, f"Missing boundary index '{key}'"
 
+    def test_boundary_indices_correct_coordinates(self, small_mesh_2d):
+        """Boundary indices map to correct physical coordinates (F-order)."""
+        mesh = small_mesh_2d  # nx=20, ny=30 (rectangular!)
+        p = mesh.used_ind
+        x = mesh.X.ravel(order="F")[p]
+        y = mesh.Y.ravel(order="F")[p]
+
+        x_min, x_max = x.min(), x.max()
+        y_min, y_max = y.min(), y.max()
+
+        # Bottom: all y = y_min
+        bi = mesh.idx["bi"]
+        assert len(bi) == 20  # nx points
+        np.testing.assert_allclose(y[bi], y_min, atol=1e-14)
+
+        # Top: all y = y_max
+        ti = mesh.idx["ti"]
+        assert len(ti) == 20
+        np.testing.assert_allclose(y[ti], y_max, atol=1e-14)
+
+        # Left: all x = x_min
+        li = mesh.idx["li"]
+        assert len(li) == 30  # ny points
+        np.testing.assert_allclose(x[li], x_min, atol=1e-14)
+
+        # Right: all x = x_max
+        ri = mesh.idx["ri"]
+        assert len(ri) == 30
+        np.testing.assert_allclose(x[ri], x_max, atol=1e-14)
+
+        # No overlap between opposite boundaries
+        assert len(np.intersect1d(bi, ti)) == 0
+        assert len(np.intersect1d(li, ri)) == 0
+
     def test_periodic_boundary_indices_empty(self, small_mesh_periodic):
         mesh = small_mesh_periodic
         assert len(mesh.idx["li"]) == 0
@@ -463,49 +491,49 @@ class TestMeshCreation:
 class Test2DOperatorAccuracy:
     """Verify 2-D derivative accuracy on square meshes (nx == ny).
 
-    Convention (matching MATLAB internal CS):
-        Dx ~ -d/dy   (differentiates along the first array axis)
-        Dy ~ -d/dx   (differentiates along the second array axis)
+    Convention (matching MATLAB AddDW2mesh):
+        Dx = d/dx   (differentiates along columns / streamwise)
+        Dy = d/dy   (differentiates along rows / wall-normal)
     """
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
-    def test_dx_differentiates_y(self, order):
-        """Dx @ y = -1 at deep-interior points on [0,1]^2."""
-        n = max(30, 2 * min_points(order))
-        mesh = _square_mesh(n=n, fd_order=order)
-        Y_flat = mesh.Y.ravel(order="F")
-        result = mesh.Dx @ Y_flat
-        cw = min_points(order)
-        interior = _deep_interior(n, cw)
-        np.testing.assert_allclose(result[interior], -1.0, atol=1e-10)
-
-    @pytest.mark.parametrize("order", [2, 4, 6, 8])
-    def test_dy_differentiates_x(self, order):
-        """Dy @ x = -1 at deep-interior points on [0,1]^2."""
-        n = max(30, 2 * min_points(order))
-        mesh = _square_mesh(n=n, fd_order=order)
-        X_flat = mesh.X.ravel(order="F")
-        result = mesh.Dy @ X_flat
-        cw = min_points(order)
-        interior = _deep_interior(n, cw)
-        np.testing.assert_allclose(result[interior], -1.0, atol=1e-10)
-
-    @pytest.mark.parametrize("order", [2, 4, 6, 8])
-    def test_dx_zeros_on_x(self, order):
-        """Dx @ x = 0 (Dx does not differentiate along x-direction)."""
+    def test_dx_differentiates_x(self, order):
+        """Dx @ x = 1 at deep-interior points on [0,1]^2."""
         n = max(30, 2 * min_points(order))
         mesh = _square_mesh(n=n, fd_order=order)
         X_flat = mesh.X.ravel(order="F")
         result = mesh.Dx @ X_flat
-        np.testing.assert_allclose(result, 0.0, atol=1e-12)
+        cw = min_points(order)
+        interior = _deep_interior(n, cw)
+        np.testing.assert_allclose(result[interior], 1.0, atol=1e-10)
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
-    def test_dy_zeros_on_y(self, order):
-        """Dy @ y = 0 (Dy does not differentiate along y-direction)."""
+    def test_dy_differentiates_y(self, order):
+        """Dy @ y = 1 at deep-interior points on [0,1]^2."""
         n = max(30, 2 * min_points(order))
         mesh = _square_mesh(n=n, fd_order=order)
         Y_flat = mesh.Y.ravel(order="F")
         result = mesh.Dy @ Y_flat
+        cw = min_points(order)
+        interior = _deep_interior(n, cw)
+        np.testing.assert_allclose(result[interior], 1.0, atol=1e-10)
+
+    @pytest.mark.parametrize("order", [2, 4, 6, 8])
+    def test_dx_zeros_on_y(self, order):
+        """Dx @ y = 0 (Dx does not differentiate along y-direction)."""
+        n = max(30, 2 * min_points(order))
+        mesh = _square_mesh(n=n, fd_order=order)
+        Y_flat = mesh.Y.ravel(order="F")
+        result = mesh.Dx @ Y_flat
+        np.testing.assert_allclose(result, 0.0, atol=1e-12)
+
+    @pytest.mark.parametrize("order", [2, 4, 6, 8])
+    def test_dy_zeros_on_x(self, order):
+        """Dy @ x = 0 (Dy does not differentiate along x-direction)."""
+        n = max(30, 2 * min_points(order))
+        mesh = _square_mesh(n=n, fd_order=order)
+        X_flat = mesh.X.ravel(order="F")
+        result = mesh.Dy @ X_flat
         np.testing.assert_allclose(result, 0.0, atol=1e-12)
 
 
@@ -542,9 +570,8 @@ class TestSchwarzTheorem:
 class TestMeshDeformation:
     """Verify mesh deformation structural properties.
 
-    Identity deformation does NOT preserve operator values because the
-    Jacobian computed with the swapped/negated Dx/Dy operators produces
-    a non-trivial transformation.  We test structural properties instead.
+    Tests focus on structural properties (shapes, sparsity) and derivative
+    accuracy after deformation.
     """
 
     def test_deformation_preserves_grid_shapes(self, small_mesh_2d):

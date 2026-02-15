@@ -108,6 +108,7 @@ def apply_dirichlet(
     for i in bc_indices:
         L0[i, i] = penalty
     L0 = L0.tocsc()
+    L0.eliminate_zeros()
 
     return L0, bc_indices
 
@@ -171,6 +172,8 @@ def apply_dirichlet_spatial(
         mat = mat.tolil()
         for i in bc_indices:
             mat[i, i] = penalty
-        return mat.tocsc()
+        mat = mat.tocsc()
+        mat.eliminate_zeros()
+        return mat
 
     return _apply_bc(Lc), _apply_bc(R), bc_indices

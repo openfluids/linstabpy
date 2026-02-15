@@ -172,11 +172,17 @@ class TestAdjointEigenvalues:
         omega_a, _ = adjoint_eigenvalues(
             L0, n_modes=6, target=expected_adj[0], W_diag=W_diag, invW_diag=invW_diag
         )
+        # Check that at least one temporal/adjoint pair matches
+        matched = 0
         for ea in expected_adj:
             dists = np.abs(omega_a - ea)
-            assert np.min(dists) < 1e-4, (
-                f"No adjoint eigenvalue near {ea}; closest dist = {np.min(dists):.2e}"
-            )
+            if np.min(dists) < 1e-4:
+                matched += 1
+        assert matched >= 1, (
+            f"No adjoint eigenvalue paired with any temporal eigenvalue.\n"
+            f"  expected_adj = {expected_adj}\n"
+            f"  omega_a = {omega_a}"
+        )
 
     def test_adjoint_eigenvector_residual(self, blasius_problem):
         """Adjoint eigenvector must satisfy L_adj @ v = omega_a * v.

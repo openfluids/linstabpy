@@ -33,8 +33,12 @@ class TestFilterConstruction:
         result = mesh.filters.filter(ones)
         assert_allclose(result, ones, atol=1e-12)
 
-    def test_alpha_zero_gives_identity(self):
-        """alpha_filter=0 produces an identity filter."""
+    def test_alpha_zero_is_real_filter(self):
+        """alpha_filter=0 produces a real (non-identity) explicit filter.
+
+        MATLAB convention: alpha_filter=0 is the maximum-strength explicit
+        10th-order filter (M=I). Only 'none' gives identity.
+        """
         mesh = Mesh.create(
             xrange=(0, 2), yrange=(0, 1),
             nx=20, ny=30, fd_order=4, alpha_filter=0,
@@ -43,7 +47,11 @@ class TestFilterConstruction:
         ngp = mesh.X.size
         v = rng.standard_normal(ngp)
         result = mesh.filters.filter(v)
-        assert_allclose(result, v, atol=1e-14)
+        # NOT identity — the filter modifies the signal
+        assert not np.allclose(result, v, atol=1e-10)
+        # But preserves constants
+        ones = np.ones(ngp)
+        assert_allclose(mesh.filters.filter(ones), ones, atol=1e-12)
 
     def test_alpha_none_gives_identity(self):
         """alpha_filter='none' produces an identity filter."""

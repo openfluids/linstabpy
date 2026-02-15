@@ -60,12 +60,18 @@ def resolvent_analysis(
     W_diag: np.ndarray,
     B_mat: sp.spmatrix | None = None,
     C_mat: sp.spmatrix | None = None,
+    filter_fn: callable | None = None,
+    filter_ct_fn: callable | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute resolvent gains, optimal forcings, and optimal responses.
 
     Performs a resolvent analysis of the linear operator *L0* at angular
-    frequency *omega*.  The resolvent operator ``H = C inv(L0 - i omega I) B``
-    is characterised through the eigendecomposition of
+    frequency *omega*.  The resolvent operator is
+
+        H = FILTER( C inv(L0 - i omega I) B FILTER(v) )
+
+    and its singular value decomposition is obtained through the
+    eigendecomposition of
 
         inv(W) H^H W H
 
@@ -88,6 +94,12 @@ def resolvent_analysis(
         Input (forcing) matrix.  Defaults to the identity.
     C_mat : sparse matrix, shape (ndof, ndof), optional
         Output (observation) matrix.  Defaults to the identity.
+    filter_fn : callable, optional
+        Spatial filter applied before and after the resolvent operator.
+        Typically ``mesh.filters.filter``.  Defaults to identity.
+    filter_ct_fn : callable, optional
+        Adjoint-compliant spatial filter for the adjoint resolvent.
+        Typically ``mesh.filters.filter_ct``.  Defaults to identity.
 
     Returns
     -------
@@ -117,21 +129,31 @@ def resolvent_analysis(
 
     # ------------------------------------------------------------------
     # 3. Define forward (H) and adjoint (H^H) resolvent operators
+    #    MATLAB convention:
+    #        H(v)   = FILTER( C * R( B * FILTER(v) ) )
+    #        Htr(v) = FILTER_ct( B' * R_T( C' * FILTER_ct(v) ) )
     # ------------------------------------------------------------------
+    _filt = filter_fn if filter_fn is not None else (lambda v: v)
+    _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
+
     def _apply_H(v: np.ndarray) -> np.ndarray:
-        """Apply resolvent: H v = C inv(L_sigma) B v."""
-        w = B_mat @ v if B_mat is not None else v.copy()
+        """Apply resolvent: H v = FILTER(C inv(L_sigma) B FILTER(v))."""
+        w = _filt(v)
+        w = B_mat @ w if B_mat is not None else w
         w = lu.solve(w)
         if C_mat is not None:
             w = C_mat @ w
+        w = _filt(w)
         return w
 
     def _apply_H_adj(v: np.ndarray) -> np.ndarray:
-        """Apply adjoint resolvent: H^H v = B^H inv(L_sigma^H) C^H v."""
-        w = C_mat.conj().T @ v if C_mat is not None else v.copy()
+        """Apply adjoint resolvent: H^H v = FILTER_ct(B^H inv(L_sigma^H) C^H FILTER_ct(v))."""
+        w = _filt_ct(v)
+        w = C_mat.conj().T @ w if C_mat is not None else w
         w = lu.solve(w, trans="H")
         if B_mat is not None:
             w = B_mat.conj().T @ w
+        w = _filt_ct(w)
         return w
 
     # ------------------------------------------------------------------
