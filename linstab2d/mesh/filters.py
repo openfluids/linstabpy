@@ -12,7 +12,10 @@ from collections.abc import Callable
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
+
+from petsc4py import PETSc
+
+from ..solvers.petsc_utils import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
 
 
 @dataclass(frozen=True)
@@ -315,11 +318,11 @@ def build_mesh_filters(
     M_x, F_x = _build_2d_filter_pair(x_vec, y_vec, alpha_val)
     M_z, F_z = _build_2d_filter_pair(y_vec, x_vec, alpha_val)
 
-    lu_Mx = spla.splu(M_x.tocsc())
-    lu_Mz = spla.splu(M_z.tocsc())
+    solve_Mx, solve_Mx_T = _make_filter_ksp(M_x)
+    solve_Mz, solve_Mz_T = _make_filter_ksp(M_z)
 
     Fx_Fz = F_x @ F_z
-    Fz_Fx_T = (F_z.conj().T @ F_x.conj().T)
+    Fz_Fx_T = F_z.conj().T @ F_x.conj().T
 
     def _to_columns(v: np.ndarray) -> tuple[np.ndarray, bool]:
         arr = np.asarray(v)
@@ -341,30 +344,65 @@ def build_mesh_filters(
 
     def filter_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        if np.iscomplexobj(arr):
-            # Real filter applied to complex data — split real/imaginary
-            re = lu_Mz.solve(lu_Mx.solve(Fx_Fz @ arr.real))
-            im = lu_Mz.solve(lu_Mx.solve(Fx_Fz @ arr.imag))
-            filtered = re + 1j * im
-        else:
-            filtered = lu_Mx.solve(Fx_Fz @ arr)
-            filtered = lu_Mz.solve(filtered)
+        filtered = solve_Mz(solve_Mx(Fx_Fz @ arr))
+        if not np.iscomplexobj(v):
+            filtered = filtered.real
         return _from_columns(filtered, scalar_input)
 
     def filter_ct_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        if np.iscomplexobj(arr):
-            # Real adjoint filter applied to complex data
-            re = Fz_Fx_T @ lu_Mx.solve(lu_Mz.solve(arr.real, trans="T"), trans="T")
-            im = Fz_Fx_T @ lu_Mx.solve(lu_Mz.solve(arr.imag, trans="T"), trans="T")
-            adj = re + 1j * im
-        else:
-            adj = lu_Mz.solve(arr, trans="H")
-            adj = lu_Mx.solve(adj, trans="H")
-            adj = Fz_Fx_T @ adj
+        adj = Fz_Fx_T @ solve_Mx_T(solve_Mz_T(arr))
+        if not np.iscomplexobj(v):
+            adj = adj.real
         return _from_columns(adj, scalar_input)
 
     return MeshFilters(filter=filter_fn, filter_ct=filter_ct_fn)
+
+
+def _make_filter_ksp(
+    M_sp: sp.spmatrix,
+) -> tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray], np.ndarray]]:
+    """Factor a filter matrix using PETSc KSP with MUMPS LU.
+
+    Parameters
+    ----------
+    M_sp : sparse matrix
+        Tridiagonal implicit filter matrix (real-valued).
+
+    Returns
+    -------
+    solve : callable
+        Forward solve ``M x = rhs``, handles 2D arrays column-wise.
+    solve_transpose : callable
+        Transpose solve ``M^T x = rhs``, handles 2D arrays column-wise.
+    """
+    require_complex()
+    A = scipy_to_petsc(M_sp.tocsc())
+    ksp = PETSc.KSP().create()
+    ksp.setOperators(A)
+    ksp.setType(PETSc.KSP.Type.PREONLY)
+    pc = ksp.getPC()
+    pc.setType(PETSc.PC.Type.LU)
+    pc.setFactorSolverType("mumps")
+    ksp.setUp()
+
+    def _solve_columns(rhs: np.ndarray, transpose: bool = False) -> np.ndarray:
+        solve_fn = ksp.solveTranspose if transpose else ksp.solve
+        out = np.empty_like(rhs, dtype=complex)
+        for j in range(rhs.shape[1]):
+            b = petsc_vec(rhs[:, j])
+            x = b.duplicate()
+            solve_fn(b, x)
+            out[:, j] = vec_to_numpy(x)
+        return out
+
+    def solve(rhs: np.ndarray) -> np.ndarray:
+        return _solve_columns(rhs, transpose=False)
+
+    def solve_transpose(rhs: np.ndarray) -> np.ndarray:
+        return _solve_columns(rhs, transpose=True)
+
+    return solve, solve_transpose
 
 
 def _build_2d_filter_pair(
