@@ -89,8 +89,17 @@ def _interp_scattered_cubic(
     points = np.column_stack((np.asarray(Xpts, dtype=float).ravel(), np.asarray(Ypts, dtype=float).ravel()))
     values = np.asarray(field, dtype=float).ravel()
     query = np.column_stack((Xq.ravel(order="F"), Yq.ravel(order="F")))
-    out = griddata(points, values, query, method="cubic", fill_value=np.nan)
-    return out.reshape(Xq.shape, order="F")
+    flat = griddata(points, values, query, method="cubic", fill_value=np.nan).reshape(
+        Xq.shape, order="F"
+    )
+    if np.isnan(flat).any():
+        nearest = griddata(points, values, query, method="nearest", fill_value=np.nan).reshape(
+            Xq.shape, order="F"
+        )
+        flat = np.where(np.isnan(flat), nearest, flat)
+    if np.isnan(flat).any() or np.isinf(flat).any():
+        flat = np.nan_to_num(flat, nan=0.0, posinf=0.0, neginf=0.0)
+    return flat
 
 
 # ---------------------------------------------------------------------------

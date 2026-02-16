@@ -1,5 +1,5 @@
 """
-End-to-end integration tests for LinStab2D-py.
+End-to-end integration tests for linstab2d.
 
 All tests are marked @pytest.mark.slow since they assemble large operators
 and/or call iterative solvers.

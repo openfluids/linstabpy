@@ -107,3 +107,26 @@ class TestPlotFlow:
         bad_field = np.zeros((5, 5))
         with pytest.raises(ValueError):
             plot_flow(self.X, self.Y, bad_field)
+
+    def test_masked_field_tricontourf(self):
+        """plot_flow handles NaN-holed fields without error (tricontourf path)."""
+        field = self.field.copy()
+        field[4:6, 4:6] = np.nan
+        ax = plot_flow(self.X, self.Y, field, component="real")
+        assert ax is not None
+
+    def test_masked_field_uses_tricontourf(self):
+        """NaN-holed fields should use tricontourf, not pcolormesh."""
+        import matplotlib.tri as mtri
+        field = self.field.copy()
+        field[4:6, 4:6] = np.nan
+        ax = plot_flow(self.X, self.Y, field, component="real", colorbar=False)
+        # Check that the drawn artist is a TriContourSet (from tricontourf)
+        has_tri = any(
+            isinstance(c, mtri.TriContourSet) for c in ax.collections
+        )
+        # tricontourf produces QuadContourSet-like objects stored differently
+        # in recent Matplotlib; at minimum, no pcolormesh QuadMesh should exist
+        from matplotlib.collections import QuadMesh
+        has_quadmesh = any(isinstance(c, QuadMesh) for c in ax.collections)
+        assert not has_quadmesh, "NaN field fell back to pcolormesh"

@@ -346,13 +346,21 @@ class Mesh:
             w_flat[p] *= np.abs(det)
             W_asymm_new = w_flat.reshape(W_asymm_new.shape, order="F")
 
+        # Reconstruct the effective mask from used_ind so that internal
+        # mask boundaries (e.g. cavity walls) are preserved after deformation.
+        # On unmasked meshes used_ind = arange(ngp), so this is all-True.
+        # Note: build flat then reshape because ravel("F") on C-order is a copy.
+        eff_flat = np.zeros(self.X.size, dtype=bool)
+        eff_flat[self.used_ind] = True
+        effective_mask = eff_flat.reshape(self.X.shape, order="F")
+
         idx_new = _build_indices(
             X_out,
             Y_out,
             self.used_ind,
             x_periodicity=self.x_periodicity,
             y_symmetry=self.y_symmetry,
-            mask=np.ones_like(self.X, dtype=bool),
+            mask=effective_mask,
         )
         filters_new = build_mesh_filters(X_out, Y_out, self.used_ind, self.alpha_filter)
 
@@ -755,7 +763,7 @@ def _build_operators(
         pos = pos[order]
         x_line = x_used[pos]
         dx_line = np.diff(x_line) / dx
-        breaks = np.where(dx_line > 1.5)[0]
+        breaks = _line_breaks(dx_line)
         dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
 
         for i_seg in range(len(dom_bounds) - 1):
@@ -792,7 +800,7 @@ def _build_operators(
         pos = pos[order]
         y_line = y_used[pos]
         dy_line = np.diff(y_line) / dy
-        breaks = np.where(dy_line > 1.5)[0]
+        breaks = _line_breaks(dy_line)
         dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
 
         for i_seg in range(len(dom_bounds) - 1):
@@ -961,6 +969,19 @@ def _build_indices(
     mi = _boundary_to_local(mi_mask)
 
     return {"bi": bi, "ti": ti, "li": li, "ri": ri, "mi": mi}
+
+
+def _line_breaks(deltas: np.ndarray, *, min_gap_ratio: float = 3.0) -> np.ndarray:
+    """Return local-gap indices for segmenting 1-D derivative lines."""
+    if deltas.size == 0:
+        return np.array([], dtype=int)
+
+    scale = np.median(np.abs(deltas))
+    if not np.isfinite(scale) or scale <= 0.0:
+        return np.array([], dtype=int)
+
+    threshold = max(1.5, min_gap_ratio * scale)
+    return np.where(np.abs(deltas) > threshold)[0]
 
 
 def _build_periodic_1d_operators(

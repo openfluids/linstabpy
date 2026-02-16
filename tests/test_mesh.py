@@ -868,3 +868,78 @@ class TestPeriodicOperators:
         ones = np.ones(mesh.ngp)
         np.testing.assert_allclose(mesh.Dx @ ones, 0.0, atol=1e-12)
         np.testing.assert_allclose(mesh.Dy @ ones, 0.0, atol=1e-12)
+
+
+# ===================================================================
+# TestMaskThenDeform
+# ===================================================================
+class TestMaskThenDeform:
+    """Verify that mask boundary indices survive deformation.
+
+    Regression test: ``deform()`` formerly passed an all-True mask to
+    ``_build_indices``, silently dropping internal mask boundary points
+    (cavity walls) from ``idx["mi"]``.
+    """
+
+    @staticmethod
+    def _cavity_mesh():
+        """Create a 20x20 mesh with a 4x4 hole (cavity mask)."""
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=20, ny=20, fd_order=4,
+        )
+        keep = np.ones(mesh.X.shape, dtype=bool)
+        keep[8:12, 8:12] = False
+        return mesh.mask(keep)
+
+    def test_mi_present_after_mask(self):
+        """After mask(), mi should contain internal boundary points."""
+        masked = self._cavity_mesh()
+        assert len(masked.idx["mi"]) > 0, "mi empty after mask()"
+
+    def test_mi_survives_deform_y(self):
+        """After mask() + deform(Y), mi should still be non-empty."""
+        masked = self._cavity_mesh()
+        mi_before = masked.idx["mi"].copy()
+        Y_new = masked.Y * 1.1  # mild uniform stretch
+        deformed = masked.deform(Y_new=Y_new)
+        assert len(deformed.idx["mi"]) > 0, "mi lost after deform(Y)"
+        assert len(deformed.idx["mi"]) == len(mi_before), (
+            f"mi count changed: {len(mi_before)} -> {len(deformed.idx['mi'])}"
+        )
+
+    def test_mi_survives_deform_x(self):
+        """After mask() + deform(X), mi should still be non-empty."""
+        masked = self._cavity_mesh()
+        mi_before = masked.idx["mi"].copy()
+        X_new = masked.X * 1.1
+        deformed = masked.deform(X_new=X_new)
+        assert len(deformed.idx["mi"]) > 0, "mi lost after deform(X)"
+        assert len(deformed.idx["mi"]) == len(mi_before)
+
+    def test_mi_survives_deform_chain(self):
+        """After mask() + deform(Y) + deform(X), mi should persist."""
+        masked = self._cavity_mesh()
+        mi_before = masked.idx["mi"].copy()
+        Y_new = masked.Y * 1.1
+        X_new = masked.X * 1.05
+        deformed = masked.deform(Y_new=Y_new).deform(X_new=X_new)
+        assert len(deformed.idx["mi"]) > 0, "mi lost after chained deform"
+        assert len(deformed.idx["mi"]) == len(mi_before)
+
+    def test_mi_points_at_cavity_boundary(self):
+        """mi points should be adjacent to the masked-out cavity hole."""
+        masked = self._cavity_mesh()
+        p = masked.used_ind
+        x = masked.X.ravel(order="F")[p]
+        y = masked.Y.ravel(order="F")[p]
+        mi = masked.idx["mi"]
+        # Cavity hole is at rows/cols 8..11 on a [0,1] grid with 20 pts
+        # -> x in [x[8], x[11]], y in [y[8], y[11]]
+        x_mi = x[mi]
+        y_mi = y[mi]
+        # Some mi points must be near the cavity region
+        cavity_adjacent = (
+            (x_mi >= 0.3) & (x_mi <= 0.65)
+            & (y_mi >= 0.3) & (y_mi <= 0.65)
+        )
+        assert np.any(cavity_adjacent), "no mi points near cavity boundary"

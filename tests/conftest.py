@@ -1,4 +1,4 @@
-"""Shared fixtures for LinStab2D test suite."""
+"""Shared fixtures for linstab2d test suite."""
 
 from __future__ import annotations
 

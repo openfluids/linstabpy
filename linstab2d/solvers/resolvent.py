@@ -12,6 +12,10 @@ of the Hermitian positive-semi-definite operator
 
 whose eigenvalues are the squared resolvent gains.
 
+The factorisation of the shifted operator uses PETSc KSP with MUMPS (computed
+once, reused for both forward and adjoint solves).  The top-level eigenvalue
+problem is solved with SciPy ARPACK via :func:`scipy.sparse.linalg.eigs`.
+
 References
 ----------
 McKeon, B. J., & Sharma, A. S. (2010). A critical-layer framework for
@@ -29,28 +33,10 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
+from .linsolve import make_linear_solver
+from .petsc_utils import require_complex
+
 logger = logging.getLogger(__name__)
-
-
-def _log_solver_backend() -> None:
-    """Log solver-backend intent and availability.
-
-    Default behavior is to use SciPy's built-in SuperLU path (via ``spla.splu``),
-    with UMFPACK retained as an optional drop-in path when ``scikit-umfpack`` is
-    available. Keep this as a runtime contract: robust default first, optional
-    performance path available for future benchmarking.
-    """
-
-    try:
-        import sksparse  # type: ignore
-    except Exception:
-        logger.info("scikit-umfpack not detected; SciPy LU backend will be used")
-    else:
-        logger.info(
-            "scikit-umfpack detected (%s); SciPy may route LU to UMFPACK; "
-            "SuperLU remains default unless explicitly toggled by SciPy runtime path.",
-            getattr(sksparse, "__version__", "installed"),
-        )
 
 
 def resolvent_analysis(
@@ -75,9 +61,9 @@ def resolvent_analysis(
 
         inv(W) H^H W H
 
-    using :func:`scipy.sparse.linalg.eigs`.  An LU factorisation of the
-    shifted operator is computed once and reused for both the forward and
-    adjoint (conjugate-transpose) solves.
+    using ARPACK (largest magnitude).  A MUMPS factorisation of the shifted
+    operator is computed once and reused for both the forward and adjoint
+    (conjugate-transpose) solves.
 
     Parameters
     ----------
@@ -110,10 +96,10 @@ def resolvent_analysis(
     forcings : ndarray, shape (ndof, n_modes)
         Optimal forcing modes (columns), normalised in the *W*-inner product.
     """
+    require_complex()
     ndof = L0.shape[0]
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d",
                 omega, n_modes, ndof)
-    _log_solver_backend()
 
     # ------------------------------------------------------------------
     # 1. Form the shifted operator  L_sigma = L0 - i*omega*I
@@ -121,17 +107,14 @@ def resolvent_analysis(
     L_sigma = sp.csc_matrix(L0 - 1j * omega * sp.eye(ndof, format="csc"))
 
     # ------------------------------------------------------------------
-    # 2. LU factorisation (computed once, reused for forward and adjoint)
+    # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
     # ------------------------------------------------------------------
-    logger.info("  LU factorisation of L_sigma ...")
-    lu = spla.splu(L_sigma)
-    logger.info("  LU factorisation done.")
+    logger.info("  MUMPS factorisation of L_sigma ...")
+    lu = make_linear_solver(L_sigma)
+    logger.info("  MUMPS factorisation done.")
 
     # ------------------------------------------------------------------
     # 3. Define forward (H) and adjoint (H^H) resolvent operators
-    #    MATLAB convention:
-    #        H(v)   = FILTER( C * R( B * FILTER(v) ) )
-    #        Htr(v) = FILTER_ct( B' * R_T( C' * FILTER_ct(v) ) )
     # ------------------------------------------------------------------
     _filt = filter_fn if filter_fn is not None else (lambda v: v)
     _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
@@ -150,51 +133,44 @@ def resolvent_analysis(
         """Apply adjoint resolvent: H^H v = FILTER_ct(B^H inv(L_sigma^H) C^H FILTER_ct(v))."""
         w = _filt_ct(v)
         w = C_mat.conj().T @ w if C_mat is not None else w
-        w = lu.solve(w, trans="H")
+        w = lu.solve_transpose(w)
         if B_mat is not None:
             w = B_mat.conj().T @ w
         w = _filt_ct(w)
         return w
 
     # ------------------------------------------------------------------
-    # 4. Build the matvec for  inv(W) H^H W H
+    # 4. Build SciPy LinearOperator for inv(W) H^H W H
     # ------------------------------------------------------------------
     inv_W_diag = 1.0 / W_diag
 
     def _matvec_HtrWH(v: np.ndarray) -> np.ndarray:
         """Apply inv(W) @ H^H @ W @ H to vector *v*."""
         u = _apply_H(v)
-        u = W_diag * u             # W @ H v  (diagonal multiply)
+        u = W_diag * u
         u = _apply_H_adj(u)
-        u = inv_W_diag * u         # inv(W) @ (...)
+        u = inv_W_diag * u
         return u
 
-    A_op = spla.LinearOperator(
-        shape=(ndof, ndof),
-        matvec=_matvec_HtrWH,
-        dtype=complex,
-    )
+    A_op = spla.LinearOperator((ndof, ndof), matvec=_matvec_HtrWH, dtype=complex)
 
     # ------------------------------------------------------------------
-    # 5. Eigendecomposition (largest-magnitude eigenvalues)
+    # 5. ARPACK eigensolve (largest magnitude)
     # ------------------------------------------------------------------
-    logger.info("  Eigendecomposition via eigs (k=%d) ...", n_modes)
-    eigenvalues, eigenvectors = spla.eigs(
-        A_op,
-        k=n_modes,
-        which="LM",
-        tol=np.finfo(float).eps,
-    )
-    logger.info("  Eigendecomposition done.")
+    ncv = min(max(4 * n_modes, 20), ndof - 1)
+    logger.info("  ARPACK eigs on resolvent operator (nev=%d, ncv=%d) ...",
+                n_modes, ncv)
+    eigenvalues, V = spla.eigs(A_op, k=n_modes, which="LM", ncv=ncv, tol=1e-12)
+    logger.info("  ARPACK eigs done.")
 
-    # Eigenvalues of H^H W H should be real and positive; small imaginary
-    # parts are numerical artefacts.
+    # Eigenvalues of inv(W) H^H W H should be real and positive; small
+    # imaginary parts are numerical artefacts.
     sigma_sq = np.real(eigenvalues)
 
     # Sort in descending order of gain
     order = np.argsort(-sigma_sq)
     sigma_sq = sigma_sq[order]
-    V = eigenvectors[:, order]
+    V = V[:, order]
 
     gains = np.sqrt(np.maximum(sigma_sq, 0.0))
 
