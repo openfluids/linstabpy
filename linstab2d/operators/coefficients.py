@@ -1077,12 +1077,14 @@ def compute_cylindrical_coefficients(
     # ------------------------------------------------------------------
     # Step 4: Apply physical variable permutation to [rho, u, v, w, T].
     #
-    # Mapping from coefficient ordering [rho, Uc, Vc, Wc, T] to physical
-    # ordering [rho, u, v, w, T] is:
-    #   [coeff0, coeff3, coeff2, coeff1, coeff4]
-    # with no sign flips for model 'axy' in GetLinProblem.m.
+    # Mapping from coefficient ordering [rho, v_r, v_theta, v_z, T] to
+    # physical ordering [rho, u, v, w, T] where u=axial(v_z), v=radial(v_r),
+    # w=azimuthal(v_theta):
+    #   coeff[0]->phys[0], coeff[1]->phys[2], coeff[2]->phys[3],
+    #   coeff[3]->phys[1], coeff[4]->phys[4]
+    # No sign flips for model 'axy' in GetLinProblem.m.
     # ------------------------------------------------------------------
-    c2p_idx = [0, 3, 2, 1, 4]
+    c2p_idx = [0, 2, 3, 1, 4]
     c2p_sgn = np.array([1.0, 1.0, 1.0, 1.0, 1.0])
 
     result = {}
