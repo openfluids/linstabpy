@@ -11,8 +11,6 @@ from pathlib import Path
 import os
 
 import numpy as np
-import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 
 from linstab2d.baseflow import load_cavity, sutherland_air
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
@@ -59,104 +57,6 @@ def _to_complex(v: str | None, default: complex) -> complex:
     except (TypeError, ValueError):
         print(f"Invalid complex value {v!r}; using {default}.")
         return default
-
-
-def _normalize_in_weighted_inner(vectors: np.ndarray, W_diag: np.ndarray | None) -> np.ndarray:
-    if W_diag is None:
-        return vectors
-
-    W = np.asarray(W_diag)
-    if W.ndim != 1:
-        raise ValueError("W_diag must be one-dimensional")
-    if vectors.shape[0] != W.size:
-        raise ValueError("W_diag length must match eigenvector length")
-    if np.any(W == 0):
-        raise ValueError("W_diag contains zero entries; cannot normalise")
-
-    normed = np.array(vectors, dtype=complex, copy=True)
-    for i in range(vectors.shape[1]):
-        v = vectors[:, i]
-        norm_sq = np.real(np.vdot(v, W * v))
-        if norm_sq <= 0.0:
-            continue
-        normed[:, i] = v / np.sqrt(norm_sq)
-    return normed
-
-
-def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
-    order = np.argsort(np.abs(values - target))
-    return values[order], vectors[:, order]
-
-
-def _eigs_no_shift(
-    operator: sp.spmatrix,
-    n_modes: int,
-    target: complex,
-) -> tuple[np.ndarray, np.ndarray]:
-    op = sp.csc_matrix(operator)
-    ndof = op.shape[0]
-    k = min(max(1, n_modes), max(1, ndof - 2))
-    if ndof <= 2500:
-        values, vectors = np.linalg.eig(np.asarray(op.toarray()))
-        return _sort_nearest(values, vectors, target)
-    tol = 1e-8
-    rng = np.random.default_rng(0)
-    v0 = rng.standard_normal(op.shape[0]) + 1j * rng.standard_normal(op.shape[0])
-    attempts = []
-    for which in ("LR", "SR", "LM"):
-        for ncv in (max(4 * k + 1, 20), max(2 * k + 2, 10)):
-            attempts.append((which, ncv))
-            try:
-                values, vectors = spla.eigs(
-                    op,
-                    k=k,
-                    which=which,
-                    tol=tol,
-                    ncv=ncv,
-                    v0=v0,
-                )
-                return _sort_nearest(values, vectors, target)
-            except Exception:
-                continue
-    raise RuntimeError(f"Non-shifted ARPACK failed after attempts: {attempts}")
-
-
-def _temporal_eigen_with_fallback(
-    L0: sp.spmatrix,
-    n_modes: int,
-    omega_target: complex,
-    W_diag: np.ndarray | None,
-) -> tuple[np.ndarray, np.ndarray]:
-    try:
-        values, vectors = temporal_eigenvalues(L0, n_modes, omega_target, W_diag=W_diag)
-        return values, vectors
-    except RuntimeError as exc:
-        print(f"Shift-invert temporal solve failed ({exc}); using non-shifted ARPACK fallback.")
-        op = 1j * sp.csc_matrix(L0)
-        values, vectors = _eigs_no_shift(op, n_modes, omega_target)
-        values, vectors = _sort_nearest(values, vectors, omega_target)
-        return values[:n_modes], _normalize_in_weighted_inner(vectors[:, :n_modes], W_diag)
-
-
-def _adjoint_eigen_with_fallback(
-    L0: sp.spmatrix,
-    n_modes: int,
-    omega_target: complex,
-    W_diag: np.ndarray,
-    invW_diag: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    try:
-        values, vectors = adjoint_eigenvalues(L0, n_modes, omega_target, W_diag, invW_diag)
-        return values, vectors
-    except RuntimeError as exc:
-        print(f"Shift-invert adjoint solve failed ({exc}); using non-shifted ARPACK fallback.")
-        L0_csc = sp.csc_matrix(L0)
-        W = np.asarray(W_diag)
-        invW = np.asarray(invW_diag)
-        adjoint_op = sp.diags(invW, format="csc") @ (L0_csc.conj().T @ sp.diags(W, format="csc"))
-        values, vectors = _eigs_no_shift(adjoint_op, n_modes, omega_target)
-        values, vectors = _sort_nearest(values, vectors, omega_target)
-        return values[:n_modes], _normalize_in_weighted_inner(vectors[:, :n_modes], W_diag)
 
 
 def compute():
@@ -255,14 +155,14 @@ def compute():
     )
 
     # Direct and adjoint temporal spectra
-    omega, direct_modes = _temporal_eigen_with_fallback(
+    omega, direct_modes = temporal_eigenvalues(
         L0,
         n_modes,
         omega_target,
         W_diag=W_diag,
     )
     omega_adj_target = 1j * np.conj(omega_target)
-    omega_adj, adjoint_modes = _adjoint_eigen_with_fallback(
+    omega_adj, adjoint_modes = adjoint_eigenvalues(
         L0,
         n_modes,
         omega_adj_target,
@@ -388,8 +288,8 @@ def plot(data):
             plt.close(fig_mode)
             print(f"Adjoint mode figure saved to {output_adjoint}")
 
-    plt.close(fig)
     fig.savefig(output_spectrum, dpi=600, bbox_inches="tight")
+    plt.close(fig)
     print(
         "Figures saved to:\n"
         f"- Spectrum: {output_spectrum}\n"

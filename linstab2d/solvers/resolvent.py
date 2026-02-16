@@ -1,20 +1,18 @@
-"""Resolvent analysis via eigendecomposition of the weighted resolvent operator.
+"""Resolvent analysis via SVD of the weighted resolvent operator.
 
 Computes the optimal forcing/response pairs and gains for the linearised
 Navier--Stokes operator at a given frequency.  The resolvent operator is
 
     H = C @ inv(L0 - i*omega*I) @ B
 
-and its singular value decomposition is obtained through the eigendecomposition
-of the Hermitian positive-semi-definite operator
+and its singular value decomposition is obtained using SLEPc SVD
+(thick-restart Lanczos bidiagonalisation) on the weighted operator
 
-    inv(W) @ H^H @ W @ H
+    A = W^{1/2} H W^{-1/2}
 
-whose eigenvalues are the squared resolvent gains.
-
-The factorisation of the shifted operator uses PETSc KSP with MUMPS (computed
-once, reused for both forward and adjoint solves).  The top-level eigenvalue
-problem is solved with SciPy ARPACK via :func:`scipy.sparse.linalg.eigs`.
+whose singular values are the resolvent gains.  The factorisation of the
+shifted operator uses PETSc KSP with MUMPS (computed once, reused for
+both forward and adjoint solves).
 
 References
 ----------
@@ -28,13 +26,16 @@ Frantz, R. A. S., Loiseau, J.-Ch., & Robinet, J.-Ch. (2023). Krylov
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
+
+from petsc4py import PETSc
+from slepc4py import SLEPc
 
 from .linsolve import make_linear_solver
-from .petsc_utils import require_complex
+from .petsc_utils import require_complex, petsc_vec, vec_to_numpy
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,8 @@ def resolvent_analysis(
     W_diag: np.ndarray,
     B_mat: sp.spmatrix | None = None,
     C_mat: sp.spmatrix | None = None,
-    filter_fn: callable | None = None,
-    filter_ct_fn: callable | None = None,
+    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute resolvent gains, optimal forcings, and optimal responses.
 
@@ -56,14 +57,14 @@ def resolvent_analysis(
 
         H = FILTER( C inv(L0 - i omega I) B FILTER(v) )
 
-    and its singular value decomposition is obtained through the
-    eigendecomposition of
+    and its singular value decomposition is computed via SLEPc SVD
+    (thick-restart Lanczos bidiagonalisation) on the weighted operator
 
-        inv(W) H^H W H
+        A = W^{1/2} H W^{-1/2}
 
-    using ARPACK (largest magnitude).  A MUMPS factorisation of the shifted
-    operator is computed once and reused for both the forward and adjoint
-    (conjugate-transpose) solves.
+    whose singular values are the resolvent gains.  A MUMPS factorisation
+    of the shifted operator is computed once and reused for both the forward
+    and adjoint (conjugate-transpose) solves.
 
     Parameters
     ----------
@@ -80,10 +81,10 @@ def resolvent_analysis(
         Input (forcing) matrix.  Defaults to the identity.
     C_mat : sparse matrix, shape (ndof, ndof), optional
         Output (observation) matrix.  Defaults to the identity.
-    filter_fn : callable, optional
+    filter_fn : Callable, optional
         Spatial filter applied before and after the resolvent operator.
         Typically ``mesh.filters.filter``.  Defaults to identity.
-    filter_ct_fn : callable, optional
+    filter_ct_fn : Callable, optional
         Adjoint-compliant spatial filter for the adjoint resolvent.
         Typically ``mesh.filters.filter_ct``.  Defaults to identity.
 
@@ -141,55 +142,78 @@ def resolvent_analysis(
         return w
 
     # ------------------------------------------------------------------
-    # 4. Build SciPy LinearOperator for inv(W) H^H W H
+    # 4. Build PETSc MatShell for A = W^{1/2} H W^{-1/2}
     # ------------------------------------------------------------------
-    inv_W_diag = 1.0 / W_diag
+    sqrt_W = np.sqrt(W_diag)
+    sqrt_invW = 1.0 / sqrt_W
 
-    def _matvec_HtrWH(v: np.ndarray) -> np.ndarray:
-        """Apply inv(W) @ H^H @ W @ H to vector *v*."""
-        u = _apply_H(v)
-        u = W_diag * u
-        u = _apply_H_adj(u)
-        u = inv_W_diag * u
-        return u
+    class _ResolventShell:
+        def mult(self, mat, x, y):
+            """y = A x = W^{1/2} H W^{-1/2} x"""
+            v = vec_to_numpy(x)
+            v = _apply_H(sqrt_invW * v)
+            y.setArray(sqrt_W * v)
 
-    A_op = spla.LinearOperator((ndof, ndof), matvec=_matvec_HtrWH, dtype=complex)
+        def multTranspose(self, mat, x, y):
+            """y = A^T x  (plain transpose, not Hermitian transpose).
+
+            PETSc's Python matrix type maps ``multTranspose`` to
+            ``MATOP_MULT_TRANSPOSE``, and SLEPc SVD with implicit
+            transpose calls this to apply A^T.  We compute A^T via
+            the identity ``A^T x = conj(A^H conj(x))``.
+            """
+            v = vec_to_numpy(x).conj()
+            v = _apply_H_adj(sqrt_W * v)
+            y.setArray((sqrt_invW * v).conj())
+
+    H_shell = PETSc.Mat().createPython((ndof, ndof), context=_ResolventShell())
+    H_shell.setUp()
 
     # ------------------------------------------------------------------
-    # 5. ARPACK eigensolve (largest magnitude)
+    # 5. SLEPc SVD (thick-restart Lanczos bidiagonalisation)
     # ------------------------------------------------------------------
     ncv = min(max(4 * n_modes, 20), ndof - 1)
-    logger.info("  ARPACK eigs on resolvent operator (nev=%d, ncv=%d) ...",
+    logger.info("  SLEPc SVD on resolvent operator (nsv=%d, ncv=%d) ...",
                 n_modes, ncv)
-    eigenvalues, V = spla.eigs(A_op, k=n_modes, which="LM", ncv=ncv, tol=1e-12)
-    logger.info("  ARPACK eigs done.")
 
-    # Eigenvalues of inv(W) H^H W H should be real and positive; small
-    # imaginary parts are numerical artefacts.
-    sigma_sq = np.real(eigenvalues)
+    svd = SLEPc.SVD().create()
+    svd.setOperators(H_shell)
+    svd.setType(SLEPc.SVD.Type.TRLANCZOS)
+    svd.setImplicitTranspose(True)
+    svd.setDimensions(nsv=n_modes, ncv=ncv)
+    svd.setTolerances(tol=1e-12, max_it=1000)
+    svd.solve()
 
-    # Sort in descending order of gain
-    order = np.argsort(-sigma_sq)
-    sigma_sq = sigma_sq[order]
-    V = V[:, order]
+    nconv = svd.getConverged()
+    if nconv == 0:
+        raise RuntimeError("SLEPc SVD did not converge for any singular triplet")
+    if nconv < n_modes:
+        logger.warning(
+            "SLEPc SVD converged %d/%d singular triplets; returning partial result",
+            nconv, n_modes,
+        )
 
-    gains = np.sqrt(np.maximum(sigma_sq, 0.0))
+    n_extract = min(nconv, n_modes)
+    logger.info("  SLEPc SVD done (%d converged).", nconv)
 
     # ------------------------------------------------------------------
-    # 6. Normalise forcings and recover responses
+    # 6. Extract gains, forcings, and responses
+    #
+    #    SVD: A v_i = sigma_i u_i  where A = W^{1/2} H W^{-1/2}
+    #    Forcing:  f_i = W^{-1/2} v_i   (W-normalised: f^H W f = v^H v = 1)
+    #    Response: r_i = W^{-1/2} u_i   (W-normalised: r^H W r = u^H u = 1)
     # ------------------------------------------------------------------
-    forcings = np.empty((ndof, n_modes), dtype=complex)
-    responses = np.empty((ndof, n_modes), dtype=complex)
+    gains = np.empty(n_extract, dtype=float)
+    forcings = np.empty((ndof, n_extract), dtype=complex)
+    responses = np.empty((ndof, n_extract), dtype=complex)
 
-    for i in range(n_modes):
-        vi = V[:, i]
-        # Normalise in the W-inner product:  v^H W v = 1
-        norm_W = np.sqrt(np.maximum(np.real(vi.conj() @ (W_diag * vi)), 0.0))
-        forcings[:, i] = vi / norm_W
-        # Response mode: u = H v / sigma
-        if gains[i] > 0.0:
-            responses[:, i] = _apply_H(forcings[:, i]) / gains[i]
-        else:
-            responses[:, i] = 0.0
+    u_vec = H_shell.createVecLeft()
+    v_vec = H_shell.createVecRight()
+
+    for i in range(n_extract):
+        sigma = svd.getSingularTriplet(i, u_vec, v_vec)
+        gains[i] = sigma
+        forcings[:, i] = sqrt_invW * vec_to_numpy(v_vec)
+        responses[:, i] = sqrt_invW * vec_to_numpy(u_vec)
 
     return gains, responses, forcings

@@ -42,5 +42,9 @@ def petsc_vec(arr: np.ndarray) -> PETSc.Vec:
 
 
 def vec_to_numpy(v: PETSc.Vec) -> np.ndarray:
-    """Copy a PETSc Vec to a numpy array."""
-    return v.getArray().copy()
+    """Copy a PETSc Vec to a numpy array.
+
+    Uses read-only access (``array_r``) so the function works correctly
+    inside PETSc MatShell callbacks where the input vector is locked.
+    """
+    return np.array(v.array_r, copy=True)
