@@ -359,10 +359,12 @@ def _create_axy_diff_matrices(
 ]:
     """Create radial/axial derivative blocks for the axy model.
 
-    Parity selection follows MATLAB ``CreateDiffMatrices_Axy.m``:
+    Parity selection follows MATLAB ``CreateDiffMatrices_Axy.m``, converted
+    from coefficient ordering [rho, v_r, v_theta, v_z, T] to physical
+    ordering [rho, u(axial), v(radial), w(azimuthal), T]:
 
-    - m = 0: [symm, asymm, asymm, symm, symm]
-    - m = 1: [asymm, symm, symm, asymm, asymm]
+    - m = 0: [symm, symm, asymm, asymm, symm]  (rho,u,T even; v,w odd)
+    - m = 1: [asymm, asymm, symm, symm, asymm]  (v,w even; rho,u,T odd)
     - m >= 2: all asymm
     """
     if not np.isfinite(m):
@@ -373,9 +375,9 @@ def _create_axy_diff_matrices(
         raise ValueError("m must be a non-negative integer mode number")
 
     if m_int == 0:
-        parity = (True, False, False, True, True)
+        parity = (True, True, False, False, True)
     elif m_int == 1:
-        parity = (False, True, True, False, False)
+        parity = (False, False, True, True, False)
     else:
         parity = (False, False, False, False, False)
 

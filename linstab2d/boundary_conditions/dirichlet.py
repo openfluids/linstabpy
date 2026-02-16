@@ -11,6 +11,24 @@ import numpy as np
 import scipy.sparse as sp
 
 
+def _zero_rows_csr(mat: sp.csr_matrix, rows: np.ndarray) -> None:
+    """Zero rows in a CSR matrix by clearing stored data values."""
+    starts = mat.indptr[rows]
+    ends = mat.indptr[rows + 1]
+    idx = np.concatenate([np.arange(s, e) for s, e in zip(starts, ends)])
+    if idx.size:
+        mat.data[idx] = 0
+
+
+def _zero_cols_csc(mat: sp.csc_matrix, cols: np.ndarray) -> None:
+    """Zero columns in a CSC matrix by clearing stored data values."""
+    starts = mat.indptr[cols]
+    ends = mat.indptr[cols + 1]
+    idx = np.concatenate([np.arange(s, e) for s, e in zip(starts, ends)])
+    if idx.size:
+        mat.data[idx] = 0
+
+
 # Border character -> idx dict key
 _BORDER_MAP: dict[str, str] = {"l": "li", "r": "ri", "b": "bi", "t": "ti", "m": "mi"}
 
@@ -94,20 +112,18 @@ def apply_dirichlet(
     # ------------------------------------------------------------------
     # 2. Zero rows and columns, then set diagonal to penalty
     # ------------------------------------------------------------------
-    # Strategy:
-    #   - Convert to lil_matrix for efficient row zeroing.
-    #   - Convert to csc for efficient column zeroing.
-    #   - Set diagonal entries via lil_matrix.
-    L0 = L0.tolil()
-    L0[bc_indices] = 0  # zero rows (fancy indexing on lil)
+    # Direct data-array manipulation avoids SparseEfficiencyWarning
+    # that fancy indexing on CSC/CSR would trigger.
+    L0 = L0.tocsr()
+    _zero_rows_csr(L0, bc_indices)
     L0 = L0.tocsc()
-    L0[:, bc_indices] = 0  # zero columns (efficient for csc)
+    _zero_cols_csc(L0, bc_indices)
 
-    # Set diagonal entries to penalty
-    L0 = L0.tolil()
-    for i in bc_indices:
-        L0[i, i] = penalty
-    L0 = L0.tocsc()
+    # Add penalty on diagonal (existing diagonal is 0 after zeroing).
+    L0 = L0 + sp.csc_matrix(
+        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
+        shape=L0.shape,
+    )
     L0.eliminate_zeros()
 
     return L0, bc_indices
@@ -154,8 +170,10 @@ def apply_dirichlet_spatial(
 ) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
     """Apply Dirichlet boundary conditions to doubled spatial system matrices.
 
-    For each boundary DOF, rows/columns are zeroed and diagonal entries set to
-    ``penalty`` in both ``Lc`` and ``R`` at both copies of the doubled system.
+    For each boundary DOF, rows/columns in *Lc* are zeroed and diagonal set
+    to *penalty*.  For *R*, rows/columns are zeroed but **no** penalty is
+    placed on the diagonal — adding penalty to both matrices creates spurious
+    eigenvalues at alpha = 1.  This matches MATLAB ``BC_Dirichlet_Spatial.m``.
     """
     base_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
     if base_indices.size == 0:
@@ -164,16 +182,23 @@ def apply_dirichlet_spatial(
     n = ngp * 5
     bc_indices = np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
 
-    def _apply_bc(mat: sp.csc_matrix) -> sp.csc_matrix:
-        mat = mat.tolil()
-        mat[bc_indices] = 0
+    def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
+        mat = mat.tocsr()
+        _zero_rows_csr(mat, bc_indices)
         mat = mat.tocsc()
-        mat[:, bc_indices] = 0
-        mat = mat.tolil()
-        for i in bc_indices:
-            mat[i, i] = penalty
-        mat = mat.tocsc()
+        _zero_cols_csc(mat, bc_indices)
         mat.eliminate_zeros()
         return mat
 
-    return _apply_bc(Lc), _apply_bc(R), bc_indices
+    # Lc: zero rows/cols + penalty on diagonal
+    Lc = _zero_rows_cols(Lc)
+    Lc = Lc + sp.csc_matrix(
+        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
+        shape=Lc.shape,
+    )
+    Lc.eliminate_zeros()
+
+    # R: zero rows/cols only (no penalty)
+    R = _zero_rows_cols(R)
+
+    return Lc, R, bc_indices

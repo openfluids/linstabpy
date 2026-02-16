@@ -17,7 +17,7 @@ def build_spatial_operator(
     *,
     kx: float = 0.0,
     m: float = 0,
-    delta: float = 1e-6,
+    delta: float = 1.0,
 ) -> tuple[sp.csc_matrix, sp.csc_matrix, sp.csc_matrix, dict]:
     """Build doubled linear operator blocks for the spatial EVP.
 
@@ -71,7 +71,7 @@ def build_spatial_operator(
 
     R0 = L0.tocsc()
     R1 = (Lp - Lm) / (2.0 * delta)
-    R2 = Lp - R0 - R1
+    R2 = (Lp - R0 - R1 * delta) / delta**2
 
     I = sp.eye(n, format="csc")
     Z = sp.csc_matrix((n, n))
