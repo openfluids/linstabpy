@@ -7,6 +7,8 @@ import pytest
 
 from linstab2d.mesh import Mesh
 from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
+from linstab2d.operators import build_lnse_operator, compute_chu_norm
+from linstab2d.boundary_conditions import apply_dirichlet
 
 
 # ---------------------------------------------------------------------------
@@ -133,3 +135,48 @@ def make_polynomial_field(mesh, px, py):
     Y = mesh.Y
     field_2d = X**px * Y**py
     return field_2d.ravel(order="F")[mesh.used_ind]
+
+
+# ---------------------------------------------------------------------------
+# Synthetic jet builder (cylindrical / axy model)
+# ---------------------------------------------------------------------------
+
+def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
+    """Build a synthetic axisymmetric sech² jet problem.
+
+    Uses a deterministic tanh-derivative velocity profile on a y_symmetry mesh.
+    No external data dependencies (.mat files).
+
+    Returns dict with:
+        mesh, bf, L0, idx, ngp, W_diag, invW_diag, bc_indices
+    """
+    mesh = Mesh.create(
+        xrange=(0.0, 10.0), yrange=(0.0, 3.0),
+        nx=nx, ny=ny, fd_order=4, y_symmetry=True,
+    )
+    R = mesh.Y
+    U_axial = 0.9 / np.cosh(R)**2
+    bf = BaseFlow(
+        Re=1e4, Ma=0.9, Pr=0.7, kappa=1.4, T_0=288.15,
+        RHO=np.ones_like(R), U=U_axial,
+        V=np.zeros_like(R), W=np.zeros_like(R), T=np.ones_like(R),
+    )
+    sutherland_air(bf)
+
+    L0, idx = build_lnse_operator(mesh, bf, model="axy", m=m)
+    ngp = mesh.ngp
+    L0, bc_indices = apply_dirichlet(L0, idx, borders, variables, ngp)
+
+    p = mesh.used_ind
+    RHO_p = bf.RHO.ravel(order="F")[p]
+    T_p = bf.T.ravel(order="F")[p]
+    R_p = mesh.Y.ravel(order="F")[p]
+    W_int = mesh.W.ravel(order="F")[p]
+    W_diag, invW_diag = compute_chu_norm(
+        W_int, RHO_p, T_p, bf.kappa, bf.Ma, ngp, model="axy", R=R_p,
+    )
+    return {
+        "mesh": mesh, "bf": bf, "L0": L0, "idx": idx,
+        "ngp": ngp, "W_diag": W_diag, "invW_diag": invW_diag,
+        "bc_indices": bc_indices,
+    }

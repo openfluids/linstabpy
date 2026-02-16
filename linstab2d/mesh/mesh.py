@@ -418,7 +418,7 @@ class Mesh:
         D2y_symm_new = self.D2y_symm
         Dy_asymm_new = self.Dy_asymm
         D2y_asymm_new = self.D2y_asymm
-        Dxy_symm_new = Dx_new @ self.Dxy_symm.T.T if self.Dy_symm is not None else None
+        Dxy_symm_new = None
         Dyx_symm_new = None
         Dxy_asymm_new = None
         Dyx_asymm_new = None
@@ -713,6 +713,13 @@ def _build_operators(
     if np.isclose(dy, 0.0):
         dy = 1.0
 
+    # --- Fast path: Kronecker product for unmasked rectangular meshes ---
+    if active_mask is None and ngp == nx * ny:
+        return _build_operators_kron(
+            X, Y, dx, dy, nx, ny, fd_order, x_periodicity, y_symmetry,
+        )
+
+    # --- Slow path: line-by-line LIL assembly for masked meshes ----------
     global_to_local = np.full(full_n, -1, dtype=int)
     global_to_local[used_ind] = np.arange(ngp)
 
@@ -893,6 +900,100 @@ def _build_operators(
         W_g,
         W_symm_g,
         W_asymm_g,
+    )
+
+
+def _build_operators_kron(
+    X: np.ndarray,
+    Y: np.ndarray,
+    dx: float,
+    dy: float,
+    nx: int,
+    ny: int,
+    fd_order: int,
+    x_periodicity: bool,
+    y_symmetry: bool,
+) -> tuple:
+    """Build derivative matrices via Kronecker products (unmasked fast path).
+
+    For a full nx×ny grid, 2D operators are tensor products of 1D SBP stencils:
+        Dx = I_ny ⊗ D1x,   Dy = D1y ⊗ I_nx
+    This avoids the O(nx*ny) Python-level loop in the general LIL path.
+    """
+    I_nx = sp.eye(nx, format="csr")
+    I_ny = sp.eye(ny, format="csr")
+
+    # --- 1D operators in x ---
+    if x_periodicity:
+        D1x, D2x = _build_periodic_1d_operators(nx, dx, fd_order)
+        wx = np.full(nx, dx)
+    else:
+        D1x, D2x = build_sbp_matrix(nx, dx, fd_order)
+        wx = np.full(nx, dx)
+        wx[0] *= 0.5
+        wx[-1] *= 0.5
+
+    # --- 1D operators in y ---
+    D1y, D2y = build_sbp_matrix(ny, dy, fd_order)
+    wy = np.full(ny, dy)
+    wy[0] *= 0.5
+    wy[-1] *= 0.5
+
+    # --- 2D operators via kron (Fortran order: y varies fastest) ---
+    Dx_g = sp.kron(D1x, I_ny, format="csr")
+    D2x_g = sp.kron(D2x, I_ny, format="csr")
+    Dy_g = sp.kron(I_nx, D1y, format="csr")
+    D2y_g = sp.kron(I_nx, D2y, format="csr")
+    Dxy_g = Dx_g @ Dy_g
+    Dyx_g = Dy_g @ Dx_g
+
+    # --- Quadrature weights (outer product) ---
+    W_g = np.outer(wy, wx)  # shape (ny, nx), column j = wy * wx[j]
+
+    # --- y-symmetry operators ---
+    Dy_symm_g = None
+    D2y_symm_g = None
+    Dy_asymm_g = None
+    D2y_asymm_g = None
+    Dxy_symm_g = None
+    Dyx_symm_g = None
+    Dxy_asymm_g = None
+    Dyx_asymm_g = None
+    W_symm_g = None
+    W_asymm_g = None
+
+    if y_symmetry:
+        y_col = Y[:, 0]
+        has_pole = np.isclose(y_col[0], 0.0, atol=1e-12)
+        if has_pole:
+            D1y_sym, D1y_asym, D2y_sym, D2y_asym = build_sbp_pole_matrices(
+                ny, dy, fd_order,
+            )
+        else:
+            D1y_sym = D1y
+            D1y_asym = D1y
+            D2y_sym = D2y
+            D2y_asym = D2y
+
+        Dy_symm_g = sp.kron(I_nx, D1y_sym, format="csr")
+        D2y_symm_g = sp.kron(I_nx, D2y_sym, format="csr")
+        Dy_asymm_g = sp.kron(I_nx, D1y_asym, format="csr")
+        D2y_asymm_g = sp.kron(I_nx, D2y_asym, format="csr")
+        Dxy_symm_g = Dx_g @ Dy_symm_g
+        Dyx_symm_g = Dy_symm_g @ Dx_g
+        Dxy_asymm_g = Dx_g @ Dy_asymm_g
+        Dyx_asymm_g = Dy_asymm_g @ Dx_g
+        W_symm_g = W_g.copy()
+        W_asymm_g = W_g.copy()
+        axis_nodes = np.isclose(Y, 0.0, atol=1e-12)
+        W_asymm_g[axis_nodes] *= 0.75
+
+    return (
+        Dx_g, D2x_g, Dy_g, D2y_g,
+        Dy_symm_g, D2y_symm_g, Dy_asymm_g, D2y_asymm_g,
+        Dxy_g, Dyx_g,
+        Dxy_symm_g, Dyx_symm_g, Dxy_asymm_g, Dyx_asymm_g,
+        W_g, W_symm_g, W_asymm_g,
     )
 
 

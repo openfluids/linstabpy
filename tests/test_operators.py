@@ -7,6 +7,7 @@ import pytest
 from linstab2d.mesh import Mesh
 from linstab2d.baseflow import BaseFlow, sutherland_air
 from linstab2d.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
+from linstab2d.operators.assembly import _create_axy_diff_matrices, _apply_inv_B
 from linstab2d.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
@@ -414,4 +415,231 @@ class TestSpatialOperator:
             assert sp.issparse(mat), f"{name} should be sparse"
             assert np.issubdtype(mat.dtype, np.complexfloating), (
                 f"{name} should be complex"
+            )
+
+
+# =========================================================================
+# TestAxyParity
+# =========================================================================
+
+class TestAxyParity:
+    """Tests for parity logic in _create_axy_diff_matrices."""
+
+    @pytest.fixture
+    def symmetric_mesh(self):
+        """20x30 mesh with y_symmetry on [0,2]x[0,1]."""
+        return Mesh.create(
+            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
+            nx=20, ny=30, fd_order=4, y_symmetry=True,
+        )
+
+    def test_parity_m0(self, symmetric_mesh):
+        """m=0: rho,u,T symmetric; v,w antisymmetric."""
+        DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(symmetric_mesh, m=0)
+        # DR is a tuple of 5 blocks; symmetric vars use Dy_symm
+        # Check that symmetric blocks (rho=0, u=1, T=4) use the
+        # symmetric derivative, and antisymmetric blocks (v=2, w=3) differ.
+        assert symmetric_mesh.Dy_symm is not None
+        Dy_sym = symmetric_mesh.Dy_symm.tocsc()
+        Dy_asym = symmetric_mesh.Dy_asymm.tocsc()
+        # rho (idx 0): symmetric
+        np.testing.assert_array_equal(DR[0].toarray(), Dy_sym.toarray())
+        # u (idx 1): symmetric
+        np.testing.assert_array_equal(DR[1].toarray(), Dy_sym.toarray())
+        # v (idx 2): antisymmetric
+        np.testing.assert_array_equal(DR[2].toarray(), Dy_asym.toarray())
+        # w (idx 3): antisymmetric
+        np.testing.assert_array_equal(DR[3].toarray(), Dy_asym.toarray())
+        # T (idx 4): symmetric
+        np.testing.assert_array_equal(DR[4].toarray(), Dy_sym.toarray())
+
+    def test_parity_m1(self, symmetric_mesh):
+        """m=1: rho,u,T antisymmetric; v,w symmetric."""
+        DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(symmetric_mesh, m=1)
+        Dy_sym = symmetric_mesh.Dy_symm.tocsc()
+        Dy_asym = symmetric_mesh.Dy_asymm.tocsc()
+        # rho (idx 0): antisymmetric
+        np.testing.assert_array_equal(DR[0].toarray(), Dy_asym.toarray())
+        # u (idx 1): antisymmetric
+        np.testing.assert_array_equal(DR[1].toarray(), Dy_asym.toarray())
+        # v (idx 2): symmetric
+        np.testing.assert_array_equal(DR[2].toarray(), Dy_sym.toarray())
+        # w (idx 3): symmetric
+        np.testing.assert_array_equal(DR[3].toarray(), Dy_sym.toarray())
+        # T (idx 4): antisymmetric
+        np.testing.assert_array_equal(DR[4].toarray(), Dy_asym.toarray())
+
+    def test_parity_m2_all_asymmetric(self, symmetric_mesh):
+        """m>=2: all variables use antisymmetric derivatives."""
+        DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(symmetric_mesh, m=2)
+        Dy_asym = symmetric_mesh.Dy_asymm.tocsc()
+        for k in range(5):
+            np.testing.assert_array_equal(
+                DR[k].toarray(), Dy_asym.toarray(),
+                err_msg=f"DR[{k}] should be antisymmetric for m>=2",
+            )
+
+    def test_parity_m5_all_asymmetric(self, symmetric_mesh):
+        """m=5 also gives all antisymmetric (same as m>=2)."""
+        DR5, _, _, _, _ = _create_axy_diff_matrices(symmetric_mesh, m=5)
+        DR2, _, _, _, _ = _create_axy_diff_matrices(symmetric_mesh, m=2)
+        for k in range(5):
+            np.testing.assert_array_equal(
+                DR5[k].toarray(), DR2[k].toarray(),
+                err_msg=f"DR[{k}] should be identical for m=2 and m=5",
+            )
+
+    def test_no_symmetry_mesh_uses_standard_Dy(self):
+        """Without y_symmetry, all variables use the standard Dy."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
+            nx=20, ny=30, fd_order=4, y_symmetry=False,
+        )
+        DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m=0)
+        Dy = mesh.Dy.tocsc()
+        for k in range(5):
+            np.testing.assert_array_equal(
+                DR[k].toarray(), Dy.toarray(),
+                err_msg=f"DR[{k}] should be standard Dy without y_symmetry",
+            )
+
+    def test_DZ_blocks_always_same(self, symmetric_mesh):
+        """Axial derivatives (DZ) are always Dx, regardless of parity."""
+        _, _, DZ, D2Z, _ = _create_axy_diff_matrices(symmetric_mesh, m=0)
+        Dx = symmetric_mesh.Dx.tocsc()
+        for k in range(5):
+            np.testing.assert_array_equal(DZ[k].toarray(), Dx.toarray())
+
+    def test_invalid_m_raises(self, symmetric_mesh):
+        """Negative or non-integer m raises ValueError."""
+        with pytest.raises(ValueError, match="non-negative integer"):
+            _create_axy_diff_matrices(symmetric_mesh, m=-1)
+        with pytest.raises(ValueError, match="non-negative integer"):
+            _create_axy_diff_matrices(symmetric_mesh, m=0.5)
+
+
+# =========================================================================
+# TestInvBBlockInverse
+# =========================================================================
+
+class TestInvBBlockInverse:
+    """Test the analytical 5x5 block inverse of B in cylindrical coordinates."""
+
+    @staticmethod
+    def _build_B_matrix(ngp, RHO, U, V, W, T, kappa, Ma):
+        """Construct B/1j as a dense (5*ngp, 5*ngp) block matrix.
+
+        B/1j in physical ordering [rho, u, v, w, T]:
+          [  1     0     0     0     0    ]
+          [  U     RHO   0     0     0    ]
+          [  V     0     RHO   0     0    ]
+          [  W     0     0     RHO   0    ]
+          [  KE    U*RHO V*RHO W*RHO cv*RHO]
+
+        where KE = 0.5*(U^2+V^2+W^2) + cv*T and cv = 1/(kappa*(kappa-1)*Ma^2).
+        """
+        cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
+        KE = 0.5 * (U**2 + V**2 + W**2) + cv * T
+
+        def D(v):
+            return sp.diags(v, format="csc")
+
+        Z = sp.csc_matrix((ngp, ngp))
+        blocks = [
+            [D(np.ones(ngp)), Z,          Z,          Z,          Z          ],
+            [D(U),            D(RHO),     Z,          Z,          Z          ],
+            [D(V),            Z,          D(RHO),     Z,          Z          ],
+            [D(W),            Z,          Z,          D(RHO),     Z          ],
+            [D(KE),           D(U * RHO), D(V * RHO), D(W * RHO), D(cv * RHO)],
+        ]
+        return sp.bmat(blocks, format="csc")
+
+    def test_neg_inv_B_times_B_is_neg_identity(self):
+        """(-inv(B/1j)) @ (B/1j) = -I for random flow fields."""
+        ngp = 10
+        rng = np.random.default_rng(42)
+        RHO = 1.0 + rng.random(ngp)
+        U = rng.standard_normal(ngp)
+        V = rng.standard_normal(ngp)
+        W = rng.standard_normal(ngp)
+        T = 0.5 + rng.random(ngp)
+        kappa, Ma = 1.4, 0.5
+
+        B = self._build_B_matrix(ngp, RHO, U, V, W, T, kappa, Ma)
+        # _apply_inv_B computes -inv(B/1j) @ L0; pass L0=I to get -inv(B/1j)
+        I_5n = sp.eye(5 * ngp, format="csc")
+        neg_inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
+
+        product = (neg_inv_B @ B).toarray()
+        expected = -np.eye(5 * ngp)
+        np.testing.assert_allclose(
+            product, expected, atol=1e-12,
+            err_msg="(-inv(B/1j)) @ (B/1j) should equal -I",
+        )
+
+    def test_cartesian_inv_B_diagonal(self):
+        """Cartesian inv(B) is diagonal: -diag(1, 1/RHO, 1/RHO, 1/RHO, 1/RHO)."""
+        ngp = 10
+        rng = np.random.default_rng(99)
+        RHO = 1.0 + rng.random(ngp)
+        U = rng.standard_normal(ngp)
+        V = rng.standard_normal(ngp)
+        W = rng.standard_normal(ngp)
+        T = 0.5 + rng.random(ngp)
+        kappa, Ma = 1.4, 0.3
+
+        I_5n = sp.eye(5 * ngp, format="csc")
+        neg_inv_B = _apply_inv_B(I_5n, "2d", ngp, RHO, U, V, W, T, kappa, Ma)
+
+        # Should be diagonal
+        dense = neg_inv_B.toarray()
+        expected_diag = np.concatenate([
+            -np.ones(ngp),
+            -1.0 / RHO,
+            -1.0 / RHO,
+            -1.0 / RHO,
+            -1.0 / RHO,
+        ])
+        np.testing.assert_allclose(
+            np.diag(dense), expected_diag, atol=1e-14,
+        )
+        # Off-diagonal should be zero
+        off_diag = dense - np.diag(np.diag(dense))
+        np.testing.assert_allclose(off_diag, 0.0, atol=1e-14)
+
+    def test_inv_B_uniform_flow(self):
+        """With uniform RHO=1, U=V=W=0, inv(B/1j) has a simple structure."""
+        ngp = 5
+        RHO = np.ones(ngp)
+        U = np.zeros(ngp)
+        V = np.zeros(ngp)
+        W = np.zeros(ngp)
+        T = np.ones(ngp)
+        kappa, Ma = 1.4, 0.3
+
+        I_5n = sp.eye(5 * ngp, format="csc")
+        neg_inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
+        dense = neg_inv_B.toarray()
+
+        # With zero velocity, off-diagonal of momentum rows vanish (U/RHO=0),
+        # and energy row simplifies: e40 = -T/RHO = -1
+        cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
+        # Expected diagonal
+        expected_diag = np.concatenate([
+            -np.ones(ngp),       # rho
+            -np.ones(ngp),       # u: -1/RHO
+            -np.ones(ngp),       # v: -1/RHO
+            -np.ones(ngp),       # w: -1/RHO
+            -np.full(ngp, 1.0 / cv),  # T: -1/(RHO*cv)
+        ])
+        np.testing.assert_allclose(np.diag(dense), expected_diag, atol=1e-14)
+
+        # -inv(B)[4,0] = -(inv(B)[4,0]) = -(KE_half/(RHO*cv) - T/RHO)
+        # With U=V=W=0: = -(0 - 1) = +1
+        for k in range(ngp):
+            row_T = 4 * ngp + k
+            col_rho = k
+            np.testing.assert_allclose(
+                dense[row_T, col_rho], 1.0, atol=1e-14,
+                err_msg=f"-inv(B)[4,0] at gp {k}: expected +1 (U=V=W=0, T=RHO=1)",
             )

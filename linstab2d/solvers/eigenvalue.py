@@ -133,7 +133,10 @@ def temporal_eigenvalues(
     target: float | complex,
     W_diag: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Compute temporal eigenvalues of ``L0 / (-1j)`` near a target.
+    """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
+
+    The physical PDE is ``dq/dt = -L0 q``, so ``eig(L0) = iω_OS`` and
+    ``eig(i*L0) = -ω_OS``.  Unstable modes have ``Im(omega) < 0``.
 
     Parameters
     ----------
@@ -142,14 +145,14 @@ def temporal_eigenvalues(
     n_modes:
         Number of eigenpairs requested.
     target:
-        Target temporal frequency ``omega`` for the shift-invert search.
+        Target eigenvalue for the shift-invert search.
     W_diag:
         Optional weight vector for normalising eigenvectors in ``v^H W v``.
 
     Returns
     -------
     omega:
-        Temporal eigenvalues ``omega = -i * eig(L0)``.
+        Temporal eigenvalues ``omega = eig(i*L0) = -ω_OS``.
     modes:
         Right eigenvectors corresponding to ``omega``.
     """

@@ -8,13 +8,20 @@ import scipy.sparse as sp
 from petsc4py import PETSc
 
 
+_petsc_configured = False
+
+
 def require_complex() -> None:
-    """Assert PETSc was built with complex scalar type."""
+    """Assert PETSc was built with complex scalar type and set defaults."""
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
         raise RuntimeError(
             "PETSc must be built with --with-scalar-type=complex for stability analysis. "
             f"Current scalar type: {PETSc.ScalarType}"
         )
+    global _petsc_configured
+    if not _petsc_configured:
+        PETSc.Options().setValue("-mat_mumps_icntl_7", "5")  # METIS ordering
+        _petsc_configured = True
 
 
 def scipy_to_petsc(mat: sp.spmatrix) -> PETSc.Mat:
