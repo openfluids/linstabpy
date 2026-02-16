@@ -40,7 +40,7 @@ def make_linear_solver(operator: sp.spmatrix) -> LinearSolver:
     """
     require_complex()
 
-    A = scipy_to_petsc(sp.csc_matrix(operator, dtype=complex))
+    A = scipy_to_petsc(operator)
     n = operator.shape[0]
 
     ksp = PETSc.KSP().create()
@@ -51,7 +51,18 @@ def make_linear_solver(operator: sp.spmatrix) -> LinearSolver:
     pc.setFactorSolverType("mumps")
     ksp.setUp()
 
-    logger.info("MUMPS factorisation complete (n=%d, nnz=%d)", n, operator.nnz)
+    # Log MUMPS ordering method (one-time verification that METIS is active)
+    try:
+        F = pc.getFactorMatrix()
+        icntl7 = F.getMumpsIcntl(7)
+        _ordering_names = {0: "AMD", 2: "AMF", 3: "scotch", 4: "PORD",
+                           5: "METIS", 6: "QAMD", 7: "auto"}
+        ordering = _ordering_names.get(icntl7, f"unknown({icntl7})")
+        logger.info("MUMPS factorisation complete (n=%d, nnz=%d, ordering=%s [ICNTL(7)=%d])",
+                     n, operator.nnz, ordering, icntl7)
+    except (AttributeError, RuntimeError) as e:
+        logger.debug("Could not query MUMPS ordering: %s", e)
+        logger.info("MUMPS factorisation complete (n=%d, nnz=%d)", n, operator.nnz)
 
     def solve(rhs: np.ndarray) -> np.ndarray:
         b = petsc_vec(rhs)

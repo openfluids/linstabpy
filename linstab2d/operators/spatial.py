@@ -6,7 +6,11 @@ import scipy.sparse as sp
 
 from ..mesh.mesh import Mesh
 from ..baseflow.baseflow import BaseFlow
-from .assembly import build_lnse_operator
+from .assembly import (
+    _prepare_coefficients,
+    _assemble_from_prepared,
+    _build_index_structure,
+)
 
 
 def build_spatial_operator(
@@ -26,7 +30,7 @@ def build_spatial_operator(
 
     - R0 = L(alpha=0)
     - R1 = (L(+delta) - L(-delta)) / (2*delta)
-    - R2 = L(+delta) - R0 - R1
+    - R2 = (L(+delta) - R0 - R1*delta) / delta**2
 
     And the generalized polynomial EVP is assembled as:
 
@@ -43,31 +47,12 @@ def build_spatial_operator(
 
     n = mesh.ngp * 5
 
-    # -- 1) Build three LNSE operators with perturbed Floquet exponent --
-    L0, idx = build_lnse_operator(
-        mesh,
-        baseflow,
-        kx=kx,
-        model=model,
-        m=m,
-        floquet_exp=floquet_exp,
-    )
-    Lp, _ = build_lnse_operator(
-        mesh,
-        baseflow,
-        kx=kx,
-        model=model,
-        m=m,
-        floquet_exp=floquet_exp + delta,
-    )
-    Lm, _ = build_lnse_operator(
-        mesh,
-        baseflow,
-        kx=kx,
-        model=model,
-        m=m,
-        floquet_exp=floquet_exp - delta,
-    )
+    # Compute coefficients once, assemble three operators with different shifts
+    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+
+    L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
+    Lp = _assemble_from_prepared(prep, floquet_exp=floquet_exp + delta)
+    Lm = _assemble_from_prepared(prep, floquet_exp=floquet_exp - delta)
 
     R0 = L0.tocsc()
     R1 = (Lp - Lm) / (2.0 * delta)
@@ -80,4 +65,5 @@ def build_spatial_operator(
     R = sp.bmat([[I, Z], [R1, R2]], format="csc")
     Lw = sp.bmat([[Z, Z], [-1j * I, Z]], format="csc")
 
+    idx = _build_index_structure(mesh.idx, mesh.ngp)
     return Lc, R, Lw, idx

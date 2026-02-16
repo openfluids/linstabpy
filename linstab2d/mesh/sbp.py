@@ -15,6 +15,8 @@ Mattsson, K., & Nordstrom, J. (2004). Summation by parts operators for
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import scipy.sparse as sp
 
@@ -132,6 +134,7 @@ def min_points(order: int) -> int:
     return s["a_b1"].shape[1]
 
 
+@functools.lru_cache(maxsize=64)
 def build_sbp_matrix(
     n: int, dz: float, order: int
 ) -> tuple[sp.csr_matrix, sp.csr_matrix]:

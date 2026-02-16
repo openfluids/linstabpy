@@ -104,7 +104,8 @@ def resolvent_analysis(
     # ------------------------------------------------------------------
     # 1. Form the shifted operator  L_sigma = L0 - i*omega*I
     # ------------------------------------------------------------------
-    L_sigma = sp.csc_matrix(L0 - 1j * omega * sp.eye(ndof, format="csc"))
+    L_sigma = sp.csc_matrix(L0, copy=True)
+    L_sigma.setdiag(L_sigma.diagonal() - 1j * omega)
 
     # ------------------------------------------------------------------
     # 2. MUMPS factorisation (computed once, reused for forward and adjoint)

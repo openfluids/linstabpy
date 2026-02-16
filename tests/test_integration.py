@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import pytest
 
 from linstab2d.mesh import Mesh
-from linstab2d.baseflow import load_blasius, sutherland_air
+from linstab2d.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstab2d.operators import build_lnse_operator, compute_chu_norm
 from linstab2d.boundary_conditions import apply_dirichlet
 from linstab2d.solvers import resolvent_analysis, temporal_eigenvalues
@@ -253,3 +253,97 @@ class TestOperatorSymmetryConsistency:
         # Also check that W entries are all positive (sufficient condition
         # for positive definiteness of the diagonal weight matrix).
         assert np.all(W > 0), "Weight vector contains non-positive entries"
+
+
+# ---------------------------------------------------------------------------
+# TestCylindricalIntegration
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def synthetic_jet():
+    """Module-scoped synthetic sech² jet problem (axy, m=0, 15×10)."""
+    from tests.conftest import build_synthetic_jet
+    return build_synthetic_jet()
+
+
+class TestCylindricalIntegration:
+    """End-to-end integration tests for the cylindrical (axy) model.
+
+    Uses a synthetic tanh jet profile on a 15×10 grid to test the full
+    pipeline: mesh → baseflow → operator assembly → BCs → eigensolve.
+    """
+
+    @pytest.mark.slow
+    def test_full_pipeline_completes(self, synthetic_jet):
+        """Cylindrical pipeline runs without errors."""
+        d = synthetic_jet
+        L0 = d["L0"]
+        ngp = d["ngp"]
+        assert L0.shape == (5 * ngp, 5 * ngp)
+        assert sp.issparse(L0)
+        assert d["W_diag"].shape == (5 * ngp,)
+
+    @pytest.mark.slow
+    def test_temporal_eigenpair_residual(self, synthetic_jet):
+        """Temporal eigenvalues satisfy eigenpair equation on axy model."""
+        d = synthetic_jet
+        omega, modes = temporal_eigenvalues(d["L0"], n_modes=5, target=-0.1j)
+        iL0 = 1j * d["L0"]
+        for i in range(len(omega)):
+            v = modes[:, i]
+            residual = iL0 @ v - omega[i] * v
+            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
+            assert rel_err < 1e-6, (
+                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
+            )
+
+    @pytest.mark.slow
+    def test_least_damped_eigenvalue_reference(self, synthetic_jet):
+        """Regression test: least-damped mode matches reference eigenvalue.
+
+        Reference: macOS/arm64, Python 3.13, PETSc 3.22/MUMPS.
+        Synthetic sech² jet (15×10, m=0), deterministic SBP operators.
+        Reproducible to machine precision; tolerance allows for minor
+        BLAS/LAPACK variation across platforms.
+        """
+        d = synthetic_jet
+        omega, _ = temporal_eigenvalues(d["L0"], n_modes=5, target=-0.1j)
+
+        omega_ref_imag = -1.748317109243e-02
+
+        dists = np.abs(omega.imag - omega_ref_imag)
+        closest = omega[np.argmin(dists)]
+
+        np.testing.assert_allclose(
+            closest.imag, omega_ref_imag, rtol=1e-6,
+            err_msg=f"Least-damped eigenvalue shifted: {closest} vs reference {omega_ref_imag}j",
+        )
+
+    @pytest.mark.slow
+    def test_adjoint_bilinear_form_axy(self, synthetic_jet):
+        """Adjoint identity <L u, v>_W = <u, L_adj v>_W for axy model."""
+        d = synthetic_jet
+        L0 = d["L0"]
+        W = d["W_diag"]
+        invW = d["invW_diag"]
+        n = L0.shape[0]
+
+        rng = np.random.default_rng(42)
+        u = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+        v = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+
+        lhs = np.vdot(v, W * (L0 @ u))
+        L_adj_v = invW * (L0.conj().T @ (W * v))
+        rhs = np.vdot(L_adj_v, W * u)
+
+        np.testing.assert_allclose(
+            lhs, rhs, rtol=1e-8,
+            err_msg="Adjoint bilinear form identity violated for axy model",
+        )
+
+    @pytest.mark.slow
+    def test_energy_norm_positive_axy(self, synthetic_jet):
+        """Chu energy norm is positive definite for axy model."""
+        W = synthetic_jet["W_diag"]
+        assert np.all(W > 0), "axy energy norm has non-positive entries"

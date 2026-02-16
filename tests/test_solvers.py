@@ -268,3 +268,116 @@ class TestSpatialEigenvalues:
         Lc, Lw, R_mat, _ = spatial_problem
         with pytest.raises(ValueError):
             spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=0, target=0.0)
+
+
+# ---------------------------------------------------------------------------
+# Cylindrical (axy) model tests
+# ---------------------------------------------------------------------------
+
+
+def _build_synthetic_jet(nx=15, ny=10, m=0):
+    """Build a small synthetic axisymmetric sech² jet.
+
+    Returns (mesh, bf, L0, idx, ngp).
+    """
+    mesh = Mesh.create(
+        xrange=(0.0, 10.0), yrange=(0.0, 3.0),
+        nx=nx, ny=ny, fd_order=4, y_symmetry=True,
+    )
+    R = mesh.Y
+    U_axial = 0.9 / np.cosh(R)**2
+    bf = BaseFlow(
+        Re=1e4, Ma=0.9, Pr=0.7, kappa=1.4, T_0=288.15,
+        RHO=np.ones_like(R), U=U_axial,
+        V=np.zeros_like(R), W=np.zeros_like(R), T=np.ones_like(R),
+    )
+    sutherland_air(bf)
+    L0, idx = build_lnse_operator(mesh, bf, model="axy", m=m)
+    ngp = mesh.ngp
+    L0, bc_indices = apply_dirichlet(L0, idx, "ltr", "uvwT", ngp)
+    return mesh, bf, L0, idx, ngp
+
+
+@pytest.mark.slow
+class TestCylindricalTemporalEigenvalues:
+    """Temporal eigenvalue tests for the cylindrical (axy) model."""
+
+    def test_axy_eigenpair_residual_m0(self):
+        """Eigenvalues of axy model at m=0 satisfy eigenpair equation."""
+        _, _, L0, _, _ = _build_synthetic_jet(m=0)
+        omega, modes = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
+        iL0 = 1j * L0
+        for i in range(len(omega)):
+            v = modes[:, i]
+            residual = iL0 @ v - omega[i] * v
+            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
+            assert rel_err < 1e-6, (
+                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
+            )
+
+    def test_axy_eigenpair_residual_m1(self):
+        """Eigenvalues of axy model at m=1 satisfy eigenpair equation."""
+        _, _, L0, _, _ = _build_synthetic_jet(m=1)
+        omega, modes = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
+        iL0 = 1j * L0
+        for i in range(len(omega)):
+            v = modes[:, i]
+            residual = iL0 @ v - omega[i] * v
+            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
+            assert rel_err < 1e-6, (
+                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
+            )
+
+    def test_axy_eigenvalues_finite(self):
+        """All returned eigenvalues are finite."""
+        _, _, L0, _, _ = _build_synthetic_jet(m=0)
+        omega, _ = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
+        assert np.all(np.isfinite(omega)), f"Non-finite eigenvalues: {omega}"
+
+    def test_axy_operator_shape(self):
+        """axy operator is square with dimension 5*ngp."""
+        _, _, L0, _, ngp = _build_synthetic_jet(m=0)
+        assert L0.shape == (5 * ngp, 5 * ngp)
+
+
+@pytest.mark.slow
+class TestCylindricalSpatialEigenvalues:
+    """Spatial eigenvalue tests for the cylindrical (axy) model."""
+
+    @pytest.fixture
+    def spatial_axy_problem(self):
+        """Build a small cylindrical spatial operator."""
+        mesh, bf, _, _, _ = _build_synthetic_jet()
+        Lc, R_mat, Lw, idx = build_spatial_operator(mesh, bf, model="axy", m=0)
+        ngp = mesh.ngp
+        Lc, R_mat, bc_indices = apply_dirichlet_spatial(
+            Lc, R_mat, idx, "ltr", "uvwT", ngp,
+        )
+        return Lc, Lw, R_mat, ngp
+
+    def test_spatial_axy_shapes(self, spatial_axy_problem):
+        """Spatial axy matrices have shape (2*5*ngp, 2*5*ngp)."""
+        Lc, Lw, R_mat, ngp = spatial_axy_problem
+        expected = (2 * 5 * ngp, 2 * 5 * ngp)
+        assert Lc.shape == expected
+        assert R_mat.shape == expected
+        assert Lw.shape == expected
+
+    def test_spatial_axy_eigenvalues_finite(self, spatial_axy_problem):
+        """Spatial axy eigenvalues are finite and eigenvectors are nonzero."""
+        Lc, Lw, R_mat, _ = spatial_axy_problem
+        alpha, modes = spatial_eigenvalues(
+            Lc, Lw, R_mat, omega=2.0, n_modes=3, target=0.1 + 0.01j,
+        )
+        assert np.all(np.isfinite(alpha)), f"Non-finite eigenvalues: {alpha}"
+        for i in range(modes.shape[1]):
+            assert np.linalg.norm(modes[:, i]) > 0, f"Zero eigenvector at mode {i}"
+
+    def test_spatial_axy_sparse_complex(self, spatial_axy_problem):
+        """Spatial axy matrices are sparse and complex."""
+        Lc, Lw, R_mat, _ = spatial_axy_problem
+        for name, mat in [("Lc", Lc), ("R", R_mat), ("Lw", Lw)]:
+            assert sp.issparse(mat), f"{name} should be sparse"
+            assert np.issubdtype(mat.dtype, np.complexfloating), (
+                f"{name} should be complex"
+            )

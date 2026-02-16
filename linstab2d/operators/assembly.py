@@ -63,10 +63,28 @@ def build_lnse_operator(
         - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable
         - '{border}_{var}': DOF indices for each variable at each border
     """
-    ngp = mesh.ngp
-    p = mesh.used_ind  # active grid point indices
+    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
+    idx = _build_index_structure(mesh.idx, mesh.ngp)
+    return L0, idx
 
-    # --- Extract base flow fields (flattened to 1D) ---
+
+def _prepare_coefficients(
+    mesh: Mesh,
+    baseflow: BaseFlow,
+    *,
+    kx: float = 0.0,
+    model: str = "2D",
+    m: float = 0,
+) -> dict:
+    """Compute LNSE coefficients and base derivative matrices (once).
+
+    Returns a dict with everything needed by ``_assemble_from_prepared``,
+    separated from the Floquet shift so the spatial EVP can reuse it.
+    """
+    ngp = mesh.ngp
+    p = mesh.used_ind
+
     U = baseflow.U.ravel(order="F")[p]
     V = baseflow.V.ravel(order="F")[p]
     W = baseflow.W.ravel(order="F")[p]
@@ -81,21 +99,16 @@ def build_lnse_operator(
     Re = baseflow.Re
     Pr = baseflow.Pr
 
-    # Pressure from equation of state: P = RHO * T / (Ma^2 * kappa)
     P = RHO * T / (Ma**2 * kappa)
 
-    # --- FD matrices (scipy sparse, ngp x ngp) ---
-    Dx = mesh.Dx  # derivative along physical x
+    Dx = mesh.Dx
     D2x = mesh.D2x
-    Dy = mesh.Dy  # derivative along physical y / radius
+    Dy = mesh.Dy
     D2y = mesh.D2y
-    D2RZ = mesh.Dyx  # mixed derivative used by axisymmetric model
+    D2RZ = mesh.Dyx
 
     model = model.lower()
     if model == "2d":
-        # -- Cartesian model -------------------------------------------------
-        # Compute derivatives in physical coordinates (x,y) used by
-        # ``compute_cartesian_coefficients``.
         dUdx = Dx @ U;    dUdy = Dy @ U
         dVdx = Dx @ V;    dVdy = Dy @ V
         dWdx = Dx @ W;    dWdy = Dy @ W
@@ -108,7 +121,6 @@ def build_lnse_operator(
         d2Wdx2 = D2x @ W;  d2Wdy2 = D2y @ W
         d2Tdx2 = D2x @ T;  d2Tdy2 = D2y @ T
 
-        # Mixed derivatives: Dz @ (Dr @ f) in MATLAB = Dx @ (Dy @ f)
         d2Udxdy = Dx @ dUdy
         d2Vdxdy = Dx @ dVdy
         d2Wdxdy = Dx @ dWdy
@@ -133,35 +145,22 @@ def build_lnse_operator(
         D2Z = D2x
 
     elif model == "axy":
-        # -- Cylindrical axisymmetric model --------------------------------
         R = mesh.Y.ravel(order="F")[p]
         U_c = baseflow.V.ravel(order="F")[p]
         V_c = baseflow.W.ravel(order="F")[p]
         W_c = baseflow.U.ravel(order="F")[p]
 
-        dUdr = Dy @ U_c
-        dVdr = Dy @ V_c
-        dWdr = Dy @ W_c
-        dRHOdr = Dy @ RHO
-        dTdr = Dy @ T
-        dUdz = Dx @ U_c
-        dVdz = Dx @ V_c
-        dWdz = Dx @ W_c
-        dRHOdz = Dx @ RHO
-        dTdz = Dx @ T
+        dUdr = Dy @ U_c;    dVdr = Dy @ V_c;    dWdr = Dy @ W_c
+        dRHOdr = Dy @ RHO;  dTdr = Dy @ T
+        dUdz = Dx @ U_c;    dVdz = Dx @ V_c;    dWdz = Dx @ W_c
+        dRHOdz = Dx @ RHO;  dTdz = Dx @ T
 
-        d2Udr2 = D2y @ U_c
-        d2Vdr2 = D2y @ V_c
-        d2Wdr2 = D2y @ W_c
+        d2Udr2 = D2y @ U_c;  d2Vdr2 = D2y @ V_c;  d2Wdr2 = D2y @ W_c
         d2Tdr2 = D2y @ T
-        d2Udz2 = D2x @ U_c
-        d2Vdz2 = D2x @ V_c
-        d2Wdz2 = D2x @ W_c
+        d2Udz2 = D2x @ U_c;  d2Vdz2 = D2x @ V_c;  d2Wdz2 = D2x @ W_c
         d2Tdz2 = D2x @ T
 
-        d2Udrz = Dx @ dUdr
-        d2Vdrz = Dx @ dVdr
-        d2Wdrz = Dx @ dWdr
+        d2Udrz = Dx @ dUdr;  d2Vdrz = Dx @ dVdr;  d2Wdrz = Dx @ dWdr
 
         coeffs = compute_cylindrical_coefficients(
             U=U_c, V=V_c, W=W_c, R=R, RHO=RHO, T=T, MU=MU, m=m, Re=Re, Ma=Ma,
@@ -178,45 +177,50 @@ def build_lnse_operator(
     else:
         raise ValueError("model must be '2D' or 'axy'")
 
-    if floquet_exp != 0.0:
-        alpha = 1j * floquet_exp
-        DZ, D2Z = _apply_floquet_shift(DZ, D2Z, alpha, ngp)
+    return {
+        "ngp": ngp, "model": model, "coeffs": coeffs,
+        "DR": DR, "D2R": D2R, "DZ": DZ, "D2Z": D2Z, "D2RZ": D2RZ,
+        "RHO": RHO, "U": U, "V": V, "W": W, "T": T,
+        "kappa": kappa, "Ma": Ma, "mesh": mesh,
+    }
 
-    # --- Assemble the 5*ngp x 5*ngp operator ---
-    # L0[i*ngp+p, j*ngp+q] = A0[i,j,p]*delta(p,q)
-    #                       + Ay[i,j,p]*DR[p,q]
-    #                       + Ax[i,j,p]*DZ[p,q]
-    #                       + Ayy[i,j,p]*D2R[p,q]
-    #                       + Axx[i,j,p]*D2Z[p,q]
-    #                       + Axy[i,j,p]*D2RZ[p,q]
+
+def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_matrix:
+    """Assemble the LNSE operator from precomputed coefficients and derivatives.
+
+    Applies the Floquet shift, block assembly, inv(B), and sponge.
+    """
+    ngp = prep["ngp"]
+    model = prep["model"]
+    coeffs = prep["coeffs"]
+    DR = prep["DR"]
+    D2R = prep["D2R"]
+    DZ = prep["DZ"]
+    D2Z = prep["D2Z"]
+    D2RZ = prep["D2RZ"]
+    mesh = prep["mesh"]
+
+    # Floquet shift: Dx → Dx + iα, D2x → D2x + 2iα Dx + (iα)²
+    # Without this (floquet_exp=0), no streamwise wavenumber is imposed.
+    if floquet_exp != 0.0:
+        i_alpha = 1j * floquet_exp
+        DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
+
     L0 = _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
 
-    # --- Apply inv(B) and sign flip ---
-    # B = diag(1i, 1i*RHO, 1i*RHO, 1i*RHO, 1i*RHO) blockwise
-    # L0_final = inv(B/1i) @ LHS = [1, 1/RHO, 1/RHO, 1/RHO, 1/RHO] blockwise
-    # Model-wide sign flip from GetLinProblem convention: multiply by -1
-    # Combined: multiply row block i by {-1, -1/RHO, -1/RHO, -1/RHO, -1/RHO}
-    inv_B_signs = np.empty(5 * ngp)
-    inv_B_signs[0*ngp:1*ngp] = -1.0
-    inv_B_signs[1*ngp:2*ngp] = -1.0 / RHO
-    inv_B_signs[2*ngp:3*ngp] = -1.0 / RHO
-    inv_B_signs[3*ngp:4*ngp] = -1.0 / RHO
-    inv_B_signs[4*ngp:5*ngp] = -1.0 / RHO
+    L0 = _apply_inv_B(
+        L0, model, ngp,
+        prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
+        prep["kappa"], prep["Ma"],
+    )
 
-    L0 = sp.diags(inv_B_signs) @ L0
-
-    # --- Add sponge ---
     if mesh.sponge is not None:
+        p = mesh.used_ind
         sponge = mesh.sponge.ravel(order="F")[p]
         sponge_diag = np.tile(sponge, 5)
         L0 = L0 - sp.diags(sponge_diag)
 
-    L0 = L0.tocsc()
-
-    # --- Build index structure ---
-    idx = _build_index_structure(mesh.idx, ngp)
-
-    return L0, idx
+    return L0.tocsc()
 
 
 def _assemble_block_operator(
@@ -330,21 +334,100 @@ def _ensure_5_block_derivatives(
 def _apply_floquet_shift(
     DZ: list[sp.csc_matrix] | sp.spmatrix,
     D2Z: list[sp.spmatrix] | sp.spmatrix,
-    alpha: float,
+    i_alpha: complex,
     ngp: int,
 ) -> tuple[list[sp.csc_matrix], list[sp.csc_matrix]]:
-    """Shift axial derivatives with Floquet parameter `alpha`.
+    """Shift axial derivatives with Floquet parameter ``iα``.
 
     Implements:
-    DZ -> DZ + i alpha I
-    D2Z -> D2Z + 2 i alpha DZ + (i alpha)^2 I
+    DZ  -> DZ + iα I
+    D2Z -> D2Z + 2 iα DZ + (iα)² I
     """
     dz_blocks = _ensure_5_block_derivatives(DZ, ngp)
     d2z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
     I = sp.eye(ngp, format="csc")
-    shifted_dz = [mat + alpha * I for mat in dz_blocks]
-    shifted_d2z = [d2z + 2.0 * alpha * dz + (alpha * alpha) * I for d2z, dz in zip(d2z_blocks, dz_blocks)]
+    shifted_dz = [mat + i_alpha * I for mat in dz_blocks]
+    shifted_d2z = [d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)]
     return shifted_dz, shifted_d2z
+
+
+def _apply_inv_B(
+    L0: sp.spmatrix,
+    model: str,
+    ngp: int,
+    RHO: np.ndarray,
+    U: np.ndarray,
+    V: np.ndarray,
+    W: np.ndarray,
+    T: np.ndarray,
+    kappa: float,
+    Ma: float,
+) -> sp.spmatrix:
+    """Left-multiply L0 by ``-inv(B/1j)`` (analytical block inverse).
+
+    For the Cartesian model, B/1j = diag(1, RHO, ..., RHO), so the inverse
+    is diagonal.  For the cylindrical (axy) model, B/1j is lower-triangular
+    due to the conservative-to-primitive transformation, and the 5×5 block
+    inverse is computed analytically at each grid point.
+    """
+    if model == "2d":
+        # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  -inv = diag(-1, -1/RHO, ...)
+        inv_B_signs = np.empty(5 * ngp)
+        inv_B_signs[0*ngp:1*ngp] = -1.0
+        inv_B_signs[1*ngp:2*ngp] = -1.0 / RHO
+        inv_B_signs[2*ngp:3*ngp] = -1.0 / RHO
+        inv_B_signs[3*ngp:4*ngp] = -1.0 / RHO
+        inv_B_signs[4*ngp:5*ngp] = -1.0 / RHO
+        return sp.diags(inv_B_signs) @ L0
+
+    # --- Cylindrical model: B/1j is lower-triangular ---
+    #
+    # In physical ordering [rho, u, v, w, T]:
+    #
+    #   B/1j = [ 1     0       0       0       0      ]
+    #          [ U     RHO     0       0       0      ]
+    #          [ V     0       RHO     0       0      ]
+    #          [ W     0       0       RHO     0      ]
+    #          [ KE    U*RHO   V*RHO   W*RHO   RHO*cv ]
+    #
+    # with KE = (U²+V²+W² + 2*cv*T)/2.
+    #
+    # The analytical inverse (also lower-triangular):
+    #
+    #   inv(B/1j) = [ 1        0        0        0        0          ]
+    #              [ -U/RHO    1/RHO    0        0        0          ]
+    #              [ -V/RHO    0        1/RHO    0        0          ]
+    #              [ -W/RHO    0        0        1/RHO    0          ]
+    #              [ e40       e41      e42      e43      1/(RHO*cv) ]
+    #
+    # where e4j = -vel_j / (RHO*cv)  for j=1,2,3  (vel = U, V, W)
+    #       e40 = T/RHO - (U²+V²+W²)/(2*RHO*cv)
+    #
+    # We build -inv(B/1j) as a 5×5 block matrix with diagonal blocks.
+    cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
+    invRHO = 1.0 / RHO
+    invRHOcv = invRHO / cv
+    KE_half = 0.5 * (U**2 + V**2 + W**2)
+
+    Z = sp.csc_matrix((ngp, ngp))
+
+    def D(v):
+        return sp.diags(v, format="csc")
+
+    # -inv(B/1j) — negate every entry
+    blocks = [
+        [D(-np.ones(ngp)),  Z,              Z,              Z,              Z                       ],
+        [D(U * invRHO),     D(-invRHO),     Z,              Z,              Z                       ],
+        [D(V * invRHO),     Z,              D(-invRHO),     Z,              Z                       ],
+        [D(W * invRHO),     Z,              Z,              D(-invRHO),     Z                       ],
+        [D(T * invRHO - KE_half * invRHOcv),
+                            D(U * invRHOcv),
+                                            D(V * invRHOcv),
+                                                            D(W * invRHOcv),
+                                                                            D(-invRHOcv)            ],
+    ]
+    neg_inv_B = sp.bmat(blocks, format="csc")
+    return neg_inv_B @ L0
 
 
 def _create_axy_diff_matrices(
