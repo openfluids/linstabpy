@@ -1,95 +1,113 @@
-# LinStab2D.py
+# linstab2d
 
-Python reimplementation of [**LinStab2D**](https://github.com/eduardomartini/LinStab2D), a MATLAB tool for stability and resolvent analysis of compressible viscous flows.
+Sparse linear stability and resolvent analysis for compressible viscous flows.
 
-> **Original code by Eduardo Martini and Oliver Schmidt.**
-> This Python version is a derivative work of the original MATLAB package,
-> licensed under GPL-3.0. All credit for the formulation, algorithms, and
-> numerical methodology belongs to the original authors.
+## Motivation
 
-## What is LinStab2D?
+Stability and resolvent analysis of 2D base flows requires solving large sparse linear systems built from the linearized compressible Navier-Stokes equations (LNSE). MATLAB's `backslash` operator uses dense LU factorization — O(n²) memory — which makes problems above ~50k DOFs impractical: a 150k-DOF system needs ~180 GB of RAM, crashing even high-memory workstations. Realistic 2D base flows from LES or DNS data routinely produce 10⁵–10⁶ DOFs.
 
-LinStab2D constructs the linearized compressible Navier-Stokes (LNSE) operator on structured 2D meshes using summation-by-parts (SBP) finite difference schemes. The resulting sparse matrices can then be used for:
+`linstab2d` is built on sparse matrices from the ground up. It uses SciPy sparse solvers today and targets PETSc/SLEPc for distributed computing on problems with millions of DOFs. No MATLAB license required.
 
-- **Resolvent analysis** — optimal forcing/response gains and mode shapes
-- **Temporal/global stability** — eigenvalues of the LNSE operator
-- **Spatial stability** — streamwise wavenumber eigenvalues at a given frequency
+## What it does
 
-The code handles Cartesian and curvilinear coordinates, Dirichlet boundary conditions, sponge layers, and the Chu energy norm for compressible flows.
+`linstab2d` constructs the LNSE operator on structured 2D meshes using summation-by-parts (SBP) finite difference schemes, then solves for resolvent gains, eigenvalues, or optimal forcing/response modes:
 
-## Why a Python version?
+- **Resolvent analysis** — optimal gain, forcing, and response mode shapes via singular value decomposition of the resolvent operator
+- **Temporal stability** — direct and adjoint eigenvalues of the LNSE operator
+- **Spatial stability** — streamwise wavenumber eigenvalues via the companion-matrix generalized eigenvalue problem, with Floquet ansatz for spanwise-periodic flows
+- **Coordinates** — Cartesian, cylindrical (axisymmetric), and curvilinear (general mesh deformation with full Jacobian)
+- **Boundary treatment** — Dirichlet conditions, sponge layers, mesh masking for complex geometries
+- **Energy norm** — Chu compressible energy norm for physically meaningful gain definitions
 
-The MATLAB original is self-contained and works out of the box. This Python port exists to:
+## Examples
 
-1. **Scale to large problems** — target PETSc/SLEPc for distributed sparse linear algebra on matrices too large for a single workstation (O(10^6) DOFs)
-2. **Integrate with the Python ecosystem** — SciPy sparse solvers, NumPy, Matplotlib, and existing post-processing pipelines
-3. **Provide a foundation for extensions** — cylindrical coordinates, general mesh deformations, spatial filters, Neumann BCs
+Five validated examples reproduce the cases from Martini & Schmidt (2024):
 
-## Current status
+| # | Example | What it demonstrates |
+|---|---------|----------------------|
+| 1 | **Blasius boundary layer** | Resolvent analysis, Tollmien-Schlichting wave amplification |
+| 2 | **Turbulent jet** | Axisymmetric (cylindrical) resolvent, Kelvin-Helmholtz instability |
+| 3 | **Streaky boundary layer** | Temporal + spatial eigenvalues, Floquet ansatz for periodic base flows |
+| 4 | **Open cavity** | Mesh masking, direct/adjoint eigenvalues, Rossiter modes |
+| 5 | **Paraboloid body** | Curvilinear coordinates, streak receptivity on axisymmetric geometry |
 
-**Phase 1 is complete.** The Python package reproduces the MATLAB Blasius boundary layer example (resolvent analysis at Re = 6 x 10^5, Ma = 0.3) with validated gains of [128.62, 14.54, 7.49].
+Run any example:
 
-| Feature | Status |
-|---|---|
-| SBP finite difference operators | Done |
-| Structured mesh + Hanifi deformation | Done |
-| Blasius/jet/cavity/paraboloid base flows | Done |
-| Sutherland viscosity law | Done |
-| LNSE operator assembly (Cartesian) | Done |
-| Dirichlet boundary conditions | Done |
-| Chu energy norm | Done |
-| Resolvent analysis (SciPy) | Done |
-| Temporal/spatial eigenvalue solvers | Done |
-| Cylindrical coordinates | Done |
-| General mesh deformation (full Jacobian) | Planned |
-| PETSc/SLEPc distributed solvers | Planned |
-| Mesh masking + Neumann BCs | Planned |
-| Spatial filters | Planned |
-
-## Package structure
-
+```bash
+python linstab2d/examples/example_1_blasius.py
 ```
-linstab2d/
-├── mesh/               # SBP operators, structured grids, integration weights, filters
-├── baseflow/           # Base flow loading (Blasius, jet, cavity, ...), Sutherland viscosity
-├── operators/          # LNSE coefficient matrices, assembly, Chu energy norm
-├── boundary_conditions/# Dirichlet BC enforcement
-├── solvers/            # Resolvent, temporal/spatial eigenvalue solvers
-├── examples/           # Runnable examples (start here)
-└── utils/
-```
+
+Results are cached to `.npz`; subsequent runs plot directly without recomputing.
 
 ## Quick start
 
 ```bash
-# 1. Clone and set up
-git clone https://github.com/ricardofrantz/LinStab2D.py.git
-cd LinStab2D.py
-./install.sh          # creates .venv, installs numpy/scipy/matplotlib
+# Clone and set up
+git clone https://github.com/ricardofrantz/linstab2d.git
+cd linstab2d
+./install.sh          # creates .venv, installs dependencies via uv
 
-# 2. Activate and run
+# Activate and run
 source .venv/bin/activate
 python linstab2d/examples/example_1_blasius.py
 ```
 
-The Blasius example takes ~11 minutes on a single core (150k x 150k sparse operator, ~30 nnz/row). Results are cached to `.npz`; subsequent runs plot directly.
+The Blasius example takes ~11 minutes on a single core (150k × 150k sparse operator, ~30 nnz/row).
 
-## Dependencies
+### Dependencies
 
 - Python >= 3.10
 - NumPy, SciPy, Matplotlib
-- scikit-umfpack (optional, faster sparse LU)
-
-The project uses SuperLU as the default sparse LU backend. UMFPACK is kept as an optional optimization path for local benchmarking when available in the environment.
+- scikit-umfpack (optional — faster sparse LU)
 
 All dependencies are installed by `install.sh` via [uv](https://docs.astral.sh/uv/).
 
+### Memory safety guards
+
+For large problems, direct LU factorization can be memory-intensive. Safety guards are enabled by default:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LINSTAB2D_LU_SAFE_MODE` | `1` | Block direct LU above configured thresholds |
+| `LINSTAB2D_LU_SAFE_MAX_ROWS` | `25000` | Maximum matrix dimension for direct LU |
+| `LINSTAB2D_LU_SAFE_MAX_NNZ` | `4000000` | Maximum non-zero entries for direct LU |
+| `LINSTAB2D_LU_FORCE_DIRECT` | `0` | Override safety guards |
+| `LINSTAB2D_LU_BACKEND` | `auto` | Set to `iterative` for GMRES+ILU path |
+
+## Architecture
+
+```
+Mesh → BaseFlow → Operator → BCs → Solver
+```
+
+```
+linstab2d/
+├── mesh/                # SBP operators, structured grids, integration weights, filters
+├── baseflow/            # Base flow loaders (Blasius, jet, cavity, ...), Sutherland viscosity
+├── operators/           # LNSE coefficient matrices, assembly, spatial operators, Chu energy norm
+├── boundary_conditions/ # Dirichlet BC enforcement
+├── solvers/             # Resolvent, temporal/spatial eigenvalue solvers, linear solver config
+├── examples/            # 5 runnable examples (start here)
+└── utils/               # Plotting, Floquet reconstruction
+```
+
+Test suite: 270+ tests (`pytest tests/`), covering mesh construction, operators, boundary conditions, solvers, and full integration.
+
+## Roadmap
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Core (SciPy) | Done | All 5 examples validated, 270+ tests |
+| PETSc/SLEPc | Next | Distributed sparse solvers for O(10⁶) DOF problems |
+| Solver optimization | Planned | Push matrix-forming efficiency to its limits |
+| Matrix-free Krylov | Future | Time-stepper approach for 3D problems |
+
 ## Citing
 
-If you use this code, please cite the original LinStab2D paper:
+`linstab2d` implements the theoretical framework described in:
 
-> Martini, E., Schmidt, O. Linstab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* (2024). [https://doi.org/10.1007/s00162-024-00706-0](https://doi.org/10.1007/s00162-024-00706-0)
+> Martini, E., Schmidt, O. (2024). Linstab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* [doi:10.1007/s00162-024-00706-0](https://doi.org/10.1007/s00162-024-00706-0)
 
 ## License
 
-This project is a derivative of [LinStab2D](https://github.com/eduardomartini/LinStab2D) by Eduardo Martini and Oliver Schmidt, licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
+[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html)

@@ -1,4 +1,4 @@
-"""Generalized eigensolvers for spatial stability formulations."""
+"""Generalized eigensolvers for spatial stability using SLEPc EPS."""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ import logging
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 
-from .linsolve import make_linear_solver
+from petsc4py import PETSc
+from slepc4py import SLEPc
+
+from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
 
 logger = logging.getLogger(__name__)
 
@@ -19,62 +21,81 @@ def _eigs_generalized(
     n_modes: int,
     target: float | complex,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Solve ``A x = lambda R x`` near ``target`` via shift-invert.
-
-    Converts the generalized EVP to standard form to avoid scipy's
-    unreliable eigenvector recovery in generalized mode.  The shift-invert
-    operator is ``inv(A - sigma R) @ R``, whose eigenvalues are
-    ``1 / (lambda - sigma)``.
-    """
+    """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur."""
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")
 
-    A = sp.csc_matrix(Lc, dtype=complex)
-    B = sp.csc_matrix(R, dtype=complex)
-    if A.shape[0] != A.shape[1] or B.shape != A.shape:
+    A_sp = sp.csc_matrix(Lc, dtype=complex)
+    B_sp = sp.csc_matrix(R, dtype=complex)
+    if A_sp.shape[0] != A_sp.shape[1] or B_sp.shape != A_sp.shape:
         raise ValueError("Lc and R must have identical square shapes")
-    if n_modes > A.shape[0]:
+    if n_modes > A_sp.shape[0]:
         raise ValueError("n_modes cannot exceed matrix size")
 
-    if A.shape[0] <= 2 or n_modes >= A.shape[0] - 1:
-        dense = np.asarray(A.toarray())
-        dense_R = np.asarray(B.toarray())
+    ndof = A_sp.shape[0]
+
+    if ndof <= 2 or n_modes >= ndof - 1:
+        dense = np.asarray(A_sp.toarray())
+        dense_R = np.asarray(B_sp.toarray())
         eigvals, eigvecs = np.linalg.eig(np.linalg.solve(dense_R, dense))
         order = np.argsort(np.abs(eigvals - target))
         sel = order[:n_modes]
         return eigvals[sel], eigvecs[:, sel]
 
-    # Factor shifted matrix: S = A - sigma * R
-    shifted = A - target * B
-    solver = make_linear_solver(shifted)
+    require_complex()
+    A = scipy_to_petsc(A_sp)
+    B = scipy_to_petsc(B_sp)
 
-    # Standard-form shift-invert operator: inv(S) @ R
-    def _op(x):
-        return solver.solve(B @ x)
+    eps = SLEPc.EPS().create()
+    eps.setOperators(A, B)
+    eps.setProblemType(SLEPc.EPS.ProblemType.GNHEP)
+    eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
+    eps.setTarget(target)
+    eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
+    ncv = min(max(4 * n_modes, 30), ndof - 1)
+    eps.setDimensions(nev=n_modes, ncv=ncv)
+    eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
 
-    op_inv = spla.LinearOperator(
-        shape=A.shape,
-        matvec=_op,
-        dtype=np.complex128,
-    )
+    # Shift-invert spectral transformation with MUMPS
+    st = eps.getST()
+    st.setType(SLEPc.ST.Type.SINVERT)
+    ksp = st.getKSP()
+    ksp.setType(PETSc.KSP.Type.PREONLY)
+    pc = ksp.getPC()
+    pc.setType(PETSc.PC.Type.LU)
+    pc.setFactorSolverType("mumps")
 
-    ncv = min(max(2 * n_modes + 1, 20), A.shape[0])
+    eps.setUp()
+
     logger.info(
-        "  Spatial eigs: sigma = %.6g%+.6gj, k=%d, ncv=%d",
-        np.real(target), np.imag(target), n_modes, ncv,
+        "  SLEPc spatial EPS: sigma = %.6g%+.6gj, nev=%d ...",
+        np.real(target), np.imag(target), n_modes,
     )
+    eps.solve()
 
-    # Solve standard EVP for mu = 1/(lambda - sigma)
-    mu, vecs = spla.eigs(
-        op_inv,
-        k=n_modes,
-        which="LM",
-        ncv=ncv,
-        tol=1e-10,
-    )
+    nconv = eps.getConverged()
+    if nconv == 0:
+        raise RuntimeError(
+            f"SLEPc EPS did not converge for any eigenpair (target={target})"
+        )
+    if nconv < n_modes:
+        logger.warning(
+            "SLEPc spatial EPS converged %d/%d eigenpairs; returning partial result",
+            nconv, n_modes,
+        )
 
-    eigvals = target + 1.0 / mu
-    return eigvals, vecs
+    n_extract = min(nconv, n_modes)
+    eigenvalues = np.empty(n_extract, dtype=complex)
+    eigenvectors = np.empty((ndof, n_extract), dtype=complex)
+
+    vr = A.createVecRight()
+    vi = A.createVecRight()
+    for i in range(n_extract):
+        eig = eps.getEigenpair(i, vr, vi)
+        eigenvalues[i] = eig
+        eigenvectors[:, i] = vec_to_numpy(vr)
+
+    return eigenvalues, eigenvectors
 
 
 def spatial_eigenvalues(

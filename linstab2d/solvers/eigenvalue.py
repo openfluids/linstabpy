@@ -1,4 +1,4 @@
-"""Temporal and adjoint eigenvalue solvers for the assembled LNSE operator."""
+"""Temporal and adjoint eigenvalue solvers using SLEPc EPS."""
 
 from __future__ import annotations
 
@@ -6,23 +6,13 @@ import logging
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
+
+from petsc4py import PETSc
+from slepc4py import SLEPc
+
+from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
 
 logger = logging.getLogger(__name__)
-
-
-def _log_solver_backend() -> None:
-    """Log whether scikit-umfpack is available for sparse factorization."""
-
-    try:
-        import sksparse  # type: ignore
-    except Exception:
-        logger.info("scikit-umfpack not detected; SciPy LU backend will be used")
-    else:
-        logger.info(
-            "scikit-umfpack detected (%s); LU factorization may use UMFPACK",
-            getattr(sksparse, "__version__", "installed"),
-        )
 
 
 def _check_inputs_shape(operator: sp.spmatrix, n_modes: int) -> tuple[sp.csc_matrix, int]:
@@ -72,8 +62,10 @@ def _eigs_near_target(
     n_modes: int,
     target: complex,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Solve a shift-invert EVP near ``target`` with one LU factorization."""
+    """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
+    require_complex()
     ndof = operator.shape[0]
+
     if ndof <= 2 or n_modes >= ndof - 1:
         dense = np.asarray(operator.toarray())
         all_vals, all_vecs = np.linalg.eig(dense)
@@ -81,36 +73,57 @@ def _eigs_near_target(
         sel = order[:n_modes]
         return all_vals[sel], all_vecs[:, sel]
 
-    I = sp.eye(ndof, format="csc", dtype=complex)
-    shifted = operator - target * I
+    A = scipy_to_petsc(operator)
 
-    lu = spla.splu(shifted)
-    op_inv = spla.LinearOperator(
-        shape=(ndof, ndof),
-        matvec=lu.solve,
-        dtype=complex,
+    eps = SLEPc.EPS().create()
+    eps.setOperators(A)
+    eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
+    eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
+    ncv = min(max(4 * n_modes, 30), ndof - 1)
+    eps.setDimensions(nev=n_modes, ncv=ncv)
+    eps.setTarget(target)
+    eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
+    eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
+
+    # Shift-invert spectral transformation with MUMPS
+    st = eps.getST()
+    st.setType(SLEPc.ST.Type.SINVERT)
+    ksp = st.getKSP()
+    ksp.setType(PETSc.KSP.Type.PREONLY)
+    pc = ksp.getPC()
+    pc.setType(PETSc.PC.Type.LU)
+    pc.setFactorSolverType("mumps")
+
+    eps.setUp()
+
+    logger.info(
+        "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d ...",
+        np.real(target), np.imag(target), n_modes,
     )
+    eps.solve()
 
-    logger.info("  eigs with shift-invert sigma = %.6g%+.6gj ...", np.real(target), np.imag(target))
-    try:
-        eigenvalues, eigenvectors = spla.eigs(
-            operator,
-            k=n_modes,
-            which="LM",
-            sigma=target,
-            OPinv=op_inv,
-            tol=np.finfo(float).eps,
+    nconv = eps.getConverged()
+    if nconv == 0:
+        raise RuntimeError(
+            f"SLEPc EPS did not converge for any eigenpair (target={target})"
         )
-    except spla.ArpackNoConvergence as e:
+    if nconv < n_modes:
         logger.warning(
-            "ARPACK did not fully converge (%d/%d eigenvectors); "
-            "returning partial result",
-            e.eigenvalues.size, n_modes,
+            "SLEPc EPS converged %d/%d eigenpairs; returning partial result",
+            nconv, n_modes,
         )
-        if e.eigenvalues.size == 0:
-            raise
-        eigenvalues = e.eigenvalues
-        eigenvectors = e.eigenvectors
+
+    n_extract = min(nconv, n_modes)
+    eigenvalues = np.empty(n_extract, dtype=complex)
+    eigenvectors = np.empty((ndof, n_extract), dtype=complex)
+
+    vr = A.createVecRight()
+    vi = A.createVecRight()
+    for i in range(n_extract):
+        eig = eps.getEigenpair(i, vr, vi)
+        eigenvalues[i] = eig
+        eigenvectors[:, i] = vec_to_numpy(vr)
+
     return eigenvalues, eigenvectors
 
 
@@ -140,7 +153,6 @@ def temporal_eigenvalues(
     modes:
         Right eigenvectors corresponding to ``omega``.
     """
-    _log_solver_backend()
     operator, _ = _check_inputs_shape(L0, n_modes)
 
     temporal_operator = 1j * operator
@@ -186,7 +198,6 @@ def adjoint_eigenvalues(
     The adjoint operator is formed as ``W^{-1} L0^* W`` and eigendecomposed
     with shift-invert at ``target``.
     """
-    _log_solver_backend()
     operator, _ = _check_inputs_shape(L0, n_modes)
     adjoint_op = _build_adjoint_operator(operator, W_diag, invW_diag)
 

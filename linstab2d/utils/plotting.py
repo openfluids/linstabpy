@@ -66,7 +66,67 @@ def plot_flow(
 
     if ax is None:
         _, ax = plt.subplots(1, 1)
-    contour = ax.contourf(X, Y, plot_data, levels=levels, cmap=cmap, **kwargs)
+
+    has_nan = np.any(~np.isfinite(plot_data))
+
+    render_kwargs = dict(kwargs)
+    render_kwargs.pop("levels", None)
+
+    if has_nan:
+        contour = _tricontourf_masked(
+            ax, X, Y, plot_data, levels=levels, cmap=cmap, **render_kwargs,
+        )
+    else:
+        try:
+            contour = ax.contourf(
+                X, Y, plot_data, levels=levels, cmap=cmap, **render_kwargs,
+            )
+        except Exception:
+            fallback_kwargs = render_kwargs.copy()
+            fallback_kwargs.pop("shading", None)
+            if "shading" not in fallback_kwargs:
+                fallback_kwargs["shading"] = "auto"
+            contour = ax.pcolormesh(
+                X, Y, plot_data, cmap=cmap, **fallback_kwargs,
+            )
+
+    ax.set_aspect("equal", adjustable="box")
     if colorbar:
         ax.figure.colorbar(contour, ax=ax, **colorbar_kwargs)
     return ax
+
+
+def _tricontourf_masked(ax, X, Y, plot_data, *, levels=51, cmap="RdBu_r", **kwargs):
+    """Render a NaN-holed structured field using grid-based triangulation.
+
+    Builds triangles directly from the (ny, nx) grid adjacency: each quad
+    cell whose 4 corners are all finite is split into 2 triangles.  This
+    naturally excludes the NaN hole with no heuristic parameters.
+    """
+    import matplotlib.tri as mtri
+
+    valid = np.isfinite(np.asarray(plot_data))
+    ny, nx = valid.shape
+
+    # Map (j, i) grid positions to contiguous vertex indices (-1 = invalid).
+    vertex_idx = np.full((ny, nx), -1, dtype=int)
+    vertex_idx[valid] = np.arange(valid.sum())
+
+    # Build triangles from valid quad cells.
+    triangles = []
+    for j in range(ny - 1):
+        for i in range(nx - 1):
+            v00 = vertex_idx[j, i]
+            v01 = vertex_idx[j, i + 1]
+            v10 = vertex_idx[j + 1, i]
+            v11 = vertex_idx[j + 1, i + 1]
+            if v00 >= 0 and v01 >= 0 and v10 >= 0 and v11 >= 0:
+                triangles.append((v00, v01, v10))
+                triangles.append((v01, v11, v10))
+
+    x_v = np.asarray(X)[valid]
+    y_v = np.asarray(Y)[valid]
+    z_v = np.asarray(plot_data)[valid]
+    tri = mtri.Triangulation(x_v, y_v, triangles=np.array(triangles, dtype=int))
+
+    return ax.tricontourf(tri, z_v, levels=levels, cmap=cmap, **kwargs)

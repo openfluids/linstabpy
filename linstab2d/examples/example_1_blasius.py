@@ -11,7 +11,9 @@ USAGE:   python example_1_blasius.py                       # .npz exists → plo
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import time
 
 import numpy as np
 import scipy.sparse as sp
@@ -29,6 +31,14 @@ OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
 
 
+def _to_bool(v: str | bool | None, default: bool = False) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return default
+    return str(v).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def compute():
     """Run the full Blasius resolvent analysis."""
     # ---- Physical parameters ----
@@ -42,9 +52,22 @@ def compute():
     omega = 100 * (Re / 1e6)
     n_modes = 3
 
+    allow_full = _to_bool(os.getenv("LINSTAB2D_ALLOW_FULL_BLASIUS"))
+    reduced = not allow_full
+    if reduced:
+        print("Running in reduced memory-safe mode for Blasius (set LINSTAB2D_ALLOW_FULL_BLASIUS=1 to run full-size).")
+
     # ---- Grid parameters ----
-    nx = 300
-    ny = 100
+    # Use environment overrides so heavy runs can be tuned without code edits.
+    nx_reduced = int(os.getenv("LINSTAB2D_BLASIUS_NX_REDUCED", "220"))
+    ny_reduced = int(os.getenv("LINSTAB2D_BLASIUS_NY_REDUCED", "70"))
+    nx_full = int(os.getenv("LINSTAB2D_BLASIUS_NX", "420"))
+    ny_full = int(os.getenv("LINSTAB2D_BLASIUS_NY", "140"))
+
+    nx = nx_reduced if reduced else nx_full
+    ny = ny_reduced if reduced else ny_full
+    mode = "reduced" if reduced else "full"
+    print(f"Blasius resolvent grid: mode={mode}, nx={nx}, ny={ny}")
     dx = 0.01
     x_min = 5 * dx
     x_max = 1.25 + dx
@@ -89,7 +112,9 @@ def compute():
 
     # ---- Assemble LNSE operator ----
     kx = 0.0  # no streamwise wavenumber for this case
+    t_lnse = time.perf_counter()
     L0, idx = build_lnse_operator(mesh, bf, kx=kx)
+    t_lnse = time.perf_counter() - t_lnse
 
     # ---- Apply Dirichlet BCs ----
     borders = "lrbt"
@@ -114,8 +139,14 @@ def compute():
     C_mat = B_mat.copy()
 
     # ---- Resolvent analysis ----
+    t_resolvent = time.perf_counter()
     gains, responses, forcings = resolvent_analysis(
         L0, omega, n_modes, W_diag, B_mat=B_mat, C_mat=C_mat
+    )
+    t_resolvent = time.perf_counter() - t_resolvent
+    print(
+        "Blasius timing: "
+        f"build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
     )
 
     print(f"Resolvent gains: {gains}")
@@ -185,7 +216,8 @@ def plot(data):
 def main():
     try:
         data = np.load(OUTPUT_NPZ)
-    except FileNotFoundError:
+    except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
+        print(f"Cached results unavailable or invalid ({exc}), recomputing.")
         compute()
         data = np.load(OUTPUT_NPZ)
     plot(data)

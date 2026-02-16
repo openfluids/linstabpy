@@ -15,14 +15,16 @@ dependencies = [
     "numpy >= 1.23",
     "scipy >= 1.10",
     "matplotlib >= 3.7",
+    "mpi4py >= 3.1",
+    "petsc4py >= 3.18",
+    "slepc4py >= 3.18",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov"]
-fast = ["scikit-umfpack"]
 
 [project.urls]
-Repository = "https://github.com/ricardofrantz/LinStab2D.py"
+Repository = "https://github.com/ricardofrantz/linstab2d"
 
 [tool.setuptools]
 packages = ["linstab2d"]
