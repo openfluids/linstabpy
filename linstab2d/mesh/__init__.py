@@ -7,4 +7,4 @@ from .sbp import (
     min_points,
 )
 from .mesh import Mesh
-from .filters import MeshFilters, build_mesh_filters, filter_O10_diffMat
+from .filters import MeshFilters, build_mesh_filters

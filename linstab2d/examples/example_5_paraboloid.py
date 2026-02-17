@@ -8,7 +8,6 @@ parabolic physical grid and an axisymmetric model.
 from __future__ import annotations
 
 from pathlib import Path
-import os
 
 import numpy as np
 import scipy.sparse as sp
@@ -23,36 +22,11 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.utils.plotting import plot_flow
 
+from ._helpers import env_bool, env_float, env_int
+
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
-
-
-def _to_bool(v: str | bool | None) -> bool:
-    if isinstance(v, bool):
-        return v
-    if v is None:
-        return False
-    return str(v).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _to_int(v: str | None, default: int) -> int:
-    if v is None:
-        return default
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return default
-
-
-def _to_float(v: str | None, default: float) -> float:
-    if v is None:
-        return default
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        print(f"Invalid float value {v!r}; using {default}.")
-        return default
 
 
 def compute():
@@ -60,36 +34,17 @@ def compute():
 
     Uses m = 5 azimuthal Fourier mode and axy model.
     """
-    omega = _to_float(os.getenv("LINSTAB2D_PARABOLOID_OMEGA"), 0.0)
-    omega_shift_fallback = _to_float(os.getenv("LINSTAB2D_PARABOLOID_OMEGA_SHIFT"), 1e-4)
-    use_shift_fallback = _to_bool(
-        os.getenv("LINSTAB2D_PARABOLOID_USE_OMEGA_SHIFT_FALLBACK", "1")
+    omega = env_float("LINSTAB2D_PARABOLOID_OMEGA", 0.0)
+    omega_shift_fallback = env_float("LINSTAB2D_PARABOLOID_OMEGA_SHIFT", 1e-4)
+    use_shift_fallback = env_bool(
+        "LINSTAB2D_PARABOLOID_USE_OMEGA_SHIFT_FALLBACK", default=True
     )
-    allow_full = _to_bool(os.getenv("LINSTAB2D_ALLOW_FULL_PARABOLOID"))
-    reduce_mode = (not allow_full) or _to_bool(os.getenv("LINSTAB2D_REDUCED_PARABOLOID"))
-    if reduce_mode:
-        print(
-            "Running in reduced mode for Paraboloid (set "
-            "LINSTAB2D_ALLOW_FULL_PARABOLOID=1 to run full-size)."
-        )
-    n_modes = _to_int(
-        os.getenv(
-            "LINSTAB2D_PARABOLOID_N_MODES_REDUCED" if reduce_mode else "LINSTAB2D_PARABOLOID_N_MODES",
-            None,
-        ),
-        2 if reduce_mode else 3,
-    )
+    n_modes = env_int("LINSTAB2D_PARABOLOID_N_MODES", 3)
     m = 5
     fd_order = 4
 
-    Nx = _to_int(
-        os.getenv("LINSTAB2D_PARABOLOID_NX_REDUCED" if reduce_mode else "LINSTAB2D_PARABOLOID_NX"),
-        70 if reduce_mode else 100,
-    )
-    Ny = _to_int(
-        os.getenv("LINSTAB2D_PARABOLOID_NY_REDUCED" if reduce_mode else "LINSTAB2D_PARABOLOID_NY"),
-        70 if reduce_mode else 100,
-    )
+    Nx = env_int("LINSTAB2D_PARABOLOID_NX", 100)
+    Ny = env_int("LINSTAB2D_PARABOLOID_NY", 100)
     Lx = 2.25
     Ly = 1.5
 
@@ -119,6 +74,10 @@ def compute():
     Y = 1 - (1 - Y) ** 1.4
     Y = 1 - (1 - Y) ** 1.4
     Y = np.maximum(Y, 1e-10)
+
+    # Scale to physical domain before Z² conformal mapping (MATLAB convention)
+    X = X * Lx - 0.5
+    Y = Y * Ly
 
     Z = X + 1j * Y
     Xp = -np.real(Z**2)
@@ -232,7 +191,7 @@ def plot(data):
     X = data["X"]
     Y = data["Y"]
     n_modes = int(data["n_modes"])
-    refine = max(1, _to_int(os.getenv("LINSTAB2D_PARABOLOID_PLOT_REFINED", "3"), 1))
+    refine = env_int("LINSTAB2D_PARABOLOID_PLOT_REFINED", 3)
 
     n_plot = min(n_modes, 3)
     fig, axes = plt.subplots(max(1, n_plot), 2, figsize=(12, 4 * max(1, n_plot)))

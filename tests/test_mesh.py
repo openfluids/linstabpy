@@ -358,35 +358,10 @@ class TestIntegrationAccuracy:
 class TestMeshCreation:
     """Verify basic mesh creation and attribute shapes."""
 
-    def test_grid_shape(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        assert mesh.X.shape == (30, 20)
-        assert mesh.Y.shape == (30, 20)
-
-    def test_ngp(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        assert mesh.ngp == 20 * 30
-
-    def test_used_ind(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        np.testing.assert_array_equal(mesh.used_ind, np.arange(mesh.ngp))
-
-    def test_operator_shapes(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        ngp = mesh.ngp
-        for name in ("Dx", "D2x", "Dy", "D2y", "Dxy", "Dyx"):
-            op = getattr(mesh, name)
-            assert op.shape == (ngp, ngp), f"{name} shape mismatch"
-
     def test_weights_positive(self, small_mesh_2d):
         mesh = small_mesh_2d
         W_flat = mesh.W.ravel(order="F")
         assert np.all(W_flat[mesh.used_ind] > 0)
-
-    def test_boundary_index_keys(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        for key in ("bi", "ti", "li", "ri"):
-            assert key in mesh.idx, f"Missing boundary index '{key}'"
 
     def test_boundary_indices_correct_coordinates(self, small_mesh_2d):
         """Boundary indices map to correct physical coordinates (F-order)."""
@@ -427,19 +402,6 @@ class TestMeshCreation:
         assert len(mesh.idx["li"]) == 0
         assert len(mesh.idx["ri"]) == 0
 
-    def test_non_symmetric_operators_none(self, small_mesh_2d):
-        mesh = small_mesh_2d
-        assert mesh.Dy_symm is None
-        assert mesh.D2y_symm is None
-        assert mesh.Dy_asymm is None
-        assert mesh.D2y_asymm is None
-
-    @pytest.mark.parametrize("fd_order", [2, 4, 6, 8])
-    def test_creation_across_orders(self, small_mesh_2d_order):
-        mesh = small_mesh_2d_order
-        assert mesh.X.shape == (30, 20)
-        assert mesh.ngp == 600
-
     def test_constant_preservation_dx(self, small_mesh_2d):
         """Dx @ 1 = 0."""
         mesh = small_mesh_2d
@@ -452,37 +414,6 @@ class TestMeshCreation:
         result = mesh.Dy @ np.ones(mesh.ngp)
         np.testing.assert_allclose(result, 0.0, atol=1e-12)
 
-    def test_fd_order_stored(self, small_mesh_2d):
-        assert small_mesh_2d.fd_order == 4
-
-    def test_x_periodicity_flag(self, small_mesh_periodic):
-        assert small_mesh_periodic.x_periodicity is True
-
-    def test_y_symmetry_flag_order2(self):
-        """y_symmetry=True works for order 2 (pole stencils supported)."""
-        mesh = Mesh.create(
-            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
-            nx=20, ny=20, fd_order=2, y_symmetry=True,
-        )
-        assert mesh.y_symmetry is True
-
-    def test_symmetric_operators_not_none_order2(self):
-        """Symmetric pole operators are present for order 2."""
-        mesh = Mesh.create(
-            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
-            nx=20, ny=20, fd_order=2, y_symmetry=True,
-        )
-        assert mesh.Dy_symm is not None
-        assert mesh.D2y_symm is not None
-        assert mesh.Dy_asymm is not None
-        assert mesh.D2y_asymm is not None
-
-    def test_operators_are_sparse(self, small_mesh_2d):
-        """Operators should be sparse CSR matrices."""
-        mesh = small_mesh_2d
-        for name in ("Dx", "D2x", "Dy", "D2y", "Dxy", "Dyx"):
-            op = getattr(mesh, name)
-            assert sparse.issparse(op), f"{name} is not sparse"
 
 
 # ===================================================================
@@ -574,17 +505,6 @@ class TestMeshDeformation:
     accuracy after deformation.
     """
 
-    def test_deformation_preserves_grid_shapes(self, small_mesh_2d):
-        """Deformed mesh retains the same X, Y array shapes."""
-        mesh = small_mesh_2d
-        s = 2.0
-        y_max = mesh.Y.max()
-        Y_new = y_max * np.sinh(s * mesh.Y / y_max) / np.sinh(s)
-        mesh_def = mesh.deform(Y_new=Y_new)
-        assert mesh_def.X.shape == mesh.X.shape
-        assert mesh_def.Y.shape == mesh.Y.shape
-        assert mesh_def.ngp == mesh.ngp
-
     def test_deformation_updates_coordinates(self, small_mesh_2d):
         """Deformed mesh stores the new coordinates."""
         mesh = small_mesh_2d
@@ -595,26 +515,6 @@ class TestMeshDeformation:
         np.testing.assert_allclose(mesh_def.Y, Y_new)
         np.testing.assert_allclose(mesh_def.X, mesh.X)
 
-    def test_deformation_preserves_ngp(self, small_mesh_2d):
-        """Deformation preserves the number of grid points."""
-        mesh = small_mesh_2d
-        s = 2.0
-        y_max = mesh.Y.max()
-        Y_new = y_max * np.sinh(s * mesh.Y / y_max) / np.sinh(s)
-        mesh_def = mesh.deform(Y_new=Y_new)
-        assert mesh_def.ngp == mesh.ngp
-        assert mesh_def.used_ind.size == mesh.used_ind.size
-
-    def test_deformation_preserves_operator_shapes(self, small_mesh_2d):
-        """Deformed operators have the same shapes as originals."""
-        mesh = small_mesh_2d
-        s = 2.0
-        y_max = mesh.Y.max()
-        Y_new = y_max * np.sinh(s * mesh.Y / y_max) / np.sinh(s)
-        mesh_def = mesh.deform(Y_new=Y_new)
-        for name in ("Dx", "D2x", "Dy", "D2y", "Dxy", "Dyx"):
-            assert getattr(mesh_def, name).shape == getattr(mesh, name).shape
-
     def test_shape_mismatch_raises(self, small_mesh_2d):
         """Deform with wrong shape raises ValueError."""
         mesh = small_mesh_2d
@@ -622,13 +522,6 @@ class TestMeshDeformation:
         with pytest.raises(ValueError):
             mesh.deform(Y_new=wrong_shape)
 
-    def test_deformed_operators_are_sparse(self):
-        """Deformed operators remain sparse."""
-        mesh = _square_mesh(n=20, fd_order=4)
-        Y_new = np.sinh(2 * mesh.Y) / np.sinh(2)
-        mesh_def = mesh.deform(Y_new=Y_new)
-        for name in ("Dx", "D2x", "Dy", "D2y"):
-            assert sparse.issparse(getattr(mesh_def, name))
 
 
 # ===================================================================

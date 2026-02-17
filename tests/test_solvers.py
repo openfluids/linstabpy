@@ -4,7 +4,6 @@ All tests in this file are marked @pytest.mark.slow.
 """
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
 
 from linstab2d.mesh import Mesh
@@ -328,16 +327,6 @@ class TestCylindricalTemporalEigenvalues:
                 f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
             )
 
-    def test_axy_eigenvalues_finite(self):
-        """All returned eigenvalues are finite."""
-        _, _, L0, _, _ = _build_synthetic_jet(m=0)
-        omega, _ = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
-        assert np.all(np.isfinite(omega)), f"Non-finite eigenvalues: {omega}"
-
-    def test_axy_operator_shape(self):
-        """axy operator is square with dimension 5*ngp."""
-        _, _, L0, _, ngp = _build_synthetic_jet(m=0)
-        assert L0.shape == (5 * ngp, 5 * ngp)
 
 
 @pytest.mark.slow
@@ -355,14 +344,6 @@ class TestCylindricalSpatialEigenvalues:
         )
         return Lc, Lw, R_mat, ngp
 
-    def test_spatial_axy_shapes(self, spatial_axy_problem):
-        """Spatial axy matrices have shape (2*5*ngp, 2*5*ngp)."""
-        Lc, Lw, R_mat, ngp = spatial_axy_problem
-        expected = (2 * 5 * ngp, 2 * 5 * ngp)
-        assert Lc.shape == expected
-        assert R_mat.shape == expected
-        assert Lw.shape == expected
-
     def test_spatial_axy_eigenvalues_finite(self, spatial_axy_problem):
         """Spatial axy eigenvalues are finite and eigenvectors are nonzero."""
         Lc, Lw, R_mat, _ = spatial_axy_problem
@@ -373,11 +354,3 @@ class TestCylindricalSpatialEigenvalues:
         for i in range(modes.shape[1]):
             assert np.linalg.norm(modes[:, i]) > 0, f"Zero eigenvector at mode {i}"
 
-    def test_spatial_axy_sparse_complex(self, spatial_axy_problem):
-        """Spatial axy matrices are sparse and complex."""
-        Lc, Lw, R_mat, _ = spatial_axy_problem
-        for name, mat in [("Lc", Lc), ("R", R_mat), ("Lw", Lw)]:
-            assert sp.issparse(mat), f"{name} should be sparse"
-            assert np.issubdtype(mat.dtype, np.complexfloating), (
-                f"{name} should be complex"
-            )

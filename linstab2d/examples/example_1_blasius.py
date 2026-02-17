@@ -11,7 +11,6 @@ USAGE:   python example_1_blasius.py                       # .npz exists → plo
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import time
 
@@ -26,17 +25,11 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.solvers.resolvent import resolvent_analysis
 
+from ._helpers import env_int
+
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
-
-
-def _to_bool(v: str | bool | None, default: bool = False) -> bool:
-    if isinstance(v, bool):
-        return v
-    if v is None:
-        return default
-    return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def compute():
@@ -52,22 +45,10 @@ def compute():
     omega = 100 * (Re / 1e6)
     n_modes = 3
 
-    allow_full = _to_bool(os.getenv("LINSTAB2D_ALLOW_FULL_BLASIUS"))
-    reduced = not allow_full
-    if reduced:
-        print("Running in reduced memory-safe mode for Blasius (set LINSTAB2D_ALLOW_FULL_BLASIUS=1 to run full-size).")
-
-    # ---- Grid parameters ----
-    # Use environment overrides so heavy runs can be tuned without code edits.
-    nx_reduced = int(os.getenv("LINSTAB2D_BLASIUS_NX_REDUCED", "220"))
-    ny_reduced = int(os.getenv("LINSTAB2D_BLASIUS_NY_REDUCED", "70"))
-    nx_full = int(os.getenv("LINSTAB2D_BLASIUS_NX", "420"))
-    ny_full = int(os.getenv("LINSTAB2D_BLASIUS_NY", "140"))
-
-    nx = nx_reduced if reduced else nx_full
-    ny = ny_reduced if reduced else ny_full
-    mode = "reduced" if reduced else "full"
-    print(f"Blasius resolvent grid: mode={mode}, nx={nx}, ny={ny}")
+    # ---- Grid parameters (MATLAB native resolution) ----
+    nx = env_int("LINSTAB2D_BLASIUS_NX", 300)
+    ny = env_int("LINSTAB2D_BLASIUS_NY", 100)
+    print(f"Blasius resolvent grid: nx={nx}, ny={ny}")
     dx = 0.01
     x_min = 5 * dx
     x_max = 1.25 + dx

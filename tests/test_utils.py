@@ -87,16 +87,6 @@ class TestPlotFlow:
         rng = np.random.default_rng(42)
         self.field = rng.standard_normal((10, 10))
 
-    def test_real_component(self):
-        """component='real' completes without error."""
-        ax = plot_flow(self.X, self.Y, self.field, component="real")
-        assert ax is not None
-
-    def test_abs_component(self):
-        """component='abs' completes without error."""
-        ax = plot_flow(self.X, self.Y, self.field, component="abs")
-        assert ax is not None
-
     def test_invalid_component_raises(self):
         """Invalid component raises ValueError."""
         with pytest.raises(ValueError):

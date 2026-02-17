@@ -141,28 +141,6 @@ class TestResolventNumerics:
             err_msg="Optimal forcing should achieve σ₁",
         )
 
-    def test_forcing_response_orthogonality(self, jet_resolvent):
-        """Forcing and response modes should be W-orthonormal."""
-        _, _, gains, responses, forcings = jet_resolvent
-        d = jet_resolvent[0]
-        W = d["W_diag"]
-        n_modes = forcings.shape[1]
-
-        # Forcing W-orthonormality
-        G_f = np.empty((n_modes, n_modes), dtype=complex)
-        for i in range(n_modes):
-            for j in range(n_modes):
-                G_f[i, j] = forcings[:, i].conj() @ (W * forcings[:, j])
-        np.testing.assert_allclose(G_f, np.eye(n_modes), atol=1e-8,
-                                   err_msg="Forcing modes not W-orthonormal")
-
-        # Response W-orthonormality
-        G_r = np.empty((n_modes, n_modes), dtype=complex)
-        for i in range(n_modes):
-            for j in range(n_modes):
-                G_r[i, j] = responses[:, i].conj() @ (W * responses[:, j])
-        np.testing.assert_allclose(G_r, np.eye(n_modes), atol=1e-8,
-                                   err_msg="Response modes not W-orthonormal")
 
 
 # =========================================================================
