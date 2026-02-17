@@ -6,5 +6,4 @@ dist/
 build/
 *.npz
 *.png
-matlab/
 .venv/
