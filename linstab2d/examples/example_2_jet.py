@@ -10,7 +10,6 @@ USAGE:   python example_2_jet.py                       # .npz exists → plot on
 """
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
@@ -27,13 +26,17 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.utils.plotting import plot_flow
 
+from ._helpers import env_int
+
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
 REFERENCE_MAT = SCRIPT.with_name("example_2_reference.mat")
 
 
-_BASEFLOW_MAT = SCRIPT.parents[2] / "matlab" / "BaseFlows" / "M09jet.mat"
+from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
+
+_BASEFLOW_MAT = _BASEFLOW_DATA_DIR / "M09jet.mat"
 
 
 def _as_grid(values: np.ndarray, shape: tuple[int, int], name: str) -> np.ndarray:
@@ -66,14 +69,6 @@ def _reference_or_warn(label: str, actual: np.ndarray, key: str) -> None:
     except AssertionError as exc:
         raise RuntimeError(f"MATLAB reference comparison failed for {label}") from exc
     print(f"Reference comparison passed for {label} ({REFERENCE_MAT.name})")
-
-
-def _to_bool(v: str | bool | None) -> bool:
-    if isinstance(v, bool):
-        return v
-    if v is None:
-        return False
-    return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _load_sponge(mesh, r_1D: np.ndarray, z_1D: np.ndarray) -> np.ndarray:
@@ -117,16 +112,9 @@ def compute():
     """Run jet resolvent analysis."""
     St = 0.39
     omega = 2 * np.pi * St
-    allow_full = _to_bool(os.getenv("LINSTAB2D_ALLOW_FULL_JET"))
-    reduce_mesh = _to_bool(os.getenv("LINSTAB2D_REDUCED_JET")) or not allow_full
-    if reduce_mesh and not _to_bool(os.getenv("LINSTAB2D_REDUCED_JET")):
-        print("Running in safe reduced mode for Jet (set LINSTAB2D_ALLOW_FULL_JET=1 to run full-size).")
-    elif reduce_mesh:
-        print("Running in reduced mode for Jet (set LINSTAB2D_ALLOW_FULL_JET=1 to run full-size).")
-    default_coarsen = "4" if reduce_mesh else "1"
-    coarsen = int(os.getenv("LINSTAB2D_JET_COARSEN", default_coarsen))
+    coarsen = env_int("LINSTAB2D_JET_COARSEN", 1)
     coarsen = max(1, coarsen)
-    n_modes = 1 if reduce_mesh else 3
+    n_modes = 3
     m = 0
     fd_order = 4
 
@@ -198,7 +186,7 @@ def compute():
     print(f"Resolvent gains: {gains}")
     print(f"Stage 1C timing: build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s")
 
-    if REFERENCE_MAT.exists() and not reduce_mesh:
+    if REFERENCE_MAT.exists():
         _reference_or_warn("resolvent gains", gains, "gains")
 
     np.savez_compressed(

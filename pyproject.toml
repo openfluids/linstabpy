@@ -29,6 +29,9 @@ Repository = "https://github.com/ricardofrantz/linstab2d"
 [tool.setuptools]
 packages = ["linstab2d"]
 
+[tool.setuptools.package-data]
+linstab2d = ["data/baseflows/*.mat"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["slow: tests taking > 30s (deselect with -m 'not slow')"]

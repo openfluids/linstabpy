@@ -15,7 +15,7 @@ from scipy.io import loadmat
 from .baseflow import BaseFlow
 
 
-_BASEFLOW_DATA_DIR = Path(__file__).resolve().parents[2] / "matlab" / "BaseFlows"
+_BASEFLOW_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "baseflows"
 
 
 def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
