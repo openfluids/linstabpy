@@ -15,7 +15,7 @@ import scipy.sparse as sp
 
 from petsc4py import PETSc
 
-from ..solvers.petsc_utils import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
+from ..utils.petsc_core import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
 
 
 @dataclass(frozen=True)

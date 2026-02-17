@@ -10,7 +10,6 @@ Translates example_3_Streaky_BL.m with:
 from __future__ import annotations
 
 from pathlib import Path
-import os
 
 import numpy as np
 
@@ -25,56 +24,20 @@ from linstab2d.solvers.spatial_eig import spatial_eigenvalues
 from linstab2d.utils.floquet import reconstruct_floquet
 from linstab2d.utils.plotting import plot_flow
 
+from ._helpers import env_int
+
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
 
 
-def _to_grid(values: np.ndarray, indices: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    full = np.full(int(np.prod(shape)), np.nan, dtype=complex)
-    full[np.asarray(indices)] = np.asarray(values)
-    return full.reshape(shape, order="F")
-
-
-def _to_int_env(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        print(f"Invalid {name}={raw!r}; using {default}.")
-        return default
-    return max(1, value)
-
-
 def _compute():
     """Run temporal and spatial eigensolutions."""
-    explicit_reduced = os.getenv("LINSTAB2D_REDUCED_STREAKY", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    allow_full = os.getenv("LINSTAB2D_ALLOW_FULL_STREAKY", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    reduce_mode = explicit_reduced or not allow_full
-    if reduce_mode:
-        print("Running in reduced memory-safe mode for Streaky BL (set LINSTAB2D_ALLOW_FULL_STREAKY=1 to run full-size).")
-
     Lx = np.pi
     Ly = 5.0
-    nx_full = int(125 * (Lx / np.pi))
-    ny_full = 250
-    nx_reduced = 30
-    ny_reduced = 80
-    Nx = _to_int_env("LINSTAB2D_STREAKY_NX_REDUCED", nx_reduced) if reduce_mode else _to_int_env("LINSTAB2D_STREAKY_NX", nx_full)
-    Ny = _to_int_env("LINSTAB2D_STREAKY_NY_REDUCED", ny_reduced) if reduce_mode else _to_int_env("LINSTAB2D_STREAKY_NY", ny_full)
-    print(f"Streaky BL grid points: mode={'reduced' if reduce_mode else 'full'}, Nx={Nx}, Ny={Ny}")
+    Nx = env_int("LINSTAB2D_STREAKY_NX", 125)
+    Ny = env_int("LINSTAB2D_STREAKY_NY", 250)
+    print(f"Streaky BL grid points: Nx={Nx}, Ny={Ny}")
     fd_order = 4
 
     freq = 0.0
@@ -84,7 +47,7 @@ def _compute():
     alpha_temp = 0.6283
     omega_tar = 0.5498 + 1.1j
     alpha_target = alpha_temp
-    n_modes = 10 if reduce_mode else 50
+    n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
 
     xrange = (0.0, Lx)
     yrange = (-1.0, 1.0)

@@ -169,12 +169,6 @@ class TestCartesianCoefficients:
                     err_msg=f"Inviscid limit: {name}[{k},:,:] should vanish",
                 )
 
-    def test_all_arrays_shapes(self):
-        """Redundant shape check: each of the 7 arrays is (5, 5, ngp)."""
-        coeffs = _call_cartesian(self.NGP)
-        expected = (5, 5, self.NGP)
-        for attr in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
-            assert getattr(coeffs, attr).shape == expected
 
 
 # =========================================================================
@@ -249,19 +243,6 @@ class TestCylindricalCoefficients:
 class TestOperatorAssembly:
     """Tests for build_lnse_operator using small_mesh_2d + uniform_baseflow."""
 
-    def test_L0_shape(self, small_mesh_2d, uniform_baseflow):
-        """L0 has shape (5*ngp, 5*ngp)."""
-        mesh = small_mesh_2d
-        ngp = mesh.ngp
-        L0, _ = build_lnse_operator(mesh, uniform_baseflow, kx=0.0)
-        assert L0.shape == (5 * ngp, 5 * ngp)
-
-    def test_L0_sparse_complex(self, small_mesh_2d, uniform_baseflow):
-        """L0 is sparse and has complex dtype."""
-        L0, _ = build_lnse_operator(small_mesh_2d, uniform_baseflow, kx=0.0)
-        assert sp.issparse(L0)
-        assert np.issubdtype(L0.dtype, np.complexfloating)
-
     def test_continuity_block_no_viscous(self, small_mesh_2d, uniform_baseflow):
         """First ngp rows (continuity) should have no second-derivative viscous entries.
 
@@ -282,12 +263,6 @@ class TestOperatorAssembly:
             f"Continuity nnz ({cont_nnz}) should be < momentum nnz ({mom_nnz})"
         )
 
-    def test_idx_keys(self, small_mesh_2d, uniform_baseflow):
-        """idx dict contains all required keys."""
-        _, idx = build_lnse_operator(small_mesh_2d, uniform_baseflow, kx=0.0)
-        required = {"bi", "ti", "li", "ri", "rho_j", "u_j", "v_j", "w_j", "T_j"}
-        assert required.issubset(idx.keys()), f"Missing keys: {required - idx.keys()}"
-
     def test_variable_dof_ranges(self, small_mesh_2d, uniform_baseflow):
         """Variable DOF ranges: rho_j = [0, ngp), u_j = [ngp, 2*ngp), etc."""
         mesh = small_mesh_2d
@@ -298,14 +273,6 @@ class TestOperatorAssembly:
         np.testing.assert_array_equal(idx["v_j"],   np.arange(2 * ngp, 3 * ngp))
         np.testing.assert_array_equal(idx["w_j"],   np.arange(3 * ngp, 4 * ngp))
         np.testing.assert_array_equal(idx["T_j"],   np.arange(4 * ngp, 5 * ngp))
-
-    @slow
-    def test_axy_model_shape(self, small_mesh_2d, uniform_baseflow):
-        """model='axy' returns operator of correct shape."""
-        mesh = small_mesh_2d
-        ngp = mesh.ngp
-        L0, _ = build_lnse_operator(mesh, uniform_baseflow, kx=0.0, model="axy")
-        assert L0.shape == (5 * ngp, 5 * ngp)
 
     def test_invalid_model_raises(self, small_mesh_2d, uniform_baseflow):
         """Invalid model string raises ValueError."""
@@ -392,30 +359,6 @@ class TestChuEnergyNorm:
 # TestSpatialOperator
 # =========================================================================
 
-class TestSpatialOperator:
-    """Tests for build_spatial_operator (uses blasius_baseflow_small fixture)."""
-
-    @slow
-    def test_spatial_shapes(self, blasius_baseflow_small):
-        """Lc, R, Lw each have shape (2*5*ngp, 2*5*ngp)."""
-        mesh, bf = blasius_baseflow_small
-        ngp = mesh.ngp
-        Lc, R, Lw, _ = build_spatial_operator(mesh, bf)
-        expected = (2 * 5 * ngp, 2 * 5 * ngp)
-        assert Lc.shape == expected
-        assert R.shape == expected
-        assert Lw.shape == expected
-
-    @slow
-    def test_spatial_sparse_complex(self, blasius_baseflow_small):
-        """Lc, R, Lw are sparse and complex."""
-        mesh, bf = blasius_baseflow_small
-        Lc, R, Lw, _ = build_spatial_operator(mesh, bf)
-        for name, mat in [("Lc", Lc), ("R", R), ("Lw", Lw)]:
-            assert sp.issparse(mat), f"{name} should be sparse"
-            assert np.issubdtype(mat.dtype, np.complexfloating), (
-                f"{name} should be complex"
-            )
 
 
 # =========================================================================

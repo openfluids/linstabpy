@@ -15,15 +15,6 @@ from linstab2d.boundary_conditions import apply_dirichlet
 # Parametrize helpers
 # ---------------------------------------------------------------------------
 
-FD_ORDERS = [2, 4, 6, 8]
-
-
-@pytest.fixture(params=FD_ORDERS, ids=[f"order{o}" for o in FD_ORDERS])
-def fd_order(request):
-    """Parametrized FD order."""
-    return request.param
-
-
 # ---------------------------------------------------------------------------
 # Mesh fixtures
 # ---------------------------------------------------------------------------
@@ -41,18 +32,6 @@ def small_mesh_2d():
 
 
 @pytest.fixture
-def small_mesh_2d_order(fd_order):
-    """20x30 mesh parametrized over FD orders."""
-    return Mesh.create(
-        xrange=(0.0, 2.0),
-        yrange=(0.0, 1.0),
-        nx=20,
-        ny=30,
-        fd_order=fd_order,
-    )
-
-
-@pytest.fixture
 def small_mesh_periodic():
     """32x20 mesh with x-periodicity."""
     return Mesh.create(
@@ -65,27 +44,6 @@ def small_mesh_periodic():
     )
 
 
-@pytest.fixture
-def small_mesh_symmetric():
-    """20x30 mesh with y-symmetry (axisymmetric pole)."""
-    return Mesh.create(
-        xrange=(0.0, 2.0),
-        yrange=(0.0, 1.0),
-        nx=20,
-        ny=30,
-        fd_order=4,
-        y_symmetry=True,
-    )
-
-
-@pytest.fixture
-def deformed_mesh(small_mesh_2d):
-    """small_mesh_2d with sinh stretching in Y."""
-    s = 2.0
-    Y_comp = small_mesh_2d.Y
-    y_max = Y_comp.max()
-    Y_new = y_max * np.sinh(s * Y_comp / y_max) / np.sinh(s)
-    return small_mesh_2d.deform(Y_new=Y_new)
 
 
 # ---------------------------------------------------------------------------
@@ -129,12 +87,6 @@ def blasius_baseflow_small():
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_polynomial_field(mesh, px, py):
-    """Create x^px * y^py as a flat vector in Fortran order on the mesh."""
-    X = mesh.X
-    Y = mesh.Y
-    field_2d = X**px * Y**py
-    return field_2d.ravel(order="F")[mesh.used_ind]
 
 
 # ---------------------------------------------------------------------------

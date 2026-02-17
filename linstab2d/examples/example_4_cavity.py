@@ -8,7 +8,6 @@ and direct + adjoint temporal eigenvalue problems.
 from __future__ import annotations
 
 from pathlib import Path
-import os
 
 import numpy as np
 
@@ -20,61 +19,22 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
 from linstab2d.utils.plotting import plot_flow
 
+from ._helpers import env_complex, env_int, to_grid
+
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
 
 
-def _to_grid(values: np.ndarray, used_indices: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    flat = np.full(int(np.prod(shape)), np.nan, dtype=complex)
-    flat[np.asarray(used_indices)] = np.asarray(values)
-    return flat.reshape(shape, order="F")
-
-
-def _to_bool(v: str | bool | None) -> bool:
-    if isinstance(v, bool):
-        return v
-    if v is None:
-        return False
-    return str(v).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _to_int(v: str | None, default: int) -> int:
-    if v is None:
-        return default
-    try:
-        value = int(v)
-    except (TypeError, ValueError):
-        return default
-    return max(1, value)
-
-
-def _to_complex(v: str | None, default: complex) -> complex:
-    if v is None:
-        return default
-    try:
-        return complex(v)
-    except (TypeError, ValueError):
-        print(f"Invalid complex value {v!r}; using {default}.")
-        return default
-
-
 def compute():
     """Run cavity direct/adjoint temporal eigenproblems."""
-    omega_target = _to_complex(os.getenv("LINSTAB2D_CAVITY_OMEGA_TARGET"), 1.5 + 1.0j)
-    reduce_mode = (not _to_bool(os.getenv("LINSTAB2D_ALLOW_FULL_CAVITY"))) or _to_bool(os.getenv("LINSTAB2D_REDUCED_CAVITY"))
-    if reduce_mode:
-        print("Running in reduced memory-safe mode for Cavity (set LINSTAB2D_ALLOW_FULL_CAVITY=1 to run full-size).")
-
-    n_modes = _to_int(
-        os.getenv("LINSTAB2D_CAVITY_N_MODES_REDUCED" if reduce_mode else "LINSTAB2D_CAVITY_N_MODES"),
-        4 if reduce_mode else 50,
-    )
+    omega_target = env_complex("LINSTAB2D_CAVITY_OMEGA_TARGET", 1.5 + 1.0j)
+    n_modes = env_int("LINSTAB2D_CAVITY_N_MODES", 50)
     n_plot = min(3, n_modes)
     beta = 0.0
 
-    Nx = _to_int(os.getenv("LINSTAB2D_CAVITY_NX_REDUCED"), 31 if reduce_mode else 241)
-    Ny = _to_int(os.getenv("LINSTAB2D_CAVITY_NY_REDUCED"), 11 if reduce_mode else 101)
+    Nx = env_int("LINSTAB2D_CAVITY_NX", 241)
+    Ny = env_int("LINSTAB2D_CAVITY_NY", 101)
     FDorder = 4
 
     x_cavity_start = 0.34029
@@ -252,7 +212,7 @@ def plot(data):
         ]
         for k, (idx_var, title_) in enumerate(fields):
             ax_k = axes.flat[k]
-            field = _to_grid(mode[idx_var], used_ind, X.shape)
+            field = to_grid(mode[idx_var], used_ind, X.shape)
             plot_flow(X, Y, np.real(field), ax=ax_k, levels=51, cmap="RdBu_r")
             ax_k.set_title(f"Direct {title_}, ω={omega[j]:.3f}")
         axes.flat[-1].set_visible(False)
@@ -276,7 +236,7 @@ def plot(data):
         ]
         for k, (idx_var, title_) in enumerate(fields):
             ax_k = axes.flat[k]
-            field = _to_grid(mode[idx_var], used_ind, X.shape)
+            field = to_grid(mode[idx_var], used_ind, X.shape)
             plot_flow(X, Y, np.real(field), ax=ax_k, levels=51, cmap="RdBu_r")
             ax_k.set_title(f"Adjoint ω*={omega_d_from_adj[j]:.3f} : {title_}")
         axes.flat[-1].set_visible(False)

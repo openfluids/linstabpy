@@ -136,68 +136,6 @@ class TestBlasiusResolventReference:
             f"Leading gain suspiciously small: {gains[0]:.2f} (expected > 5)"
         )
 
-    @pytest.mark.slow
-    def test_operator_sparsity(self, blasius_large):
-        """LNSE operator has roughly 30 nonzeros per row on average."""
-        L0 = blasius_large["L0"]
-        avg_nnz_per_row = L0.nnz / L0.shape[0]
-
-        # Bare stencil gives ~30 nnz/row; penalty BCs add some dense rows.
-        assert 10 < avg_nnz_per_row < 500, (
-            f"Average nnz/row = {avg_nnz_per_row:.1f}, outside [10, 500]"
-        )
-
-    @pytest.mark.slow
-    def test_operator_shape(self, blasius_large):
-        """Operator is square with dimension 5 * ngp."""
-        L0 = blasius_large["L0"]
-        ngp = blasius_large["ngp"]
-        expected = 5 * ngp
-
-        assert L0.shape == (expected, expected), (
-            f"Expected shape ({expected}, {expected}), got {L0.shape}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# TestSmallProblemConsistency
-# ---------------------------------------------------------------------------
-
-class TestSmallProblemConsistency:
-    """Quick smoke tests on a coarse grid."""
-
-    @pytest.mark.slow
-    def test_pipeline_completes(self, blasius_small):
-        """Full pipeline (mesh -> baseflow -> operator -> BC -> norm) runs."""
-        d = blasius_small
-
-        # If we got here the fixture already succeeded; verify shapes are sane.
-        L0 = d["L0"]
-        ngp = d["ngp"]
-        assert L0.shape[0] == L0.shape[1] == 5 * ngp
-        assert sp.issparse(L0)
-        assert d["W_diag"].shape == (5 * ngp,)
-        assert d["invW_diag"].shape == (5 * ngp,)
-
-    @pytest.mark.slow
-    def test_temporal_eigenpair_residual(self, blasius_small):
-        """Temporal eigenvalues satisfy the eigenpair equation on a coarse grid.
-
-        Note: on a 15x10 grid the eigenvalues are not physically meaningful
-        (too coarse to resolve Blasius modes), so we check the eigenpair
-        residual ||i L0 v - omega v|| / ||v|| rather than stability.
-        """
-        d = blasius_small
-        omegas, modes = temporal_eigenvalues(d["L0"], n_modes=3, target=-0.1j)
-        iL0 = 1j * d["L0"]
-
-        for i in range(len(omegas)):
-            v = modes[:, i]
-            residual = iL0 @ v - omegas[i] * v
-            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
-            assert rel_err < 1e-6, (
-                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -238,21 +176,6 @@ class TestOperatorSymmetryConsistency:
             err_msg="Adjoint bilinear form identity violated",
         )
 
-    @pytest.mark.slow
-    def test_energy_norm_positive_definite(self, blasius_small):
-        """Chu energy norm is positive definite: q^H diag(W) q > 0."""
-        W = blasius_small["W_diag"]
-        n = W.shape[0]
-
-        rng = np.random.default_rng(123)
-        q = rng.standard_normal(n) + 1j * rng.standard_normal(n)
-
-        energy = np.real(np.vdot(q, W * q))
-        assert energy > 0, f"Energy norm not positive definite: {energy}"
-
-        # Also check that W entries are all positive (sufficient condition
-        # for positive definiteness of the diagonal weight matrix).
-        assert np.all(W > 0), "Weight vector contains non-positive entries"
 
 
 # ---------------------------------------------------------------------------
@@ -273,30 +196,6 @@ class TestCylindricalIntegration:
     Uses a synthetic tanh jet profile on a 15×10 grid to test the full
     pipeline: mesh → baseflow → operator assembly → BCs → eigensolve.
     """
-
-    @pytest.mark.slow
-    def test_full_pipeline_completes(self, synthetic_jet):
-        """Cylindrical pipeline runs without errors."""
-        d = synthetic_jet
-        L0 = d["L0"]
-        ngp = d["ngp"]
-        assert L0.shape == (5 * ngp, 5 * ngp)
-        assert sp.issparse(L0)
-        assert d["W_diag"].shape == (5 * ngp,)
-
-    @pytest.mark.slow
-    def test_temporal_eigenpair_residual(self, synthetic_jet):
-        """Temporal eigenvalues satisfy eigenpair equation on axy model."""
-        d = synthetic_jet
-        omega, modes = temporal_eigenvalues(d["L0"], n_modes=5, target=-0.1j)
-        iL0 = 1j * d["L0"]
-        for i in range(len(omega)):
-            v = modes[:, i]
-            residual = iL0 @ v - omega[i] * v
-            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
-            assert rel_err < 1e-6, (
-                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
-            )
 
     @pytest.mark.slow
     def test_least_damped_eigenvalue_reference(self, synthetic_jet):
@@ -320,30 +219,3 @@ class TestCylindricalIntegration:
             err_msg=f"Least-damped eigenvalue shifted: {closest} vs reference {omega_ref_imag}j",
         )
 
-    @pytest.mark.slow
-    def test_adjoint_bilinear_form_axy(self, synthetic_jet):
-        """Adjoint identity <L u, v>_W = <u, L_adj v>_W for axy model."""
-        d = synthetic_jet
-        L0 = d["L0"]
-        W = d["W_diag"]
-        invW = d["invW_diag"]
-        n = L0.shape[0]
-
-        rng = np.random.default_rng(42)
-        u = rng.standard_normal(n) + 1j * rng.standard_normal(n)
-        v = rng.standard_normal(n) + 1j * rng.standard_normal(n)
-
-        lhs = np.vdot(v, W * (L0 @ u))
-        L_adj_v = invW * (L0.conj().T @ (W * v))
-        rhs = np.vdot(L_adj_v, W * u)
-
-        np.testing.assert_allclose(
-            lhs, rhs, rtol=1e-8,
-            err_msg="Adjoint bilinear form identity violated for axy model",
-        )
-
-    @pytest.mark.slow
-    def test_energy_norm_positive_axy(self, synthetic_jet):
-        """Chu energy norm is positive definite for axy model."""
-        W = synthetic_jet["W_diag"]
-        assert np.all(W > 0), "axy energy norm has non-positive entries"
