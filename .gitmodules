@@ -1,0 +1,3 @@
+[submodule "linstab2d/data/baseflows"]
+	path = linstab2d/data/baseflows
+	url = https://github.com/LinStab2D/LinStab2D.git
