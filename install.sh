@@ -21,6 +21,14 @@ VENV_DIR="${ROOT_DIR}/.venv"
 OS_NAME=$(uname -s)
 PYTHON_VERSION="3.13"
 
+# Ensure reference MATLAB data/code is present locally for local inspection.
+if [ -d "${ROOT_DIR}/.git" ]; then
+    if ! git -C "${ROOT_DIR}" submodule status linstab2d/data/baseflows >/dev/null 2>&1; then
+        warn "Initializing MATLAB reference submodule..."
+        git -C "${ROOT_DIR}" submodule update --init --recursive
+    fi
+fi
+
 log()  { printf '\033[1;34m[install]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
 err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
