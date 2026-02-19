@@ -153,9 +153,11 @@ SciPy sparse (matrix assembly)  →  PETSc (linear solves via MUMPS)  →  SLEPc
 
 ```bash
 # Clone and set up
-git clone https://github.com/ricardofrantz/linstab2d.git
+git clone --recurse-submodules https://github.com/ricardofrantz/linstab2d.git
 cd linstab2d
 ./install.sh          # creates .venv, installs dependencies via uv
+# If submodules were not cloned with --recurse-submodules:
+git submodule update --init --recursive
 
 # Activate and run
 source .venv/bin/activate

@@ -15,13 +15,22 @@ from scipy.io import loadmat
 from .baseflow import BaseFlow
 
 
-_BASEFLOW_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "baseflows"
+_BASEFLOW_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "baseflows"
+if (_BASEFLOW_DATA_ROOT / "BaseFlows").is_dir():
+    _BASEFLOW_DATA_DIR = _BASEFLOW_DATA_ROOT / "BaseFlows"
+else:
+    _BASEFLOW_DATA_DIR = _BASEFLOW_DATA_ROOT
 
 
 def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
     """Load a MATLAB base-flow file from the repository data directory."""
     path = _BASEFLOW_DATA_DIR / filename
     if not path.exists():
+        if not _BASEFLOW_DATA_DIR.is_dir():
+            raise FileNotFoundError(
+                "Missing MATLAB base-flow data submodule. "
+                "Run: git submodule update --init --recursive"
+            ) from FileNotFoundError(f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}")
         raise FileNotFoundError(f"Could not find base-flow data file: {path}")
     return loadmat(path)
 
