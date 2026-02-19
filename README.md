@@ -191,6 +191,13 @@ linstab2d/
 └── utils/               # Plotting, Floquet reconstruction
 ```
 
+## Reference MATLAB source boundary
+
+- **Project implementation:** the Python code in this repository (`linstab2d/`, `tests/`, tooling files) is the source of this package.
+- **Reference source:** the MATLAB reference code and `.mat` base-flow files are kept in the git submodule at `linstab2d/data/baseflows`, which points to the upstream MATLAB repository.
+- **Local workflow:** `./install.sh` ensures the submodule is initialized so MATLAB files are present on disk for inspection.
+- **Boundary rule:** modify/commit only files in this repository unless you intentionally update the submodule itself (rare, with explicit intent).
+
 Test suite: 321 tests (`pytest tests/`), covering mesh construction, operators, boundary conditions, solvers, and full integration.
 
 ## Roadmap
