@@ -35,6 +35,7 @@ exec > >(tee "$LOG") 2>&1
 cd "$REPO_ROOT" || { echo "Cannot cd to $REPO_ROOT"; exit 1; }
 
 EXAMPLES=(
+    example_0_curvilinear_validation
     example_1_blasius
     example_2_jet
     example_3_streaky_bl

@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status_values": [
+    "pending",
+    "implemented",
+    "validated",
+    "deferred",
+    "out_of_scope",
+    "blocked"
+  ],
+  "required_status": "validated",
+  "entries": [
+    {
+      "id": "construct_get_lin_problem",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetLinProblem.m",
+      "python": "linstab2d/operators/assembly.py::build_lnse_operator",
+      "status": "implemented",
+      "required": true,
+      "notes": "Core temporal assembly path exists; strict parity artifact still pending."
+    },
+    {
+      "id": "construct_get_spatial_lin_problem",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetSpatialLinProblem.m",
+      "python": "linstab2d/operators/spatial.py::build_spatial_operator",
+      "status": "implemented",
+      "required": true,
+      "notes": "Spatial doubled system path exists; strict parity artifact still pending."
+    },
+    {
+      "id": "construct_cartesian_coefficients",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar_Cartesian.m",
+      "python": "linstab2d/operators/coefficients.py::compute_cartesian_coefficients",
+      "status": "implemented",
+      "required": true,
+      "notes": "Implementation exists; term-level symbolic parity not yet signed off."
+    },
+    {
+      "id": "construct_axisymmetric_coefficients",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar.m",
+      "python": "linstab2d/operators/coefficients.py::compute_cylindrical_coefficients",
+      "status": "implemented",
+      "required": true,
+      "notes": "Implementation exists; branch-level validated coverage pending."
+    },
+    {
+      "id": "construct_create_diff_matrices_axy",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/CreateDiffMatrices_Axy.m",
+      "python": "linstab2d/operators/assembly.py::_create_axy_diff_matrices",
+      "status": "implemented",
+      "required": true,
+      "notes": "Axy derivative remapping path exists; strict parity checks pending."
+    },
+    {
+      "id": "construct_lnseoperators_cyl",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/LNSEoperators_cyl.m",
+      "python": "linstab2d/operators/assembly.py::build_lnse_operator(model=\"axy\")",
+      "status": "implemented",
+      "required": true,
+      "notes": "Axisymmetric model branch exists; integration validation pending."
+    },
+    {
+      "id": "construct_get_comp_energy_norm",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetCompEnergyNorm.m",
+      "python": "linstab2d/operators/energy_norm.py::compute_chu_norm",
+      "status": "implemented",
+      "required": true,
+      "notes": "Implementation exists for 2D and axy; strict artifact pending."
+    },
+    {
+      "id": "bc_dirichlet",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet",
+      "status": "implemented",
+      "required": true,
+      "notes": "Unit coverage exists; validation artifact pending."
+    },
+    {
+      "id": "bc_dirichlet_spatial",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet_SpatialStability.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_spatial",
+      "status": "implemented",
+      "required": true,
+      "notes": "Unit coverage exists; validation artifact pending."
+    },
+    {
+      "id": "bc_neumann",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Neumann.m",
+      "python": "linstab2d/boundary_conditions/neumann.py::apply_neumann",
+      "status": "implemented",
+      "required": true,
+      "notes": "Implemented with face/corner tests; integration artifact pending."
+    },
+    {
+      "id": "bc_set_dirbc",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirBC.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices",
+      "status": "implemented",
+      "required": true,
+      "notes": "Adapter implemented with direct unit tests."
+    },
+    {
+      "id": "bc_set_dirichletbc",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirichletBC.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair",
+      "status": "implemented",
+      "required": true,
+      "notes": "Adapter implemented with direct unit tests."
+    }
+  ]
+}

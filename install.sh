@@ -20,6 +20,84 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 OS_NAME=$(uname -s)
 PYTHON_VERSION="3.13"
+PETSC_VERSION="3.24.2"
+SLEPC_VERSION="3.24.2"
+PETSC4PY_VERSION="3.24.2"
+SLEPC4PY_VERSION="3.24.2"
+
+log()  { printf '\033[1;34m[install]\033[0m %s\n' "$1"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
+err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
+ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+linux_install_system_deps() {
+    [ "${OS_NAME}" = "Linux" ] || return 0
+    [ "${LINSTAB2D_SKIP_SYS_DEPS:-0}" = "1" ] && {
+        warn "Skipping Linux system dependency installation (LINSTAB2D_SKIP_SYS_DEPS=1)."
+        return 0
+    }
+
+    local required=(curl make gcc g++ gfortran pkg-config mpicc mpicxx mpifort)
+    local missing=()
+    for c in "${required[@]}"; do
+        has_cmd "$c" || missing+=("$c")
+    done
+
+    if [ ${#missing[@]} -eq 0 ]; then
+        ok "Linux build prerequisites already installed."
+        return 0
+    fi
+
+    warn "Missing Linux build tools: ${missing[*]}"
+
+    local pm=""
+    local update_cmd=""
+    local install_cmd=""
+    if has_cmd apt-get; then
+        pm="apt"
+        update_cmd="apt-get update"
+        install_cmd="apt-get install -y build-essential gfortran pkg-config curl ca-certificates mpich libmpich-dev libx11-dev"
+    elif has_cmd dnf; then
+        pm="dnf"
+        install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make pkgconf-pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+    elif has_cmd yum; then
+        pm="yum"
+        install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make pkgconfig curl ca-certificates mpich mpich-devel libX11-devel"
+    elif has_cmd pacman; then
+        pm="pacman"
+        update_cmd="pacman -Sy --noconfirm"
+        install_cmd="pacman -S --noconfirm --needed base-devel gcc-fortran pkgconf curl ca-certificates mpich libx11"
+    elif has_cmd zypper; then
+        pm="zypper"
+        install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+    else
+        err "Unsupported Linux distro/package manager. Install manually: curl make gcc g++ gfortran pkg-config MPI dev tools (mpicc/mpicxx/mpifort) and X11 headers."
+        exit 1
+    fi
+
+    log "Installing Linux system dependencies via ${pm}..."
+    if [ "$(id -u)" -eq 0 ]; then
+        [ -n "${update_cmd}" ] && bash -lc "${update_cmd}"
+        bash -lc "${install_cmd}"
+    elif has_cmd sudo; then
+        [ -n "${update_cmd}" ] && sudo bash -lc "${update_cmd}"
+        sudo bash -lc "${install_cmd}"
+    else
+        err "Need root privileges to install system dependencies (sudo not found). Re-run as root."
+        exit 1
+    fi
+
+    missing=()
+    for c in "${required[@]}"; do
+        has_cmd "$c" || missing+=("$c")
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+        err "System dependency install incomplete; still missing: ${missing[*]}"
+        exit 1
+    fi
+    ok "Linux system dependencies installed."
+}
 
 # Ensure reference MATLAB data/code is present locally for local inspection.
 if [ -d "${ROOT_DIR}/.git" ]; then
@@ -28,11 +106,6 @@ if [ -d "${ROOT_DIR}/.git" ]; then
         git -C "${ROOT_DIR}" submodule update --init --recursive
     fi
 fi
-
-log()  { printf '\033[1;34m[install]\033[0m %s\n' "$1"; }
-warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
-err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
-ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 
 # ── Quick verification mode ──────────────────────────────────────────────────
 if [[ "${1:-}" == "--check" ]]; then
@@ -57,6 +130,7 @@ PY
 fi
 
 log "Detected OS: ${OS_NAME}"
+linux_install_system_deps
 
 # ── Locate or install uv ─────────────────────────────────────────────────────
 if ! command -v uv >/dev/null 2>&1; then
@@ -67,12 +141,20 @@ fi
 UV_BIN="$(command -v uv)"
 log "Using uv at: ${UV_BIN}"
 
-# ── Create venv with Python 3.13 ─────────────────────────────────────────────
-if [ ! -d "${VENV_DIR}" ]; then
+# ── Create/validate venv with Python 3.13 ────────────────────────────────────
+if [ -d "${VENV_DIR}" ]; then
+    EXISTING_PY="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
+    if [ "${EXISTING_PY}" != "${PYTHON_VERSION}" ]; then
+        warn "Existing venv uses Python ${EXISTING_PY:-unknown}; recreating with Python ${PYTHON_VERSION}"
+        rm -rf "${VENV_DIR}"
+        log "Creating virtual environment (Python ${PYTHON_VERSION}) at ${VENV_DIR}"
+        "${UV_BIN}" venv --python "${PYTHON_VERSION}" "${VENV_DIR}"
+    else
+        log "Using existing virtual environment at ${VENV_DIR}"
+    fi
+else
     log "Creating virtual environment (Python ${PYTHON_VERSION}) at ${VENV_DIR}"
     "${UV_BIN}" venv --python "${PYTHON_VERSION}" "${VENV_DIR}"
-else
-    log "Using existing virtual environment at ${VENV_DIR}"
 fi
 
 PY_BIN="${VENV_DIR}/bin/python"
@@ -83,19 +165,17 @@ log "Installing core dependencies..."
 ${PIP_INSTALL} "numpy>=1.23" "scipy>=1.10" "matplotlib>=3.7"
 
 # ── Step 2: MPI + PETSc + SLEPc C libraries ─────────────────────────────────
-log "Installing mpi4py, PETSc, and SLEPc wheels..."
+log "Installing mpi4py and PETSc wheels..."
+unset PETSC_DIR PETSC_ARCH SLEPC_DIR 2>/dev/null || true
 export PETSC_CONFIGURE_OPTIONS="--with-scalar-type=complex --download-mumps --download-scalapack --download-metis --download-parmetis"
-${PIP_INSTALL} mpi4py petsc slepc
+${PIP_INSTALL} mpi4py "petsc==${PETSC_VERSION}"
 
-# Locate PETSc and SLEPc installation directories
+# Locate PETSc installation directory and export for SLEPc build
 PETSC_DIR=$("${PY_BIN}" -c "import petsc; print(petsc.get_petsc_dir())")
-SLEPC_DIR=$("${PY_BIN}" -c "import slepc; print(slepc.get_slepc_dir())")
 PETSC_ARCH=""  # PyPI wheels use un-arched layout
+export PETSC_DIR PETSC_ARCH
 
 log "PETSC_DIR = ${PETSC_DIR}"
-log "SLEPC_DIR = ${SLEPC_DIR}"
-
-export PETSC_DIR PETSC_ARCH
 
 # ── Step 3: Patch PETSc config files ─────────────────────────────────────────
 # PyPI wheels embed the build-cache path.  We replace it with the actual path.
@@ -104,7 +184,7 @@ log "Patching PETSc configuration files..."
 PETSC_CONF_DIR="${PETSC_DIR}/lib/petsc/conf"
 if [ -f "${PETSC_CONF_DIR}/petscvariables" ]; then
     # Find the stale build-cache path baked into petscvariables
-    STALE_PATH=$(grep -m1 'PETSC_DIR = ' "${PETSC_CONF_DIR}/petscvariables" | sed 's/PETSC_DIR = //' || true)
+    STALE_PATH=$(grep -m1 'PETSC_DIR = ' "${PETSC_CONF_DIR}/petscvariables" | sed -E 's|.*= ||' || true)
     if [ -n "${STALE_PATH}" ] && [ "${STALE_PATH}" != "${PETSC_DIR}" ]; then
         log "  Replacing stale path: ${STALE_PATH}"
         log "  With actual path:     ${PETSC_DIR}"
@@ -129,11 +209,13 @@ if [ -f "${PETSC_CONF_DIR}/petscvariables" ]; then
         ok "PETSc config paths already correct."
     fi
 
-    # Ensure PETSC_PYTHON_EXE points to python3 (not a build-env python)
-    if grep -q 'PETSC_PYTHON_EXE' "${PETSC_CONF_DIR}/petscvariables" 2>/dev/null; then
-        sed -i.bak 's|PETSC_PYTHON_EXE = .*|PETSC_PYTHON_EXE = python3|' "${PETSC_CONF_DIR}/petscvariables"
-        rm -f "${PETSC_CONF_DIR}/petscvariables.bak"
-    fi
+    # Ensure PETSc Python executables point to python3 (not a build-env python)
+    sed -i.bak \
+        -e 's|^PETSC_PYTHON_EXE = .*|PETSC_PYTHON_EXE = python3|' \
+        -e 's|^PYTHON = .*|PYTHON = python3|' \
+        -e 's|^PYTHON_EXE = .*|PYTHON_EXE = "python3"|' \
+        "${PETSC_CONF_DIR}/petscvariables"
+    rm -f "${PETSC_CONF_DIR}/petscvariables.bak"
     if [ -f "${PETSC_DIR}/include/petscconf.h" ]; then
         sed -i.bak 's|#define PETSC_PYTHON_EXE .*|#define PETSC_PYTHON_EXE "python3"|' "${PETSC_DIR}/include/petscconf.h"
         rm -f "${PETSC_DIR}/include/petscconf.h.bak"
@@ -141,6 +223,14 @@ if [ -f "${PETSC_CONF_DIR}/petscvariables" ]; then
 else
     warn "PETSc config directory not found at ${PETSC_CONF_DIR}"
 fi
+
+# Install SLEPc after PETSc path patching so configure can link PETSc properly.
+log "Installing SLEPc wheel..."
+export SLEPC_CONFIGURE_OPTIONS="--with-clean"
+${PIP_INSTALL} "slepc==${SLEPC_VERSION}"
+SLEPC_DIR=$("${PY_BIN}" -c "import slepc; print(slepc.get_slepc_dir())")
+export SLEPC_DIR
+log "SLEPC_DIR = ${SLEPC_DIR}"
 
 # ── Step 4: Fix dylib rpaths (macOS only) ────────────────────────────────────
 if [ "${OS_NAME}" = "Darwin" ]; then
@@ -175,29 +265,48 @@ log "Installing build dependencies for petsc4py/slepc4py..."
 ${PIP_INSTALL} "Cython>=3.0" "setuptools<72"
 
 log "Installing petsc4py..."
-${PIP_INSTALL} --no-build-isolation petsc4py
+${PIP_INSTALL} --no-build-isolation "petsc4py==${PETSC4PY_VERSION}"
 
 log "Installing slepc4py..."
 export SLEPC_DIR
-${PIP_INSTALL} --no-build-isolation slepc4py
+${PIP_INSTALL} --no-build-isolation "slepc4py==${SLEPC4PY_VERSION}"
 
 # ── Step 6: Fix rpaths for Python extension modules (macOS) ──────────────────
 if [ "${OS_NAME}" = "Darwin" ]; then
     log "Adding rpaths to Python extension modules..."
     SITE_PACKAGES=$("${PY_BIN}" -c "import site; print(site.getsitepackages()[0])")
+    SLEPC_LIB="${SLEPC_DIR}/lib"
 
     # Add rpaths so petsc4py/slepc4py .so files can find PETSc/SLEPc dylibs
-    for so_file in "${SITE_PACKAGES}"/petsc4py/**/*.so "${SITE_PACKAGES}"/slepc4py/**/*.so; do
-        [ -f "$so_file" ] || continue
+    while IFS= read -r -d '' so_file; do
         # Add PETSc lib dir as rpath if not already present
         if ! otool -l "$so_file" 2>/dev/null | grep -q "${PETSC_LIB}"; then
             install_name_tool -add_rpath "${PETSC_LIB}" "$so_file" 2>/dev/null || true
         fi
+        # Add SLEPc lib dir as rpath if not already present
+        if ! otool -l "$so_file" 2>/dev/null | grep -q "${SLEPC_LIB}"; then
+            install_name_tool -add_rpath "${SLEPC_LIB}" "$so_file" 2>/dev/null || true
+        fi
         # Fix references to PETSc/SLEPc dylibs
         otool -L "$so_file" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
             dep_base=$(basename "$dep")
-            if [ -f "${PETSC_LIB}/${dep_base}" ] && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
+            if { [ -f "${PETSC_LIB}/${dep_base}" ] || [ -f "${SLEPC_LIB}/${dep_base}" ]; } && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
                 install_name_tool -change "$dep" "@rpath/${dep_base}" "$so_file" 2>/dev/null || true
+            fi
+        done
+    done < <(find "${SITE_PACKAGES}" \( -path "*/petsc4py/*" -o -path "*/slepc4py/*" \) -name "*.so" -print0)
+
+    log "Normalizing SLEPc dylib install names and dependencies..."
+    for dylib in "${SLEPC_LIB}"/*.dylib; do
+        [ -f "$dylib" ] || continue
+        dylib_base=$(basename "$dylib")
+        install_name_tool -id "@rpath/${dylib_base}" "$dylib" 2>/dev/null || true
+        otool -l "$dylib" 2>/dev/null | grep -q "${PETSC_LIB}" || install_name_tool -add_rpath "${PETSC_LIB}" "$dylib" 2>/dev/null || true
+        otool -l "$dylib" 2>/dev/null | grep -q "${SLEPC_LIB}" || install_name_tool -add_rpath "${SLEPC_LIB}" "$dylib" 2>/dev/null || true
+        otool -L "$dylib" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
+            dep_base=$(basename "$dep")
+            if { [ -f "${PETSC_LIB}/${dep_base}" ] || [ -f "${SLEPC_LIB}/${dep_base}" ]; } && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
+                install_name_tool -change "$dep" "@rpath/${dep_base}" "$dylib" 2>/dev/null || true
             fi
         done
     done

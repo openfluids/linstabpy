@@ -4,10 +4,14 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air
 from linstab2d.operators import build_lnse_operator
-from linstab2d.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
+from linstab2d.boundary_conditions import (
+    apply_dirichlet,
+    apply_dirichlet_identity_pair,
+    apply_dirichlet_spatial,
+    apply_neumann,
+    build_dirichlet_restriction_matrices,
+)
 from linstab2d.operators import build_spatial_operator
 
 
@@ -186,4 +190,270 @@ class TestDirichletBC:
             lower_half,
             upper_half - ndof,
             err_msg="BC indices in upper half should mirror lower half shifted by ndof",
+        )
+
+
+class TestDirichletAdapters:
+    """Tests for MATLAB SetDirBC/SetDirichletBC parity helpers."""
+
+    def test_build_dirichlet_restriction_matrices(self):
+        n_dofs = 6
+        dirichlet_indices = np.array([1, 4], dtype=int)
+
+        t_cont, t_exp, free = build_dirichlet_restriction_matrices(
+            n_dofs, dirichlet_indices
+        )
+
+        np.testing.assert_array_equal(free, np.array([0, 2, 3, 5], dtype=int))
+        assert t_cont.shape == (4, 6)
+        assert t_exp.shape == (6, 4)
+
+        x = np.array([10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
+        np.testing.assert_allclose(t_cont @ x, x[free])
+
+        y = np.array([1.0, 2.0, 3.0, 4.0])
+        x_full = t_exp @ y
+        expected_full = np.zeros(n_dofs)
+        expected_full[free] = y
+        np.testing.assert_allclose(x_full, expected_full)
+
+        np.testing.assert_allclose((t_cont @ t_exp).toarray(), np.eye(len(free)))
+
+    def test_apply_dirichlet_identity_pair(self):
+        lhs = np.arange(1.0, 17.0).reshape(4, 4)
+        rhs = np.arange(21.0, 37.0).reshape(4, 4)
+        lhs0 = lhs.copy()
+        rhs0 = rhs.copy()
+
+        lhs_bc, rhs_bc = apply_dirichlet_identity_pair(
+            sp.csc_matrix(lhs),
+            sp.csc_matrix(rhs),
+            np.array([1, 3], dtype=int),
+        )
+
+        lhs_bc = lhs_bc.toarray()
+        rhs_bc = rhs_bc.toarray()
+
+        for i in [1, 3]:
+            expected = np.zeros(4)
+            expected[i] = 1.0
+            np.testing.assert_allclose(lhs_bc[i], expected)
+            np.testing.assert_allclose(rhs_bc[i], expected)
+
+        np.testing.assert_allclose(lhs_bc[0], lhs0[0])
+        np.testing.assert_allclose(lhs_bc[2], lhs0[2])
+        np.testing.assert_allclose(rhs_bc[0], rhs0[0])
+        np.testing.assert_allclose(rhs_bc[2], rhs0[2])
+
+    def test_adapter_invalid_indices_raise(self):
+        with pytest.raises(ValueError):
+            build_dirichlet_restriction_matrices(4, np.array([5], dtype=int))
+
+        lhs = sp.eye(4, format="csc")
+        rhs = sp.eye(4, format="csc")
+        with pytest.raises(ValueError):
+            apply_dirichlet_identity_pair(lhs, rhs, np.array([-1], dtype=int))
+
+
+class TestNeumannBC:
+    """Tests for apply_neumann on the LNSE operator."""
+
+    # ------------------------------------------------------------------ #
+    # 1. No-op for empty borders
+    # ------------------------------------------------------------------ #
+    def test_neumann_empty_borders_noop(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        L0_bc, bc_indices = apply_neumann(L0.copy(), mesh, idx, "", "uvwT")
+
+        assert len(bc_indices) == 0, "Empty borders should produce no BC indices"
+        diff = (L0_bc - L0).tocsr()
+        assert diff.nnz == 0 or np.max(np.abs(diff.data)) < 1e-14, (
+            "Operator should be unchanged with empty borders"
+        )
+
+    # ------------------------------------------------------------------ #
+    # 2. Boundary row matches directional derivative formula (left border)
+    # ------------------------------------------------------------------ #
+    def test_neumann_left_boundary_row_matches_formula(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 3.0
+
+        L0_bc, bc_indices = apply_neumann(
+            L0.copy(), mesh, idx, "l", "u", penalty=penalty
+        )
+
+        dof = ngp + idx["li"][0]  # first left-border u-dof
+        assert dof in set(bc_indices)
+
+        imesh = int(idx["li"][0])
+        x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
+        y_flat = mesh.Y.ravel(order="F")[mesh.used_ind]
+        gradX_x = mesh.Dx @ x_flat
+        gradX_y = mesh.Dy @ x_flat
+        gradY_x = mesh.Dx @ y_flat
+        gradY_y = mesh.Dy @ y_flat
+
+        expected = penalty * (
+            gradX_x[imesh] * mesh.Dx.getrow(imesh)
+            + gradX_y[imesh] * mesh.Dy.getrow(imesh)
+        )
+
+        row = L0_bc.tocsc().getrow(dof).toarray().ravel()
+        expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
+        expected_row[ngp : 2 * ngp] = expected.toarray().ravel()
+
+        np.testing.assert_allclose(
+            row,
+            expected_row,
+            atol=1e-11,
+            err_msg="Neumann BC row should match mesh-derivative expression",
+        )
+
+    # ------------------------------------------------------------------ #
+    # 3. Boundary normal branch coverage for all faces (l/r/b/t)
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "border, expected_normal",
+        [("l", "x"), ("r", "x"), ("b", "y"), ("t", "y")],
+    )
+    def test_neumann_all_boundary_normals(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+        border,
+        expected_normal,
+    ):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 4.0
+
+        border_key = {"l": "li", "r": "ri", "b": "bi", "t": "ti"}[border]
+        mesh_id = int(idx[border_key][0])
+        dof = ngp + mesh_id  # u-block
+
+        L0_bc, bc_indices = apply_neumann(
+            L0.copy(), mesh, idx, border, "u", penalty=penalty
+        )
+        assert dof in set(bc_indices)
+
+        x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
+        y_flat = mesh.Y.ravel(order="F")[mesh.used_ind]
+        gradX_x = mesh.Dx @ x_flat
+        gradX_y = mesh.Dy @ x_flat
+        gradY_x = mesh.Dx @ y_flat
+        gradY_y = mesh.Dy @ y_flat
+
+        if expected_normal == "x":
+            expected = penalty * (
+                gradX_x[mesh_id] * mesh.Dx.getrow(mesh_id)
+                + gradX_y[mesh_id] * mesh.Dy.getrow(mesh_id)
+            )
+        else:
+            expected = penalty * (
+                gradY_x[mesh_id] * mesh.Dx.getrow(mesh_id)
+                + gradY_y[mesh_id] * mesh.Dy.getrow(mesh_id)
+            )
+
+        row = L0_bc.tocsc().getrow(dof).toarray().ravel()
+        expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
+        expected_row[ngp : 2 * ngp] = expected.toarray().ravel()
+        np.testing.assert_allclose(
+            row,
+            expected_row,
+            atol=1e-11,
+            err_msg=f"Neumann row mismatch for border '{border}'",
+        )
+
+    # ------------------------------------------------------------------ #
+    # 4. Penalty scaling
+    # ------------------------------------------------------------------ #
+    def test_neumann_penalty_scaling(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        mesh_id = int(idx["li"][0])
+        dof = ngp + mesh_id
+
+        p1 = 1.0
+        p2 = 7.5
+        L0_p1, _ = apply_neumann(L0.copy(), mesh, idx, "l", "u", penalty=p1)
+        L0_p2, _ = apply_neumann(L0.copy(), mesh, idx, "l", "u", penalty=p2)
+
+        row1 = L0_p1.tocsc().getrow(dof).toarray().ravel()
+        row2 = L0_p2.tocsc().getrow(dof).toarray().ravel()
+        np.testing.assert_allclose(
+            row2,
+            row1 * (p2 / p1),
+            atol=1e-11,
+            err_msg="Neumann rows should scale linearly with penalty",
+        )
+
+    # ------------------------------------------------------------------ #
+    # 5. Variable and border validation
+    # ------------------------------------------------------------------ #
+    def test_neumann_invalid_inputs_raise(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+
+        with pytest.raises(ValueError):
+            apply_neumann(L0.copy(), mesh, idx, "m", "u")
+
+        with pytest.raises(ValueError):
+            apply_neumann(L0.copy(), mesh, idx, "l", "q")
+
+    # ------------------------------------------------------------------ #
+    # 6. Corner duplicates keep first border normal ordering
+    # ------------------------------------------------------------------ #
+    def test_neumann_corner_dedup_prefers_first_border(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 2.5
+
+        L0_bc, bc_indices = apply_neumann(
+            L0.copy(), mesh, idx, "lt", "u", penalty=penalty
+        )
+
+        left_set = set(map(int, idx["li"]))
+        top_set = set(map(int, idx["ti"]))
+        corners = left_set.intersection(top_set)
+        assert len(corners) > 0, "Expected at least one corner in lr border set"
+        corner = int(sorted(corners)[0])
+
+        corner_dof = ngp + corner
+        assert corner_dof in set(bc_indices), "Corner DOF should still be in BC set"
+
+        # Left-border normal is applied first for l,t because borders are
+        # evaluated in order.
+        x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
+        y_flat = mesh.Y.ravel(order="F")[mesh.used_ind]
+        gradX_x = mesh.Dx @ x_flat
+        gradX_y = mesh.Dy @ x_flat
+        gradY_x = mesh.Dx @ y_flat
+        gradY_y = mesh.Dy @ y_flat
+
+        expected = penalty * (
+            gradX_x[corner] * mesh.Dx.getrow(corner)
+            + gradX_y[corner] * mesh.Dy.getrow(corner)
+        )
+
+        row = L0_bc.tocsc().getrow(corner_dof).toarray().ravel()
+        expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
+        expected_row[ngp : 2 * ngp] = expected.toarray().ravel()
+
+        np.testing.assert_allclose(
+            row,
+            expected_row,
+            atol=1e-11,
+            err_msg="Corner BC row should use left-border normal when left is first"
         )

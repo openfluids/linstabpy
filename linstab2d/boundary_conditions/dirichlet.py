@@ -202,3 +202,84 @@ def apply_dirichlet_spatial(
     R = _zero_rows_cols(R)
 
     return Lc, R, bc_indices
+
+
+def build_dirichlet_restriction_matrices(
+    n_dofs: int,
+    dirichlet_indices: np.ndarray,
+) -> tuple[sp.csr_matrix, sp.csr_matrix, np.ndarray]:
+    """Build reduced-system restriction/expansion maps (MATLAB ``SetDirBC``).
+
+    Returns matrices:
+    - ``T_cont``: removes Dirichlet rows from a full vector/matrix
+    - ``T_exp``: injects reduced vectors back into full-space free dofs
+    plus the sorted free-dof index array.
+    """
+    if n_dofs < 0:
+        raise ValueError("n_dofs must be non-negative")
+
+    index_set = np.unique(np.asarray(dirichlet_indices, dtype=int))
+    if index_set.size:
+        if index_set.min() < 0 or index_set.max() >= n_dofs:
+            raise ValueError("dirichlet_indices must be valid 0-based dof indices")
+
+    all_dofs = np.arange(n_dofs, dtype=int)
+    free_dofs = np.setdiff1d(all_dofs, index_set, assume_unique=True)
+
+    # T_cont = I with Dirichlet rows removed (shape n_free x n_full)
+    t_cont = sp.csr_matrix(
+        (
+            np.ones(free_dofs.size, dtype=float),
+            (np.arange(free_dofs.size, dtype=int), free_dofs),
+        ),
+        shape=(free_dofs.size, n_dofs),
+    )
+    # T_exp = I with Dirichlet columns removed (shape n_full x n_free)
+    t_exp = sp.csr_matrix(
+        (
+            np.ones(free_dofs.size, dtype=float),
+            (free_dofs, np.arange(free_dofs.size, dtype=int)),
+        ),
+        shape=(n_dofs, free_dofs.size),
+    )
+    return t_cont, t_exp, free_dofs
+
+
+def apply_dirichlet_identity_pair(
+    lhs: sp.csc_matrix,
+    rhs: sp.csc_matrix,
+    index_set: np.ndarray,
+) -> tuple[sp.csc_matrix, sp.csc_matrix]:
+    """Apply identity-row Dirichlet BC to two matrices (MATLAB ``SetDirichletBC``).
+
+    For each index in ``index_set``:
+    - zero corresponding rows in ``lhs`` and ``rhs``
+    - set diagonal entry to 1 in both matrices
+    """
+    bc_indices = np.unique(np.asarray(index_set, dtype=int))
+    if bc_indices.size == 0:
+        return lhs.tocsc(), rhs.tocsc()
+
+    n = lhs.shape[0]
+    if lhs.shape[0] != lhs.shape[1] or rhs.shape[0] != rhs.shape[1]:
+        raise ValueError("lhs and rhs must be square matrices")
+    if rhs.shape != lhs.shape:
+        raise ValueError("lhs and rhs must have the same shape")
+    if bc_indices.min() < 0 or bc_indices.max() >= n:
+        raise ValueError("index_set contains out-of-bounds dof indices")
+
+    lhs = lhs.tocsr()
+    rhs = rhs.tocsr()
+    _zero_rows_csr(lhs, bc_indices)
+    _zero_rows_csr(rhs, bc_indices)
+
+    ident = sp.csc_matrix(
+        (np.ones(bc_indices.size, dtype=float), (bc_indices, bc_indices)),
+        shape=lhs.shape,
+    )
+    lhs = lhs.tocsc() + ident
+    rhs = rhs.tocsc() + ident
+
+    lhs.eliminate_zeros()
+    rhs.eliminate_zeros()
+    return lhs, rhs

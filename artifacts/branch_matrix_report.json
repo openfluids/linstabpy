@@ -1,0 +1,1683 @@
+{
+  "combinations": [
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "notes": "Baseline temporal path exercised by examples and tests.",
+      "solver": "temporal",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "notes": "Neumann BC operator row assembly implemented.",
+      "solver": "temporal",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "notes": "Spatial generalized EVP path implemented.",
+      "solver": "spatial",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "notes": "Adjoint eigensolver path implemented.",
+      "solver": "adjoint",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "notes": "Resolvent SVD path implemented.",
+      "solver": "resolvent",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "solver": "resolvent",
+      "status": "pending"
+    }
+  ],
+  "counts": {
+    "blocked": 0,
+    "deferred": 0,
+    "implemented": 5,
+    "out_of_scope": 0,
+    "pending": 91,
+    "validated": 0
+  },
+  "dimensions": {
+    "backend": [
+      "petsc_slepc"
+    ],
+    "bc": [
+      "Dirichlet",
+      "DirichletSpatial",
+      "Neumann"
+    ],
+    "deformation": [
+      "none",
+      "x_only",
+      "y_only",
+      "full_2d"
+    ],
+    "model": [
+      "2D",
+      "axy"
+    ],
+    "solver": [
+      "temporal",
+      "spatial",
+      "adjoint",
+      "resolvent"
+    ]
+  },
+  "generated_at_utc": "2026-02-19T16:36:36.816621+00:00",
+  "missing_required": [
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "implemented"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "2D",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "temporal",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "spatial",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "adjoint",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Dirichlet",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "DirichletSpatial",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "none",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "x_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "y_only",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    },
+    {
+      "backend": "petsc_slepc",
+      "bc": "Neumann",
+      "deformation": "full_2d",
+      "model": "axy",
+      "required_status": "validated",
+      "solver": "resolvent",
+      "status": "pending"
+    }
+  ],
+  "missing_required_count": 96,
+  "pass": false,
+  "required_exclusions_count": 0,
+  "required_status": "validated",
+  "total_combinations": 96
+}
