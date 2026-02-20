@@ -317,8 +317,8 @@ log "Installing linstab2d (editable)..."
 ${PIP_INSTALL} -e "${ROOT_DIR}"
 
 # ── Step 8: Install dev dependencies ─────────────────────────────────────────
-log "Installing dev dependencies (pytest)..."
-${PIP_INSTALL} pytest pytest-cov
+log "Installing dev dependencies (pytest, sympy)..."
+${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"
 
 # ── Verification ─────────────────────────────────────────────────────────────
 echo

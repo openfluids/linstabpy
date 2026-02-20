@@ -23,6 +23,119 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
         fh.write("\n")
 
 
+def _complex_to_parts(value: Any) -> dict[str, float]:
+    z = complex(value)
+    return {"real": float(np.real(z)), "imag": float(np.imag(z))}
+
+
+def _resolve_threshold(raw_value: float | None, fallback: float, name: str) -> float:
+    if raw_value is None:
+        return float(fallback)
+    value = float(raw_value)
+    if value < 0:
+        raise ValueError(f"Threshold {name} must be non-negative, got {raw_value}")
+    return value
+
+
+def _build_thresholds(tol: float, args: argparse.Namespace) -> dict[str, Any]:
+    if not args.strict:
+        return {
+            "strict": False,
+            "rebuild": {"abs": float(tol), "rel": float(tol)},
+            "matvec": {
+                "L0": float(tol),
+                "Lc": float(tol),
+                "R": float(tol),
+                "Lw": float(tol),
+            },
+        }
+
+    matvec_default = _resolve_threshold(args.matvec_threshold, tol, "matvec-threshold")
+    return {
+        "strict": bool(args.strict),
+        "rebuild": {
+            "abs": _resolve_threshold(args.rebuild_abs_threshold, tol, "rebuild-abs-threshold"),
+            "rel": _resolve_threshold(args.rebuild_rel_threshold, tol, "rebuild-rel-threshold"),
+        },
+        "matvec": {
+            "L0": _resolve_threshold(args.l0_matvec_threshold, matvec_default, "l0-matvec-threshold"),
+            "Lc": _resolve_threshold(args.lc_matvec_threshold, matvec_default, "lc-matvec-threshold"),
+            "R": _resolve_threshold(args.r_matvec_threshold, matvec_default, "r-matvec-threshold"),
+            "Lw": _resolve_threshold(args.lw_matvec_threshold, matvec_default, "lw-matvec-threshold"),
+        },
+    }
+
+
+def _delta_unresolved_terms(
+    delta,
+    reference,
+    abs_threshold: float,
+    rel_threshold: float,
+    max_terms: int,
+) -> dict[str, Any]:
+    if delta.nnz == 0:
+        return {
+            "unresolved_count": 0,
+            "max_abs_residual": 0.0,
+            "max_rel_residual": 0.0,
+            "exceeded_abs_threshold_count": 0,
+            "exceeded_rel_threshold_count": 0,
+            "term_count": 0,
+            "term_limit": max_terms,
+            "terms": [],
+        }
+
+    coo = delta.tocoo(copy=False)
+    ref = reference.tocoo(copy=False)
+    ref_scale = float(np.max(np.abs(ref.data))) if ref.nnz else 1e-30
+    ref_scale = max(ref_scale, 1e-30)
+
+    delta_abs = np.abs(coo.data)
+    delta_rel = delta_abs / ref_scale
+
+    exceeds_abs = delta_abs > abs_threshold
+    exceeds_rel = delta_abs / max(ref_scale, 1e-30) > rel_threshold
+    exceeds = np.logical_or(exceeds_abs, exceeds_rel)
+    unresolved_indices = np.flatnonzero(exceeds)
+    term_count = int(coo.data.size)
+
+    terms: list[dict[str, Any]] = []
+    if unresolved_indices.size and max_terms > 0:
+        order = unresolved_indices[np.argsort(delta_abs[unresolved_indices])[::-1]]
+        order = order[:max_terms]
+        ref_map: dict[tuple[int, int], complex] = {
+            (int(r), int(c)): complex(v) for r, c, v in zip(ref.row, ref.col, ref.data)
+        }
+        for i in order:
+            row = int(coo.row[i])
+            col = int(coo.col[i])
+            value_delta = complex(coo.data[i])
+            value_reference = ref_map.get((row, col), 0.0)
+            terms.append(
+                {
+                    "row": row,
+                    "col": col,
+                    "abs_residual": float(delta_abs[i]),
+                    "rel_residual": float(delta_rel[i]),
+                    "value_delta": _complex_to_parts(value_delta),
+                    "value_reference": _complex_to_parts(value_reference),
+                    "exceeds_abs_threshold": bool(exceeds_abs[i]),
+                    "exceeds_rel_threshold": bool(exceeds_rel[i]),
+                }
+            )
+
+    return {
+        "unresolved_count": int(unresolved_indices.size),
+        "max_abs_residual": float(np.max(delta_abs)),
+        "max_rel_residual": float(np.max(delta_rel)),
+        "exceeded_abs_threshold_count": int(np.count_nonzero(exceeds_abs)),
+        "exceeded_rel_threshold_count": int(np.count_nonzero(exceeds_rel)),
+        "term_count": term_count,
+        "term_limit": max_terms,
+        "terms": terms,
+    }
+
+
 def _smooth_field(X: np.ndarray, Y: np.ndarray, seed: int, scale: float = 0.05) -> np.ndarray:
     rng = np.random.default_rng(seed)
     a = rng.uniform(-1.0, 1.0, size=6)
@@ -110,7 +223,12 @@ def _petsc_matvec_residual(A_sp, vec, scipy_to_petsc, vec_to_numpy, PETSc) -> fl
     return float(np.linalg.norm(y_ref - y_petsc) / max(np.linalg.norm(y_ref), 1e-30))
 
 
-def run_numeric_parity(seed: int, tol: float) -> dict[str, Any]:
+def run_numeric_parity(
+    seed: int,
+    tol: float,
+    thresholds: dict[str, Any],
+    max_unresolved_terms: int,
+) -> dict[str, Any]:
     from petsc4py import PETSc
     from slepc4py import SLEPc
 
@@ -123,6 +241,9 @@ def run_numeric_parity(seed: int, tol: float) -> dict[str, Any]:
     rng = np.random.default_rng(seed)
     case_reports = []
 
+    rebuild_thresholds = thresholds["rebuild"]
+    matvec_thresholds = thresholds["matvec"]
+
     for model in ("2D", "axy"):
         mesh, bf, opts = _case_setup(model, seed, Mesh, BaseFlow, sutherland_air)
         kx = float(opts["kx"])
@@ -134,27 +255,56 @@ def run_numeric_parity(seed: int, tol: float) -> dict[str, Any]:
 
         delta = L0 - L0_rebuilt
         rebuild_abs = float(np.max(np.abs(delta.data))) if delta.nnz else 0.0
-        rebuild_rel = float(
-            np.linalg.norm(delta.data) / max(np.linalg.norm(L0.data), 1e-30)
-        ) if delta.nnz else 0.0
+        rebuild_rel = float(np.linalg.norm(delta.data) / max(np.linalg.norm(L0.data), 1e-30)) if delta.nnz else 0.0
+        rebuild_terms = _delta_unresolved_terms(
+            delta,
+            L0,
+            abs_threshold=rebuild_thresholds["abs"],
+            rel_threshold=rebuild_thresholds["rel"],
+            max_terms=max_unresolved_terms,
+        )
 
         v = rng.standard_normal(L0.shape[1]) + 1j * rng.standard_normal(L0.shape[1])
         l0_matvec_resid = _petsc_matvec_residual(L0, v, scipy_to_petsc, vec_to_numpy, PETSc)
-
         Lc, R, Lw, _ = build_spatial_operator(mesh, bf, model=model, kx=kx, m=m, delta=1.0)
         v_sp = rng.standard_normal(Lc.shape[1]) + 1j * rng.standard_normal(Lc.shape[1])
         lc_matvec_resid = _petsc_matvec_residual(Lc, v_sp, scipy_to_petsc, vec_to_numpy, PETSc)
         r_matvec_resid = _petsc_matvec_residual(R, v_sp, scipy_to_petsc, vec_to_numpy, PETSc)
         lw_matvec_resid = _petsc_matvec_residual(Lw, v_sp, scipy_to_petsc, vec_to_numpy, PETSc)
 
-        case_pass = (
-            rebuild_abs <= tol
-            and rebuild_rel <= tol
-            and l0_matvec_resid <= tol
-            and lc_matvec_resid <= tol
-            and r_matvec_resid <= tol
-            and lw_matvec_resid <= tol
-        )
+        block_checks = {
+            "rebuild": {
+                "pass": rebuild_abs <= rebuild_thresholds["abs"] and rebuild_rel <= rebuild_thresholds["rel"],
+                "abs_residual": rebuild_abs,
+                "abs_threshold": rebuild_thresholds["abs"],
+                "rel_residual": rebuild_rel,
+                "rel_threshold": rebuild_thresholds["rel"],
+                "unresolved_deltas": rebuild_terms,
+            },
+            "L0_matvec": {
+                "pass": l0_matvec_resid <= matvec_thresholds["L0"],
+                "residual": l0_matvec_resid,
+                "threshold": matvec_thresholds["L0"],
+            },
+            "Lc_matvec": {
+                "pass": lc_matvec_resid <= matvec_thresholds["Lc"],
+                "residual": lc_matvec_resid,
+                "threshold": matvec_thresholds["Lc"],
+            },
+            "R_matvec": {
+                "pass": r_matvec_resid <= matvec_thresholds["R"],
+                "residual": r_matvec_resid,
+                "threshold": matvec_thresholds["R"],
+            },
+            "Lw_matvec": {
+                "pass": lw_matvec_resid <= matvec_thresholds["Lw"],
+                "residual": lw_matvec_resid,
+                "threshold": matvec_thresholds["Lw"],
+            },
+        }
+        failed_blocks = [name for name, item in block_checks.items() if not item["pass"]]
+
+        case_pass = len(failed_blocks) == 0
         case_reports.append(
             {
                 "model": model,
@@ -173,6 +323,18 @@ def run_numeric_parity(seed: int, tol: float) -> dict[str, Any]:
                     "R": r_matvec_resid,
                     "Lw": lw_matvec_resid,
                 },
+                "thresholds": {
+                    "rebuild_abs": rebuild_thresholds["abs"],
+                    "rebuild_rel": rebuild_thresholds["rel"],
+                    "matvec": {
+                        "L0": matvec_thresholds["L0"],
+                        "Lc": matvec_thresholds["Lc"],
+                        "R": matvec_thresholds["R"],
+                        "Lw": matvec_thresholds["Lw"],
+                    },
+                },
+                "block_checks": block_checks,
+                "failed_blocks": failed_blocks,
                 "pass": case_pass,
             }
         )
@@ -182,6 +344,7 @@ def run_numeric_parity(seed: int, tol: float) -> dict[str, Any]:
         "generated_at_utc": _now_utc(),
         "seed": seed,
         "tolerance": tol,
+        "strict_mode": bool(thresholds["strict"]),
         "backend": {
             "petsc_version": list(PETSc.Sys.getVersion()),
             "slepc_version": list(SLEPc.Sys.getVersion()),
@@ -202,10 +365,71 @@ def main() -> int:
         default=Path("artifacts/operator_numeric_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict per-block/per-metric threshold checks and triage output.",
+    )
+    parser.add_argument(
+        "--matvec-threshold",
+        type=float,
+        default=None,
+        help="Default threshold for all PETSc matvec checks.",
+    )
+    parser.add_argument(
+        "--rebuild-abs-threshold",
+        type=float,
+        default=None,
+        help="Absolute threshold for rebuild residual.",
+    )
+    parser.add_argument(
+        "--rebuild-rel-threshold",
+        type=float,
+        default=None,
+        help="Relative threshold for rebuild residual.",
+    )
+    parser.add_argument(
+        "--l0-matvec-threshold",
+        type=float,
+        default=None,
+        help="Threshold for L0 PETSc matvec residual.",
+    )
+    parser.add_argument(
+        "--lc-matvec-threshold",
+        type=float,
+        default=None,
+        help="Threshold for Lc PETSc matvec residual.",
+    )
+    parser.add_argument(
+        "--r-matvec-threshold",
+        type=float,
+        default=None,
+        help="Threshold for R PETSc matvec residual.",
+    )
+    parser.add_argument(
+        "--lw-matvec-threshold",
+        type=float,
+        default=None,
+        help="Threshold for Lw PETSc matvec residual.",
+    )
+    parser.add_argument(
+        "--max-unresolved-terms",
+        type=int,
+        default=20,
+        help="Maximum number of unresolved delta terms reported per model.",
+    )
     args = parser.parse_args()
 
     try:
-        report = run_numeric_parity(seed=args.seed, tol=args.tol)
+        thresholds = _build_thresholds(args.tol, args)
+        if args.max_unresolved_terms < 0:
+            raise ValueError("--max-unresolved-terms must be >= 0")
+        report = run_numeric_parity(
+            seed=args.seed,
+            tol=args.tol,
+            thresholds=thresholds,
+            max_unresolved_terms=args.max_unresolved_terms,
+        )
     except Exception as exc:  # pragma: no cover - environment/runtime dependent
         report = {
             "generated_at_utc": _now_utc(),
@@ -220,6 +444,7 @@ def main() -> int:
     print(
         "numeric operator parity:",
         f"pass={report.get('pass', False)}",
+        f"strict={report.get('strict_mode', False)}",
         f"output={args.output}",
     )
     if not report.get("pass", False) and not args.allow_fail:

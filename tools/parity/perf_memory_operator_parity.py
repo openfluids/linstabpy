@@ -164,10 +164,29 @@ def _evaluate_case(case: dict[str, Any], args, modules):
         L_sigma = L0.copy()
         L_sigma.setdiag(L_sigma.diagonal() - 1j * args.omega)
         solver = make_linear_solver(L_sigma)
-        rhs = rng.standard_normal(ndof) + 1j * rng.standard_normal(ndof)
+        x_true = rng.standard_normal(ndof) + 1j * rng.standard_normal(ndof)
+        rhs = L_sigma @ x_true
         sol = solver.solve(rhs)
-        resid = np.linalg.norm(L_sigma @ sol - rhs) / max(np.linalg.norm(rhs), 1e-30)
-        return {"relative_residual": float(resid)}
+        rhs_norm = max(np.linalg.norm(rhs), 1e-30)
+        resid = np.linalg.norm(L_sigma @ sol - rhs) / rhs_norm
+
+        refine_steps_used = 0
+        for _ in range(max(int(args.linear_refine_steps), 0)):
+            if resid <= args.max_linear_residual:
+                break
+            corr_rhs = rhs - (L_sigma @ sol)
+            delta = solver.solve(corr_rhs)
+            sol = sol + delta
+            resid = np.linalg.norm(L_sigma @ sol - rhs) / rhs_norm
+            refine_steps_used += 1
+
+        return {
+            "relative_residual": float(resid),
+            "relative_solution_error": float(
+                np.linalg.norm(sol - x_true) / max(np.linalg.norm(x_true), 1e-30)
+            ),
+            "refine_steps_used": int(refine_steps_used),
+        }
 
     case["results"]["linear_solve"] = _stage(case, "linear_solve", _linear_solve)
 
@@ -240,6 +259,14 @@ def _evaluate_case(case: dict[str, Any], args, modules):
 
 
 def _evaluate_checks(case: dict[str, Any], args) -> None:
+    strict_gate_names = {
+        "assembly_time_per_mnnz",
+        "linear_solve_seconds",
+        "case_total_seconds",
+        "memory_rss_growth_bytes",
+        "rss_growth_per_mnnz",
+    }
+
     checks: dict[str, dict[str, Any]] = {}
 
     nnz = case["operator_stats"].get("nnz", 0)
@@ -257,7 +284,35 @@ def _evaluate_checks(case: dict[str, Any], args) -> None:
         "threshold": args.max_assembly_s_per_mnnz,
     }
 
+    checks["linear_solve_seconds"] = {
+        "pass": True if args.max_linear_solve_seconds is None else case["metrics"]["linear_solve"]["seconds"] <= args.max_linear_solve_seconds,
+        "value": case["metrics"]["linear_solve"]["seconds"],
+        "threshold": args.max_linear_solve_seconds,
+    }
+
+    case_runtime = sum(
+        stage["seconds"]
+        for stage in (
+            case["metrics"].get("assembly", {}),
+            case["metrics"].get("linear_solve", {}),
+            case["metrics"].get("temporal_eigs", {}),
+            case["metrics"].get("spatial_eigs", {}),
+            case["metrics"].get("resolvent", {}),
+        )
+        if isinstance(stage, dict) and "seconds" in stage
+    )
+    checks["case_total_seconds"] = {
+        "pass": True if args.max_case_runtime_seconds is None else case_runtime <= args.max_case_runtime_seconds,
+        "value": case_runtime,
+        "threshold": args.max_case_runtime_seconds,
+    }
+
     rss_delta = case["metrics"]["resolvent"]["rss_bytes_after"] - case["metrics"]["assembly"]["rss_bytes_before"]
+    checks["memory_rss_growth_bytes"] = {
+        "pass": True if args.max_rss_growth_bytes is None else rss_delta <= args.max_rss_growth_bytes,
+        "value": rss_delta,
+        "threshold": args.max_rss_growth_bytes,
+    }
     checks["rss_growth_per_mnnz"] = {
         "pass": True if args.max_rss_bytes_per_mnnz is None else (rss_delta / mnnz) <= args.max_rss_bytes_per_mnnz,
         "value": rss_delta / mnnz,
@@ -276,6 +331,11 @@ def _evaluate_checks(case: dict[str, Any], args) -> None:
     )
     checks["no_dense_fallback"] = {"pass": not dense_path, "value": dense_path}
 
+    case["strict_gates"] = {
+        name: checks[name]
+        for name in strict_gate_names
+        if name in checks
+    }
     case["checks"] = checks
     case["status"] = "pass" if all(item["pass"] for item in checks.values()) else "fail"
 
@@ -297,8 +357,12 @@ def main() -> int:
     parser.add_argument("--penalty", type=float, default=1e4)
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--max-linear-residual", type=float, default=1e-8)
+    parser.add_argument("--linear-refine-steps", type=int, default=8)
     parser.add_argument("--max-assembly-s-per-mnnz", type=float, default=None)
+    parser.add_argument("--max-linear-solve-seconds", type=float, default=None)
+    parser.add_argument("--max-case-runtime-seconds", type=float, default=None)
     parser.add_argument("--max-rss-bytes-per-mnnz", type=float, default=None)
+    parser.add_argument("--max-rss-growth-bytes", type=float, default=None)
     parser.add_argument("--output", type=Path, default=Path("artifacts/operator_perf_memory.json"))
     parser.add_argument(
         "--allow-failures",
@@ -387,10 +451,108 @@ def main() -> int:
             "penalty": args.penalty,
             "seed": args.seed,
             "max_linear_residual": args.max_linear_residual,
+            "max_linear_solve_seconds": args.max_linear_solve_seconds,
+            "max_case_runtime_seconds": args.max_case_runtime_seconds,
             "max_assembly_s_per_mnnz": args.max_assembly_s_per_mnnz,
+            "max_rss_growth_bytes": args.max_rss_growth_bytes,
             "max_rss_bytes_per_mnnz": args.max_rss_bytes_per_mnnz,
         },
         "cases": cases,
+    }
+    report["strict_gates"] = {
+        "enabled": any(
+            value is not None
+            for value in (
+                args.max_linear_solve_seconds,
+                args.max_case_runtime_seconds,
+                args.max_assembly_s_per_mnnz,
+                args.max_rss_growth_bytes,
+                args.max_rss_bytes_per_mnnz,
+            )
+        ),
+        "assembly_time_per_mnnz": {
+            "threshold": args.max_assembly_s_per_mnnz,
+            "pass_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("assembly_time_per_mnnz", {}).get("threshold") is not None
+                and case.get("strict_gates", {}).get("assembly_time_per_mnnz", {}).get("pass", False)
+            ),
+            "fail_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("assembly_time_per_mnnz", {}).get("threshold") is not None
+                and not case.get("strict_gates", {}).get("assembly_time_per_mnnz", {}).get("pass", False)
+            ),
+        },
+        "linear_solve_seconds": {
+            "threshold": args.max_linear_solve_seconds,
+            "pass_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("linear_solve_seconds", {}).get("threshold") is not None
+                and case.get("strict_gates", {}).get("linear_solve_seconds", {}).get("pass", False)
+            ),
+            "fail_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("linear_solve_seconds", {}).get("threshold") is not None
+                and not case.get("strict_gates", {}).get("linear_solve_seconds", {}).get("pass", False)
+            ),
+        },
+        "case_total_seconds": {
+            "threshold": args.max_case_runtime_seconds,
+            "pass_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("case_total_seconds", {}).get("threshold") is not None
+                and case.get("strict_gates", {}).get("case_total_seconds", {}).get("pass", False)
+            ),
+            "fail_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("case_total_seconds", {}).get("threshold") is not None
+                and not case.get("strict_gates", {}).get("case_total_seconds", {}).get("pass", False)
+            ),
+        },
+        "memory_rss_growth_bytes": {
+            "threshold": args.max_rss_growth_bytes,
+            "pass_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("memory_rss_growth_bytes", {}).get("threshold") is not None
+                and case.get("strict_gates", {}).get("memory_rss_growth_bytes", {}).get("pass", False)
+            ),
+            "fail_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("memory_rss_growth_bytes", {}).get("threshold") is not None
+                and not case.get("strict_gates", {}).get("memory_rss_growth_bytes", {}).get("pass", False)
+            ),
+        },
+        "rss_growth_per_mnnz": {
+            "threshold": args.max_rss_bytes_per_mnnz,
+            "pass_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("rss_growth_per_mnnz", {}).get("threshold") is not None
+                and case.get("strict_gates", {}).get("rss_growth_per_mnnz", {}).get("pass", False)
+            ),
+            "fail_count": sum(
+                1
+                for case in cases
+                if case.get("strict_gates", {}).get("rss_growth_per_mnnz", {}).get("threshold") is not None
+                and not case.get("strict_gates", {}).get("rss_growth_per_mnnz", {}).get("pass", False)
+            ),
+        },
+        "overall_strict_pass": all(
+            (args.max_assembly_s_per_mnnz is None or case.get("strict_gates", {}).get("assembly_time_per_mnnz", {}).get("pass", False))
+            and (args.max_linear_solve_seconds is None or case.get("strict_gates", {}).get("linear_solve_seconds", {}).get("pass", False))
+            and (args.max_case_runtime_seconds is None or case.get("strict_gates", {}).get("case_total_seconds", {}).get("pass", False))
+            and (args.max_rss_growth_bytes is None or case.get("strict_gates", {}).get("memory_rss_growth_bytes", {}).get("pass", False))
+            and (args.max_rss_bytes_per_mnnz is None or case.get("strict_gates", {}).get("rss_growth_per_mnnz", {}).get("pass", False))
+            for case in cases
+        ),
     }
     overall_pass = all(case["status"] == "pass" for case in cases)
     report["status"] = "pass" if overall_pass else "fail"
