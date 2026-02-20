@@ -8,3 +8,4 @@ build/
 *.png
 *.log
 .venv/
+artifacts/
