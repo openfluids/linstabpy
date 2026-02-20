@@ -164,6 +164,26 @@ source .venv/bin/activate
 python linstab2d/examples/example_1_blasius.py
 ```
 
+### Linux one-command install (recommended)
+
+For most Linux users, setup is:
+
+```bash
+bash install.sh
+```
+
+`install.sh` handles:
+- system prerequisites (compiler/MPI/X11 toolchain) via detected package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`)
+- Python environment creation with `uv` (`.venv`, Python 3.13)
+- PETSc/SLEPc + `petsc4py`/`slepc4py` installation and verification
+- editable install of `linstab2d` and test tools
+
+If your machine is already provisioned (or you cannot install system packages), skip the system-deps step:
+
+```bash
+LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
+```
+
 ### Dependencies
 
 - Python >= 3.10

@@ -1,0 +1,101 @@
+{
+  "counts": {
+    "blocked": 0,
+    "deferred": 0,
+    "implemented": 12,
+    "out_of_scope": 0,
+    "pending": 0,
+    "validated": 0
+  },
+  "generated_at_utc": "2026-02-19T16:36:36.816129+00:00",
+  "missing_required": [
+    {
+      "id": "construct_get_lin_problem",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetLinProblem.m",
+      "python": "linstab2d/operators/assembly.py::build_lnse_operator",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_get_spatial_lin_problem",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetSpatialLinProblem.m",
+      "python": "linstab2d/operators/spatial.py::build_spatial_operator",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_cartesian_coefficients",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar_Cartesian.m",
+      "python": "linstab2d/operators/coefficients.py::compute_cartesian_coefficients",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_axisymmetric_coefficients",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar.m",
+      "python": "linstab2d/operators/coefficients.py::compute_cylindrical_coefficients",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_create_diff_matrices_axy",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/CreateDiffMatrices_Axy.m",
+      "python": "linstab2d/operators/assembly.py::_create_axy_diff_matrices",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_lnseoperators_cyl",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/LNSEoperators_cyl.m",
+      "python": "linstab2d/operators/assembly.py::build_lnse_operator(model=\"axy\")",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "construct_get_comp_energy_norm",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetCompEnergyNorm.m",
+      "python": "linstab2d/operators/energy_norm.py::compute_chu_norm",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "bc_dirichlet",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "bc_dirichlet_spatial",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet_SpatialStability.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_spatial",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "bc_neumann",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Neumann.m",
+      "python": "linstab2d/boundary_conditions/neumann.py::apply_neumann",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "bc_set_dirbc",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirBC.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices",
+      "required_status": "validated",
+      "status": "implemented"
+    },
+    {
+      "id": "bc_set_dirichletbc",
+      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirichletBC.m",
+      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair",
+      "required_status": "validated",
+      "status": "implemented"
+    }
+  ],
+  "missing_required_count": 12,
+  "pass": false,
+  "required_status": "validated",
+  "total_entries": 12
+}
