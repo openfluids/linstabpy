@@ -1,8 +1,0 @@
-{
-  "branch_missing_required_count": 96,
-  "branch_pass": false,
-  "generated_at_utc": "2026-02-19T16:36:36.818235+00:00",
-  "operator_missing_required_count": 12,
-  "operator_pass": false,
-  "overall_pass": false
-}

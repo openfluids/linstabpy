@@ -8,3 +8,7 @@ from .sbp import (
 )
 from .mesh import Mesh
 from .filters import MeshFilters, build_mesh_filters
+from .fdweights import fdweights
+from .grids import segmspace
+from .distance import min_distance
+from .interpolation import interp_mat_2d
