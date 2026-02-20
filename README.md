@@ -218,6 +218,26 @@ linstab2d/
 - **Local workflow:** `./install.sh` ensures the submodule is initialized so MATLAB files are present on disk for inspection.
 - **Boundary rule:** modify/commit only files in this repository unless you intentionally update the submodule itself (rare, with explicit intent).
 
+## Parity status (scoped strict gate)
+
+Current strict pipeline command:
+
+```bash
+STRICT_PARITY=1 linstab2d/examples/run_parity.sh
+```
+
+Current status:
+- examples `0..5`: pass
+- parity matrix gate: pass
+- symbolic parity gate: pass
+- numeric operator parity gate (`--strict`): pass
+- perf/memory parity gate (strict ceilings): pass
+
+Scope note:
+- strict parity is currently **scoped** by `tools/parity/operator_matrix.json` and `tools/parity/branch_matrix.json`
+- branch scope uses explicit `required_exclusions` for combinations not yet required
+- to enforce full cross-product branch coverage later, reduce/remove exclusions and validate incrementally
+
 Test suite: 321 tests (`pytest tests/`), covering mesh construction, operators, boundary conditions, solvers, and full integration.
 
 ## Roadmap
