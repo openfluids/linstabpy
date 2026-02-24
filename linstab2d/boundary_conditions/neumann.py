@@ -1,8 +1,8 @@
 """Neumann boundary-condition enforcement for the LNSE operator.
 
 Translates ``BC_Neumann.m`` from the MATLAB LinStab2D codebase.
-This applies derivative-normal operator rows to boundary DOFs while
-preserving sparse structure.
+This applies derivative-normal operator rows to boundary DOFs in
+curvilinear coordinates while preserving sparse structure.
 """
 
 from __future__ import annotations
@@ -14,11 +14,11 @@ from .dirichlet import _BORDER_MAP, _VARIABLE_MAP, _zero_rows_csr
 from ..mesh.mesh import Mesh
 
 
-_NEUMANN_BORDERS: dict[str, tuple[float, float]] = {
-    "l": (1.0, 0.0),
-    "r": (1.0, 0.0),
-    "b": (0.0, 1.0),
-    "t": (0.0, 1.0),
+_NEUMANN_BORDER_SIGNS: dict[str, float] = {
+    "l": -1.0,
+    "r": 1.0,
+    "b": 1.0,
+    "t": -1.0,
 }
 
 
@@ -33,15 +33,14 @@ def _collect_neumann_indices(
     Returns:
     - index_set: unique BC dofs
     - index_mesh: unique mesh point ids for those dofs
-    - normals: normal direction vectors for each unique BC dof
+    - border_tags: border character associated with each unique BC dof
     """
     raw_index_set: list[np.ndarray] = []
     raw_index_mesh: list[np.ndarray] = []
-    raw_normals: list[np.ndarray] = []
+    raw_borders: list[np.ndarray] = []
 
     for b in borders:
-        normal = _NEUMANN_BORDERS.get(b)
-        if normal is None:
+        if b not in _NEUMANN_BORDER_SIGNS:
             raise ValueError(
                 "Neumann B.C. are currently only supported for b, t, l and r."
             )
@@ -67,21 +66,23 @@ def _collect_neumann_indices(
             dof_idx = variable_offset * ngp + boundary_points
             raw_index_set.append(dof_idx)
             raw_index_mesh.append(boundary_points)
-            raw_normals.append(
-                np.tile(np.asarray(normal, dtype=float), (boundary_count, 1))
-            )
+            raw_borders.append(np.full(boundary_count, b, dtype="<U1"))
 
     if not raw_index_set:
-        return np.array([], dtype=int), np.array([], dtype=int), np.empty((0, 2), dtype=float)
+        return (
+            np.array([], dtype=int),
+            np.array([], dtype=int),
+            np.array([], dtype="<U1"),
+        )
 
     raw_index_set_array = np.concatenate(raw_index_set)
     raw_index_mesh_array = np.concatenate(raw_index_mesh)
-    raw_normals_array = np.concatenate(raw_normals, axis=0)
+    raw_borders_array = np.concatenate(raw_borders)
 
     index_set, unique_pos = np.unique(raw_index_set_array, return_index=True)
     index_mesh = raw_index_mesh_array[unique_pos]
-    normals = raw_normals_array[unique_pos]
-    return index_set, index_mesh, normals
+    border_tags = raw_borders_array[unique_pos]
+    return index_set, index_mesh, border_tags
 
 
 def apply_neumann(
@@ -94,12 +95,12 @@ def apply_neumann(
 ) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply Neumann boundary conditions to the LNSE operator.
 
-    For each selected border, the corresponding row is replaced by the
-    directional normal derivative operator (scaled by ``penalty``) applied to
-    the same variable block.
+    For each selected border, the corresponding row is replaced by a
+    curvilinear normal-derivative row (scaled by ``penalty``) applied to the
+    same variable block.
     """
     ngp = mesh.ngp
-    index_set, index_mesh, normals = _collect_neumann_indices(
+    index_set, index_mesh, border_tags = _collect_neumann_indices(
         idx, borders, variables, ngp
     )
 
@@ -122,11 +123,16 @@ def apply_neumann(
     col_ids: list[np.ndarray] = []
     vals: list[np.ndarray] = []
 
-    for bc_dof, imesh, (normal_x, normal_y) in zip(index_set, index_mesh, normals):
+    for bc_dof, imesh, border in zip(index_set, index_mesh, border_tags):
         variable_offset = bc_dof // ngp
 
-        row_scale_x = gradX_x[imesh] * normal_x + gradY_x[imesh] * normal_y
-        row_scale_y = gradX_y[imesh] * normal_x + gradY_y[imesh] * normal_y
+        sign = _NEUMANN_BORDER_SIGNS[str(border)]
+        if border in ("l", "r"):
+            row_scale_x = sign * gradY_y[imesh]
+            row_scale_y = sign * (-gradY_x[imesh])
+        else:
+            row_scale_x = sign * (-gradX_y[imesh])
+            row_scale_y = sign * gradX_x[imesh]
 
         row = mesh.Dx.getrow(imesh) * row_scale_x
         row = row + mesh.Dy.getrow(imesh) * row_scale_y

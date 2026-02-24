@@ -15,7 +15,7 @@ from linstab2d.boundary_conditions.neumann import apply_neumann
 from linstab2d.mesh import Mesh
 from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.eigenvalue import temporal_eigenvalues
+from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.resolvent import resolvent_analysis
 
 from ._helpers import env_bool, env_float, env_int
@@ -57,6 +57,7 @@ def compute() -> None:
     run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", False)
     run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", True)
     zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", False)
+    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", True)
 
     X, Y, baseflow, sponge = load_hamada_case(
         case_dir,
@@ -107,12 +108,22 @@ def compute() -> None:
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
     if run_stability:
-        omega, direct_modes = temporal_eigenvalues(
-            L0,
-            n_modes=n_modes,
-            target=omega_target,
-            W_diag=W_diag,
-        )
+        if use_raw_eigs:
+            omega, direct_modes = _eigs_near_target(
+                L0.tocsc(),
+                n_modes=n_modes,
+                target=omega_target,
+            )
+            order = np.argsort(np.abs(omega - omega_target))
+            omega = omega[order]
+            direct_modes = direct_modes[:, order]
+        else:
+            omega, direct_modes = temporal_eigenvalues(
+                L0,
+                n_modes=n_modes,
+                target=omega_target,
+                W_diag=W_diag,
+            )
 
     np.savez_compressed(
         OUTPUT_NPZ,
@@ -122,6 +133,7 @@ def compute() -> None:
         responses=responses,
         forcings=forcings,
         omega_target=omega_target,
+        use_raw_eigs=use_raw_eigs,
         St=St,
         beta=beta,
         Re=Re,
