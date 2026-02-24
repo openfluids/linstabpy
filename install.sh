@@ -271,6 +271,9 @@ log "Installing slepc4py..."
 export SLEPC_DIR
 ${PIP_INSTALL} --no-build-isolation "slepc4py==${SLEPC4PY_VERSION}"
 
+# Make sure the linker can find ScaLAPACK and other PETSc/SLEPc libraries
+export LD_LIBRARY_PATH="${PETSC_DIR}/lib:${SLEPC_DIR}/lib:${LD_LIBRARY_PATH:-}"
+
 # ── Step 6: Fix rpaths for Python extension modules (macOS) ──────────────────
 if [ "${OS_NAME}" = "Darwin" ]; then
     log "Adding rpaths to Python extension modules..."
@@ -320,6 +323,10 @@ ${PIP_INSTALL} -e "${ROOT_DIR}"
 log "Installing dev dependencies (pytest, sympy)..."
 ${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"
 
+# Persist the setting in the virtual environment activation script
+if ! grep -q "PETSC_DIR/lib" "${VENV_DIR}/bin/activate" 2>/dev/null; then
+    echo "export LD_LIBRARY_PATH=\"${PETSC_DIR}/lib:\${LD_LIBRARY_PATH}\"" >> "${VENV_DIR}/bin/activate"
+fi
 # ── Verification ─────────────────────────────────────────────────────────────
 echo
 log "Verifying installation..."
