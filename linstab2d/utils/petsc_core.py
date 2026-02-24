@@ -6,6 +6,7 @@ dependencies between the mesh and solver layers.
 
 from __future__ import annotations
 
+import os
 import numpy as np
 import scipy.sparse as sp
 
@@ -24,7 +25,8 @@ def require_complex() -> None:
         )
     global _petsc_configured
     if not _petsc_configured:
-        PETSc.Options().setValue("-mat_mumps_icntl_7", "5")  # METIS ordering
+        if os.getenv("LINSTAB2D_PETSC_SET_MUMPS_ICNTL_7", "0") == "1":
+            PETSc.Options().setValue("mat_mumps_icntl_7", "5")  # METIS ordering
         _petsc_configured = True
 
 

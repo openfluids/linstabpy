@@ -258,6 +258,21 @@ class TestDirichletAdapters:
 class TestNeumannBC:
     """Tests for apply_neumann on the LNSE operator."""
 
+    @staticmethod
+    def _row_scales(
+        border: str,
+        gradX_x: np.ndarray,
+        gradX_y: np.ndarray,
+        gradY_x: np.ndarray,
+        gradY_y: np.ndarray,
+        imesh: int,
+    ) -> tuple[float, float]:
+        if border in ("l", "r"):
+            sign = -1.0 if border == "l" else 1.0
+            return sign * gradY_y[imesh], sign * (-gradY_x[imesh])
+        sign = 1.0 if border == "b" else -1.0
+        return sign * (-gradX_y[imesh]), sign * gradX_x[imesh]
+
     # ------------------------------------------------------------------ #
     # 1. No-op for empty borders
     # ------------------------------------------------------------------ #
@@ -274,7 +289,7 @@ class TestNeumannBC:
         )
 
     # ------------------------------------------------------------------ #
-    # 2. Boundary row matches directional derivative formula (left border)
+    # 2. Boundary row matches curvilinear-cofactor formula (left border)
     # ------------------------------------------------------------------ #
     def test_neumann_left_boundary_row_matches_formula(self, small_mesh_2d, uniform_baseflow):
         mesh = small_mesh_2d
@@ -298,10 +313,8 @@ class TestNeumannBC:
         gradY_x = mesh.Dx @ y_flat
         gradY_y = mesh.Dy @ y_flat
 
-        expected = penalty * (
-            gradX_x[imesh] * mesh.Dx.getrow(imesh)
-            + gradX_y[imesh] * mesh.Dy.getrow(imesh)
-        )
+        sx, sy = self._row_scales("l", gradX_x, gradX_y, gradY_x, gradY_y, imesh)
+        expected = penalty * (sx * mesh.Dx.getrow(imesh) + sy * mesh.Dy.getrow(imesh))
 
         row = L0_bc.tocsc().getrow(dof).toarray().ravel()
         expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
@@ -315,18 +328,17 @@ class TestNeumannBC:
         )
 
     # ------------------------------------------------------------------ #
-    # 3. Boundary normal branch coverage for all faces (l/r/b/t)
+    # 3. Curvilinear branch coverage for all faces (l/r/b/t)
     # ------------------------------------------------------------------ #
     @pytest.mark.parametrize(
-        "border, expected_normal",
-        [("l", "x"), ("r", "x"), ("b", "y"), ("t", "y")],
+        "border",
+        [("l"), ("r"), ("b"), ("t")],
     )
     def test_neumann_all_boundary_normals(
         self,
         small_mesh_2d,
         uniform_baseflow,
         border,
-        expected_normal,
     ):
         mesh = small_mesh_2d
         bf = uniform_baseflow
@@ -350,16 +362,8 @@ class TestNeumannBC:
         gradY_x = mesh.Dx @ y_flat
         gradY_y = mesh.Dy @ y_flat
 
-        if expected_normal == "x":
-            expected = penalty * (
-                gradX_x[mesh_id] * mesh.Dx.getrow(mesh_id)
-                + gradX_y[mesh_id] * mesh.Dy.getrow(mesh_id)
-            )
-        else:
-            expected = penalty * (
-                gradY_x[mesh_id] * mesh.Dx.getrow(mesh_id)
-                + gradY_y[mesh_id] * mesh.Dy.getrow(mesh_id)
-            )
+        sx, sy = self._row_scales(border, gradX_x, gradX_y, gradY_x, gradY_y, mesh_id)
+        expected = penalty * (sx * mesh.Dx.getrow(mesh_id) + sy * mesh.Dy.getrow(mesh_id))
 
         row = L0_bc.tocsc().getrow(dof).toarray().ravel()
         expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
@@ -433,7 +437,7 @@ class TestNeumannBC:
         corner_dof = ngp + corner
         assert corner_dof in set(bc_indices), "Corner DOF should still be in BC set"
 
-        # Left-border normal is applied first for l,t because borders are
+        # Left-border branch is applied first for l,t because borders are
         # evaluated in order.
         x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
         y_flat = mesh.Y.ravel(order="F")[mesh.used_ind]
@@ -442,10 +446,8 @@ class TestNeumannBC:
         gradY_x = mesh.Dx @ y_flat
         gradY_y = mesh.Dy @ y_flat
 
-        expected = penalty * (
-            gradX_x[corner] * mesh.Dx.getrow(corner)
-            + gradX_y[corner] * mesh.Dy.getrow(corner)
-        )
+        sx, sy = self._row_scales("l", gradX_x, gradX_y, gradY_x, gradY_y, corner)
+        expected = penalty * (sx * mesh.Dx.getrow(corner) + sy * mesh.Dy.getrow(corner))
 
         row = L0_bc.tocsc().getrow(corner_dof).toarray().ravel()
         expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
