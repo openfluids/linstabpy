@@ -33,6 +33,7 @@ def compute():
     Pr = 0.747
     kappa = 1.31
     T_0 = 1540.0
+    kx = 0.0  # no spanwise wavenumber for this case
 
     St = 0.1
     ratio_Uinfty_to_characVelocity = 1.0
@@ -41,7 +42,7 @@ def compute():
     omega =  freq*2*np.pi
 
     n_modes = 100
-    n_plot = n_modes
+    n_modes_resolvent = 10
 
     # ---- Grid parameters ----
     x = np.load("x.npy")
@@ -56,8 +57,6 @@ def compute():
     fd_order = 4
 
     cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order)
-
-    print(np.shape(cmesh.X))
 
     # ---- Mesh deformation ----
     mesh = cmesh.deform(X_new=x.T,Y_new=y.T)
@@ -90,7 +89,6 @@ def compute():
     mesh.sponge = sponge
 
     # ---- Assemble LNSE operator ----
-    kx = 0.0  # no streamwise wavenumber for this case
     t_lnse = time.perf_counter()
     L0, idx = build_lnse_operator(mesh, bf, kx=kx)
     t_lnse = time.perf_counter() - t_lnse
@@ -98,31 +96,52 @@ def compute():
     # ---- Apply Dirichlet BCs ----
     borders = "lt"
     variables = "ruvwT"
-    L0, bc_indices = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
+    L0, idx_dirichlet_lt = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
 
     borders = "b"
     variables = "ruvw"
-    L0, bc_indices = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
+    L0, idx_dirichlet_b = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
 
     # ---- Apply Neumann BCs ----
     borders = "b"
     variables = "T"
-    L0, bc_indices = apply_neumann(L0, mesh, idx, borders, variables, mesh.ngp)
+    L0, idx_neumann_b = apply_neumann(L0, mesh, idx, borders, variables, mesh.ngp)
 
     borders = "r"
     variables = "ruvwT"
-    L0, bc_indices = apply_neumann(L0, mesh, idx, borders, variables, mesh.ngp)
+    L0, idx_neumann_r = apply_neumann(L0, mesh, idx, borders, variables, mesh.ngp)
 
     # ---- Energy norm ----
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]
     RHO_p = bf.RHO.ravel(order="F")[p]
     T_p = bf.T.ravel(order="F")[p]
-    # W_diag, invW_diag = compute_chu_norm(W_int, RHO_p, T_p, kappa, Ma, mesh.ngp)
+    W_diag, invW_diag = compute_chu_norm(W_int, RHO_p, T_p, kappa, Ma, mesh.ngp)
+
+    # ---- Input/output matrices ----
+    B_diag = np.ones(mesh.ngp * 5)
+    B_diag[idx_dirichlet_lt] = 0.0
+    B_diag[idx_dirichlet_b] = 0.0
+    B_diag[idx_neumann_b] = 0.0
+    B_diag[idx_neumann_r] = 0.0
+    B_mat = sp.diags(B_diag).tocsc()
+    C_mat = B_mat.copy()
+
+    # ---- Resolvent analysis ----
+    t_resolvent = time.perf_counter()
+    gains, responses, forcings = resolvent_analysis(
+        L0, omega, n_modes_resolvent, W_diag, B_mat=B_mat, C_mat=C_mat
+    )
+    t_resolvent = time.perf_counter() - t_resolvent
+    print(
+        f"build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
+    )
+
+    print(f"Resolvent gains: {gains}")
 
     L0 /= -1.0j
     # Direct and adjoint temporal spectra
-    omega, direct_modes = temporal_eigenvalues(
+    eigenvalues, direct_modes = temporal_eigenvalues(
         L0,
         n_modes,
         omega
@@ -131,43 +150,27 @@ def compute():
 
     np.savez_compressed(
         OUTPUT_NPZ,
+        gains=gains,
+        responses=responses,
+        forcings=forcings,
         omega=omega,
+        St=St,
+        kx=kx,
+        Re=Re,
+        Ma=Ma,
+        eigenvalues=eigenvalues,
         direct_modes=direct_modes,
         X=mesh.X,
         Y=mesh.Y,
+        U=bf.U,
+        sponge=mesh.sponge,
         idx_rho_j=idx["rho_j"],
         idx_u_j=idx["u_j"],
         idx_v_j=idx["v_j"],
         idx_w_j=idx["w_j"],
-        idx_T_j=idx["T_j"],
-        used_ind=mesh.used_ind,
-        bc_indices=bc_indices,
-        n_plot=n_plot,
+        idx_T_j=idx["T_j"]
     )
     print(f"Results saved to {OUTPUT_NPZ}")
-
-def plot(data):
-    """Plot temporal spectra plus direct/adjoint leading modes."""
-    import matplotlib.pyplot as plt
-
-    output_spectrum = OUTPUT_PNG
-
-    omega = data["omega"]
-
-    fig = plt.figure(figsize=(14, 10))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(np.real(omega), np.imag(omega), "ob", ms=7, mew=1, label="Direct")
-    ax.set_xlabel(r"$\omega_r$")
-    ax.set_ylabel(r"$\omega_i$")
-    ax.set_title("Temporal spectra")
-    ax.grid(True)
-    ax.legend()
-    fig.savefig(output_spectrum, dpi=600, bbox_inches="tight")
-    plt.close(fig)
-    print(
-        "Figures saved to:\n"
-        f"- Spectrum: {output_spectrum}\n"
-    )
 
 def main():
     try:
@@ -175,8 +178,6 @@ def main():
     except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
         print(f"Cached results unavailable or invalid ({exc}), recomputing.")
         compute()
-        data = np.load(OUTPUT_NPZ)
-    plot(data)
 
 
 if __name__ == "__main__":
