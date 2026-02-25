@@ -105,7 +105,9 @@ def _prepare_coefficients(
     D2x = mesh.D2x
     Dy = mesh.Dy
     D2y = mesh.D2y
-    D2RZ = mesh.Dyx
+    # MATLAB 2D path uses Dzr = Dz*Dr (GetLinProblem.m: D2RZ=blkdiag(Dzr)),
+    # which corresponds to Dx @ Dy in this codebase.
+    D2RZ = mesh.Dxy
 
     model = model.lower()
     if model == "2d":
@@ -363,7 +365,7 @@ def _apply_inv_B(
     kappa: float,
     Ma: float,
 ) -> sp.spmatrix:
-    """Left-multiply L0 by ``-inv(B/1j)`` (analytical block inverse).
+    """Left-multiply L0 by ``inv(B/1j)`` (analytical block inverse).
 
     For the Cartesian model, B/1j = diag(1, RHO, ..., RHO), so the inverse
     is diagonal.  For the cylindrical (axy) model, B/1j is lower-triangular
@@ -371,13 +373,13 @@ def _apply_inv_B(
     inverse is computed analytically at each grid point.
     """
     if model == "2d":
-        # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  -inv = diag(-1, -1/RHO, ...)
+        # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  inv = diag(1, 1/RHO, ...)
         inv_B_signs = np.empty(5 * ngp)
-        inv_B_signs[0*ngp:1*ngp] = -1.0
-        inv_B_signs[1*ngp:2*ngp] = -1.0 / RHO
-        inv_B_signs[2*ngp:3*ngp] = -1.0 / RHO
-        inv_B_signs[3*ngp:4*ngp] = -1.0 / RHO
-        inv_B_signs[4*ngp:5*ngp] = -1.0 / RHO
+        inv_B_signs[0*ngp:1*ngp] = 1.0
+        inv_B_signs[1*ngp:2*ngp] = 1.0 / RHO
+        inv_B_signs[2*ngp:3*ngp] = 1.0 / RHO
+        inv_B_signs[3*ngp:4*ngp] = 1.0 / RHO
+        inv_B_signs[4*ngp:5*ngp] = 1.0 / RHO
         return sp.diags(inv_B_signs) @ L0
 
     # --- Cylindrical model: B/1j is lower-triangular ---

@@ -35,7 +35,7 @@ def main() -> int:
     parser.add_argument(
         "--matlab-spectrum",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_results/spectrum.mat"),
+        default=Path("example_6_hamada/MATLAB_exports/spectrum.mat"),
         help="MATLAB spectrum .mat file containing 'omega'",
     )
     parser.add_argument("--n-compare", type=int, default=100, help="Number of modes to compare")

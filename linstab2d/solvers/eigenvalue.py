@@ -79,11 +79,13 @@ def _eigs_near_target(
     eps.setOperators(A)
     eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
-    ncv = min(max(4 * n_modes, 30), ndof - 1)
+    # Match MATLAB eigs default used in Hamada workflow:
+    # opts.p = 2*nEig + 3
+    ncv = min(max(2 * n_modes + 3, 30), ndof - 1)
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
-    eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
+    eps.setTolerances(tol=1e-8, max_it=max(500, 10 * ndof))
 
     # Shift-invert spectral transformation with MUMPS
     st = eps.getST()

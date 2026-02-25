@@ -488,9 +488,12 @@ class Mesh:
         Dy = self.Dy
         D2y = self.D2y
 
+        # MATLAB DeformMesh.m Jacobian layout:
+        #   J = [[dX/dxi,  dY/dxi],
+        #        [dX/deta, dY/deta]]
         J11 = Dx @ x
-        J12 = Dy @ x
-        J21 = Dx @ y
+        J12 = Dx @ y
+        J21 = Dy @ x
         J22 = Dy @ y
         detJ = J11 * J22 - J12 * J21
         if np.any(np.abs(detJ) < 1e-15):
@@ -1144,8 +1147,8 @@ def _transform_second_derivatives(
     Dxy_x = Dx @ (Dy @ x)
     Dxy_y = Dx @ (Dy @ y)
 
-    Dyx_x = Dy @ x
-    Dyx_y = Dy @ y
+    Dyx_x = Dy @ (Dx @ x)
+    Dyx_y = Dy @ (Dx @ y)
     D2y_x = D2y @ x
     D2y_y = D2y @ y
 
@@ -1206,9 +1209,9 @@ def _transform_second_derivatives(
 
     Dxy_new = _transform_second_block(
         a * c,
-        c * b,
-        d * a,
-        d * b,
+        a * d,
+        b * c,
+        b * d,
         q12_x,
         q12_y,
         D2x,
@@ -1221,9 +1224,9 @@ def _transform_second_derivatives(
 
     Dyx_new = _transform_second_block(
         c * a,
-        c * d,
+        c * b,
         d * a,
-        d * d,
+        d * b,
         q21_x,
         q21_y,
         D2x,
