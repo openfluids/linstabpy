@@ -1,101 +1,94 @@
-# Hamada Case Adaptation Plan
+# Hamada Case: Why Python/PETSc Is Not Yet Matching MATLAB
 
-## Goal
-Integrate Hamada's case into `linstab2d` as a first-class Python workflow, with reproducible parity checks against the provided MATLAB outputs.
+## Objective
+Use one small Hamada reference case to prove solver equivalence between:
+- MATLAB reference workflow (`example_6_hamada/workflow/main.m`)
+- Python + PETSc/SLEPc/MUMPS workflow (`example_6_hamada.py`, `example_6_hamada.sh`)
 
-## Source Material in `install_hamada`
-- `workflow_hamada/`: preprocessing + MATLAB execution workflow.
-- `hamada_test/`: initial Python port attempt and case data (`x.npy`, `y.npy`, `rho.npy`, `u.npy`, `v.npy`, `w.npy`, `T.npy`, `sponge.npy`).
-- `example_6_hamada/MATLAB_results/`: reference outputs (`LO.mat`, `spectrum.mat`, sample eigenvector file).
+This case is the calibration gate before moving to realistic large cases that do not scale in MATLAB.
 
-## Gaps to Fix Before Integration
-1. Mesh/baseflow orientation consistency.
-- `Mesh` expects `(ny, nx)` arrays (`linstab2d/mesh/mesh.py`), while `hamada_test/test_hamada.py` builds/transposes inconsistently for coordinates vs fields.
+## Current Status
+Pipeline is working end-to-end (solve + parity + figures), but numerical agreement is not yet achieved.
 
-2. Neumann penalty mismatch.
-- `apply_neumann` takes `penalty` as last argument, but `mesh.ngp` is passed there in `hamada_test/test_hamada.py`, so BC strength is wrong versus MATLAB (`1e8`).
+Latest spectrum parity (`artifacts/hamada_spectrum_parity.json`):
+- `n_compare = 100`
+- `max_abs_error = 9.077525914618567`
+- `rms_abs_error = 5.815515993020508`
+- `max_rel_error = 3.853871515724929`
+- `pass = false`
 
-3. Temporal eigenvalue convention mismatch.
-- `temporal_eigenvalues` already applies the `i*L0` convention; additional `L0 /= -1.0j` in `hamada_test/test_hamada.py` double-converts.
+## What This Means
+The main issue is not execution or tooling. The issue is mathematical equivalence of the assembled linearized operator.
 
-4. Spanwise baseflow component dropped.
-- `w.npy` is loaded but replaced by zeros in `hamada_test/test_hamada.py`.
+In practice:
+- BC application path is mostly aligned, but still must be verified at row/block level against MATLAB matrices.
+- The dominant mismatch appears in operator formation (linearized coefficients and block assembly), not in plotting or post-processing.
 
-5. Integration packaging gap.
-- Current script is standalone in `hamada_test/`; not integrated into `linstab2d/examples/` and not covered by focused tests/parity checks.
+## Root Cause Focus (What We Must Verify)
+1. **Operator matrix equivalence (`L0`)**
+- Compare Python vs MATLAB matrix blocks for the linearized compressible system.
+- Check variable ordering and block placement consistency (`rho, u, v, w, T`).
 
-## Implementation Plan
-1. Add a dedicated Hamada case loader.
-- Implement loader for `.npy` case files with explicit shape/orientation validation.
-- Keep Fortran-order conventions explicit where vectorization is used.
+2. **Linearized coefficient equivalence**
+- Validate coefficient terms used in assembly (`A0`, `Ax`, `Ay`, `Axx`, `Ayy`, `Axy`) against MATLAB at sampled points.
+- Confirm metric terms and deformation/Jacobian usage are equivalent.
 
-2. Convert `hamada_test/test_hamada.py` into a proper example.
-- Move to `linstab2d/examples/` with the same structure used by existing examples.
-- Fix mesh creation/deformation orientation.
-- Fix Neumann penalty usage and match MATLAB BC setup.
-- Remove extra eigensolver conversion and preserve API conventions.
-- Use loaded `w.npy` unless user explicitly wants `W=0`.
+3. **Boundary condition row equivalence**
+- Verify each BC group row-by-row:
+- Dirichlet: `lt/ruvwT`, `b/ruvw`
+- Neumann: `b/T`, `r/ruvwT`
+- Confirm penalty scaling and target DOF sets match MATLAB exactly.
 
-3. Add MATLAB parity checker for Hamada case.
-- Compare Python temporal spectrum against `example_6_hamada/MATLAB_results/spectrum.mat`.
-- Report sorting policy, tolerances, matched/unmatched modes, and max residuals.
+4. **Eigenvalue convention equivalence**
+- Ensure both pipelines compare the same eigenproblem convention around the same target.
+- Keep selection/sorting logic identical for the parity comparison.
 
-4. Add focused regression/smoke tests.
-- Add one cheap test that builds the operator and runs a reduced eigen solve for Hamada input.
-- Keep full heavy solves out of default CI; gate with reduced mode count.
+## Required Evidence Before Declaring Agreement
+1. Matrix-level checks
+- `nnz` and sparsity pattern alignment
+- Random-action residual small
+- Blockwise residuals (interior + BC rows) small
 
-5. Add minimal docs and run instructions.
-- Document required files, run command, parity command, and expected artifact paths.
+2. Spectrum-level checks
+- Hungarian-matched errors within agreed tolerances
 
-## Validation Criteria
-1. Example run succeeds with project interpreter:
-- `.venv/bin/python -m linstab2d.examples.<hamada_example_module>`
+3. Mode-level checks
+- Phase-aligned field comparison for selected reference modes (for example mode 7)
 
-2. Parity checker succeeds against MATLAB reference:
-- Spectrum mismatch within agreed tolerance.
+## Practical Conclusion
+No agreement yet because operator formation equivalence is not yet proven.
+The next work must stay focused on matrix/BC/linearization parity, not on additional workflow features.
 
-3. No regressions in existing tests:
-- `.venv/bin/python -m pytest tests/ -x -q`
+## Investigation Plan (Matrix-First)
+1. Freeze one reference configuration.
+- Use only one fixed case and one fixed set of runtime parameters.
+- Do not change solver options while diagnosing equivalence.
 
-## Deliverables
-- Integrated Hamada loader and example under `linstab2d/`.
-- Parity checker against MATLAB reference data.
-- Focused tests and short runbook updates.
+2. Split parity into `pre-BC` and `post-BC`.
+- Export/compare:
+- `L0_preBC`: immediately after operator assembly.
+- `L0_postBC`: after all BCs are applied.
+- This isolates whether mismatch is from linearization/assembly or from BC enforcement.
 
-## Diagnostics Executed (Step 1-4)
-Artifacts:
-- `artifacts/hamada_diagnostics_step1_4.json`
+3. Add operator parity diagnostics (not only spectrum parity).
+- Create operator reports with:
+- global relative matrix error,
+- interior-only error,
+- BC-row-only error,
+- per-variable-block (`rho,u,v,w,T`) errors,
+- worst offending rows/blocks.
 
-Baseline parity failures:
-- Spectrum (`n=100`): `max_abs=1.214e+01`, `rms_abs=8.596e+00`
-- Mode-7 `u` field: `|Δω|=2.236e+00`, `rel_complex=1.468`, `rel_real=1.169`, `corr_real=-0.040`
+4. Branch root-cause work based on where mismatch is largest.
+- If `pre-BC` mismatch is large:
+- investigate linearized coefficient formation and mesh metric mapping.
+- If `pre-BC` is close but `post-BC` mismatch is large:
+- investigate Dirichlet/Neumann row construction and BC index sets.
 
-Convention check (spectrum, `n=100`):
-- `py`: `rms_abs=8.596e+00`
-- `conj(py)`: `rms_abs=3.390e+00` (best among simple transforms, still far)
-- `-py`: `rms_abs=1.334e+01`
-- `-conj(py)`: `rms_abs=1.521e+01`
+5. Check eigenvalue convention only after operator agreement.
+- Spectrum/mode mismatch is expected when operator mismatch is still large.
+- First make `L0_postBC` equivalent; then evaluate eig parity.
 
-Operator baseline diagnostics vs MATLAB `LO.mat`:
-- `nnz` matches exactly (`5678509`)
-- action residual still high (`~3.25`), interior residual (`~1.92`) is large
-- diagonal residual high (`~2.90`)
-
-One-factor sweep summary (`n_modes=12` for fast spectral diagnostics):
-- `transpose_input_false`: best spectral RMS (`3.91`) but catastrophic operator mismatch (action `~27.1`, `nnz` mismatch)
-- `bc_pressure_side`: spectral RMS improves (`4.18`) but operator mismatch worse than baseline
-- `penalty_1e4`: operator action drops (`~1.00`) but spectral mismatch unchanged
-- `zero_spanwise_true`: no effect vs baseline
-
-## Interpretation
-1. Mismatch is not explained by a simple sign/conjugate convention.
-2. BC penalty and spanwise-baseflow choices are not primary spectrum drivers here.
-3. The dominant mismatch is in the assembled operator physics/interior terms (not only boundary rows).
-4. Direct matrix comparison must account for MATLAB script conventions (`LO.mat` saved after `L0 = L0 / -1i`), but even after testing scalar/sign variants, large residual remains.
-
-## Next Root-Cause Tasks (Highest Priority)
-1. Validate exact MATLAB `readbaseflow` mapping for Hamada case (U/V/W assignment, transpose policy).
-2. Verify variable ordering/index mapping parity in assembled state vector (`rho,u,v,w,T`) against Hamada MATLAB solver path.
-3. Instrument and compare coefficient blocks (`A0, Ax, Ay, Axx, Ayy, Axy`) at sampled grid points against MATLAB for the same case.
-4. Re-check full operator parity with proper MATLAB convention alignment (`i*L0` storage path) after mapping fixes.
-5. Only then tighten spectrum/mode parity tolerances in `tests/test_hamada_parity.py`.
+6. Acceptance gate for “equivalent”.
+- Operator parity must be close (global + interior + BC rows).
+- Then spectrum parity must pass.
+- Then mode-shape parity (phase-aligned field comparisons) must pass.
