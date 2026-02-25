@@ -67,7 +67,11 @@ def compute() -> None:
     Re = env_float("LINSTAB2D_HAMADA_RE", 395000.0)
     Ma = env_float("LINSTAB2D_HAMADA_MA", 2.0)
     Pr = env_float("LINSTAB2D_HAMADA_PR", 0.747)
-    kappa = env_float("LINSTAB2D_HAMADA_KAPPA", 1.31)
+    # MATLAB export note:
+    # - `case_inputs_used.mat/baseFlow.kappa` is 1.4
+    # - `run_metadata.mat/kappa` is 1.31
+    # The assembled reference operators/spectrum align with baseFlow.kappa.
+    kappa = env_float("LINSTAB2D_HAMADA_KAPPA", 1.4)
     T_0 = env_float("LINSTAB2D_HAMADA_T0", 1540.0)
 
     stride_ksi = env_int("LINSTAB2D_HAMADA_STRIDE_KSI", 1)
@@ -88,11 +92,20 @@ def compute() -> None:
     run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", False)
     run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", True)
     zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", False)
-    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", True)
+    # MATLAB export note:
+    # case_inputs_used.mat stores uppercase dMUdT/d2MUdT2 as zeros; GetLinProblem.m
+    # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
+    # for strict parity with the exported reference matrices/spectrum.
+    zero_mu_t_derivs = env_bool("LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS", True)
+    # MATLAB stability convention:
+    #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
+    # Keep this as default for parity with exported MATLAB spectrum.
+    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", False)
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
-        f"run_stability={run_stability} run_resolvent={run_resolvent} raw_eigs={use_raw_eigs}"
+        f"run_stability={run_stability} run_resolvent={run_resolvent} "
+        f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs}"
     )
 
     # ------------------------------------------------------------------
@@ -113,6 +126,9 @@ def compute() -> None:
     )
 
     sutherland_air(baseflow)
+    if zero_mu_t_derivs:
+        baseflow.dmudT[:] = 0.0
+        baseflow.d2mudT2[:] = 0.0
     _log(f"loaded case arrays: shape={X.shape}, points={X.size}")
 
     # ------------------------------------------------------------------
@@ -170,12 +186,15 @@ def compute() -> None:
 
     # ------------------------------------------------------------------
     # 7) Optional stability analysis.
-    #    - raw_eigs: eig(L0) directly (current Hamada parity path)
-    #    - temporal: eig(i*L0) with Chu weighting (general temporal form)
+    #    - raw_eigs: eig(L0) directly (diagnostic-only path, not MATLAB parity)
+    #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
     # ------------------------------------------------------------------
     if run_stability:
         if use_raw_eigs:
-            _log(f"running raw eigensolve on L0: target={omega_target:.8g}, modes={n_modes}")
+            _log(
+                "running raw eigensolve on L0 "
+                f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
+            )
             omega, direct_modes = _eigs_near_target(
                 L0.tocsc(),
                 n_modes=n_modes,
@@ -185,7 +204,10 @@ def compute() -> None:
             omega = omega[order]
             direct_modes = direct_modes[:, order]
         else:
-            _log(f"running temporal eigensolve on i*L0: target={omega_target:.8g}, modes={n_modes}")
+            _log(
+                "running temporal eigensolve on i*L0 "
+                f"(MATLAB convention): target={omega_target:.8g}, modes={n_modes}"
+            )
             omega, direct_modes = temporal_eigenvalues(
                 L0,
                 n_modes=n_modes,

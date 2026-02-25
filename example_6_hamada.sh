@@ -103,6 +103,13 @@ export NUMEXPR_NUM_THREADS="$CORES"
 export VECLIB_MAXIMUM_THREADS="$CORES"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export LINSTAB2D_HAMADA_CASE_DIR="${LINSTAB2D_HAMADA_CASE_DIR:-example_6_hamada}"
+# MATLAB export uses baseFlow.kappa=1.4 in case_inputs_used.mat.
+export LINSTAB2D_HAMADA_KAPPA="${LINSTAB2D_HAMADA_KAPPA:-1.4}"
+# MATLAB export path uses uppercase dMUdT/d2MUdT2 fields (stored as zeros).
+export LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS="${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS:-1}"
+# Keep MATLAB convention by default: omega = eig(i*L0). Set to 1 only for
+# diagnostics on the raw operator eig(L0).
+export LINSTAB2D_HAMADA_USE_RAW_EIGS="${LINSTAB2D_HAMADA_USE_RAW_EIGS:-0}"
 
 echo "[hamada] using logical cores: $CORES"
 # Current matrix import path is single-rank CSR; keep MPI fixed at 1.
@@ -114,6 +121,8 @@ fi
 echo "[hamada] using MPI processes: $MPI_PROCS"
 echo "[hamada] using threaded cores (OMP/BLAS): $CORES"
 echo "[hamada] case dir: ${LINSTAB2D_HAMADA_CASE_DIR}"
+echo "[hamada] kappa: ${LINSTAB2D_HAMADA_KAPPA}"
+echo "[hamada] zero_mu_t_derivs: ${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS}"
 
 # -------------------------------------------------------------------
 # 3) Clean generated outputs from previous run
@@ -213,7 +222,7 @@ echo "[hamada] writing spectrum parity artifact"
 set +e
 .venv/bin/python tools/parity/check_hamada_spectrum.py \
   --python-npz example_6_hamada.npz \
-  --matlab-spectrum example_6_hamada/MATLAB_results/spectrum.mat \
+  --matlab-spectrum example_6_hamada/MATLAB_exports/spectrum.mat \
   --artifact artifacts/hamada_spectrum_parity.json
 PARITY_EXIT=$?
 set -e
@@ -227,8 +236,8 @@ fi
 echo "[hamada] generating figures"
 .venv/bin/python tools/parity/generate_hamada_figures.py \
   --python-npz example_6_hamada.npz \
-  --matlab-spectrum example_6_hamada/MATLAB_results/spectrum.mat \
-  --matlab-mode example_6_hamada/MATLAB_results/eigenvector_7.mat
+  --matlab-spectrum example_6_hamada/MATLAB_exports/spectrum.mat \
+  --matlab-mode example_6_hamada/MATLAB_exports/eigenvector_7.mat
 
 # -------------------------------------------------------------------
 # 7) End-of-run summary
