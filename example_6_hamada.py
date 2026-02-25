@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""Example 6: Hamada case (2D compressible LNSE, resolvent and stability)."""
+"""Example 6: Hamada case (2D compressible LNSE, resolvent and stability).
+
+This script is intentionally written as a single, readable pipeline:
+1. Load one prepared Hamada baseflow case from ``.npy`` files.
+2. Build/deform the mesh and assemble the compressible LNSE operator.
+3. Apply boundary conditions exactly as in the MATLAB workflow.
+4. Run optional resolvent and/or stability analysis (PETSc/SLEPc path).
+5. Save everything needed for parity checks and plotting into one ``.npz``.
+"""
 
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -17,14 +26,26 @@ from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.resolvent import resolvent_analysis
-
-from ._helpers import env_bool, env_float, env_int
+from linstab2d.examples._helpers import env_bool, env_float, env_int
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 
 
+def _log(message: str) -> None:
+    """Small helper for consistent prefixed progress messages."""
+    print(f"[example_6_hamada] {message}", flush=True)
+
+
 def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty: float) -> tuple[sp.csc_matrix, np.ndarray]:
+    """Apply the Hamada boundary-condition recipe used in the MATLAB case.
+
+    Layout:
+    - Dirichlet on ``lt`` for ``ruvwT``
+    - Dirichlet on ``b`` for ``ruvw``
+    - Neumann on ``b`` for ``T``
+    - Neumann on ``r`` for ``ruvwT``
+    """
     L0, idx_dirichlet_lt = apply_dirichlet(L0, idx, "lt", "ruvwT", mesh.ngp, penalty=penalty)
     L0, idx_dirichlet_b = apply_dirichlet(L0, idx, "b", "ruvw", mesh.ngp, penalty=penalty)
     L0, idx_neumann_b = apply_neumann(L0, mesh, idx, "b", "T", penalty=penalty)
@@ -34,7 +55,15 @@ def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty
 
 
 def compute() -> None:
-    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", "hamada_test"))
+    """Run the full Example-6 pipeline and write ``example_6_hamada.npz``."""
+    t0 = time.perf_counter()
+    _log("starting compute")
+
+    # ------------------------------------------------------------------
+    # 1) Read runtime configuration from environment variables.
+    #    Defaults here mirror the reference MATLAB setup.
+    # ------------------------------------------------------------------
+    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", "example_6_hamada"))
     Re = env_float("LINSTAB2D_HAMADA_RE", 395000.0)
     Ma = env_float("LINSTAB2D_HAMADA_MA", 2.0)
     Pr = env_float("LINSTAB2D_HAMADA_PR", 0.747)
@@ -50,6 +79,8 @@ def compute() -> None:
     ratio_u = env_float("LINSTAB2D_HAMADA_RATIO_UINF", 1.0)
     ratio_l = env_float("LINSTAB2D_HAMADA_RATIO_L", 0.1)
     St = env_float("LINSTAB2D_HAMADA_ST", 0.1)
+
+    # Target angular frequency used by resolvent and shift-invert EVP.
     omega_target = 2.0 * np.pi * St * ratio_u / ratio_l
 
     n_modes = env_int("LINSTAB2D_HAMADA_N_MODES", 100)
@@ -59,6 +90,15 @@ def compute() -> None:
     zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", False)
     use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", True)
 
+    _log(
+        f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
+        f"run_stability={run_stability} run_resolvent={run_resolvent} raw_eigs={use_raw_eigs}"
+    )
+
+    # ------------------------------------------------------------------
+    # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
+    #    compute viscosity/transport via Sutherland law.
+    # ------------------------------------------------------------------
     X, Y, baseflow, sponge = load_hamada_case(
         case_dir,
         Re=Re,
@@ -73,15 +113,29 @@ def compute() -> None:
     )
 
     sutherland_air(baseflow)
+    _log(f"loaded case arrays: shape={X.shape}, points={X.size}")
 
+    # ------------------------------------------------------------------
+    # 3) Build a computational mesh, then deform it to physical X/Y.
+    # ------------------------------------------------------------------
     ny, nx = X.shape
     cmesh = Mesh.create((0.0, 1.0), (0.0, 0.5), nx=nx, ny=ny, fd_order=fd_order)
     mesh = cmesh.deform(X_new=X, Y_new=Y)
     mesh.sponge = sponge
 
+    # ------------------------------------------------------------------
+    # 4) Assemble LNSE operator and impose boundary conditions.
+    # ------------------------------------------------------------------
+    _log("assembling LNSE operator")
     L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
+    _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
     L0, bc_indices = _bc_setup(mesh, idx, L0, penalty)
+    _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
 
+    # ------------------------------------------------------------------
+    # 5) Build Chu energy norm weights. These weights are required for
+    #    weighted analyses (resolvent and temporal formulation).
+    # ------------------------------------------------------------------
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]
     RHO_p = baseflow.RHO.ravel(order="F")[p]
@@ -91,7 +145,12 @@ def compute() -> None:
     gains = np.array([], dtype=float)
     responses = np.empty((mesh.ngp * 5, 0), dtype=complex)
     forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
+
+    # ------------------------------------------------------------------
+    # 6) Optional resolvent analysis at omega_target.
+    # ------------------------------------------------------------------
     if run_resolvent:
+        _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[bc_indices] = 0.0
         B_mat = sp.diags(B_diag, format="csc")
@@ -104,11 +163,19 @@ def compute() -> None:
             B_mat=B_mat,
             C_mat=C_mat,
         )
+        _log("resolvent analysis finished")
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
+
+    # ------------------------------------------------------------------
+    # 7) Optional stability analysis.
+    #    - raw_eigs: eig(L0) directly (current Hamada parity path)
+    #    - temporal: eig(i*L0) with Chu weighting (general temporal form)
+    # ------------------------------------------------------------------
     if run_stability:
         if use_raw_eigs:
+            _log(f"running raw eigensolve on L0: target={omega_target:.8g}, modes={n_modes}")
             omega, direct_modes = _eigs_near_target(
                 L0.tocsc(),
                 n_modes=n_modes,
@@ -118,13 +185,18 @@ def compute() -> None:
             omega = omega[order]
             direct_modes = direct_modes[:, order]
         else:
+            _log(f"running temporal eigensolve on i*L0: target={omega_target:.8g}, modes={n_modes}")
             omega, direct_modes = temporal_eigenvalues(
                 L0,
                 n_modes=n_modes,
                 target=omega_target,
                 W_diag=W_diag,
             )
+        _log(f"stability analysis finished: converged_modes={omega.size}")
 
+    # ------------------------------------------------------------------
+    # 8) Save full run state to one NPZ for downstream parity/plots.
+    # ------------------------------------------------------------------
     np.savez_compressed(
         OUTPUT_NPZ,
         omega=omega,
@@ -154,10 +226,13 @@ def compute() -> None:
         W_diag=W_diag,
         invW_diag=invW_diag,
     )
-    print(f"Results saved to {OUTPUT_NPZ}")
+    elapsed = time.perf_counter() - t0
+    _log(f"results saved to {OUTPUT_NPZ}")
+    _log(f"compute finished in {elapsed:.2f}s")
 
 
 def main() -> None:
+    """Cache-aware entrypoint used when launched as ``python ...``."""
     try:
         np.load(OUTPUT_NPZ, allow_pickle = False)
     except (FileNotFoundError, EOFError, OSError, ValueError) as exc:

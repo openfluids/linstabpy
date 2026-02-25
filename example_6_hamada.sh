@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Example-6 Hamada full pipeline runner.
+#
+# Goal:
+# - Always run one reproducible pipeline for the single Hamada reference case:
+#   1) solve with PETSc/SLEPc (MUMPS backend),
+#   2) compare spectrum to MATLAB reference,
+#   3) generate summary figures.
+#
+# Design choices:
+# - Single case directory by default: `example_6_hamada/`
+# - MPI is forced to 1 for now (current SciPy->PETSc conversion is serial CSR).
+# - Performance comes from threaded BLAS/OpenMP/MUMPS on local cores.
+# - Every run writes a timestamped log under `artifacts/logs/`.
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+# -------------------------------------------------------------------
+# 0) Logging/session metadata
+# -------------------------------------------------------------------
 LOG_DIR="${LINSTAB2D_LOG_DIR:-artifacts/logs}"
 mkdir -p "$LOG_DIR"
 TS="$(date +"%Y%m%d_%H%M%S")"
@@ -14,11 +31,19 @@ SCRIPT_START_TS="$(date +%s)"
 SCRIPT_START_HUMAN="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 echo "[hamada] start: $SCRIPT_START_HUMAN"
 
+# Basic runtime prerequisite: repo-local virtual environment.
 if [[ ! -x ".venv/bin/python" ]]; then
   echo "[hamada] missing .venv/bin/python. Run install first."
   exit 1
 fi
 
+# -------------------------------------------------------------------
+# 1) Verbosity and monitor options
+# -------------------------------------------------------------------
+# LINSTAB2D_VERBOSE levels:
+# 0 = heartbeat only
+# 1 = SLEPc EPS monitor + converged reason (default)
+# 2 = add ST/KSP converged reasons and shorter heartbeat interval
 VERBOSE="${LINSTAB2D_VERBOSE:-1}"
 HEARTBEAT_SEC="${LINSTAB2D_HEARTBEAT_SEC:-20}"
 declare -a PETSC_VERBOSE_OPTS=()
@@ -40,7 +65,12 @@ echo "[hamada] heartbeat interval: ${HEARTBEAT_SEC}s"
 if [[ "${#PETSC_VERBOSE_OPTS[@]}" -gt 0 ]]; then
   echo "[hamada] PETSc verbose opts: ${PETSC_VERBOSE_OPTS[*]}"
 fi
+echo "[hamada] monitor legend: ram_mb=resident physical memory (RSS), cpu_pct=process CPU usage, mem_pct=percent of system RAM"
+echo "[hamada] state legend: R=running, S=sleeping/waiting, D=I/O wait, T=stopped, Z=zombie"
 
+# -------------------------------------------------------------------
+# 2) Resource discovery and environment setup
+# -------------------------------------------------------------------
 detect_cores() {
   local n
   n="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
@@ -56,6 +86,7 @@ detect_cores() {
 CORES="$(detect_cores)"
 MPI_PROCS="${LINSTAB2D_MPI_PROCS:-1}"
 
+# Safety cleanup for unattended runs: clear stale python jobs.
 echo "[hamada] killing existing python processes"
 KILLED=0
 for pid in $(ps -ax -o pid=,comm= | awk '$2 ~ /python/ {print $1}'); do
@@ -71,8 +102,10 @@ export MKL_NUM_THREADS="$CORES"
 export NUMEXPR_NUM_THREADS="$CORES"
 export VECLIB_MAXIMUM_THREADS="$CORES"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export LINSTAB2D_HAMADA_CASE_DIR="${LINSTAB2D_HAMADA_CASE_DIR:-example_6_hamada}"
 
 echo "[hamada] using logical cores: $CORES"
+# Current matrix import path is single-rank CSR; keep MPI fixed at 1.
 if [[ "$MPI_PROCS" -ne 1 ]]; then
   echo "[hamada] requested MPI processes: $MPI_PROCS"
   echo "[hamada] forcing MPI processes to 1 (current SciPy->PETSc path is single-rank CSR)."
@@ -80,17 +113,25 @@ if [[ "$MPI_PROCS" -ne 1 ]]; then
 fi
 echo "[hamada] using MPI processes: $MPI_PROCS"
 echo "[hamada] using threaded cores (OMP/BLAS): $CORES"
+echo "[hamada] case dir: ${LINSTAB2D_HAMADA_CASE_DIR}"
+
+# -------------------------------------------------------------------
+# 3) Clean generated outputs from previous run
+# -------------------------------------------------------------------
 echo "[hamada] cleaning generated Hamada artifacts"
 
 rm -f \
-  linstab2d/examples/example_6_hamada.npz \
-  linstab2d/examples/example_6_hamada_preview.png \
-  linstab2d/examples/example_6_hamada_vs_matlab_spectrum.png \
-  linstab2d/examples/example_6_hamada_vs_matlab_mode7.png \
+  example_6_hamada.npz \
+  example_6_hamada_preview.png \
+  example_6_hamada_vs_matlab_spectrum.png \
+  example_6_hamada_vs_matlab_mode7.png \
   artifacts/hamada_spectrum_parity.json \
   artifacts/hamada_diagnostics_step1_4.json \
   artifacts/hamada_mapping_sweep.json
 
+# -------------------------------------------------------------------
+# 4) Run solver (PETSc/SLEPc) with live heartbeat
+# -------------------------------------------------------------------
 echo "[hamada] recomputing example_6_hamada"
 if ! command -v mpiexec >/dev/null 2>&1; then
   echo "[hamada] mpiexec not found; install MPI to run PETSc/SLEPc in parallel."
@@ -99,115 +140,99 @@ fi
 echo "[hamada] launching solver (heartbeat every ${HEARTBEAT_SEC}s)"
 START_TS="$(date +%s)"
 if [[ "${#PETSC_VERBOSE_OPTS[@]}" -gt 0 ]]; then
-  mpiexec -n "$MPI_PROCS" .venv/bin/python -u -c "from linstab2d.examples.example_6_hamada import compute; compute()" "${PETSC_VERBOSE_OPTS[@]}" &
+  mpiexec -n "$MPI_PROCS" .venv/bin/python -u -c "from example_6_hamada import compute; compute()" "${PETSC_VERBOSE_OPTS[@]}" &
 else
-  mpiexec -n "$MPI_PROCS" .venv/bin/python -u -c "from linstab2d.examples.example_6_hamada import compute; compute()" &
+  mpiexec -n "$MPI_PROCS" .venv/bin/python -u -c "from example_6_hamada import compute; compute()" &
 fi
 SOLVER_PID=$!
+
+# Resolve a useful monitoring PID (prefer python worker over mpiexec/hydra wrappers).
+resolve_monitor_pid() {
+  local root="$1"
+  local cur="$root"
+  local next
+  local children
+  local line
+  while true; do
+    children="$(ps -ax -o pid=,ppid=,command= | awk -v p="$cur" '$2==p {print $1 "|" substr($0, index($0, $3))}')"
+    if [[ -z "$children" ]]; then
+      break
+    fi
+    next="$(printf "%s\n" "$children" | awk -F'|' '/python/ {print $1; exit}')"
+    if [[ -z "$next" ]]; then
+      line="$(printf "%s\n" "$children" | head -n 1)"
+      next="${line%%|*}"
+    fi
+    if [[ -z "$next" ]]; then
+      break
+    fi
+    cur="$next"
+  done
+  printf "%s" "$cur"
+}
+
+LAST_HEARTBEAT_TS=0
 while kill -0 "$SOLVER_PID" 2>/dev/null; do
   NOW_TS="$(date +%s)"
-  ELAPSED="$((NOW_TS - START_TS))"
-  PY_LINE="$(ps -ax -o pid=,etime=,%cpu=,%mem=,state=,command= | rg 'linstab2d\\.examples\\.example_6_hamada' | head -n 1 || true)"
-  if [[ -n "$PY_LINE" ]]; then
-    echo "[hamada] running t=${ELAPSED}s | $PY_LINE"
-  else
-    echo "[hamada] running t=${ELAPSED}s | solver pid=${SOLVER_PID}"
+  if (( LAST_HEARTBEAT_TS == 0 || NOW_TS - LAST_HEARTBEAT_TS >= HEARTBEAT_SEC )); then
+    ELAPSED="$((NOW_TS - START_TS))"
+    MONITOR_PID="$(resolve_monitor_pid "$SOLVER_PID")"
+    STAT_LINE="$(ps -p "$MONITOR_PID" -o etime=,%cpu=,%mem=,rss=,state=,command= 2>/dev/null | xargs || true)"
+    if [[ -n "$STAT_LINE" ]]; then
+      set -- $STAT_LINE
+      P_ETIME="${1:-?}"
+      P_CPU="${2:-?}"
+      P_MEM="${3:-?}"
+      P_RSS_KB="${4:-0}"
+      P_STATE="${5:-?}"
+      shift 5
+      P_CMD="$*"
+      case "$P_RSS_KB" in
+        ''|*[!0-9]*)
+          P_RSS_MB="?"
+          ;;
+        *)
+          P_RSS_MB="$((P_RSS_KB / 1024))"
+          ;;
+      esac
+      echo "[hamada] running t=${ELAPSED}s | pid=${MONITOR_PID} elapsed=${P_ETIME} cpu_pct=${P_CPU} mem_pct=${P_MEM} ram_mb=${P_RSS_MB} proc_state=${P_STATE} cmd=${P_CMD}"
+    else
+      echo "[hamada] running t=${ELAPSED}s | solver pid=${SOLVER_PID}"
+    fi
+    LAST_HEARTBEAT_TS="$NOW_TS"
   fi
-  sleep "$HEARTBEAT_SEC"
+  sleep 1
 done
 wait "$SOLVER_PID"
 echo "[hamada] solver finished in $(( $(date +%s) - START_TS ))s"
 
+# -------------------------------------------------------------------
+# 5) Compare computed spectrum against MATLAB reference
+# -------------------------------------------------------------------
 echo "[hamada] writing spectrum parity artifact"
+set +e
 .venv/bin/python tools/parity/check_hamada_spectrum.py \
-  --python-npz linstab2d/examples/example_6_hamada.npz \
-  --matlab-spectrum hamada_test/MATLAB_results/spectrum.mat \
+  --python-npz example_6_hamada.npz \
+  --matlab-spectrum example_6_hamada/MATLAB_results/spectrum.mat \
   --artifact artifacts/hamada_spectrum_parity.json
+PARITY_EXIT=$?
+set -e
+if [[ "$PARITY_EXIT" -ne 0 ]]; then
+  echo "[hamada] parity check failed (exit=${PARITY_EXIT}) - continuing to generate figures"
+fi
 
+# -------------------------------------------------------------------
+# 6) Generate quick diagnostic figures for visual comparison
+# -------------------------------------------------------------------
 echo "[hamada] generating figures"
-.venv/bin/python - <<'PYFIG'
-from pathlib import Path
+.venv/bin/python tools/parity/generate_hamada_figures.py \
+  --python-npz example_6_hamada.npz \
+  --matlab-spectrum example_6_hamada/MATLAB_results/spectrum.mat \
+  --matlab-mode example_6_hamada/MATLAB_results/eigenvector_7.mat
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy.io import loadmat
-
-root = Path(".")
-npz_path = root / "linstab2d/examples/example_6_hamada.npz"
-mat_spec_path = root / "hamada_test/MATLAB_results/spectrum.mat"
-mat_mode_path = root / "hamada_test/MATLAB_results/eigenvector_7.mat"
-
-data = np.load(npz_path, allow_pickle = False)
-omega_py = np.asarray(data["omega"], dtype=complex).reshape(-1)
-omega_target = complex(np.asarray(data["omega_target"]).reshape(-1)[0])
-
-omega_mat_raw = np.asarray(loadmat(mat_spec_path)["omega"])
-if omega_mat_raw.ndim == 2 and omega_mat_raw.shape[0] == omega_mat_raw.shape[1]:
-    omega_mat = np.diag(omega_mat_raw).astype(complex)
-else:
-    omega_mat = omega_mat_raw.reshape(-1).astype(complex)
-
-n = int(min(100, omega_py.size, omega_mat.size))
-py_sel = omega_py[np.argsort(np.abs(omega_py - omega_target))[:n]]
-mat_sel = omega_mat[np.argsort(np.abs(omega_mat - omega_target))[:n]]
-
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.scatter(mat_sel.real, mat_sel.imag, s=16, label="MATLAB", alpha=0.8)
-ax.scatter(py_sel.real, py_sel.imag, s=16, label="Python", alpha=0.8)
-ax.axhline(0.0, color="0.4", linewidth=0.8)
-ax.set_xlabel("Re(omega)")
-ax.set_ylabel("Im(omega)")
-ax.set_title(f"Hamada spectrum parity (n={n})")
-ax.legend()
-fig.tight_layout()
-fig.savefig(root / "linstab2d/examples/example_6_hamada_vs_matlab_spectrum.png", dpi=220)
-plt.close(fig)
-
-if "X" in data and "Y" in data and "U" in data:
-    X = np.asarray(data["X"], dtype=float)
-    Y = np.asarray(data["Y"], dtype=float)
-    U = np.asarray(data["U"], dtype=float)
-    fig, ax = plt.subplots(figsize=(9, 4))
-    c = ax.pcolormesh(X, Y, U, shading="auto")
-    fig.colorbar(c, ax=ax, label="U")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_title("Hamada baseflow preview (U)")
-    fig.tight_layout()
-    fig.savefig(root / "linstab2d/examples/example_6_hamada_preview.png", dpi=220)
-    plt.close(fig)
-
-direct = np.asarray(data["direct_modes"], dtype=complex)
-idx_u = np.asarray(data["idx_u_j"], dtype=int)
-mode_mat = np.asarray(loadmat(mat_mode_path)["u"], dtype=complex).reshape(-1)
-
-mode_idx_mat = min(6, omega_mat.size - 1)
-omega_ref = omega_mat[mode_idx_mat]
-mode_idx_py = int(np.argmin(np.abs(omega_py - omega_ref)))
-u_py = direct[:, mode_idx_py][idx_u].reshape(-1)
-
-num = np.vdot(u_py, mode_mat)
-if num != 0:
-    u_py = u_py * np.exp(-1j * np.angle(num))
-
-u_mat_n = mode_mat / max(np.linalg.norm(mode_mat), 1e-30)
-u_py_n = u_py / max(np.linalg.norm(u_py), 1e-30)
-
-fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-axes[0].plot(np.real(u_mat_n), linewidth=0.9)
-axes[0].set_ylabel("Re(u)")
-axes[0].set_title("MATLAB mode 7 (normalized)")
-axes[1].plot(np.real(u_py_n), linewidth=0.9)
-axes[1].set_ylabel("Re(u)")
-axes[1].set_title(f"Python nearest mode ({mode_idx_py + 1})")
-axes[1].set_xlabel("grid dof index")
-fig.tight_layout()
-fig.savefig(root / "linstab2d/examples/example_6_hamada_vs_matlab_mode7.png", dpi=220)
-plt.close(fig)
-PYFIG
-
+# -------------------------------------------------------------------
+# 7) End-of-run summary
+# -------------------------------------------------------------------
 echo "[hamada] done"
 SCRIPT_END_TS="$(date +%s)"
 SCRIPT_END_HUMAN="$(date +"%Y-%m-%d %H:%M:%S %Z")"

@@ -6,7 +6,7 @@ Integrate Hamada's case into `linstab2d` as a first-class Python workflow, with 
 ## Source Material in `install_hamada`
 - `workflow_hamada/`: preprocessing + MATLAB execution workflow.
 - `hamada_test/`: initial Python port attempt and case data (`x.npy`, `y.npy`, `rho.npy`, `u.npy`, `v.npy`, `w.npy`, `T.npy`, `sponge.npy`).
-- `hamada_test/MATLAB_results/`: reference outputs (`LO.mat`, `spectrum.mat`, sample eigenvector file).
+- `example_6_hamada/MATLAB_results/`: reference outputs (`LO.mat`, `spectrum.mat`, sample eigenvector file).
 
 ## Gaps to Fix Before Integration
 1. Mesh/baseflow orientation consistency.
@@ -37,7 +37,7 @@ Integrate Hamada's case into `linstab2d` as a first-class Python workflow, with 
 - Use loaded `w.npy` unless user explicitly wants `W=0`.
 
 3. Add MATLAB parity checker for Hamada case.
-- Compare Python temporal spectrum against `hamada_test/MATLAB_results/spectrum.mat`.
+- Compare Python temporal spectrum against `example_6_hamada/MATLAB_results/spectrum.mat`.
 - Report sorting policy, tolerances, matched/unmatched modes, and max residuals.
 
 4. Add focused regression/smoke tests.
