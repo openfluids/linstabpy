@@ -29,13 +29,13 @@ def main() -> int:
     parser.add_argument(
         "--python-npz",
         type=Path,
-        default=Path("linstab2d/examples/example_6_hamada.npz"),
+        default=Path("example_6_hamada.npz"),
         help="Python output NPZ with 'omega' key",
     )
     parser.add_argument(
         "--matlab-spectrum",
         type=Path,
-        default=Path("hamada_test/MATLAB_results/spectrum.mat"),
+        default=Path("example_6_hamada/MATLAB_results/spectrum.mat"),
         help="MATLAB spectrum .mat file containing 'omega'",
     )
     parser.add_argument("--n-compare", type=int, default=100, help="Number of modes to compare")
