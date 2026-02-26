@@ -18,6 +18,11 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 
+from linstab2d.utils.petsc_init import init_petsc_from_argv
+
+init_petsc_from_argv()
+from petsc4py import PETSc
+
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.boundary_conditions.neumann import apply_neumann
@@ -34,7 +39,8 @@ OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 
 def _log(message: str) -> None:
     """Small helper for consistent prefixed progress messages."""
-    print(f"[example_6_hamada] {message}", flush=True)
+    if PETSc.COMM_WORLD.getRank() == 0:
+        print(f"[example_6_hamada] {message}", flush=True)
 
 
 def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty: float) -> tuple[sp.csc_matrix, np.ndarray]:
@@ -58,6 +64,9 @@ def compute() -> None:
     """Run the full Example-6 pipeline and write ``example_6_hamada.npz``."""
     t0 = time.perf_counter()
     _log("starting compute")
+    comm = PETSc.COMM_WORLD
+    rank = comm.getRank()
+    size = comm.getSize()
 
     # ------------------------------------------------------------------
     # 1) Read runtime configuration from environment variables.
@@ -101,6 +110,22 @@ def compute() -> None:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
     use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", False)
+    st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
+    iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
+    requested_root_operator = size > 1 and env_bool("LINSTAB2D_HAMADA_ROOT_ASSEMBLY", iterative_st_solver)
+    use_root_operator = requested_root_operator and iterative_st_solver
+    if requested_root_operator and not iterative_st_solver:
+        _log(
+            "root-assembly mode requested but disabled because "
+            f"LINSTAB2D_EIGEN_ST_SOLVER={st_solver!r} is not iterative"
+        )
+    if use_root_operator and run_resolvent:
+        raise RuntimeError(
+            "Root-only operator assembly mode is currently intended for stability solves only. "
+            "Set LINSTAB2D_HAMADA_ROOT_ASSEMBLY=0 when running resolvent in MPI."
+        )
+    if use_root_operator:
+        os.environ.setdefault("LINSTAB2D_PETSC_ROOT_SCATTER", "1")
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
@@ -142,11 +167,26 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 4) Assemble LNSE operator and impose boundary conditions.
     # ------------------------------------------------------------------
-    _log("assembling LNSE operator")
-    L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
-    _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
-    L0, bc_indices = _bc_setup(mesh, idx, L0, penalty)
-    _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
+    if use_root_operator and rank != 0:
+        # Root-assembly mode for MPI scalability:
+        # non-root ranks keep only a shape-compatible placeholder; the real
+        # SciPy->PETSc operator transfer happens from root inside eigenvalue.py.
+        ndof = mesh.ngp * 5
+        L0 = sp.csc_matrix((ndof, ndof), dtype=complex)
+        idx = {
+            "rho_j": np.arange(0, mesh.ngp, dtype=np.int64),
+            "u_j": np.arange(mesh.ngp, 2 * mesh.ngp, dtype=np.int64),
+            "v_j": np.arange(2 * mesh.ngp, 3 * mesh.ngp, dtype=np.int64),
+            "w_j": np.arange(3 * mesh.ngp, 4 * mesh.ngp, dtype=np.int64),
+            "T_j": np.arange(4 * mesh.ngp, 5 * mesh.ngp, dtype=np.int64),
+        }
+        bc_indices = np.array([], dtype=np.int64)
+    else:
+        _log("assembling LNSE operator")
+        L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
+        _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
+        L0, bc_indices = _bc_setup(mesh, idx, L0, penalty)
+        _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
 
     # ------------------------------------------------------------------
     # 5) Build Chu energy norm weights. These weights are required for
@@ -219,46 +259,55 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 8) Save full run state to one NPZ for downstream parity/plots.
     # ------------------------------------------------------------------
-    np.savez_compressed(
-        OUTPUT_NPZ,
-        omega=omega,
-        direct_modes=direct_modes,
-        gains=gains,
-        responses=responses,
-        forcings=forcings,
-        omega_target=omega_target,
-        use_raw_eigs=use_raw_eigs,
-        St=St,
-        beta=beta,
-        Re=Re,
-        Ma=Ma,
-        Pr=Pr,
-        kappa=kappa,
-        T_0=T_0,
-        X=mesh.X,
-        Y=mesh.Y,
-        U=baseflow.U,
-        sponge=mesh.sponge,
-        idx_rho_j=idx["rho_j"],
-        idx_u_j=idx["u_j"],
-        idx_v_j=idx["v_j"],
-        idx_w_j=idx["w_j"],
-        idx_T_j=idx["T_j"],
-        bc_indices=bc_indices,
-        W_diag=W_diag,
-        invW_diag=invW_diag,
-    )
+    if rank == 0:
+        np.savez_compressed(
+            OUTPUT_NPZ,
+            omega=omega,
+            direct_modes=direct_modes,
+            gains=gains,
+            responses=responses,
+            forcings=forcings,
+            omega_target=omega_target,
+            use_raw_eigs=use_raw_eigs,
+            St=St,
+            beta=beta,
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            T_0=T_0,
+            X=mesh.X,
+            Y=mesh.Y,
+            U=baseflow.U,
+            sponge=mesh.sponge,
+            idx_rho_j=idx["rho_j"],
+            idx_u_j=idx["u_j"],
+            idx_v_j=idx["v_j"],
+            idx_w_j=idx["w_j"],
+            idx_T_j=idx["T_j"],
+            bc_indices=bc_indices,
+            W_diag=W_diag,
+            invW_diag=invW_diag,
+        )
     elapsed = time.perf_counter() - t0
     _log(f"results saved to {OUTPUT_NPZ}")
     _log(f"compute finished in {elapsed:.2f}s")
+    comm.barrier()
 
 
 def main() -> None:
     """Cache-aware entrypoint used when launched as ``python ...``."""
-    try:
-        np.load(OUTPUT_NPZ, allow_pickle = False)
-    except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
-        print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+    comm = PETSc.COMM_WORLD
+    rank = comm.getRank()
+    need_recompute = False
+    if rank == 0:
+        try:
+            np.load(OUTPUT_NPZ, allow_pickle = False)
+        except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
+            print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+            need_recompute = True
+    need_recompute = comm.bcast(need_recompute, root=0)
+    if need_recompute:
         compute()
 
 
