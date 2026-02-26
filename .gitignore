@@ -9,3 +9,4 @@ build/
 *.log
 .venv/
 artifacts/
+.DS_Store
