@@ -7,6 +7,9 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 
+from ..utils.petsc_init import init_slepc_from_argv
+
+init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 

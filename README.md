@@ -149,6 +149,55 @@ SciPy sparse (matrix assembly)  →  PETSc (linear solves via MUMPS)  →  SLEPc
 - **SLEPc TRLANCZOS** computes the resolvent SVD directly (no operator squaring), which is numerically more stable than eigendecomposing H^H W H.
 - The entire solver chain is MPI-ready for future distributed-memory parallelism.
 
+## Linear-system nature (Hamada Example 6) and solver strategies
+
+For the assembled LNSE operator (after BCs), the current Hamada case has:
+
+- size `127500 x 127500`
+- `5,678,509` nonzeros (`0.0349%` density)
+- strongly non-symmetric/non-normal behavior
+- low global diagonal dominance
+- large diagonal scale spread (especially from BC-penalty rows)
+
+This is not a classic incompressible saddle-point matrix (`[A B^T; B 0]`).  
+The block system is compressible and mostly coupled in `rho/u/v/T`, with a decoupled `w` block for the 2D (`beta=0`) case.
+
+### Strategy A (robust baseline): MUMPS direct
+
+- `ST=SINVERT`, `KSP=PREONLY`, `PC=LU`, `solver=MUMPS`
+- use for medium cases where direct factorization memory fits
+- this is the current reliable MATLAB-parity path in this repository
+- verified on **2026-02-26** (`example_6_hamada`, `n_modes=30`, `MPI=1`, `threads=6`): converged in `~98s`, parity `pass=True`
+
+### Strategy B (scalable, in progress): PETSc iterative + strong preconditioner
+
+- `ST=SINVERT` or `ST=PRECOND` (JD route), with strict `ksp_error_if_not_converged`
+- move from generic ASM to stronger block preconditioning (`PCFIELDSPLIT`) using physics blocks (`rho/u/v/T` and `w`)
+- add scaling before solve to reduce BC-penalty conditioning issues
+- current tested status on the Hamada case:
+- `MPI=1` iterative ASM (`GMRES+ASM+sub-LU`) converges and matches MATLAB, but slower (`~217s`)
+- `MPI=2` iterative SINVERT (`GMRES+ASM+sub-LU`) now converges with parity pass (`~185s`, `n_modes=30`) using root-owned matrix transfer path
+- `MPI=2` JD+PRECOND (`FGMRES+bjacobi+sub-LU`) did not reach convergence in `~320s` (`nconv=0`) and was terminated
+- `MPI=2` `PCFIELDSPLIT` variants are not yet robust on this case and remain experimental
+
+Operational rule:
+
+- if direct factorization fits memory, use Strategy A
+- if not, use Strategy B only with explicit convergence reason + parity checks
+- reference logs from these tests: `artifacts/logs/example_6_hamada_20260226_085632.log`, `artifacts/logs/example_6_hamada_20260226_085247.log`, `artifacts/logs/example_6_hamada_20260226_092026.log`, `artifacts/logs/example_6_hamada_20260226_115755.log`
+
+### Validated discovery (2026-02-26)
+
+- For the Hamada parity case (`example_6_hamada`, `n_modes=30`), both strategy classes are now validated for temporal stability:
+- Strategy A (direct MUMPS) converges and matches MATLAB spectrum.
+- Strategy B baseline (iterative SLEPc SINVERT + GMRES/ASM/sub-LU) converges and matches MATLAB spectrum in distributed mode (`MPI=2`), after enabling root-owned SciPy->PETSc row-scatter transfer.
+- Matrix-stage parity (pre/post BC assembly stages) is now emitted as an artifact and passes for the parity case.
+
+### Open plan (resolvent path)
+
+- Resolvent is still treated as an open hardening track.
+- The new distributed iterative root-scatter path is validated for temporal EVP; equivalent robustness/performance validation for resolvent (gains/modes parity and distributed scalability) remains to be completed before calling Strategy B resolvent-ready.
+
 ## Quick start
 
 ```bash

@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import os
 import logging
 
 import numpy as np
 import scipy.sparse as sp
 
+from ..utils.petsc_init import init_slepc_from_argv
+
+init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
+from .petsc_utils import (
+    require_complex,
+    scipy_to_petsc,
+    scipy_to_petsc_distributed_from_root,
+    vec_to_numpy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +82,22 @@ def _eigs_near_target(
         sel = order[:n_modes]
         return all_vals[sel], all_vecs[:, sel]
 
-    A = scipy_to_petsc(operator)
+    st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
+    use_root_scatter = (
+        PETSc.COMM_WORLD.getSize() > 1
+        and st_solver in {"iterative", "krylov", "slepc"}
+        and os.getenv("LINSTAB2D_PETSC_ROOT_SCATTER", "0").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    if use_root_scatter:
+        rank = PETSc.COMM_WORLD.getRank()
+        A = scipy_to_petsc_distributed_from_root(
+            operator if rank == 0 else None,
+            shape=operator.shape,
+            root=0,
+            comm=PETSc.COMM_WORLD,
+        )
+    else:
+        A = scipy_to_petsc(operator)
 
     eps = SLEPc.EPS().create()
     eps.setOperators(A)
@@ -87,14 +111,84 @@ def _eigs_near_target(
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
     eps.setTolerances(tol=1e-8, max_it=max(500, 10 * ndof))
 
-    # Shift-invert spectral transformation with MUMPS
+    # Shift-invert spectral transformation; linear solver backend is selectable.
+    #
+    # LINSTAB2D_EIGEN_ST_SOLVER:
+    #   mumps (default) -> direct LU factorization (robust, memory-heavy)
+    #   iterative       -> Krylov linear solve in ST (scalable, may require tuning)
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
     ksp = st.getKSP()
-    ksp.setType(PETSc.KSP.Type.PREONLY)
     pc = ksp.getPC()
-    pc.setType(PETSc.PC.Type.LU)
-    pc.setFactorSolverType("mumps")
+
+    if st_solver in {"mumps", "direct", "lu"}:
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc.setType(PETSc.PC.Type.LU)
+        if st_solver == "mumps":
+            pc.setFactorSolverType("mumps")
+    elif st_solver in {"iterative", "krylov", "slepc"}:
+        ksp_type = os.getenv("LINSTAB2D_EIGEN_KSP_TYPE", "gmres").strip().lower()
+        pc_type = os.getenv("LINSTAB2D_EIGEN_PC_TYPE", "asm").strip().lower()
+        ksp_rtol = float(os.getenv("LINSTAB2D_EIGEN_KSP_RTOL", "1e-8"))
+        ksp_max_it = int(os.getenv("LINSTAB2D_EIGEN_KSP_MAX_IT", "20000"))
+        asm_overlap = int(os.getenv("LINSTAB2D_EIGEN_ASM_OVERLAP", "2"))
+        sub_ksp_type = os.getenv("LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly").strip().lower()
+        sub_pc_type = os.getenv("LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu").strip().lower()
+        ksp.setType(ksp_type)
+        if pc_type in {"fieldsplit", "fs"}:
+            pc.setType(PETSc.PC.Type.FIELDSPLIT)
+        else:
+            pc.setType(pc_type)
+        ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
+        ksp.setErrorIfNotConverged(True)
+        if pc_type in {"fieldsplit", "fs"}:
+            # Physics-aware 5-variable split for compressible LNSE state:
+            # fluid = [rho, u, v, T], spanwise = [w]
+            # Assumes state layout [rho(ngp), u(ngp), v(ngp), w(ngp), T(ngp)].
+            if ndof % 5 == 0:
+                ngp = ndof // 5
+                fluid_idx = np.concatenate(
+                    (
+                        np.arange(0, 3 * ngp, dtype=np.int32),
+                        np.arange(4 * ngp, 5 * ngp, dtype=np.int32),
+                    )
+                )
+                w_idx = np.arange(3 * ngp, 4 * ngp, dtype=np.int32)
+                rstart, rend = A.getOwnershipRange()
+                fluid_local = fluid_idx[(fluid_idx >= rstart) & (fluid_idx < rend)]
+                w_local = w_idx[(w_idx >= rstart) & (w_idx < rend)]
+                is_fluid = PETSc.IS().createGeneral(fluid_local, comm=PETSc.COMM_WORLD)
+                is_w = PETSc.IS().createGeneral(w_local, comm=PETSc.COMM_WORLD)
+                pc.setFieldSplitIS(("fluid", is_fluid), ("w", is_w))
+                pc.setFieldSplitType(PETSc.PC.CompositeType.ADDITIVE)
+        if pc_type == "asm":
+            pc.setASMOverlap(asm_overlap)
+            # Rank-local coarse solves for ASM blocks (parallel-safe default).
+            # A user can still override from PETSc options DB.
+            try:
+                sub_ksps = pc.getASMSubKSP()
+                for sub_ksp in sub_ksps:
+                    sub_ksp.setType(sub_ksp_type)
+                    sub_pc = sub_ksp.getPC()
+                    sub_pc.setType(sub_pc_type)
+            except PETSc.Error:
+                pass
+    else:
+        raise ValueError(
+            f"Unsupported LINSTAB2D_EIGEN_ST_SOLVER={st_solver!r}; "
+            "expected mumps|direct|lu|iterative|krylov|slepc"
+        )
+
+    # Allow PETSc/SLEPc options DB overrides from command-line flags.
+    ksp.setFromOptions()
+    st.setFromOptions()
+    eps.setFromOptions()
+    if (
+        st_solver in {"iterative", "krylov", "slepc"}
+        and hasattr(eps, "setTrueResidual")
+        and os.getenv("LINSTAB2D_EIGEN_TRUE_RESIDUAL", "0").strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        eps.setTrueResidual(True)
 
     eps.setUp()
 

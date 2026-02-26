@@ -14,6 +14,9 @@ from typing import Callable
 import numpy as np
 import scipy.sparse as sp
 
+from ..utils.petsc_init import init_petsc_from_argv
+
+init_petsc_from_argv()
 from petsc4py import PETSc
 
 from .petsc_utils import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
