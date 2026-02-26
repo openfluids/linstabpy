@@ -198,6 +198,13 @@ Operational rule:
 - Resolvent is still treated as an open hardening track.
 - The new distributed iterative root-scatter path is validated for temporal EVP; equivalent robustness/performance validation for resolvent (gains/modes parity and distributed scalability) remains to be completed before calling Strategy B resolvent-ready.
 
+### Project expansion roadmap
+
+- Extend Strategy B root-scatter assembly from temporal EVP to resolvent pipeline and validate gains/modes parity against MATLAB exports.
+- Apply the same scalable transfer pattern to spatial EVP (`Lc`, `R`, `Lw`) to avoid full-matrix per-rank paths in distributed runs.
+- Add Linux/Xeon production benchmark profile (`MPI x threads`) with fixed convergence/parity/memory gates and published baseline logs.
+- Promote one stable iterative profile to default only after parity + convergence + memory gates pass across temporal, spatial, and resolvent workflows.
+
 ## Quick start
 
 ```bash
