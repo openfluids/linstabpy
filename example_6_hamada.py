@@ -22,6 +22,7 @@ from linstab2d.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 from petsc4py import PETSc
+from mpi4py import MPI
 
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
@@ -98,7 +99,7 @@ def compute() -> None:
 
     n_modes = env_int("LINSTAB2D_HAMADA_N_MODES", 100)
     n_modes_resolvent = env_int("LINSTAB2D_HAMADA_N_MODES_RESOLVENT", 10)
-    run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", False)
+    run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", True)
     run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", True)
     zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", False)
     # MATLAB export note:
@@ -306,7 +307,7 @@ def main() -> None:
         except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
             print(f"Cached results unavailable or invalid ({exc}), recomputing.")
             need_recompute = True
-    need_recompute = comm.bcast(need_recompute, root=0)
+    need_recompute = MPI.COMM_WORLD.bcast(need_recompute, root=0)
     if need_recompute:
         compute()
 
