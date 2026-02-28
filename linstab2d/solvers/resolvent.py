@@ -1,18 +1,19 @@
-"""Resolvent analysis via SVD of the weighted resolvent operator.
+"""Resolvent analysis via PETSc/SLEPc on the weighted resolvent operator.
 
 Computes the optimal forcing/response pairs and gains for the linearised
 Navier--Stokes operator at a given frequency.  The resolvent operator is
 
     H = C @ inv(L0 - i*omega*I) @ B
 
-and its singular value decomposition is obtained using SLEPc SVD
-(thick-restart Lanczos bidiagonalisation) on the weighted operator
+The implementation follows MATLAB's reference route by solving the eigenproblem
+for ``H^H W H`` in the weighted inner product:
 
-    A = W^{1/2} H W^{-1/2}
+    HtrH(v) = invW * H^H * W * H(v)
 
-whose singular values are the resolvent gains.  The factorisation of the
-shifted operator uses PETSc KSP with MUMPS (computed once, reused for
-both forward and adjoint solves).
+using SLEPc EPS on a MatShell. Singular values are recovered as
+``sigma = sqrt(real(lambda))`` and response modes from ``u = H(v)/sigma``.
+The shifted operator factorisation uses PETSc KSP with MUMPS (computed once,
+reused for both forward and adjoint solves).
 
 References
 ----------
@@ -60,14 +61,9 @@ def resolvent_analysis(
 
         H = FILTER( C inv(L0 - i omega I) B FILTER(v) )
 
-    and its singular value decomposition is computed via SLEPc SVD
-    (thick-restart Lanczos bidiagonalisation) on the weighted operator
-
-        A = W^{1/2} H W^{-1/2}
-
-    whose singular values are the resolvent gains.  A MUMPS factorisation
-    of the shifted operator is computed once and reused for both the forward
-    and adjoint (conjugate-transpose) solves.
+    and its gains/modes are computed from the weighted Hermitian operator
+    ``HtrH(v) = invW * H^H * W * H(v)`` using SLEPc EPS. This follows the
+    MATLAB parity implementation directly.
 
     Parameters
     ----------
@@ -115,7 +111,8 @@ def resolvent_analysis(
     # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT")
+    logger.info("  linear solver backend: %s", lu.backend)
     logger.info("  MUMPS factorisation done.")
 
     # ------------------------------------------------------------------
@@ -145,78 +142,82 @@ def resolvent_analysis(
         return w
 
     # ------------------------------------------------------------------
-    # 4. Build PETSc MatShell for A = W^{1/2} H W^{-1/2}
+    # 4. Build PETSc MatShell for HtrH(v) = invW * H^H * W * H(v)
     # ------------------------------------------------------------------
-    sqrt_W = np.sqrt(W_diag)
-    sqrt_invW = 1.0 / sqrt_W
+    W_vec = np.asarray(W_diag, dtype=float)
+    if W_vec.ndim != 1 or W_vec.size != ndof:
+        raise ValueError("W_diag must be a vector of length ndof")
+    if np.any(W_vec == 0.0):
+        raise ValueError("W_diag contains zeros; cannot build invW weighting")
+    invW_vec = 1.0 / W_vec
 
-    class _ResolventShell:
+    class _HtrHShell:
         def mult(self, mat, x, y):
-            """y = A x = W^{1/2} H W^{-1/2} x"""
             v = vec_to_numpy(x)
-            v = _apply_H(sqrt_invW * v)
-            y.setArray(sqrt_W * v)
+            v = _apply_H(v)
+            v = W_vec * v
+            v = _apply_H_adj(v)
+            y.setArray(invW_vec * v)
 
-        def multTranspose(self, mat, x, y):
-            """y = A^T x  (plain transpose, not Hermitian transpose).
-
-            PETSc's Python matrix type maps ``multTranspose`` to
-            ``MATOP_MULT_TRANSPOSE``, and SLEPc SVD with implicit
-            transpose calls this to apply A^T.  We compute A^T via
-            the identity ``A^T x = conj(A^H conj(x))``.
-            """
-            v = vec_to_numpy(x).conj()
-            v = _apply_H_adj(sqrt_W * v)
-            y.setArray((sqrt_invW * v).conj())
-
-    H_shell = PETSc.Mat().createPython((ndof, ndof), context=_ResolventShell())
-    H_shell.setUp()
+    htrh_shell = PETSc.Mat().createPython((ndof, ndof), context=_HtrHShell())
+    htrh_shell.setUp()
 
     # ------------------------------------------------------------------
-    # 5. SLEPc SVD (thick-restart Lanczos bidiagonalisation)
+    # 5. SLEPc EPS on HtrH (MATLAB-parity route)
     # ------------------------------------------------------------------
-    ncv = min(max(4 * n_modes, 20), ndof - 1)
-    logger.info("  SLEPc SVD on resolvent operator (nsv=%d, ncv=%d) ...",
-                n_modes, ncv)
+    ncv = min(max(2 * n_modes + 3, 20), ndof - 1)
+    logger.info("  SLEPc EPS on HtrH operator (nev=%d, ncv=%d) ...", n_modes, ncv)
 
-    svd = SLEPc.SVD().create()
-    svd.setOperators(H_shell)
-    svd.setType(SLEPc.SVD.Type.TRLANCZOS)
-    svd.setImplicitTranspose(True)
-    svd.setDimensions(nsv=n_modes, ncv=ncv)
-    svd.setTolerances(tol=1e-12, max_it=1000)
-    svd.solve()
+    eps = SLEPc.EPS().create()
+    eps.setOperators(htrh_shell)
+    eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
+    eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
+    eps.setDimensions(nev=n_modes, ncv=ncv)
+    eps.setWhichEigenpairs(SLEPc.EPS.Which.LARGEST_MAGNITUDE)
+    eps.setTolerances(tol=1e-12, max_it=1000)
+    eps.setFromOptions()
+    eps.solve()
 
-    nconv = svd.getConverged()
+    nconv = eps.getConverged()
     if nconv == 0:
-        raise RuntimeError("SLEPc SVD did not converge for any singular triplet")
+        raise RuntimeError("SLEPc EPS did not converge for any HtrH eigenpair")
     if nconv < n_modes:
         logger.warning(
-            "SLEPc SVD converged %d/%d singular triplets; returning partial result",
+            "SLEPc EPS converged %d/%d HtrH eigenpairs; returning partial result",
             nconv, n_modes,
         )
 
     n_extract = min(nconv, n_modes)
-    logger.info("  SLEPc SVD done (%d converged).", nconv)
+    logger.info("  SLEPc EPS done (%d converged).", nconv)
 
     # ------------------------------------------------------------------
     # 6. Extract gains, forcings, and responses
-    #
-    #    SVD: A v_i = sigma_i u_i  where A = W^{1/2} H W^{-1/2}
-    #    Forcing:  f_i = W^{-1/2} v_i   (W-normalised: f^H W f = v^H v = 1)
-    #    Response: r_i = W^{-1/2} u_i   (W-normalised: r^H W r = u^H u = 1)
     # ------------------------------------------------------------------
     gains = np.empty(n_extract, dtype=float)
     forcings = np.empty((ndof, n_extract), dtype=complex)
     responses = np.empty((ndof, n_extract), dtype=complex)
 
-    u_vec = H_shell.createVecLeft()
-    v_vec = H_shell.createVecRight()
-
+    vr = htrh_shell.createVecRight()
+    vi = htrh_shell.createVecRight()
     for i in range(n_extract):
-        sigma = svd.getSingularTriplet(i, u_vec, v_vec)
+        eig = eps.getEigenpair(i, vr, vi)
+        sigma = float(np.sqrt(max(float(np.real(eig)), 0.0)))
         gains[i] = sigma
-        forcings[:, i] = sqrt_invW * vec_to_numpy(v_vec)
-        responses[:, i] = sqrt_invW * vec_to_numpy(u_vec)
+
+        forcing = vec_to_numpy(vr)
+        norm_sq = float(np.real(np.vdot(forcing, W_vec * forcing)))
+        if norm_sq > 0.0:
+            forcing = forcing / np.sqrt(norm_sq)
+        forcings[:, i] = forcing
+
+        response = _apply_H(forcing)
+        if sigma > 0.0:
+            response = response / sigma
+        responses[:, i] = response
+
+    order = np.argsort(gains)[::-1]
+    gains = gains[order]
+    forcings = forcings[:, order]
+    responses = responses[:, order]
 
     return gains, responses, forcings

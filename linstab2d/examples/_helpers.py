@@ -6,7 +6,9 @@ used across multiple examples.
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -54,6 +56,78 @@ def env_complex(name: str, default: complex) -> complex:
     except (TypeError, ValueError):
         print(f"Invalid {name}={v!r}; using {default}.")
         return default
+
+
+def load_jsonc(path: str | Path) -> dict:
+    """Load a JSONC file (JSON with // and /* */ comments)."""
+    text = Path(path).read_text(encoding="utf-8")
+    cleaned = _strip_jsonc_comments(text)
+    data = json.loads(cleaned)
+    if not isinstance(data, dict):
+        raise ValueError(f"Top-level JSONC object must be a dict: {path}")
+    return data
+
+
+def _strip_jsonc_comments(text: str) -> str:
+    """Remove // and /* */ comments while preserving string literals."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    in_line_comment = False
+    in_block_comment = False
+    escape = False
+
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+
+        if in_line_comment:
+            if ch == "\n":
+                in_line_comment = False
+                out.append(ch)
+            i += 1
+            continue
+
+        if in_block_comment:
+            if ch == "*" and nxt == "/":
+                in_block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+
+        if in_string:
+            out.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and nxt == "/":
+            in_line_comment = True
+            i += 2
+            continue
+
+        if ch == "/" and nxt == "*":
+            in_block_comment = True
+            i += 2
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
 
 
 def to_grid(

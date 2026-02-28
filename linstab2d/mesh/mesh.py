@@ -362,7 +362,12 @@ class Mesh:
             y_symmetry=self.y_symmetry,
             mask=effective_mask,
         )
-        filters_new = build_mesh_filters(X_out, Y_out, self.used_ind, self.alpha_filter)
+        # MATLAB parity behavior:
+        # CreateMesh builds filter operators on the computational mesh, and
+        # DeformMesh updates derivatives/weights only (filters are preserved).
+        # Keep the existing filter operators instead of rebuilding them on
+        # deformed coordinates.
+        filters_new = self.filters
 
         return Mesh(
             X=X_out.copy(),

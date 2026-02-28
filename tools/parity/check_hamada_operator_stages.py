@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,11 @@ import h5py
 import numpy as np
 import scipy.sparse as sp
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from linstab2d.examples._helpers import load_jsonc
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.boundary_conditions.neumann import apply_neumann
@@ -22,6 +28,15 @@ from linstab2d.operators.assembly import build_lnse_operator
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _cfg_get(cfg: dict[str, Any], path: str, default):
+    node: Any = cfg
+    for key in path.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return node
 
 
 def _load_matlab_sparse(path: Path, key: str) -> sp.csc_matrix:
@@ -144,6 +159,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         stride_eta=args.stride_eta,
         transpose_input=True,
         zero_spanwise=False,
+        sponge_mat_path=args.sponge_mat_path,
+        prefer_matlab_sponge_aux=args.use_matlab_sponge_aux and args.sponge_mat_path.exists(),
     )
     sutherland_air(baseflow)
     if args.zero_mu_t_derivs:
@@ -191,6 +208,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "generated_at_utc": _now_utc(),
         "case_dir": str(args.case_dir),
         "exports_dir": str(exports_dir),
+        "config_path": str(args.config) if args.config is not None else None,
         "config": {
             "re": float(args.re),
             "ma": float(args.ma),
@@ -206,6 +224,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "tol_abs": float(args.tol_abs),
             "tol_rel": float(args.tol_rel),
             "top_k": int(args.top_k),
+            "sponge_mat_path": str(args.sponge_mat_path),
+            "use_matlab_sponge_aux": bool(args.use_matlab_sponge_aux),
         },
         "stages": reports,
         "worst_stage_by_abs": {
@@ -222,6 +242,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("example_6_hamada/parity_config.jsonc"),
+        help="Optional canonical parity JSONC; values override CLI defaults.",
+    )
     parser.add_argument("--case-dir", type=Path, default=Path("example_6_hamada"))
     parser.add_argument("--exports-dir", type=Path, default=Path("example_6_hamada/MATLAB_exports"))
     parser.add_argument("--re", type=float, default=395000.0)
@@ -234,6 +260,12 @@ def main() -> int:
     parser.add_argument("--fd-order", type=int, default=4)
     parser.add_argument("--stride-ksi", type=int, default=1)
     parser.add_argument("--stride-eta", type=int, default=1)
+    parser.add_argument(
+        "--sponge-mat-path",
+        type=Path,
+        default=Path("example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat"),
+    )
+    parser.add_argument("--use-matlab-sponge-aux", action="store_true", default=True)
     parser.add_argument("--zero-mu-t-derivs", action="store_true", default=True)
     parser.add_argument("--tol-abs", type=float, default=1e-3)
     parser.add_argument("--tol-rel", type=float, default=1e-8)
@@ -245,6 +277,40 @@ def main() -> int:
         default=Path("artifacts/parity/hamada_operator_stage_parity.json"),
     )
     args = parser.parse_args()
+
+    if args.config is not None and args.config.exists():
+        cfg = load_jsonc(args.config)
+        args.case_dir = Path(_cfg_get(cfg, "paths.case_dir", str(args.case_dir)))
+        args.exports_dir = Path(
+            _cfg_get(
+                cfg,
+                "paths.matlab_exports_operator_stage_dir",
+                _cfg_get(cfg, "paths.matlab_exports_stability_dir", str(args.exports_dir)),
+            )
+        )
+        args.re = float(_cfg_get(cfg, "physics.Re", args.re))
+        args.ma = float(_cfg_get(cfg, "physics.Ma", args.ma))
+        args.pr = float(_cfg_get(cfg, "physics.Pr", args.pr))
+        args.kappa = float(_cfg_get(cfg, "physics.kappa", args.kappa))
+        args.t0 = float(_cfg_get(cfg, "physics.T_0", args.t0))
+        args.beta = float(_cfg_get(cfg, "numerics.beta", args.beta))
+        args.penalty = float(_cfg_get(cfg, "bc.penalty", args.penalty))
+        args.fd_order = int(_cfg_get(cfg, "numerics.fd_order", args.fd_order))
+        args.stride_ksi = int(_cfg_get(cfg, "numerics.stride_ksi", args.stride_ksi))
+        args.stride_eta = int(_cfg_get(cfg, "numerics.stride_eta", args.stride_eta))
+        args.sponge_mat_path = Path(
+            _cfg_get(cfg, "paths.case_inputs_mat", str(args.sponge_mat_path))
+        )
+        args.use_matlab_sponge_aux = bool(
+            _cfg_get(cfg, "physics.use_matlab_sponge_aux", args.use_matlab_sponge_aux)
+        )
+        args.zero_mu_t_derivs = bool(
+            _cfg_get(cfg, "physics.zero_mu_t_derivs", args.zero_mu_t_derivs)
+        )
+        args.tol_abs = float(
+            _cfg_get(cfg, "parity_tolerances.operator_stage_max_abs_early", args.tol_abs)
+        )
+        args.tol_rel = float(_cfg_get(cfg, "parity_tolerances.operator_stage_max_rel", args.tol_rel))
 
     report = run(args)
     args.artifact.parent.mkdir(parents=True, exist_ok=True)
