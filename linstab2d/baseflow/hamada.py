@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import h5py
 import numpy as np
 
 from .baseflow import BaseFlow
@@ -26,6 +27,17 @@ def _validate_stride(value: int, name: str) -> int:
     return stride
 
 
+def _load_sponge_aux(case_inputs_mat: Path) -> np.ndarray:
+    """Load MATLAB ``sponge_aux`` field from a case-inputs .mat file."""
+    with h5py.File(case_inputs_mat, "r") as handle:
+        if "sponge_aux" not in handle:
+            raise KeyError(f"'sponge_aux' not found in {case_inputs_mat}")
+        sponge = np.asarray(handle["sponge_aux"], dtype=float)
+    if sponge.ndim != 2:
+        raise ValueError(f"sponge_aux in {case_inputs_mat} must be 2-D, got shape {sponge.shape}")
+    return sponge
+
+
 def load_hamada_case(
     case_dir: str | Path,
     *,
@@ -38,6 +50,8 @@ def load_hamada_case(
     stride_eta: int = 1,
     transpose_input: bool = True,
     zero_spanwise: bool = False,
+    sponge_mat_path: str | Path | None = None,
+    prefer_matlab_sponge_aux: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, BaseFlow, np.ndarray]:
     """Load Hamada case arrays and build a ``BaseFlow`` object."""
     root = Path(case_dir)
@@ -48,6 +62,19 @@ def load_hamada_case(
 
     if transpose_input:
         fields = {name: arr.T for name, arr in fields.items()}
+
+    if prefer_matlab_sponge_aux and sponge_mat_path is not None:
+        sponge_aux = _load_sponge_aux(Path(sponge_mat_path))
+        if sponge_aux.shape != fields["sponge"].shape:
+            if sponge_aux.T.shape == fields["sponge"].shape:
+                sponge_aux = sponge_aux.T
+            else:
+                raise ValueError(
+                    "sponge_aux shape mismatch: "
+                    f"{sponge_aux.shape} (or transpose {sponge_aux.T.shape}) "
+                    f"vs field shape {fields['sponge'].shape}"
+                )
+        fields["sponge"] = sponge_aux
 
     sx = _validate_stride(stride_ksi, "stride_ksi")
     sy = _validate_stride(stride_eta, "stride_eta")

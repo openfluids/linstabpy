@@ -32,7 +32,7 @@ from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.resolvent import resolvent_analysis
-from linstab2d.examples._helpers import env_bool, env_float, env_int
+from linstab2d.examples._helpers import env_bool, env_float, env_int, load_jsonc
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -69,48 +69,91 @@ def compute() -> None:
     rank = comm.getRank()
     size = comm.getSize()
 
+    config_path = Path(
+        os.getenv(
+            "LINSTAB2D_HAMADA_CONFIG",
+            str(SCRIPT.parent / "example_6_hamada" / "parity_config.jsonc"),
+        )
+    )
+    config: dict = {}
+    if config_path.exists():
+        config = load_jsonc(config_path)
+        _log(f"loaded config: {config_path}")
+    elif "LINSTAB2D_HAMADA_CONFIG" in os.environ:
+        raise FileNotFoundError(f"LINSTAB2D_HAMADA_CONFIG file not found: {config_path}")
+
+    def cfg(path: str, default):
+        node = config
+        for key in path.split("."):
+            if not isinstance(node, dict) or key not in node:
+                return default
+            node = node[key]
+        return node
+
     # ------------------------------------------------------------------
     # 1) Read runtime configuration from environment variables.
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
-    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", "example_6_hamada"))
-    Re = env_float("LINSTAB2D_HAMADA_RE", 395000.0)
-    Ma = env_float("LINSTAB2D_HAMADA_MA", 2.0)
-    Pr = env_float("LINSTAB2D_HAMADA_PR", 0.747)
+    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", str(cfg("paths.case_dir", "example_6_hamada"))))
+    sponge_mat_path = Path(
+        os.getenv(
+            "LINSTAB2D_HAMADA_CASE_INPUTS_MAT",
+            str(cfg("paths.case_inputs_mat", "example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat")),
+        )
+    )
+    Re = env_float("LINSTAB2D_HAMADA_RE", float(cfg("physics.Re", 395000.0)))
+    Ma = env_float("LINSTAB2D_HAMADA_MA", float(cfg("physics.Ma", 2.0)))
+    Pr = env_float("LINSTAB2D_HAMADA_PR", float(cfg("physics.Pr", 0.747)))
     # MATLAB export note:
     # - `case_inputs_used.mat/baseFlow.kappa` is 1.4
     # - `run_metadata.mat/kappa` is 1.31
     # The assembled reference operators/spectrum align with baseFlow.kappa.
-    kappa = env_float("LINSTAB2D_HAMADA_KAPPA", 1.4)
-    T_0 = env_float("LINSTAB2D_HAMADA_T0", 1540.0)
+    kappa = env_float("LINSTAB2D_HAMADA_KAPPA", float(cfg("physics.kappa", 1.4)))
+    T_0 = env_float("LINSTAB2D_HAMADA_T0", float(cfg("physics.T_0", 1540.0)))
 
-    stride_ksi = env_int("LINSTAB2D_HAMADA_STRIDE_KSI", 1)
-    stride_eta = env_int("LINSTAB2D_HAMADA_STRIDE_ETA", 1)
-    fd_order = env_int("LINSTAB2D_HAMADA_FD_ORDER", 4)
-    beta = env_float("LINSTAB2D_HAMADA_BETA", 0.0)
-    penalty = env_float("LINSTAB2D_HAMADA_BC_PENALTY", 1e8)
+    stride_ksi = env_int("LINSTAB2D_HAMADA_STRIDE_KSI", int(cfg("numerics.stride_ksi", 1)))
+    stride_eta = env_int("LINSTAB2D_HAMADA_STRIDE_ETA", int(cfg("numerics.stride_eta", 1)))
+    fd_order = env_int("LINSTAB2D_HAMADA_FD_ORDER", int(cfg("numerics.fd_order", 4)))
+    beta = env_float("LINSTAB2D_HAMADA_BETA", float(cfg("numerics.beta", 0.0)))
+    penalty = env_float("LINSTAB2D_HAMADA_BC_PENALTY", float(cfg("bc.penalty", 1e8)))
 
-    ratio_u = env_float("LINSTAB2D_HAMADA_RATIO_UINF", 1.0)
-    ratio_l = env_float("LINSTAB2D_HAMADA_RATIO_L", 0.1)
-    St = env_float("LINSTAB2D_HAMADA_ST", 0.1)
+    ratio_u = env_float("LINSTAB2D_HAMADA_RATIO_UINF", float(cfg("analysis.ratio_uinf", 1.0)))
+    ratio_l = env_float("LINSTAB2D_HAMADA_RATIO_L", float(cfg("analysis.ratio_l", 0.1)))
+    St = env_float("LINSTAB2D_HAMADA_ST", float(cfg("analysis.St", 0.1)))
 
     # Target angular frequency used by resolvent and shift-invert EVP.
     omega_target = 2.0 * np.pi * St * ratio_u / ratio_l
 
-    n_modes = env_int("LINSTAB2D_HAMADA_N_MODES", 100)
-    n_modes_resolvent = env_int("LINSTAB2D_HAMADA_N_MODES_RESOLVENT", 10)
-    run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", True)
-    run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", True)
-    zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", False)
+    n_modes = env_int("LINSTAB2D_HAMADA_N_MODES", int(cfg("analysis.n_modes_stability", 100)))
+    n_modes_resolvent = env_int(
+        "LINSTAB2D_HAMADA_N_MODES_RESOLVENT",
+        int(cfg("analysis.n_modes_resolvent", 10)),
+    )
+    run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", bool(cfg("analysis.run_resolvent", True)))
+    run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", bool(cfg("analysis.run_stability", True)))
+    zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", bool(cfg("physics.zero_spanwise", False)))
+    use_matlab_sponge_aux = env_bool(
+        "LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX",
+        bool(cfg("physics.use_matlab_sponge_aux", True)),
+    )
+    alpha_filter_default = cfg("numerics.alpha_filter", "none")
+    alpha_filter_env = os.getenv("LINSTAB2D_HAMADA_ALPHA_FILTER", str(alpha_filter_default))
+    try:
+        alpha_filter: float | str = float(alpha_filter_env)
+    except ValueError:
+        alpha_filter = alpha_filter_env.strip()
     # MATLAB export note:
     # case_inputs_used.mat stores uppercase dMUdT/d2MUdT2 as zeros; GetLinProblem.m
     # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
     # for strict parity with the exported reference matrices/spectrum.
-    zero_mu_t_derivs = env_bool("LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS", True)
+    zero_mu_t_derivs = env_bool(
+        "LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS",
+        bool(cfg("physics.zero_mu_t_derivs", True)),
+    )
     # MATLAB stability convention:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
-    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", False)
+    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", bool(cfg("analysis.use_raw_eigs", False)))
     st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
     requested_root_operator = size > 1 and env_bool("LINSTAB2D_HAMADA_ROOT_ASSEMBLY", iterative_st_solver)
@@ -131,7 +174,8 @@ def compute() -> None:
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
         f"run_stability={run_stability} run_resolvent={run_resolvent} "
-        f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs}"
+        f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs} "
+        f"alpha_filter={alpha_filter} matlab_sponge_aux={use_matlab_sponge_aux}"
     )
 
     # ------------------------------------------------------------------
@@ -149,19 +193,31 @@ def compute() -> None:
         stride_eta=stride_eta,
         transpose_input=True,
         zero_spanwise=zero_spanwise,
+        sponge_mat_path=sponge_mat_path,
+        prefer_matlab_sponge_aux=use_matlab_sponge_aux and sponge_mat_path.exists(),
     )
 
     sutherland_air(baseflow)
     if zero_mu_t_derivs:
         baseflow.dmudT[:] = 0.0
         baseflow.d2mudT2[:] = 0.0
-    _log(f"loaded case arrays: shape={X.shape}, points={X.size}")
+    _log(
+        f"loaded case arrays: shape={X.shape}, points={X.size}, "
+        f"sponge_max={float(np.max(sponge)):.3g}, sponge_nnz={int(np.count_nonzero(sponge))}"
+    )
 
     # ------------------------------------------------------------------
     # 3) Build a computational mesh, then deform it to physical X/Y.
     # ------------------------------------------------------------------
     ny, nx = X.shape
-    cmesh = Mesh.create((0.0, 1.0), (0.0, 0.5), nx=nx, ny=ny, fd_order=fd_order)
+    cmesh = Mesh.create(
+        (0.0, 1.0),
+        (0.0, 0.5),
+        nx=nx,
+        ny=ny,
+        fd_order=fd_order,
+        alpha_filter=alpha_filter,
+    )
     mesh = cmesh.deform(X_new=X, Y_new=Y)
     mesh.sponge = sponge
 
@@ -219,6 +275,8 @@ def compute() -> None:
             W_diag,
             B_mat=B_mat,
             C_mat=C_mat,
+            filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+            filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
         )
         _log("resolvent analysis finished")
 

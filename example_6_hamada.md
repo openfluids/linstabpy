@@ -1,52 +1,49 @@
-# Hamada Case: MATLAB/Python Parity Status
+# Hamada Case: Production Hand-off Status
 
-## Objective
-Use one small Hamada reference case to prove operator and eigenspectrum equivalence between:
-- MATLAB workflow: `example_6_hamada/workflow/main.m`
-- Python PETSc/SLEPc workflow: `example_6_hamada.py` + `example_6_hamada.sh`
+## Why we are doing this
+- MATLAB is the reference implementation.
+- MATLAB does not scale to production-size matrices.
+- This Hamada case is the parity harness used to prove Python/PETSc/SLEPc is mathematically equivalent before scaling to the large production case.
 
-## Key Finding (Major)
-The MATLAB exported inputs are internally inconsistent:
-- `run_metadata.mat/kappa = 1.31`
-- `case_inputs_used.mat/baseFlow.kappa = 1.4`
+If parity fails, we fix source/operator logic. We do not hardcode MATLAB outputs.
 
-Operator parity follows the **actual baseFlow value** (`1.4`), not `run_metadata`.
+## Current status (2026-02-28)
+- Stability operator-stage parity: **PASS** against `MATLAB_exports_resolvent` stages.
+- Resolvent parity (gains + modes): **PASS** against `MATLAB_exports_resolvent/res_svd_final.mat`.
+- Key fixes that made parity robust:
+  - preserve mesh filters during deformation (MATLAB behavior),
+  - load `sponge_aux` from MATLAB `case_inputs_used.mat`,
+  - use MATLAB-equivalent resolvent extraction (`H^H W H` EVP route),
+  - keep canonical parity parameters in `example_6_hamada/parity_config.jsonc`.
 
-## Current Measured Status
-With the MATLAB-effective settings:
-- `kappa = 1.4`
-- viscosity-temperature derivatives zeroed in the 2D coefficient path (`dmu/dT = 0`, `d2mu/dT2 = 0`)
+## Canonical run
+- Script: `./example_6_hamada.sh`
+- Outputs:
+  - `example_6_hamada.npz`
+  - `artifacts/parity/hamada_operator_stage_parity.json`
+  - `artifacts/hamada_spectrum_parity.json`
+  - `artifacts/hamada_resolvent_parity.json`
+  - parity figures (`example_6_hamada_*.png`)
 
-Measured parity:
-- `L0_preBC max_abs ≈ 2.62e-7`
-- full pipeline spectrum parity (`./example_6_hamada.sh`, temporal convention):
-- `n_compare = 100`
-- `max_abs_error = 1.618039e-07`
-- `max_rel_error = 1.864684e-08`
-- `pass = true`
+Note:
+- in `sponge_aux` parity mode, the script auto-skips spectrum parity unless forced with `LINSTAB2D_HAMADA_CHECK_SPECTRUM=1`, because the available stability spectrum export is from a different legacy setup.
 
-## Interpretation
-1. The large mismatch was caused by export inconsistencies, not PETSc/SLEPc numerics.
-2. Matching the effective MATLAB operator settings resolves matrix and spectrum parity for this case.
-3. The pipeline is now aligned for the Hamada reference calibration case.
+## How Hamada should switch to production files
+1. Copy `example_6_hamada/parity_config.jsonc` to a new config file (for example `production_case.jsonc`).
+2. Update only paths and physical/numerical parameters in that config.
+3. Run with:
+   - `LINSTAB2D_HAMADA_CONFIG=/absolute/path/to/production_case.jsonc ./example_6_hamada.sh`
 
-## What Is Already Fixed
-- Curvilinear Jacobian index bug (`J12/J21`) in `linstab2d/mesh/mesh.py`.
-- Curvilinear mixed-derivative Jacobian-derivative bug (`Dy @ (Dx @ x/y)` path).
-- Mixed-second-derivative coefficient wiring fix for transformed `Dxy/Dyx`.
-- 2D `inv(B/1j)` sign path fixed in operator assembly.
-- Hamada default `kappa` aligned to MATLAB effective baseFlow (`1.4`) in:
-  - `example_6_hamada.py`
-  - `example_6_hamada.sh`
-- Hamada default now enforces MATLAB-export viscosity-derivative behavior for parity:
-  - `LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS=1`
+## Solver strategy for production
+1. Strategy A (robust baseline):
+   - `LINSTAB2D_EIGEN_ST_SOLVER=mumps`
+   - `LINSTAB2D_RESOLVENT_TYPE=mumps`
+2. Strategy B (scalable memory):
+   - `LINSTAB2D_EIGEN_ST_SOLVER=iterative`
+   - `LINSTAB2D_RESOLVENT_TYPE=iterative`
+   - keep strong preconditioning (`bjacobi/asm` + local `lu`) and strict convergence checks.
 
-## Remaining Work (Targeted)
-1. Keep this parity mode frozen as the regression baseline.
-2. Document and decide whether non-parity “physical mode” should use nonzero `dmu/dT` and metadata `kappa`.
-3. Add a regression test that checks Hamada spectrum parity stays within tolerance.
+Use Strategy A to validate correctness first on reduced production grids, then move to Strategy B for large runs that exceed direct memory budget.
 
-## Acceptance Gate
-1. `L0_preBC` residual remains near numerical precision in parity mode.
-2. Spectrum parity remains pass for `n_compare=100`.
-3. Generated parity figures remain consistent with MATLAB reference.
+Current practical note:
+- Strategy B is implemented and configurable, but on this local Mac test node it was much slower for resolvent and required tuning. Production validation/tuning should be done on the target Linux/Xeon machine.

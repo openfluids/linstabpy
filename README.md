@@ -174,6 +174,9 @@ The block system is compressible and mostly coupled in `rho/u/v/T`, with a decou
 - `ST=SINVERT` or `ST=PRECOND` (JD route), with strict `ksp_error_if_not_converged`
 - move from generic ASM to stronger block preconditioning (`PCFIELDSPLIT`) using physics blocks (`rho/u/v/T` and `w`)
 - add scaling before solve to reduce BC-penalty conditioning issues
+- resolvent linear solves can now be switched to PETSc iterative mode via:
+  - `LINSTAB2D_RESOLVENT_TYPE=iterative`
+  - optional tuning: `LINSTAB2D_RESOLVENT_KSP_TYPE`, `LINSTAB2D_RESOLVENT_PC_TYPE`, `LINSTAB2D_RESOLVENT_KSP_RTOL`, `LINSTAB2D_RESOLVENT_KSP_MAX_IT`
 - current tested status on the Hamada case:
 - `MPI=1` iterative ASM (`GMRES+ASM+sub-LU`) converges and matches MATLAB, but slower (`~217s`)
 - `MPI=2` iterative SINVERT (`GMRES+ASM+sub-LU`) now converges with parity pass (`~185s`, `n_modes=30`) using root-owned matrix transfer path
@@ -193,10 +196,14 @@ Operational rule:
 - Strategy B baseline (iterative SLEPc SINVERT + GMRES/ASM/sub-LU) converges and matches MATLAB spectrum in distributed mode (`MPI=2`), after enabling root-owned SciPy->PETSc row-scatter transfer.
 - Matrix-stage parity (pre/post BC assembly stages) is now emitted as an artifact and passes for the parity case.
 
-### Open plan (resolvent path)
+### Resolvent parity status
 
-- Resolvent is still treated as an open hardening track.
-- The new distributed iterative root-scatter path is validated for temporal EVP; equivalent robustness/performance validation for resolvent (gains/modes parity and distributed scalability) remains to be completed before calling Strategy B resolvent-ready.
+- Resolvent parity on the Hamada reference case now passes against MATLAB exports:
+  - gains match to machine precision,
+  - leading forcing/response modes match after phase alignment,
+  - operator-action probes (`H`, `H^H`, `H^H W H`) are aligned.
+- Current robust route uses PETSc/SLEPc with MATLAB-equivalent `H^H W H` extraction.
+- Distributed iterative scaling for very large resolvent runs remains a performance-tuning track (preconditioner/profile selection), not a parity-correctness blocker.
 
 ### Project expansion roadmap
 

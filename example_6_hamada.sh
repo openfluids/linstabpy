@@ -188,11 +188,15 @@ export MKL_NUM_THREADS="$THREADS_PER_RANK"
 export NUMEXPR_NUM_THREADS="$THREADS_PER_RANK"
 export VECLIB_MAXIMUM_THREADS="$THREADS_PER_RANK"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+LINSTAB2D_HAMADA_CONFIG_BASE="${LINSTAB2D_HAMADA_CONFIG:-example_6_hamada/parity_config.jsonc}"
+export LINSTAB2D_HAMADA_CONFIG="$LINSTAB2D_HAMADA_CONFIG_BASE"
 export LINSTAB2D_HAMADA_CASE_DIR="${LINSTAB2D_HAMADA_CASE_DIR:-example_6_hamada}"
 # MATLAB export uses baseFlow.kappa=1.4 in case_inputs_used.mat.
 export LINSTAB2D_HAMADA_KAPPA="${LINSTAB2D_HAMADA_KAPPA:-1.4}"
 # MATLAB export path uses uppercase dMUdT/d2MUdT2 fields (stored as zeros).
 export LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS="${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS:-1}"
+export LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX="${LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX:-1}"
+export LINSTAB2D_HAMADA_CASE_INPUTS_MAT="${LINSTAB2D_HAMADA_CASE_INPUTS_MAT:-example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat}"
 # Matrix conversion mode:
 #   auto         -> distributed when MPI_PROCS > 1
 #   distributed  -> force ownership-aware PETSc AIJ path
@@ -207,6 +211,19 @@ else
   fi
 fi
 EIGEN_ST_SOLVER="${LINSTAB2D_EIGEN_ST_SOLVER:-mumps}"
+# Resolvent linear solve mode:
+#   mumps      -> robust direct baseline
+#   iterative  -> scalable PETSc Krylov route
+export LINSTAB2D_RESOLVENT_TYPE="${LINSTAB2D_RESOLVENT_TYPE:-mumps}"
+if [[ "${LINSTAB2D_RESOLVENT_TYPE}" == "iterative" || "${LINSTAB2D_RESOLVENT_TYPE}" == "krylov" || "${LINSTAB2D_RESOLVENT_TYPE}" == "petsc" ]]; then
+  export LINSTAB2D_RESOLVENT_KSP_TYPE="${LINSTAB2D_RESOLVENT_KSP_TYPE:-fgmres}"
+  export LINSTAB2D_RESOLVENT_PC_TYPE="${LINSTAB2D_RESOLVENT_PC_TYPE:-asm}"
+  export LINSTAB2D_RESOLVENT_KSP_RTOL="${LINSTAB2D_RESOLVENT_KSP_RTOL:-1e-10}"
+  export LINSTAB2D_RESOLVENT_KSP_ATOL="${LINSTAB2D_RESOLVENT_KSP_ATOL:-1e-14}"
+  export LINSTAB2D_RESOLVENT_KSP_MAX_IT="${LINSTAB2D_RESOLVENT_KSP_MAX_IT:-20000}"
+  export LINSTAB2D_RESOLVENT_SUB_KSP_TYPE="${LINSTAB2D_RESOLVENT_SUB_KSP_TYPE:-preonly}"
+  export LINSTAB2D_RESOLVENT_SUB_PC_TYPE="${LINSTAB2D_RESOLVENT_SUB_PC_TYPE:-lu}"
+fi
 # Root-owned SciPy->PETSc transfer mode for MPI iterative eigensolve.
 # When MPI>1, default to assembling the SciPy operator only on rank 0 and
 # scattering row-block CSR payloads to owning ranks inside PETSc conversion.
@@ -245,66 +262,107 @@ fi
 echo "[hamada] using MPI processes: $MPI_PROCS"
 echo "[hamada] using threaded cores per rank (OMP/BLAS): $THREADS_PER_RANK"
 echo "[hamada] case dir: ${LINSTAB2D_HAMADA_CASE_DIR}"
+echo "[hamada] config: ${LINSTAB2D_HAMADA_CONFIG}"
 echo "[hamada] kappa: ${LINSTAB2D_HAMADA_KAPPA}"
 echo "[hamada] zero_mu_t_derivs: ${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS}"
+echo "[hamada] use_matlab_sponge_aux: ${LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX}"
+echo "[hamada] case_inputs_mat: ${LINSTAB2D_HAMADA_CASE_INPUTS_MAT}"
+echo "[hamada] resolvent_linear_solver: ${LINSTAB2D_RESOLVENT_TYPE}"
 echo "[hamada] petsc_matrix_mode: ${LINSTAB2D_PETSC_MATRIX_MODE}"
 echo "[hamada] root_assembly_mode: ${LINSTAB2D_HAMADA_ROOT_ASSEMBLY}"
 echo "[hamada] petsc_root_scatter: ${LINSTAB2D_PETSC_ROOT_SCATTER}"
 
 # -------------------------------------------------------------------
-# 3) Clean generated outputs from previous run
+# 3) Two-pass run plan and reference mapping
 # -------------------------------------------------------------------
-echo "[hamada] cleaning generated Hamada artifacts"
+RUN_PLAN="${LINSTAB2D_HAMADA_RUN_PLAN:-both}"
+STABILITY_MATLAB_DIR="${LINSTAB2D_HAMADA_MATLAB_STABILITY_DIR:-example_6_hamada/MATLAB_exports}"
+RESOLVENT_MATLAB_DIR="${LINSTAB2D_HAMADA_MATLAB_RESOLVENT_DIR:-example_6_hamada/MATLAB_exports_resolvent}"
+STABILITY_SPECTRUM_REF="${STABILITY_MATLAB_DIR}/spectrum.mat"
+STABILITY_MODE7_REF="${STABILITY_MATLAB_DIR}/eigenvector_7.mat"
+RESOLVENT_SVD_REF="${RESOLVENT_MATLAB_DIR}/res_svd_final.mat"
 
-rm -f \
-  example_6_hamada.npz \
-  example_6_hamada_preview.png \
-  example_6_hamada_vs_matlab_spectrum.png \
-  example_6_hamada_vs_matlab_mode7.png \
-  artifacts/parity/hamada_operator_stage_parity.json \
-  artifacts/hamada_spectrum_parity.json \
-  artifacts/hamada_diagnostics_step1_4.json \
-  artifacts/hamada_mapping_sweep.json
+echo "[hamada] base config: ${LINSTAB2D_HAMADA_CONFIG_BASE}"
+echo "[hamada] run plan: ${RUN_PLAN}"
+echo "[hamada] stability reference: ${STABILITY_SPECTRUM_REF}"
+echo "[hamada] stability mode reference: ${STABILITY_MODE7_REF}"
+echo "[hamada] resolvent reference: ${RESOLVENT_SVD_REF}"
 
-# -------------------------------------------------------------------
-# 4) Run solver (PETSc/SLEPc) with live heartbeat
-# -------------------------------------------------------------------
-echo "[hamada] recomputing example_6_hamada"
+for required_path in "$STABILITY_SPECTRUM_REF" "$STABILITY_MODE7_REF" "$RESOLVENT_SVD_REF"; do
+  if [[ ! -f "$required_path" ]]; then
+    echo "[hamada] missing required reference file: $required_path"
+    exit 1
+  fi
+done
+
+mkdir -p artifacts/parity artifacts/runs artifacts/figures artifacts/tmp
+
 if [[ "$MPI_PROCS" -gt 1 && -z "$MPI_LAUNCHER" ]]; then
   echo "[hamada] requested MPI_PROCS=${MPI_PROCS}, but no mpiexec/mpirun found."
   echo "[hamada] install MPI launcher (OpenMPI/Intel MPI) or set LINSTAB2D_MPI_PROCS=1."
   exit 1
 fi
-echo "[hamada] launching solver (heartbeat every ${HEARTBEAT_SEC}s)"
-START_TS="$(date +%s)"
 
-declare -a SOLVER_CMD=()
-if [[ -n "$MPI_LAUNCHER" ]]; then
-  SOLVER_CMD+=("$MPI_LAUNCHER" -n "$MPI_PROCS")
-elif [[ "$MPI_PROCS" -ne 1 ]]; then
-  echo "[hamada] internal error: MPI_PROCS=${MPI_PROCS} without MPI launcher."
-  exit 1
-fi
-SOLVER_CMD+=(".venv/bin/python" -u -c "from example_6_hamada import compute; compute()")
-if [[ "${#PETSC_VERBOSE_OPTS[@]}" -gt 0 ]]; then
-  SOLVER_CMD+=("${PETSC_VERBOSE_OPTS[@]}")
-fi
+clean_generated_outputs() {
+  rm -f \
+    example_6_hamada.npz \
+    example_6_hamada_preview.png \
+    example_6_hamada_vs_matlab_spectrum.png \
+    example_6_hamada_leading_modes.png \
+    example_6_hamada_vs_matlab_mode7.png \
+    example_6_hamada_mode7_cuts.png \
+    example_6_hamada_mode7_2d_compare.png \
+    example_6_hamada_mode7_error_maps.png \
+    example_6_hamada_mode7_parity_scatter.png \
+    example_6_hamada_dashboard_stability.png \
+    example_6_hamada_dashboard_resolvent.png \
+    example_6_hamada_dashboard_overview.png \
+    example_6_hamada_dashboard_master.png \
+    example_6_hamada_modes2d.png \
+    example_6_hamada_resolvent_gains.png \
+    example_6_hamada_resolvent_mode1_maps.png \
+    example_6_hamada_resolvent_mode1_maps_enhanced.png \
+    example_6_hamada_resolvent_mode1_maps_zoomed.png \
+    example_6_hamada_resolvent_mode1_error_maps.png \
+    example_6_hamada_resolvent_mode1_cuts.png \
+    example_6_hamada_resolvent_mode1_zoom_logmag.png \
+    example_6_hamada_resolvent_response_gallery.png \
+    example_6_hamada_resolvent_parity_errors.png
+}
 
-# Iterative ST defaults for the SLEPc path.
-# Applied only when requested via LINSTAB2D_EIGEN_ST_SOLVER.
-if [[ "$EIGEN_ST_SOLVER" == "slepc" || "$EIGEN_ST_SOLVER" == "iterative" || "$EIGEN_ST_SOLVER" == "krylov" ]]; then
-  ST_OPTS_STRING="${LINSTAB2D_SLEPC_ST_OPTS:--st_ksp_type gmres -st_pc_type asm -st_pc_asm_overlap 2 -st_sub_ksp_type preonly -st_sub_pc_type lu -st_ksp_rtol 1e-8 -st_ksp_max_it 20000 -st_ksp_error_if_not_converged}"
-  IFS=' ' read -r -a ST_OPTS <<< "$ST_OPTS_STRING"
-  if [[ "${#ST_OPTS[@]}" -gt 0 ]]; then
-    SOLVER_CMD+=("${ST_OPTS[@]}")
-    echo "[hamada] iterative ST opts: ${ST_OPTS[*]}"
-  fi
-fi
+prepare_run_config() {
+  local pass_name="$1"
+  local run_stability="$2"
+  local run_resolvent="$3"
+  local use_sponge_aux="$4"
+  local out_cfg="artifacts/tmp/hamada_${pass_name}_config.json"
 
-"${SOLVER_CMD[@]}" &
-SOLVER_PID=$!
+  .venv/bin/python - "$LINSTAB2D_HAMADA_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-# Resolve a useful monitoring PID (prefer python worker over mpiexec/hydra wrappers).
+from linstab2d.examples._helpers import load_jsonc
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+run_stability = bool(int(sys.argv[3]))
+run_resolvent = bool(int(sys.argv[4]))
+use_sponge_aux = bool(int(sys.argv[5]))
+
+cfg = load_jsonc(src)
+cfg.setdefault("analysis", {})
+cfg.setdefault("physics", {})
+cfg["analysis"]["run_stability"] = run_stability
+cfg["analysis"]["run_resolvent"] = run_resolvent
+cfg["physics"]["use_matlab_sponge_aux"] = use_sponge_aux
+dst.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+PY
+
+  printf "%s" "$out_cfg"
+}
+
+# Resolve a useful monitoring PID (prefer python worker over mpiexec wrappers).
 resolve_monitor_pid() {
   local root="$1"
   local cur="$root"
@@ -329,93 +387,268 @@ resolve_monitor_pid() {
   printf "%s" "$cur"
 }
 
-LAST_HEARTBEAT_TS=0
-while kill -0 "$SOLVER_PID" 2>/dev/null; do
-  NOW_TS="$(date +%s)"
-  if (( LAST_HEARTBEAT_TS == 0 || NOW_TS - LAST_HEARTBEAT_TS >= HEARTBEAT_SEC )); then
-    ELAPSED="$((NOW_TS - START_TS))"
-    MONITOR_PID="$(resolve_monitor_pid "$SOLVER_PID")"
-    STAT_LINE="$(ps -p "$MONITOR_PID" -o etime=,%cpu=,%mem=,rss=,state=,command= 2>/dev/null | xargs || true)"
-    if [[ -n "$STAT_LINE" ]]; then
-      set -- $STAT_LINE
-      P_ETIME="${1:-?}"
-      P_CPU="${2:-?}"
-      P_MEM="${3:-?}"
-      P_RSS_KB="${4:-0}"
-      P_STATE="${5:-?}"
-      shift 5
-      P_CMD="$*"
-      case "$P_RSS_KB" in
-        ''|*[!0-9]*)
-          P_RSS_MB="?"
-          ;;
-        *)
-          P_RSS_MB="$((P_RSS_KB / 1024))"
-          ;;
-      esac
-      echo "[hamada] running t=${ELAPSED}s | pid=${MONITOR_PID} elapsed=${P_ETIME} cpu_pct=${P_CPU} mem_pct=${P_MEM} ram_mb=${P_RSS_MB} proc_state=${P_STATE} cmd=${P_CMD}"
-    else
-      echo "[hamada] running t=${ELAPSED}s | solver pid=${SOLVER_PID}"
-    fi
-    LAST_HEARTBEAT_TS="$NOW_TS"
+LAST_PASS_ELAPSED=0
+
+run_solver_pass() {
+  local pass_name="$1"
+  local pass_run_stability="$2"
+  local pass_run_resolvent="$3"
+  local pass_use_sponge_aux="$4"
+  local pass_cfg_path
+  local pass_start_ts
+  local pass_elapsed
+  local last_heartbeat_ts
+  local now_ts
+  local elapsed
+  local solver_pid
+  local monitor_pid
+  local stat_line
+  local fig_count
+
+  echo "[hamada] ------------------------------------------------------------"
+  echo "[hamada] pass=${pass_name} run_stability=${pass_run_stability} run_resolvent=${pass_run_resolvent} use_matlab_sponge_aux=${pass_use_sponge_aux}"
+
+  clean_generated_outputs
+
+  pass_cfg_path="$(prepare_run_config "$pass_name" "$pass_run_stability" "$pass_run_resolvent" "$pass_use_sponge_aux")"
+  export LINSTAB2D_HAMADA_CONFIG="$pass_cfg_path"
+  export LINSTAB2D_HAMADA_RUN_STABILITY="$pass_run_stability"
+  export LINSTAB2D_HAMADA_RUN_RESOLVENT="$pass_run_resolvent"
+  export LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX="$pass_use_sponge_aux"
+
+  echo "[hamada] pass config: ${pass_cfg_path}"
+  echo "[hamada] launching solver (heartbeat every ${HEARTBEAT_SEC}s)"
+  pass_start_ts="$(date +%s)"
+
+  declare -a solver_cmd=()
+  if [[ -n "$MPI_LAUNCHER" ]]; then
+    solver_cmd+=("$MPI_LAUNCHER" -n "$MPI_PROCS")
+  elif [[ "$MPI_PROCS" -ne 1 ]]; then
+    echo "[hamada] internal error: MPI_PROCS=${MPI_PROCS} without MPI launcher."
+    exit 1
   fi
-  sleep 1
-done
-wait "$SOLVER_PID"
-echo "[hamada] solver finished in $(( $(date +%s) - START_TS ))s"
+  solver_cmd+=(".venv/bin/python" -u -c "from example_6_hamada import compute; compute()")
+  if [[ "${#PETSC_VERBOSE_OPTS[@]}" -gt 0 ]]; then
+    solver_cmd+=("${PETSC_VERBOSE_OPTS[@]}")
+  fi
+  if [[ "$EIGEN_ST_SOLVER" == "slepc" || "$EIGEN_ST_SOLVER" == "iterative" || "$EIGEN_ST_SOLVER" == "krylov" ]]; then
+    ST_OPTS_STRING="${LINSTAB2D_SLEPC_ST_OPTS:--st_ksp_type gmres -st_pc_type asm -st_pc_asm_overlap 2 -st_sub_ksp_type preonly -st_sub_pc_type lu -st_ksp_rtol 1e-8 -st_ksp_max_it 20000 -st_ksp_error_if_not_converged}"
+    IFS=' ' read -r -a ST_OPTS <<< "$ST_OPTS_STRING"
+    if [[ "${#ST_OPTS[@]}" -gt 0 ]]; then
+      solver_cmd+=("${ST_OPTS[@]}")
+      echo "[hamada] iterative ST opts: ${ST_OPTS[*]}"
+    fi
+  fi
+
+  "${solver_cmd[@]}" &
+  solver_pid=$!
+  last_heartbeat_ts=0
+  while kill -0 "$solver_pid" 2>/dev/null; do
+    now_ts="$(date +%s)"
+    if (( last_heartbeat_ts == 0 || now_ts - last_heartbeat_ts >= HEARTBEAT_SEC )); then
+      elapsed="$((now_ts - pass_start_ts))"
+      monitor_pid="$(resolve_monitor_pid "$solver_pid")"
+      stat_line="$(ps -p "$monitor_pid" -o etime=,%cpu=,%mem=,rss=,state=,command= 2>/dev/null | xargs || true)"
+      if [[ -n "$stat_line" ]]; then
+        set -- $stat_line
+        p_etime="${1:-?}"
+        p_cpu="${2:-?}"
+        p_mem="${3:-?}"
+        p_rss_kb="${4:-0}"
+        p_state="${5:-?}"
+        shift 5
+        p_cmd="$*"
+        case "$p_rss_kb" in
+          ''|*[!0-9]*)
+            p_rss_mb="?"
+            ;;
+          *)
+            p_rss_mb="$((p_rss_kb / 1024))"
+            ;;
+        esac
+        echo "[hamada] pass=${pass_name} t=${elapsed}s | pid=${monitor_pid} elapsed=${p_etime} cpu_pct=${p_cpu} mem_pct=${p_mem} ram_mb=${p_rss_mb} proc_state=${p_state} cmd=${p_cmd}"
+      else
+        echo "[hamada] pass=${pass_name} t=${elapsed}s | solver pid=${solver_pid}"
+      fi
+      last_heartbeat_ts="$now_ts"
+    fi
+    sleep 1
+  done
+  wait "$solver_pid"
+  pass_elapsed="$(( $(date +%s) - pass_start_ts ))"
+  LAST_PASS_ELAPSED="$pass_elapsed"
+  echo "[hamada] pass=${pass_name} solver finished in ${pass_elapsed}s"
+
+  cp example_6_hamada.npz "artifacts/runs/example_6_hamada_${pass_name}.npz"
+  echo "[hamada] saved: artifacts/runs/example_6_hamada_${pass_name}.npz"
+
+  if [[ "$pass_run_stability" == "1" ]]; then
+    echo "[hamada] pass=${pass_name} writing spectrum parity artifact"
+    set +e
+    .venv/bin/python tools/parity/check_hamada_spectrum.py \
+      --python-npz example_6_hamada.npz \
+      --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
+      --artifact "artifacts/parity/hamada_spectrum_parity_${pass_name}.json"
+    parity_exit=$?
+    set -e
+    if [[ "$parity_exit" -ne 0 ]]; then
+      echo "[hamada] pass=${pass_name} spectrum parity failed (exit=${parity_exit})"
+    fi
+  fi
+
+  if [[ "$pass_run_resolvent" == "1" ]]; then
+    echo "[hamada] pass=${pass_name} writing operator-stage parity artifact"
+    set +e
+    .venv/bin/python tools/parity/check_hamada_operator_stages.py \
+      --config "$pass_cfg_path" \
+      --artifact "artifacts/parity/hamada_operator_stage_parity_${pass_name}.json"
+    op_parity_exit=$?
+    set -e
+    if [[ "$op_parity_exit" -ne 0 ]]; then
+      echo "[hamada] pass=${pass_name} operator-stage parity failed (exit=${op_parity_exit})"
+    fi
+
+    echo "[hamada] pass=${pass_name} writing resolvent parity artifact"
+    set +e
+    .venv/bin/python tools/parity/check_hamada_resolvent.py \
+      --config "$pass_cfg_path" \
+      --python-npz example_6_hamada.npz \
+      --matlab-resolvent "$RESOLVENT_SVD_REF" \
+      --artifact "artifacts/parity/hamada_resolvent_parity_${pass_name}.json"
+    res_parity_exit=$?
+    set -e
+    if [[ "$res_parity_exit" -ne 0 ]]; then
+      echo "[hamada] pass=${pass_name} resolvent parity failed (exit=${res_parity_exit})"
+    fi
+  fi
+
+  echo "[hamada] pass=${pass_name} generating figures"
+  .venv/bin/python generate_hamada_figures.py \
+    --python-npz example_6_hamada.npz \
+    --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
+    --matlab-mode "$STABILITY_MODE7_REF" \
+    --matlab-resolvent "$RESOLVENT_SVD_REF" \
+    --parity-config "$pass_cfg_path"
+
+  mkdir -p "artifacts/figures/${pass_name}"
+  fig_count=0
+  shopt -s nullglob
+  for fig in example_6_hamada*.png; do
+    cp "$fig" "artifacts/figures/${pass_name}/"
+    fig_count=$((fig_count + 1))
+  done
+  shopt -u nullglob
+  echo "[hamada] pass=${pass_name} saved figures: ${fig_count} -> artifacts/figures/${pass_name}/"
+}
+
+build_master_dashboard() {
+  local stability_dir="artifacts/figures/stability"
+  local resolvent_dir="artifacts/figures/resolvent"
+  local master_png="artifacts/figures/example_6_hamada_dashboard_master.png"
+
+  if [[ ! -d "$stability_dir" || ! -d "$resolvent_dir" ]]; then
+    echo "[hamada] master dashboard skipped: missing pass figure folders"
+    return 0
+  fi
+
+  echo "[hamada] building master dashboard (2x3)"
+  .venv/bin/python - "$stability_dir" "$resolvent_dir" "$master_png" <<'PY'
+from pathlib import Path
+import sys
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+
+stability = Path(sys.argv[1])
+resolvent = Path(sys.argv[2])
+out = Path(sys.argv[3])
+
+tiles = [
+    (stability / "example_6_hamada_vs_matlab_spectrum.png", "Stability spectrum parity"),
+    (stability / "example_6_hamada_mode7_2d_compare.png", "Stability mode 7 parity"),
+    (stability / "example_6_hamada_mode7_error_maps.png", "Stability mode 7 errors"),
+    (resolvent / "example_6_hamada_resolvent_gains.png", "Resolvent gains parity"),
+    (resolvent / "example_6_hamada_resolvent_mode1_maps_zoomed.png", "Resolvent mode 1 zoom"),
+    (resolvent / "example_6_hamada_resolvent_parity_errors.png", "Resolvent parity errors"),
+]
+
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+for ax, (path, title) in zip(axes.ravel(), tiles):
+    ax.set_title(title, fontsize=11)
+    if path.exists():
+        image = mpimg.imread(path)
+        ax.imshow(image)
+        ax.axis("off")
+    else:
+        ax.axis("off")
+        ax.text(
+            0.5,
+            0.5,
+            f"missing:\n{path.name}",
+            ha="center",
+            va="center",
+            fontsize=10,
+            transform=ax.transAxes,
+        )
+
+fig.suptitle("Hamada master dashboard (stability + resolvent)", fontsize=15)
+fig.tight_layout()
+out.parent.mkdir(parents=True, exist_ok=True)
+fig.savefig(out, dpi=220, bbox_inches="tight")
+plt.close(fig)
+PY
+
+  cp "$master_png" "example_6_hamada_dashboard_master.png"
+  cp "$master_png" "$stability_dir/"
+  cp "$master_png" "$resolvent_dir/"
+  echo "[hamada] generated: $master_png"
+}
 
 # -------------------------------------------------------------------
-# 5) Compare computed spectrum against MATLAB reference
+# 4) Execute selected run plan (stability, resolvent, or both)
 # -------------------------------------------------------------------
-echo "[hamada] writing spectrum parity artifact"
-set +e
-.venv/bin/python tools/parity/check_hamada_spectrum.py \
-  --python-npz example_6_hamada.npz \
-  --matlab-spectrum example_6_hamada/MATLAB_exports/spectrum.mat \
-  --artifact artifacts/hamada_spectrum_parity.json
-PARITY_EXIT=$?
-set -e
-if [[ "$PARITY_EXIT" -ne 0 ]]; then
-  echo "[hamada] parity check failed (exit=${PARITY_EXIT}) - continuing to generate figures"
+STABILITY_ELAPSED=""
+RESOLVENT_ELAPSED=""
+
+case "$RUN_PLAN" in
+  both)
+    run_solver_pass "stability" "1" "0" "0"
+    STABILITY_ELAPSED="$LAST_PASS_ELAPSED"
+    run_solver_pass "resolvent" "0" "1" "1"
+    RESOLVENT_ELAPSED="$LAST_PASS_ELAPSED"
+    ;;
+  stability)
+    run_solver_pass "stability" "1" "0" "0"
+    STABILITY_ELAPSED="$LAST_PASS_ELAPSED"
+    ;;
+  resolvent)
+    run_solver_pass "resolvent" "0" "1" "1"
+    RESOLVENT_ELAPSED="$LAST_PASS_ELAPSED"
+    ;;
+  *)
+    echo "[hamada] invalid LINSTAB2D_HAMADA_RUN_PLAN=${RUN_PLAN} (expected: both|stability|resolvent)"
+    exit 1
+    ;;
+esac
+
+if [[ "$RUN_PLAN" == "both" ]]; then
+  build_master_dashboard
 fi
 
-echo "[hamada] writing operator-stage parity artifact"
-set +e
-.venv/bin/python tools/parity/check_hamada_operator_stages.py \
-  --case-dir "${LINSTAB2D_HAMADA_CASE_DIR}" \
-  --exports-dir "${LINSTAB2D_HAMADA_CASE_DIR}/MATLAB_exports" \
-  --re "${LINSTAB2D_HAMADA_RE:-395000.0}" \
-  --ma "${LINSTAB2D_HAMADA_MA:-2.0}" \
-  --pr "${LINSTAB2D_HAMADA_PR:-0.747}" \
-  --kappa "${LINSTAB2D_HAMADA_KAPPA}" \
-  --t0 "${LINSTAB2D_HAMADA_T0:-1540.0}" \
-  --beta "${LINSTAB2D_HAMADA_BETA:-0.0}" \
-  --penalty "${LINSTAB2D_HAMADA_BC_PENALTY:-1e8}" \
-  --fd-order "${LINSTAB2D_HAMADA_FD_ORDER:-4}" \
-  --stride-ksi "${LINSTAB2D_HAMADA_STRIDE_KSI:-1}" \
-  --stride-eta "${LINSTAB2D_HAMADA_STRIDE_ETA:-1}" \
-  --artifact artifacts/parity/hamada_operator_stage_parity.json
-OP_PARITY_EXIT=$?
-set -e
-if [[ "$OP_PARITY_EXIT" -ne 0 ]]; then
-  echo "[hamada] operator-stage parity check failed (exit=${OP_PARITY_EXIT}) - continuing to generate figures"
-fi
-
 # -------------------------------------------------------------------
-# 6) Generate quick diagnostic figures for visual comparison
-# -------------------------------------------------------------------
-echo "[hamada] generating figures"
-.venv/bin/python generate_hamada_figures.py \
-  --python-npz example_6_hamada.npz \
-  --matlab-spectrum example_6_hamada/MATLAB_exports/spectrum.mat \
-  --matlab-mode example_6_hamada/MATLAB_exports/eigenvector_7.mat
-
-# -------------------------------------------------------------------
-# 7) End-of-run summary
+# 5) End-of-run summary
 # -------------------------------------------------------------------
 echo "[hamada] done"
 SCRIPT_END_TS="$(date +%s)"
 SCRIPT_END_HUMAN="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 SCRIPT_ELAPSED="$((SCRIPT_END_TS - SCRIPT_START_TS))"
 echo "[hamada] end: $SCRIPT_END_HUMAN"
+if [[ -n "$STABILITY_ELAPSED" ]]; then
+  echo "[hamada] pass_runtime stability=${STABILITY_ELAPSED}s"
+fi
+if [[ -n "$RESOLVENT_ELAPSED" ]]; then
+  echo "[hamada] pass_runtime resolvent=${RESOLVENT_ELAPSED}s"
+fi
 echo "[hamada] total elapsed: ${SCRIPT_ELAPSED}s | cores=${CORES} | mpi=${MPI_PROCS} | threads_per_rank=${THREADS_PER_RANK}"

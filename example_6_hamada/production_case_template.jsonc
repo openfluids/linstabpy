@@ -1,0 +1,54 @@
+{
+  // Copy this file and update paths/parameters for the production case.
+  // Then run:
+  // LINSTAB2D_HAMADA_CONFIG=/absolute/path/to/your_config.jsonc ./example_6_hamada.sh
+
+  "paths": {
+    "case_dir": "/absolute/path/to/production_case_dir",
+    "matlab_exports_stability_dir": "/absolute/path/to/MATLAB_exports_stability",
+    "matlab_exports_resolvent_dir": "/absolute/path/to/MATLAB_exports_resolvent",
+    "matlab_exports_operator_stage_dir": "/absolute/path/to/MATLAB_exports_resolvent",
+    "case_inputs_mat": "/absolute/path/to/MATLAB_exports_resolvent/case_inputs_used.mat"
+  },
+
+  "physics": {
+    "Re": 395000.0,
+    "Ma": 2.0,
+    "Pr": 0.747,
+    "kappa": 1.4,
+    "T_0": 1540.0,
+    "zero_spanwise": false,
+    "use_matlab_sponge_aux": true,
+    "zero_mu_t_derivs": true
+  },
+
+  "numerics": {
+    "stride_ksi": 1,
+    "stride_eta": 1,
+    "fd_order": 4,
+    "beta": 0.0,
+    "alpha_filter": 0.0
+  },
+
+  "bc": {
+    "penalty": 100000000.0
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.1,
+    "n_modes_stability": 100,
+    "n_modes_resolvent": 10,
+    "run_stability": true,
+    "run_resolvent": true,
+    "use_raw_eigs": false
+  },
+
+  "parity_tolerances": {
+    "operator_stage_max_rel": 1e-8,
+    "operator_stage_max_abs_early": 1e-3,
+    "spectrum_max_rel": 1e-6,
+    "mode_min_corr_real": 0.99
+  }
+}

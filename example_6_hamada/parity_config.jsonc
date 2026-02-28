@@ -1,0 +1,78 @@
+{
+  // Canonical parity configuration for Example 6 (Hamada).
+  // Runtime code should use this as default and only diverge when
+  // explicit environment overrides are provided.
+
+  "paths": {
+    // Directory containing x/y/rho/u/v/w/T/sponge .npy files.
+    "case_dir": "example_6_hamada",
+
+    // MATLAB exports used for matrix/spectrum parity validation.
+    "matlab_exports_stability_dir": "example_6_hamada/MATLAB_exports",
+    "matlab_exports_resolvent_dir": "example_6_hamada/MATLAB_exports_resolvent",
+    "matlab_exports_operator_stage_dir": "example_6_hamada/MATLAB_exports_resolvent",
+
+    // MATLAB case-input dump containing sponge_aux used during export.
+    "case_inputs_mat": "example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat"
+  },
+
+  "physics": {
+    "Re": 395000.0,
+    "Ma": 2.0,
+    "Pr": 0.747,
+
+    // IMPORTANT:
+    // `run_metadata.mat` reports 1.31, but exported operator/spectrum
+    // parity aligns with baseFlow.kappa = 1.4.
+    "kappa": 1.4,
+
+    "T_0": 1540.0,
+
+    // Keep off for strict parity with this dataset.
+    "zero_spanwise": false,
+
+    // Use MATLAB-exported sponge_aux instead of local sponge.npy (which is zero
+    // in this repository snapshot).
+    "use_matlab_sponge_aux": true,
+
+    // MATLAB exported fields consumed by GetLinProblem use zero dMUdT terms.
+    "zero_mu_t_derivs": true
+  },
+
+  "numerics": {
+    "stride_ksi": 1,
+    "stride_eta": 1,
+    "fd_order": 4,
+    "beta": 0.0,
+
+    // MATLAB convention: alpha_filter = 0.0 means active explicit filter.
+    // "none" disables filtering.
+    "alpha_filter": 0.0
+  },
+
+  "bc": {
+    "penalty": 100000000.0
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.1,
+
+    "n_modes_stability": 100,
+    "n_modes_resolvent": 10,
+
+    "run_stability": true,
+    "run_resolvent": true,
+
+    // MATLAB parity path uses temporal eigs on i*L0.
+    "use_raw_eigs": false
+  },
+
+  "parity_tolerances": {
+    "operator_stage_max_rel": 1e-8,
+    "operator_stage_max_abs_early": 1e-3,
+    "spectrum_max_rel": 1e-6,
+    "mode_min_corr_real": 0.99
+  }
+}
