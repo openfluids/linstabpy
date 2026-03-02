@@ -25,7 +25,7 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.solvers.resolvent import resolvent_analysis
 
-from ._helpers import env_int
+from ._helpers import env_float, env_int
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -98,9 +98,11 @@ def compute():
     t_lnse = time.perf_counter() - t_lnse
 
     # ---- Apply Dirichlet BCs ----
+    bc_penalty = env_float("LINSTAB2D_BLASIUS_BC_PENALTY", 1e4)
     borders = "lrbt"
     variables = "uvwT"
-    L0, bc_indices = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
+    L0, bc_indices = apply_dirichlet(L0, idx, borders, variables, mesh.ngp, penalty=bc_penalty)
+    print(f"Dirichlet BC penalty: {bc_penalty:.3e}")
 
     # ---- Energy norm ----
     p = mesh.used_ind
