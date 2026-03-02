@@ -1,0 +1,383 @@
+You are a senior reviewer for an applied-computational mathematics/aerospace manuscript.
+Audience: users and practitioners who want to learn large-scale linear systems in compressible stability/resolvent workflows.
+
+Task:
+1) Review the manuscript for clarity, technical coherence, and citation support.
+2) Focus on actionable issues that improve readability, rigor, and narrative flow for that audience.
+3) Return STRICT JSON using this schema:
+{
+  "findings": [
+    {
+      "title": "[P2] ...",
+      "body": "...",
+      "confidence": 0.0,
+      "priority": 2,
+      "location": "paper/manuscript.tex:line-line"
+    }
+  ],
+  "verdict": "correct" | "incorrect",
+  "explanation": "...",
+  "confidence": 0.0,
+  "edits": [
+    {
+      "location": "paper/manuscript.tex:line-line",
+      "rewrite": "replacement text"
+    }
+  ]
+}
+
+Only include real issues. Prefer fewer high-quality findings.
+
+===BEGIN_MANUSCRIPT===
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage[numbers,sort&compress]{natbib}
+\onehalfspacing
+
+\title{Open-source solver modernization for compressible stability and resolvent analysis:\\
+full-workflow accuracy and large-case capability in \texttt{linstab2d}}
+\author{Ricardo Frantz \and Gabriel Hamada}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper presents \texttt{linstab2d}, a MATLAB-free open-source implementation of the compressible stability and resolvent workflow used in the \texttt{martini2024} lineage.
+The governing equations and modeling assumptions are not new; the contribution is solver and software modernization for large sparse systems.
+The practical bottleneck motivating this work is the cost and memory behavior of large refined cases when relying on serial-style dense or monolithic linear solves.
+We port the workflow to Python and couple operator assembly to PETSc/SLEPc, with two explicit solver routes: a robust sparse-direct baseline (MUMPS) and a scalable iterative path based on preconditioned Krylov methods.
+Our evidence design separates model fidelity from solver performance.
+Fidelity is assessed through full-workflow agreement against migrated MATLAB references (including curvilinear mappings and boundary-condition handling), while performance is assessed through runtime, memory, and convergence diagnostics on representative Hamada cases and shared resolvent4py examples.
+The main conclusion is operational: the Python implementation preserves numerical behavior while enabling reproducible, parallel, memory-aware execution on fat-node hardware for problem sizes approaching \(10^6\) degrees of freedom.
+\end{abstract}
+
+\noindent\textbf{Keywords:} compressible stability; resolvent analysis; sparse linear algebra; PETSc; SLEPc; MUMPS; Krylov methods; preconditioning; scientific software
+
+\section{Introduction}
+
+Linear stability and resolvent analysis of compressible flows are mature methodologies, and their governing equations and discretization choices are well established in the literature and in the original MATLAB implementation \cite{martini2024,schmid2007nonmodal,mckeon2010critical}.
+The challenge addressed here is not new fluid theory, but execution at scale.
+In practical refined configurations, the dominant cost becomes repeated solution of large sparse shifted non-Hermitian systems.
+At that point, solver architecture, memory footprint, and parallel execution model determine whether a workflow remains usable.
+
+This motivates \texttt{linstab2d}: a MATLAB-free, open-source Python implementation of the same analysis pipeline, designed around PETSc/SLEPc for explicit control of sparse linear algebra \cite{balay2025petsc,hernandez2005slepc}.
+The goal is to preserve the original model behavior while replacing the linear-solver layer with infrastructure that is reproducible, configurable, and deployable on fat nodes.
+Our target operating regime includes matrices approaching \(10^6\) degrees of freedom, where robust direct factorization and scalable iterative alternatives must be managed explicitly.
+
+The paper makes three concrete contributions.
+\begin{itemize}
+\item It documents a full-workflow migration from MATLAB to Python for compressible stability and resolvent analysis, including curvilinear transformations and boundary-condition imposition.
+\item It defines and evaluates two solver strategies within one implementation: Strategy A (MUMPS sparse-direct baseline \cite{amestoy2001mumps}) and Strategy B (preconditioned PETSc/SLEPc iterative path \cite{saad2003iterative,benzi2002preconditioning}).
+\item It provides evidence in two layers: numerical fidelity versus MATLAB references, and runtime/memory/convergence behavior on representative large cases, with contextual comparison to \texttt{resolvent4py} \cite{padovan2025resolvent4py,resolvent4pycgl}.
+\end{itemize}
+
+To keep claims precise, we separate fidelity and scalability throughout the manuscript.
+Agreement with legacy outputs supports model equivalence; performance sections support the engineering claim that solver modernization expands practical capability.
+When iterative configurations do not converge robustly for a given setup, we report this as a limitation rather than a soft success.
+The intended audience is users and developers who need practical guidance for large-scale sparse linear systems in compressible stability/resolvent workflows, not only final spectra plots.
+
+The remainder of the paper is organized as follows.
+Section 2 summarizes the linearized model and discrete operators, emphasizing what is inherited from prior work and what changes in implementation.
+Section 3 details solver formulations and preconditioning strategies.
+Section 4 presents validation and performance results, centered on a flagship Hamada case and shared external benchmarks.
+Section 5 discusses trade-offs and deployment guidance.
+Section 6 concludes.
+
+\section{Materials and methods}
+
+\subsection{Linearized perturbation model}
+
+We decompose the flow state into base and perturbation components:
+\begin{equation}
+\mathbf{q}(\mathbf{x},t)=\bar{\mathbf{q}}(\mathbf{x})+\epsilon\mathbf{q}'(\mathbf{x},t),\qquad 0<\epsilon\ll1.
+\end{equation}
+Linearization around \(\bar{\mathbf{q}}\) gives
+\begin{equation}
+\frac{\partial \mathbf{q}'}{\partial t}=\mathcal{L}\mathbf{q}'+\mathcal{B}\mathbf{f},
+\label{eq:lin}
+\end{equation}
+where \(\mathcal{L}\) is the linearized compressible operator.
+After discretization,
+\begin{equation}
+\frac{d\mathbf{q}}{dt}=\mathbf{L}\mathbf{q}+\mathbf{B}\mathbf{f},\qquad \mathbf{L}\in\mathbb{C}^{n\times n}.
+\end{equation}
+The unknown vector follows block ordering
+\(\mathbf{q}=[\rho',u',v',w',T']^\top\).
+
+\subsection{Stability and resolvent formulations}
+
+For temporal stability, with \(\mathbf{q}(t)=\hat{\mathbf{q}}e^{-i\omega t}\),
+\begin{equation}
+\mathbf{A}\hat{\mathbf{q}}=\lambda\hat{\mathbf{q}},
+\end{equation}
+with targeted spectrum extraction using shift-invert:
+\begin{equation}
+(\mathbf{A}-\sigma\mathbf{I})^{-1}\mathbf{v}=\mu\mathbf{v},
+\qquad
+\mu=\frac{1}{\lambda-\sigma}.
+\label{eq:shift}
+\end{equation}
+
+For resolvent analysis at forcing frequency \(\omega_f\):
+\begin{equation}
+\mathbf{L}_{\omega}=\mathbf{L}-i\omega_f\mathbf{I},\qquad
+\mathbf{H}(\omega_f)=\mathbf{C}\mathbf{L}_{\omega}^{-1}\mathbf{B}.
+\end{equation}
+With energy weighting \(\mathbf{W}\), gains are obtained from
+\begin{equation}
+\mathbf{R}=\mathbf{W}^{-1}\mathbf{H}^{*}\mathbf{W}\mathbf{H},
+\qquad
+\sigma_j=\sqrt{\lambda_j(\mathbf{R})}.
+\label{eq:resolvent}
+\end{equation}
+This formulation is standard in nonmodal analysis and resolvent-based modeling \cite{trefethen1993hydrodynamic,schmid2007nonmodal,mckeon2010critical}.
+
+\subsection{Curvilinear discretization and operator structure}
+
+On a structured curvilinear mesh with computational coordinates \((\xi,\eta)\),
+\begin{equation}
+\frac{\partial}{\partial x}=\xi_x\frac{\partial}{\partial \xi}+\eta_x\frac{\partial}{\partial \eta},
+\qquad
+\frac{\partial}{\partial y}=\xi_y\frac{\partial}{\partial \xi}+\eta_y\frac{\partial}{\partial \eta}.
+\end{equation}
+Finite-difference operators are assembled in computational space and mapped to physical space by metric coefficients.
+
+The discrete operator has block coupling:
+\begin{equation}
+\mathbf{L}=
+\begin{bmatrix}
+\mathbf{L}_{\rho\rho} & \mathbf{L}_{\rho u} & \mathbf{L}_{\rho v} & \mathbf{L}_{\rho w} & \mathbf{L}_{\rho T}\\
+\mathbf{L}_{u\rho} & \mathbf{L}_{uu} & \mathbf{L}_{uv} & \mathbf{L}_{uw} & \mathbf{L}_{uT}\\
+\mathbf{L}_{v\rho} & \mathbf{L}_{vu} & \mathbf{L}_{vv} & \mathbf{L}_{vw} & \mathbf{L}_{vT}\\
+\mathbf{L}_{w\rho} & \mathbf{L}_{wu} & \mathbf{L}_{wv} & \mathbf{L}_{ww} & \mathbf{L}_{wT}\\
+\mathbf{L}_{T\rho} & \mathbf{L}_{Tu} & \mathbf{L}_{Tv} & \mathbf{L}_{Tw} & \mathbf{L}_{TT}
+\end{bmatrix}.
+\end{equation}
+Boundary conditions are imposed by explicit row operations.
+Large penalty rows improve constraint enforcement but can worsen linear-system conditioning.
+
+\subsection{Solver strategies}
+
+Strategy A (robust baseline) uses sparse-direct LU via MUMPS through PETSc \cite{amestoy2001mumps,balay2025petsc}.
+Strategy B (scalable path) uses Krylov methods with preconditioning \cite{saad2003iterative,benzi2002preconditioning}.
+
+For iterative solves:
+\begin{equation}
+\mathbf{M}^{-1}\mathbf{A}\mathbf{x}=\mathbf{M}^{-1}\mathbf{b}.
+\label{eq:prec}
+\end{equation}
+Krylov iterates are built in
+\begin{equation}
+\mathcal{K}_m(\mathbf{A},\mathbf{r}_0)=\mathrm{span}\{\mathbf{r}_0,\mathbf{A}\mathbf{r}_0,\ldots,\mathbf{A}^{m-1}\mathbf{r}_0\},
+\end{equation}
+with residual \(\mathbf{r}_m=\mathbf{b}-\mathbf{A}\mathbf{x}_m\).
+
+For block/field-split preconditioning we use partitions
+\begin{equation}
+\mathbf{A}=
+\begin{bmatrix}
+\mathbf{A}_{11} & \mathbf{A}_{12}\\
+\mathbf{A}_{21} & \mathbf{A}_{22}
+\end{bmatrix},
+\qquad
+\mathbf{S}=\mathbf{A}_{22}-\mathbf{A}_{21}\mathbf{A}_{11}^{-1}\mathbf{A}_{12},
+\end{equation}
+where \(\mathbf{S}\) is the Schur complement approximation target.
+
+All iterative workflows run with strict non-convergence failure semantics.
+Unconverged solves are treated as failed runs, not warnings.
+
+\subsection{Benchmark and reporting protocol}
+
+Results are reported under a full-coverage policy:
+\begin{itemize}
+\item all shipped migrated MATLAB examples,
+\item Hamada stability and resolvent workflows,
+\item shared resolvent4py CGL examples \cite{resolvent4pycgl}.
+\end{itemize}
+
+For each case we report numerical outputs, solver status, runtime, memory indicators, and solver configuration.
+Detailed per-case validation and full logs are placed in supplementary material.
+
+\section{Results}
+
+\subsection{Accuracy gate over full shipped validation set}
+
+Main text reports a compact consolidated table covering all shipped migrated MATLAB examples.
+The purpose is to establish preserved numerical accuracy before discussing scalability.
+
+\subsection{Flagship large Hamada case}
+
+The central result is a large Hamada case chosen to represent production-scale pressure on sparse linear solvers.
+We report stability and resolvent runs, direct and iterative solver behavior, and practical limits observed for each strategy.
+
+\subsection{Cross-framework comparison}
+
+We compare against two external baselines on shared cases:
+\begin{itemize}
+\item legacy MATLAB workflow,
+\item resolvent4py CGL examples.
+\end{itemize}
+
+Comparisons include leading eigen/singular outputs and performance metrics.
+When solver configurations cannot be made exactly equivalent, comparisons are explicitly labeled as approximate.
+
+\subsection{Runtime and memory behavior}
+
+Performance results are reported with hardware and solver metadata.
+The interpretation emphasizes when direct factorization remains the robust choice and when iterative configurations become necessary for larger cases.
+
+\section{Discussion}
+
+The software contribution is the combination of:
+\begin{itemize}
+\item preserved accuracy under full shipped-workflow coverage,
+\item solver transparency and strict correctness controls,
+\item practical pathway to larger sparse systems.
+\end{itemize}
+
+The most important engineering trade-off is between direct robustness and iterative scalability.
+Direct MUMPS runs are reliable when memory permits.
+Iterative workflows can reduce factorization memory cost but require stronger preconditioning and careful convergence diagnostics, especially for shifted non-normal systems.
+
+\section{Conclusions}
+
+This work presents \texttt{linstab2d} as a solver-centered modernization of an established compressible stability/resolvent workflow.
+The governing model lineage is preserved, while the execution backend is redesigned around open sparse linear algebra tools (PETSc/SLEPc) to remove MATLAB dependency and to support larger refined cases.
+
+The central technical message has two parts.
+First, numerical behavior must remain equivalent to the legacy reference when discretization, boundary handling, and analysis setup are matched.
+Second, larger-case practicality depends on transparent solver strategy selection: direct sparse factorization for robustness when memory fits, and preconditioned iterative routes when scaling pressure requires lower factorization cost.
+
+From an engineering perspective, the main contribution is not a new instability mechanism, but a reproducible path from validated reference workflows to production-oriented execution on fat-node hardware.
+This includes explicit solver metadata, strict convergence semantics, and reproducible benchmarking against external implementations.
+
+Future work will prioritize stronger iterative preconditioning for the most demanding resolvent configurations and broader large-case studies near the \(10^6\)-DOF regime.
+These directions are natural extensions of the same objective: preserve the original analysis fidelity while expanding feasible operating scale in an open-source environment.
+
+\section*{Acknowledgments}
+To be completed.
+
+\section*{Conflict of interest}
+All authors declare no conflicts of interest in this paper.
+
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+
+\end{document}
+===END_MANUSCRIPT===
+
+===BEGIN_REFS===
+@article{trefethen1993hydrodynamic,
+  title   = {Hydrodynamic stability without eigenvalues},
+  author  = {Trefethen, Lloyd N. and Trefethen, Anne E. and Reddy, Satish C. and Driscoll, Tobin A.},
+  journal = {Science},
+  volume  = {261},
+  number  = {5121},
+  pages   = {578--584},
+  year    = {1993}
+}
+
+@article{schmid2007nonmodal,
+  title   = {Nonmodal stability theory},
+  author  = {Schmid, Peter J.},
+  journal = {Annual Review of Fluid Mechanics},
+  volume  = {39},
+  pages   = {129--162},
+  year    = {2007}
+}
+
+@article{mckeon2010critical,
+  title   = {A critical-layer framework for turbulent pipe flow},
+  author  = {McKeon, Beverley J. and Sharma, Ati},
+  journal = {Journal of Fluid Mechanics},
+  volume  = {658},
+  pages   = {336--382},
+  year    = {2010}
+}
+
+@article{balay2025petsc,
+  title   = {PETSc/TAO Users Manual},
+  author  = {Balay, Satish and others},
+  journal = {Argonne National Laboratory},
+  year    = {2025},
+  note    = {ANL-95/11 - Revision 3.24}
+}
+
+@article{hernandez2005slepc,
+  title   = {{SLEPc}: A scalable and flexible toolkit for the solution of eigenvalue problems},
+  author  = {Hernandez, Vicente and Roman, Jose E. and Vidal, Vicente},
+  journal = {ACM Transactions on Mathematical Software},
+  volume  = {31},
+  number  = {3},
+  pages   = {351--362},
+  year    = {2005}
+}
+
+@article{amestoy2001mumps,
+  title   = {A fully asynchronous multifrontal solver using distributed dynamic scheduling},
+  author  = {Amestoy, Patrick R. and Duff, Iain S. and Koster, Jacko and L'Excellent, Jean-Yves},
+  journal = {SIAM Journal on Matrix Analysis and Applications},
+  volume  = {23},
+  number  = {1},
+  pages   = {15--41},
+  year    = {2001}
+}
+
+@book{saad2003iterative,
+  title     = {Iterative Methods for Sparse Linear Systems},
+  author    = {Saad, Yousef},
+  publisher = {SIAM},
+  year      = {2003},
+  edition   = {2}
+}
+
+@article{benzi2002preconditioning,
+  title   = {Preconditioning techniques for large linear systems: a survey},
+  author  = {Benzi, Michele},
+  journal = {Journal of Computational Physics},
+  volume  = {182},
+  number  = {2},
+  pages   = {418--477},
+  year    = {2002}
+}
+
+@article{padovan2025resolvent4py,
+  title   = {Resolvent4py: An open-source package for stability, resolvent and modal decomposition analyses in Python},
+  author  = {Padovan, Alberto and Anantharaman, Vishal and Rowley, Clarence W. and Vollmer, Blaine and Colonius, Tim and Bodony, Daniel J.},
+  journal = {SoftwareX},
+  volume  = {31},
+  pages   = {102286},
+  year    = {2025},
+  doi     = {10.1016/j.softx.2025.102286}
+}
+
+@article{martini2024,
+  title   = {{Linstab2D}: stability and resolvent analysis of compressible viscous flows in {MATLAB}},
+  author  = {Martini, Eduardo and Schmidt, Oliver},
+  journal = {Flow, Turbulence and Combustion},
+  year    = {2024},
+  note    = {Published online 13 August 2024}
+}
+
+@misc{resolvent4pycgl,
+  title        = {resolvent4py example gallery: CGL},
+  author       = {Padovan, Alberto},
+  year         = {2026},
+  howpublished = {\url{https://albertopadovan.github.io/resolvent4py/auto_examples/cgl/index.html}},
+  note         = {Accessed 2026-03-01}
+}
+===END_REFS===

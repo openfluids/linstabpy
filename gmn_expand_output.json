@@ -1,0 +1,40 @@
+```json
+{
+  "insertions": [
+    {
+      "anchor_heading": "Linearized perturbation model",
+      "latex": "\nThe evolution of small-amplitude perturbations $\\mathbf{q}'$ about a steady base flow $\\bar{\\mathbf{q}}$ is governed by the generalized linearized system:\n\\begin{equation}\n\\mathbf{M} \\frac{\\partial \\mathbf{q}'}{\\partial t} = \\mathbf{L} \\mathbf{q}' + \\mathbf{B} \\mathbf{f},\n\\label{eq:generalized_linear_system}\n\\end{equation}\nwhere $\\mathbf{L} = \\left. \\frac{\\partial \\mathbf{F}}{\\partial \\mathbf{q}} \\right|_{\\bar{\\mathbf{q}}}$ represents the Jacobian of the discretized Navier-Stokes equations, $\\mathbf{M}$ is the mass matrix (potentially singular in the presence of algebraic constraints), and $\\mathbf{B} \\mathbf{f}$ denotes the spatio-temporal forcing. For compressible flows, the state vector $\\mathbf{q} = [\\rho, u, v, w, T]^T$ necessitates a consistent treatment of the energy equation and the equation of state within $\\mathbf{L}$ to ensure the physical coupling of acoustic and entropic modes is preserved."
+    },
+    {
+      "anchor_heading": "Stability and resolvent formulations",
+      "latex": "\nGlobal stability analysis involves computing the eigenvalues $\\lambda$ of the pencil $(\\mathbf{L}, \\mathbf{M})$. Given the extreme sparsity and large dimensions of these operators, we utilize the shift-invert transformation $\\mathbf{A} = (\\mathbf{L} - \\sigma \\mathbf{M})^{-1} \\mathbf{M}$ to cluster eigenvalues of interest near the complex shift $\\sigma$ for efficient extraction via Krylov subspace methods. \n\nIn contrast, the resolvent operator $\\mathcal{R}(\\omega) = (-i\\omega \\mathbf{M} - \\mathbf{L})^{-1} \\mathbf{B}$ characterizes the linear response to harmonic forcing. Due to the inherent non-normality of the operator $\\mathbf{L}$ in high-Reynolds-number shear flows, the pseudospectrum can extend significantly into the stable half-plane, leading to massive transient growth even in the absence of unstable modes. Computationally, this requires solving the large-scale linear system $(\\mathbf{A} - \\lambda \\mathbf{I}) \\mathbf{x} = \\mathbf{b}$ repeatedly. We emphasize that while normal equations $\\mathcal{R}^H \\mathcal{R}$ provide a path to singular values, matrix-free actions within a randomized SVD or Lanczos framework are often preferred to avoid the $\\mathcal{O}(\\kappa^2)$ conditioning degradation associated with the product operator."
+    },
+    {
+      "anchor_heading": "Solver strategies",
+      "latex": "\nFor the inner linear solves required by both eigenvalue and resolvent computations, effective preconditioning is paramount. We employ a field-split strategy that partitions the system by physical variables, allowing for specialized relaxation of the coupled $(\\rho, u, v, T)$ block and the $w$-momentum component. For low-Mach-number regimes, Schur-complement approximations are integrated into the preconditioner to handle the stiff pressure-velocity coupling. \n\nNumerical stability is further improved through row/column equilibration ($L_\\infty$ scaling) to mitigate the magnitude disparities between density and energy residuals. Furthermore, the implementation of boundary conditions via penalty methods (e.g., Simultaneous Approximation Terms) can introduce stiffness; thus, strict failure semantics are monitored. Solver stagnation in GMRES typically indicates a failure of the preconditioner to capture the non-normal advection-diffusion coupling, whereas divergence often points to ill-posed boundary constraints or inconsistent scaling of the BC-penalty parameters."
+    },
+    {
+      "anchor_heading": "Runtime and memory behavior",
+      "latex": "\nThe choice of solver architecture is dictated by the asymptotic scaling of memory and operation counts. Direct multifrontal solvers (e.g., MUMPS, SuperLU_DIST) provide robust convergence but are constrained by $\\mathcal{O}(N^{\\alpha})$ memory fill-in, where $\\alpha \\approx 1.5$ for 2D discretizations and can exceed $2.0$ for 3D configurations. Iterative solvers coupled with high-quality preconditioners offer a more favorable $\\mathcal{O}(N)$ per-iteration footprint, though the total time-to-solution is highly sensitive to the spectral clustering of the preconditioned operator. On high-memory 'fat nodes,' direct solvers remain the preferred route for 2D analysis due to their ability to handle the extreme ill-conditioning and non-normality of the linearized Navier-Stokes operator without the risk of iterative stagnation."
+    },
+    {
+      "anchor_heading": "Discussion",
+      "latex": "\n\\subsection{Practitioner Solver Configuration Checklist}\nTo ensure reproducible and converged stability/resolvent analysis, the following configuration steps are recommended:\n\\begin{itemize}\n    \\item \\textbf{Equilibration:} Apply $L_\\infty$ row and column scaling to the global matrix before the factorisation or iteration begins.\n    \\item \\textbf{BC Regularization:} Verify that Dirichlet and Neumann boundaries do not introduce zero-diagonal entries that necessitate expensive pivoting.\n    \\item \\textbf{Tolerance Sensitivity:} Maintain a relative residual tolerance for inner linear solves (e.g., $10^{-12}$) that is at least two orders of magnitude tighter than the outer eigenvalue/SVD convergence criteria.\n    \\item \\textbf{Shift Proximity:} In shift-invert modes, ensure the shift $\\sigma$ is placed near the physical region of interest to prevent the Krylov subspace from being dominated by unphysical or poorly resolved numerical modes.\n\\end{itemize}"
+    }
+  ],
+  "global_rewrites": [
+    {
+      "from": "perturbation equations",
+      "to": "linearized perturbation model"
+    },
+    {
+      "from": "matrix inverse",
+      "to": "resolvent action"
+    },
+    {
+      "from": "performance numbers",
+      "to": "asymptotic computational requirements"
+    }
+  ]
+}
+```

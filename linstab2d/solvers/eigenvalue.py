@@ -66,6 +66,43 @@ def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> t
     return values[order], vectors[:, order]
 
 
+def _warn_if_shifted_operator_is_ill_conditioned(
+    operator: sp.csc_matrix,
+    target: complex,
+) -> None:
+    """Warn when ``cond(operator - target*I)`` exceeds a configurable threshold.
+
+    The exact dense condition number can be expensive for large sparse systems, so
+    this check is limited to moderate sizes by ``LINSTAB2D_EIGEN_COND_WARN_MAX_N``.
+    """
+    if os.getenv("LINSTAB2D_EIGEN_COND_WARN", "1").strip().lower() in {"0", "false", "no", "off"}:
+        return
+
+    max_n = int(os.getenv("LINSTAB2D_EIGEN_COND_WARN_MAX_N", "1500"))
+    threshold = float(os.getenv("LINSTAB2D_EIGEN_COND_WARN_THRESHOLD", "1e12"))
+    ndof = operator.shape[0]
+    if ndof > max_n:
+        return
+
+    shifted = operator - target * sp.identity(ndof, format="csc", dtype=complex)
+    try:
+        kappa = float(np.linalg.cond(np.asarray(shifted.toarray())))
+    except np.linalg.LinAlgError:
+        logger.warning(
+            "Could not estimate cond(L-sigma*M) for warning gate (ndof=%d, sigma=%s)",
+            ndof,
+            target,
+        )
+        return
+
+    if np.isfinite(kappa) and kappa > threshold:
+        logger.warning(
+            "Estimated cond(L-sigma*M)=%.3e exceeds %.3e; iterative shift-invert may stall",
+            kappa,
+            threshold,
+        )
+
+
 def _eigs_near_target(
     operator: sp.csc_matrix,
     n_modes: int,
@@ -74,6 +111,7 @@ def _eigs_near_target(
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
     require_complex()
     ndof = operator.shape[0]
+    _warn_if_shifted_operator_is_ill_conditioned(operator, target)
 
     if ndof <= 2 or n_modes >= ndof - 1:
         dense = np.asarray(operator.toarray())
@@ -129,12 +167,24 @@ def _eigs_near_target(
     elif st_solver in {"iterative", "krylov", "slepc"}:
         ksp_type = os.getenv("LINSTAB2D_EIGEN_KSP_TYPE", "gmres").strip().lower()
         pc_type = os.getenv("LINSTAB2D_EIGEN_PC_TYPE", "asm").strip().lower()
+        pc_side = os.getenv("LINSTAB2D_EIGEN_KSP_PC_SIDE", "left").strip().lower()
         ksp_rtol = float(os.getenv("LINSTAB2D_EIGEN_KSP_RTOL", "1e-8"))
         ksp_max_it = int(os.getenv("LINSTAB2D_EIGEN_KSP_MAX_IT", "20000"))
         asm_overlap = int(os.getenv("LINSTAB2D_EIGEN_ASM_OVERLAP", "2"))
         sub_ksp_type = os.getenv("LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly").strip().lower()
         sub_pc_type = os.getenv("LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu").strip().lower()
         ksp.setType(ksp_type)
+        if pc_side == "left":
+            ksp.setPCSide(PETSc.PC.Side.LEFT)
+        elif pc_side == "right":
+            ksp.setPCSide(PETSc.PC.Side.RIGHT)
+        elif pc_side in {"symmetric", "symm"}:
+            ksp.setPCSide(PETSc.PC.Side.SYMMETRIC)
+        else:
+            raise ValueError(
+                "Invalid LINSTAB2D_EIGEN_KSP_PC_SIDE "
+                f"'{pc_side}'; expected left|right|symmetric"
+            )
         if pc_type in {"fieldsplit", "fs"}:
             pc.setType(PETSc.PC.Type.FIELDSPLIT)
         else:
@@ -231,8 +281,9 @@ def temporal_eigenvalues(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
 
-    The physical PDE is ``dq/dt = -L0 q``, so ``eig(L0) = iω_OS`` and
-    ``eig(i*L0) = -ω_OS``.  Unstable modes have ``Im(omega) < 0``.
+    The eigensolver operates on ``i*L0`` so that ``omega = eig(i*L0)``.
+    With the ``exp(-i ω t)`` convention, temporally unstable modes satisfy
+    ``Im(omega) > 0``.
 
     Parameters
     ----------
@@ -261,6 +312,16 @@ def temporal_eigenvalues(
 
     if W_diag is not None:
         eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
+        if eigenvectors.shape[1] > 0:
+            v0 = eigenvectors[:, 0]
+            weighted_norm_error = np.abs(np.vdot(v0, np.asarray(W_diag) * v0) - 1.0)
+            weighted_norm_tol = float(os.getenv("LINSTAB2D_EIGEN_WEIGHTED_NORM_TOL", "1e-12"))
+            if weighted_norm_error > weighted_norm_tol:
+                logger.warning(
+                    "Leading weighted norm check failed: |v^H W v - 1|=%.3e > %.3e",
+                    weighted_norm_error,
+                    weighted_norm_tol,
+                )
 
     return eigenvalues, eigenvectors
 

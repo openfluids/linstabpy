@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "name": "curvilinear_validation",
+      "module": "linstab2d.examples.example_0_curvilinear_validation",
+      "artifacts": [
+        "linstab2d/examples/example_0_curvilinear_validation.npz"
+      ]
+    },
+    {
+      "name": "blasius_resolvent",
+      "module": "linstab2d.examples.example_1_blasius",
+      "artifacts": [
+        "linstab2d/examples/example_1_blasius.npz"
+      ]
+    },
+    {
+      "name": "blasius_resolvent_high_penalty",
+      "module": "linstab2d.examples.example_1_blasius",
+      "env": {
+        "LINSTAB2D_BLASIUS_BC_PENALTY": "1e6",
+        "LINSTAB2D_EIGEN_ST_SOLVER": "mumps"
+      },
+      "artifacts": [
+        "linstab2d/examples/example_1_blasius.npz"
+      ]
+    },
+    {
+      "name": "hamada_stability_resolvent",
+      "module": "example_6_hamada",
+      "artifacts": [
+        "example_6_hamada.npz"
+      ]
+    }
+  ],
+  "orthogonality_check": {
+    "artifact": "example_6_hamada.npz",
+    "mode_key": "direct_modes",
+    "weights_key": "W_diag",
+    "tolerance": 1e-12
+  }
+}

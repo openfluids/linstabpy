@@ -1,0 +1,37 @@
+You are helping expand an applied-computational manuscript for users learning large-scale sparse linear systems in compressible stability/resolvent analysis.
+
+Write manuscript-ready LaTeX text (technical, not marketing) for these targets:
+1) Add depth to solver mathematics and numerics:
+   - generalized linearized system M dq/dt = L q + Bf,
+   - shift-invert eigenvalue transform and inner linear solves,
+   - resolvent computation routes (normal equations vs matrix-free actions),
+   - non-normality and pseudospectral sensitivity implications for Krylov convergence.
+2) Add practical preconditioning details:
+   - block/field split for (rho,u,v,T) and w,
+   - Schur-complement approximations,
+   - scaling/equilibration and BC-penalty effects,
+   - strict convergence and failure semantics.
+3) Add complexity/memory discussion with asymptotic language (no fabricated numbers):
+   - direct multifrontal memory growth and fill-in,
+   - iterative per-iteration costs and dependence on preconditioner quality,
+   - when each strategy is preferred on fat nodes.
+4) Add a short subsection with a reproducible solver-configuration checklist for practitioners.
+
+Constraints:
+- Keep claims bounded; do not invent performance results.
+- Use equations where useful.
+- Provide output as JSON with keys:
+  {
+    "insertions": [
+      {"anchor_heading": "...", "latex": "..."}
+    ],
+    "global_rewrites": [
+      {"from": "...", "to": "..."}
+    ]
+  }
+- Anchors must target these exact headings:
+  "Linearized perturbation model"
+  "Stability and resolvent formulations"
+  "Solver strategies"
+  "Runtime and memory behavior"
+  "Discussion"

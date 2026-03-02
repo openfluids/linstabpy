@@ -1,0 +1,47 @@
+```json
+{
+  "findings": [
+    {
+      "title": "[P1] Critical Absence of Quantitative Results",
+      "body": "The manuscript's Section 3 (Results) consists entirely of meta-descriptions and placeholders (e.g., 'Main text reports a compact consolidated table...', 'The central result is a large Hamada case...') rather than actual data. For a paper emphasizing 'modernization' and 'capability,' the lack of reported runtimes, memory usage comparisons, and error residuals between the MUMPS baseline (Strategy A) and the iterative PETSc path (Strategy B) prevents any validation of the core claims. The audience of practitioners requires specific performance benchmarks and scaling data to assess the tool's utility.",
+      "confidence": 1.0,
+      "priority": 1,
+      "location": "paper/manuscript.tex:122-146"
+    },
+    {
+      "title": "[P2] Vague Specification of Preconditioning Configuration",
+      "body": "Section 2.4 introduces Strategy B as a 'scalable path' but provides only generic Schur complement notation (Eq. 11). For the 5-variable compressible Navier-Stokes system, the specific preconditioning strategy is the primary determinant of convergence. The text should explicitly state the field-split configuration (e.g., PCFieldSplit with PC_COMPOSITE_SCHUR or PC_COMPOSITE_ADDITIVE) and how the physical variables (rho, u, v, w, T) are grouped into blocks. Without this, the 'modernization' claim lacks the technical depth required for reproducibility.",
+      "confidence": 0.9,
+      "priority": 2,
+      "location": "paper/manuscript.tex:103-116"
+    },
+    {
+      "title": "[P2] Underspecified Impact of Penalty BCs on Solver Conditioning",
+      "body": "Section 2.3 notes that 'Large penalty rows... can worsen linear-system conditioning,' yet the default penalty parameter in the implementation (10^4) and its effect on Strategy B's Krylov convergence are not discussed. High penalty values effectively introduce stiff modes that can significantly stall iterative solvers. The manuscript should include a brief sensitivity analysis or practical recommendation on choosing the penalty parameter relative to the shift frequency or physical scales to ensure solver robustness.",
+      "confidence": 0.85,
+      "priority": 2,
+      "location": "paper/manuscript.tex:92-96"
+    },
+    {
+      "title": "[P3] Notation Inconsistency: L vs A",
+      "body": "The manuscript uses 'L' for the discrete operator in Sections 2.1 and 2.3, but switches to 'A' in Sections 2.2 (Eq. 4) and 2.4 (Eq. 10 and 11). While 'A' is common in linear algebra contexts, maintaining 'L' throughout Section 2 would better emphasize the physical origin of the system (Linearized Navier-Stokes) and avoid potential confusion when discussing the 'LsI' (L - sigma I) matrices mentioned in the implementation notes.",
+      "confidence": 0.95,
+      "priority": 3,
+      "location": "paper/manuscript.tex:78-110"
+    }
+  ],
+  "verdict": "incorrect",
+  "explanation": "The manuscript is technically a draft as it lacks actual results, data tables, and specific performance figures in Section 3, which are essential for validating the stated contributions. Additionally, the preconditioning strategy for the iterative solver—a key technical feature—is underspecified, and notation for the main operator is inconsistent between sections.",
+  "confidence": 0.95,
+  "edits": [
+    {
+      "location": "paper/manuscript.tex:76-80",
+      "rewrite": "With energy weighting $\\mathbf{W}$, gains are obtained from the eigenvalues of the resolvent gain operator\n\\begin{equation}\n\\mathbf{R}=\\mathbf{W}^{-1}\\mathbf{H}^{*}\\mathbf{W}\\mathbf{H},\n\\end{equation}\nwhere the square roots of the eigenvalues $\\lambda_j(\\mathbf{R})$ correspond to the singular values of the weighted resolvent $\\tilde{\\mathbf{H}} = \\mathbf{W}^{1/2} \\mathbf{H} \\mathbf{W}^{-1/2}$. This formulation is standard in nonmodal analysis and resolvent-based modeling \\cite{trefethen1993hydrodynamic,schmid2007nonmodal,mckeon2010critical}."
+    },
+    {
+      "location": "paper/manuscript.tex:103-107",
+      "rewrite": "Strategy B (scalable path) uses Krylov methods (typically GMRES or BiCGStab) with physics-aware preconditioning \\cite{saad2003iterative,benzi2002preconditioning}. For our 5-variable system, we employ a block-field-split approach ($PCFieldSplit$ in PETSc) to target the coupling between the momentum and energy equations."
+    }
+  ]
+}
+```

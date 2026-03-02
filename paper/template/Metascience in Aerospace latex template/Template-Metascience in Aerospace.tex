@@ -1,0 +1,171 @@
+\documentclass{aims}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{txfonts}
+\def\typeofarticle{Type of article}
+\def\currentvolume{1}
+\def\currentissue{x}
+\def\currentyear{2024}
+\def\currentmonth{Received date 1 July 2016, Accepted date 6 September}
+\def\ppages{xxx--xxx}
+\def\DOI{10.3934/mina.2022xxx}
+\def\Received{July 2022}
+\def\Revised{August 2022}
+\def\Accepted{September 2022}
+\def\Published{December 2022}
+\usepackage{lineno}
+
+\numberwithin{equation}{section}
+\DeclareMathOperator*{\essinf}{ess\,inf}
+\makeatletter
+\renewcommand{\@biblabel}[1]{#1\hfill \hspace{-0.2cm}}
+\makeatother
+
+
+\newcommand{\ep}{\varepsilon}
+\newcommand{\eps}[1]{{#1}_{\varepsilon}}
+
+\begin{document}
+\linenumbers
+
+\title{The full title of your paper}
+
+\author{%
+  First name Last name\affil{1}
+  First name Last name\affil{2}
+  and
+  First name Last name\affil{1,}\corrauth
+}
+
+% \shortauthors is used in copyright information in the end of the paper
+\shortauthors{the Author(s)}
+
+\address{%
+  \addr{\affilnum{1}}{Department of Mathematics, Missouri State University, 901 S. National, Springfield, MO 65897, USA}
+  \addr{\affilnum{2}}{Affiliation}}
+
+% corresponding author
+\corraddr{Email address of corresponding author; Tel: +1-111-111-1111;\\
+ Fax: +1-111-111-1111.
+}
+
+\begin{abstract}
+An abstract is a brief of the paper; the abstract should not 
+contain references, the text of the abstract section should be
+in 12 point normal Times New Roman.
+\textbf{(200 to 300 words)}
+\end{abstract}
+
+\keywords{
+\textbf{(5 to 10 keywords)}
+}
+
+\maketitle
+
+\section{Introduction}
+
+Please use the AIMS template to prepare your manuscript, 
+before you submit to our journal. 
+Please read carefully the instructions for authors at
+http://www.aimspress.com \cite{authour1}. 
+These are important instructions and explanations. 
+Thank you for your cooperation.
+
+
+\section{Materials and methods}
+\subsection{Subheading}
+
+\subsubsection{Sub-subheading}
+The heading levels should not be more than 4 levels. 
+The font of heading and subheadings should be 12 point 
+normal Times New Roman. The first letter of headings 
+and subheadings should be capitalized.
+
+\section{Results}
+The body text is in 12 point normal Times New Roman, 
+the line space is at least 15 point.
+ 
+\begin{table}[H]
+\begin{center}
+\caption{Caption of the table.}
+\begin{tabular}{ccc} \hline
+ & & \\\hline
+ & & \\
+ & & \\
+ & & \\\hline
+ &(Table body should be created by MS word table function; three-line table is preferred.)
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[scale=0.8]{figure.pdf}
+\caption{Legend of the figure.}
+\label{Fig1}
+\end{center}
+\end{figure}
+
+\begin{equation}
+  \text{[add an equation here; use MS Word or MathType equation function]}
+\end{equation}
+
+\section{Discussion}
+
+\section{Conclusions}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%          AI TOOLS, USE AND LOCATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%We follow COPE's guidelines and policies regarding the use of Artificial Intelligence (AI) tools. COPE Policy on AI tools can be found at https://publicationethics.org/cope-position-statements/ai-author.
+
+%Authors using AI tools in the writing of a manuscript, production of images or graphical elements of the paper, or in the collection and analysis of data, must be transparent in disclosing in this section how the AI tool was used and which tool was used. Authors are fully responsible for the content of their manuscript, even those parts produced by an AI tool, and are thus liable for any breach of publication ethics. - COPE
+
+%Disclosure instructions
+
+%If there is nothing to disclose, there is no need to add a declaration, otherwise please declare.
+
+%\section*{Use of AI tools declaration}
+%The author(s) declare(s) they have used Artificial Intelligence (AI) tools in the creation of this article.
+%AI tools used:
+%How were the AI tools used?
+%Where in the article is the information located?
+
+\section*{Use of AI tools declaration}
+The authors declare they have not used Artificial Intelligence (AI) tools in the creation of this article.
+
+\section*{Acknowledgments (All sources of funding of the study must be disclosed)}
+We would like to thank you for following the instructions above 
+very closely in advance. It will definitely save us lot of 
+time and expedite the process of your paper's publication.
+
+\section*{Conflict of interest}
+
+\begin{thebibliography}{999}
+
+\bibitem{authour1}
+     \newblock  \textbf{Journal article style:} Benoist Y, Foulon P, Labourie F, et al. (Year) Anosov flows with stable and unstable differentiable distributions.
+     \newblock \emph{ J Amer Math Soc}
+     \newblock  Volume: StaringPage{--\hspace*{-2mm}--}Ending Page.
+
+
+\bibitem{authour2}
+    \newblock \textbf{Book style:}
+    \newblock Serrin J, (1971) Gradient estimates for solutions of nonlinear elliptic and parabolic equations, In: Zarantonello, E.Z. Author,
+    \newblock \emph{Contributions to Nonlinear Functional Analysis},
+    \newblock  2 Eds., New York: Academic Press, 35{--\hspace*{-2mm}--}75.
+
+
+\bibitem{authour3}
+    \newblock \textbf{Online content:}
+    \newblock  SARS Expert Committee, SARS in Hong Kong: From Experience to Action. Hong Kong SARS Expert Committee, 2003. Available from: \\ \url{http://www.sars-expertcom.gov.hk/english/reports/reports.html.} 
+
+\end{thebibliography}
+
+
+For more questions regarding reference style, please refer to the \href{http://www.ncbi.nlm.nih.gov/books/NBK7256/}{Citing Medicine}.
+
+\section*{Supplementary (if necessary)}
+
+\end{document}

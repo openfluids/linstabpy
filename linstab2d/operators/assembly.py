@@ -1,7 +1,8 @@
 """LNSE operator assembly from coefficients and FD matrices.
 
 Translates GetLinProblem.m: assembles the 5*ngp × 5*ngp linear operator
-L0 such that dq/dt = L0 @ q, with q = [rho, u, v, w, T].
+L0 such that dq/dt = L0 @ q, with eig(i*L0) = omega_code = -omega_OS.
+Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
 """
 
 from __future__ import annotations

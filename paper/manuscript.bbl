@@ -1,0 +1,203 @@
+\begin{thebibliography}{30}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Schmid and Henningson(2001)]{schmid2001stability}
+Peter~J. Schmid and Dan~S. Henningson.
+\newblock \emph{Stability and Transition in Shear Flows}.
+\newblock Springer, 2001.
+
+\bibitem[Schmid(2007)]{schmid2007nonmodal}
+Peter~J. Schmid.
+\newblock Nonmodal stability theory.
+\newblock \emph{Annual Review of Fluid Mechanics}, 39:\penalty0 129--162, 2007.
+
+\bibitem[Trefethen et~al.(1993)Trefethen, Trefethen, Reddy, and
+  Driscoll]{trefethen1993hydrodynamic}
+Lloyd~N. Trefethen, Anne~E. Trefethen, Satish~C. Reddy, and Tobin~A. Driscoll.
+\newblock Hydrodynamic stability without eigenvalues.
+\newblock \emph{Science}, 261\penalty0 (5121):\penalty0 578--584, 1993.
+
+\bibitem[Theofilis(2011)]{theofilis2011global}
+Vassilis Theofilis.
+\newblock Global linear instability.
+\newblock \emph{Annual Review of Fluid Mechanics}, 43:\penalty0 319--352, 2011.
+
+\bibitem[Taira et~al.(2017)Taira, Brunton, Dawson, Rowley, Colonius, McKeon,
+  Schmidt, Gordeyev, Theofilis, and Ukeiley]{taira2017modal}
+Kunihiko Taira, Steven~L. Brunton, Scott T.~M. Dawson, Clarence~W. Rowley, Tim
+  Colonius, Beverley~J. McKeon, Oliver~T. Schmidt, Stanislav Gordeyev, Vassilis
+  Theofilis, and Lawrence~S. Ukeiley.
+\newblock Modal analysis of fluid flows: An overview.
+\newblock \emph{AIAA Journal}, 55\penalty0 (12):\penalty0 4013--4041, 2017.
+
+\bibitem[Taira et~al.(2020)Taira, Hemati, Brunton, Sun, Duraisamy, Bagheri,
+  Dawson, and Yeh]{taira2020modal}
+Kunihiko Taira, Maziar~S. Hemati, Steven~L. Brunton, Yiyang Sun, Karthik
+  Duraisamy, Shervin Bagheri, Scott T.~M. Dawson, and Chi-An Yeh.
+\newblock Modal analysis of fluid flows: Applications and outlook.
+\newblock \emph{AIAA Journal}, 58\penalty0 (3):\penalty0 998--1022, 2020.
+
+\bibitem[McKeon and Sharma(2010)]{mckeon2010critical}
+Beverley~J. McKeon and Ati Sharma.
+\newblock A critical-layer framework for turbulent pipe flow.
+\newblock \emph{Journal of Fluid Mechanics}, 658:\penalty0 336--382, 2010.
+
+\bibitem[Towne et~al.(2018)Towne, Schmidt, and Colonius]{towne2018spectral}
+Aaron Towne, Oliver~T. Schmidt, and Tim Colonius.
+\newblock Spectral proper orthogonal decomposition and its relationship to
+  dynamic mode decomposition and resolvent analysis.
+\newblock \emph{Journal of Fluid Mechanics}, 847:\penalty0 821--867, 2018.
+
+\bibitem[Chu(1965)]{chu1965energy}
+Boa-Teh Chu.
+\newblock On the energy transfer to small disturbances in fluid flow ({Part
+  I}).
+\newblock \emph{Acta Mechanica}, 1\penalty0 (3):\penalty0 215--234, 1965.
+
+\bibitem[Hanifi et~al.(1996)Hanifi, Schmid, and
+  Henningson]{hanifi1996compressible}
+Ardeshir Hanifi, Peter~J. Schmid, and Dan~S. Henningson.
+\newblock Compressible stability of growing boundary layers using the {PSE} and
+  comparison with experiment and linear stability theory.
+\newblock \emph{Theoretical and Computational Fluid Dynamics}, 8\penalty0
+  (3):\penalty0 219--235, 1996.
+
+\bibitem[Martini and Schmidt(2024)]{martini2024}
+Eduardo Martini and Oliver Schmidt.
+\newblock {Linstab2D}: stability and resolvent analysis of compressible viscous
+  flows in {MATLAB}.
+\newblock \emph{Flow, Turbulence and Combustion}, 2024.
+\newblock Published online 13 August 2024.
+
+\bibitem[Padovan et~al.(2025)Padovan, Anantharaman, Rowley, Vollmer, Colonius,
+  and Bodony]{padovan2025resolvent4py}
+Alberto Padovan, Vishal Anantharaman, Clarence~W. Rowley, Blaine Vollmer, Tim
+  Colonius, and Daniel~J. Bodony.
+\newblock Resolvent4py: An open-source package for stability, resolvent and
+  modal decomposition analyses in python.
+\newblock \emph{SoftwareX}, 31:\penalty0 102286, 2025.
+\newblock \doi{10.1016/j.softx.2025.102286}.
+
+\bibitem[Towne et~al.(2022)Towne, Lozano-Dur{\'a}n, and
+  Yang]{towne2022efficient}
+Aaron Towne, Adri{\'a}n Lozano-Dur{\'a}n, and Xiang Yang.
+\newblock Efficient global resolvent analysis via the one-way {Navier--Stokes}
+  equations.
+\newblock \emph{Journal of Fluid Mechanics}, 948:\penalty0 A9, 2022.
+
+\bibitem[Balay et~al.(2025)]{balay2025petsc}
+Satish Balay et~al.
+\newblock Petsc/tao users manual.
+\newblock \emph{Argonne National Laboratory}, 2025.
+\newblock ANL-95/11 - Revision 3.24.
+
+\bibitem[Hernandez et~al.(2005)Hernandez, Roman, and Vidal]{hernandez2005slepc}
+Vicente Hernandez, Jose~E. Roman, and Vicente Vidal.
+\newblock {SLEPc}: A scalable and flexible toolkit for the solution of
+  eigenvalue problems.
+\newblock \emph{ACM Transactions on Mathematical Software}, 31\penalty0
+  (3):\penalty0 351--362, 2005.
+
+\bibitem[Amestoy et~al.(2001)Amestoy, Duff, Koster, and
+  L'Excellent]{amestoy2001mumps}
+Patrick~R. Amestoy, Iain~S. Duff, Jacko Koster, and Jean-Yves L'Excellent.
+\newblock A fully asynchronous multifrontal solver using distributed dynamic
+  scheduling.
+\newblock \emph{SIAM Journal on Matrix Analysis and Applications}, 23\penalty0
+  (1):\penalty0 15--41, 2001.
+
+\bibitem[Saad(2003)]{saad2003iterative}
+Yousef Saad.
+\newblock \emph{Iterative Methods for Sparse Linear Systems}.
+\newblock SIAM, 2 edition, 2003.
+
+\bibitem[Benzi(2002)]{benzi2002preconditioning}
+Michele Benzi.
+\newblock Preconditioning techniques for large linear systems: a survey.
+\newblock \emph{Journal of Computational Physics}, 182\penalty0 (2):\penalty0
+  418--477, 2002.
+
+\bibitem[Frantz et~al.(2023)Frantz, Loiseau, and Robinet]{frantz2023krylov}
+Ricardo A.~S. Frantz, Jean-Christophe Loiseau, and Jean-Christophe Robinet.
+\newblock {Krylov} methods for large-scale dynamical systems: Application in
+  fluid dynamics.
+\newblock \emph{Applied Mechanics Reviews}, 75\penalty0 (3):\penalty0 030802,
+  2023.
+\newblock \doi{10.1115/1.4056808}.
+
+\bibitem[Kern et~al.(2026)Kern, Frantz, and Loiseau]{kern2026lightkrylov}
+J.~Simon Kern, Ricardo~S. Frantz, and Jean-Christophe Loiseau.
+\newblock {LightKrylov}: Lightweight implementation of {Krylov} subspace
+  techniques in modern {Fortran}.
+\newblock \emph{Journal of Open Source Software}, 11\penalty0 (117):\penalty0
+  9623, 2026.
+\newblock \doi{10.21105/joss.09623}.
+
+\bibitem[Malik(1990)]{malik1990numerical}
+Mujeeb~R. Malik.
+\newblock Numerical methods for hypersonic boundary layer stability.
+\newblock \emph{Journal of Computational Physics}, 86\penalty0 (2):\penalty0
+  376--413, 1990.
+
+\bibitem[Strand(1994)]{strand1994summation}
+Bo~Strand.
+\newblock Summation by parts for finite difference approximations for $d/dx$.
+\newblock \emph{Journal of Computational Physics}, 110\penalty0 (1):\penalty0
+  47--67, 1994.
+
+\bibitem[Mattsson and Nordstr{\"o}m(2004)]{mattsson2004summation}
+Ken Mattsson and Jan Nordstr{\"o}m.
+\newblock Summation by parts operators for finite difference approximations of
+  second derivatives.
+\newblock \emph{Journal of Computational Physics}, 199\penalty0 (2):\penalty0
+  503--540, 2004.
+
+\bibitem[Mohseni and Colonius(2000)]{mohseni2000numerical}
+Kamran Mohseni and Tim Colonius.
+\newblock Numerical treatment of polar coordinate singularities.
+\newblock \emph{Journal of Computational Physics}, 157\penalty0 (2):\penalty0
+  787--795, 2000.
+
+\bibitem[Lele(1992)]{lele1992compact}
+Sanjiva~K. Lele.
+\newblock Compact finite difference schemes with spectral-like resolution.
+\newblock \emph{Journal of Computational Physics}, 103\penalty0 (1):\penalty0
+  16--42, 1992.
+
+\bibitem[Visbal and Gaitonde(2002)]{visbal2002use}
+Miguel~R. Visbal and Datta~V. Gaitonde.
+\newblock On the use of higher-order finite-difference schemes on curvilinear
+  and deforming meshes.
+\newblock \emph{Journal of Computational Physics}, 181\penalty0 (1):\penalty0
+  155--185, 2002.
+
+\bibitem[Dolean et~al.(2015)Dolean, Jolivet, and Nataf]{dolean2015introduction}
+Victorita Dolean, Pierre Jolivet, and Fr{\'e}d{\'e}ric Nataf.
+\newblock \emph{An Introduction to Domain Decomposition Methods: Algorithms,
+  Theory, and Parallel Implementation}.
+\newblock SIAM, 2015.
+
+\bibitem[Squire and Trapp(1998)]{squire1998using}
+William Squire and George Trapp.
+\newblock Using complex variables to estimate derivatives of real functions.
+\newblock \emph{SIAM Review}, 40\penalty0 (1):\penalty0 110--112, 1998.
+
+\bibitem[Martins et~al.(2003)Martins, Sturdza, and Alonso]{martins2003complex}
+Joaquim R. R.~A. Martins, Peter Sturdza, and Juan~J. Alonso.
+\newblock The complex-step derivative approximation.
+\newblock \emph{ACM Transactions on Mathematical Software}, 29\penalty0
+  (3):\penalty0 245--262, 2003.
+
+\bibitem[Padovan(2026)]{resolvent4pycgl}
+Alberto Padovan.
+\newblock resolvent4py example gallery: Cgl.
+\newblock
+  \url{https://albertopadovan.github.io/resolvent4py/auto\_examples/cgl/index.html},
+  2026.
+\newblock Accessed 2026-03-01.
+
+\end{thebibliography}

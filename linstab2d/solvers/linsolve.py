@@ -103,6 +103,7 @@ def make_linear_solver(
     elif solver_type in {"iterative", "krylov", "petsc"}:
         ksp_type = os.getenv(f"{env_prefix}_KSP_TYPE", "fgmres").strip().lower()
         pc_type = os.getenv(f"{env_prefix}_PC_TYPE", "asm").strip().lower()
+        pc_side = os.getenv(f"{env_prefix}_KSP_PC_SIDE", "right").strip().lower()
         ksp_rtol = float(os.getenv(f"{env_prefix}_KSP_RTOL", "1e-10"))
         ksp_atol = float(os.getenv(f"{env_prefix}_KSP_ATOL", "1e-14"))
         ksp_max_it = int(os.getenv(f"{env_prefix}_KSP_MAX_IT", "20000"))
@@ -111,6 +112,16 @@ def make_linear_solver(
         sub_pc_type = os.getenv(f"{env_prefix}_SUB_PC_TYPE", "lu").strip().lower()
 
         ksp.setType(ksp_type)
+        if pc_side == "left":
+            ksp.setPCSide(PETSc.PC.Side.LEFT)
+        elif pc_side == "right":
+            ksp.setPCSide(PETSc.PC.Side.RIGHT)
+        elif pc_side in {"symmetric", "symm"}:
+            ksp.setPCSide(PETSc.PC.Side.SYMMETRIC)
+        else:
+            raise ValueError(
+                f"Invalid {env_prefix}_KSP_PC_SIDE '{pc_side}'; expected left|right|symmetric"
+            )
         pc.setType(pc_type)
         ksp.setTolerances(rtol=ksp_rtol, atol=ksp_atol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
@@ -124,6 +135,9 @@ def make_linear_solver(
                 sub_ksps = pc.getASMSubKSP() if pc_type == "asm" else pc.getBJacobiSubKSP()
                 for sub_ksp in sub_ksps:
                     sub_ksp.setType(sub_ksp_type)
+                    # Hard-stop on any local block Krylov divergence so iterative
+                    # runs cannot silently continue with invalid sub-solves.
+                    sub_ksp.setErrorIfNotConverged(True)
                     sub_pc = sub_ksp.getPC()
                     sub_pc.setType(sub_pc_type)
             except PETSc.Error:
@@ -133,11 +147,12 @@ def make_linear_solver(
         ksp.setFromOptions()
         ksp.setUp()
         logger.info(
-            "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, rtol=%g, max_it=%d)",
+            "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, side=%s, rtol=%g, max_it=%d)",
             n,
             operator.nnz,
             ksp_type,
             pc_type,
+            pc_side,
             ksp_rtol,
             ksp_max_it,
         )
