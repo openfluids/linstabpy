@@ -1,9 +1,11 @@
 """Tests for base flow loading and viscosity (Sutherland's law)."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
-from linstab2d.baseflow import BaseFlow, load_blasius, sutherland_air
+from linstab2d.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
 from linstab2d.mesh import Mesh
 
 
@@ -112,3 +114,39 @@ class TestBlasiusLoader:
         assert np.max(np.abs(residual)) < 0.1, (
             f"Continuity residual too large: {np.max(np.abs(residual)):.4e}"
         )
+
+
+def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
+    repo = Path(__file__).resolve().parents[1]
+    bundle = np.load(
+        repo / "tools/parity/npz/example_3_Streaky_BL_results_base.npz",
+        allow_pickle = False,
+    )
+
+    class _MeshView:
+        pass
+
+    mesh = _MeshView()
+    mesh.X = np.asarray(bundle["results_StreakyBL_base__mesh__X"], dtype=float)
+    mesh.Y = np.asarray(bundle["results_StreakyBL_base__mesh__Y"], dtype=float)
+
+    baseflow = load_streaky_bl(mesh)
+
+    np.testing.assert_allclose(
+        baseflow.U,
+        np.asarray(bundle["results_StreakyBL_base__baseFlow__U"], dtype=float),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        baseflow.V,
+        np.asarray(bundle["results_StreakyBL_base__baseFlow__V"], dtype=float),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        baseflow.W,
+        np.asarray(bundle["results_StreakyBL_base__baseFlow__W"], dtype=float),
+        rtol=1e-12,
+        atol=1e-12,
+    )
