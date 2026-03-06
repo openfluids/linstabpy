@@ -836,3 +836,23 @@ class TestMaskThenDeform:
             & (y_mi >= 0.3) & (y_mi <= 0.65)
         )
         assert np.any(cavity_adjacent), "no mi points near cavity boundary"
+
+
+def test_create_mesh_y_symmetry_matches_matlab_half_cell_shift():
+    mesh = Mesh.create(
+        xrange=(-1.0, 0.0),
+        yrange=(0.0, 1.0),
+        nx=100,
+        ny=100,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+
+    dy = 1.0 / (100 - 0.5)
+    expected_y0 = dy / 2.0
+    expected_y1 = expected_y0 + dy
+
+    assert mesh.Y[0, 0] == pytest.approx(expected_y0)
+    assert mesh.Y[1, 0] == pytest.approx(expected_y1)

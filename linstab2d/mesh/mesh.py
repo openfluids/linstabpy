@@ -163,12 +163,15 @@ class Mesh:
             x = np.linspace(xrange[0], xrange[1], nx + 1)[:-1]
         else:
             x = np.linspace(xrange[0], xrange[1], nx)
-        y = np.linspace(yrange[0], yrange[1], ny)
-        if y_symmetry and np.isclose(y[0], 0.0) and not np.isclose(y[-1], 0.0):
-            # Avoid a radial coordinate exactly at the axis for cylindrical
-            # meshes; MATLAb-style axisymmetric operators use pole stencils
-            # with a dy/2 interior first point.
-            y[0] = np.max([y[1] / 2.0, y[1] * 1e-14])
+        y_min, y_max = yrange
+        if y_symmetry and np.isclose(y_min, 0.0) and not np.isclose(y_max, 0.0):
+            # MATLAB CreateMesh does not simply overwrite the first point with
+            # ``dy/2``. It shortens the effective interval using
+            # ``dy = y_max / (ny - 0.5)`` and then builds the full linspace
+            # from ``dy/2`` to ``y_max``.
+            dy = y_max / (ny - 0.5)
+            y_min = y_min + dy / 2.0
+        y = np.linspace(y_min, y_max, ny)
         X, Y = np.meshgrid(x, y)  # shape (ny, nx)
 
         ny_full, nx_full = X.shape
