@@ -497,8 +497,8 @@ class TestInvBBlockInverse:
         ]
         return sp.bmat(blocks, format="csc")
 
-    def test_neg_inv_B_times_B_is_neg_identity(self):
-        """(-inv(B/1j)) @ (B/1j) = -I for random flow fields."""
+    def test_inv_B_times_B_is_identity(self):
+        """inv(B/1j) @ (B/1j) = I for random flow fields."""
         ngp = 10
         rng = np.random.default_rng(42)
         RHO = 1.0 + rng.random(ngp)
@@ -509,19 +509,19 @@ class TestInvBBlockInverse:
         kappa, Ma = 1.4, 0.5
 
         B = self._build_B_matrix(ngp, RHO, U, V, W, T, kappa, Ma)
-        # _apply_inv_B computes -inv(B/1j) @ L0; pass L0=I to get -inv(B/1j)
+        # _apply_inv_B computes inv(B/1j) @ L0; pass L0=I to get inv(B/1j)
         I_5n = sp.eye(5 * ngp, format="csc")
-        neg_inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
+        inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
 
-        product = (neg_inv_B @ B).toarray()
-        expected = -np.eye(5 * ngp)
+        product = (inv_B @ B).toarray()
+        expected = np.eye(5 * ngp)
         np.testing.assert_allclose(
             product, expected, atol=1e-12,
-            err_msg="(-inv(B/1j)) @ (B/1j) should equal -I",
+            err_msg="inv(B/1j) @ (B/1j) should equal I",
         )
 
     def test_cartesian_inv_B_diagonal(self):
-        """Cartesian inv(B) is diagonal: -diag(1, 1/RHO, 1/RHO, 1/RHO, 1/RHO)."""
+        """Cartesian inv(B) is diagonal: diag(1, 1/RHO, 1/RHO, 1/RHO, 1/RHO)."""
         ngp = 10
         rng = np.random.default_rng(99)
         RHO = 1.0 + rng.random(ngp)
@@ -532,16 +532,16 @@ class TestInvBBlockInverse:
         kappa, Ma = 1.4, 0.3
 
         I_5n = sp.eye(5 * ngp, format="csc")
-        neg_inv_B = _apply_inv_B(I_5n, "2d", ngp, RHO, U, V, W, T, kappa, Ma)
+        inv_B = _apply_inv_B(I_5n, "2d", ngp, RHO, U, V, W, T, kappa, Ma)
 
         # Should be diagonal
-        dense = neg_inv_B.toarray()
+        dense = inv_B.toarray()
         expected_diag = np.concatenate([
-            -np.ones(ngp),
-            -1.0 / RHO,
-            -1.0 / RHO,
-            -1.0 / RHO,
-            -1.0 / RHO,
+            np.ones(ngp),
+            1.0 / RHO,
+            1.0 / RHO,
+            1.0 / RHO,
+            1.0 / RHO,
         ])
         np.testing.assert_allclose(
             np.diag(dense), expected_diag, atol=1e-14,
@@ -561,28 +561,28 @@ class TestInvBBlockInverse:
         kappa, Ma = 1.4, 0.3
 
         I_5n = sp.eye(5 * ngp, format="csc")
-        neg_inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
-        dense = neg_inv_B.toarray()
+        inv_B = _apply_inv_B(I_5n, "axy", ngp, RHO, U, V, W, T, kappa, Ma)
+        dense = inv_B.toarray()
 
         # With zero velocity, off-diagonal of momentum rows vanish (U/RHO=0),
-        # and energy row simplifies: e40 = -T/RHO = -1
+        # and the energy row simplifies: e40 = -T/RHO = -1.
         cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
         # Expected diagonal
         expected_diag = np.concatenate([
-            -np.ones(ngp),       # rho
-            -np.ones(ngp),       # u: -1/RHO
-            -np.ones(ngp),       # v: -1/RHO
-            -np.ones(ngp),       # w: -1/RHO
-            -np.full(ngp, 1.0 / cv),  # T: -1/(RHO*cv)
+            np.ones(ngp),       # rho
+            np.ones(ngp),       # u: 1/RHO
+            np.ones(ngp),       # v: 1/RHO
+            np.ones(ngp),       # w: 1/RHO
+            np.full(ngp, 1.0 / cv),  # T: 1/(RHO*cv)
         ])
         np.testing.assert_allclose(np.diag(dense), expected_diag, atol=1e-14)
 
-        # -inv(B)[4,0] = -(inv(B)[4,0]) = -(KE_half/(RHO*cv) - T/RHO)
-        # With U=V=W=0: = -(0 - 1) = +1
+        # inv(B)[4,0] = KE_half/(RHO*cv) - T/RHO.
+        # With U=V=W=0: = 0 - 1 = -1
         for k in range(ngp):
             row_T = 4 * ngp + k
             col_rho = k
             np.testing.assert_allclose(
-                dense[row_T, col_rho], 1.0, atol=1e-14,
-                err_msg=f"-inv(B)[4,0] at gp {k}: expected +1 (U=V=W=0, T=RHO=1)",
+                dense[row_T, col_rho], -1.0, atol=1e-14,
+                err_msg=f"inv(B)[4,0] at gp {k}: expected -1 (U=V=W=0, T=RHO=1)",
             )

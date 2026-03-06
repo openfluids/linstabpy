@@ -61,7 +61,7 @@ def compute():
     yrange = (-1.0, 1.0)
     fd_order = 4
 
-    cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order)
+    cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter=0.0)
 
     # ---- Mesh deformation (Hanifi 1996 mapping) ----
     X = cmesh.X.copy()
@@ -124,7 +124,14 @@ def compute():
     # ---- Resolvent analysis ----
     t_resolvent = time.perf_counter()
     gains, responses, forcings = resolvent_analysis(
-        L0, omega, n_modes, W_diag, B_mat=B_mat, C_mat=C_mat
+        L0,
+        omega,
+        n_modes,
+        W_diag,
+        B_mat=B_mat,
+        C_mat=C_mat,
+        filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+        filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
     )
     t_resolvent = time.perf_counter() - t_resolvent
     print(

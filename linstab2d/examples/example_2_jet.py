@@ -138,6 +138,7 @@ def compute():
         fd_order,
         y_symmetry=True,
         x_periodicity=False,
+        alpha_filter=0.0,
     )
     X = np.meshgrid(z_1D_coarse, r_1D_coarse, indexing="xy")[0]
     Y = np.meshgrid(z_1D_coarse, r_1D_coarse, indexing="xy")[1]
@@ -177,11 +178,23 @@ def compute():
     )
 
     sponge0 = (mesh.sponge.ravel(order="F")[used_ind] == 0.0).astype(float)
+    # Match the MATLAB example literally: kron(B(:), ones(5,1)).
+    # This repeats each grid-point mask entry across the flattened 5-field
+    # vector in the same order as the reference workflow.
     B_diag = np.repeat(sponge0, 5)
     B_mat = sp.diags(B_diag).tocsc()
 
     t_resolvent = time.perf_counter()
-    gains, responses, forcings = resolvent_analysis(L0, omega, n_modes, W_diag, B_mat=B_mat, C_mat=B_mat)
+    gains, responses, forcings = resolvent_analysis(
+        L0,
+        omega,
+        n_modes,
+        W_diag,
+        B_mat=B_mat,
+        C_mat=B_mat,
+        filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+        filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+    )
     t_resolvent = time.perf_counter() - t_resolvent
     print(f"Resolvent gains: {gains}")
     print(f"Stage 1C timing: build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s")
