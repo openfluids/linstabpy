@@ -262,19 +262,29 @@ def _build_sbp_with_pole(n: int, dz: float, order: int):
     D2p = _mohseni_pole_stencil(a_i2, +1)
     D2m = _mohseni_pole_stencil(a_i2, -1)
 
-    D1_sym = D1.copy()
-    D1_asymm = D1.copy()
-    D2_sym = D2.copy()
-    D2_asymm = D2.copy()
+    # MATLAB builds the pole-closure operators from scratch using
+    # interior rows plus the plus-boundary closure only. Importantly, the
+    # rows ``w .. r-1`` remain interior rows, not the standard minus-boundary
+    # closure used by ``D1``/``D2``.
+    D1_sym = sp.lil_matrix((n, n))
+    D1_asymm = sp.lil_matrix((n, n))
+    D2_sym = sp.lil_matrix((n, n))
+    D2_asymm = sp.lil_matrix((n, n))
 
-    # MATLAB builds the pole-closure operators from interior + plus-boundary
-    # rows, then writes the first ``w`` rows from scratch. Clear those rows so
-    # no standard minus-boundary coefficients leak into the pole closure.
-    for j in range(w):
-        D1_sym[j, :] = 0.0
-        D1_asymm[j, :] = 0.0
-        D2_sym[j, :] = 0.0
-        D2_asymm[j, :] = 0.0
+    for j in range(w, n - r):
+        D1_sym[j, j - w : j + w + 1] = a_i1 / dz
+        D1_asymm[j, j - w : j + w + 1] = a_i1 / dz
+        D2_sym[j, j - w : j + w + 1] = a_i2 / dz**2
+        D2_asymm[j, j - w : j + w + 1] = a_i2 / dz**2
+
+    for j in range(n - r, n):
+        brow = n - 1 - j
+        for col_k in range(m):
+            col = n - 1 - col_k
+            D1_sym[j, col] = -a_b1[brow, col_k] / dz
+            D1_asymm[j, col] = -a_b1[brow, col_k] / dz
+            D2_sym[j, col] = a_b2[brow, col_k] / dz**2
+            D2_asymm[j, col] = a_b2[brow, col_k] / dz**2
 
     for j in range(w):
         src_sym = D1p[j, w - j : 2 * w + 1]
