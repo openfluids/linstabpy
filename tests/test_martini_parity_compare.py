@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from tools.parity.compare_martini_examples import _compare_cavity_case, compare_resolvent_case
+from tools.parity.compare_martini_examples import (
+    _compare_cavity_case,
+    _compare_streaky_bl_case,
+    compare_resolvent_case,
+)
 
 
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
@@ -114,3 +118,52 @@ def test_compare_cavity_case_uses_global_best_spectrum_pairs() -> None:
     assert report["adjoint"]["spectrum_max_abs_error"] < 1e-2
     assert report["direct"]["mode_max_rel_l2"] < 1e-12
     assert report["adjoint"]["mode_max_rel_l2"] < 1e-12
+
+
+def test_compare_streaky_bl_case_matches_temporal_modes_and_spatial_spectrum() -> None:
+    temporal_omega = np.array(
+        [0.1 + 0.2j, 0.3 + 0.4j, 0.5 + 0.6j],
+        dtype=complex,
+    )
+    spatial_alpha = np.array(
+        [0.7 + 0.1j, 0.8 + 0.2j, 0.9 + 0.3j],
+        dtype=complex,
+    )
+
+    temporal_modes_py = np.array(
+        [
+            [1.0 + 0.0j, 2.0 + 1.0j, 3.0 - 1.0j],
+            [0.5 + 0.5j, 1.5 - 0.5j, 2.5 + 0.0j],
+            [2.0 - 1.0j, 1.0 + 0.0j, 0.5 + 0.5j],
+            [1.5 + 0.5j, 0.5 - 0.5j, 1.0 + 1.0j],
+        ],
+        dtype=complex,
+    )
+    temporal_modes_mat = (temporal_modes_py * np.array([1j, -1j, np.exp(0.4j)])).T
+
+    report = _compare_streaky_bl_case(
+        python_npz={
+            "temporal_omega": temporal_omega,
+            "temporal_modes": temporal_modes_py,
+            "spatial_alpha": spatial_alpha,
+        },
+        matlab_temporal={
+            "results_StreakyBL_temporal__omega": temporal_omega,
+            "results_StreakyBL_temporal__V": temporal_modes_mat,
+        },
+        matlab_spatial={
+            "results_StreakyBL_spatial__alphas": spatial_alpha,
+        },
+        n_compare=3,
+        temporal_omega_key="results_StreakyBL_temporal/omega",
+        temporal_modes_key="results_StreakyBL_temporal/V",
+        spatial_alpha_key="results_StreakyBL_spatial/alphas",
+    )
+
+    assert report["temporal"]["selection_strategy"] == "global_best_match"
+    assert report["spatial"]["selection_strategy"] == "global_best_match"
+    assert report["temporal"]["spectrum_max_abs_error"] == 0.0
+    assert report["temporal"]["spectrum_max_rel_error"] == 0.0
+    assert report["temporal"]["mode_max_rel_l2"] < 1e-12
+    assert report["spatial"]["spectrum_max_abs_error"] == 0.0
+    assert report["spatial"]["spectrum_max_rel_error"] == 0.0

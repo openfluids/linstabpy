@@ -302,6 +302,69 @@ def _compare_cavity_case(
     }
 
 
+def _compare_streaky_bl_case(
+    *,
+    python_npz: dict[str, np.ndarray],
+    matlab_temporal: dict[str, np.ndarray],
+    matlab_spatial: dict[str, np.ndarray],
+    n_compare: int,
+    temporal_omega_key: str,
+    temporal_modes_key: str,
+    spatial_alpha_key: str,
+) -> dict[str, Any]:
+    omega_py = np.asarray(python_npz["temporal_omega"], dtype=complex).reshape(-1)
+    temporal_modes_py = _mode_matrix(python_npz["temporal_modes"])
+    omega_mat = _complex_vector(_npz_get(matlab_temporal, temporal_omega_key))
+    temporal_modes_mat = _mode_matrix(_npz_get(matlab_temporal, temporal_modes_key))
+
+    temporal_pairs = _best_spectrum_pairs(omega_mat, omega_py, n_compare)
+    temporal_rows = []
+    for mat_i, py_i, abs_err, rel_err in temporal_pairs:
+        ref = temporal_modes_mat[:, mat_i]
+        cand = temporal_modes_py[:, py_i]
+        cand = cand * _best_complex_scale(ref, cand)
+        temporal_rows.append(
+            {
+                "matlab_mode_index_1based": mat_i + 1,
+                "python_mode_index_1based": py_i + 1,
+                "eigenvalue_abs_error": abs_err,
+                "eigenvalue_rel_error": rel_err,
+                "rel_l2": _rel_l2(ref, cand),
+            }
+        )
+
+    alpha_py = np.asarray(python_npz["spatial_alpha"], dtype=complex).reshape(-1)
+    alpha_mat = _complex_vector(_npz_get(matlab_spatial, spatial_alpha_key))
+    spatial_pairs = _best_spectrum_pairs(alpha_mat, alpha_py, n_compare)
+    spatial_rows = [
+        {
+            "matlab_mode_index_1based": mat_i + 1,
+            "python_mode_index_1based": py_i + 1,
+            "eigenvalue_abs_error": abs_err,
+            "eigenvalue_rel_error": rel_err,
+        }
+        for mat_i, py_i, abs_err, rel_err in spatial_pairs
+    ]
+
+    return {
+        "temporal": {
+            "n_compare": len(temporal_rows),
+            "selection_strategy": "global_best_match",
+            "spectrum_max_abs_error": float(max(row["eigenvalue_abs_error"] for row in temporal_rows)),
+            "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in temporal_rows)),
+            "mode_max_rel_l2": float(max(row["rel_l2"] for row in temporal_rows)),
+            "per_mode": temporal_rows,
+        },
+        "spatial": {
+            "n_compare": len(spatial_rows),
+            "selection_strategy": "global_best_match",
+            "spectrum_max_abs_error": float(max(row["eigenvalue_abs_error"] for row in spatial_rows)),
+            "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in spatial_rows)),
+            "per_mode": spatial_rows,
+        },
+    }
+
+
 def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
     status = "HARD_FAIL"
     note = str(case.get("note", ""))
@@ -397,6 +460,42 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             base["metrics"] = report
             return base
 
+        if comparison_kind == "streaky_bl":
+            temporal_path = npz_dir / f"{case['matlab_temporal_stem']}.npz"
+            spatial_path = npz_dir / f"{case['matlab_spatial_stem']}.npz"
+            paths = [temporal_path, spatial_path]
+            if "matlab_base_stem" in case:
+                paths.append(npz_dir / f"{case['matlab_base_stem']}.npz")
+            if "matlab_logs_stem" in case:
+                paths.append(npz_dir / f"{case['matlab_logs_stem']}.npz")
+            missing = [path for path in paths if not path.exists()]
+            if missing:
+                raise FileNotFoundError(
+                    f"Missing MATLAB NPZ bundle(s) for {base['case_id']}: "
+                    + ", ".join(str(path) for path in missing)
+                )
+            report = _compare_streaky_bl_case(
+                python_npz=python_npz,
+                matlab_temporal=_load_npz_dict(temporal_path),
+                matlab_spatial=_load_npz_dict(spatial_path),
+                n_compare=int(case.get("n_compare", 10)),
+                temporal_omega_key=str(case["matlab_temporal_omega_key"]),
+                temporal_modes_key=str(case["matlab_temporal_modes_key"]),
+                spatial_alpha_key=str(case["matlab_spatial_alpha_key"]),
+            )
+            tol = dict(case.get("tolerances", {}))
+            passed = (
+                report["temporal"]["spectrum_max_abs_error"] <= float(tol.get("temporal_spectrum_abs", np.inf))
+                and report["temporal"]["spectrum_max_rel_error"] <= float(tol.get("temporal_spectrum_rel", np.inf))
+                and report["temporal"]["mode_max_rel_l2"] <= float(tol.get("temporal_mode_rel", np.inf))
+                and report["spatial"]["spectrum_max_abs_error"] <= float(tol.get("spatial_spectrum_abs", np.inf))
+                and report["spatial"]["spectrum_max_rel_error"] <= float(tol.get("spatial_spectrum_rel", np.inf))
+            )
+            base["matlab_npz"] = [str(path.relative_to(ROOT)) for path in paths]
+            base["status"] = "PASS" if passed else "SOFT_FAIL"
+            base["metrics"] = report
+            return base
+
         base["note"] = f"Unsupported comparison_kind={comparison_kind!r}"
         return base
     except Exception as exc:
@@ -421,6 +520,11 @@ def _csv_row(case: dict[str, Any]) -> dict[str, Any]:
         "adjoint_spec_max_abs": "",
         "adjoint_spec_max_rel": "",
         "adjoint_mode_max_rel_l2": "",
+        "temporal_spec_max_abs": "",
+        "temporal_spec_max_rel": "",
+        "temporal_mode_max_rel_l2": "",
+        "spatial_spec_max_abs": "",
+        "spatial_spec_max_rel": "",
         "matlab_df_linf": "",
         "matlab_df_rel_l2": "",
         "python_protocol_pass": "",
@@ -439,6 +543,12 @@ def _csv_row(case: dict[str, Any]) -> dict[str, Any]:
         row["adjoint_spec_max_abs"] = metrics["adjoint"]["spectrum_max_abs_error"]
         row["adjoint_spec_max_rel"] = metrics["adjoint"]["spectrum_max_rel_error"]
         row["adjoint_mode_max_rel_l2"] = metrics["adjoint"]["mode_max_rel_l2"]
+    if "temporal" in metrics:
+        row["temporal_spec_max_abs"] = metrics["temporal"]["spectrum_max_abs_error"]
+        row["temporal_spec_max_rel"] = metrics["temporal"]["spectrum_max_rel_error"]
+        row["temporal_mode_max_rel_l2"] = metrics["temporal"]["mode_max_rel_l2"]
+        row["spatial_spec_max_abs"] = metrics["spatial"]["spectrum_max_abs_error"]
+        row["spatial_spec_max_rel"] = metrics["spatial"]["spectrum_max_rel_error"]
     if "matlab_df_linf" in metrics:
         row["matlab_df_linf"] = metrics["matlab_df_linf"]
         row["matlab_df_rel_l2"] = metrics["matlab_df_rel_l2"]
