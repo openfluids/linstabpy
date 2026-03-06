@@ -331,8 +331,12 @@ class Mesh:
             if self.y_symmetry and _is_separable_axis_deformation(X_new, Y_new):
                 x_mesh = self.deform(X_new=X_new)
                 _, _, _, _, _, _, _, \
-                    _, _, Dy_asymm_seq, D2y_asymm_seq, \
-                    _, _, Dxy_asymm_seq, Dyx_asymm_seq = x_mesh._deform_y_only(Y_new, p)
+                    Dy_symm_seq, D2y_symm_seq, Dy_asymm_seq, D2y_asymm_seq, \
+                    Dxy_symm_seq, Dyx_symm_seq, Dxy_asymm_seq, Dyx_asymm_seq = x_mesh._deform_y_only(Y_new, p)
+                Dy_symm_new = Dy_symm_seq
+                D2y_symm_new = D2y_symm_seq
+                Dxy_symm_new = Dxy_symm_seq
+                Dyx_symm_new = Dyx_symm_seq
                 Dy_asymm_new = Dy_asymm_seq
                 D2y_asymm_new = D2y_asymm_seq
                 Dxy_asymm_new = Dxy_asymm_seq

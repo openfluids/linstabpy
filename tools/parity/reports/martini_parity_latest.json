@@ -106,30 +106,30 @@
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 3.4829726622864428,
-          "max_rel_error": 0.008459815294209907
+          "max_abs_error": 0.8333762691312359,
+          "max_rel_error": 0.002024193122090088
         },
         "modes": {
-          "max_forcing_rel_l2": 0.10207228362397233,
-          "max_response_rel_l2": 0.007961368893562389,
+          "max_forcing_rel_l2": 0.001898149005946185,
+          "max_response_rel_l2": 0.001054887932125743,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.049154409957963455,
+              "forcing_rel_l2": 0.001898149005946185,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.001425707729372588
+              "response_rel_l2": 0.001054887932125743
             },
             {
-              "forcing_rel_l2": 0.09722298615446644,
+              "forcing_rel_l2": 0.000898761766392206,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.006357996882146511
+              "response_rel_l2": 0.0004105399525006677
             },
             {
-              "forcing_rel_l2": 0.10207228362397233,
+              "forcing_rel_l2": 0.0008153800475753511,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.007961368893562389
+              "response_rel_l2": 0.0005367857292208168
             }
           ]
         },
@@ -468,6 +468,6 @@
   "counts": {
     "SOFT_FAIL": 6
   },
-  "generated_at_utc": "2026-03-06T20:34:09.378068+00:00",
+  "generated_at_utc": "2026-03-06T20:51:20.967858+00:00",
   "npz_dir": "$HOME/Documents/projects/linstab2d/tools/parity/npz"
 }

@@ -677,6 +677,23 @@ class TestPoleStencils:
             err_msg="D1_sym interior rows differ from standard D1",
         )
 
+    def test_pole_order4_keeps_first_interior_rows_as_interior(self):
+        """Order-4 pole matrices keep rows w..r-1 on the interior stencil."""
+        n = 40
+        dz = 1.0 / (n - 0.5)
+        stencils = sbp_stencils(4)
+        a_i1 = stencils["a_i1"]
+        a_i2 = stencils["a_i2"]
+        w = (len(a_i1) - 1) // 2
+
+        D1_sym, D1_asymm, D2_sym, D2_asymm = build_sbp_pole_matrices(n, dz, 4)
+        for row in [w, w + 1]:
+            cols = slice(row - w, row + w + 1)
+            np.testing.assert_allclose(D1_sym[row, cols].toarray().ravel(), a_i1 / dz, atol=1e-13)
+            np.testing.assert_allclose(D1_asymm[row, cols].toarray().ravel(), a_i1 / dz, atol=1e-13)
+            np.testing.assert_allclose(D2_sym[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11)
+            np.testing.assert_allclose(D2_asymm[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11)
+
 
 # ===================================================================
 # TestPeriodicOperators
@@ -879,7 +896,7 @@ def test_create_mesh_y_symmetry_uses_pole_stencils_after_half_cell_shift():
     np.testing.assert_allclose(mesh.D2y_asymm[:ny, :ny].toarray(), D2_asym.toarray())
 
 
-def test_deform_separable_xy_reuses_asymm_y_only_family():
+def test_deform_separable_xy_reuses_symmetry_y_only_family():
     base = Mesh.create(
         xrange=(0.0, 1.0),
         yrange=(0.0, 1.0),
@@ -897,6 +914,10 @@ def test_deform_separable_xy_reuses_asymm_y_only_family():
     full = base.deform(X_new=X_new, Y_new=Y_new)
     seq = base.deform(X_new=X_new).deform(Y_new=Y_new)
 
+    np.testing.assert_allclose(full.Dy_symm.toarray(), seq.Dy_symm.toarray())
+    np.testing.assert_allclose(full.D2y_symm.toarray(), seq.D2y_symm.toarray())
+    np.testing.assert_allclose(full.Dxy_symm.toarray(), seq.Dxy_symm.toarray())
+    np.testing.assert_allclose(full.Dyx_symm.toarray(), seq.Dyx_symm.toarray())
     np.testing.assert_allclose(full.Dy_asymm.toarray(), seq.Dy_asymm.toarray())
     np.testing.assert_allclose(full.D2y_asymm.toarray(), seq.D2y_asymm.toarray())
     np.testing.assert_allclose(full.Dxy_asymm.toarray(), seq.Dxy_asymm.toarray())
