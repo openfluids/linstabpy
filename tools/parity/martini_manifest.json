@@ -644,15 +644,8 @@
       "stem": "example_5_Paraboloid_results"
     }
   ],
-  "generated_at_utc": "2026-03-06T20:21:51.146297+00:00",
+  "generated_at_utc": "2026-03-06T20:33:59.305600+00:00",
   "input_dir": "$HOME/Documents/projects/linstab2d/martini_examples",
-  "notes": [
-    {
-      "case_id": "example_3_streaky_bl",
-      "label": "Example 3: streaky boundary layer",
-      "note": "No corresponding MATLAB exports are present under martini_examples/ for this bundle.",
-      "status": "UNAVAILABLE"
-    }
-  ],
+  "notes": [],
   "output_dir": "$HOME/Documents/projects/linstab2d/tools/parity/npz"
 }
