@@ -44,6 +44,11 @@ def _log(message: str) -> None:
         print(f"[example_6_hamada] {message}", flush=True)
 
 
+def _log_stage(stage: str, stage_start: float) -> None:
+    """Emit a machine-parseable stage timing line."""
+    _log(f"stage complete: stage={stage} elapsed={time.perf_counter() - stage_start:.2f}s")
+
+
 def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty: float) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply the Hamada boundary-condition recipe used in the MATLAB case.
 
@@ -177,11 +182,20 @@ def compute() -> None:
         f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs} "
         f"alpha_filter={alpha_filter} matlab_sponge_aux={use_matlab_sponge_aux}"
     )
+    _log(
+        "solver setup: "
+        f"mpi_ranks={size} "
+        f"st_solver={st_solver} "
+        f"resolvent_solver={os.getenv('LINSTAB2D_RESOLVENT_TYPE', 'mumps').strip().lower()} "
+        f"root_assembly={use_root_operator} "
+        f"matrix_mode={os.getenv('LINSTAB2D_PETSC_MATRIX_MODE', 'auto')}"
+    )
 
     # ------------------------------------------------------------------
     # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
     #    compute viscosity/transport via Sutherland law.
     # ------------------------------------------------------------------
+    stage_start = time.perf_counter()
     X, Y, baseflow, sponge = load_hamada_case(
         case_dir,
         Re=Re,
@@ -205,10 +219,12 @@ def compute() -> None:
         f"loaded case arrays: shape={X.shape}, points={X.size}, "
         f"sponge_max={float(np.max(sponge)):.3g}, sponge_nnz={int(np.count_nonzero(sponge))}"
     )
+    _log_stage("load_case", stage_start)
 
     # ------------------------------------------------------------------
     # 3) Build a computational mesh, then deform it to physical X/Y.
     # ------------------------------------------------------------------
+    stage_start = time.perf_counter()
     ny, nx = X.shape
     cmesh = Mesh.create(
         (0.0, 1.0),
@@ -220,6 +236,7 @@ def compute() -> None:
     )
     mesh = cmesh.deform(X_new=X, Y_new=Y)
     mesh.sponge = sponge
+    _log_stage("build_mesh", stage_start)
 
     # ------------------------------------------------------------------
     # 4) Assemble LNSE operator and impose boundary conditions.
@@ -239,21 +256,27 @@ def compute() -> None:
         }
         bc_indices = np.array([], dtype=np.int64)
     else:
+        stage_start = time.perf_counter()
         _log("assembling LNSE operator")
         L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
         _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
+        _log_stage("assemble_operator", stage_start)
+        stage_start = time.perf_counter()
         L0, bc_indices = _bc_setup(mesh, idx, L0, penalty)
         _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
+        _log_stage("apply_bc", stage_start)
 
     # ------------------------------------------------------------------
     # 5) Build Chu energy norm weights. These weights are required for
     #    weighted analyses (resolvent and temporal formulation).
     # ------------------------------------------------------------------
+    stage_start = time.perf_counter()
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]
     RHO_p = baseflow.RHO.ravel(order="F")[p]
     T_p = baseflow.T.ravel(order="F")[p]
     W_diag, invW_diag = compute_chu_norm(W_int, RHO_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp)
+    _log_stage("compute_chu_norm", stage_start)
 
     gains = np.array([], dtype=float)
     responses = np.empty((mesh.ngp * 5, 0), dtype=complex)
@@ -263,6 +286,7 @@ def compute() -> None:
     # 6) Optional resolvent analysis at omega_target.
     # ------------------------------------------------------------------
     if run_resolvent:
+        stage_start = time.perf_counter()
         _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[bc_indices] = 0.0
@@ -279,6 +303,7 @@ def compute() -> None:
             filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
         )
         _log("resolvent analysis finished")
+        _log_stage("resolvent", stage_start)
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
@@ -289,6 +314,7 @@ def compute() -> None:
     #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
     # ------------------------------------------------------------------
     if run_stability:
+        stage_start = time.perf_counter()
         if use_raw_eigs:
             _log(
                 "running raw eigensolve on L0 "
@@ -314,11 +340,13 @@ def compute() -> None:
                 W_diag=W_diag,
             )
         _log(f"stability analysis finished: converged_modes={omega.size}")
+        _log_stage("stability", stage_start)
 
     # ------------------------------------------------------------------
     # 8) Save full run state to one NPZ for downstream parity/plots.
     # ------------------------------------------------------------------
     if rank == 0:
+        stage_start = time.perf_counter()
         np.savez_compressed(
             OUTPUT_NPZ,
             omega=omega,
@@ -348,6 +376,7 @@ def compute() -> None:
             W_diag=W_diag,
             invW_diag=invW_diag,
         )
+        _log_stage("save_results", stage_start)
     elapsed = time.perf_counter() - t0
     _log(f"results saved to {OUTPUT_NPZ}")
     _log(f"compute finished in {elapsed:.2f}s")

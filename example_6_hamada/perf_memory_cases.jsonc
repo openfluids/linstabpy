@@ -1,0 +1,103 @@
+{
+  // Hamada efficiency harness cases.
+  // Enable one or more entries below, then run:
+  //   ./.venv/bin/python tools/parity/perf_memory_hamada.py
+  //
+  // Each case launches the canonical example_6_hamada.compute() pipeline in a
+  // child process, monitors wall time and peak process-tree RSS, parses nnz
+  // from the real log stream, and stores a copy of example_6_hamada.npz.
+
+  "outputs": {
+    "report_json": "artifacts/hamada_perf_memory_latest.json",
+    "report_csv": "artifacts/hamada_perf_memory_table.csv",
+    "log_dir": "artifacts/logs",
+    "run_dir": "artifacts/runs"
+  },
+
+  "defaults": {
+    // Sampling interval for process-tree RSS monitoring.
+    "monitor_interval_seconds": 0.5,
+
+    // Python executable used to launch the child run.
+    "python_exe": "./.venv/bin/python",
+
+    // Baseline environment for all cases. Override per case only when needed.
+    "env": {
+      "LINSTAB2D_HAMADA_CONFIG": "example_6_hamada/parity_config.jsonc",
+      "LINSTAB2D_HAMADA_CASE_DIR": "example_6_hamada",
+      "LINSTAB2D_HAMADA_CASE_INPUTS_MAT": "example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat",
+      "LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS": "1",
+      "LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX": "1",
+      "LINSTAB2D_HAMADA_ALPHA_FILTER": "0.0",
+
+      // Default robust direct-solver baseline.
+      "LINSTAB2D_EIGEN_ST_SOLVER": "mumps",
+      "LINSTAB2D_RESOLVENT_TYPE": "mumps"
+    },
+
+    // Launcher defaults. For MPI runs, set e.g. launcher="mpiexec" and
+    // mpi_procs>1 in the case entry.
+    "launcher": {
+      "mpi_procs": 1,
+      "launcher": ""
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "hamada_stability_stride_12",
+      "label": "Hamada stability, reduced grid for local verification",
+      "enabled": true,
+      "stride_ksi": 12,
+      "stride_eta": 12,
+      "run_stability": true,
+      "run_resolvent": false,
+      "n_modes_stability": 10
+    },
+    {
+      "case_id": "hamada_resolvent_stride_12",
+      "label": "Hamada resolvent, reduced grid for local verification",
+      "enabled": false,
+      "stride_ksi": 12,
+      "stride_eta": 12,
+      "run_stability": false,
+      "run_resolvent": true,
+      "n_modes_resolvent": 3
+    },
+    {
+      "case_id": "hamada_stability_stride_1",
+      "label": "Hamada full-grid stability baseline",
+      "enabled": false,
+      "stride_ksi": 1,
+      "stride_eta": 1,
+      "run_stability": true,
+      "run_resolvent": false,
+      "n_modes_stability": 30
+    },
+    {
+      "case_id": "hamada_resolvent_stride_1",
+      "label": "Hamada full-grid resolvent baseline",
+      "enabled": false,
+      "stride_ksi": 1,
+      "stride_eta": 1,
+      "run_stability": false,
+      "run_resolvent": true,
+      "n_modes_resolvent": 5
+    },
+    {
+      "case_id": "hamada_stability_stride_1_iterative",
+      "label": "Hamada full-grid stability with iterative ST solve",
+      "enabled": false,
+      "stride_ksi": 1,
+      "stride_eta": 1,
+      "run_stability": true,
+      "run_resolvent": false,
+      "n_modes_stability": 30,
+      "env": {
+        "LINSTAB2D_EIGEN_ST_SOLVER": "iterative",
+        "LINSTAB2D_EIGEN_KSP_TYPE": "fgmres",
+        "LINSTAB2D_EIGEN_PC_TYPE": "asm"
+      }
+    }
+  ]
+}
