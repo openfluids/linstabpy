@@ -32,6 +32,7 @@ def compute():
     n_modes = env_int("LINSTAB2D_CAVITY_N_MODES", 50)
     n_plot = min(3, n_modes)
     beta = 0.0
+    arnoldi_ncv = env_int("LINSTAB2D_CAVITY_NCV", 300)
 
     Nx = env_int("LINSTAB2D_CAVITY_NX", 241)
     Ny = env_int("LINSTAB2D_CAVITY_NY", 101)
@@ -120,6 +121,7 @@ def compute():
         n_modes,
         omega_target,
         W_diag=W_diag,
+        ncv=arnoldi_ncv,
     )
     omega_adj_target = 1j * np.conj(omega_target)
     omega_adj, adjoint_modes = adjoint_eigenvalues(
@@ -128,6 +130,7 @@ def compute():
         omega_adj_target,
         W_diag,
         invW_diag,
+        ncv=arnoldi_ncv,
     )
 
     np.savez_compressed(

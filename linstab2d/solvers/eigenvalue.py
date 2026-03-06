@@ -103,10 +103,25 @@ def _warn_if_shifted_operator_is_ill_conditioned(
         )
 
 
+def _resolve_ncv(
+    *,
+    ndof: int,
+    n_modes: int,
+    default_ncv: int,
+    requested_ncv: int | None,
+) -> int:
+    """Choose a valid Arnoldi subspace size for SLEPc EPS."""
+    max_ncv = max(1, ndof - 1)
+    ncv = default_ncv if requested_ncv is None else int(requested_ncv)
+    return min(max(ncv, n_modes + 1), max_ncv)
+
+
 def _eigs_near_target(
     operator: sp.csc_matrix,
     n_modes: int,
     target: complex,
+    *,
+    ncv: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
     require_complex()
@@ -141,9 +156,13 @@ def _eigs_near_target(
     eps.setOperators(A)
     eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
-    # Match MATLAB eigs default used in Hamada workflow:
-    # opts.p = 2*nEig + 3
-    ncv = min(max(2 * n_modes + 3, 30), ndof - 1)
+    default_ncv = min(max(2 * n_modes + 3, 30), ndof - 1)
+    ncv = _resolve_ncv(
+        ndof=ndof,
+        n_modes=n_modes,
+        default_ncv=default_ncv,
+        requested_ncv=ncv,
+    )
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
@@ -278,6 +297,7 @@ def temporal_eigenvalues(
     n_modes: int,
     target: float | complex,
     W_diag: np.ndarray | None = None,
+    ncv: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
 
@@ -295,6 +315,9 @@ def temporal_eigenvalues(
         Target eigenvalue for the shift-invert search.
     W_diag:
         Optional weight vector for normalising eigenvectors in ``v^H W v``.
+    ncv:
+        Optional Arnoldi subspace dimension. When omitted, use the generic
+        default ``max(2*n_modes+3, 30)`` clipped to the matrix size.
 
     Returns
     -------
@@ -307,7 +330,12 @@ def temporal_eigenvalues(
 
     temporal_operator = 1j * operator
     omega = complex(target)
-    eigenvalues, eigenvectors = _eigs_near_target(temporal_operator, n_modes, omega)
+    eigenvalues, eigenvectors = _eigs_near_target(
+        temporal_operator,
+        n_modes,
+        omega,
+        ncv=ncv,
+    )
     eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
 
     if W_diag is not None:
@@ -352,6 +380,7 @@ def adjoint_eigenvalues(
     target: float | complex,
     W_diag: np.ndarray,
     invW_diag: np.ndarray,
+    ncv: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute adjoint temporal eigenvalues near a target with W weighting.
 
@@ -362,7 +391,12 @@ def adjoint_eigenvalues(
     adjoint_op = _build_adjoint_operator(operator, W_diag, invW_diag)
 
     omega = complex(target)
-    eigenvalues, eigenvectors = _eigs_near_target(adjoint_op, n_modes, omega)
+    eigenvalues, eigenvectors = _eigs_near_target(
+        adjoint_op,
+        n_modes,
+        omega,
+        ncv=ncv,
+    )
     eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
     eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
 

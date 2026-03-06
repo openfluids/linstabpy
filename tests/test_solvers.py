@@ -16,6 +16,8 @@ from linstab2d.solvers import (
     adjoint_eigenvalues,
     spatial_eigenvalues,
 )
+from linstab2d.solvers.eigenvalue import _resolve_ncv as _resolve_temporal_ncv
+from linstab2d.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 
 
 @pytest.fixture
@@ -40,6 +42,18 @@ def blasius_problem():
     W_diag, invW_diag = compute_chu_norm(W_int, RHO, T, bf.kappa, bf.Ma, ngp)
 
     return mesh, bf, L0, idx, ngp, W_diag, invW_diag
+
+
+def test_temporal_resolve_ncv_respects_requested_subspace() -> None:
+    assert _resolve_temporal_ncv(ndof=1000, n_modes=50, default_ncv=103, requested_ncv=300) == 300
+    assert _resolve_temporal_ncv(ndof=1000, n_modes=50, default_ncv=103, requested_ncv=40) == 51
+    assert _resolve_temporal_ncv(ndof=120, n_modes=50, default_ncv=103, requested_ncv=300) == 119
+
+
+def test_spatial_resolve_ncv_respects_requested_subspace() -> None:
+    assert _resolve_spatial_ncv(ndof=1000, n_modes=50, default_ncv=200, requested_ncv=300) == 300
+    assert _resolve_spatial_ncv(ndof=1000, n_modes=50, default_ncv=200, requested_ncv=10) == 51
+    assert _resolve_spatial_ncv(ndof=120, n_modes=50, default_ncv=200, requested_ncv=300) == 119
 
 
 # ---------------------------------------------------------------------------
@@ -353,4 +367,3 @@ class TestCylindricalSpatialEigenvalues:
         assert np.all(np.isfinite(alpha)), f"Non-finite eigenvalues: {alpha}"
         for i in range(modes.shape[1]):
             assert np.linalg.norm(modes[:, i]) > 0, f"Zero eigenvector at mode {i}"
-

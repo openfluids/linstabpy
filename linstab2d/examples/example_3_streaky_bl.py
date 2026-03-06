@@ -48,6 +48,7 @@ def _compute():
     omega_tar = 0.5498 + 1.1j
     alpha_target = alpha_temp
     n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
+    arnoldi_ncv = env_int("LINSTAB2D_STREAKY_NCV", 1500)
 
     xrange = (0.0, Lx)
     yrange = (-1.0, 1.0)
@@ -99,6 +100,7 @@ def _compute():
         n_modes,
         omega_tar,
         W_diag=W_diag,
+        ncv=arnoldi_ncv,
     )
 
     # Spatial generalized EVP in alpha
@@ -116,6 +118,7 @@ def _compute():
         omega_spatial,
         n_modes,
         alpha_target,
+        ncv=arnoldi_ncv,
     )
 
     np.savez_compressed(
