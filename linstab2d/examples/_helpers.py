@@ -139,3 +139,15 @@ def to_grid(
     flat = np.full(int(np.prod(shape)), np.nan, dtype=complex)
     flat[np.asarray(used_indices)] = np.asarray(values)
     return flat.reshape(shape, order="F")
+
+
+def leading_mode_real_frequency(
+    omega: np.ndarray,
+    imag_shift: float = 0.0,
+) -> complex:
+    """Return the real part of the least-damped mode plus an imag shift."""
+    values = np.asarray(omega, dtype=complex).reshape(-1)
+    if values.size == 0:
+        raise ValueError("omega must contain at least one eigenvalue")
+    lead = values[int(np.argmax(np.imag(values)))]
+    return complex(float(np.real(lead)), float(imag_shift))

@@ -6,6 +6,7 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 from linstab2d.mesh import Mesh
+from linstab2d.examples._helpers import leading_mode_real_frequency
 from linstab2d.utils import reconstruct_floquet, plot_flow
 
 
@@ -120,3 +121,14 @@ class TestPlotFlow:
         from matplotlib.collections import QuadMesh
         has_quadmesh = any(isinstance(c, QuadMesh) for c in ax.collections)
         assert not has_quadmesh, "NaN field fell back to pcolormesh"
+
+
+def test_leading_mode_real_frequency_uses_least_damped_mode() -> None:
+    omega = np.array([0.62 - 0.01j, 0.59 + 0.02j, 0.58 + 0.01j], dtype=complex)
+    selected = leading_mode_real_frequency(omega, imag_shift=0.03)
+    assert selected == complex(0.59, 0.03)
+
+
+def test_leading_mode_real_frequency_rejects_empty_input() -> None:
+    with pytest.raises(ValueError):
+        leading_mode_real_frequency(np.array([], dtype=complex))
