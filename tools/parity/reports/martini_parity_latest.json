@@ -106,30 +106,30 @@
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 9.455461551118049,
-          "max_rel_error": 0.02296643298700219
+          "max_abs_error": 3.4829726622864428,
+          "max_rel_error": 0.008459815294209907
         },
         "modes": {
-          "max_forcing_rel_l2": 0.3816812793659535,
-          "max_response_rel_l2": 0.012137121107053584,
+          "max_forcing_rel_l2": 0.10207228362397233,
+          "max_response_rel_l2": 0.007961368893562389,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.3816812793659535,
+              "forcing_rel_l2": 0.049154409957963455,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.004093374735711918
+              "response_rel_l2": 0.001425707729372588
             },
             {
-              "forcing_rel_l2": 0.13925822230780202,
+              "forcing_rel_l2": 0.09722298615446644,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.00988905230338328
+              "response_rel_l2": 0.006357996882146511
             },
             {
-              "forcing_rel_l2": 0.14605459771033755,
+              "forcing_rel_l2": 0.10207228362397233,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.012137121107053584
+              "response_rel_l2": 0.007961368893562389
             }
           ]
         },
@@ -274,30 +274,30 @@
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 0.001269082873559313,
-          "max_rel_error": 0.00020366627936518582
+          "max_abs_error": 0.0023699868301276794,
+          "max_rel_error": 0.0003429364766184162
         },
         "modes": {
-          "max_forcing_rel_l2": 0.02837823818603993,
-          "max_response_rel_l2": 0.007923042199485553,
+          "max_forcing_rel_l2": 0.020967034147961017,
+          "max_response_rel_l2": 0.0054119800303407874,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.026588508588157863,
+              "forcing_rel_l2": 0.01859854172830693,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.004303179773164363
+              "response_rel_l2": 0.003692918347761647
             },
             {
-              "forcing_rel_l2": 0.028210384433761997,
+              "forcing_rel_l2": 0.0204732756062605,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.006948048701202199
+              "response_rel_l2": 0.005271790888982333
             },
             {
-              "forcing_rel_l2": 0.02837823818603993,
+              "forcing_rel_l2": 0.020967034147961017,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.007923042199485553
+              "response_rel_l2": 0.0054119800303407874
             }
           ]
         },
@@ -313,6 +313,6 @@
     "SOFT_FAIL": 5,
     "UNAVAILABLE": 1
   },
-  "generated_at_utc": "2026-03-06T13:23:53.869882+00:00",
+  "generated_at_utc": "2026-03-06T17:57:36.624877+00:00",
   "npz_dir": "/Users/rfrantz/Documents/projects/linstab2d/tools/parity/npz"
 }
