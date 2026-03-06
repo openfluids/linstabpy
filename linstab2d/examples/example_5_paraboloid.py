@@ -92,8 +92,10 @@ def compute():
     ys = Ly - 0.1
     ys_trans = 0.1
     sponge_amp = 5.0
-    sponge_x = np.tanh(-(mesh.X - xs) / xs_trans) + 1
-    sponge_y = np.tanh((mesh.Y - ys) / ys_trans) + 1
+    # MATLAB defines the sponge on the pre-conformal (x, y) grid, before the
+    # final Z^2 mapping to the physical mesh.
+    sponge_x = np.tanh(-(X - xs) / xs_trans) + 1
+    sponge_y = np.tanh((Y - ys) / ys_trans) + 1
     mesh.sponge = sponge_amp / 2 * np.maximum(sponge_x, sponge_y)
 
     L0, idx = build_lnse_operator(mesh, baseflow, model="axy", m=m)
@@ -145,6 +147,8 @@ def compute():
                 W_diag,
                 B_mat=B_mat,
                 C_mat=C_mat,
+                filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+                filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
             )
             omega_used = candidate
             if candidate != solve_freqs[0]:

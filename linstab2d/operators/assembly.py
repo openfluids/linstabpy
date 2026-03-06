@@ -404,9 +404,9 @@ def _apply_inv_B(
     #              [ e40       e41      e42      e43      1/(RHO*cv) ]
     #
     # where e4j = -vel_j / (RHO*cv)  for j=1,2,3  (vel = U, V, W)
-    #       e40 = T/RHO - (U²+V²+W²)/(2*RHO*cv)
+    #       e40 = (U²+V²+W²)/(2*RHO*cv) - T/RHO
     #
-    # We build -inv(B/1j) as a 5×5 block matrix with diagonal blocks.
+    # Build inv(B/1j) as a 5×5 block matrix with diagonal blocks.
     cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
     invRHO = 1.0 / RHO
     invRHOcv = invRHO / cv
@@ -417,20 +417,19 @@ def _apply_inv_B(
     def D(v):
         return sp.diags(v, format="csc")
 
-    # -inv(B/1j) — negate every entry
     blocks = [
-        [D(-np.ones(ngp)),  Z,              Z,              Z,              Z                       ],
-        [D(U * invRHO),     D(-invRHO),     Z,              Z,              Z                       ],
-        [D(V * invRHO),     Z,              D(-invRHO),     Z,              Z                       ],
-        [D(W * invRHO),     Z,              Z,              D(-invRHO),     Z                       ],
-        [D(T * invRHO - KE_half * invRHOcv),
-                            D(U * invRHOcv),
-                                            D(V * invRHOcv),
-                                                            D(W * invRHOcv),
-                                                                            D(-invRHOcv)            ],
+        [D(np.ones(ngp)),   Z,               Z,               Z,               Z                     ],
+        [D(-U * invRHO),    D(invRHO),       Z,               Z,               Z                     ],
+        [D(-V * invRHO),    Z,               D(invRHO),       Z,               Z                     ],
+        [D(-W * invRHO),    Z,               Z,               D(invRHO),       Z                     ],
+        [D(KE_half * invRHOcv - T * invRHO),
+                            D(-U * invRHOcv),
+                                            D(-V * invRHOcv),
+                                                             D(-W * invRHOcv),
+                                                                              D(invRHOcv)           ],
     ]
-    neg_inv_B = sp.bmat(blocks, format="csc")
-    return neg_inv_B @ L0
+    inv_B = sp.bmat(blocks, format="csc")
+    return inv_B @ L0
 
 
 def _create_axy_diff_matrices(
