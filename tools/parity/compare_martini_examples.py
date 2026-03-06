@@ -86,6 +86,33 @@ def _spectrum_metrics(reference: np.ndarray, candidate: np.ndarray) -> tuple[np.
     return cidx, float(np.max(abs_err)), float(np.max(rel_err))
 
 
+def _best_spectrum_pairs(
+    reference: np.ndarray,
+    candidate: np.ndarray,
+    n_compare: int,
+) -> list[tuple[int, int, float, float]]:
+    """Return the globally best-matched spectral pairs.
+
+    Uses Hungarian matching over the full spectra, then keeps the ``n_compare``
+    pairs with the smallest absolute mismatch. This avoids target-window
+    selection drifting onto a different branch when the MATLAB/Python ordering
+    around the requested shift differs.
+    """
+    cost = np.abs(reference[:, None] - candidate[None, :])
+    ridx, cidx = linear_sum_assignment(cost)
+    pairs = [
+        (
+            int(ref_i),
+            int(cand_i),
+            float(cost[ref_i, cand_i]),
+            float(cost[ref_i, cand_i] / max(abs(reference[ref_i]), 1e-30)),
+        )
+        for ref_i, cand_i in zip(ridx, cidx)
+    ]
+    pairs.sort(key=lambda row: row[2])
+    return pairs[: min(max(1, n_compare), len(pairs))]
+
+
 def _top_by_imag(values: np.ndarray, n_compare: int) -> np.ndarray:
     order = np.argsort(np.imag(values))[::-1]
     return order[: min(len(order), n_compare)]
@@ -215,52 +242,42 @@ def _compare_cavity_case(
 ) -> dict[str, Any]:
     omega_py = _complex_vector(python_npz["omega"])
     direct_modes_py = _mode_matrix(python_npz["direct_modes"])
-    omega_adj_py_direct = np.conj(-1j * _complex_vector(python_npz["omega_adj"]))
+    omega_adj_py_matlab = -1j * _complex_vector(python_npz["omega_adj"])
     adjoint_modes_py = _mode_matrix(python_npz["adjoint_modes"])
 
     omega_mat = _complex_vector(_npz_get(matlab_direct, "results_Cavity_direct/omega"))
     direct_modes_mat = _mode_matrix(_npz_get(matlab_direct, "results_Cavity_direct/V"))
-    omega_adj_mat_direct = np.conj(_complex_vector(_npz_get(matlab_adjoint, "results_Cavity_adjoint/omegaAdj")))
+    omega_adj_mat = _complex_vector(_npz_get(matlab_adjoint, "results_Cavity_adjoint/omegaAdj"))
     adjoint_modes_mat = _mode_matrix(_npz_get(matlab_adjoint, "results_Cavity_adjoint/VAdj"))
 
-    direct_sel_py = _closest_to_target(omega_py, n_compare, omega_target)
-    direct_sel_mat = _closest_to_target(omega_mat, n_compare, omega_target)
-    direct_match_idx, direct_max_abs, direct_max_rel = _spectrum_metrics(
-        omega_mat[direct_sel_mat],
-        omega_py[direct_sel_py],
-    )
-
+    direct_pairs = _best_spectrum_pairs(omega_mat, omega_py, n_compare)
     direct_rows = []
-    for mat_i, py_local in enumerate(direct_match_idx):
-        py_i = int(direct_sel_py[py_local])
-        ref = direct_modes_mat[:, int(direct_sel_mat[mat_i])]
+    for mat_i, py_i, abs_err, rel_err in direct_pairs:
+        ref = direct_modes_mat[:, mat_i]
         cand = direct_modes_py[:, py_i]
         cand = cand * _best_complex_scale(ref, cand)
         direct_rows.append(
             {
-                "matlab_mode_index_1based": int(direct_sel_mat[mat_i]) + 1,
+                "matlab_mode_index_1based": mat_i + 1,
                 "python_mode_index_1based": py_i + 1,
+                "eigenvalue_abs_error": abs_err,
+                "eigenvalue_rel_error": rel_err,
                 "rel_l2": _rel_l2(ref, cand),
             }
         )
 
-    adj_sel_py = _closest_to_target(omega_adj_py_direct, n_compare, omega_target)
-    adj_sel_mat = _closest_to_target(omega_adj_mat_direct, n_compare, omega_target)
-    adj_match_idx, adj_max_abs, adj_max_rel = _spectrum_metrics(
-        omega_adj_mat_direct[adj_sel_mat],
-        omega_adj_py_direct[adj_sel_py],
-    )
-
+    adj_pairs = _best_spectrum_pairs(omega_adj_mat, omega_adj_py_matlab, n_compare)
     adj_rows = []
-    for mat_i, py_local in enumerate(adj_match_idx):
-        py_i = int(adj_sel_py[py_local])
-        ref = adjoint_modes_mat[:, int(adj_sel_mat[mat_i])]
+    for mat_i, py_i, abs_err, rel_err in adj_pairs:
+        ref = adjoint_modes_mat[:, mat_i]
         cand = adjoint_modes_py[:, py_i]
         cand = cand * _best_complex_scale(ref, cand)
         adj_rows.append(
             {
-                "matlab_mode_index_1based": int(adj_sel_mat[mat_i]) + 1,
+                "matlab_mode_index_1based": mat_i + 1,
                 "python_mode_index_1based": py_i + 1,
+                "eigenvalue_abs_error": abs_err,
+                "eigenvalue_rel_error": rel_err,
                 "rel_l2": _rel_l2(ref, cand),
             }
         )
@@ -268,15 +285,17 @@ def _compare_cavity_case(
     return {
         "direct": {
             "n_compare": len(direct_rows),
-            "spectrum_max_abs_error": direct_max_abs,
-            "spectrum_max_rel_error": direct_max_rel,
+            "selection_strategy": "global_best_match",
+            "spectrum_max_abs_error": float(max(row["eigenvalue_abs_error"] for row in direct_rows)),
+            "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in direct_rows)),
             "mode_max_rel_l2": float(max(row["rel_l2"] for row in direct_rows)),
             "per_mode": direct_rows,
         },
         "adjoint": {
             "n_compare": len(adj_rows),
-            "spectrum_max_abs_error": adj_max_abs,
-            "spectrum_max_rel_error": adj_max_rel,
+            "selection_strategy": "global_best_match",
+            "spectrum_max_abs_error": float(max(row["eigenvalue_abs_error"] for row in adj_rows)),
+            "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in adj_rows)),
             "mode_max_rel_l2": float(max(row["rel_l2"] for row in adj_rows)),
             "per_mode": adj_rows,
         },
