@@ -18,11 +18,26 @@ from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
 logger = logging.getLogger(__name__)
 
 
+def _resolve_ncv(
+    *,
+    ndof: int,
+    n_modes: int,
+    default_ncv: int,
+    requested_ncv: int | None,
+) -> int:
+    """Choose a valid Arnoldi subspace size for SLEPc EPS."""
+    max_ncv = max(1, ndof - 1)
+    ncv = default_ncv if requested_ncv is None else int(requested_ncv)
+    return min(max(ncv, n_modes + 1), max_ncv)
+
+
 def _eigs_generalized(
     Lc: sp.spmatrix,
     R: sp.spmatrix,
     n_modes: int,
     target: float | complex,
+    *,
+    ncv: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur."""
     if n_modes <= 0:
@@ -55,7 +70,13 @@ def _eigs_generalized(
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
-    ncv = min(max(4 * n_modes, 30), ndof - 1)
+    default_ncv = min(max(4 * n_modes, 30), ndof - 1)
+    ncv = _resolve_ncv(
+        ndof=ndof,
+        n_modes=n_modes,
+        default_ncv=default_ncv,
+        requested_ncv=ncv,
+    )
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
 
@@ -108,6 +129,7 @@ def spatial_eigenvalues(
     omega: float | complex,
     n_modes: int,
     target: float | complex,
+    ncv: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve the spatial EVP `(Lc + omega Lw) @ v = alpha R @ v`.
 
@@ -117,5 +139,11 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
-    eigenvalues, eigenvectors = _eigs_generalized(Lc + omega * Lw, R, n_modes, target)
+    eigenvalues, eigenvectors = _eigs_generalized(
+        Lc + omega * Lw,
+        R,
+        n_modes,
+        target,
+        ncv=ncv,
+    )
     return eigenvalues, eigenvectors
