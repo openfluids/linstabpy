@@ -378,9 +378,12 @@ def load_streaky_bl(mesh) -> BaseFlow:
     Xq = np.asarray(mesh.X, dtype=float)
     Yq = np.asarray(mesh.Y, dtype=float)
 
-    U = _interp_spline2d(Xq, Yq, X, Y, data["U"])
+    # MATLAB BL_BF.mat stores the streak components as [spanwise, wall-normal,
+    # streamwise] in [U, V, W]. Python BaseFlow uses [streamwise, wall-normal,
+    # spanwise], so the components must be remapped here.
+    U = _interp_spline2d(Xq, Yq, X, Y, data["W"])
     V = _interp_spline2d(Xq, Yq, X, Y, data["V"])
-    W = _interp_spline2d(Xq, Yq, X, Y, data["W"])
+    W = _interp_spline2d(Xq, Yq, X, Y, data["U"])
     RHO = _interp_spline2d(Xq, Yq, X, Y, data["rho"])
     T = _interp_spline2d(Xq, Yq, X, Y, data["T"])
     MU = _interp_spline2d(Xq, Yq, X, Y, data["mu"])
