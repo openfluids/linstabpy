@@ -1,0 +1,102 @@
+{
+  // Martini MATLAB/Python parity registry.
+  // Paths are repo-relative. The extractor writes one NPZ per MATLAB .mat stem
+  // into tools/parity/npz/, and the comparator consumes those bundles together
+  // with the Python example outputs listed here.
+  "schema_version": "martini_cases_v1",
+  "cases": [
+    {
+      "case_id": "example_0_curvilinear_derivative",
+      "label": "Example 0: curvilinear derivative test",
+      "comparison_kind": "curvilinear_protocol",
+      "comparison_scope": "protocol_only",
+      "python_module": "linstab2d.examples.example_0_curvilinear_validation",
+      "python_npz": "linstab2d/examples/example_0_curvilinear_validation.npz",
+      "matlab_results_stem": "example_0_TestCurvilinearDerivative_results",
+      "matlab_logs_stem": "example_0_TestCurvilinearDerivative_logs",
+      "note": "MATLAB exports raw derivative fields, while the shipped Python example saves branch-level operator metrics instead of like-for-like fields."
+    },
+    {
+      "case_id": "example_1_blasius",
+      "label": "Example 1: Blasius resolvent",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "python_module": "linstab2d.examples.example_1_blasius",
+      "python_npz": "linstab2d/examples/example_1_blasius.npz",
+      "matlab_results_stem": "example_1_Blasius_results",
+      "matlab_logs_stem": "example_1_Blasius_logs",
+      "matlab_gains_key": "results_Blasius/gains",
+      "matlab_responses_key": "results_Blasius/responses",
+      "matlab_forcings_key": "results_Blasius/forces",
+      "n_compare": 3,
+      "tolerances": {
+        "gain_abs": 1e-6,
+        "gain_rel": 1e-5,
+        "mode_rel": 5e-3
+      }
+    },
+    {
+      "case_id": "example_2_jet",
+      "label": "Example 2: jet resolvent",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "python_module": "linstab2d.examples.example_2_jet",
+      "python_npz": "linstab2d/examples/example_2_jet.npz",
+      "matlab_results_stem": "example_2_Jet_results",
+      "matlab_logs_stem": "example_2_Jet_logs",
+      "matlab_gains_key": "results_Jet/S",
+      "matlab_responses_key": "results_Jet/U",
+      "matlab_forcings_key": "results_Jet/V",
+      "n_compare": 3,
+      "tolerances": {
+        "gain_abs": 1e-6,
+        "gain_rel": 1e-5,
+        "mode_rel": 1e-2
+      }
+    },
+    {
+      "case_id": "example_3_streaky_bl",
+      "label": "Example 3: streaky boundary layer",
+      "comparison_kind": "unavailable",
+      "comparison_scope": "unavailable",
+      "note": "No corresponding MATLAB exports are present under martini_examples/ for this bundle."
+    },
+    {
+      "case_id": "example_4_cavity",
+      "label": "Example 4: cavity direct and adjoint spectra",
+      "comparison_kind": "cavity",
+      "comparison_scope": "direct",
+      "python_module": "linstab2d.examples.example_4_cavity",
+      "python_npz": "linstab2d/examples/example_4_cavity.npz",
+      "matlab_direct_stem": "example_4_Cavity_results_direct",
+      "matlab_adjoint_stem": "example_4_Cavity_results_adjoint",
+      "matlab_base_stem": "example_4_Cavity_results_base",
+      "omega_target": "1.5+1.0j",
+      "n_compare": 6,
+      "tolerances": {
+        "spectrum_abs": 1e-4,
+        "spectrum_rel": 1e-4,
+        "mode_rel": 2e-2
+      }
+    },
+    {
+      "case_id": "example_5_paraboloid",
+      "label": "Example 5: paraboloid resolvent",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "python_module": "linstab2d.examples.example_5_paraboloid",
+      "python_npz": "linstab2d/examples/example_5_paraboloid.npz",
+      "matlab_results_stem": "example_5_Paraboloid_results",
+      "matlab_logs_stem": "example_5_Paraboloid_logs",
+      "matlab_gains_key": "results_Paraboloid/gains",
+      "matlab_responses_key": "results_Paraboloid/responses",
+      "matlab_forcings_key": "results_Paraboloid/forces",
+      "n_compare": 3,
+      "tolerances": {
+        "gain_abs": 1e-6,
+        "gain_rel": 1e-5,
+        "mode_rel": 1e-2
+      }
+    }
+  ]
+}

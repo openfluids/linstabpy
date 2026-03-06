@@ -1,0 +1,7 @@
+case_id,label,comparison_scope,status,gain_max_abs,gain_max_rel,forcing_max_rel_l2,response_max_rel_l2,direct_spec_max_abs,direct_spec_max_rel,direct_mode_max_rel_l2,adjoint_spec_max_abs,adjoint_spec_max_rel,adjoint_mode_max_rel_l2,matlab_df_linf,matlab_df_rel_l2,python_protocol_pass,note
+example_0_curvilinear_derivative,Example 0: curvilinear derivative test,protocol_only,SOFT_FAIL,,,,,,,,,,,0.00040853754847297585,0.0001741165502675659,False,"MATLAB exports raw derivative fields, while the shipped Python example saves branch-level operator metrics instead of like-for-like fields."
+example_1_blasius,Example 1: Blasius resolvent,direct,SOFT_FAIL,3.697834620065672,2.7527097841247428,0.999878474054649,0.9998892419521505,,,,,,,,,,
+example_2_jet,Example 2: jet resolvent,direct,SOFT_FAIL,131298881.32057832,1158663.7205115273,0.999999999999998,0.9999999995533696,,,,,,,,,,
+example_3_streaky_bl,Example 3: streaky boundary layer,unavailable,UNAVAILABLE,,,,,,,,,,,,,,No corresponding MATLAB exports are present under martini_examples/ for this bundle.
+example_4_cavity,Example 4: cavity direct and adjoint spectra,direct,SOFT_FAIL,,,,,0.7013764793865627,0.7732246771471359,0.9999999999860262,0.7013764793882773,0.773224677149015,0.9999999998302161,,,,
+example_5_paraboloid,Example 5: paraboloid resolvent,direct,SOFT_FAIL,27993160.4826646,4938399.509398413,0.9999999999906048,0.9999215600049813,,,,,,,,,,

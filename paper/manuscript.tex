@@ -764,8 +764,8 @@ The transition strategy is to keep SciPy assembly as a short-term parity/debug m
 %======================================================================
 
 Results are reported only for cases with archived run artifacts, frozen solver options, and recorded hardware metadata.
-Results are structured in three layers of increasing scope: first, the linearized operator itself is verified independently of any reference implementation (\S\ref{sec:linearization_verification}); second, full-workflow outputs are compared against the MATLAB reference (\S\ref{sec:accuracy_gate}--\S\ref{sec:cross_framework}); third, solver performance is assessed (\S\ref{sec:hamada}--\S\ref{sec:scaling}).
-Placeholder tables, workspace-dependent overlays, and TODO captions must be removed before submission.
+The main text is restricted to claim-bearing material: independent operator verification (\S\ref{sec:linearization_verification}) and flagship Hamada solver behavior (\S\ref{sec:hamada}--\S\ref{sec:scaling}).
+The external-reference Martini parity audit and the associated reproducibility bookkeeping are moved to Appendix~\ref{sec:app:martini_verification}, so verification status is documented without being conflated with novelty claims.
 
 %----------------------------------------------------------------------
 \subsection{Independent verification of the linearized operator}
@@ -800,98 +800,9 @@ This approach catches algebraic errors in the derivation itself --- including Su
 This subsection defines the independent verification protocol and reporting criteria.
 Before release snapshots, quantitative values are populated from automated reports, including (i) maximum relative Jacobian discrepancy from the complex-step test and (ii) symbolic agreement status for all coefficient sub-blocks.
 
-%----------------------------------------------------------------------
-\subsection{Accuracy gate: full shipped validation set}
-\label{sec:accuracy_gate}
-%----------------------------------------------------------------------
-
-This subsection is validation-only: the goal is to confirm output equivalence with the MATLAB reference, not to claim performance advantages.
-The accuracy gate consolidates all migrated MATLAB examples into a single table.
-For each case, we report operator-level agreement (Frobenius-norm relative error of the assembled $\bL$), leading eigenvalue and resolvent-gain errors, and a pass/fail gate under predefined tolerances.
-
-\begin{table}[t]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccl}
-\toprule
-Case & Grid & $n = 5N$ & $\|\Delta\bL\|_F / \|\bL_\text{mat}\|_F$ & $|\omega_1^\text{py} - \omega_1^\text{mat}|$ & Status \\
-\midrule
-%--- Placeholder rows: populated automatically by reproducible artifact pipeline ---
-Blasius ($\Rey=1000$)        & $1\times 200$   & pending & pending & pending & pending \\
-Compressible BL ($\Ma=2$)    & $1\times 200$   & pending & pending & pending & pending \\
-Cylinder ($\Rey=100$)        & $80\times 120$  & pending & pending & pending & pending \\
-Jet ($\Ma=0.9$, $m=0$)      & $1\times 300$   & pending & pending & pending & pending \\
-Spatial Blasius              & $1\times 200$   & pending & pending & pending & pending \\
-Resolvent BL ($\omega_f=0.1$) & $1\times 200$ & pending & pending & pending & pending \\
-\bottomrule
-\end{tabular}
-\caption{Accuracy gate reporting template for operator and leading-eigenvalue agreement between \texttt{linstab2d} (Python) and the MATLAB reference for all shipped validation cases. Numerical entries are populated by the automated benchmark pipeline (see~\S\ref{sec:repro_checklist}).}
-\label{tab:accuracy_gate}
-\end{table}
-
-Figure~\ref{fig:eigenvalue_spectrum} overlays the computed eigenvalue spectra from both implementations for a representative case.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.68\textwidth]{figs/eigenvalue_spectrum.png}
-\caption{Temporal eigenvalue spectrum for the Hamada reference case on the complex $\omega$-plane. MATLAB exports are shown explicitly, and Python markers are overlaid when the cached run artifact is available in the local workspace.}
-\label{fig:eigenvalue_spectrum}
-\end{figure}
-
-Figure~\ref{fig:mode_shapes} compares eigenvector profiles from both implementations.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.70\textwidth]{figs/mode_shapes.png}
-\caption{Leading-mode profiles from the Hamada MATLAB export: normalized magnitudes of $|u'|$, $|v'|$, and $|T'|$ along the wall-normal coordinate.}
-\label{fig:mode_shapes}
-\end{figure}
-
-%----------------------------------------------------------------------
-\subsection{Resolvent gain validation}
-\label{sec:resolvent_validation}
-%----------------------------------------------------------------------
-
-For the resolvent workflow, we compare singular values at the exported forcing frequency.
-Figure~\ref{fig:resolvent_gains} shows the modal gain distribution for the representative Hamada case.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.68\textwidth]{figs/resolvent_gains.png}
-\caption{Resolvent singular values $\sigma_j$ versus mode index for the Hamada exported configuration. MATLAB values are shown explicitly, with optional Python overlay when run artifacts are available.}
-\label{fig:resolvent_gains}
-\end{figure}
-
-%----------------------------------------------------------------------
-\subsection{Cross-framework comparison}
-\label{sec:cross_framework}
-%----------------------------------------------------------------------
-
-This subsection provides external context for both validation and performance interpretation.
-Cross-framework comparisons are performed on shared cases with matched physics and discretization whenever possible.
-Table~\ref{tab:cross_framework} compares against the legacy MATLAB workflow and \texttt{resolvent4py} CGL examples \cite{resolvent4pycgl}.
-When solver configurations cannot be made exactly equivalent, results are labeled as approximate and accompanied by full solver/hardware metadata.
-
-\begin{table}[t]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llcccc}
-\toprule
-Case & Framework & Leading $\omega_1$ or $\sigma_1$ & Rel.\ error & Wall time [s] & Peak mem [GB] \\
-\midrule
-%--- Placeholder rows: populated automatically by reproducible artifact pipeline ---
-Blasius eigen     & MATLAB              & pending & ---     & pending & pending \\
-                  & \texttt{linstab2d} & pending & pending & pending & pending \\
-\midrule
-CGL resolvent     & \texttt{resolvent4py} \cite{resolvent4pycgl} & pending & ---     & pending & pending \\
-                  & \texttt{linstab2d} & pending & pending & pending & pending \\
-\bottomrule
-\end{tabular}
-\caption{Cross-framework reporting template for leading eigenvalue/resolvent gain, wall time, and peak memory. Numerical entries are populated by the automated benchmark pipeline (see~\S\ref{sec:repro_checklist}).}
-\label{tab:cross_framework}
-\end{table}
+Complete Martini parity bookkeeping is reported in Appendix~\ref{sec:app:martini_verification}.
+That appendix is verification-only: it records the current state of external-reference closure for the shipped Martini examples and the commands that regenerate the audit artifacts.
+The main text now turns to the flagship Hamada case, which is the basis for the solver and scaling claims in this paper.
 
 %----------------------------------------------------------------------
 \subsection{Flagship large-scale case}
@@ -966,20 +877,6 @@ Figure~\ref{fig:scaling_plot} visualizes the scaling behavior.
 
 From a computational-complexity perspective, direct multifrontal factorization is robust but limited by fill-in growth as mesh refinement increases.
 Iterative strategies reduce factorization memory pressure, but total time-to-solution depends on preconditioner quality and the non-normal shifted spectrum.
-
-%----------------------------------------------------------------------
-\subsection{Reproducibility checklist}
-\label{sec:repro_checklist}
-%----------------------------------------------------------------------
-
-All results in this paper are generated with the command pair
-\begin{verbatim}
-export LINSTAB2D_LINSOLVE_TYPE=mumps
-python -m linstab2d.examples.validate_all --ref matlab_export/
-\end{verbatim}
-which produces \path{validation_summary.json} in the repository root.
-The single source of truth for run definitions (cases, expected artifacts, and orthogonality tolerance) is \path{linstab2d/config/validation_cases.yaml}.
-Every table and figure in \S\ref{sec:results} is filled from this summary and recorded with the corresponding Git commit hash.
 
 %======================================================================
 \section{Discussion}
@@ -1067,6 +964,106 @@ Several directions for future work are motivated by the known limitations docume
 (iv)~developing stronger iterative preconditioners (e.g., Schur-complement or multigrid variants) for demanding resolvent configurations;
 and (v)~extending field-split preconditioning to the resolvent linear-solve path.
 Broader parameter studies within the large-DOF regime and systematic comparisons with other frameworks will further establish the practical operating envelope of the tool.
+
+%======================================================================
+\appendix
+\section{Verification against external references}
+\label{sec:app:martini_verification}
+%======================================================================
+
+%----------------------------------------------------------------------
+\subsection{Accuracy gate audit of shipped Martini exports}
+\label{sec:accuracy_gate}
+%----------------------------------------------------------------------
+
+This appendix is verification-only.
+It documents the current parity audit against the released Martini MATLAB exports and separates that bookkeeping from the claim-bearing Hamada results in the main text.
+The audit is regenerated by \path{linstab2d/examples/run_parity_martini.sh}, which rewrites the Python example artifacts, extracts all available MATLAB HDF5 bundles under \path{martini_examples/}, and emits \path{tools/parity/reports/martini_parity_latest.json} plus \path{tools/parity/reports/martini_parity_table.csv}.
+
+Table~\ref{tab:accuracy_gate} summarizes the current state of closure.
+At this snapshot, Example~3 is unavailable because no MATLAB export was shipped for that case, while the remaining cases are still classified as \texttt{SOFT\_FAIL}.
+Accordingly, the Martini suite is used here as an audit trail and closure checklist rather than as final agreement evidence.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{L{3.0cm}L{1.8cm}L{6.0cm}c}
+\toprule
+Case & Scope & Primary automated audit metric & Status \\
+\midrule
+Example 0: curvilinear derivative & protocol & MATLAB self-check $\max|df-df_{\mathrm{an}}| = 4.09\times 10^{-4}$; current Python branch audit still fails the \texttt{x\_only} and \texttt{full\_2d} branches & \texttt{SOFT\_FAIL} \\
+Example 1: Blasius resolvent & direct & $\max|\Delta \sigma| = 3.70$; leading singular value is close, but trailing gain/mode pairing is not closed & \texttt{SOFT\_FAIL} \\
+Example 2: jet resolvent & direct & $\max|\Delta \sigma| = 1.31\times 10^{8}$; resolvent-gain scaling remains far from the MATLAB export & \texttt{SOFT\_FAIL} \\
+Example 3: streaky boundary layer & unavailable & No corresponding MATLAB export is present in the shipped \path{martini_examples/} bundle & \texttt{UNAVAILABLE} \\
+Example 4: cavity spectra/adjoints & direct & After target-based spectral matching, $\max|\Delta \omega| = 7.01\times 10^{-1}$; mode parity remains poor & \texttt{SOFT\_FAIL} \\
+Example 5: paraboloid resolvent & direct & $\max|\Delta \sigma| = 2.80\times 10^{7}$; the resolvent amplification level is still far from the MATLAB export & \texttt{SOFT\_FAIL} \\
+\bottomrule
+\end{tabular}
+\caption{Current status of the external-reference Martini parity audit, summarized from \texttt{tools/parity/reports/martini\_parity\_latest.json}. These rows are verification bookkeeping only and are not used as novelty evidence.}
+\label{tab:accuracy_gate}
+\end{table}
+
+%----------------------------------------------------------------------
+\subsection{Representative reference overlays}
+\label{sec:resolvent_validation}
+%----------------------------------------------------------------------
+
+Figures~\ref{fig:eigenvalue_spectrum}--\ref{fig:resolvent_gains} show representative reference outputs from the Hamada MATLAB exports.
+They are kept here as qualitative diagnostics for the audit workflow.
+Because the shipped Martini parity suite is not yet fully closed, these figures are not used in the main paper to support performance or correctness claims beyond the explicit audit table above.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.68\textwidth]{figs/eigenvalue_spectrum.png}
+\caption{Temporal eigenvalue spectrum for the Hamada reference case on the complex $\omega$-plane. MATLAB exports are shown explicitly, and Python markers are overlaid when the cached run artifact is available in the local workspace.}
+\label{fig:eigenvalue_spectrum}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.70\textwidth]{figs/mode_shapes.png}
+\caption{Leading-mode profiles from the Hamada MATLAB export: normalized magnitudes of $|u'|$, $|v'|$, and $|T'|$ along the wall-normal coordinate.}
+\label{fig:mode_shapes}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.68\textwidth]{figs/resolvent_gains.png}
+\caption{Resolvent singular values $\sigma_j$ versus mode index for the Hamada exported configuration. MATLAB values are shown explicitly, with optional Python overlay when run artifacts are available.}
+\label{fig:resolvent_gains}
+\end{figure}
+
+%----------------------------------------------------------------------
+\subsection{Cross-framework comparison status}
+\label{sec:cross_framework}
+%----------------------------------------------------------------------
+
+No cross-framework performance table is included at this stage.
+The first requirement is closure of the external-reference Martini audit summarized in Table~\ref{tab:accuracy_gate}; without that baseline, wall-time or memory comparisons against MATLAB or other frameworks would mix implementation gaps with solver-performance effects.
+Once the remaining parity mismatches are resolved, this subsection can be populated from the same report directory together with full solver and hardware metadata.
+
+%----------------------------------------------------------------------
+\subsection{Reproducibility checklist}
+\label{sec:repro_checklist}
+%----------------------------------------------------------------------
+
+Two command paths are kept separate on purpose.
+For the main-paper Hamada artifacts, the current validator is
+\begin{verbatim}
+export LINSTAB2D_LINSOLVE_TYPE=mumps
+python -m linstab2d.examples.validate_all --ref matlab_export/
+\end{verbatim}
+which produces \path{validation_summary.json} in the repository root.
+
+For the external-reference Martini audit, the canonical command is
+\begin{verbatim}
+./linstab2d/examples/run_parity_martini.sh
+\end{verbatim}
+which regenerates the comparison-eligible Python example outputs, writes \path{tools/parity/martini_manifest.json}, and updates the JSON/CSV audit reports under \path{tools/parity/reports/}.
+
+The single source of truth for the Hamada/main-results validation set remains \path{linstab2d/config/validation_cases.yaml}.
+The single source of truth for the Martini audit mapping is \path{tools/parity/martini_cases.jsonc}.
 
 \section*{Code availability}
 

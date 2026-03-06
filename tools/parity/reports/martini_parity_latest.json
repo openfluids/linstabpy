@@ -1,0 +1,292 @@
+{
+  "cases": [
+    {
+      "case_id": "example_0_curvilinear_derivative",
+      "comparison_kind": "curvilinear_protocol",
+      "comparison_scope": "protocol_only",
+      "label": "Example 0: curvilinear derivative test",
+      "matlab_npz": [
+        "tools/parity/npz/example_0_TestCurvilinearDerivative_results.npz",
+        "tools/parity/npz/example_0_TestCurvilinearDerivative_logs.npz"
+      ],
+      "metrics": {
+        "matlab_df_linf": 0.00040853754847297585,
+        "matlab_df_rel_l2": 0.0001741165502675659,
+        "matlab_timing_total_seconds": 0.531461,
+        "python_branches": [
+          {
+            "branch": "none",
+            "d2xy_inf": 0.0021076192291102913,
+            "d2yx_inf": 0.0021076192291107354,
+            "dfdx_inf": 0.0006513521689370805,
+            "dfdy_inf": 0.0004587395306154818,
+            "pass": true
+          },
+          {
+            "branch": "x_only",
+            "d2xy_inf": 0.9648214314274423,
+            "d2yx_inf": 0.3873688465069865,
+            "dfdx_inf": 0.0009597063052364518,
+            "dfdy_inf": 0.14879819980746517,
+            "pass": false
+          },
+          {
+            "branch": "y_only",
+            "d2xy_inf": 0.15235231214114803,
+            "d2yx_inf": 0.7796770117832835,
+            "dfdx_inf": 0.09488046113251952,
+            "dfdy_inf": 0.0008720155470056667,
+            "pass": true
+          },
+          {
+            "branch": "full_2d",
+            "d2xy_inf": 0.004511261533934441,
+            "d2yx_inf": 0.004511261533934885,
+            "dfdx_inf": 0.000780373738486384,
+            "dfdy_inf": 0.0004557679549574978,
+            "pass": true
+          }
+        ],
+        "python_protocol_pass": false
+      },
+      "note": "MATLAB exports raw derivative fields, while the shipped Python example saves branch-level operator metrics instead of like-for-like fields.",
+      "python_npz": "linstab2d/examples/example_0_curvilinear_validation.npz",
+      "status": "SOFT_FAIL"
+    },
+    {
+      "case_id": "example_1_blasius",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "label": "Example 1: Blasius resolvent",
+      "matlab_npz": [
+        "tools/parity/npz/example_1_Blasius_results.npz"
+      ],
+      "metrics": {
+        "gains": {
+          "max_abs_error": 3.697834620065672,
+          "max_rel_error": 2.7527097841247428
+        },
+        "modes": {
+          "max_forcing_rel_l2": 0.999878474054649,
+          "max_response_rel_l2": 0.9998892419521505,
+          "per_mode": [
+            {
+              "forcing_rel_l2": 0.047041830018234185,
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 1,
+              "response_rel_l2": 0.025580796944936108
+            },
+            {
+              "forcing_rel_l2": 0.16049369202856212,
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 3,
+              "response_rel_l2": 0.18775119887526198
+            },
+            {
+              "forcing_rel_l2": 0.999878474054649,
+              "matlab_mode_index_1based": 3,
+              "python_mode_index_1based": 2,
+              "response_rel_l2": 0.9998892419521505
+            }
+          ]
+        },
+        "n_compare": 3
+      },
+      "note": "",
+      "python_npz": "linstab2d/examples/example_1_blasius.npz",
+      "status": "SOFT_FAIL"
+    },
+    {
+      "case_id": "example_2_jet",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "label": "Example 2: jet resolvent",
+      "matlab_npz": [
+        "tools/parity/npz/example_2_Jet_results.npz"
+      ],
+      "metrics": {
+        "gains": {
+          "max_abs_error": 131298881.32057832,
+          "max_rel_error": 1158663.7205115273
+        },
+        "modes": {
+          "max_forcing_rel_l2": 0.999999999999998,
+          "max_response_rel_l2": 0.9999999995533696,
+          "per_mode": [
+            {
+              "forcing_rel_l2": 0.9999999999988747,
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 1,
+              "response_rel_l2": 0.9999778405017793
+            },
+            {
+              "forcing_rel_l2": 0.999999999999998,
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 2,
+              "response_rel_l2": 0.9999999876853283
+            },
+            {
+              "forcing_rel_l2": 0.9999999999999837,
+              "matlab_mode_index_1based": 3,
+              "python_mode_index_1based": 3,
+              "response_rel_l2": 0.9999999995533696
+            }
+          ]
+        },
+        "n_compare": 3
+      },
+      "note": "",
+      "python_npz": "linstab2d/examples/example_2_jet.npz",
+      "status": "SOFT_FAIL"
+    },
+    {
+      "case_id": "example_3_streaky_bl",
+      "comparison_kind": "unavailable",
+      "comparison_scope": "unavailable",
+      "label": "Example 3: streaky boundary layer",
+      "note": "No corresponding MATLAB exports are present under martini_examples/ for this bundle.",
+      "status": "UNAVAILABLE"
+    },
+    {
+      "case_id": "example_4_cavity",
+      "comparison_kind": "cavity",
+      "comparison_scope": "direct",
+      "label": "Example 4: cavity direct and adjoint spectra",
+      "matlab_npz": [
+        "tools/parity/npz/example_4_Cavity_results_direct.npz",
+        "tools/parity/npz/example_4_Cavity_results_adjoint.npz"
+      ],
+      "metrics": {
+        "adjoint": {
+          "mode_max_rel_l2": 0.9999999998302161,
+          "n_compare": 6,
+          "per_mode": [
+            {
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 2,
+              "rel_l2": 0.9769174963473981
+            },
+            {
+              "matlab_mode_index_1based": 3,
+              "python_mode_index_1based": 6,
+              "rel_l2": 0.004590448042374059
+            },
+            {
+              "matlab_mode_index_1based": 5,
+              "python_mode_index_1based": 5,
+              "rel_l2": 0.99895607192944
+            },
+            {
+              "matlab_mode_index_1based": 6,
+              "python_mode_index_1based": 4,
+              "rel_l2": 0.9974860990856931
+            },
+            {
+              "matlab_mode_index_1based": 4,
+              "python_mode_index_1based": 3,
+              "rel_l2": 0.9999999917447094
+            },
+            {
+              "matlab_mode_index_1based": 11,
+              "python_mode_index_1based": 1,
+              "rel_l2": 0.9999999998302161
+            }
+          ],
+          "spectrum_max_abs_error": 0.7013764793882773,
+          "spectrum_max_rel_error": 0.773224677149015
+        },
+        "direct": {
+          "mode_max_rel_l2": 0.9999999999860262,
+          "n_compare": 6,
+          "per_mode": [
+            {
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 2,
+              "rel_l2": 0.19410685008552928
+            },
+            {
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 6,
+              "rel_l2": 0.0026975796914655206
+            },
+            {
+              "matlab_mode_index_1based": 4,
+              "python_mode_index_1based": 5,
+              "rel_l2": 0.9964355418750515
+            },
+            {
+              "matlab_mode_index_1based": 5,
+              "python_mode_index_1based": 4,
+              "rel_l2": 0.9942283047665963
+            },
+            {
+              "matlab_mode_index_1based": 6,
+              "python_mode_index_1based": 3,
+              "rel_l2": 0.9999999999233992
+            },
+            {
+              "matlab_mode_index_1based": 7,
+              "python_mode_index_1based": 1,
+              "rel_l2": 0.9999999999860262
+            }
+          ],
+          "spectrum_max_abs_error": 0.7013764793865627,
+          "spectrum_max_rel_error": 0.7732246771471359
+        }
+      },
+      "note": "",
+      "python_npz": "linstab2d/examples/example_4_cavity.npz",
+      "status": "SOFT_FAIL"
+    },
+    {
+      "case_id": "example_5_paraboloid",
+      "comparison_kind": "resolvent",
+      "comparison_scope": "direct",
+      "label": "Example 5: paraboloid resolvent",
+      "matlab_npz": [
+        "tools/parity/npz/example_5_Paraboloid_results.npz"
+      ],
+      "metrics": {
+        "gains": {
+          "max_abs_error": 27993160.4826646,
+          "max_rel_error": 4938399.509398413
+        },
+        "modes": {
+          "max_forcing_rel_l2": 0.9999999999906048,
+          "max_response_rel_l2": 0.9999215600049813,
+          "per_mode": [
+            {
+              "forcing_rel_l2": 0.9999999999906048,
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 3,
+              "response_rel_l2": 0.9999215600049813
+            },
+            {
+              "forcing_rel_l2": 0.999999999406592,
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 2,
+              "response_rel_l2": 0.9995777704253794
+            },
+            {
+              "forcing_rel_l2": 0.9999999983492487,
+              "matlab_mode_index_1based": 3,
+              "python_mode_index_1based": 1,
+              "response_rel_l2": 0.9996086861018237
+            }
+          ]
+        },
+        "n_compare": 3
+      },
+      "note": "",
+      "python_npz": "linstab2d/examples/example_5_paraboloid.npz",
+      "status": "SOFT_FAIL"
+    }
+  ],
+  "config": "/Users/rfrantz/Documents/projects/linstab2d/tools/parity/martini_cases.jsonc",
+  "counts": {
+    "SOFT_FAIL": 5,
+    "UNAVAILABLE": 1
+  },
+  "generated_at_utc": "2026-03-06T09:12:09.649326+00:00",
+  "npz_dir": "/Users/rfrantz/Documents/projects/linstab2d/tools/parity/npz"
+}
