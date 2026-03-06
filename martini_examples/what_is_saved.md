@@ -80,7 +80,7 @@ The file **`setup.md`** is not a saved output of the examples; it documents the 
     - `'baseFlow_example3read'` – `example_3_readbaseflow` call.  
     - `'sponge_build'` – sponge construction.  
     - `'temporal_operator_GetLin_BC'` – temporal `GetLinProblem` + `BC_Dirichlet`.  
-    - `'temporal_eigs'` – temporal `eigs` solve (with `opts.p` reduced to 150 in this setup to keep the computation tractable).  
+    - `'temporal_eigs'` – temporal `eigs` solve (with `opts.p = 150` instead of `1500` to keep the computation tractable).  
     - `'temporal_plotting'` – temporal spectra and mode plots (if `verbose=true`).  
     - `'spatial_block'` – full spatial stability loop (if `spatialAna=true`).  
   - `timing_total` – total runtime.  
