@@ -312,6 +312,109 @@
     },
     {
       "field_paths": [
+        "mem_log/MB",
+        "mem_log/step",
+        "timing/step",
+        "timing/time"
+      ],
+      "n_fields": 4,
+      "npz_file": "tools/parity/npz/example_3_Streaky_BL_logs.npz",
+      "source_file": "martini_examples/example_3_Streaky_BL_logs.mat",
+      "stem": "example_3_Streaky_BL_logs"
+    },
+    {
+      "field_paths": [
+        "results_StreakyBL_base/baseFlow/MU",
+        "results_StreakyBL_base/baseFlow/Ma",
+        "results_StreakyBL_base/baseFlow/Pr",
+        "results_StreakyBL_base/baseFlow/RHO",
+        "results_StreakyBL_base/baseFlow/Re",
+        "results_StreakyBL_base/baseFlow/T",
+        "results_StreakyBL_base/baseFlow/T_0",
+        "results_StreakyBL_base/baseFlow/U",
+        "results_StreakyBL_base/baseFlow/V",
+        "results_StreakyBL_base/baseFlow/W",
+        "results_StreakyBL_base/baseFlow/c1",
+        "results_StreakyBL_base/baseFlow/c2",
+        "results_StreakyBL_base/baseFlow/cv",
+        "results_StreakyBL_base/baseFlow/d2MUdT2",
+        "results_StreakyBL_base/baseFlow/dMUdT",
+        "results_StreakyBL_base/baseFlow/kappa",
+        "results_StreakyBL_base/mesh/D2x/data",
+        "results_StreakyBL_base/mesh/D2x/ir",
+        "results_StreakyBL_base/mesh/D2x/jc",
+        "results_StreakyBL_base/mesh/D2y/data",
+        "results_StreakyBL_base/mesh/D2y/ir",
+        "results_StreakyBL_base/mesh/D2y/jc",
+        "results_StreakyBL_base/mesh/Dx/data",
+        "results_StreakyBL_base/mesh/Dx/ir",
+        "results_StreakyBL_base/mesh/Dx/jc",
+        "results_StreakyBL_base/mesh/Dxy/data",
+        "results_StreakyBL_base/mesh/Dxy/ir",
+        "results_StreakyBL_base/mesh/Dxy/jc",
+        "results_StreakyBL_base/mesh/Dy/data",
+        "results_StreakyBL_base/mesh/Dy/ir",
+        "results_StreakyBL_base/mesh/Dy/jc",
+        "results_StreakyBL_base/mesh/Dyx/data",
+        "results_StreakyBL_base/mesh/Dyx/ir",
+        "results_StreakyBL_base/mesh/Dyx/jc",
+        "results_StreakyBL_base/mesh/FDorder",
+        "results_StreakyBL_base/mesh/W",
+        "results_StreakyBL_base/mesh/X",
+        "results_StreakyBL_base/mesh/Y",
+        "results_StreakyBL_base/mesh/alpha_filter",
+        "results_StreakyBL_base/mesh/filters/filter/function_handle/file",
+        "results_StreakyBL_base/mesh/filters/filter/function_handle/function",
+        "results_StreakyBL_base/mesh/filters/filter/function_handle/type",
+        "results_StreakyBL_base/mesh/filters/filter/function_handle/within_file_path",
+        "results_StreakyBL_base/mesh/filters/filter/function_handle/workspace",
+        "results_StreakyBL_base/mesh/filters/filter/matlabroot",
+        "results_StreakyBL_base/mesh/filters/filter/sentinel",
+        "results_StreakyBL_base/mesh/filters/filter/separator",
+        "results_StreakyBL_base/mesh/filters/filter_ct/function_handle/file",
+        "results_StreakyBL_base/mesh/filters/filter_ct/function_handle/function",
+        "results_StreakyBL_base/mesh/filters/filter_ct/function_handle/type",
+        "results_StreakyBL_base/mesh/filters/filter_ct/function_handle/within_file_path",
+        "results_StreakyBL_base/mesh/filters/filter_ct/function_handle/workspace",
+        "results_StreakyBL_base/mesh/filters/filter_ct/matlabroot",
+        "results_StreakyBL_base/mesh/filters/filter_ct/sentinel",
+        "results_StreakyBL_base/mesh/filters/filter_ct/separator",
+        "results_StreakyBL_base/mesh/idx/bi",
+        "results_StreakyBL_base/mesh/idx/li",
+        "results_StreakyBL_base/mesh/idx/ri",
+        "results_StreakyBL_base/mesh/idx/ti",
+        "results_StreakyBL_base/mesh/ngp",
+        "results_StreakyBL_base/mesh/sponge",
+        "results_StreakyBL_base/mesh/usedInd",
+        "results_StreakyBL_base/mesh/x_periodicity",
+        "results_StreakyBL_base/mesh/y_symmetry"
+      ],
+      "n_fields": 64,
+      "npz_file": "tools/parity/npz/example_3_Streaky_BL_results_base.npz",
+      "source_file": "martini_examples/example_3_Streaky_BL_results_base.mat",
+      "stem": "example_3_Streaky_BL_results_base"
+    },
+    {
+      "field_paths": [
+        "results_StreakyBL_spatial/alphas"
+      ],
+      "n_fields": 1,
+      "npz_file": "tools/parity/npz/example_3_Streaky_BL_results_spatial.npz",
+      "source_file": "martini_examples/example_3_Streaky_BL_results_spatial.mat",
+      "stem": "example_3_Streaky_BL_results_spatial"
+    },
+    {
+      "field_paths": [
+        "results_StreakyBL_temporal/V",
+        "results_StreakyBL_temporal/omega"
+      ],
+      "n_fields": 2,
+      "npz_file": "tools/parity/npz/example_3_Streaky_BL_results_temporal.npz",
+      "source_file": "martini_examples/example_3_Streaky_BL_results_temporal.mat",
+      "stem": "example_3_Streaky_BL_results_temporal"
+    },
+    {
+      "field_paths": [
         "results_Cavity_adjoint/VAdj",
         "results_Cavity_adjoint/omegaAdj"
       ],
@@ -541,7 +644,7 @@
       "stem": "example_5_Paraboloid_results"
     }
   ],
-  "generated_at_utc": "2026-03-06T09:09:07.090974+00:00",
+  "generated_at_utc": "2026-03-06T20:21:51.146297+00:00",
   "input_dir": "/Users/rfrantz/Documents/projects/linstab2d/martini_examples",
   "notes": [
     {

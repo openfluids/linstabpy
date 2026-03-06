@@ -57,9 +57,25 @@
     {
       "case_id": "example_3_streaky_bl",
       "label": "Example 3: streaky boundary layer",
-      "comparison_kind": "unavailable",
-      "comparison_scope": "unavailable",
-      "note": "No corresponding MATLAB exports are present under martini_examples/ for this bundle."
+      "comparison_kind": "streaky_bl",
+      "comparison_scope": "temporal_and_spatial",
+      "python_module": "linstab2d.examples.example_3_streaky_bl",
+      "python_npz": "linstab2d/examples/example_3_streaky_bl.npz",
+      "matlab_base_stem": "example_3_Streaky_BL_results_base",
+      "matlab_temporal_stem": "example_3_Streaky_BL_results_temporal",
+      "matlab_spatial_stem": "example_3_Streaky_BL_results_spatial",
+      "matlab_logs_stem": "example_3_Streaky_BL_logs",
+      "matlab_temporal_omega_key": "results_StreakyBL_temporal/omega",
+      "matlab_temporal_modes_key": "results_StreakyBL_temporal/V",
+      "matlab_spatial_alpha_key": "results_StreakyBL_spatial/alphas",
+      "n_compare": 10,
+      "tolerances": {
+        "temporal_spectrum_abs": 1e-4,
+        "temporal_spectrum_rel": 1e-4,
+        "temporal_mode_rel": 2e-2,
+        "spatial_spectrum_abs": 1e-4,
+        "spatial_spectrum_rel": 1e-4
+      }
     },
     {
       "case_id": "example_4_cavity",
