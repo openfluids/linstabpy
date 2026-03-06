@@ -328,6 +328,15 @@ class Mesh:
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
                 Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
                 self._deform_full_2d(X_new, Y_new, p)
+            if self.y_symmetry and _is_separable_axis_deformation(X_new, Y_new):
+                x_mesh = self.deform(X_new=X_new)
+                _, _, _, _, _, _, _, \
+                    _, _, Dy_asymm_seq, D2y_asymm_seq, \
+                    _, _, Dxy_asymm_seq, Dyx_asymm_seq = x_mesh._deform_y_only(Y_new, p)
+                Dy_asymm_new = Dy_asymm_seq
+                D2y_asymm_new = D2y_asymm_seq
+                Dxy_asymm_new = Dxy_asymm_seq
+                Dyx_asymm_new = Dyx_asymm_seq
 
         # Update integration weights: W_new = W * |det|
         W_new = self.W.copy()
@@ -837,7 +846,7 @@ def _build_operators(
             D2_sym = None
             D2_asym = None
 
-            if y_symmetry and np.isclose(y_line[dom_bounds[i_seg]], 0.0, atol=1e-12):
+            if y_symmetry and _starts_at_pole_line(y_line[dom_bounds[i_seg]], dy):
                 D1_sym, D1_asym, D2_sym, D2_asym = build_sbp_pole_matrices(
                     n_seg,
                     dy,
@@ -914,6 +923,27 @@ def _build_operators(
     )
 
 
+def _starts_at_pole_line(y0: float, dy: float) -> bool:
+    """Match MATLAB pole-line detection for symmetry meshes.
+
+    ``AddDW2mesh.m`` applies the Mohseni pole closure when the first y-point
+    on a line sits at the half-cell location ``dy/2`` (within ``0.1*dy``),
+    not only when it is exactly zero.
+    """
+    dy_abs = abs(float(dy))
+    tol = max(1e-12, 0.1 * dy_abs)
+    y0 = float(y0)
+    return abs(y0) <= tol or abs(y0 - 0.5 * dy_abs) <= tol
+
+
+def _is_separable_axis_deformation(X_new: np.ndarray, Y_new: np.ndarray) -> bool:
+    """Whether the supplied deformation is separable in x and y."""
+    return (
+        np.allclose(X_new, X_new[0:1, :], rtol=0.0, atol=1e-12)
+        and np.allclose(Y_new, Y_new[:, 0:1], rtol=0.0, atol=1e-12)
+    )
+
+
 def _build_operators_kron(
     X: np.ndarray,
     Y: np.ndarray,
@@ -975,7 +1005,7 @@ def _build_operators_kron(
 
     if y_symmetry:
         y_col = Y[:, 0]
-        has_pole = np.isclose(y_col[0], 0.0, atol=1e-12)
+        has_pole = _starts_at_pole_line(y_col[0], dy)
         if has_pole:
             D1y_sym, D1y_asym, D2y_sym, D2y_asym = build_sbp_pole_matrices(
                 ny, dy, fd_order,

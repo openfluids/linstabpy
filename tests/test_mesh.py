@@ -605,19 +605,18 @@ class TestPoleStencils:
             assert mat.shape == (n, n)
 
     def test_pole_d1_sym_row0_modified(self):
-        """D1_sym row 0 should be modified by the pole condition.
+        """D1_sym row 0 should match the Mohseni symmetric pole closure.
 
-        The symmetric pole condition folds the ghost point so that
-        f(-dz) = f(dz), giving (f[1] - f[-1])/(2dz) = 0 for symmetric
-        functions.  The row 0 of D1_sym should have a zero at column 0.
+        For the order-2 interior stencil ``[-1/2, 0, 1/2]``, the symmetric
+        pole folding turns the first stored row into ``[-1/2, 1/2] / dz``.
+        This is the closure used by the MATLAB reference operators.
         """
         n = 40
         dz = 1.0 / (n - 1)
         D1_sym, _, _, _ = build_sbp_pole_matrices(n, dz, 2)
         row0 = D1_sym[0].toarray().ravel()
-        # For symmetric pole condition, the (0,0) entry should be zero
-        # (the self-coefficient vanishes due to folding)
-        np.testing.assert_allclose(row0[0], 0.0, atol=1e-13)
+        np.testing.assert_allclose(row0[:2], np.array([-0.5, 0.5]) / dz, atol=1e-13)
+        np.testing.assert_allclose(row0[2:], 0.0, atol=1e-13)
 
     def test_pole_d1_sym_symmetric_function_convergence(self):
         """D1_sym on f(r) = r^2 converges to 0 at r=0 with refinement.
@@ -856,3 +855,49 @@ def test_create_mesh_y_symmetry_matches_matlab_half_cell_shift():
 
     assert mesh.Y[0, 0] == pytest.approx(expected_y0)
     assert mesh.Y[1, 0] == pytest.approx(expected_y1)
+
+
+def test_create_mesh_y_symmetry_uses_pole_stencils_after_half_cell_shift():
+    mesh = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(0.0, 1.0),
+        nx=8,
+        ny=20,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+
+    dy = mesh.Y[1, 0] - mesh.Y[0, 0]
+    D1_sym, D1_asym, D2_sym, D2_asym = build_sbp_pole_matrices(mesh.Y.shape[0], dy, 4)
+    ny = mesh.Y.shape[0]
+
+    np.testing.assert_allclose(mesh.Dy_symm[:ny, :ny].toarray(), D1_sym.toarray())
+    np.testing.assert_allclose(mesh.Dy_asymm[:ny, :ny].toarray(), D1_asym.toarray())
+    np.testing.assert_allclose(mesh.D2y_symm[:ny, :ny].toarray(), D2_sym.toarray())
+    np.testing.assert_allclose(mesh.D2y_asymm[:ny, :ny].toarray(), D2_asym.toarray())
+
+
+def test_deform_separable_xy_reuses_asymm_y_only_family():
+    base = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(0.0, 1.0),
+        nx=12,
+        ny=20,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+
+    X_new = np.broadcast_to(base.X[0:1, :] ** 1.2, base.X.shape)
+    Y_new = np.broadcast_to(base.Y[:, 0:1] ** 1.1, base.Y.shape)
+
+    full = base.deform(X_new=X_new, Y_new=Y_new)
+    seq = base.deform(X_new=X_new).deform(Y_new=Y_new)
+
+    np.testing.assert_allclose(full.Dy_asymm.toarray(), seq.Dy_asymm.toarray())
+    np.testing.assert_allclose(full.D2y_asymm.toarray(), seq.D2y_asymm.toarray())
+    np.testing.assert_allclose(full.Dxy_asymm.toarray(), seq.Dxy_asymm.toarray())
+    np.testing.assert_allclose(full.Dyx_asymm.toarray(), seq.Dyx_asymm.toarray())

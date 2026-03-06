@@ -214,7 +214,7 @@ def build_sbp_pole_matrices(
     in axisymmetric meshes.
     """
     # --- Build base SBP stencils with pole-closure variants ----------------
-    D1, D2, D1_sym, D2_sym, D1_asymm, D2_asymm = _build_sbp_with_pole(n, dz, order)
+    D1, D2, D1_sym, D1_asymm, D2_sym, D2_asymm = _build_sbp_with_pole(n, dz, order)
 
     return D1_sym.tocsr(), D1_asymm.tocsr(), D2_sym.tocsr(), D2_asymm.tocsr()
 
@@ -267,15 +267,24 @@ def _build_sbp_with_pole(n: int, dz: float, order: int):
     D2_sym = D2.copy()
     D2_asymm = D2.copy()
 
+    # MATLAB builds the pole-closure operators from interior + plus-boundary
+    # rows, then writes the first ``w`` rows from scratch. Clear those rows so
+    # no standard minus-boundary coefficients leak into the pole closure.
     for j in range(w):
-        src_sym = D1p[j, w - j : 2 * w - j + 1]
-        src_asymm = D1m[j, w - j : 2 * w - j + 1]
+        D1_sym[j, :] = 0.0
+        D1_asymm[j, :] = 0.0
+        D2_sym[j, :] = 0.0
+        D2_asymm[j, :] = 0.0
+
+    for j in range(w):
+        src_sym = D1p[j, w - j : 2 * w + 1]
+        src_asymm = D1m[j, w - j : 2 * w + 1]
         n = min(src_sym.size, w + j + 1)
         D1_sym[j, :n] = src_sym[:n] / dz
         D1_asymm[j, :n] = src_asymm[:n] / dz
 
-        src2_sym = D2p[j, w - j : 2 * w - j + 1]
-        src2_asymm = D2m[j, w - j : 2 * w - j + 1]
+        src2_sym = D2p[j, w - j : 2 * w + 1]
+        src2_asymm = D2m[j, w - j : 2 * w + 1]
         n2 = min(src2_sym.size, w + j + 1)
         D2_sym[j, :n2] = src2_sym[:n2] / dz**2
         D2_asymm[j, :n2] = src2_asymm[:n2] / dz**2
@@ -305,6 +314,7 @@ def _mohseni_pole_stencil(a_interior: np.ndarray, h: int) -> np.ndarray:
         # Reflected/mirrored coefficients.
         affected = slice(w - j, 2 * w - 2 * j)
         coeff = a_interior[w - j : 2 * w - 2 * j]
-        out[j, affected] = coeff + h * coeff[::-1][: len(coeff)]
+        reflected = a_interior[: w - j][::-1]
+        out[j, affected] = coeff + h * reflected
 
     return out
