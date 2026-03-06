@@ -24,7 +24,7 @@ from linstab2d.solvers.spatial_eig import spatial_eigenvalues
 from linstab2d.utils.floquet import reconstruct_floquet
 from linstab2d.utils.plotting import plot_flow
 
-from ._helpers import env_int
+from ._helpers import env_float, env_int, leading_mode_real_frequency
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -40,15 +40,19 @@ def _compute():
     print(f"Streaky BL grid points: Nx={Nx}, Ny={Ny}")
     fd_order = 4
 
-    freq = 0.0
-    omega_spatial = freq * 2 * np.pi
     n_periods = 2
     floquet_exp = 0.0 if n_periods == 0 else 2 * np.pi / (Lx * n_periods)
     alpha_temp = 0.6283
     omega_tar = 0.5498 + 1.1j
     alpha_target = alpha_temp
     n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
-    arnoldi_ncv = env_int("LINSTAB2D_STREAKY_NCV", 1500)
+    # Hamada's exported Example 3 bundle was generated with opts.p = 150
+    # rather than the original 1500 to keep the solve tractable.
+    arnoldi_ncv = env_int("LINSTAB2D_STREAKY_NCV", 150)
+    spatial_omega_imag_shift = env_float(
+        "LINSTAB2D_STREAKY_SPATIAL_OMEGA_IMAG_SHIFT",
+        0.0,
+    )
 
     xrange = (0.0, Lx)
     yrange = (-1.0, 1.0)
@@ -103,6 +107,13 @@ def _compute():
         ncv=arnoldi_ncv,
     )
 
+    # MATLAB's spatial branch validates against the real part of the
+    # least-damped temporal mode, optionally with an added imag sweep.
+    omega_spatial = leading_mode_real_frequency(
+        temporal_omega,
+        imag_shift=spatial_omega_imag_shift,
+    )
+
     # Spatial generalized EVP in alpha
     Lc, R, Lw, _ = build_spatial_operator(
         mesh,
@@ -140,7 +151,7 @@ def _compute():
         alpha_temp=alpha_temp,
         omega_tar_real=float(np.real(omega_tar)),
         omega_tar_imag=float(np.imag(omega_tar)),
-        omega_spatial=float(omega_spatial),
+        omega_spatial=omega_spatial,
         alpha_target=float(alpha_target),
     )
     print(f"Results saved to {OUTPUT_NPZ}")
