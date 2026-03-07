@@ -9,12 +9,16 @@
       "case_id": "example_0_curvilinear_derivative",
       "label": "Example 0: curvilinear derivative test",
       "comparison_kind": "curvilinear_protocol",
-      "comparison_scope": "protocol_only",
+      "comparison_scope": "direct",
       "python_module": "linstab2d.examples.example_0_curvilinear_validation",
       "python_npz": "linstab2d/examples/example_0_curvilinear_validation.npz",
       "matlab_results_stem": "example_0_TestCurvilinearDerivative_results",
       "matlab_logs_stem": "example_0_TestCurvilinearDerivative_logs",
-      "note": "MATLAB exports raw derivative fields, while the shipped Python example saves branch-level operator metrics instead of like-for-like fields."
+      "tolerances": {
+        "field_abs": 1e-10,
+        "field_rel": 1e-10
+      },
+      "note": "Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative."
     },
     {
       "case_id": "example_1_blasius",

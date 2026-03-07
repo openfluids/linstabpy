@@ -3,55 +3,45 @@
     {
       "case_id": "example_0_curvilinear_derivative",
       "comparison_kind": "curvilinear_protocol",
-      "comparison_scope": "protocol_only",
+      "comparison_scope": "direct",
       "label": "Example 0: curvilinear derivative test",
       "matlab_npz": [
         "tools/parity/npz/example_0_TestCurvilinearDerivative_results.npz",
         "tools/parity/npz/example_0_TestCurvilinearDerivative_logs.npz"
       ],
       "metrics": {
+        "fields": {
+          "df": {
+            "max_abs_error": 6.106226635438361e-14,
+            "rel_l2": 3.828712162343206e-14
+          },
+          "df_an": {
+            "max_abs_error": 3.3306690738754696e-16,
+            "rel_l2": 2.0953706700265693e-16
+          },
+          "f": {
+            "max_abs_error": 2.220446049250313e-16,
+            "rel_l2": 3.912449236225074e-17
+          },
+          "x": {
+            "max_abs_error": 3.3306690738754696e-16,
+            "rel_l2": 2.1604823717978748e-16
+          },
+          "y": {
+            "max_abs_error": 4.440892098500626e-16,
+            "rel_l2": 8.61962315915617e-17
+          }
+        },
         "matlab_df_linf": 0.00040853754847297585,
         "matlab_df_rel_l2": 0.0001741165502675659,
         "matlab_timing_total_seconds": 0.531461,
-        "python_branches": [
-          {
-            "branch": "none",
-            "d2xy_inf": 0.0021076192291102913,
-            "d2yx_inf": 0.0021076192291107354,
-            "dfdx_inf": 0.0006513521689370805,
-            "dfdy_inf": 0.0004587395306154818,
-            "pass": true
-          },
-          {
-            "branch": "x_only",
-            "d2xy_inf": 0.9648214314274423,
-            "d2yx_inf": 0.3873688465069865,
-            "dfdx_inf": 0.0009597063052364518,
-            "dfdy_inf": 0.14879819980746517,
-            "pass": false
-          },
-          {
-            "branch": "y_only",
-            "d2xy_inf": 0.15235231214114803,
-            "d2yx_inf": 0.7796770117832835,
-            "dfdx_inf": 0.09488046113251952,
-            "dfdy_inf": 0.0008720155470056667,
-            "pass": true
-          },
-          {
-            "branch": "full_2d",
-            "d2xy_inf": 0.004511261533934441,
-            "d2yx_inf": 0.004511261533934885,
-            "dfdx_inf": 0.000780373738486384,
-            "dfdy_inf": 0.0004557679549574978,
-            "pass": true
-          }
-        ],
-        "python_protocol_pass": false
+        "python_df_linf": 0.00040853754847341994,
+        "python_df_rel_l2": 0.0001741165502675395,
+        "python_protocol_pass": true
       },
-      "note": "MATLAB exports raw derivative fields, while the shipped Python example saves branch-level operator metrics instead of like-for-like fields.",
+      "note": "Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative.",
       "python_npz": "linstab2d/examples/example_0_curvilinear_validation.npz",
-      "status": "SOFT_FAIL"
+      "status": "PASS"
     },
     {
       "case_id": "example_1_blasius",
@@ -466,8 +456,9 @@
   ],
   "config": "/Users/rfrantz/Documents/projects/linstab2d/tools/parity/martini_cases.jsonc",
   "counts": {
-    "SOFT_FAIL": 6
+    "PASS": 1,
+    "SOFT_FAIL": 5
   },
-  "generated_at_utc": "2026-03-06T21:26:11.268488+00:00",
+  "generated_at_utc": "2026-03-07T07:57:31.358322+00:00",
   "npz_dir": "/Users/rfrantz/Documents/projects/linstab2d/tools/parity/npz"
 }

@@ -67,6 +67,15 @@ def _rel_l2(reference: np.ndarray, candidate: np.ndarray) -> float:
     return float(np.linalg.norm(reference - candidate) / denom)
 
 
+def _field_metrics(reference: np.ndarray, candidate: np.ndarray) -> dict[str, float]:
+    ref = np.asarray(reference, dtype=float)
+    cand = np.asarray(candidate, dtype=float)
+    return {
+        "max_abs_error": float(np.max(np.abs(ref - cand))),
+        "rel_l2": _rel_l2(ref.ravel(order="F"), cand.ravel(order="F")),
+    }
+
+
 def _mode_matrix(values: np.ndarray) -> np.ndarray:
     arr = np.asarray(compound_to_complex(values), dtype=complex)
     if arr.ndim == 1:
@@ -200,35 +209,50 @@ def compare_curvilinear_protocol_case(
     python_npz: dict[str, np.ndarray],
     matlab_results: dict[str, np.ndarray],
     matlab_logs: dict[str, np.ndarray],
+    tolerances: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    df = np.asarray(_npz_get(matlab_results, "results_TestCurv/df"), dtype=float)
-    df_an = np.asarray(_npz_get(matlab_results, "results_TestCurv/df_an"), dtype=float)
+    tol = tolerances or {}
+    field_abs_tol = float(tol.get("field_abs", 1e-10))
+    field_rel_tol = float(tol.get("field_rel", 1e-10))
 
-    matlab_linf = float(np.max(np.abs(df - df_an)))
-    matlab_rel = float(np.linalg.norm(df - df_an) / max(np.linalg.norm(df_an), 1e-30))
-    python_pass = _bool_scalar(python_npz["overall_pass"])
+    x_mat = np.asarray(_npz_get(matlab_results, "results_TestCurv/x"), dtype=float)
+    y_mat = np.asarray(_npz_get(matlab_results, "results_TestCurv/y"), dtype=float)
+    f_mat = np.asarray(_npz_get(matlab_results, "results_TestCurv/f"), dtype=float)
+    df_mat = np.asarray(_npz_get(matlab_results, "results_TestCurv/df"), dtype=float)
+    df_an_mat = np.asarray(_npz_get(matlab_results, "results_TestCurv/df_an"), dtype=float)
 
-    branch_names = [str(name) for name in python_npz["branch_names"]]
-    branch_rows = []
-    for i, name in enumerate(branch_names):
-        branch_rows.append(
-            {
-                "branch": name,
-                "pass": bool(np.asarray(python_npz["pass_flags"], dtype=bool)[i]),
-                "dfdx_inf": float(np.asarray(python_npz["dfdx_inf"], dtype=float)[i]),
-                "dfdy_inf": float(np.asarray(python_npz["dfdy_inf"], dtype=float)[i]),
-                "d2xy_inf": float(np.asarray(python_npz["d2xy_inf"], dtype=float)[i]),
-                "d2yx_inf": float(np.asarray(python_npz["d2yx_inf"], dtype=float)[i]),
-            }
-        )
+    x_py = np.asarray(python_npz["x"], dtype=float)
+    y_py = np.asarray(python_npz["y"], dtype=float)
+    f_py = np.asarray(python_npz["f"], dtype=float)
+    df_py = np.asarray(python_npz["df"], dtype=float)
+    df_an_py = np.asarray(python_npz["df_an"], dtype=float)
+
+    matlab_linf = float(np.max(np.abs(df_mat - df_an_mat)))
+    matlab_rel = float(np.linalg.norm(df_mat - df_an_mat) / max(np.linalg.norm(df_an_mat), 1e-30))
+    python_linf = float(np.max(np.abs(df_py - df_an_py)))
+    python_rel = float(np.linalg.norm(df_py - df_an_py) / max(np.linalg.norm(df_an_py), 1e-30))
+
+    field_reports = {
+        "x": _field_metrics(x_mat, x_py),
+        "y": _field_metrics(y_mat, y_py),
+        "f": _field_metrics(f_mat, f_py),
+        "df": _field_metrics(df_mat, df_py),
+        "df_an": _field_metrics(df_an_mat, df_an_py),
+    }
+    python_pass = all(
+        metrics["max_abs_error"] <= field_abs_tol and metrics["rel_l2"] <= field_rel_tol
+        for metrics in field_reports.values()
+    )
 
     timing_total = float(np.asarray(_npz_get(matlab_logs, "timing_total"), dtype=float).reshape(-1)[0])
     return {
         "python_protocol_pass": python_pass,
         "matlab_df_linf": matlab_linf,
         "matlab_df_rel_l2": matlab_rel,
+        "python_df_linf": python_linf,
+        "python_df_rel_l2": python_rel,
         "matlab_timing_total_seconds": timing_total,
-        "python_branches": branch_rows,
+        "fields": field_reports,
     }
 
 
@@ -399,6 +423,7 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
                 python_npz=python_npz,
                 matlab_results=_load_npz_dict(matlab_results_path),
                 matlab_logs=_load_npz_dict(matlab_logs_path),
+                tolerances=case.get("tolerances", {}),
             )
             base["matlab_npz"] = [
                 str(matlab_results_path.relative_to(ROOT)),
