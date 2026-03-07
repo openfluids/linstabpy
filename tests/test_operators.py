@@ -7,7 +7,7 @@ import pytest
 from linstab2d.mesh import Mesh
 from linstab2d.baseflow import BaseFlow, sutherland_air
 from linstab2d.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
-from linstab2d.operators.assembly import _create_axy_diff_matrices, _apply_inv_B
+from linstab2d.operators.assembly import _create_axy_diff_matrices, _apply_inv_B, _prepare_coefficients
 from linstab2d.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
@@ -278,6 +278,17 @@ class TestOperatorAssembly:
         """Invalid model string raises ValueError."""
         with pytest.raises(ValueError):
             build_lnse_operator(small_mesh_2d, uniform_baseflow, model="invalid")
+
+    def test_cartesian_prep_uses_dyx_for_mixed_derivative(self, small_mesh_2d, uniform_baseflow):
+        """MATLAB 2D path uses Dzr = Dy @ Dx in the mixed-derivative block."""
+        mesh = small_mesh_2d.deform(
+            X_new=small_mesh_2d.X + 0.05 * small_mesh_2d.X * small_mesh_2d.Y,
+            Y_new=small_mesh_2d.Y + 0.1 * small_mesh_2d.Y**2,
+        )
+        assert (mesh.Dxy != mesh.Dyx).nnz > 0, "test mesh must distinguish Dxy and Dyx"
+
+        prepared = _prepare_coefficients(mesh, uniform_baseflow, kx=0.0, model="2D", m=0.0)
+        assert (prepared["D2RZ"] != mesh.Dyx).nnz == 0
 
 
 # =========================================================================

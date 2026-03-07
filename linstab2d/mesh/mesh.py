@@ -1098,20 +1098,17 @@ def _build_indices(
         ri_mask[:, -1] = mask_2d[:, -1]
         ri = _boundary_to_local(ri_mask)
 
-    neigh = np.zeros_like(mask_2d, dtype=int)
-    neigh[1:, :] += mask_2d[:-1, :].astype(int)
-    neigh[:-1, :] += mask_2d[1:, :].astype(int)
+    # Match MATLAB MeshMask.m exactly: ``mi`` is the set of *used* points
+    # adjacent to the masked-out region, using a full 3x3 neighborhood on
+    # the removed-point mask (including diagonals, without periodic wrap).
+    removed = ~mask_2d
+    removed_pad = np.pad(removed, 1, mode="constant", constant_values=False)
+    near_removed = np.zeros_like(mask_2d, dtype=bool)
+    for di in range(3):
+        for dj in range(3):
+            near_removed |= removed_pad[di : di + mask_2d.shape[0], dj : dj + mask_2d.shape[1]]
 
-    if x_periodicity:
-        neigh[:, 0] += mask_2d[:, -1].astype(int)
-        neigh[:, -1] += mask_2d[:, 0].astype(int)
-        neigh[:, 1:] += mask_2d[:, :-1].astype(int)
-        neigh[:, :-1] += mask_2d[:, 1:].astype(int)
-    else:
-        neigh[:, 1:] += mask_2d[:, :-1].astype(int)
-        neigh[:, :-1] += mask_2d[:, 1:].astype(int)
-
-    mi_mask = mask_2d & (neigh < 4)
+    mi_mask = mask_2d & near_removed
     mi = _boundary_to_local(mi_mask)
 
     return {"bi": bi, "ti": ti, "li": li, "ri": ri, "mi": mi}

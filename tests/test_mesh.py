@@ -26,6 +26,8 @@ pole-stencil code.  Tests are parametrised only over order 2.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from scipy import sparse
@@ -852,6 +854,45 @@ class TestMaskThenDeform:
             & (y_mi >= 0.3) & (y_mi <= 0.65)
         )
         assert np.any(cavity_adjacent), "no mi points near cavity boundary"
+
+
+def test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
+    repo = Path(__file__).resolve().parents[1]
+    matlab = np.load(
+        repo / "tools/parity/npz/example_4_Cavity_results_base.npz",
+        allow_pickle = False,
+    )
+
+    x_cavity_start = 0.34029
+    L_cavity = 1.9995
+    mesh = Mesh.create(
+        xrange=(x_cavity_start - L_cavity, x_cavity_start + 2 * L_cavity),
+        yrange=(-1.0, 1.0),
+        nx=241,
+        ny=101,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+    remove = (mesh.Y < 0.0) & ((mesh.X < 0.34) | (mesh.X > 2.34))
+    masked = mesh.mask(~remove)
+
+    Y_new = masked.Y.copy()
+    Y_new = (Y_new**3 + 0.5 * Y_new) / 1.5
+    p = Y_new > 0.0
+    Y_new[p] = Y_new[p] + 2.0 * (Y_new[p] / np.max(Y_new[p])) ** 3
+    masked = masked.deform(Y_new=Y_new)
+
+    X_new = masked.X.copy()
+    p = X_new > 2.8
+    X_new[p] = X_new[p] + 1.0 * ((X_new[p] - 2.8) / (np.max(X_new[p]) - 2.8)) ** 3
+    masked = masked.deform(X_new=X_new)
+
+    np.testing.assert_array_equal(
+        masked.idx["mi"] + 1,
+        matlab["results_Cavity_base__mesh__idx__mi"].reshape(-1).astype(int),
+    )
 
 
 def test_create_mesh_y_symmetry_matches_matlab_half_cell_shift():

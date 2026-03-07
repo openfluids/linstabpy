@@ -304,106 +304,106 @@
       ],
       "metrics": {
         "adjoint": {
-          "mode_max_rel_l2": 0.05360697958551683,
+          "mode_max_rel_l2": 0.045373086107604786,
           "n_compare": 6,
           "per_mode": [
             {
-              "eigenvalue_abs_error": 0.00041152521713399653,
-              "eigenvalue_rel_error": 0.00045041424648678964,
+              "eigenvalue_abs_error": 0.00042551509965727197,
+              "eigenvalue_rel_error": 0.0004657261693843555,
               "matlab_mode_index_1based": 28,
               "python_mode_index_1based": 38,
-              "rel_l2": 0.02996975103408425
+              "rel_l2": 0.029902894352323336
             },
             {
-              "eigenvalue_abs_error": 0.0004268678180538116,
-              "eigenvalue_rel_error": 0.0009398596215061626,
+              "eigenvalue_abs_error": 0.00042749633203847487,
+              "eigenvalue_rel_error": 0.0009412434571825793,
               "matlab_mode_index_1based": 29,
               "python_mode_index_1based": 39,
-              "rel_l2": 0.0063936306210324685
+              "rel_l2": 0.006311622681165156
             },
             {
-              "eigenvalue_abs_error": 0.0004364321023451738,
-              "eigenvalue_rel_error": 0.0009380387513750027,
+              "eigenvalue_abs_error": 0.0004316536987768148,
+              "eigenvalue_rel_error": 0.0009277683617937975,
               "matlab_mode_index_1based": 31,
               "python_mode_index_1based": 41,
-              "rel_l2": 0.05360697958551683
+              "rel_l2": 0.045373086107604786
             },
             {
-              "eigenvalue_abs_error": 0.00044629943247213215,
-              "eigenvalue_rel_error": 0.0004920178316872438,
+              "eigenvalue_abs_error": 0.00044685464399517387,
+              "eigenvalue_rel_error": 0.0004926299184384674,
               "matlab_mode_index_1based": 11,
               "python_mode_index_1based": 13,
-              "rel_l2": 0.005137476204947597
+              "rel_l2": 0.005116930287990847
             },
             {
-              "eigenvalue_abs_error": 0.00045038486922353166,
-              "eigenvalue_rel_error": 0.00032976648932386143,
+              "eigenvalue_abs_error": 0.00045816190083091833,
+              "eigenvalue_rel_error": 0.0005067412174102558,
+              "matlab_mode_index_1based": 19,
+              "python_mode_index_1based": 23,
+              "rel_l2": 0.012870555159818137
+            },
+            {
+              "eigenvalue_abs_error": 0.00045858725780830535,
+              "eigenvalue_rel_error": 0.00033577218150516,
               "matlab_mode_index_1based": 23,
               "python_mode_index_1based": 32,
-              "rel_l2": 0.02978157625577187
-            },
-            {
-              "eigenvalue_abs_error": 0.0004537374520834739,
-              "eigenvalue_rel_error": 0.0002496005582294625,
-              "matlab_mode_index_1based": 26,
-              "python_mode_index_1based": 49,
-              "rel_l2": 0.03050144822911348
+              "rel_l2": 0.02989022415395356
             }
           ],
           "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 0.0004537374520834739,
-          "spectrum_max_rel_error": 0.0009398596215061626
+          "spectrum_max_abs_error": 0.00045858725780830535,
+          "spectrum_max_rel_error": 0.0009412434571825793
         },
         "direct": {
-          "mode_max_rel_l2": 0.030705370861823116,
+          "mode_max_rel_l2": 0.028081832892229572,
           "n_compare": 6,
           "per_mode": [
             {
-              "eigenvalue_abs_error": 0.0004115252171298688,
-              "eigenvalue_rel_error": 0.0004504142464822716,
+              "eigenvalue_abs_error": 0.00042551509965672575,
+              "eigenvalue_rel_error": 0.0004657261693837574,
               "matlab_mode_index_1based": 28,
               "python_mode_index_1based": 38,
-              "rel_l2": 0.028919501159902966
+              "rel_l2": 0.028081832892229572
             },
             {
-              "eigenvalue_abs_error": 0.0004268678180616516,
-              "eigenvalue_rel_error": 0.0009398596215234346,
+              "eigenvalue_abs_error": 0.00042749633204828527,
+              "eigenvalue_rel_error": 0.0009412434572041895,
               "matlab_mode_index_1based": 29,
               "python_mode_index_1based": 39,
-              "rel_l2": 0.004161974539578191
+              "rel_l2": 0.0037201616250825765
             },
             {
-              "eigenvalue_abs_error": 0.0004364321023648322,
-              "eigenvalue_rel_error": 0.0009380387514172177,
+              "eigenvalue_abs_error": 0.00043165369879395694,
+              "eigenvalue_rel_error": 0.0009277683618306046,
               "matlab_mode_index_1based": 31,
               "python_mode_index_1based": 41,
-              "rel_l2": 0.030705370861823116
+              "rel_l2": 0.024043655028235758
             },
             {
-              "eigenvalue_abs_error": 0.00044629943249008345,
-              "eigenvalue_rel_error": 0.0004920178317070411,
+              "eigenvalue_abs_error": 0.00044685464402452387,
+              "eigenvalue_rel_error": 0.0004926299184708309,
               "matlab_mode_index_1based": 7,
               "python_mode_index_1based": 13,
-              "rel_l2": 0.0031611170183273667
+              "rel_l2": 0.002703492787941349
             },
             {
-              "eigenvalue_abs_error": 0.00045038486920434285,
-              "eigenvalue_rel_error": 0.0003297664893098103,
+              "eigenvalue_abs_error": 0.0004581619008401041,
+              "eigenvalue_rel_error": 0.0005067412174204195,
+              "matlab_mode_index_1based": 15,
+              "python_mode_index_1based": 23,
+              "rel_l2": 0.00791975196846743
+            },
+            {
+              "eigenvalue_abs_error": 0.0004585872577950829,
+              "eigenvalue_rel_error": 0.0003357721814954773,
               "matlab_mode_index_1based": 24,
               "python_mode_index_1based": 32,
-              "rel_l2": 0.02239413559995849
-            },
-            {
-              "eigenvalue_abs_error": 0.00045373745208606824,
-              "eigenvalue_rel_error": 0.00024960055823089017,
-              "matlab_mode_index_1based": 26,
-              "python_mode_index_1based": 49,
-              "rel_l2": 0.019812486306593474
+              "rel_l2": 0.021556766047571393
             }
           ],
           "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 0.00045373745208606824,
-          "spectrum_max_rel_error": 0.0009398596215234346
+          "spectrum_max_abs_error": 0.0004585872577950829,
+          "spectrum_max_rel_error": 0.0009412434572041895
         }
       },
       "note": "",
@@ -459,6 +459,6 @@
     "PASS": 1,
     "SOFT_FAIL": 5
   },
-  "generated_at_utc": "2026-03-07T07:57:31.358322+00:00",
+  "generated_at_utc": "2026-03-07T08:18:29.514013+00:00",
   "npz_dir": "$HOME/Documents/projects/linstab2d/tools/parity/npz"
 }
