@@ -24,7 +24,7 @@ from linstab2d.solvers.spatial_eig import spatial_eigenvalues
 from linstab2d.utils.floquet import reconstruct_floquet
 from linstab2d.utils.plotting import plot_flow
 
-from ._helpers import env_bool, env_float, env_int, leading_mode_real_frequency
+from ._helpers import env_bool, env_complex, env_float, env_int, leading_mode_real_frequency
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -64,8 +64,8 @@ def _compute():
     n_periods = 2
     floquet_exp = 0.0 if n_periods == 0 else 2 * np.pi / (Lx * n_periods)
     alpha_temp = 0.6283
-    omega_tar = 0.5498 + 1.1j
-    alpha_target = alpha_temp
+    omega_tar = env_complex("LINSTAB2D_STREAKY_OMEGA_TARGET", 0.5498 + 1.1j)
+    alpha_target = env_float("LINSTAB2D_STREAKY_ALPHA_TARGET", alpha_temp)
     n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
     # Hamada's exported Example 3 bundle was generated with opts.p = 150
     # rather than the original 1500 to keep the solve tractable.
@@ -159,6 +159,8 @@ def _compute():
                 "idx_v_j": idx["v_j"],
                 "idx_w_j": idx["w_j"],
                 "idx_T_j": idx["T_j"],
+                "omega_target_real": float(np.real(omega_tar)),
+                "omega_target_imag": float(np.imag(omega_tar)),
             }
         )
         _save_npz(results)
