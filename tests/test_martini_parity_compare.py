@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
+from linstab2d.examples.example_0_curvilinear_validation import _compute_reference_fields
 from tools.parity.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
+    compare_curvilinear_protocol_case,
     compare_resolvent_case,
 )
 
@@ -50,6 +54,52 @@ def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
     assert report["gains"]["max_rel_error"] == 0.0
     assert report["modes"]["max_forcing_rel_l2"] < 1e-12
     assert report["modes"]["max_response_rel_l2"] < 1e-12
+
+
+def test_compare_curvilinear_protocol_case_matches_direct_fields() -> None:
+    x = np.arange(9, dtype=float).reshape(3, 3)
+    y = x + 10.0
+    f = np.cos(x)
+    df_an = -np.sin(x)
+    df = df_an + 1e-14
+
+    report = compare_curvilinear_protocol_case(
+        python_npz={
+            "x": x,
+            "y": y,
+            "f": f,
+            "df": df,
+            "df_an": df_an,
+        },
+        matlab_results={
+            "results_TestCurv__x": x,
+            "results_TestCurv__y": y,
+            "results_TestCurv__f": f,
+            "results_TestCurv__df": df,
+            "results_TestCurv__df_an": df_an,
+        },
+        matlab_logs={"timing_total": np.array([0.5], dtype=float)},
+        tolerances={"field_abs": 1e-12, "field_rel": 1e-12},
+    )
+
+    assert report["python_protocol_pass"] is True
+    assert report["fields"]["df"]["max_abs_error"] == 0.0
+    assert report["fields"]["df"]["rel_l2"] == 0.0
+
+
+def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
+    repo = Path(__file__).resolve().parents[1]
+    matlab = np.load(
+        repo / "tools/parity/npz/example_0_TestCurvilinearDerivative_results.npz",
+        allow_pickle = False,
+    )
+    fields = _compute_reference_fields()
+
+    np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(fields["y"], matlab["results_TestCurv__y"], atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(fields["f"], matlab["results_TestCurv__f"], atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(fields["df_an"], matlab["results_TestCurv__df_an"], atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(fields["df"], matlab["results_TestCurv__df"], atol=1e-12, rtol=1e-12)
 
 
 def test_compare_cavity_case_uses_global_best_spectrum_pairs() -> None:
