@@ -895,6 +895,66 @@ def test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
     )
 
 
+def test_cavity_sponge_matches_exported_matlab_bundle() -> None:
+    repo = Path(__file__).resolve().parents[1]
+    matlab = np.load(
+        repo / "tools/parity/npz/example_4_Cavity_results_base.npz",
+        allow_pickle = False,
+    )
+
+    x_cavity_start = 0.34029
+    L_cavity = 1.9995
+    mesh = Mesh.create(
+        xrange=(x_cavity_start - L_cavity, x_cavity_start + 2 * L_cavity),
+        yrange=(-1.0, 1.0),
+        nx=241,
+        ny=101,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+    remove = (mesh.Y < 0.0) & ((mesh.X < 0.34) | (mesh.X > 2.34))
+    mesh = mesh.mask(~remove)
+
+    Y_new = mesh.Y.copy()
+    Y_new = (Y_new**3 + 0.5 * Y_new) / 1.5
+    p = Y_new > 0.0
+    Y_new[p] = Y_new[p] + 2.0 * (Y_new[p] / np.max(Y_new[p])) ** 3
+    mesh = mesh.deform(Y_new=Y_new)
+
+    X_new = mesh.X.copy()
+    p = X_new > 2.8
+    X_new[p] = X_new[p] + 1.0 * ((X_new[p] - 2.8) / (np.max(X_new[p]) - 2.8)) ** 3
+    mesh = mesh.deform(X_new=X_new)
+
+    xs_trans = 0.5
+    xs_offset = 0.5
+    ys_trans = 0.5
+    ys_offset = 1.0
+    sponge_amp = 5.0
+    sponge = np.full(mesh.X.shape, np.nan, dtype=float)
+    used = mesh.used_ind
+    x = mesh.X.ravel(order="F")[used]
+    y = mesh.Y.ravel(order="F")[used]
+    term_x = np.tanh(-(x - np.min(mesh.X) - xs_offset) / xs_trans) + 1
+    term_y = np.tanh((x - np.max(mesh.X) + xs_offset) / xs_trans) + 1
+    term_t = np.tanh((y - np.max(mesh.Y) + ys_offset) / ys_trans) + 1
+    sponge_flat = sponge.ravel(order="F")
+    sponge_flat[used] = sponge_amp / 2 * np.maximum(term_t, term_x + term_y)
+    sponge = sponge_flat.reshape(mesh.X.shape, order="F")
+
+    matlab_sponge = matlab["results_Cavity_base__mesh__sponge"]
+    matlab_used = matlab["results_Cavity_base__mesh__usedInd"].reshape(-1).astype(int) - 1
+    np.testing.assert_array_equal(used, matlab_used)
+    np.testing.assert_allclose(
+        sponge.T.ravel(order="F")[used],
+        matlab_sponge.ravel(order="F")[used],
+        atol=1e-12,
+        rtol=1e-12,
+    )
+
+
 def test_create_mesh_y_symmetry_matches_matlab_half_cell_shift():
     mesh = Mesh.create(
         xrange=(-1.0, 0.0),
