@@ -89,11 +89,16 @@ def compute():
     ind = mesh.used_ind
     x = mesh.X.ravel(order="F")[ind]
     y = mesh.Y.ravel(order="F")[ind]
-    term_x = np.tanh(-(x - np.min(x) - xs_offset) / xs_trans) + 1
-    term_y = np.tanh((x - np.max(x) + xs_offset) / xs_trans) + 1
-    term_t = np.tanh((y - np.max(y) + ys_offset) / ys_trans) + 1
+    x_min = float(np.min(mesh.X))
+    x_max = float(np.max(mesh.X))
+    y_max = float(np.max(mesh.Y))
+    term_x = np.tanh(-(x - x_min - xs_offset) / xs_trans) + 1
+    term_y = np.tanh((x - x_max + xs_offset) / xs_trans) + 1
+    term_t = np.tanh((y - y_max + ys_offset) / ys_trans) + 1
     sponge_vals = sponge_amp / 2 * np.maximum(term_t, term_x + term_y)
-    sponge.ravel(order="F")[ind] = sponge_vals
+    sponge_flat = sponge.ravel(order="F")
+    sponge_flat[ind] = sponge_vals
+    sponge = sponge_flat.reshape(mesh.X.shape, order="F")
     mesh.sponge = sponge
 
     L0, idx = build_lnse_operator(mesh, baseflow, model="2D", kx=beta)
