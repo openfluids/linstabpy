@@ -83,6 +83,9 @@ def _eigs_generalized(
     # Shift-invert spectral transformation with MUMPS
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
+    # Mirror the temporal solver and set the shift explicitly on ST so the
+    # generalized shift-invert center is not left implicit.
+    st.setShift(target)
     ksp = st.getKSP()
     ksp.setType(PETSc.KSP.Type.PREONLY)
     pc = ksp.getPC()

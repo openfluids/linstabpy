@@ -175,6 +175,10 @@ def _eigs_near_target(
     #   iterative       -> Krylov linear solve in ST (scalable, may require tuning)
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
+    # Keep the ST shift explicit instead of relying only on EPS.setTarget().
+    # In crowded target neighborhoods like Martini Example 3, this makes the
+    # intended shift-invert center unambiguous in PETSc/SLEPc.
+    st.setShift(target)
     ksp = st.getKSP()
     pc = ksp.getPC()
 
