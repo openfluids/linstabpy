@@ -10,3 +10,6 @@ build/
 .venv/
 artifacts/
 .DS_Store
+.beads/
+gmn_*.json
+gmn_*.txt
