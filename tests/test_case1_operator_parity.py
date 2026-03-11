@@ -1,4 +1,4 @@
-"""Regression parity test for Hamada operator assembly vs MATLAB exports.
+"""Regression parity test for Case 1 operator assembly vs MATLAB exports.
 
 This test intentionally checks matrix construction only (no eigensolve) so it
 stays fast while guarding the core MATLAB/Python operator equivalence.
@@ -44,9 +44,9 @@ def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> tuple[floa
     return max_abs, max_rel, frob_rel
 
 
-def test_hamada_operator_stages_match_matlab_exports() -> None:
+def test_case1_operator_stages_match_matlab_exports() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    case_dir = repo_root / "example_6_hamada"
+    case_dir = repo_root / "case1"
     exports_dir = case_dir / "MATLAB_exports"
 
     if not exports_dir.exists():

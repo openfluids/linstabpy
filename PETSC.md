@@ -1,7 +1,7 @@
-# PETSc/SLEPc Notes for `linstab2d` (Hamada case)
+# PETSc/SLEPc Notes for `linstab2d` (Case 1)
 
 Date: 2026-02-26  
-Scope: `example_6_hamada` operator structure, solver behavior, and PETSc/SLEPc best-practice alignment.
+Scope: `case1` operator structure, solver behavior, and PETSc/SLEPc best-practice alignment.
 
 ## 1) Measured operator diagnostics (current Python assembly)
 
@@ -54,18 +54,18 @@ Validated runs now show both robust direct and a working distributed iterative p
 - MUMPS baseline (`SINVERT + LU/MUMPS`, `MPI=1`, `threads=6`, `n_modes=30`)
   - converged in about `98 s`
   - spectrum parity pass
-  - log: `results/case1/output/logs/example_6_hamada_20260226_085632.log`
+  - log: `results/case1/output/logs/case1_20260226_085632.log`
 - Iterative ASM (`SINVERT + GMRES/ASM/sub-LU`, `MPI=1`, `threads=6`, `n_modes=30`)
   - converged in about `217 s`
   - spectrum parity pass
-  - log: `results/case1/output/logs/example_6_hamada_20260226_085247.log`
+  - log: `results/case1/output/logs/case1_20260226_085247.log`
 - Iterative ASM distributed (`SINVERT + GMRES/ASM/sub-LU`, `MPI=2`, `threads/rank=3`, `n_modes=30`)
   - converged in about `185 s`
   - spectrum parity pass
   - operator-stage matrix parity pass
-  - log: `results/case1/output/logs/example_6_hamada_20260226_115755.log`
+  - log: `results/case1/output/logs/case1_20260226_115755.log`
 - One JD/PRECOND trial (`FGMRES+bjacobi+sub-LU`, `MPI=2`) still stalled (`nconv=0` at ~320 s)
-  - log: `results/case1/output/logs/example_6_hamada_20260226_092026.log`
+  - log: `results/case1/output/logs/case1_20260226_092026.log`
 
 Current conclusion: keep MUMPS as robust baseline, and use the iterative MPI path on the now-validated SINVERT+ASM configuration while continuing preconditioner improvements.
 

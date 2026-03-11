@@ -157,9 +157,9 @@ SciPy sparse (matrix assembly)  →  PETSc (linear solves via MUMPS)  →  SLEPc
 - **SLEPc TRLANCZOS** computes the resolvent SVD directly (no operator squaring), which is numerically more stable than eigendecomposing H^H W H.
 - The entire solver chain is MPI-ready for future distributed-memory parallelism.
 
-## Linear-system nature (Hamada Example 6) and solver strategies
+## Linear-system nature (Case 1) and solver strategies
 
-For the assembled LNSE operator (after BCs), the current Hamada case has:
+For the assembled LNSE operator (after BCs), the current Case 1 has:
 
 - size `127500 x 127500`
 - `5,678,509` nonzeros (`0.0349%` density)
@@ -175,7 +175,7 @@ The block system is compressible and mostly coupled in `rho/u/v/T`, with a decou
 - `ST=SINVERT`, `KSP=PREONLY`, `PC=LU`, `solver=MUMPS`
 - use for medium cases where direct factorization memory fits
 - this is the current reliable MATLAB-parity path in this repository
-- verified on **2026-02-26** (`example_6_hamada`, `n_modes=30`, `MPI=1`, `threads=6`): converged in `~98s`, parity `pass=True`
+- verified on **2026-02-26** (`case1`, `n_modes=30`, `MPI=1`, `threads=6`): converged in `~98s`, parity `pass=True`
 
 ### Strategy B (scalable, in progress): PETSc iterative + strong preconditioner
 
@@ -185,7 +185,7 @@ The block system is compressible and mostly coupled in `rho/u/v/T`, with a decou
 - resolvent linear solves can now be switched to PETSc iterative mode via:
   - `LINSTAB2D_RESOLVENT_TYPE=iterative`
   - optional tuning: `LINSTAB2D_RESOLVENT_KSP_TYPE`, `LINSTAB2D_RESOLVENT_PC_TYPE`, `LINSTAB2D_RESOLVENT_KSP_RTOL`, `LINSTAB2D_RESOLVENT_KSP_MAX_IT`
-- current tested status on the Hamada case:
+- current tested status on the Case 1:
 - `MPI=1` iterative ASM (`GMRES+ASM+sub-LU`) converges and matches MATLAB, but slower (`~217s`)
 - `MPI=2` iterative SINVERT (`GMRES+ASM+sub-LU`) now converges with parity pass (`~185s`, `n_modes=30`) using root-owned matrix transfer path
 - `MPI=2` JD+PRECOND (`FGMRES+bjacobi+sub-LU`) did not reach convergence in `~320s` (`nconv=0`) and was terminated
@@ -195,18 +195,18 @@ Operational rule:
 
 - if direct factorization fits memory, use Strategy A
 - if not, use Strategy B only with explicit convergence reason + parity checks
-- reference logs from these tests: `results/case1/output/logs/example_6_hamada_20260226_085632.log`, `results/case1/output/logs/example_6_hamada_20260226_085247.log`, `results/case1/output/logs/example_6_hamada_20260226_092026.log`, `results/case1/output/logs/example_6_hamada_20260226_115755.log`
+- reference logs from these tests: `results/case1/output/logs/case1_20260226_085632.log`, `results/case1/output/logs/case1_20260226_085247.log`, `results/case1/output/logs/case1_20260226_092026.log`, `results/case1/output/logs/case1_20260226_115755.log`
 
 ### Validated discovery (2026-02-26)
 
-- For the Hamada parity case (`example_6_hamada`, `n_modes=30`), both strategy classes are now validated for temporal stability:
+- For the Case 1 parity case (`case1`, `n_modes=30`), both strategy classes are now validated for temporal stability:
 - Strategy A (direct MUMPS) converges and matches MATLAB spectrum.
 - Strategy B baseline (iterative SLEPc SINVERT + GMRES/ASM/sub-LU) converges and matches MATLAB spectrum in distributed mode (`MPI=2`), after enabling root-owned SciPy->PETSc row-scatter transfer.
 - Matrix-stage parity (pre/post BC assembly stages) is now emitted as an artifact and passes for the parity case.
 
 ### Resolvent parity status
 
-- Resolvent parity on the Hamada reference case now passes against MATLAB exports:
+- Resolvent parity on the Case 1 reference case now passes against MATLAB exports:
   - gains match to machine precision,
   - leading forcing/response modes match after phase alignment,
   - operator-action probes (`H`, `H^H`, `H^H W H`) are aligned.
