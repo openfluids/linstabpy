@@ -17,7 +17,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 PYTHON="$REPO/.venv/bin/python"
-EXAMPLES_DIR="$REPO/linstab2d/examples"
+EXAMPLES_DIR="$REPO/examples"
 
 # ── Argument handling ──────────────────────────────────────────────────────────
 FRESH=0
@@ -57,12 +57,12 @@ run_example() {
   "$PYTHON" -m "$module"
 }
 
-run_example linstab2d.examples.example_0_curvilinear_validation "Example 0: curvilinear derivative validation"
-run_example linstab2d.examples.example_1_blasius                "Example 1: Blasius boundary layer resolvent"
-run_example linstab2d.examples.example_2_jet                    "Example 2: turbulent jet resolvent"
-run_example linstab2d.examples.example_3_streaky_bl             "Example 3: streaky boundary layer (temporal + spatial)"
-run_example linstab2d.examples.example_4_cavity                 "Example 4: cavity direct and adjoint eigenvalues"
-run_example linstab2d.examples.example_5_paraboloid             "Example 5: paraboloid resolvent"
+run_example examples.example_0_curvilinear_validation "Example 0: curvilinear derivative validation"
+run_example examples.example_1_blasius                "Example 1: Blasius boundary layer resolvent"
+run_example examples.example_2_jet                    "Example 2: turbulent jet resolvent"
+run_example examples.example_3_streaky_bl             "Example 3: streaky boundary layer (temporal + spatial)"
+run_example examples.example_4_cavity                 "Example 4: cavity direct and adjoint eigenvalues"
+run_example examples.example_5_paraboloid             "Example 5: paraboloid resolvent"
 
 # ── Parity comparison ─────────────────────────────────────────────────────────
 echo ""

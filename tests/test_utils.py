@@ -6,8 +6,8 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 from linstab2d.mesh import Mesh
-from linstab2d.examples._helpers import leading_mode_real_frequency
-from linstab2d.examples.example_3_streaky_bl import _merge_temporal_target_batches
+from examples._helpers import leading_mode_real_frequency
+from examples.example_3_streaky_bl import _merge_temporal_target_batches
 from linstab2d.utils import reconstruct_floquet, plot_flow
 
 

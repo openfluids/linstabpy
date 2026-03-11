@@ -18,13 +18,13 @@
 
 ```bash
 # Correct — uses the patched venv created by install.sh
-.venv/bin/python -m linstab2d.examples.example_1_blasius
+.venv/bin/python -m examples.example_1_blasius
 
 # Correct — for tests
 .venv/bin/python -m pytest tests/
 
 # WRONG — will try to rebuild petsc4py and fail
-uv run python -m linstab2d.examples.example_1_blasius
+uv run python -m examples.example_1_blasius
 ```
 
 The venv is created and patched once by `install.sh`. On Linux HPC nodes a
@@ -49,11 +49,11 @@ Examples follow the pattern: `.npz` exists → plot only; delete `.npz` → reco
 
 ```bash
 # Run (uses cache if present)
-.venv/bin/python -m linstab2d.examples.example_1_blasius
+.venv/bin/python -m examples.example_1_blasius
 
 # Force recompute
-rm linstab2d/examples/example_1_blasius.npz
-.venv/bin/python -m linstab2d.examples.example_1_blasius
+rm examples/example_1_blasius.npz
+.venv/bin/python -m examples.example_1_blasius
 ```
 
 ## Running tests

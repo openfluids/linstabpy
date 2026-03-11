@@ -26,7 +26,7 @@ Five validated examples reproduce the cases from Martini & Schmidt (2024). Each 
 Run any example:
 
 ```bash
-.venv/bin/python -m linstab2d.examples.example_1_blasius
+.venv/bin/python -m examples.example_1_blasius
 ```
 
 > **macOS only — do not use `uv run`.**
@@ -232,7 +232,7 @@ git submodule update --init --recursive
 
 # Activate and run
 source .venv/bin/activate
-python linstab2d/examples/example_1_blasius.py
+python examples/example_1_blasius.py
 ```
 
 ### Linux one-command install (recommended)
@@ -278,8 +278,8 @@ linstab2d/
 ├── operators/           # LNSE coefficient matrices, assembly, spatial operators, Chu energy norm
 ├── boundary_conditions/ # Dirichlet BC enforcement
 ├── solvers/             # Resolvent, temporal/spatial eigenvalue solvers, linear solver config
-├── examples/            # 5 runnable examples (start here)
 └── utils/               # Plotting, Floquet reconstruction
+examples/                # 5 runnable examples (start here)
 ```
 
 ## Reference MATLAB source boundary
@@ -294,7 +294,7 @@ linstab2d/
 Current strict pipeline command:
 
 ```bash
-STRICT_PARITY=1 linstab2d/examples/run_parity.sh
+.venv/bin/python tools/parity/compare_martini_examples.py
 ```
 
 Current status:

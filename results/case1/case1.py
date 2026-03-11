@@ -32,7 +32,7 @@ from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.resolvent import resolvent_analysis
-from linstab2d.examples._helpers import env_bool, env_float, env_int, load_jsonc
+from examples._helpers import env_bool, env_float, env_int, load_jsonc
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")

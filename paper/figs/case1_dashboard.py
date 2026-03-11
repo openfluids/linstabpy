@@ -28,7 +28,7 @@ from scipy.io import loadmat
 
 SCRIPT = Path(__file__).resolve()
 ROOT = SCRIPT.parents[2]
-CASE_DIR = ROOT / "example_6_hamada"
+CASE_DIR = ROOT / "results" / "case1"
 
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
@@ -64,8 +64,7 @@ def _load_mode_fields(path: Path) -> dict[str, np.ndarray]:
 
 def _maybe_load_python_npz() -> tuple[np.ndarray, np.ndarray]:
     candidates = [
-        ROOT / "example_6_hamada.npz",
-        ROOT / "linstab2d/examples/example_6_hamada.npz",
+        ROOT / "results" / "case1" / "case1.npz",
     ]
     for path in candidates:
         if not path.exists():

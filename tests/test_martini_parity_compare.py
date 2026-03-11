@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.examples.example_0_curvilinear_validation import _compute_reference_fields
+from examples.example_0_curvilinear_validation import _compute_reference_fields
 from tools.parity.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,

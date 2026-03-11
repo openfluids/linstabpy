@@ -18,7 +18,7 @@ from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
 from linstab2d.utils.plotting import plot_flow
 
-from linstab2d.examples._helpers import to_grid
+from examples._helpers import to_grid
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")

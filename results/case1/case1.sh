@@ -342,7 +342,7 @@ import json
 import sys
 from pathlib import Path
 
-from linstab2d.examples._helpers import load_jsonc
+from examples._helpers import load_jsonc
 
 src = Path(sys.argv[1])
 dst = Path(sys.argv[2])

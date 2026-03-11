@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstab2d.examples._helpers import load_jsonc
+from examples._helpers import load_jsonc
 from tools.parity.matlab_hdf5 import compound_to_complex, sanitize_key
 
 DEFAULT_CONFIG = ROOT / "tools" / "parity" / "martini_cases.jsonc"
