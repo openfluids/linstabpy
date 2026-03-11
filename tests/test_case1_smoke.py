@@ -16,9 +16,9 @@ from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import temporal_eigenvalues
 
 
-CASE_DIR = Path(__file__).resolve().parent.parent / "example_6_hamada"
+CASE_DIR = Path(__file__).resolve().parent.parent / "results/case1"
 
-pytestmark = pytest.mark.skipif(not CASE_DIR.exists(), reason="example_6_hamada data is not present")
+pytestmark = pytest.mark.skipif(not CASE_DIR.exists(), reason="results/case1 data is not present")
 
 
 def test_load_hamada_case_shapes() -> None:

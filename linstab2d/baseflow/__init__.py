@@ -9,4 +9,4 @@ from .loaders import (
     load_paraboloid,
     load_streaky_bl,
 )
-from .hamada import load_hamada_case
+from .case1 import load_hamada_case

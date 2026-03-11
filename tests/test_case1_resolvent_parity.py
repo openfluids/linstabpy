@@ -11,8 +11,8 @@ h5py = pytest.importorskip("h5py")
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PY_NPZ = ROOT / "example_6_hamada.npz"
-MAT_RES = ROOT / "example_6_hamada/MATLAB_exports_resolvent/res_svd_final.mat"
+PY_NPZ = ROOT / "results/case1/case1.npz"
+MAT_RES = ROOT / "results/case1/MATLAB_exports_resolvent/res_svd_final.mat"
 
 
 def _require_inputs() -> None:
