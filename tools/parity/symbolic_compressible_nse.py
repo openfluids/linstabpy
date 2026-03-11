@@ -548,7 +548,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("artifacts/operator_symbolic_templates.json"),
+        default=Path("tools/parity/output/operator_symbolic_templates.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()

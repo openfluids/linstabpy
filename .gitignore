@@ -9,6 +9,7 @@ build/
 *.log
 .venv/
 artifacts/
+output/
 .DS_Store
 .beads/
 gmn_*.json

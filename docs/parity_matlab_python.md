@@ -20,7 +20,7 @@ Coverage matrix:
 
 | MATLAB example | Python example | Status | Required artifacts |
 |---|---|---|---|
-| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `artifacts/curvilinear_derivative_parity.json` |
+| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `tools/parity/output/curvilinear_derivative_parity.json` |
 | `example_1_Blasius.m` | `example_1_blasius.py` | `implemented` | `example_1_blasius.npz`, `example_1_blasius.png` |
 | `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz`, `example_2_jet.png` |
 | `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_streaky_bl.npz`, `example_3_streaky_bl.png` |

@@ -195,7 +195,7 @@ Operational rule:
 
 - if direct factorization fits memory, use Strategy A
 - if not, use Strategy B only with explicit convergence reason + parity checks
-- reference logs from these tests: `artifacts/logs/example_6_hamada_20260226_085632.log`, `artifacts/logs/example_6_hamada_20260226_085247.log`, `artifacts/logs/example_6_hamada_20260226_092026.log`, `artifacts/logs/example_6_hamada_20260226_115755.log`
+- reference logs from these tests: `results/case1/output/logs/example_6_hamada_20260226_085632.log`, `results/case1/output/logs/example_6_hamada_20260226_085247.log`, `results/case1/output/logs/example_6_hamada_20260226_092026.log`, `results/case1/output/logs/example_6_hamada_20260226_115755.log`
 
 ### Validated discovery (2026-02-26)
 

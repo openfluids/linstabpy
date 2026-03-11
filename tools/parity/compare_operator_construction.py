@@ -362,7 +362,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("artifacts/operator_numeric_parity.json"),
+        default=Path("tools/parity/output/operator_numeric_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     parser.add_argument(
