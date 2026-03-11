@@ -5,7 +5,7 @@ PYTHON := uv run --no-sync python
 figs:
 	$(PYTHON) figs/example_grid.py
 	$(PYTHON) figs/scaling_reference.py
-	$(PYTHON) figs/hamada_dashboard.py
+	$(PYTHON) figs/case1_dashboard.py
 
 paper: figs
 	pdflatex -interaction=nonstopmode manuscript.tex

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Example 6: Hamada case (2D compressible LNSE, resolvent and stability).
+"""Case 1: SWBLI (2D compressible LNSE, resolvent and stability).
 
 This script is intentionally written as a single, readable pipeline:
-1. Load one prepared Hamada baseflow case from ``.npy`` files.
+1. Load one prepared Case~1 baseflow from ``.npy`` files.
 2. Build/deform the mesh and assemble the compressible LNSE operator.
 3. Apply boundary conditions exactly as in the MATLAB workflow.
 4. Run optional resolvent and/or stability analysis (PETSc/SLEPc path).
@@ -41,7 +41,7 @@ OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 def _log(message: str) -> None:
     """Small helper for consistent prefixed progress messages."""
     if PETSc.COMM_WORLD.getRank() == 0:
-        print(f"[example_6_hamada] {message}", flush=True)
+        print(f"[case1] {message}", flush=True)
 
 
 def _log_stage(stage: str, stage_start: float) -> None:
@@ -67,7 +67,7 @@ def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty
 
 
 def compute() -> None:
-    """Run the full Example-6 pipeline and write ``example_6_hamada.npz``."""
+    """Run the full Case 1 pipeline and write ``case1.npz``."""
     t0 = time.perf_counter()
     _log("starting compute")
     comm = PETSc.COMM_WORLD
@@ -77,7 +77,7 @@ def compute() -> None:
     config_path = Path(
         os.getenv(
             "LINSTAB2D_HAMADA_CONFIG",
-            str(SCRIPT.parent / "example_6_hamada" / "parity_config.jsonc"),
+            str(SCRIPT.parent / "parity_config.jsonc"),
         )
     )
     config: dict = {}
@@ -99,11 +99,11 @@ def compute() -> None:
     # 1) Read runtime configuration from environment variables.
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
-    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", str(cfg("paths.case_dir", "example_6_hamada"))))
+    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", str(cfg("paths.case_dir", str(SCRIPT.parent)))))
     sponge_mat_path = Path(
         os.getenv(
             "LINSTAB2D_HAMADA_CASE_INPUTS_MAT",
-            str(cfg("paths.case_inputs_mat", "example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat")),
+            str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat")),
         )
     )
     Re = env_float("LINSTAB2D_HAMADA_RE", float(cfg("physics.Re", 395000.0)))

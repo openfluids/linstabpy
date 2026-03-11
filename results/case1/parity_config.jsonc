@@ -1,19 +1,20 @@
 {
-  // Canonical parity configuration for Example 6 (Hamada).
+  // Canonical parity configuration for Case 1 (SWBLI).
   // Runtime code should use this as default and only diverge when
   // explicit environment overrides are provided.
+  // Paths are relative to results/case1/ (the directory containing this file).
 
   "paths": {
-    // Directory containing x/y/rho/u/v/w/T/sponge .npy files.
-    "case_dir": "example_6_hamada",
+    // Directory containing x/y/rho/u/v/w/T/sponge .npy files (same dir as this config).
+    "case_dir": ".",
 
     // MATLAB exports used for matrix/spectrum parity validation.
-    "matlab_exports_stability_dir": "example_6_hamada/MATLAB_exports",
-    "matlab_exports_resolvent_dir": "example_6_hamada/MATLAB_exports_resolvent",
-    "matlab_exports_operator_stage_dir": "example_6_hamada/MATLAB_exports_resolvent",
+    "matlab_exports_stability_dir": "MATLAB_exports",
+    "matlab_exports_resolvent_dir": "MATLAB_exports_resolvent",
+    "matlab_exports_operator_stage_dir": "MATLAB_exports_resolvent",
 
     // MATLAB case-input dump containing sponge_aux used during export.
-    "case_inputs_mat": "example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat"
+    "case_inputs_mat": "MATLAB_exports_resolvent/case_inputs_used.mat"
   },
 
   "physics": {
