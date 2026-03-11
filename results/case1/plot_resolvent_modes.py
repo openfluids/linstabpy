@@ -12,7 +12,7 @@ print("Writing resolvent images ...")
 
 savepath = "./resolvent"
 
-data = np.load("test_hamada.npz")
+data = np.load("case1.npz")
 
 beta = data["kx"]
 St = data["St"]

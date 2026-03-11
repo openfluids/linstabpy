@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare Hamada Python spectrum against MATLAB reference spectrum."""
+"""Compare Case 1 Python spectrum against MATLAB reference spectrum."""
 
 from __future__ import annotations
 
@@ -29,13 +29,13 @@ def main() -> int:
     parser.add_argument(
         "--python-npz",
         type=Path,
-        default=Path("example_6_hamada.npz"),
+        default=Path("case1.npz"),
         help="Python output NPZ with 'omega' key",
     )
     parser.add_argument(
         "--matlab-spectrum",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports/spectrum.mat"),
+        default=Path("case1/MATLAB_exports/spectrum.mat"),
         help="MATLAB spectrum .mat file containing 'omega'",
     )
     parser.add_argument("--n-compare", type=int, default=100, help="Number of modes to compare")
@@ -44,7 +44,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("output/hamada_spectrum_parity.json"),
+        default=Path("output/case1_spectrum_parity.json"),
         help="Where to write parity summary JSON",
     )
     args = parser.parse_args()
@@ -54,7 +54,7 @@ def main() -> int:
         raise KeyError(f"{args.python_npz} has no 'omega' key")
     omega_py_all = np.asarray(py["omega"], dtype=complex).reshape(-1)
     if omega_py_all.size == 0:
-        raise ValueError("Python spectrum is empty; run stability in example_6_hamada first")
+        raise ValueError("Python spectrum is empty; run stability in case1 first")
 
     omega_target = complex(np.asarray(py.get("omega_target", 0.0)).reshape(-1)[0])
     mat = loadmat(args.matlab_spectrum)
@@ -99,7 +99,7 @@ def main() -> int:
         fh.write("\n")
 
     print(
-        "Hamada spectrum parity:",
+        "Case 1 spectrum parity:",
         f"n_compare={n}",
         f"max_abs_error={max_abs:.6e}",
         f"max_rel_error={max_rel:.6e}",

@@ -1,4 +1,4 @@
-"""Parity checks for Hamada resolvent gains and leading modes."""
+"""Parity checks for Case 1 resolvent gains and leading modes."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _require_inputs() -> None:
     missing = [p for p in (PY_NPZ, MAT_RES) if not p.exists()]
     if missing:
         msg = ", ".join(str(p) for p in missing)
-        pytest.skip(f"Hamada resolvent parity inputs missing: {msg}. Run example_6_hamada first.")
+        pytest.skip(f"Case 1 resolvent parity inputs missing: {msg}. Run case1 first.")
 
 
 def _as_complex(arr: np.ndarray) -> np.ndarray:
@@ -40,7 +40,7 @@ def _rel_l2(reference: np.ndarray, candidate: np.ndarray) -> float:
     return float(np.linalg.norm(reference - candidate) / denom)
 
 
-def test_hamada_resolvent_gains_and_modes_match_matlab() -> None:
+def test_case1_resolvent_gains_and_modes_match_matlab() -> None:
     _require_inputs()
 
     py = np.load(PY_NPZ, allow_pickle = False)

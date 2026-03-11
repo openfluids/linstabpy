@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a hash + shape inventory for Hamada MATLAB parity exports."""
+"""Build a hash + shape inventory for Case 1 MATLAB parity exports."""
 
 from __future__ import annotations
 
@@ -143,8 +143,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         roots = [Path(d) for d in args.dirs]
     else:
         roots = [
-            Path(_cfg_get(config, "paths.matlab_exports_stability_dir", "example_6_hamada/MATLAB_exports")),
-            Path(_cfg_get(config, "paths.matlab_exports_resolvent_dir", "example_6_hamada/MATLAB_exports_resolvent")),
+            Path(_cfg_get(config, "paths.matlab_exports_stability_dir", "case1/MATLAB_exports")),
+            Path(_cfg_get(config, "paths.matlab_exports_resolvent_dir", "case1/MATLAB_exports_resolvent")),
         ]
 
     files: list[Path] = []
@@ -177,7 +177,7 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("example_6_hamada/parity_config.jsonc"),
+        default=Path("case1/parity_config.jsonc"),
         help="Optional canonical parity config JSONC.",
     )
     parser.add_argument(
@@ -188,7 +188,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("example_6_hamada/parity_reference_inventory.json"),
+        default=Path("case1/parity_reference_inventory.json"),
         help="Inventory artifact path.",
     )
     args = parser.parse_args()
@@ -200,7 +200,7 @@ def main() -> int:
         fh.write("\n")
 
     print(
-        "Hamada reference inventory:",
+        "Case 1 reference inventory:",
         f"files={report['n_files']}",
         f"output={args.output}",
     )

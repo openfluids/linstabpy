@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare Hamada Python resolvent outputs against MATLAB exports."""
+"""Compare Case 1 Python resolvent outputs against MATLAB exports."""
 
 from __future__ import annotations
 
@@ -128,18 +128,18 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("example_6_hamada/parity_config.jsonc"),
+        default=Path("case1/parity_config.jsonc"),
         help="Optional parity JSONC config.",
     )
     parser.add_argument(
         "--python-npz",
         type=Path,
-        default=Path("example_6_hamada.npz"),
+        default=Path("case1.npz"),
     )
     parser.add_argument(
         "--matlab-resolvent",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports_resolvent/res_svd_final.mat"),
+        default=Path("case1/MATLAB_exports_resolvent/res_svd_final.mat"),
     )
     parser.add_argument("--n-compare", type=int, default=10)
     parser.add_argument("--tol-gain-abs", type=float, default=1e-8)
@@ -148,7 +148,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("output/hamada_resolvent_parity.json"),
+        default=Path("output/case1_resolvent_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()
@@ -170,7 +170,7 @@ def main() -> int:
         fh.write("\n")
 
     print(
-        "Hamada resolvent parity:",
+        "Case 1 resolvent parity:",
         f"n_compare={report['n_compare']}",
         f"gain_max_abs={report['gains']['max_abs_error']:.6e}",
         f"gain_max_rel={report['gains']['max_rel_error']:.6e}",

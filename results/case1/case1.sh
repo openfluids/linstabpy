@@ -188,15 +188,15 @@ export MKL_NUM_THREADS="$THREADS_PER_RANK"
 export NUMEXPR_NUM_THREADS="$THREADS_PER_RANK"
 export VECLIB_MAXIMUM_THREADS="$THREADS_PER_RANK"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-LINSTAB2D_HAMADA_CONFIG_BASE="${LINSTAB2D_HAMADA_CONFIG:-parity_config.jsonc}"
-export LINSTAB2D_HAMADA_CONFIG="$LINSTAB2D_HAMADA_CONFIG_BASE"
-export LINSTAB2D_HAMADA_CASE_DIR="${LINSTAB2D_HAMADA_CASE_DIR:-"."}"
+LINSTAB2D_CASE1_CONFIG_BASE="${LINSTAB2D_CASE1_CONFIG:-parity_config.jsonc}"
+export LINSTAB2D_CASE1_CONFIG="$LINSTAB2D_CASE1_CONFIG_BASE"
+export LINSTAB2D_CASE1_CASE_DIR="${LINSTAB2D_CASE1_CASE_DIR:-"."}"
 # MATLAB export uses baseFlow.kappa=1.4 in case_inputs_used.mat.
-export LINSTAB2D_HAMADA_KAPPA="${LINSTAB2D_HAMADA_KAPPA:-1.4}"
+export LINSTAB2D_CASE1_KAPPA="${LINSTAB2D_CASE1_KAPPA:-1.4}"
 # MATLAB export path uses uppercase dMUdT/d2MUdT2 fields (stored as zeros).
-export LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS="${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS:-1}"
-export LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX="${LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX:-1}"
-export LINSTAB2D_HAMADA_CASE_INPUTS_MAT="${LINSTAB2D_HAMADA_CASE_INPUTS_MAT:-MATLAB_exports_resolvent/case_inputs_used.mat}"
+export LINSTAB2D_CASE1_ZERO_MU_T_DERIVS="${LINSTAB2D_CASE1_ZERO_MU_T_DERIVS:-1}"
+export LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX="${LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX:-1}"
+export LINSTAB2D_CASE1_CASE_INPUTS_MAT="${LINSTAB2D_CASE1_CASE_INPUTS_MAT:-MATLAB_exports_resolvent/case_inputs_used.mat}"
 # Matrix conversion mode:
 #   auto         -> distributed when MPI_PROCS > 1
 #   distributed  -> force ownership-aware PETSc AIJ path
@@ -229,19 +229,19 @@ fi
 # scattering row-block CSR payloads to owning ranks inside PETSc conversion.
 if [[ "$MPI_PROCS" -gt 1 ]]; then
   if [[ "$EIGEN_ST_SOLVER" == "slepc" || "$EIGEN_ST_SOLVER" == "iterative" || "$EIGEN_ST_SOLVER" == "krylov" ]]; then
-    export LINSTAB2D_HAMADA_ROOT_ASSEMBLY="${LINSTAB2D_HAMADA_ROOT_ASSEMBLY:-1}"
+    export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-1}"
     export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-1}"
   else
-    export LINSTAB2D_HAMADA_ROOT_ASSEMBLY="${LINSTAB2D_HAMADA_ROOT_ASSEMBLY:-0}"
+    export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-0}"
     export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-0}"
   fi
 else
-  export LINSTAB2D_HAMADA_ROOT_ASSEMBLY="${LINSTAB2D_HAMADA_ROOT_ASSEMBLY:-0}"
+  export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-0}"
   export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-0}"
 fi
 # Keep MATLAB convention by default: omega = eig(i*L0). Set to 1 only for
 # diagnostics on the raw operator eig(L0).
-export LINSTAB2D_HAMADA_USE_RAW_EIGS="${LINSTAB2D_HAMADA_USE_RAW_EIGS:-0}"
+export LINSTAB2D_CASE1_USE_RAW_EIGS="${LINSTAB2D_CASE1_USE_RAW_EIGS:-0}"
 
 echo "[case1] using logical cores: $CORES"
 echo "[case1] host: ${HOST_NAME}"
@@ -261,28 +261,28 @@ else
 fi
 echo "[case1] using MPI processes: $MPI_PROCS"
 echo "[case1] using threaded cores per rank (OMP/BLAS): $THREADS_PER_RANK"
-echo "[case1] case dir: ${LINSTAB2D_HAMADA_CASE_DIR}"
-echo "[case1] config: ${LINSTAB2D_HAMADA_CONFIG}"
-echo "[case1] kappa: ${LINSTAB2D_HAMADA_KAPPA}"
-echo "[case1] zero_mu_t_derivs: ${LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS}"
-echo "[case1] use_matlab_sponge_aux: ${LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX}"
-echo "[case1] case_inputs_mat: ${LINSTAB2D_HAMADA_CASE_INPUTS_MAT}"
+echo "[case1] case dir: ${LINSTAB2D_CASE1_CASE_DIR}"
+echo "[case1] config: ${LINSTAB2D_CASE1_CONFIG}"
+echo "[case1] kappa: ${LINSTAB2D_CASE1_KAPPA}"
+echo "[case1] zero_mu_t_derivs: ${LINSTAB2D_CASE1_ZERO_MU_T_DERIVS}"
+echo "[case1] use_matlab_sponge_aux: ${LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX}"
+echo "[case1] case_inputs_mat: ${LINSTAB2D_CASE1_CASE_INPUTS_MAT}"
 echo "[case1] resolvent_linear_solver: ${LINSTAB2D_RESOLVENT_TYPE}"
 echo "[case1] petsc_matrix_mode: ${LINSTAB2D_PETSC_MATRIX_MODE}"
-echo "[case1] root_assembly_mode: ${LINSTAB2D_HAMADA_ROOT_ASSEMBLY}"
+echo "[case1] root_assembly_mode: ${LINSTAB2D_CASE1_ROOT_ASSEMBLY}"
 echo "[case1] petsc_root_scatter: ${LINSTAB2D_PETSC_ROOT_SCATTER}"
 
 # -------------------------------------------------------------------
 # 3) Two-pass run plan and reference mapping
 # -------------------------------------------------------------------
-RUN_PLAN="${LINSTAB2D_HAMADA_RUN_PLAN:-both}"
-STABILITY_MATLAB_DIR="${LINSTAB2D_HAMADA_MATLAB_STABILITY_DIR:-MATLAB_exports}"
-RESOLVENT_MATLAB_DIR="${LINSTAB2D_HAMADA_MATLAB_RESOLVENT_DIR:-MATLAB_exports_resolvent}"
+RUN_PLAN="${LINSTAB2D_CASE1_RUN_PLAN:-both}"
+STABILITY_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_STABILITY_DIR:-MATLAB_exports}"
+RESOLVENT_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_RESOLVENT_DIR:-MATLAB_exports_resolvent}"
 STABILITY_SPECTRUM_REF="${STABILITY_MATLAB_DIR}/spectrum.mat"
 STABILITY_MODE7_REF="${STABILITY_MATLAB_DIR}/eigenvector_7.mat"
 RESOLVENT_SVD_REF="${RESOLVENT_MATLAB_DIR}/res_svd_final.mat"
 
-echo "[case1] base config: ${LINSTAB2D_HAMADA_CONFIG_BASE}"
+echo "[case1] base config: ${LINSTAB2D_CASE1_CONFIG_BASE}"
 echo "[case1] run plan: ${RUN_PLAN}"
 echo "[case1] stability reference: ${STABILITY_SPECTRUM_REF}"
 echo "[case1] stability mode reference: ${STABILITY_MODE7_REF}"
@@ -335,9 +335,9 @@ prepare_run_config() {
   local run_stability="$2"
   local run_resolvent="$3"
   local use_sponge_aux="$4"
-  local out_cfg="output/tmp/hamada_${pass_name}_config.json"
+  local out_cfg="output/tmp/case1_${pass_name}_config.json"
 
-  .venv/bin/python - "$LINSTAB2D_HAMADA_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
+  .venv/bin/python - "$LINSTAB2D_CASE1_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -411,10 +411,10 @@ run_solver_pass() {
   clean_generated_outputs
 
   pass_cfg_path="$(prepare_run_config "$pass_name" "$pass_run_stability" "$pass_run_resolvent" "$pass_use_sponge_aux")"
-  export LINSTAB2D_HAMADA_CONFIG="$pass_cfg_path"
-  export LINSTAB2D_HAMADA_RUN_STABILITY="$pass_run_stability"
-  export LINSTAB2D_HAMADA_RUN_RESOLVENT="$pass_run_resolvent"
-  export LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX="$pass_use_sponge_aux"
+  export LINSTAB2D_CASE1_CONFIG="$pass_cfg_path"
+  export LINSTAB2D_CASE1_RUN_STABILITY="$pass_run_stability"
+  export LINSTAB2D_CASE1_RUN_RESOLVENT="$pass_run_resolvent"
+  export LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX="$pass_use_sponge_aux"
 
   echo "[case1] pass config: ${pass_cfg_path}"
   echo "[case1] launching solver (heartbeat every ${HEARTBEAT_SEC}s)"
@@ -485,10 +485,10 @@ run_solver_pass() {
   if [[ "$pass_run_stability" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing spectrum parity artifact"
     set +e
-    .venv/bin/python check_hamada_spectrum.py \
+    .venv/bin/python check_spectrum.py \
       --python-npz case1.npz \
       --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
-      --artifact "output/parity/hamada_spectrum_parity_${pass_name}.json"
+      --artifact "output/parity/case1_spectrum_parity_${pass_name}.json"
     parity_exit=$?
     set -e
     if [[ "$parity_exit" -ne 0 ]]; then
@@ -499,9 +499,9 @@ run_solver_pass() {
   if [[ "$pass_run_resolvent" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing operator-stage parity artifact"
     set +e
-    .venv/bin/python check_hamada_operator_stages.py \
+    .venv/bin/python check_operator_stages.py \
       --config "$pass_cfg_path" \
-      --artifact "output/parity/hamada_operator_stage_parity_${pass_name}.json"
+      --artifact "output/parity/case1_operator_stage_parity_${pass_name}.json"
     op_parity_exit=$?
     set -e
     if [[ "$op_parity_exit" -ne 0 ]]; then
@@ -510,11 +510,11 @@ run_solver_pass() {
 
     echo "[case1] pass=${pass_name} writing resolvent parity artifact"
     set +e
-    .venv/bin/python check_hamada_resolvent.py \
+    .venv/bin/python check_resolvent.py \
       --config "$pass_cfg_path" \
       --python-npz case1.npz \
       --matlab-resolvent "$RESOLVENT_SVD_REF" \
-      --artifact "output/parity/hamada_resolvent_parity_${pass_name}.json"
+      --artifact "output/parity/case1_resolvent_parity_${pass_name}.json"
     res_parity_exit=$?
     set -e
     if [[ "$res_parity_exit" -ne 0 ]]; then
@@ -593,7 +593,7 @@ for ax, (path, title) in zip(axes.ravel(), tiles):
             transform=ax.transAxes,
         )
 
-fig.suptitle("Hamada master dashboard (stability + resolvent)", fontsize=15)
+fig.suptitle("Case 1 dashboard (stability + resolvent)", fontsize=15)
 fig.tight_layout()
 out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(out, dpi=220, bbox_inches="tight")
@@ -628,7 +628,7 @@ case "$RUN_PLAN" in
     RESOLVENT_ELAPSED="$LAST_PASS_ELAPSED"
     ;;
   *)
-    echo "[case1] invalid LINSTAB2D_HAMADA_RUN_PLAN=${RUN_PLAN} (expected: both|stability|resolvent)"
+    echo "[case1] invalid LINSTAB2D_CASE1_RUN_PLAN=${RUN_PLAN} (expected: both|stability|resolvent)"
     exit 1
     ;;
 esac

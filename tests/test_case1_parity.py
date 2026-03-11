@@ -1,4 +1,4 @@
-"""Parity checks for Hamada case spectra and mode fields."""
+"""Parity checks for Case 1 case spectra and mode fields."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from scipy.optimize import linear_sum_assignment
 
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_NPZ = ROOT / "example_6_hamada.npz"
-MAT_SPEC = ROOT / "example_6_hamada/MATLAB_results/spectrum.mat"
-MAT_MODE7 = ROOT / "example_6_hamada/MATLAB_results/eigenvector_7.mat"
+PY_NPZ = ROOT / "case1.npz"
+MAT_SPEC = ROOT / "case1/MATLAB_results/spectrum.mat"
+MAT_MODE7 = ROOT / "case1/MATLAB_results/eigenvector_7.mat"
 
 
 def _require_inputs() -> None:
     missing = [p for p in (PY_NPZ, MAT_SPEC, MAT_MODE7) if not p.exists()]
     if missing:
         msg = ", ".join(str(p) for p in missing)
-        pytest.skip(f"Hamada parity inputs missing: {msg}. Run example_6_hamada first.")
+        pytest.skip(f"Case 1 parity inputs missing: {msg}. Run case1 first.")
 
 
 def _diag_or_flat(values: np.ndarray) -> np.ndarray:
@@ -51,14 +51,14 @@ def _rel_l2(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.linalg.norm(a - b) / denom)
 
 
-def test_hamada_spectrum_parity() -> None:
+def test_case1_spectrum_parity() -> None:
     _require_inputs()
     py = np.load(PY_NPZ, allow_pickle = False)
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
     omega_target = complex(np.asarray(py["omega_target"]).reshape(-1)[0])
     omega_mat = _diag_or_flat(loadmat(MAT_SPEC)["omega"])
 
-    n_compare = int(os.getenv("LINSTAB2D_HAMADA_SPEC_N", "100"))
+    n_compare = int(os.getenv("LINSTAB2D_CASE1_SPEC_N", "100"))
     n = min(max(1, n_compare), omega_py.size, omega_mat.size)
 
     py_sel = omega_py[np.argsort(np.abs(omega_py - omega_target))[:n]]
@@ -68,8 +68,8 @@ def test_hamada_spectrum_parity() -> None:
     max_abs = float(np.max(abs_err))
     rms_abs = float(np.sqrt(np.mean(abs_err**2)))
 
-    tol_max_abs = float(os.getenv("LINSTAB2D_HAMADA_SPEC_TOL_MAX_ABS", "1.0"))
-    tol_rms_abs = float(os.getenv("LINSTAB2D_HAMADA_SPEC_TOL_RMS_ABS", "0.5"))
+    tol_max_abs = float(os.getenv("LINSTAB2D_CASE1_SPEC_TOL_MAX_ABS", "1.0"))
+    tol_rms_abs = float(os.getenv("LINSTAB2D_CASE1_SPEC_TOL_RMS_ABS", "0.5"))
 
     assert max_abs <= tol_max_abs and rms_abs <= tol_rms_abs, (
         f"Spectrum mismatch: n={n}, max_abs={max_abs:.6e}, rms_abs={rms_abs:.6e}, "
@@ -77,7 +77,7 @@ def test_hamada_spectrum_parity() -> None:
     )
 
 
-def test_hamada_mode7_u_field_parity() -> None:
+def test_case1_mode7_u_field_parity() -> None:
     _require_inputs()
     py = np.load(PY_NPZ, allow_pickle = False)
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
@@ -86,7 +86,7 @@ def test_hamada_mode7_u_field_parity() -> None:
     omega_mat = _diag_or_flat(loadmat(MAT_SPEC)["omega"])
     u_mat = np.asarray(loadmat(MAT_MODE7)["u"], dtype=complex).reshape(-1)
 
-    mode_idx_mat = int(os.getenv("LINSTAB2D_HAMADA_MODE_INDEX", "7")) - 1
+    mode_idx_mat = int(os.getenv("LINSTAB2D_CASE1_MODE_INDEX", "7")) - 1
     mode_idx_mat = max(0, min(mode_idx_mat, omega_mat.size - 1))
     omega_ref = omega_mat[mode_idx_mat]
     mode_idx_py = int(np.argmin(np.abs(omega_py - omega_ref)))
@@ -101,9 +101,9 @@ def test_hamada_mode7_u_field_parity() -> None:
     rel_err_real = _rel_l2(np.real(u_mat_n), np.real(u_py_n))
     corr_real = float(np.corrcoef(np.real(u_mat_n), np.real(u_py_n))[0, 1])
 
-    tol_rel_complex = float(os.getenv("LINSTAB2D_HAMADA_MODE_TOL_REL_COMPLEX", "0.8"))
-    tol_rel_real = float(os.getenv("LINSTAB2D_HAMADA_MODE_TOL_REL_REAL", "0.8"))
-    tol_corr_real = float(os.getenv("LINSTAB2D_HAMADA_MODE_TOL_CORR_REAL", "0.5"))
+    tol_rel_complex = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_REL_COMPLEX", "0.8"))
+    tol_rel_real = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_REL_REAL", "0.8"))
+    tol_corr_real = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_CORR_REAL", "0.5"))
 
     assert (
         rel_err_complex <= tol_rel_complex

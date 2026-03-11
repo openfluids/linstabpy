@@ -1,4 +1,4 @@
-"""Parametric parity/sanity checks for Hamada operator assembly.
+"""Parametric parity/sanity checks for Case 1 operator assembly.
 
 Purpose:
 - keep one frozen baseline parity configuration;
@@ -82,10 +82,10 @@ CASES = (
 
 
 def _case_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "example_6_hamada"
+    return Path(__file__).resolve().parents[1] / "case1"
 
 
-def _apply_hamada_bcs(
+def _apply_case1_bcs(
     mat: sp.spmatrix,
     mesh: Mesh,
     idx: dict[str, np.ndarray],
@@ -124,7 +124,7 @@ def _assemble_case(cfg: _CaseCfg) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndar
     mesh.sponge = sponge
 
     l0_pre, idx = build_lnse_operator(mesh, baseflow, kx=cfg.beta, model="2D")
-    l0_post, bc_indices = _apply_hamada_bcs(l0_pre, mesh, idx, cfg.bc_penalty)
+    l0_post, bc_indices = _apply_case1_bcs(l0_pre, mesh, idx, cfg.bc_penalty)
     return l0_pre.tocsc(), l0_post, bc_indices, mesh
 
 
@@ -141,10 +141,10 @@ def _assert_same_sparse_structure_and_values(a: sp.csc_matrix, b: sp.csc_matrix)
 
 
 @pytest.mark.parametrize("cfg", CASES, ids=[case.name for case in CASES])
-def test_hamada_parametric_operator_is_well_formed(cfg: _CaseCfg) -> None:
+def test_case1_parametric_operator_is_well_formed(cfg: _CaseCfg) -> None:
     case_dir = _case_dir()
     if not case_dir.exists():
-        pytest.skip(f"Missing Hamada case directory: {case_dir}")
+        pytest.skip(f"Missing Case 1 case directory: {case_dir}")
 
     l0_pre, l0_post, bc_indices, mesh = _assemble_case(cfg)
 
@@ -159,10 +159,10 @@ def test_hamada_parametric_operator_is_well_formed(cfg: _CaseCfg) -> None:
 
 
 @pytest.mark.parametrize("cfg", CASES, ids=[case.name for case in CASES])
-def test_hamada_parametric_build_vs_prepared_parity(cfg: _CaseCfg) -> None:
+def test_case1_parametric_build_vs_prepared_parity(cfg: _CaseCfg) -> None:
     case_dir = _case_dir()
     if not case_dir.exists():
-        pytest.skip(f"Missing Hamada case directory: {case_dir}")
+        pytest.skip(f"Missing Case 1 case directory: {case_dir}")
 
     X, Y, baseflow, sponge = load_hamada_case(
         case_dir,
@@ -190,17 +190,17 @@ def test_hamada_parametric_build_vs_prepared_parity(cfg: _CaseCfg) -> None:
     prepared = _prepare_coefficients(mesh, baseflow, kx=cfg.beta, model="2D", m=0.0)
     l0_from_prepared = _assemble_from_prepared(prepared, floquet_exp=0.0)
 
-    l0_build_post, _ = _apply_hamada_bcs(l0_from_build, mesh, idx, cfg.bc_penalty)
-    l0_prepared_post, _ = _apply_hamada_bcs(l0_from_prepared, mesh, idx, cfg.bc_penalty)
+    l0_build_post, _ = _apply_case1_bcs(l0_from_build, mesh, idx, cfg.bc_penalty)
+    l0_prepared_post, _ = _apply_case1_bcs(l0_from_prepared, mesh, idx, cfg.bc_penalty)
 
     _assert_same_sparse_structure_and_values(l0_from_build.tocsc(), l0_from_prepared.tocsc())
     _assert_same_sparse_structure_and_values(l0_build_post, l0_prepared_post)
 
 
-def test_hamada_parametric_changes_modify_operator() -> None:
+def test_case1_parametric_changes_modify_operator() -> None:
     case_dir = _case_dir()
     if not case_dir.exists():
-        pytest.skip(f"Missing Hamada case directory: {case_dir}")
+        pytest.skip(f"Missing Case 1 case directory: {case_dir}")
 
     baseline = CASES[0]
     variant_a = CASES[1]

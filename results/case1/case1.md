@@ -26,13 +26,13 @@ If parity fails, we fix source/operator logic. We do not hardcode MATLAB outputs
   - parity figures (`case1_*.png`)
 
 Note:
-- in `sponge_aux` parity mode, the script auto-skips spectrum parity unless forced with `LINSTAB2D_HAMADA_CHECK_SPECTRUM=1`, because the available stability spectrum export is from a different legacy setup.
+- in `sponge_aux` parity mode, the script auto-skips spectrum parity unless forced with `LINSTAB2D_CASE1_CHECK_SPECTRUM=1`, because the available stability spectrum export is from a different legacy setup.
 
 ## How Case 1 should switch to production files
 1. Copy `case1/parity_config.jsonc` to a new config file (for example `production_case.jsonc`).
 2. Update only paths and physical/numerical parameters in that config.
 3. Run with:
-   - `LINSTAB2D_HAMADA_CONFIG=/absolute/path/to/production_case.jsonc ./case1.sh`
+   - `LINSTAB2D_CASE1_CONFIG=/absolute/path/to/production_case.jsonc ./case1.sh`
 
 ## Solver strategy for production
 1. Strategy A (robust baseline):

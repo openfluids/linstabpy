@@ -50,7 +50,7 @@ def _log_stage(stage: str, stage_start: float) -> None:
 
 
 def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty: float) -> tuple[sp.csc_matrix, np.ndarray]:
-    """Apply the Hamada boundary-condition recipe used in the MATLAB case.
+    """Apply the Case 1 boundary-condition recipe used in the MATLAB case.
 
     Layout:
     - Dirichlet on ``lt`` for ``ruvwT``
@@ -76,7 +76,7 @@ def compute() -> None:
 
     config_path = Path(
         os.getenv(
-            "LINSTAB2D_HAMADA_CONFIG",
+            "LINSTAB2D_CASE1_CONFIG",
             str(SCRIPT.parent / "parity_config.jsonc"),
         )
     )
@@ -84,8 +84,8 @@ def compute() -> None:
     if config_path.exists():
         config = load_jsonc(config_path)
         _log(f"loaded config: {config_path}")
-    elif "LINSTAB2D_HAMADA_CONFIG" in os.environ:
-        raise FileNotFoundError(f"LINSTAB2D_HAMADA_CONFIG file not found: {config_path}")
+    elif "LINSTAB2D_CASE1_CONFIG" in os.environ:
+        raise FileNotFoundError(f"LINSTAB2D_CASE1_CONFIG file not found: {config_path}")
 
     def cfg(path: str, default):
         node = config
@@ -99,50 +99,50 @@ def compute() -> None:
     # 1) Read runtime configuration from environment variables.
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
-    case_dir = Path(os.getenv("LINSTAB2D_HAMADA_CASE_DIR", str(cfg("paths.case_dir", str(SCRIPT.parent)))))
+    case_dir = Path(os.getenv("LINSTAB2D_CASE1_CASE_DIR", str(cfg("paths.case_dir", str(SCRIPT.parent)))))
     sponge_mat_path = Path(
         os.getenv(
-            "LINSTAB2D_HAMADA_CASE_INPUTS_MAT",
+            "LINSTAB2D_CASE1_CASE_INPUTS_MAT",
             str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat")),
         )
     )
-    Re = env_float("LINSTAB2D_HAMADA_RE", float(cfg("physics.Re", 395000.0)))
-    Ma = env_float("LINSTAB2D_HAMADA_MA", float(cfg("physics.Ma", 2.0)))
-    Pr = env_float("LINSTAB2D_HAMADA_PR", float(cfg("physics.Pr", 0.747)))
+    Re = env_float("LINSTAB2D_CASE1_RE", float(cfg("physics.Re", 395000.0)))
+    Ma = env_float("LINSTAB2D_CASE1_MA", float(cfg("physics.Ma", 2.0)))
+    Pr = env_float("LINSTAB2D_CASE1_PR", float(cfg("physics.Pr", 0.747)))
     # MATLAB export note:
     # - `case_inputs_used.mat/baseFlow.kappa` is 1.4
     # - `run_metadata.mat/kappa` is 1.31
     # The assembled reference operators/spectrum align with baseFlow.kappa.
-    kappa = env_float("LINSTAB2D_HAMADA_KAPPA", float(cfg("physics.kappa", 1.4)))
-    T_0 = env_float("LINSTAB2D_HAMADA_T0", float(cfg("physics.T_0", 1540.0)))
+    kappa = env_float("LINSTAB2D_CASE1_KAPPA", float(cfg("physics.kappa", 1.4)))
+    T_0 = env_float("LINSTAB2D_CASE1_T0", float(cfg("physics.T_0", 1540.0)))
 
-    stride_ksi = env_int("LINSTAB2D_HAMADA_STRIDE_KSI", int(cfg("numerics.stride_ksi", 1)))
-    stride_eta = env_int("LINSTAB2D_HAMADA_STRIDE_ETA", int(cfg("numerics.stride_eta", 1)))
-    fd_order = env_int("LINSTAB2D_HAMADA_FD_ORDER", int(cfg("numerics.fd_order", 4)))
-    beta = env_float("LINSTAB2D_HAMADA_BETA", float(cfg("numerics.beta", 0.0)))
-    penalty = env_float("LINSTAB2D_HAMADA_BC_PENALTY", float(cfg("bc.penalty", 1e8)))
+    stride_ksi = env_int("LINSTAB2D_CASE1_STRIDE_KSI", int(cfg("numerics.stride_ksi", 1)))
+    stride_eta = env_int("LINSTAB2D_CASE1_STRIDE_ETA", int(cfg("numerics.stride_eta", 1)))
+    fd_order = env_int("LINSTAB2D_CASE1_FD_ORDER", int(cfg("numerics.fd_order", 4)))
+    beta = env_float("LINSTAB2D_CASE1_BETA", float(cfg("numerics.beta", 0.0)))
+    penalty = env_float("LINSTAB2D_CASE1_BC_PENALTY", float(cfg("bc.penalty", 1e8)))
 
-    ratio_u = env_float("LINSTAB2D_HAMADA_RATIO_UINF", float(cfg("analysis.ratio_uinf", 1.0)))
-    ratio_l = env_float("LINSTAB2D_HAMADA_RATIO_L", float(cfg("analysis.ratio_l", 0.1)))
-    St = env_float("LINSTAB2D_HAMADA_ST", float(cfg("analysis.St", 0.1)))
+    ratio_u = env_float("LINSTAB2D_CASE1_RATIO_UINF", float(cfg("analysis.ratio_uinf", 1.0)))
+    ratio_l = env_float("LINSTAB2D_CASE1_RATIO_L", float(cfg("analysis.ratio_l", 0.1)))
+    St = env_float("LINSTAB2D_CASE1_ST", float(cfg("analysis.St", 0.1)))
 
     # Target angular frequency used by resolvent and shift-invert EVP.
     omega_target = 2.0 * np.pi * St * ratio_u / ratio_l
 
-    n_modes = env_int("LINSTAB2D_HAMADA_N_MODES", int(cfg("analysis.n_modes_stability", 100)))
+    n_modes = env_int("LINSTAB2D_CASE1_N_MODES", int(cfg("analysis.n_modes_stability", 100)))
     n_modes_resolvent = env_int(
-        "LINSTAB2D_HAMADA_N_MODES_RESOLVENT",
+        "LINSTAB2D_CASE1_N_MODES_RESOLVENT",
         int(cfg("analysis.n_modes_resolvent", 10)),
     )
-    run_resolvent = env_bool("LINSTAB2D_HAMADA_RUN_RESOLVENT", bool(cfg("analysis.run_resolvent", True)))
-    run_stability = env_bool("LINSTAB2D_HAMADA_RUN_STABILITY", bool(cfg("analysis.run_stability", True)))
-    zero_spanwise = env_bool("LINSTAB2D_HAMADA_ZERO_W", bool(cfg("physics.zero_spanwise", False)))
+    run_resolvent = env_bool("LINSTAB2D_CASE1_RUN_RESOLVENT", bool(cfg("analysis.run_resolvent", True)))
+    run_stability = env_bool("LINSTAB2D_CASE1_RUN_STABILITY", bool(cfg("analysis.run_stability", True)))
+    zero_spanwise = env_bool("LINSTAB2D_CASE1_ZERO_W", bool(cfg("physics.zero_spanwise", False)))
     use_matlab_sponge_aux = env_bool(
-        "LINSTAB2D_HAMADA_USE_MATLAB_SPONGE_AUX",
+        "LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX",
         bool(cfg("physics.use_matlab_sponge_aux", True)),
     )
     alpha_filter_default = cfg("numerics.alpha_filter", "none")
-    alpha_filter_env = os.getenv("LINSTAB2D_HAMADA_ALPHA_FILTER", str(alpha_filter_default))
+    alpha_filter_env = os.getenv("LINSTAB2D_CASE1_ALPHA_FILTER", str(alpha_filter_default))
     try:
         alpha_filter: float | str = float(alpha_filter_env)
     except ValueError:
@@ -152,16 +152,16 @@ def compute() -> None:
     # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
     # for strict parity with the exported reference matrices/spectrum.
     zero_mu_t_derivs = env_bool(
-        "LINSTAB2D_HAMADA_ZERO_MU_T_DERIVS",
+        "LINSTAB2D_CASE1_ZERO_MU_T_DERIVS",
         bool(cfg("physics.zero_mu_t_derivs", True)),
     )
     # MATLAB stability convention:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
-    use_raw_eigs = env_bool("LINSTAB2D_HAMADA_USE_RAW_EIGS", bool(cfg("analysis.use_raw_eigs", False)))
+    use_raw_eigs = env_bool("LINSTAB2D_CASE1_USE_RAW_EIGS", bool(cfg("analysis.use_raw_eigs", False)))
     st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
-    requested_root_operator = size > 1 and env_bool("LINSTAB2D_HAMADA_ROOT_ASSEMBLY", iterative_st_solver)
+    requested_root_operator = size > 1 and env_bool("LINSTAB2D_CASE1_ROOT_ASSEMBLY", iterative_st_solver)
     use_root_operator = requested_root_operator and iterative_st_solver
     if requested_root_operator and not iterative_st_solver:
         _log(
@@ -171,7 +171,7 @@ def compute() -> None:
     if use_root_operator and run_resolvent:
         raise RuntimeError(
             "Root-only operator assembly mode is currently intended for stability solves only. "
-            "Set LINSTAB2D_HAMADA_ROOT_ASSEMBLY=0 when running resolvent in MPI."
+            "Set LINSTAB2D_CASE1_ROOT_ASSEMBLY=0 when running resolvent in MPI."
         )
     if use_root_operator:
         os.environ.setdefault("LINSTAB2D_PETSC_ROOT_SCATTER", "1")

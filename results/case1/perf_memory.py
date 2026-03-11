@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Config-driven timing and memory harness for Hamada case runs.
+"""Config-driven timing and memory harness for Case 1 runs.
 
-Launches the canonical ``example_6_hamada.compute()`` pipeline in a child
+Launches the canonical ``case1.compute()`` pipeline in a child
 process, monitors wall time and process-tree RSS, parses key operator metadata
 from the emitted log stream, and writes JSON/CSV summary artifacts for later
 efficiency studies.
@@ -39,8 +39,8 @@ from examples._helpers import load_jsonc
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parent
 DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases.jsonc"
-DEFAULT_JSON = CASE_DIR / "output" / "hamada_perf_memory_latest.json"
-DEFAULT_CSV = CASE_DIR / "output" / "hamada_perf_memory_table.csv"
+DEFAULT_JSON = CASE_DIR / "output" / "case1_perf_memory_latest.json"
+DEFAULT_CSV = CASE_DIR / "output" / "case1_perf_memory_table.csv"
 DEFAULT_LOG_DIR = CASE_DIR / "output" / "logs"
 DEFAULT_RUN_DIR = CASE_DIR / "output" / "runs"
 DEFAULT_OUTPUT_NPZ = CASE_DIR / "case1.npz"
@@ -211,18 +211,18 @@ def _build_env(default_env: dict[str, str], case: dict[str, Any]) -> dict[str, s
     env = dict(default_env)
 
     mapping = {
-        "stride_ksi": "LINSTAB2D_HAMADA_STRIDE_KSI",
-        "stride_eta": "LINSTAB2D_HAMADA_STRIDE_ETA",
-        "fd_order": "LINSTAB2D_HAMADA_FD_ORDER",
-        "beta": "LINSTAB2D_HAMADA_BETA",
-        "alpha_filter": "LINSTAB2D_HAMADA_ALPHA_FILTER",
-        "run_stability": "LINSTAB2D_HAMADA_RUN_STABILITY",
-        "run_resolvent": "LINSTAB2D_HAMADA_RUN_RESOLVENT",
-        "n_modes_stability": "LINSTAB2D_HAMADA_N_MODES",
-        "n_modes_resolvent": "LINSTAB2D_HAMADA_N_MODES_RESOLVENT",
-        "bc_penalty": "LINSTAB2D_HAMADA_BC_PENALTY",
-        "case_dir": "LINSTAB2D_HAMADA_CASE_DIR",
-        "case_inputs_mat": "LINSTAB2D_HAMADA_CASE_INPUTS_MAT",
+        "stride_ksi": "LINSTAB2D_CASE1_STRIDE_KSI",
+        "stride_eta": "LINSTAB2D_CASE1_STRIDE_ETA",
+        "fd_order": "LINSTAB2D_CASE1_FD_ORDER",
+        "beta": "LINSTAB2D_CASE1_BETA",
+        "alpha_filter": "LINSTAB2D_CASE1_ALPHA_FILTER",
+        "run_stability": "LINSTAB2D_CASE1_RUN_STABILITY",
+        "run_resolvent": "LINSTAB2D_CASE1_RUN_RESOLVENT",
+        "n_modes_stability": "LINSTAB2D_CASE1_N_MODES",
+        "n_modes_resolvent": "LINSTAB2D_CASE1_N_MODES_RESOLVENT",
+        "bc_penalty": "LINSTAB2D_CASE1_BC_PENALTY",
+        "case_dir": "LINSTAB2D_CASE1_CASE_DIR",
+        "case_inputs_mat": "LINSTAB2D_CASE1_CASE_INPUTS_MAT",
     }
     for key, env_name in mapping.items():
         if key in case:
@@ -241,7 +241,7 @@ def _build_env(default_env: dict[str, str], case: dict[str, Any]) -> dict[str, s
 def _build_command(python_exe: str, launcher_cfg: dict[str, Any]) -> list[str]:
     mpi_procs = int(launcher_cfg.get("mpi_procs", 1))
     launcher = str(launcher_cfg.get("launcher", "")).strip()
-    command = [python_exe, "-u", "-c", "from example_6_hamada import compute; compute()"]
+    command = [python_exe, "-u", "-c", "from case1 import compute; compute()"]
     if mpi_procs <= 1:
         return command
     if not launcher:
@@ -401,7 +401,7 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
 
 
 def main() -> int:
-    config_path = Path(os.getenv("LINSTAB2D_HAMADA_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
+    config_path = Path(os.getenv("LINSTAB2D_CASE1_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
     cfg = load_jsonc(config_path)
 
     outputs = dict(cfg.get("outputs", {}))
@@ -445,8 +445,8 @@ def main() -> int:
         }
         report_cases.append(case_report)
 
-        case_log = log_dir / f"hamada_perf_{case_id}_{timestamp}.log"
-        case_npz = run_dir / f"hamada_perf_{case_id}_{timestamp}.npz"
+        case_log = log_dir / f"case1_perf_{case_id}_{timestamp}.log"
+        case_npz = run_dir / f"case1_perf_{case_id}_{timestamp}.npz"
         case_report["log_path"] = str(case_log)
         case_report["artifact_npz"] = str(case_npz)
 
@@ -456,7 +456,7 @@ def main() -> int:
         command = _build_command(python_exe, launcher_cfg)
         case_report["command"] = command
 
-        print(f"[hamada-perf] running {case_id}: {' '.join(command)}")
+        print(f"[case1-perf] running {case_id}: {' '.join(command)}")
         try:
             metrics = _monitor_process(
                 command,
@@ -496,7 +496,7 @@ def main() -> int:
     _write_json(report_json, report)
     _write_csv(report_csv, report_cases)
     print(
-        "[hamada-perf]",
+        "[case1-perf]",
         f"ok={report['ok_count']}",
         f"fail={report['fail_count']}",
         f"json={report_json}",

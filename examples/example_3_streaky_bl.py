@@ -158,7 +158,7 @@ def _compute():
     omega_tar = env_complex("LINSTAB2D_STREAKY_OMEGA_TARGET", temporal_targets[0])
     alpha_target = env_float("LINSTAB2D_STREAKY_ALPHA_TARGET", alpha_temp)
     n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
-    # Hamada's exported Example 3 bundle was generated with opts.p = 150
+    # The exported Example 3 bundle was generated with opts.p = 150
     # rather than the original 1500 to keep the solve tractable.
     arnoldi_ncv = env_int("LINSTAB2D_STREAKY_NCV", 150)
     spatial_omega_imag_shift = env_float(

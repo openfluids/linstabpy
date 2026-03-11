@@ -1,7 +1,7 @@
 {
   // Copy this file and update paths/parameters for the production case.
   // Then run:
-  // LINSTAB2D_HAMADA_CONFIG=/absolute/path/to/your_config.jsonc ./example_6_hamada.sh
+  // LINSTAB2D_CASE1_CONFIG=/absolute/path/to/your_config.jsonc ./case1.sh
 
   "paths": {
     "case_dir": "/absolute/path/to/production_case_dir",

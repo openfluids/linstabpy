@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate current Hamada MATLAB exports against a locked inventory manifest."""
+"""Validate current Case 1 MATLAB exports against a locked inventory manifest."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument(
         "--inventory",
         type=Path,
-        default=Path("example_6_hamada/parity_reference_inventory.json"),
+        default=Path("case1/parity_reference_inventory.json"),
     )
     args = parser.parse_args()
 
@@ -50,13 +50,13 @@ def main() -> int:
             failures.append(f"sha mismatch: {path} expected={expected_sha} actual={actual_sha}")
 
     if failures:
-        print("Hamada reference inventory check: FAIL")
+        print("Case 1 reference inventory check: FAIL")
         for msg in failures:
             print(f" - {msg}")
         return 1
 
     print(
-        "Hamada reference inventory check: PASS",
+        "Case 1 reference inventory check: PASS",
         f"files={len(seen)}",
         f"inventory={args.inventory}",
     )

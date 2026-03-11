@@ -1,4 +1,4 @@
-"""Smoke tests for Hamada case integration."""
+"""Smoke tests for Case 1 case integration."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def test_load_hamada_case_shapes() -> None:
     assert X.shape[0] >= 4 and X.shape[1] >= 4
 
 
-def test_hamada_operator_and_small_temporal_eigs() -> None:
+def test_case1_operator_and_small_temporal_eigs() -> None:
     X, Y, bf, sponge = load_hamada_case(CASE_DIR, stride_ksi=30, stride_eta=30)
     sutherland_air(bf)
 

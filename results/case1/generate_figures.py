@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Hamada parity figures from Python NPZ and MATLAB references."""
+"""Generate Case 1 parity figures from Python NPZ and MATLAB references."""
 
 from __future__ import annotations
 
@@ -41,27 +41,27 @@ def main() -> int:
     parser.add_argument(
         "--python-npz",
         type=Path,
-        default=Path("example_6_hamada.npz"),
+        default=Path("case1.npz"),
     )
     parser.add_argument(
         "--matlab-spectrum",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports/spectrum.mat"),
+        default=Path("case1/MATLAB_exports/spectrum.mat"),
     )
     parser.add_argument(
         "--matlab-mode",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports/eigenvector_7.mat"),
+        default=Path("case1/MATLAB_exports/eigenvector_7.mat"),
     )
     parser.add_argument(
         "--matlab-resolvent",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports_resolvent/res_svd_final.mat"),
+        default=Path("case1/MATLAB_exports_resolvent/res_svd_final.mat"),
     )
     parser.add_argument(
         "--parity-config",
         type=Path,
-        default=Path("example_6_hamada/parity_config.jsonc"),
+        default=Path("case1/parity_config.jsonc"),
     )
     args = parser.parse_args()
 
@@ -87,12 +87,12 @@ def main() -> int:
             "(omega array is empty; run_stability is likely disabled in the solver run)."
         )
         stale = [
-            "example_6_hamada_vs_matlab_spectrum.png",
-            "example_6_hamada_leading_modes.png",
-            "example_6_hamada_vs_matlab_mode7.png",
-            "example_6_hamada_mode7_cuts.png",
-            "example_6_hamada_mode7_2d_compare.png",
-            "example_6_hamada_modes2d.png",
+            "case1_vs_matlab_spectrum.png",
+            "case1_leading_modes.png",
+            "case1_vs_matlab_mode7.png",
+            "case1_mode7_cuts.png",
+            "case1_mode7_2d_compare.png",
+            "case1_modes2d.png",
         ]
         for name in stale:
             path = root / name
@@ -144,10 +144,10 @@ def main() -> int:
         ax.axhline(0.0, color="0.4", linewidth=0.8)
         ax.set_xlabel("Re(omega)")
         ax.set_ylabel("Im(omega)")
-        ax.set_title(f"Hamada spectrum parity (n={n})")
+        ax.set_title(f"Case 1 spectrum parity (n={n})")
         ax.legend()
         fig.tight_layout()
-        spectrum_png = root / "example_6_hamada_vs_matlab_spectrum.png"
+        spectrum_png = root / "case1_vs_matlab_spectrum.png"
         fig.savefig(spectrum_png, dpi=220)
         plt.close(fig)
 
@@ -167,7 +167,7 @@ def main() -> int:
         axes[1].grid(alpha=0.25)
 
         fig.tight_layout()
-        leading_png = root / "example_6_hamada_leading_modes.png"
+        leading_png = root / "case1_leading_modes.png"
         fig.savefig(leading_png, dpi=220)
         plt.close(fig)
     elif has_stability and use_matlab_sponge_aux:
@@ -177,8 +177,8 @@ def main() -> int:
             "current MATLAB spectrum reference is from a different operator setup."
         )
         for name in (
-            "example_6_hamada_vs_matlab_spectrum.png",
-            "example_6_hamada_leading_modes.png",
+            "case1_vs_matlab_spectrum.png",
+            "case1_leading_modes.png",
         ):
             path = root / name
             if path.exists():
@@ -194,9 +194,9 @@ def main() -> int:
         fig.colorbar(c, ax=ax, label="U")
         ax.set_xlabel("x")
         ax.set_ylabel("y")
-        ax.set_title("Hamada baseflow preview (U)")
+        ax.set_title("Case 1 baseflow preview (U)")
         fig.tight_layout()
-        preview_png = root / "example_6_hamada_preview.png"
+        preview_png = root / "case1_preview.png"
         fig.savefig(preview_png, dpi=220)
         plt.close(fig)
 
@@ -238,7 +238,7 @@ def main() -> int:
             ax.set_ylim(-1.05 * ymax, 1.05 * ymax)
 
         fig.tight_layout()
-        mode_png = root / "example_6_hamada_vs_matlab_mode7.png"
+        mode_png = root / "case1_vs_matlab_mode7.png"
         fig.savefig(mode_png, dpi=220)
         plt.close(fig)
 
@@ -276,7 +276,7 @@ def main() -> int:
             ax.axis("off")
 
         fig.tight_layout()
-        modes2d_png = root / "example_6_hamada_modes2d.png"
+        modes2d_png = root / "case1_modes2d.png"
         fig.savefig(modes2d_png, dpi=220)
         plt.close(fig)
 
@@ -323,7 +323,7 @@ def main() -> int:
         axes[1, 1].legend()
 
         fig.tight_layout()
-        cuts_png = root / "example_6_hamada_mode7_cuts.png"
+        cuts_png = root / "case1_mode7_cuts.png"
         fig.savefig(cuts_png, dpi=220)
         plt.close(fig)
 
@@ -361,7 +361,7 @@ def main() -> int:
 
         fig.colorbar(c1, ax=axes.ravel().tolist(), shrink=0.92, label="Re(u)")
         fig.tight_layout()
-        mode7_2d_png = root / "example_6_hamada_mode7_2d_compare.png"
+        mode7_2d_png = root / "case1_mode7_2d_compare.png"
         fig.savefig(mode7_2d_png, dpi=220)
         plt.close(fig)
 
@@ -410,7 +410,7 @@ def main() -> int:
         fig.colorbar(c10, ax=axes[1, 0], shrink=0.9)
         fig.colorbar(c11, ax=axes[1, 1], shrink=0.9)
         fig.tight_layout()
-        mode7_error_maps_png = root / "example_6_hamada_mode7_error_maps.png"
+        mode7_error_maps_png = root / "case1_mode7_error_maps.png"
         fig.savefig(mode7_error_maps_png, dpi=220)
         plt.close(fig)
 
@@ -439,7 +439,7 @@ def main() -> int:
             axes[1].grid(alpha=0.25)
 
             fig.tight_layout()
-            mode7_scatter_png = root / "example_6_hamada_mode7_parity_scatter.png"
+            mode7_scatter_png = root / "case1_mode7_parity_scatter.png"
             fig.savefig(mode7_scatter_png, dpi=220)
             plt.close(fig)
             print(f"generated: {mode7_scatter_png}")
@@ -508,9 +508,9 @@ def main() -> int:
         axes[1, 1].grid(alpha=0.2)
         axes[1, 1].legend(fontsize=8)
 
-        fig.suptitle("Hamada stability dashboard", fontsize=13)
+        fig.suptitle("Case 1 stability dashboard", fontsize=13)
         fig.tight_layout()
-        stability_dash_png = root / "example_6_hamada_dashboard_stability.png"
+        stability_dash_png = root / "case1_dashboard_stability.png"
         fig.savefig(stability_dash_png, dpi=220)
         plt.close(fig)
         print(f"generated: {stability_dash_png}")
@@ -560,11 +560,11 @@ def main() -> int:
             ax.semilogy(rank, gains_py[:n_gain], "o-", markersize=3.2, linewidth=0.9, label="Python")
             ax.set_xlabel("mode rank")
             ax.set_ylabel("gain")
-            ax.set_title(f"Hamada resolvent gains parity (n={n_gain})")
+            ax.set_title(f"Case 1 resolvent gains parity (n={n_gain})")
             ax.grid(alpha=0.25, which="both")
             ax.legend()
             fig.tight_layout()
-            gains_png = root / "example_6_hamada_resolvent_gains.png"
+            gains_png = root / "case1_resolvent_gains.png"
             fig.savefig(gains_png, dpi=220)
             plt.close(fig)
             print(f"generated: {gains_png}")
@@ -658,7 +658,7 @@ def main() -> int:
                     ax.set_ylabel("y")
                 fig.colorbar(c00, ax=axes[0, :].tolist(), shrink=0.90, label="Re(u)")
                 fig.tight_layout()
-                mode1_maps_png = root / "example_6_hamada_resolvent_mode1_maps.png"
+                mode1_maps_png = root / "case1_resolvent_mode1_maps.png"
                 fig.savefig(mode1_maps_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_maps_png}")
@@ -691,7 +691,7 @@ def main() -> int:
                 fig.colorbar(c10, ax=axes[1, 0], shrink=0.9)
                 fig.colorbar(c11, ax=axes[1, 1], shrink=0.9)
                 fig.tight_layout()
-                mode1_error_png = root / "example_6_hamada_resolvent_mode1_error_maps.png"
+                mode1_error_png = root / "case1_resolvent_mode1_error_maps.png"
                 fig.savefig(mode1_error_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_error_png}")
@@ -740,7 +740,7 @@ def main() -> int:
                     ax.set_xlabel("x")
                     ax.set_ylabel("y")
                 fig.tight_layout()
-                mode1_enhanced_png = root / "example_6_hamada_resolvent_mode1_maps_enhanced.png"
+                mode1_enhanced_png = root / "case1_resolvent_mode1_maps_enhanced.png"
                 fig.savefig(mode1_enhanced_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_enhanced_png}")
@@ -799,7 +799,7 @@ def main() -> int:
                     ax.set_xlim(x_zoom_min, x_zoom_max)
                     ax.set_ylim(y_zoom_min, y_zoom_max)
                 fig.tight_layout()
-                mode1_zoom_compare_png = root / "example_6_hamada_resolvent_mode1_maps_zoomed.png"
+                mode1_zoom_compare_png = root / "case1_resolvent_mode1_maps_zoomed.png"
                 fig.savefig(mode1_zoom_compare_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_zoom_compare_png}")
@@ -821,7 +821,7 @@ def main() -> int:
                 axes[1].set_ylim(y_zoom_min, y_zoom_max)
                 fig.colorbar(c1, ax=axes[1], shrink=0.9, label="log10|u|")
                 fig.tight_layout()
-                mode1_zoom_png = root / "example_6_hamada_resolvent_mode1_zoom_logmag.png"
+                mode1_zoom_png = root / "case1_resolvent_mode1_zoom_logmag.png"
                 fig.savefig(mode1_zoom_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_zoom_png}")
@@ -862,7 +862,7 @@ def main() -> int:
                 axes[1, 1].grid(alpha=0.25)
                 axes[1, 1].legend()
                 fig.tight_layout()
-                mode1_cuts_png = root / "example_6_hamada_resolvent_mode1_cuts.png"
+                mode1_cuts_png = root / "case1_resolvent_mode1_cuts.png"
                 fig.savefig(mode1_cuts_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {mode1_cuts_png}")
@@ -891,7 +891,7 @@ def main() -> int:
                     _overlay_structure(ax, mode_u)
                     fig.colorbar(c, ax=ax, shrink=0.90)
                 fig.tight_layout()
-                gallery_png = root / "example_6_hamada_resolvent_response_gallery.png"
+                gallery_png = root / "case1_resolvent_response_gallery.png"
                 fig.savefig(gallery_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {gallery_png}")
@@ -919,7 +919,7 @@ def main() -> int:
                 ax.grid(alpha=0.25, which="both")
                 ax.legend()
                 fig.tight_layout()
-                parity_err_png = root / "example_6_hamada_resolvent_parity_errors.png"
+                parity_err_png = root / "case1_resolvent_parity_errors.png"
                 fig.savefig(parity_err_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {parity_err_png}")
@@ -966,9 +966,9 @@ def main() -> int:
                 axes[1, 1].set_ylabel("y")
                 fig.colorbar(c1, ax=axes[1, 1], shrink=0.9)
 
-                fig.suptitle("Hamada resolvent dashboard", fontsize=13)
+                fig.suptitle("Case 1 resolvent dashboard", fontsize=13)
                 fig.tight_layout()
-                resolvent_dash_png = root / "example_6_hamada_dashboard_resolvent.png"
+                resolvent_dash_png = root / "case1_dashboard_resolvent.png"
                 fig.savefig(resolvent_dash_png, dpi=220)
                 plt.close(fig)
                 print(f"generated: {resolvent_dash_png}")
@@ -1012,9 +1012,9 @@ def main() -> int:
                 axes[1].set_xscale("log")
                 axes[1].set_xlabel("metric value (log scale)")
 
-        fig.suptitle("Hamada parity overview dashboard", fontsize=13)
+        fig.suptitle("Case 1 parity overview dashboard", fontsize=13)
         fig.tight_layout()
-        overview_png = root / "example_6_hamada_dashboard_overview.png"
+        overview_png = root / "case1_dashboard_overview.png"
         fig.savefig(overview_png, dpi=220)
         plt.close(fig)
         print(f"generated: {overview_png}")

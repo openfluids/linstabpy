@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-hamada_dashboard: Build paper-ready Hamada figures from exported MATLAB data.
+case1_dashboard: Build paper-ready Case 1 figures from exported MATLAB data.
 
 OUTPUTS:
-  hamada_dashboard.npz
-  hamada_dashboard.png
+  case1_dashboard.npz
+  case1_dashboard.png
   eigenvalue_spectrum.png
   mode_shapes.png
   resolvent_gains.png
-  hamada_modes.png
+  case1_modes.png
 
 USAGE:
-  python hamada_dashboard.py                        # .npz exists -> regenerate plots
-  rm hamada_dashboard.npz && python hamada_dashboard.py  # recompute cache + plots
+  python case1_dashboard.py                        # .npz exists -> regenerate plots
+  rm case1_dashboard.npz && python case1_dashboard.py  # recompute cache + plots
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUT_SPECTRUM = SCRIPT.with_name("eigenvalue_spectrum.png")
 OUT_MODE_SHAPES = SCRIPT.with_name("mode_shapes.png")
 OUT_RES_GAINS = SCRIPT.with_name("resolvent_gains.png")
-OUT_HAMADA_MODES = SCRIPT.with_name("hamada_modes.png")
+OUT_CASE1_MODES = SCRIPT.with_name("case1_modes.png")
 
 
 def _compound_to_complex(arr: np.ndarray) -> np.ndarray:
@@ -193,7 +193,7 @@ def _plot_spectrum(data: np.lib.npyio.NpzFile) -> None:
     ax.axhline(0.0, color="0.55", linewidth=0.8)
     ax.set_xlabel(r"Re($\omega$)")
     ax.set_ylabel(r"Im($\omega$)")
-    ax.set_title("Hamada temporal spectrum")
+    ax.set_title("Case 1 temporal spectrum")
     if omega_mat.size or omega_py.size:
         ax.legend(loc="best")
     else:
@@ -220,7 +220,7 @@ def _plot_mode_shapes(data: np.lib.npyio.NpzFile) -> None:
         ax.plot(yy, tt, linewidth=1.6, label=r"$|T'|$")
         ax.set_xlabel(r"$y$")
         ax.set_ylabel("normalized magnitude")
-        ax.set_title("Hamada leading-mode profiles (MATLAB export)")
+        ax.set_title("Case 1 leading-mode profiles (MATLAB export)")
         ax.legend(loc="best")
         ax.grid(alpha=0.25)
     else:
@@ -252,9 +252,9 @@ def _plot_resolvent_gains(data: np.lib.npyio.NpzFile) -> None:
         ax.set_xlabel("mode index")
         ax.set_ylabel(r"singular value $\sigma_j$")
         if np.isfinite(omega_forcing):
-            ax.set_title(rf"Hamada resolvent gains ($\omega_f={omega_forcing:.4g}$)")
+            ax.set_title(rf"Case 1 resolvent gains ($\omega_f={omega_forcing:.4g}$)")
         else:
-            ax.set_title("Hamada resolvent gains")
+            ax.set_title("Case 1 resolvent gains")
         ax.legend(loc="best")
         ax.grid(alpha=0.25, which="both")
     else:
@@ -264,7 +264,7 @@ def _plot_resolvent_gains(data: np.lib.npyio.NpzFile) -> None:
     plt.close(fig)
 
 
-def _plot_hamada_modes(data: np.lib.npyio.NpzFile) -> None:
+def _plot_case1_modes(data: np.lib.npyio.NpzFile) -> None:
     X = np.asarray(data["X"], dtype=float)
     Y = np.asarray(data["Y"], dtype=float)
     u_mode = np.asarray(data["u_mode"]).reshape(-1).astype(complex)
@@ -296,7 +296,7 @@ def _plot_hamada_modes(data: np.lib.npyio.NpzFile) -> None:
     else:
         _placeholder_axes(axes[1], "Resolvent map unavailable", "Missing resolvent mode or grid files")
 
-    fig.savefig(OUT_HAMADA_MODES, dpi=600, bbox_inches="tight")
+    fig.savefig(OUT_CASE1_MODES, dpi=600, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -305,7 +305,7 @@ def _plot_dashboard() -> None:
         (OUT_SPECTRUM, "Temporal spectrum"),
         (OUT_MODE_SHAPES, "Mode profiles"),
         (OUT_RES_GAINS, "Resolvent gains"),
-        (OUT_HAMADA_MODES, "Spatial mode maps"),
+        (OUT_CASE1_MODES, "Spatial mode maps"),
     ]
 
     fig, axes = plt.subplots(2, 2, figsize=(12.0, 8.2), constrained_layout=True)
@@ -318,7 +318,7 @@ def _plot_dashboard() -> None:
             ax.axis("off")
         else:
             _placeholder_axes(ax, title, "panel missing")
-    fig.suptitle("Hamada paper figure dashboard", fontsize=12)
+    fig.suptitle("Case 1 paper figure dashboard", fontsize=12)
     fig.savefig(OUTPUT_PNG, dpi=600, bbox_inches="tight")
     plt.close(fig)
 
@@ -327,7 +327,7 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
     _plot_spectrum(data)
     _plot_mode_shapes(data)
     _plot_resolvent_gains(data)
-    _plot_hamada_modes(data)
+    _plot_case1_modes(data)
     _plot_dashboard()
 
 

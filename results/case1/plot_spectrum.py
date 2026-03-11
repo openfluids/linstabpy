@@ -12,7 +12,7 @@ matplotlib.rcParams.update({'font.size': 22, 'font.family': 'serif',"font.serif"
 print("Writing eigenvalue images ...")
 
 savepath="./eigvals"
-data = np.load("test_hamada.npz")
+data = np.load("case1.npz")
 
 
 beta = data["kx"]

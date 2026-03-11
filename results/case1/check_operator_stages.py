@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Matrix-stage parity for Hamada operator assembly vs MATLAB exports."""
+"""Matrix-stage parity for Case 1 operator assembly vs MATLAB exports."""
 
 from __future__ import annotations
 
@@ -245,11 +245,11 @@ def main() -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("example_6_hamada/parity_config.jsonc"),
+        default=Path("case1/parity_config.jsonc"),
         help="Optional canonical parity JSONC; values override CLI defaults.",
     )
-    parser.add_argument("--case-dir", type=Path, default=Path("example_6_hamada"))
-    parser.add_argument("--exports-dir", type=Path, default=Path("example_6_hamada/MATLAB_exports"))
+    parser.add_argument("--case-dir", type=Path, default=Path("case1"))
+    parser.add_argument("--exports-dir", type=Path, default=Path("case1/MATLAB_exports"))
     parser.add_argument("--re", type=float, default=395000.0)
     parser.add_argument("--ma", type=float, default=2.0)
     parser.add_argument("--pr", type=float, default=0.747)
@@ -263,7 +263,7 @@ def main() -> int:
     parser.add_argument(
         "--sponge-mat-path",
         type=Path,
-        default=Path("example_6_hamada/MATLAB_exports_resolvent/case_inputs_used.mat"),
+        default=Path("case1/MATLAB_exports_resolvent/case_inputs_used.mat"),
     )
     parser.add_argument("--use-matlab-sponge-aux", action="store_true", default=True)
     parser.add_argument("--zero-mu-t-derivs", action="store_true", default=True)
@@ -274,7 +274,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("output/hamada_operator_stage_parity.json"),
+        default=Path("output/case1_operator_stage_parity.json"),
     )
     args = parser.parse_args()
 
@@ -319,7 +319,7 @@ def main() -> int:
         fh.write("\n")
 
     print(
-        "Hamada operator stage parity:",
+        "Case 1 operator stage parity:",
         f"pass={report['pass']}",
         f"worst_abs={report['worst_stage_by_abs']['name']}:{report['worst_stage_by_abs']['max_abs_error']:.3e}",
         f"worst_rel={report['worst_stage_by_rel']['name']}:{report['worst_stage_by_rel']['max_rel_error']:.3e}",
