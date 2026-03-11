@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from linstab2d.mesh import Mesh
 from linstab2d.examples._helpers import leading_mode_real_frequency
+from linstab2d.examples.example_3_streaky_bl import _merge_temporal_target_batches
 from linstab2d.utils import reconstruct_floquet, plot_flow
 
 
@@ -132,3 +133,39 @@ def test_leading_mode_real_frequency_uses_least_damped_mode() -> None:
 def test_leading_mode_real_frequency_rejects_empty_input() -> None:
     with pytest.raises(ValueError):
         leading_mode_real_frequency(np.array([], dtype=complex))
+
+
+def test_merge_temporal_target_batches_preserves_target_quotas() -> None:
+    batches = [
+        (
+            0.59 + 0.02j,
+            np.array([0.585 + 0.017j, 0.589 - 0.004j, 0.621 - 0.003j], dtype=complex),
+            np.column_stack(
+                [
+                    np.array([1.0, 0.0, 0.0, 0.0], dtype=complex),
+                    np.array([0.0, 1.0, 0.0, 0.0], dtype=complex),
+                    np.array([0.0, 0.0, 1.0, 0.0], dtype=complex),
+                ]
+            ),
+        ),
+        (
+            0.626 - 0.005j,
+            np.array([0.624 - 0.003j, 0.626 - 0.004j, 0.629 - 0.005j, 0.632 - 0.004j], dtype=complex),
+            np.eye(4, dtype=complex),
+        ),
+    ]
+    omega, modes = _merge_temporal_target_batches(batches, [2, 3], dedupe_tol=1e-6)
+    np.testing.assert_allclose(
+        omega,
+        np.array(
+            [
+                0.585 + 0.017j,
+                0.589 - 0.004j,
+                0.626 - 0.004j,
+                0.624 - 0.003j,
+                0.629 - 0.005j,
+            ],
+            dtype=complex,
+        ),
+    )
+    assert modes.shape == (4, 5)

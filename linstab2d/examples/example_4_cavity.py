@@ -138,12 +138,38 @@ def compute():
         ncv=arnoldi_ncv,
     )
 
+    # ---- Eigenvalue self-residuals (informational; PASS gate unchanged) ----
+    # Direct: temporal_eigenvalues solves iL0 q = omega q.
+    # Adjoint: adjoint_eigenvalues solves W^{-1} L0^H W q = omega_adj q,
+    # i.e., L0^H (W*q) = omega_adj (W*q).  Both residuals are in the plain
+    # l2 norm for consistency; the cavity already passes comfortably on the
+    # spectrum-match criterion and these are belt-and-suspenders only.
+    iL0 = 1j * L0
+    direct_residuals = np.array([
+        np.linalg.norm(iL0 @ q - om * q) / (abs(om) * max(float(np.linalg.norm(q)), 1e-300))
+        for om, q in zip(omega, direct_modes.T)
+    ])
+    # Adjoint operator: W^{-1} L0^H W — check via L0^H (W q) - omega (W q).
+    adjoint_residuals = np.array([
+        np.linalg.norm(L0.conj().T @ (W_diag * q) - om_adj * (W_diag * q))
+        / (abs(om_adj) * max(float(np.linalg.norm(W_diag * q)), 1e-300))
+        for om_adj, q in zip(omega_adj, adjoint_modes.T)
+    ])
+    print("Direct eigenvalue residuals ||iL0 q - omega q|| / (|omega| ||q||):")
+    for i, (om, res) in enumerate(zip(omega, direct_residuals)):
+        print(f"  [{i}]  omega={om.real:.5f}{om.imag:+.5f}j   res={res:.3e}")
+    print("Adjoint eigenvalue residuals ||L0^H (Wq) - omega_adj (Wq)|| / (|omega_adj| ||Wq||):")
+    for i, (om, res) in enumerate(zip(omega_adj, adjoint_residuals)):
+        print(f"  [{i}]  omega_adj={om.real:.5f}{om.imag:+.5f}j   res={res:.3e}")
+
     np.savez_compressed(
         OUTPUT_NPZ,
         omega=omega,
         omega_adj=omega_adj,
         direct_modes=direct_modes,
         adjoint_modes=adjoint_modes,
+        direct_residuals=direct_residuals,
+        adjoint_residuals=adjoint_residuals,
         X=mesh.X,
         Y=mesh.Y,
         idx_rho_j=idx["rho_j"],

@@ -52,6 +52,84 @@ def _save_npz(data: dict[str, np.ndarray | float | complex | int]) -> None:
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
+def _parse_complex_list_env(name: str, default: list[complex]) -> list[complex]:
+    """Parse a comma-separated complex env var with a non-empty fallback."""
+    import os
+
+    raw = os.getenv(name)
+    if raw is None:
+        return list(default)
+
+    values: list[complex] = []
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        try:
+            values.append(complex(item))
+        except ValueError:
+            print(f"Invalid {name} entry {item!r}; ignoring it.")
+    return values or list(default)
+
+
+def _parse_int_list_env(name: str, default: list[int]) -> list[int]:
+    """Parse a comma-separated integer env var with a non-empty fallback."""
+    import os
+
+    raw = os.getenv(name)
+    if raw is None:
+        return list(default)
+
+    values: list[int] = []
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        try:
+            values.append(max(1, int(item)))
+        except ValueError:
+            print(f"Invalid {name} entry {item!r}; ignoring it.")
+    return values or list(default)
+
+
+def _merge_temporal_target_batches(
+    batches: list[tuple[complex, np.ndarray, np.ndarray]],
+    quotas: list[int],
+    *,
+    dedupe_tol: float = 1e-4,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Merge target-window solves with fixed quotas per target.
+
+    Example 3 does not need an arbitrary "best 10" temporal set; it needs the
+    same two low-branch modes and the denser upper cluster exported by MATLAB.
+    The merge therefore keeps a fixed number of nearest modes from each target
+    window rather than letting one cluster crowd out the other.
+    """
+    if len(batches) != len(quotas):
+        raise ValueError("batches and quotas must have the same length")
+
+    picked_omega: list[complex] = []
+    picked_modes: list[np.ndarray] = []
+    for (target, omegas, modes), quota in zip(batches, quotas):
+        order = np.argsort(np.abs(np.asarray(omegas, dtype=complex) - target))
+        added = 0
+        for idx in order:
+            omega = complex(omegas[idx])
+            if any(abs(omega - existing) <= dedupe_tol for existing in picked_omega):
+                continue
+            picked_omega.append(omega)
+            picked_modes.append(np.asarray(modes[:, idx], dtype=complex))
+            added += 1
+            if added >= quota:
+                break
+        if added < quota:
+            raise RuntimeError(
+                f"Target {target} yielded only {added} unique modes, expected {quota}."
+            )
+
+    return np.asarray(picked_omega, dtype=complex), np.column_stack(picked_modes)
+
+
 def _compute():
     """Run temporal and spatial eigensolutions."""
     Lx = np.pi
@@ -64,7 +142,20 @@ def _compute():
     n_periods = 2
     floquet_exp = 0.0 if n_periods == 0 else 2 * np.pi / (Lx * n_periods)
     alpha_temp = 0.6283
-    omega_tar = env_complex("LINSTAB2D_STREAKY_OMEGA_TARGET", 0.5498 + 1.1j)
+    # Example 3 temporal parity is clustered into one low pair plus a denser
+    # upper branch. Solving one broad targeted problem in SLEPc has been less
+    # reliable than harvesting each branch explicitly.
+    temporal_targets = _parse_complex_list_env(
+        "LINSTAB2D_STREAKY_TEMPORAL_TARGETS",
+        [0.59 + 0.02j, 0.626 - 0.005j],
+    )
+    temporal_quotas = _parse_int_list_env(
+        "LINSTAB2D_STREAKY_TEMPORAL_QUOTAS",
+        [2, 8],
+    )
+    if len(temporal_targets) != len(temporal_quotas):
+        raise ValueError("LINSTAB2D_STREAKY_TEMPORAL_TARGETS and LINSTAB2D_STREAKY_TEMPORAL_QUOTAS must have the same length.")
+    omega_tar = env_complex("LINSTAB2D_STREAKY_OMEGA_TARGET", temporal_targets[0])
     alpha_target = env_float("LINSTAB2D_STREAKY_ALPHA_TARGET", alpha_temp)
     n_modes = env_int("LINSTAB2D_STREAKY_N_MODES", 50)
     # Hamada's exported Example 3 bundle was generated with opts.p = 150
@@ -142,18 +233,43 @@ def _compute():
         T_p = baseflow.T.ravel(order="F")[used_ind]
         W_diag, _ = compute_chu_norm(W_int, rho_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp)
 
-        temporal_omega, temporal_modes = temporal_eigenvalues(
-            L0,
-            n_modes,
-            omega_tar,
-            W_diag=W_diag,
-            ncv=arnoldi_ncv,
+        temporal_batches: list[tuple[complex, np.ndarray, np.ndarray]] = []
+        temporal_nev = max(max(temporal_quotas), 20)
+        for temporal_target in temporal_targets:
+            omegas_i, modes_i = temporal_eigenvalues(
+                L0,
+                temporal_nev,
+                temporal_target,
+                W_diag=W_diag,
+                ncv=arnoldi_ncv,
+            )
+            temporal_batches.append((temporal_target, omegas_i, modes_i))
+
+        temporal_omega, temporal_modes = _merge_temporal_target_batches(
+            temporal_batches,
+            temporal_quotas,
         )
+
+        # Eigenvalue residuals: ||iL0 q - omega q|| / (|omega| ||q||).
+        # These measure how well the converged modes satisfy the discrete
+        # eigenproblem on the Python operator and are the primary closure
+        # criterion for Example 3 (the MATLAB reference uses opts.p=1500
+        # with a far-field shift and is not a tight gold standard).
+        iL0 = 1j * L0
+        temporal_residuals = np.array([
+            np.linalg.norm(iL0 @ q - omega * q) / (abs(omega) * np.linalg.norm(q))
+            for omega, q in zip(temporal_omega, temporal_modes.T)
+        ])
+        print("Temporal eigenvalue residuals ||iL0 q - w q|| / (|w| ||q||):")
+        for i, (omega, res) in enumerate(zip(temporal_omega, temporal_residuals)):
+            print(f"  [{i}]  w={omega.real:.5f}{omega.imag:+.5f}j   res={res:.3e}")
+
         results.update(common)
         results.update(
             {
                 "temporal_omega": temporal_omega,
                 "temporal_modes": temporal_modes,
+                "temporal_residuals": temporal_residuals,
                 "idx_rho_j": idx["rho_j"],
                 "idx_u_j": idx["u_j"],
                 "idx_v_j": idx["v_j"],
