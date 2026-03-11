@@ -274,7 +274,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("artifacts/parity/hamada_operator_stage_parity.json"),
+        default=Path("output/hamada_operator_stage_parity.json"),
     )
     args = parser.parse_args()
 

@@ -32,7 +32,7 @@ Output:
 ```
 
 Parity artifact:
-- `artifacts/hamada_spectrum_parity.json`
+- `results/case1/output/hamada_spectrum_parity.json`
 
 ## Smoke test
 ```bash

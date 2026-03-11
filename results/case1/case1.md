@@ -20,9 +20,9 @@ If parity fails, we fix source/operator logic. We do not hardcode MATLAB outputs
 - Script: `./case1.sh`
 - Outputs:
   - `case1.npz`
-  - `artifacts/parity/case1_operator_stage_parity.json`
-  - `artifacts/case1_spectrum_parity.json`
-  - `artifacts/case1_resolvent_parity.json`
+  - `output/case1_operator_stage_parity.json`
+  - `output/case1_spectrum_parity.json`
+  - `output/case1_resolvent_parity.json`
   - parity figures (`case1_*.png`)
 
 Note:

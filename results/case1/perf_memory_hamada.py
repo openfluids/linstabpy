@@ -36,12 +36,14 @@ if str(ROOT) not in sys.path:
 from examples._helpers import load_jsonc
 
 
-DEFAULT_CONFIG = ROOT / "example_6_hamada" / "perf_memory_cases.jsonc"
-DEFAULT_JSON = ROOT / "artifacts" / "hamada_perf_memory_latest.json"
-DEFAULT_CSV = ROOT / "artifacts" / "hamada_perf_memory_table.csv"
-DEFAULT_LOG_DIR = ROOT / "artifacts" / "logs"
-DEFAULT_RUN_DIR = ROOT / "artifacts" / "runs"
-DEFAULT_OUTPUT_NPZ = ROOT / "example_6_hamada.npz"
+SCRIPT = Path(__file__).resolve()
+CASE_DIR = SCRIPT.parent
+DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases.jsonc"
+DEFAULT_JSON = CASE_DIR / "output" / "hamada_perf_memory_latest.json"
+DEFAULT_CSV = CASE_DIR / "output" / "hamada_perf_memory_table.csv"
+DEFAULT_LOG_DIR = CASE_DIR / "output" / "logs"
+DEFAULT_RUN_DIR = CASE_DIR / "output" / "runs"
+DEFAULT_OUTPUT_NPZ = CASE_DIR / "case1.npz"
 
 _RE_CASE_SHAPE = re.compile(r"shape=\((\d+),\s*(\d+)\), points=(\d+)")
 _RE_OPERATOR = re.compile(r"operator assembled: shape=\((\d+),\s*(\d+)\), nnz=(\d+)")

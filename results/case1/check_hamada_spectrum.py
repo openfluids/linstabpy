@@ -44,7 +44,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("artifacts/hamada_spectrum_parity.json"),
+        default=Path("output/hamada_spectrum_parity.json"),
         help="Where to write parity summary JSON",
     )
     args = parser.parse_args()

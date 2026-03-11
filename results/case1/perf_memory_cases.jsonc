@@ -8,10 +8,10 @@
   // from the real log stream, and stores a copy of example_6_hamada.npz.
 
   "outputs": {
-    "report_json": "artifacts/hamada_perf_memory_latest.json",
-    "report_csv": "artifacts/hamada_perf_memory_table.csv",
-    "log_dir": "artifacts/logs",
-    "run_dir": "artifacts/runs"
+    "report_json": "output/hamada_perf_memory_latest.json",
+    "report_csv": "output/hamada_perf_memory_table.csv",
+    "log_dir": "output/logs",
+    "run_dir": "output/runs"
   },
 
   "defaults": {

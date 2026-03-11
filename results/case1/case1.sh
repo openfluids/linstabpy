@@ -14,7 +14,7 @@ set -euo pipefail
 # - MPI rank count is user-configurable (`LINSTAB2D_MPI_PROCS`).
 # - Threading per rank is configurable (`LINSTAB2D_THREADS_PER_RANK`).
 # - PETSc matrix conversion mode is configurable (`LINSTAB2D_PETSC_MATRIX_MODE`).
-# - Every run writes a timestamped log under `artifacts/logs/`.
+# - Every run writes a timestamped log under `logs/`.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
@@ -22,7 +22,7 @@ cd "$ROOT_DIR"
 # -------------------------------------------------------------------
 # 0) Logging/session metadata
 # -------------------------------------------------------------------
-LOG_DIR="${LINSTAB2D_LOG_DIR:-artifacts/logs}"
+LOG_DIR="${LINSTAB2D_LOG_DIR:-output/logs}"
 mkdir -p "$LOG_DIR"
 TS="$(date +"%Y%m%d_%H%M%S")"
 LOG_FILE="${LINSTAB2D_LOG_FILE:-$LOG_DIR/case1_${TS}.log}"
@@ -295,7 +295,7 @@ for required_path in "$STABILITY_SPECTRUM_REF" "$STABILITY_MODE7_REF" "$RESOLVEN
   fi
 done
 
-mkdir -p artifacts/parity artifacts/runs artifacts/figures artifacts/tmp
+mkdir -p output/parity output/runs output/figures output/tmp
 
 if [[ "$MPI_PROCS" -gt 1 && -z "$MPI_LAUNCHER" ]]; then
   echo "[case1] requested MPI_PROCS=${MPI_PROCS}, but no mpiexec/mpirun found."
@@ -335,7 +335,7 @@ prepare_run_config() {
   local run_stability="$2"
   local run_resolvent="$3"
   local use_sponge_aux="$4"
-  local out_cfg="artifacts/tmp/hamada_${pass_name}_config.json"
+  local out_cfg="output/tmp/hamada_${pass_name}_config.json"
 
   .venv/bin/python - "$LINSTAB2D_HAMADA_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
 import json
@@ -479,16 +479,16 @@ run_solver_pass() {
   LAST_PASS_ELAPSED="$pass_elapsed"
   echo "[case1] pass=${pass_name} solver finished in ${pass_elapsed}s"
 
-  cp case1.npz "artifacts/runs/case1_${pass_name}.npz"
-  echo "[case1] saved: artifacts/runs/case1_${pass_name}.npz"
+  cp case1.npz "output/runs/case1_${pass_name}.npz"
+  echo "[case1] saved: output/runs/case1_${pass_name}.npz"
 
   if [[ "$pass_run_stability" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing spectrum parity artifact"
     set +e
-    .venv/bin/python tools/parity/check_hamada_spectrum.py \
+    .venv/bin/python check_hamada_spectrum.py \
       --python-npz case1.npz \
       --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
-      --artifact "artifacts/parity/hamada_spectrum_parity_${pass_name}.json"
+      --artifact "output/parity/hamada_spectrum_parity_${pass_name}.json"
     parity_exit=$?
     set -e
     if [[ "$parity_exit" -ne 0 ]]; then
@@ -499,9 +499,9 @@ run_solver_pass() {
   if [[ "$pass_run_resolvent" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing operator-stage parity artifact"
     set +e
-    .venv/bin/python tools/parity/check_hamada_operator_stages.py \
+    .venv/bin/python check_hamada_operator_stages.py \
       --config "$pass_cfg_path" \
-      --artifact "artifacts/parity/hamada_operator_stage_parity_${pass_name}.json"
+      --artifact "output/parity/hamada_operator_stage_parity_${pass_name}.json"
     op_parity_exit=$?
     set -e
     if [[ "$op_parity_exit" -ne 0 ]]; then
@@ -510,11 +510,11 @@ run_solver_pass() {
 
     echo "[case1] pass=${pass_name} writing resolvent parity artifact"
     set +e
-    .venv/bin/python tools/parity/check_hamada_resolvent.py \
+    .venv/bin/python check_hamada_resolvent.py \
       --config "$pass_cfg_path" \
       --python-npz case1.npz \
       --matlab-resolvent "$RESOLVENT_SVD_REF" \
-      --artifact "artifacts/parity/hamada_resolvent_parity_${pass_name}.json"
+      --artifact "output/parity/hamada_resolvent_parity_${pass_name}.json"
     res_parity_exit=$?
     set -e
     if [[ "$res_parity_exit" -ne 0 ]]; then
@@ -530,21 +530,21 @@ run_solver_pass() {
     --matlab-resolvent "$RESOLVENT_SVD_REF" \
     --parity-config "$pass_cfg_path"
 
-  mkdir -p "artifacts/figures/${pass_name}"
+  mkdir -p "output/figures/${pass_name}"
   fig_count=0
   shopt -s nullglob
   for fig in case1*.png; do
-    cp "$fig" "artifacts/figures/${pass_name}/"
+    cp "$fig" "output/figures/${pass_name}/"
     fig_count=$((fig_count + 1))
   done
   shopt -u nullglob
-  echo "[case1] pass=${pass_name} saved figures: ${fig_count} -> artifacts/figures/${pass_name}/"
+  echo "[case1] pass=${pass_name} saved figures: ${fig_count} -> output/figures/${pass_name}/"
 }
 
 build_master_dashboard() {
-  local stability_dir="artifacts/figures/stability"
-  local resolvent_dir="artifacts/figures/resolvent"
-  local master_png="artifacts/figures/case1_dashboard_master.png"
+  local stability_dir="output/figures/stability"
+  local resolvent_dir="output/figures/resolvent"
+  local master_png="output/figures/case1_dashboard_master.png"
 
   if [[ ! -d "$stability_dir" || ! -d "$resolvent_dir" ]]; then
     echo "[case1] master dashboard skipped: missing pass figure folders"

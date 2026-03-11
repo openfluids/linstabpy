@@ -148,7 +148,7 @@ def main() -> int:
     parser.add_argument(
         "--artifact",
         type=Path,
-        default=Path("artifacts/hamada_resolvent_parity.json"),
+        default=Path("output/hamada_resolvent_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()
