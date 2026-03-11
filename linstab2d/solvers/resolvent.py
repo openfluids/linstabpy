@@ -221,3 +221,128 @@ def resolvent_analysis(
     responses = responses[:, order]
 
     return gains, responses, forcings
+
+
+def compute_resolvent_svd_residuals(
+    L0: sp.spmatrix,
+    omega: complex,
+    B_mat: sp.spmatrix | None,
+    C_mat: sp.spmatrix | None,
+    gains: np.ndarray,
+    forcings: np.ndarray,
+    responses: np.ndarray,
+    W_diag: np.ndarray,
+    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute self-residuals for resolvent SVD triplets.
+
+    The resolvent analysis solves the weighted eigenvalue problem
+
+        invW H^H W H v_i = sigma_i^2 v_i
+
+    with ``v_i`` normalised in the W-inner product (``v_i^H W v_i = 1``) and
+    response ``u_i = H v_i / sigma_i``.  The two residuals reported are:
+
+        rho_fwd[i] = ||H v_i − sigma_i u_i|| / (sigma_i ||v_i||_2)
+        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i|| / (sigma_i ||v_i||_2)
+
+    *rho_fwd* is near machine precision by construction (u_i is defined as
+    H v_i / sigma_i).  *rho_adj* is the meaningful residual: it checks the
+    adjoint half of the weighted eigenproblem and converges to ≤ SLEPc's
+    tolerance (1e-12) when the discrete operator is solved correctly.
+
+    Derivation: from ``HtrH v = sigma^2 v`` and ``u = H v / sigma``:
+
+        H^H W (sigma u) = sigma^2 W v   →   invW H^H (W u) = sigma v
+
+    so ``rho_adj`` ≈ SLEPc tol ≈ 1e-12 for converged triplets.
+
+    Parameters
+    ----------
+    L0 : sparse matrix, shape (ndof, ndof)
+        LNSE operator with BCs applied.
+    omega : complex
+        Angular frequency used in the resolvent analysis (may be complex for
+        the paraboloid fallback shift).
+    B_mat, C_mat : sparse matrix or None
+        Input/output matrices passed to ``resolvent_analysis``.
+    gains : ndarray, shape (n_modes,)
+        Singular values returned by ``resolvent_analysis``.
+    forcings : ndarray, shape (ndof, n_modes)
+        Optimal forcing modes (right singular vectors, W-normalised).
+    responses : ndarray, shape (ndof, n_modes)
+        Optimal response modes (left singular vectors).
+    W_diag : ndarray, shape (ndof,)
+        Diagonal of the energy-norm weight matrix used in ``resolvent_analysis``.
+    filter_fn, filter_ct_fn : Callable or None
+        Same spatial filters passed to ``resolvent_analysis``.
+
+    Returns
+    -------
+    rho_fwd : ndarray, shape (n_modes,)
+        Forward residuals (near eps by construction).
+    rho_adj : ndarray, shape (n_modes,)
+        Adjoint residuals (primary quality signal; ≈ SLEPc tol for correct solutions).
+    """
+    require_complex()
+    n_modes = gains.shape[0]
+    logger.info("Computing resolvent SVD residuals for %d modes ...", n_modes)
+
+    W_vec = np.asarray(W_diag, dtype=float)
+    invW_vec = 1.0 / W_vec
+
+    # Rebuild shifted operator and factorization (same path as resolvent_analysis).
+    L_sigma = sp.csc_matrix(L0, copy=True)
+    L_sigma.setdiag(L_sigma.diagonal() - 1j * omega)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT")
+
+    _filt = filter_fn if filter_fn is not None else (lambda v: v)
+    _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
+
+    def _apply_H(v: np.ndarray) -> np.ndarray:
+        w = _filt(v)
+        w = B_mat @ w if B_mat is not None else w
+        w = lu.solve(w)
+        if C_mat is not None:
+            w = C_mat @ w
+        w = _filt(w)
+        return w
+
+    def _apply_H_adj(v: np.ndarray) -> np.ndarray:
+        w = _filt_ct(v)
+        w = C_mat.conj().T @ w if C_mat is not None else w
+        w = lu.solve_transpose(w)
+        if B_mat is not None:
+            w = B_mat.conj().T @ w
+        w = _filt_ct(w)
+        return w
+
+    rho_fwd = np.empty(n_modes, dtype=float)
+    rho_adj = np.empty(n_modes, dtype=float)
+
+    print("SVD residuals  rho_fwd = ||H v - s u||/(s||v||)  "
+          "rho_adj = ||invW H^H(Wu) - s v||/(s||v||)")
+    print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
+    print("-" * 50)
+    for i in range(n_modes):
+        sigma = gains[i]
+        v_i = forcings[:, i]
+        u_i = responses[:, i]
+        norm_v = max(float(np.linalg.norm(v_i)), 1e-300)
+
+        # Forward: ||H v_i - sigma u_i|| / (sigma ||v_i||)
+        # Near eps by construction since u_i = H(v_i)/sigma in resolvent_analysis.
+        Hv = _apply_H(v_i)
+        rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * norm_v)
+
+        # Adjoint: ||invW H^H(W u_i) - sigma v_i|| / (sigma ||v_i||)
+        # Tests the adjoint half of the weighted eigenproblem; converges to
+        # ≤ SLEPc tolerance when the discrete operator is solved correctly.
+        HH_Wu = _apply_H_adj(W_vec * u_i)
+        rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * norm_v)
+
+        print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
+
+    print(f"{'max':>20}  {np.max(rho_fwd):>12.4e}  {np.max(rho_adj):>12.4e}")
+    return rho_fwd, rho_adj

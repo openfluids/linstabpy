@@ -26,8 +26,16 @@ Five validated examples reproduce the cases from Martini & Schmidt (2024). Each 
 Run any example:
 
 ```bash
-python linstab2d/examples/example_1_blasius.py
+.venv/bin/python -m linstab2d.examples.example_1_blasius
 ```
+
+> **macOS only — do not use `uv run`.**
+> `petsc4py` and `slepc4py` require a one-time patched installation performed by
+> `install.sh` into `.venv/`.  Calling `uv run python ...` bypasses the venv and
+> attempts to rebuild `petsc4py` from source on every invocation, which fails due
+> to missing PETSc headers and macOS rpath requirements.  Always invoke Python as
+> `.venv/bin/python`.  On Linux the same restriction applies unless the venv has
+> been activated or the full path is used.
 
 Results are cached to `.npz`; subsequent runs plot directly without recomputing.
 

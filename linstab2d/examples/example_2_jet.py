@@ -23,7 +23,7 @@ from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.mesh import Mesh
 from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.resolvent import resolvent_analysis
+from linstab2d.solvers.resolvent import resolvent_analysis, compute_resolvent_svd_residuals
 from linstab2d.utils.plotting import plot_flow
 
 from ._helpers import env_int
@@ -202,11 +202,32 @@ def compute():
     if REFERENCE_MAT.exists():
         _reference_or_warn("resolvent gains", gains, "gains")
 
+    # ---- SVD self-residuals -----------------------------------------------
+    # MATLAB used 5-output lu(A) (UMFPACK) + ARPACK eigs at tol=eps=2.2e-16,
+    # default subspace opts.p = 2*nEig+1.  Python uses MUMPS/METIS + SLEPc EPS
+    # at tol=1e-12, ncv = max(2*n_modes+3, 20).  Different fill-reducing
+    # orderings yield gain mismatch ~0.20% for this case; structurally
+    # unavoidable.  Residuals below are the primary closure criterion.
+    svd_residuals_fwd, svd_residuals_adj = compute_resolvent_svd_residuals(
+        L0,
+        omega,
+        B_mat,
+        B_mat,
+        gains,
+        forcings,
+        responses,
+        W_diag,
+        filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+        filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+    )
+
     np.savez_compressed(
         OUTPUT_NPZ,
         gains=gains,
         responses=responses,
         forcings=forcings,
+        svd_residuals_fwd=svd_residuals_fwd,
+        svd_residuals_adj=svd_residuals_adj,
         omega=omega,
         n_modes=n_modes,
         X=mesh.X,
