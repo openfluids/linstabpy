@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstab2d.examples._helpers import load_jsonc
+from examples._helpers import load_jsonc
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.boundary_conditions.neumann import apply_neumann

@@ -9,12 +9,12 @@ Reference MATLAB examples:
 - `linstab2d/data/baseflows/example_5_Paraboloid.m`
 
 Python counterparts:
-- `linstab2d/examples/example_0_curvilinear_validation.py`
-- `linstab2d/examples/example_1_blasius.py`
-- `linstab2d/examples/example_2_jet.py`
-- `linstab2d/examples/example_3_streaky_bl.py`
-- `linstab2d/examples/example_4_cavity.py`
-- `linstab2d/examples/example_5_paraboloid.py`
+- `examples/example_0_curvilinear_validation.py`
+- `examples/example_1_blasius.py`
+- `examples/example_2_jet.py`
+- `examples/example_3_streaky_bl.py`
+- `examples/example_4_cavity.py`
+- `examples/example_5_paraboloid.py`
 
 Coverage matrix:
 
@@ -29,10 +29,5 @@ Coverage matrix:
 
 Parity execution command:
 ```bash
-linstab2d/examples/run_parity.sh
-```
-
-Strict gate mode:
-```bash
-STRICT_PARITY=1 linstab2d/examples/run_parity.sh
+.venv/bin/python tools/parity/compare_martini_examples.py
 ```
