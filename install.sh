@@ -319,6 +319,28 @@ fi
 log "Installing linstab2d (editable)..."
 ${PIP_INSTALL} -e "${ROOT_DIR}"
 
+# Workaround: Python 3.13 (uv standalone builds) skips .pth files during startup.
+# Setuptools' __editable__*.pth files are never processed, breaking src-layout
+# editable installs. We add a sitecustomize.py that reads the .pth content manually.
+for _sp in "${VENV_DIR}"/lib/python*/site-packages; do
+    [ -d "$_sp" ] || continue
+    _sc="${_sp}/sitecustomize.py"
+    if [ ! -f "$_sc" ] || ! grep -q 'linstab2d' "$_sc" 2>/dev/null; then
+        cat > "$_sc" << 'PYEOF'
+"""Add src/ to sys.path for editable install (Python 3.13 .pth workaround)."""
+import os, sys
+_sp = os.path.dirname(os.path.abspath(__file__))
+for _f in os.listdir(_sp):
+    if _f.endswith('.pth') and 'linstab2d' in _f:
+        _path = open(os.path.join(_sp, _f)).read().strip()
+        if os.path.isdir(_path) and _path not in sys.path:
+            sys.path.insert(0, _path)
+        break
+PYEOF
+        log "Created sitecustomize.py (.pth workaround for Python 3.13)"
+    fi
+done
+
 # ── Step 8: Install dev dependencies ─────────────────────────────────────────
 log "Installing dev dependencies (pytest, sympy)..."
 ${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"

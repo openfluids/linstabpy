@@ -265,6 +265,12 @@ LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
 
 All dependencies are installed by `install.sh` via [uv](https://docs.astral.sh/uv/).
 
+## Packaging
+
+`linstab2d` follows current PyPA packaging guidance and the Scientific Python
+Development Guide: `pyproject.toml` build, `src/` layout for importable code,
+PETSc/SLEPc as optional dependencies (`pip install linstab2d[petsc]`).
+
 ## Architecture
 
 ```
@@ -272,20 +278,23 @@ Mesh → BaseFlow → Operator → BCs → Solver
 ```
 
 ```
-linstab2d/
-├── mesh/                # SBP operators, structured grids, integration weights, filters
-├── baseflow/            # Base flow loaders (Blasius, jet, cavity, ...), Sutherland viscosity
-├── operators/           # LNSE coefficient matrices, assembly, spatial operators, Chu energy norm
-├── boundary_conditions/ # Dirichlet BC enforcement
-├── solvers/             # Resolvent, temporal/spatial eigenvalue solvers, linear solver config
-└── utils/               # Plotting, Floquet reconstruction
-examples/                # 5 runnable examples (start here)
+src/linstab2d/               # installable library (pip install -e .)
+├── mesh/                    # SBP operators, structured grids, integration weights, filters
+├── baseflow/                # Base flow loaders (Blasius, jet, cavity, ...), Sutherland viscosity
+├── operators/               # LNSE coefficient matrices, assembly, spatial operators, Chu energy norm
+├── boundary_conditions/     # Dirichlet BC enforcement
+├── solvers/                 # Resolvent, temporal/spatial eigenvalue solvers, linear solver config
+├── utils/                   # Plotting, Floquet reconstruction
+└── data/baseflows/          # runtime .mat assets (git submodule)
+examples/                    # 5 runnable examples (start here)
+results/                     # case studies (Case 1, validation)
+tools/parity/                # MATLAB comparison tooling
 ```
 
 ## Reference MATLAB source boundary
 
-- **Project implementation:** the Python code in this repository (`linstab2d/`, `tests/`, tooling files) is the source of this package.
-- **Reference source:** the MATLAB reference code and `.mat` base-flow files are kept in the git submodule at `linstab2d/data/baseflows`, which points to the upstream MATLAB repository.
+- **Project implementation:** the Python code in this repository (`src/linstab2d/`, `tests/`, tooling files) is the source of this package.
+- **Reference source:** the MATLAB reference code and `.mat` base-flow files are kept in the git submodule at `src/linstab2d/data/baseflows`, which points to the upstream MATLAB repository.
 - **Local workflow:** `./install.sh` ensures the submodule is initialized so MATLAB files are present on disk for inspection.
 - **Boundary rule:** modify/commit only files in this repository unless you intentionally update the submodule itself (rare, with explicit intent).
 
