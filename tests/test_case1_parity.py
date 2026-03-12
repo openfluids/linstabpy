@@ -12,9 +12,9 @@ from scipy.optimize import linear_sum_assignment
 
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_NPZ = ROOT / "case1.npz"
-MAT_SPEC = ROOT / "case1/MATLAB_results/spectrum.mat"
-MAT_MODE7 = ROOT / "case1/MATLAB_results/eigenvector_7.mat"
+PY_NPZ = ROOT / "results/case1/case1.npz"
+MAT_SPEC = ROOT / "results/case1/MATLAB_results/spectrum.mat"
+MAT_MODE7 = ROOT / "results/case1/MATLAB_results/eigenvector_7.mat"
 
 
 def _require_inputs() -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+import scipy.linalg
 import scipy.sparse as sp
 
 from ..utils.petsc_init import init_slepc_from_argv
@@ -53,9 +54,13 @@ def _eigs_generalized(
     ndof = A_sp.shape[0]
 
     if ndof <= 2 or n_modes >= ndof - 1:
+        # Use QZ-based generalized eigensolver (not B⁻¹A) because B is
+        # often singular in spatial problems — boundary-condition rows and
+        # algebraic constraints introduce zero rows in B.  QZ handles this
+        # natively, returning inf eigenvalues for the null subspace.
         dense = np.asarray(A_sp.toarray())
         dense_R = np.asarray(B_sp.toarray())
-        eigvals, eigvecs = np.linalg.eig(np.linalg.solve(dense_R, dense))
+        eigvals, eigvecs = scipy.linalg.eig(dense, dense_R)
         order = np.argsort(np.abs(eigvals - target))
         sel = order[:n_modes]
         return eigvals[sel], eigvecs[:, sel]

@@ -1,5 +1,5 @@
 {
-  // Case 1efficiency harness cases.
+  // Case 1 efficiency harness cases.
   // Enable one or more entries below, then run:
   //   ./.venv/bin/python tools/parity/perf_memory.py
   //
@@ -46,7 +46,7 @@
   "cases": [
     {
       "case_id": "case1_stability_stride_12",
-      "label": "Case 1stability, reduced grid for local verification",
+      "label": "Case 1 stability, reduced grid for local verification",
       "enabled": true,
       "stride_ksi": 12,
       "stride_eta": 12,
@@ -56,7 +56,7 @@
     },
     {
       "case_id": "case1_resolvent_stride_12",
-      "label": "Case 1resolvent, reduced grid for local verification",
+      "label": "Case 1 resolvent, reduced grid for local verification",
       "enabled": false,
       "stride_ksi": 12,
       "stride_eta": 12,
@@ -66,7 +66,7 @@
     },
     {
       "case_id": "case1_stability_stride_1",
-      "label": "Case 1full-grid stability baseline",
+      "label": "Case 1 full-grid stability baseline",
       "enabled": false,
       "stride_ksi": 1,
       "stride_eta": 1,
@@ -76,7 +76,7 @@
     },
     {
       "case_id": "case1_resolvent_stride_1",
-      "label": "Case 1full-grid resolvent baseline",
+      "label": "Case 1 full-grid resolvent baseline",
       "enabled": false,
       "stride_ksi": 1,
       "stride_eta": 1,
@@ -86,7 +86,7 @@
     },
     {
       "case_id": "case1_stability_stride_1_iterative",
-      "label": "Case 1full-grid stability with iterative ST solve",
+      "label": "Case 1 full-grid stability with iterative ST solve",
       "enabled": false,
       "stride_ksi": 1,
       "stride_eta": 1,
