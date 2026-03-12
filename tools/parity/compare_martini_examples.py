@@ -443,6 +443,19 @@ def _compare_streaky_bl_case(
             "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in spatial_rows)),
             "per_mode": spatial_rows,
         }
+        if "spatial_residuals" in python_npz:
+            residuals_py = [float(r) for r in np.asarray(python_npz["spatial_residuals"]).reshape(-1)]
+            for row in spatial_rows:
+                py_i = row["python_mode_index_1based"] - 1
+                if py_i < len(residuals_py):
+                    row["eigenvalue_residual"] = residuals_py[py_i]
+            spatial_block["residual_max"] = float(max(residuals_py))
+            spatial_block["residual_note"] = (
+                "Primary closure criterion. MATLAB and Python extract different "
+                "non-unique subsets of the dense companion-matrix spectrum; "
+                "the residual verifies that the Python eigenpairs satisfy the "
+                "discrete generalized eigenproblem."
+            )
     else:
         spatial_block = {"n_compare": 0, "note": "spatial_alpha not yet computed"}
 
@@ -612,14 +625,23 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
                     and report["temporal"]["spectrum_max_rel_error"] <= float(tol.get("temporal_spectrum_rel", np.inf))
                     and report["temporal"]["mode_max_rel_l2"] <= float(tol.get("temporal_mode_rel", np.inf))
                 )
-            spatial_present = "spectrum_max_abs_error" in report["spatial"]
-            spatial_ok = (
-                not spatial_present
-                or (
-                    report["spatial"]["spectrum_max_abs_error"] <= float(tol.get("spatial_spectrum_abs", np.inf))
-                    and report["spatial"]["spectrum_max_rel_error"] <= float(tol.get("spatial_spectrum_rel", np.inf))
+            if "residual_max" in report["spatial"] and "spatial_residual_max" in tol:
+                spatial_ok = report["spatial"]["residual_max"] <= float(tol["spatial_residual_max"])
+            elif "spatial_residual_max" in tol and "residual_max" not in report.get("spatial", {}):
+                # Stale cache: config expects residuals but NPZ lacks them.
+                base["note"] = "Stale NPZ: spatial_residuals absent. Delete NPZ and rerun."
+                base["status"] = "SOFT_FAIL"
+                base["metrics"] = report
+                return base
+            else:
+                spatial_present = "spectrum_max_abs_error" in report["spatial"]
+                spatial_ok = (
+                    not spatial_present
+                    or (
+                        report["spatial"]["spectrum_max_abs_error"] <= float(tol.get("spatial_spectrum_abs", np.inf))
+                        and report["spatial"]["spectrum_max_rel_error"] <= float(tol.get("spatial_spectrum_rel", np.inf))
+                    )
                 )
-            )
             passed = temporal_residual_ok and spatial_ok
             base["matlab_npz"] = [str(path.relative_to(ROOT)) for path in paths]
             base["status"] = "PASS" if passed else "SOFT_FAIL"
