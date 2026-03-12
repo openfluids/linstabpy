@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "linstab2d"
 version = "0.1.0"
 description = "Stability and resolvent analysis of compressible viscous flows"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
 readme = "README.md"
 authors = [
@@ -17,7 +17,6 @@ keywords = ["stability", "resolvent", "compressible", "Navier-Stokes", "PETSc", 
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Physics",
 ]
@@ -33,14 +32,18 @@ petsc = [
     "petsc4py >= 3.18",
     "slepc4py >= 3.18",
 ]
-dev = ["pytest", "pytest-cov", "sympy>=1.13"]
+
+[dependency-groups]
+test = ["pytest", "pytest-cov", "sympy>=1.13"]
+dev = [{include-group = "test"}, "h5py"]
 
 [project.urls]
 Repository = "https://github.com/ricardofrantz/linstab2d"
 Documentation = "https://github.com/ricardofrantz/linstab2d#readme"
+Issues = "https://github.com/ricardofrantz/linstab2d/issues"
 
-[tool.setuptools]
-packages = ["linstab2d"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 linstab2d = ["data/baseflows/*.mat"]

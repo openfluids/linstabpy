@@ -18,6 +18,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
 PYTHON="$REPO/.venv/bin/python"
 EXAMPLES_DIR="$REPO/examples"
+export PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 # ── Argument handling ──────────────────────────────────────────────────────────
 FRESH=0
