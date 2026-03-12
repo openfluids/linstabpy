@@ -1,0 +1,12 @@
+# Exclude files >= 100MB (GitHub file size limit)
+L0.mat
+**/L0_preBC.mat
+**/L0_after_dirichlet_lt.mat
+**/L0_after_dirichlet_b.mat
+**/L0_temporal.mat
+**/L0_postBC.mat
+**/L0_after_neumann_bT.mat
+**/derivatives.mat
+**/L0_preBC_only.mat
+**/L0_internal.mat
+**/lhs_rhs_blocks.mat
