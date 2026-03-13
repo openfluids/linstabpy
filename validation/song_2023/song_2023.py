@@ -99,7 +99,20 @@ def run_case(
     mem0 = _get_memory_mb()
     step_stats: List[Tuple[str, float, float]] = []
 
+    def _status(message: str) -> None:
+        if rank == 0:
+            elapsed = time.perf_counter() - t0
+            print(f"[song_2023] +{elapsed:8.2f}s {message}", flush=True)
+
+    _status(
+        "starting run "
+        f"(beta={beta:.3f}, St={St:.3f}, fd_order={fd_order}, "
+        f"stride=({stride_ksi},{stride_eta}), "
+        f"stability={run_stability}, resolvent={run_resolvent})"
+    )
+
     # 1) Load baseflow and sponge from .npy files
+    _status("loading baseflow and sponge fields")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
     X, Y, baseflow, sponge = load_my_case(
@@ -117,8 +130,10 @@ def run_case(
     step_stats.append(("load_baseflow", t_end - t_start, mem_end - mem_start))
 
     ny, nx = X.shape
+    _status(f"loaded baseflow on grid ny={ny}, nx={nx}")
 
     # 2) Build a simple computational mesh and deform to physical coordinates
+    _status("building and deforming mesh")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
     cmesh = Mesh.create(
@@ -134,8 +149,10 @@ def run_case(
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
     step_stats.append(("build_mesh", t_end - t_start, mem_end - mem_start))
+    _status(f"mesh built with ngp={mesh.ngp}")
 
     # 3) Assemble LNSE operator and apply BCs
+    _status("assembling LNSE operator and boundary conditions")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
     L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
@@ -150,8 +167,10 @@ def run_case(
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
     step_stats.append(("assemble_operator_bc", t_end - t_start, mem_end - mem_start))
+    _status(f"assembled operator shape={L0.shape}, nnz={L0.nnz}")
 
     # 4) Chu energy norm
+    _status("building Chu energy norm")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
     p = mesh.used_ind
@@ -162,6 +181,7 @@ def run_case(
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
     step_stats.append(("chu_norm", t_end - t_start, mem_end - mem_start))
+    _status(f"Chu norm built with {W_diag.size} weights")
 
     omega_target = 2.0 * np.pi * St
 
@@ -170,6 +190,7 @@ def run_case(
     forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
 
     if run_resolvent:
+        _status(f"starting resolvent solve for {n_modes_resolvent} modes at omega_target={omega_target:.6g}")
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
@@ -190,11 +211,13 @@ def run_case(
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
         step_stats.append(("resolvent", t_end - t_start, mem_end - mem_start))
+        _status(f"finished resolvent solve with {gains.size} gains")
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
 
     if run_stability:
+        _status(f"starting stability eigensolve for {n_modes_stability} modes at omega_target={omega_target:.6g}")
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         omega, direct_modes = temporal_eigenvalues(
@@ -207,9 +230,15 @@ def run_case(
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
         step_stats.append(("stability", t_end - t_start, mem_end - mem_start))
+        if rank == 0 and omega.size:
+            lead = omega[np.argmin(np.abs(omega - omega_target))]
+            _status(f"finished stability eigensolve; nearest eigenvalue to target is {lead.real:+.6e}{lead.imag:+.6e}j")
+        else:
+            _status("finished stability eigensolve")
 
     # 5) Save results on rank 0
     if rank == 0:
+        _status(f"saving output to {output_npz}")
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         out_path = Path(output_npz)
@@ -239,7 +268,6 @@ def run_case(
         mem_end = _get_memory_mb()
         step_stats.append(("save_output", t_end - t_start, mem_end - mem_start))
 
-        elapsed = time.perf_counter() - t0
         mem_total = _get_memory_mb()
 
         print(f"[song_2023] run finished in {elapsed:.2f}s, output={out_path}")
