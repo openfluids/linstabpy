@@ -25,11 +25,11 @@ from petsc4py import PETSc
 from mpi4py import MPI
 
 from linstab2d.baseflow import load_hamada_case, sutherland_air
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
+from linstab2d.operators.assembly import build_lnse_system
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
+from linstab2d.solvers.petsc_utils import scipy_to_petsc
 from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.utils.jsonc import load_jsonc
 
@@ -158,6 +158,7 @@ def compute() -> None:
     _resolvent_cfg = solver_cfg.get("resolvent", _linsolve)
     resolvent_type = _resolvent_cfg.get("type", _linsolve.get("type", "mumps"))
     matrix_mode = solver_cfg.get("petsc_matrix_mode", "auto")
+    assembly_backend = cfg("assembly_backend", None)
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
@@ -241,19 +242,25 @@ def compute() -> None:
     else:
         stage_start = time.perf_counter()
         _log("assembling LNSE operator")
-        L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
-        _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
-        _log_stage("assemble_operator", stage_start)
-        stage_start = time.perf_counter()
         bc_recipe = cfg("bc.recipe", [
             {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
             {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
             {"type": "neumann", "borders": "b", "variables": "T"},
             {"type": "neumann", "borders": "r", "variables": "ruvwT"},
         ])
-        L0, bc_indices = apply_bc_recipe(L0, mesh, idx, bc_recipe, penalty=penalty)
-        _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
-        _log_stage("apply_bc", stage_start)
+        L0, idx, bc_indices = build_lnse_system(
+            mesh,
+            baseflow,
+            kx=beta,
+            model="2D",
+            bc_recipe=bc_recipe,
+            bc_penalty=penalty,
+            backend=assembly_backend,
+            solver_cfg=solver_cfg,
+        )
+        nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
+        _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
+        _log_stage("assemble_operator_bc", stage_start)
 
     # ------------------------------------------------------------------
     # 5) Build Chu energy norm weights. These weights are required for
@@ -279,7 +286,8 @@ def compute() -> None:
         _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[bc_indices] = 0.0
-        B_mat = sp.diags(B_diag, format="csc")
+        B_mat_sp = sp.diags(B_diag, format="csc")
+        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
         C_mat = B_mat.copy()
         gains, responses, forcings = resolvent_analysis(
             L0,

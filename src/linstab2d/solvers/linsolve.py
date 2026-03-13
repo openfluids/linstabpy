@@ -19,10 +19,17 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from .petsc_utils import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
+from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
 from ..utils._solver_cfg import _scfg, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
+
+
+def _matrix_nnz(operator: sp.spmatrix | PETSc.Mat) -> int:
+    """Return the stored nonzero count for SciPy or PETSc matrices."""
+    if _is_petsc_matrix(operator):
+        return int(operator.getInfo().get("nz_used", 0.0))
+    return int(operator.nnz)
 
 
 @dataclass(frozen=True)
@@ -35,7 +42,7 @@ class LinearSolver:
 
 
 def make_linear_solver(
-    operator: sp.spmatrix,
+    operator: sp.spmatrix | PETSc.Mat,
     *,
     env_prefix: str = "LINSTAB2D_LINSOLVE",
     solver_cfg: dict | None = None,
@@ -57,8 +64,16 @@ def make_linear_solver(
     """
     require_complex(solver_cfg)
 
-    A = scipy_to_petsc(operator, solver_cfg)
-    n = operator.shape[0]
+    nrows, ncols = _operator_shape(operator)
+    if nrows != ncols:
+        raise ValueError("operator must be a square matrix")
+    n = nrows
+    nnz = _matrix_nnz(operator)
+
+    if _is_petsc_matrix(operator):
+        A = operator.copy()
+    else:
+        A = scipy_to_petsc(operator, solver_cfg)
 
     # Resolve the config subsection for this linear-solver instance.
     _sub: dict | None = None
@@ -97,13 +112,13 @@ def make_linear_solver(
             logger.info(
                 "Linear solver: MUMPS direct (n=%d, nnz=%d, ordering=%s [ICNTL(7)=%d])",
                 n,
-                operator.nnz,
+                nnz,
                 ordering,
                 icntl7,
             )
         except (AttributeError, RuntimeError) as e:
             logger.debug("Could not query MUMPS ordering: %s", e)
-            logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, operator.nnz)
+            logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, nnz)
         backend = "MUMPS"
     elif solver_type in {"iterative", "krylov", "petsc"}:
         ksp_type = _scfg(_sub, "ksp_type", f"{env_prefix}_KSP_TYPE", "fgmres")
@@ -154,7 +169,7 @@ def make_linear_solver(
         logger.info(
             "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, side=%s, rtol=%g, max_it=%d)",
             n,
-            operator.nnz,
+            nnz,
             ksp_type,
             pc_type,
             pc_side,
@@ -171,14 +186,22 @@ def make_linear_solver(
     def solve(rhs: np.ndarray) -> np.ndarray:
         b = petsc_vec(rhs)
         x = b.duplicate()
-        ksp.solve(b, x)
-        return vec_to_numpy(x)
+        try:
+            ksp.solve(b, x)
+            return vec_to_numpy(x)
+        finally:
+            b.destroy()
+            x.destroy()
 
     def solve_transpose(rhs: np.ndarray) -> np.ndarray:
         """Solve A^H x = rhs via conjugation: A^T conj(x) = conj(rhs)."""
         b = petsc_vec(rhs.conj())
         x = b.duplicate()
-        ksp.solveTranspose(b, x)
-        return vec_to_numpy(x).conj()
+        try:
+            ksp.solveTranspose(b, x)
+            return vec_to_numpy(x).conj()
+        finally:
+            b.destroy()
+            x.destroy()
 
     return LinearSolver(backend=backend, solve=solve, solve_transpose=solve_transpose)

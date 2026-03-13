@@ -5,6 +5,7 @@ Usage (from repo root):
 """
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,13 +21,13 @@ init_petsc_from_argv()
 from mpi4py import MPI  # noqa: E402
 from petsc4py import PETSc  # noqa: E402
 
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe  # noqa: E402
 from linstab2d.mesh import Mesh  # noqa: E402
-from linstab2d.operators.assembly import build_lnse_operator  # noqa: E402
+from linstab2d.operators.assembly import build_lnse_system  # noqa: E402
 from linstab2d.operators.energy_norm import compute_chu_norm  # noqa: E402
 from linstab2d.solvers.eigenvalue import temporal_eigenvalues  # noqa: E402
+from linstab2d.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
 from linstab2d.solvers.resolvent import resolvent_analysis  # noqa: E402
-from linstab2d.utils.jsonc import load_jsonc  # noqa: E402
+from linstab2d.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
 
 from examples._helpers import (  # noqa: E402
     format_complex,
@@ -45,6 +46,7 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_direct_modes.png")
 OUTPUT_RESOLVENT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_resolvent.png")
+DEFAULT_CONFIG_PATH = SCRIPT.with_suffix(".jsonc")
 MATLAB_REF_DIR = SCRIPT.parent / "matlab_reference"
 MATLAB_EIG_DIR = MATLAB_REF_DIR / "EigModes"
 MATLAB_SPLIT_DIR = MATLAB_REF_DIR / "ziming_split"
@@ -66,6 +68,42 @@ def _get_memory_mb() -> float:
         return float("nan")
 
 
+def _resolve_frequency_target(cfg: dict) -> tuple[complex, str]:
+    """Resolve the spectral target frequency from JSONC configuration.
+
+    Supported forms:
+    - explicit ``omega_target`` (preferred, direct solver input)
+    - legacy scalar ``St`` interpreted as ``omega_target = 2π St``
+    - structured ``frequency_target`` block with either:
+      - ``{"omega": ...}``
+      - ``{"St": ..., "omega_scale": ...}``
+    """
+    if "omega_target" in cfg:
+        omega_target = parse_complex(cfg["omega_target"])
+        return omega_target, "explicit omega_target"
+
+    freq_cfg = cfg.get("frequency_target")
+    if freq_cfg is not None:
+        if not isinstance(freq_cfg, dict):
+            raise TypeError("frequency_target must be a JSON object when provided")
+        if "omega" in freq_cfg:
+            omega_target = parse_complex(freq_cfg["omega"])
+            return omega_target, "frequency_target.omega"
+        if "St" in freq_cfg:
+            St = float(freq_cfg["St"])
+            omega_scale = parse_complex(freq_cfg.get("omega_scale", 2.0 * np.pi))
+            omega_target = omega_scale * St
+            return omega_target, f"frequency_target.St with omega_scale={omega_scale}"
+        raise ValueError("frequency_target must define either 'omega' or 'St'")
+
+    if "St" in cfg:
+        St = float(cfg["St"])
+        omega_target = 2.0 * np.pi * St
+        return omega_target, "legacy St with omega_scale=2π"
+
+    return 0.0 + 0.0j, "default omega_target=0"
+
+
 def run_case(
     case_dir: str | Path,
     *,
@@ -78,6 +116,7 @@ def run_case(
     # Defaults chosen to mirror macro_single.sh
     beta: float = 19.2,
     St: float = 0.0,
+    omega_target: complex = 0.0 + 0.0j,
     n_modes_stability: int = 20,
     n_modes_resolvent: int = 10,
     run_stability: bool = True,
@@ -87,9 +126,11 @@ def run_case(
     stride_eta: int = 1,
     penalty: float = 1e8,
     alpha_filter: float | str = "none",
+    assembly_backend: str | None = None,
     output_npz: str = "song_2023.npz",
     bc_recipe: list[dict] | None = None,
     solver_cfg: dict | None = None,
+    preprocess_cfg: dict | None = None,
 ) -> None:
     """Driver for the Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case."""
     comm = PETSc.COMM_WORLD
@@ -106,8 +147,8 @@ def run_case(
 
     _status(
         "starting run "
-        f"(beta={beta:.3f}, St={St:.3f}, fd_order={fd_order}, "
-        f"stride=({stride_ksi},{stride_eta}), "
+        f"(beta={beta:.3f}, St={St:.3f}, omega_target={omega_target.real:+.6e}{omega_target.imag:+.6e}j, "
+        f"fd_order={fd_order}, stride=({stride_ksi},{stride_eta}), "
         f"stability={run_stability}, resolvent={run_resolvent})"
     )
 
@@ -115,7 +156,7 @@ def run_case(
     _status("loading baseflow and sponge fields")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
-    X, Y, baseflow, sponge = load_my_case(
+    X, Y, baseflow, sponge, preprocess_info = load_my_case(
         case_dir,
         Re=Re,
         Ma=Ma,
@@ -124,6 +165,7 @@ def run_case(
         T_0=T_0,
         stride_ksi=stride_ksi,
         stride_eta=stride_eta,
+        preprocess_cfg=preprocess_cfg,
     )
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
@@ -131,6 +173,7 @@ def run_case(
 
     ny, nx = X.shape
     _status(f"loaded baseflow on grid ny={ny}, nx={nx}")
+    _status(f"baseflow preprocessing: {preprocess_info.get('summary', 'n/a')}")
 
     # 2) Build a simple computational mesh and deform to physical coordinates
     _status("building and deforming mesh")
@@ -155,7 +198,6 @@ def run_case(
     _status("assembling LNSE operator and boundary conditions")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
-    L0, idx = build_lnse_operator(mesh, baseflow, kx=beta, model="2D")
     if bc_recipe is None:
         bc_recipe = [
             {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
@@ -163,11 +205,22 @@ def run_case(
             {"type": "neumann", "borders": "b", "variables": "T"},
             {"type": "neumann", "borders": "r", "variables": "ruvwT"},
         ]
-    L0, bc_indices = apply_bc_recipe(L0, mesh, idx, bc_recipe, penalty=penalty)
+    backend = assembly_backend
+    L0, idx, bc_indices = build_lnse_system(
+        mesh,
+        baseflow,
+        kx=beta,
+        model="2D",
+        bc_recipe=bc_recipe,
+        bc_penalty=penalty,
+        backend=backend,
+        solver_cfg=solver_cfg,
+    )
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
     step_stats.append(("assemble_operator_bc", t_end - t_start, mem_end - mem_start))
-    _status(f"assembled operator shape={L0.shape}, nnz={L0.nnz}")
+    nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
+    _status(f"assembled operator shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
 
     # 4) Chu energy norm
     _status("building Chu energy norm")
@@ -183,8 +236,6 @@ def run_case(
     step_stats.append(("chu_norm", t_end - t_start, mem_end - mem_start))
     _status(f"Chu norm built with {W_diag.size} weights")
 
-    omega_target = 2.0 * np.pi * St
-
     gains = np.array([], dtype=float)
     responses = np.empty((mesh.ngp * 5, 0), dtype=complex)
     forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
@@ -195,7 +246,8 @@ def run_case(
         mem_start = _get_memory_mb()
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[bc_indices] = 0.0
-        B_mat = sp.diags(B_diag, format="csc")
+        B_mat_sp = sp.diags(B_diag, format="csc")
+        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
         C_mat = B_mat.copy()
         gains, responses, forcings = resolvent_analysis(
             L0,
@@ -263,11 +315,15 @@ def run_case(
             sponge=mesh.sponge,
             W_diag=W_diag,
             invW_diag=invW_diag,
+            preprocess_enabled=bool(preprocess_info.get("enabled", False)),
+            preprocess_summary=np.asarray(preprocess_info.get("summary", "")),
+            preprocess_info=np.asarray([preprocess_info], dtype=object),
         )
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
         step_stats.append(("save_output", t_end - t_start, mem_end - mem_start))
 
+        elapsed = time.perf_counter() - t0
         mem_total = _get_memory_mb()
 
         print(f"[song_2023] run finished in {elapsed:.2f}s, output={out_path}")
@@ -287,7 +343,11 @@ def run_case(
             f.write(f"case_dir={case_dir}\n")
             f.write(f"output_npz={out_path}\n")
             f.write(f"Re={Re} Ma={Ma} Pr={Pr} kappa={kappa} T_0={T_0}\n")
-            f.write(f"beta={beta} St={St} fd_order={fd_order} stride_ksi={stride_ksi} stride_eta={stride_eta}\n")
+            f.write(
+                f"beta={beta} St={St} omega_target={omega_target.real:+.16e}{omega_target.imag:+.16e}j "
+                f"fd_order={fd_order} stride_ksi={stride_ksi} stride_eta={stride_eta}\n"
+            )
+            f.write(f"baseflow_preprocess={preprocess_info.get('summary', '')}\n")
             f.write(f"nx={nx} ny={ny} ngp={mesh.ngp}\n")
             f.write(f"n_modes_stability={n_modes_stability} n_modes_resolvent={n_modes_resolvent}\n")
             f.write(f"run_stability={run_stability} run_resolvent={run_resolvent}\n")
@@ -654,15 +714,36 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         save_figure(fig_res, OUTPUT_RESOLVENT)
 
 
+def _resolve_config_path() -> Path:
+    """Return the Song configuration path, optionally overridden by env var."""
+    raw = os.getenv("LINSTAB2D_SONG2023_CONFIG")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_CONFIG_PATH
+    return Path(raw).expanduser().resolve()
+
+
 def main() -> None:
     """Load parameters from song_2023.jsonc, run the case if needed, then plot."""
     case_dir = Path(__file__).resolve().parent
-    config_path = case_dir / "song_2023.jsonc"
+    config_path = _resolve_config_path()
     cfg = load_jsonc(config_path)
+    omega_target, frequency_source = _resolve_frequency_target(cfg)
+    if "St" in cfg:
+        St = float(cfg["St"])
+    elif isinstance(cfg.get("frequency_target"), dict) and "St" in cfg["frequency_target"]:
+        St = float(cfg["frequency_target"]["St"])
+    else:
+        St = 0.0
     data = _load_existing_npz(OUTPUT_NPZ)
     required = {"X", "Y", "U", "omega", "direct_modes", "gains", "responses", "forcings", "beta"}
     if not required.issubset(data):
         bc_recipe = cfg.get("bc", {}).get("recipe")
+        print(
+            "[song_2023] configuration frequency target: "
+            f"source={frequency_source}, St={St:.6g}, "
+            f"omega_target={omega_target.real:+.6e}{omega_target.imag:+.6e}j",
+            flush=True,
+        )
         run_case(
             case_dir=str(case_dir),
             Re=cfg["Re"],
@@ -671,7 +752,8 @@ def main() -> None:
             kappa=cfg["kappa"],
             T_0=cfg["T_0"],
             beta=cfg["beta"],
-            St=cfg["St"],
+            St=St,
+            omega_target=omega_target,
             n_modes_stability=cfg["n_modes_stability"],
             n_modes_resolvent=cfg["n_modes_resolvent"],
             run_stability=cfg["run_stability"],
@@ -681,9 +763,11 @@ def main() -> None:
             stride_eta=cfg.get("stride_eta", 1),
             penalty=cfg["penalty"],
             alpha_filter=cfg.get("alpha_filter", "none"),
+            assembly_backend=cfg.get("assembly_backend"),
             output_npz=str(OUTPUT_NPZ),
             bc_recipe=bc_recipe,
             solver_cfg=cfg.get("solver"),
+            preprocess_cfg=cfg.get("baseflow_preprocess"),
         )
         data = _load_existing_npz(OUTPUT_NPZ)
     if not required.issubset(data):

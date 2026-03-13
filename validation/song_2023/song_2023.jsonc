@@ -10,15 +10,21 @@
   "kappa": 1.4,       // Ratio of specific heats
   "T_0": 153.33,      // Reference temperature [K]
 
-  // Stability parameters
+  // Frequency target specification
   "beta": 19.2,       // Spanwise wavenumber
-  "St": 0.0,          // Strouhal number (St=0 for GSA)
+  // Preferred: give omega_target directly in solver units.
+  // Legacy: St is still accepted and converted as omega_target = 2π St.
+  // For more general Strouhal definitions, use:
+  // "frequency_target": {"St": 0.02, "omega_scale": 6.283185307179586}
+  // or specify omega directly with:
+  // "frequency_target": {"omega": [0.0, 0.125]}
+  "St": 0.0,          // Legacy Strouhal input; use omega_target/frequency_target for general cases
 
   // Solver settings
   "n_modes_stability": 20,   // Number of eigenvalues to extract
-  "n_modes_resolvent": 10,   // Number of resolvent singular values
+  "n_modes_resolvent": 10,   // Number of resolvent singular values (ignored while disabled)
   "run_stability": true,     // Run temporal eigenvalue analysis
-  "run_resolvent": true,     // Run resolvent analysis
+  "run_resolvent": false,    // Disable resolvent analysis for now; stability only
 
   // Discretization
   "fd_order": 2,             // SBP finite-difference order
@@ -26,6 +32,32 @@
   "stride_eta": 1,           // Wall-normal stride
   "penalty": 1e8,            // BC penalty parameter
   "alpha_filter": "none",    // Implicit filter strength ("none" to disable)
+
+  // Baseflow preprocessing
+  // Start with least-invasive conditioning before trying shock-specific logic.
+  "baseflow_preprocess": {
+    "enabled": true,
+    "sponge": {
+      "scale": 1.0,
+      "boundary": {
+        "enabled": false,
+        "mode": "add",             // one of: add, max, replace
+        "points": [0, 0, 0, 0],     // [top, right, bottom, left]
+        "amplitudes": [0.0, 0.0, 0.0, 0.0]
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "passes": 1,
+      "fields": ["rho", "u", "v", "T"],
+      "directions": ["x", "y"],
+      "eta_min_index": 8,
+      "eta_max_index": null
+    },
+    "shock": {
+      "enabled": false
+    }
+  },
 
   // Boundary conditions
   "bc": {
@@ -37,6 +69,10 @@
       {"type": "neumann",   "borders": "r",   "variables": "ruvwT"}
     ]
   },
+
+  // Optional assembly backend: "scipy", "petsc", or "auto"
+  // Song is a local 2D LNSE case, so the native PETSc path is applicable here.
+  "assembly_backend": "auto",
 
   // Solver configuration
   "solver": {

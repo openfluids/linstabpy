@@ -7,9 +7,12 @@ Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.sparse as sp
 
+from ..utils._solver_cfg import _scfg
 from ..mesh.mesh import Mesh
 from ..baseflow.baseflow import BaseFlow
 from .coefficients import (
@@ -17,6 +20,9 @@ from .coefficients import (
     compute_cylindrical_coefficients,
     LNSECoefficients,
 )
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
+    from petsc4py import PETSc
 
 
 def build_lnse_operator(
@@ -68,6 +74,223 @@ def build_lnse_operator(
     L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
     idx = _build_index_structure(mesh.idx, mesh.ngp)
     return L0, idx
+
+
+def build_lnse_operator_petsc(
+    mesh: Mesh,
+    baseflow: BaseFlow,
+    kx: float = 0.0,
+    model: str = "2D",
+    m: float = 0,
+    floquet_exp: float = 0.0,
+    *,
+    solver_cfg: dict | None = None,
+) -> tuple["PETSc.Mat", dict]:
+    """Build the pre-BC LNSE operator L0 directly as a PETSc AIJ matrix.
+
+    This prototype preserves the existing coefficient-preparation path but avoids
+    the final SciPy-assembled global matrix. It currently targets the same
+    pre-BC operator returned by :func:`build_lnse_operator`.
+    """
+    from ..utils.petsc_core import require_complex
+
+    _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
+    require_complex(solver_cfg)
+    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    L0 = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
+    idx = _build_index_structure(mesh.idx, mesh.ngp)
+    return L0, idx
+
+
+def _validate_direct_petsc_backend(
+    *,
+    model: str,
+    solver_cfg: dict | None = None,
+) -> None:
+    """Reject direct-PETSc combinations that are not yet validated."""
+    model_name = str(model).lower()
+    if model_name not in {"2d", "axy"}:
+        raise NotImplementedError(
+            "Direct PETSc LNSE assembly is currently supported only for model='2D' or model='axy'"
+        )
+
+    from ..utils.petsc_core import _use_distributed_matrix
+
+    if _use_distributed_matrix(solver_cfg) and model_name != "2d":
+        raise NotImplementedError(
+            "Direct distributed PETSc LNSE assembly is currently supported only for model='2D'; "
+            "model='axy' still requires local/sequential PETSc matrices"
+        )
+
+
+def _direct_petsc_backend_supported(
+    *,
+    model: str,
+    solver_cfg: dict | None = None,
+) -> bool:
+    """Return whether direct PETSc LNSE assembly is validated for this case."""
+    try:
+        _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
+    except NotImplementedError:
+        return False
+    return True
+
+
+def _requested_lnse_backend(
+    backend: str | None,
+    *,
+    solver_cfg: dict | None = None,
+) -> str:
+    """Return the normalized backend request string for LNSE workflow helpers."""
+    raw = (
+        _scfg(solver_cfg, "assembly_backend", "LINSTAB2D_ASSEMBLY_BACKEND", "scipy")
+        if backend is None
+        else backend
+    )
+    normalized = str(raw).strip().lower()
+    if normalized not in {"scipy", "petsc", "auto"}:
+        raise ValueError(
+            f"Invalid assembly backend {normalized!r}; expected one of scipy|petsc|auto"
+        )
+    return normalized
+
+
+def _resolve_lnse_backend(
+    backend: str | None,
+    *,
+    model: str,
+    solver_cfg: dict | None = None,
+) -> str:
+    """Resolve LNSE assembly backend selection for workflow helpers."""
+    raw = _requested_lnse_backend(backend, solver_cfg=solver_cfg)
+    if raw == "petsc":
+        return "petsc"
+    if raw == "scipy":
+        return "scipy"
+
+    if _direct_petsc_backend_supported(model=model, solver_cfg=solver_cfg):
+        return "petsc"
+    return "scipy"
+
+
+def _build_lnse_system_scipy(
+    mesh: Mesh,
+    baseflow: BaseFlow,
+    *,
+    kx: float = 0.0,
+    model: str = "2D",
+    m: float = 0,
+    floquet_exp: float = 0.0,
+    bc_recipe: list[dict] | None = None,
+    bc_penalty: float = 1e4,
+) -> tuple[sp.csc_matrix, dict, np.ndarray]:
+    """Build the LNSE system through the canonical SciPy assembly/BC path."""
+    from ..boundary_conditions.recipe import apply_bc_recipe
+
+    L0, idx = build_lnse_operator(
+        mesh,
+        baseflow,
+        kx=kx,
+        model=model,
+        m=m,
+        floquet_exp=floquet_exp,
+    )
+    if bc_recipe:
+        L0, bc_indices = apply_bc_recipe(
+            L0,
+            mesh,
+            idx,
+            bc_recipe,
+            penalty=bc_penalty,
+        )
+    else:
+        bc_indices = np.array([], dtype=np.int64)
+    return L0, idx, bc_indices
+
+
+def build_lnse_system(
+    mesh: Mesh,
+    baseflow: BaseFlow,
+    *,
+    kx: float = 0.0,
+    model: str = "2D",
+    m: float = 0,
+    floquet_exp: float = 0.0,
+    bc_recipe: list[dict] | None = None,
+    bc_penalty: float = 1e4,
+    backend: str | None = None,
+    solver_cfg: dict | None = None,
+) -> tuple[sp.csc_matrix | "PETSc.Mat", dict, np.ndarray]:
+    """Build an LNSE operator and optionally apply BCs with one backend selector.
+
+    This workflow helper keeps the existing SciPy path as the default while
+    allowing direct-PETSc assembly/BC application when ``backend='petsc'``.
+    In distributed PETSc mode, unsupported direct-assembly cases use the
+    validated SciPy assembly + SciPy->PETSc conversion fallback. That fallback
+    returns PETSc matrices, but it is not true distributed direct assembly.
+    """
+    from ..utils.petsc_core import _use_distributed_matrix, compact_petsc_matrix, scipy_to_petsc
+
+    requested_backend = _requested_lnse_backend(backend, solver_cfg=solver_cfg)
+    resolved_backend = _resolve_lnse_backend(backend, model=model, solver_cfg=solver_cfg)
+    distributed_requested = _use_distributed_matrix(solver_cfg)
+    direct_supported = _direct_petsc_backend_supported(model=model, solver_cfg=solver_cfg)
+
+    use_petsc_fallback = (
+        requested_backend in {"petsc", "auto"}
+        and distributed_requested
+        and resolved_backend == "scipy"
+    )
+
+    if use_petsc_fallback:
+        L0_sp, idx, bc_indices = _build_lnse_system_scipy(
+            mesh,
+            baseflow,
+            kx=kx,
+            model=model,
+            m=m,
+            floquet_exp=floquet_exp,
+            bc_recipe=bc_recipe,
+            bc_penalty=bc_penalty,
+        )
+        return scipy_to_petsc(L0_sp, solver_cfg), idx, bc_indices
+
+    if resolved_backend == "petsc":
+        from ..boundary_conditions.recipe import apply_bc_recipe_petsc
+
+        L0, idx = build_lnse_operator_petsc(
+            mesh,
+            baseflow,
+            kx=kx,
+            model=model,
+            m=m,
+            floquet_exp=floquet_exp,
+            solver_cfg=solver_cfg,
+        )
+        if bc_recipe:
+            L0, bc_indices = apply_bc_recipe_petsc(
+                L0,
+                mesh,
+                idx,
+                bc_recipe,
+                penalty=bc_penalty,
+            )
+        else:
+            bc_indices = np.array([], dtype=np.int64)
+        if not distributed_requested and direct_supported:
+            L0 = compact_petsc_matrix(L0, solver_cfg)
+        return L0, idx, bc_indices
+
+    return _build_lnse_system_scipy(
+        mesh,
+        baseflow,
+        kx=kx,
+        model=model,
+        m=m,
+        floquet_exp=floquet_exp,
+        bc_recipe=bc_recipe,
+        bc_penalty=bc_penalty,
+    )
 
 
 def _prepare_coefficients(
@@ -226,6 +449,77 @@ def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_m
     return L0.tocsc()
 
 
+def _assemble_from_prepared_petsc(
+    prep: dict,
+    *,
+    floquet_exp: float = 0.0,
+    solver_cfg: dict | None = None,
+) -> "PETSc.Mat":
+    """Assemble the LNSE operator from precomputed data directly into PETSc."""
+    from petsc4py import PETSc
+    from ..utils.petsc_core import _use_distributed_matrix, assemble_matrix, ownership_range
+
+    ngp = prep["ngp"]
+    model = prep["model"]
+    coeffs = prep["coeffs"]
+    DR = prep["DR"]
+    D2R = prep["D2R"]
+    DZ = prep["DZ"]
+    D2Z = prep["D2Z"]
+    D2RZ = prep["D2RZ"]
+    mesh = prep["mesh"]
+
+    if floquet_exp != 0.0:
+        i_alpha = 1j * floquet_exp
+        DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
+
+    L0_petsc = _assemble_block_operator_petsc(
+        ngp,
+        coeffs,
+        DR,
+        D2R,
+        DZ,
+        D2Z,
+        D2RZ,
+        solver_cfg=solver_cfg,
+    )
+    _apply_inv_B_petsc(
+        L0_petsc,
+        model,
+        ngp,
+        prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
+        prep["kappa"], prep["Ma"],
+    )
+
+    if mesh.sponge is not None:
+        p = mesh.used_ind
+        sponge = np.asarray(mesh.sponge.ravel(order="F")[p], dtype=complex)
+        sponge_diag = np.tile(sponge, 5)
+        if _use_distributed_matrix(solver_cfg):
+            r0, r1 = ownership_range(L0_petsc)
+            local_diag = L0_petsc.createVecLeft()
+            try:
+                local_diag.set(0.0)
+                local_values = -sponge_diag[r0:r1]
+                if local_values.size:
+                    local_rows = np.arange(r0, r1, dtype=np.int32)
+                    local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
+                local_diag.assemble()
+                L0_petsc.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
+            finally:
+                local_diag.destroy()
+        else:
+            diag = L0_petsc.getDiagonal()
+            try:
+                diag_arr = diag.getArray()
+                diag_arr -= sponge_diag
+                L0_petsc.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
+            finally:
+                diag.destroy()
+
+    return assemble_matrix(L0_petsc)
+
+
 def _assemble_block_operator(
     ngp: int,
     coeffs: LNSECoefficients,
@@ -243,7 +537,6 @@ def _assemble_block_operator(
     where the coefficient vectors multiply the rows (left-multiply by diag).
     """
     blocks = [[None] * 5 for _ in range(5)]
-    I_ngp = sp.eye(ngp, format="csc")
     DR_blocks = _ensure_5_block_derivatives(DR, ngp)
     D2R_blocks = _ensure_5_block_derivatives(D2R, ngp)
     DZ_blocks = _ensure_5_block_derivatives(DZ, ngp)
@@ -252,38 +545,145 @@ def _assemble_block_operator(
 
     for i in range(5):
         for j in range(5):
-            a0 = coeffs.A0[i, j, :]
-            ax = coeffs.Ax[i, j, :]
-            ay = coeffs.Ay[i, j, :]
-            axx = coeffs.Axx[i, j, :]
-            ayy = coeffs.Ayy[i, j, :]
-            axy = coeffs.Axy[i, j, :]
-
-            # Check if block is entirely zero
-            if (np.count_nonzero(a0) == 0 and np.count_nonzero(ax) == 0 and
-                np.count_nonzero(ay) == 0 and np.count_nonzero(axx) == 0 and
-                np.count_nonzero(ayy) == 0 and np.count_nonzero(axy) == 0):
-                blocks[i][j] = sp.csc_matrix((ngp, ngp))
-                continue
-
-            block = sp.csc_matrix((ngp, ngp))
-
-            if np.any(a0):
-                block = block + sp.diags(a0) @ I_ngp
-            if np.any(ay):
-                block = block + sp.diags(ay) @ DR_blocks[j]
-            if np.any(ax):
-                block = block + sp.diags(ax) @ DZ_blocks[j]
-            if np.any(ayy):
-                block = block + sp.diags(ayy) @ D2R_blocks[j]
-            if np.any(axx):
-                block = block + sp.diags(axx) @ D2Z_blocks[j]
-            if np.any(axy):
-                block = block + sp.diags(axy) @ D2RZ_blocks[j]
-
-            blocks[i][j] = block
+            blocks[i][j] = _build_block_csr(
+                ngp,
+                coeffs.A0[i, j, :],
+                coeffs.Ax[i, j, :],
+                coeffs.Ay[i, j, :],
+                coeffs.Axx[i, j, :],
+                coeffs.Ayy[i, j, :],
+                coeffs.Axy[i, j, :],
+                DR_blocks[j],
+                D2R_blocks[j],
+                DZ_blocks[j],
+                D2Z_blocks[j],
+                D2RZ_blocks[j],
+            )
 
     return sp.bmat(blocks, format="csc")
+
+
+def _assemble_block_operator_petsc(
+    ngp: int,
+    coeffs: LNSECoefficients,
+    DR: sp.spmatrix,
+    D2R: sp.spmatrix,
+    DZ: sp.spmatrix,
+    D2Z: sp.spmatrix,
+    D2RZ: sp.spmatrix,
+    *,
+    solver_cfg: dict | None = None,
+) -> "PETSc.Mat":
+    """Assemble the LNSE block operator directly into PETSc via row insertion."""
+    from petsc4py import PETSc
+    from ..utils.petsc_core import (
+        _use_distributed_matrix,
+        assemble_matrix,
+        create_distributed_aij,
+        insert_local_csr_rows,
+        ownership_range,
+    )
+
+    total_size = 5 * ngp
+    DR_blocks = _ensure_5_block_derivatives(DR, ngp)
+    D2R_blocks = _ensure_5_block_derivatives(D2R, ngp)
+    DZ_blocks = _ensure_5_block_derivatives(DZ, ngp)
+    D2Z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
+    D2RZ_blocks = _ensure_5_block_derivatives(D2RZ, ngp)
+
+    def _max_row_nnz(blocks: list[sp.csc_matrix]) -> int:
+        best = 0
+        for block in blocks:
+            row_nnz = np.asarray(block.getnnz(axis=1)).ravel()
+            if row_nnz.size:
+                best = max(best, int(row_nnz.max()))
+        return best
+
+    # Conservative constant preallocation: one full derivative stencil per term.
+    stencil_nnz = max(
+        _max_row_nnz(DR_blocks),
+        _max_row_nnz(D2R_blocks),
+        _max_row_nnz(DZ_blocks),
+        _max_row_nnz(D2Z_blocks),
+        _max_row_nnz(D2RZ_blocks),
+        1,
+    )
+    block_row_nnz = 1 + 5 * stencil_nnz
+    matrix = create_distributed_aij(
+        (total_size, total_size),
+        nnz_diag=5 * block_row_nnz,
+        nnz_offdiag=5 * block_row_nnz,
+    )
+
+    if _use_distributed_matrix(solver_cfg):
+        r0, r1 = ownership_range(matrix)
+        owned_blocks = []
+        for i in range(5):
+            row_start = max(0, r0 - i * ngp)
+            row_stop = min(ngp, r1 - i * ngp)
+            if row_start >= row_stop:
+                continue
+            owned_blocks.append((i, row_start, row_stop))
+
+        for i, row_start, row_stop in owned_blocks:
+            # Build each (i,j) block ONCE and slice the owned rows.
+            row_parts: list[sp.csr_matrix] = []
+            for j in range(5):
+                block = _build_block_csr(
+                    ngp,
+                    coeffs.A0[i, j, :],
+                    coeffs.Ax[i, j, :],
+                    coeffs.Ay[i, j, :],
+                    coeffs.Axx[i, j, :],
+                    coeffs.Ayy[i, j, :],
+                    coeffs.Axy[i, j, :],
+                    DR_blocks[j],
+                    D2R_blocks[j],
+                    DZ_blocks[j],
+                    D2Z_blocks[j],
+                    D2RZ_blocks[j],
+                )
+                row_parts.append(block[row_start:row_stop, :])
+
+            local_rows = sp.hstack(row_parts, format="csr") if row_parts else sp.csr_matrix((0, total_size), dtype=complex)
+            if local_rows.shape[0] > 0:
+                insert_local_csr_rows(matrix, local_rows, row_start=i * ngp + row_start)
+        return assemble_matrix(matrix)
+
+    for i in range(5):
+        for j in range(5):
+            block = _build_block_csr(
+                ngp,
+                coeffs.A0[i, j, :],
+                coeffs.Ax[i, j, :],
+                coeffs.Ay[i, j, :],
+                coeffs.Axx[i, j, :],
+                coeffs.Ayy[i, j, :],
+                coeffs.Axy[i, j, :],
+                DR_blocks[j],
+                D2R_blocks[j],
+                DZ_blocks[j],
+                D2Z_blocks[j],
+                D2RZ_blocks[j],
+            )
+            if block.nnz == 0:
+                continue
+            col_offset = j * ngp
+            for local_row in range(ngp):
+                p0 = int(block.indptr[local_row])
+                p1 = int(block.indptr[local_row + 1])
+                if p0 == p1:
+                    continue
+                cols = block.indices[p0:p1] + col_offset
+                vals = block.data[p0:p1]
+                matrix.setValues(
+                    i * ngp + local_row,
+                    cols,
+                    vals,
+                    addv=PETSc.InsertMode.INSERT_VALUES,
+                )
+
+    return assemble_matrix(matrix)
 
 
 def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
@@ -316,6 +716,52 @@ def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
         idx[f"{b_key}_all"] = np.concatenate(all_border)
 
     return idx
+
+
+def _build_block_csr(
+    ngp: int,
+    a0: np.ndarray,
+    ax: np.ndarray,
+    ay: np.ndarray,
+    axx: np.ndarray,
+    ayy: np.ndarray,
+    axy: np.ndarray,
+    DR: sp.spmatrix,
+    D2R: sp.spmatrix,
+    DZ: sp.spmatrix,
+    D2Z: sp.spmatrix,
+    D2RZ: sp.spmatrix,
+) -> sp.csr_matrix:
+    """Build one ngp×ngp block in CSR format from row-scaled derivative terms."""
+    # Compute flags once to avoid scanning each coefficient array twice.
+    has_a0 = np.any(a0)
+    has_ay = np.any(ay)
+    has_ax = np.any(ax)
+    has_ayy = np.any(ayy)
+    has_axx = np.any(axx)
+    has_axy = np.any(axy)
+
+    if not (has_a0 or has_ay or has_ax or has_ayy or has_axx or has_axy):
+        return sp.csr_matrix((ngp, ngp), dtype=complex)
+
+    block = sp.csr_matrix((ngp, ngp), dtype=complex)
+    if has_a0:
+        block = block + sp.diags(a0, format="csr")
+    if has_ay:
+        block = block + sp.diags(ay, format="csr") @ sp.csr_matrix(DR, dtype=complex)
+    if has_ax:
+        block = block + sp.diags(ax, format="csr") @ sp.csr_matrix(DZ, dtype=complex)
+    if has_ayy:
+        block = block + sp.diags(ayy, format="csr") @ sp.csr_matrix(D2R, dtype=complex)
+    if has_axx:
+        block = block + sp.diags(axx, format="csr") @ sp.csr_matrix(D2Z, dtype=complex)
+    if has_axy:
+        block = block + sp.diags(axy, format="csr") @ sp.csr_matrix(D2RZ, dtype=complex)
+
+    block.sum_duplicates()
+    block.eliminate_zeros()
+    block.sort_indices()
+    return block
 
 
 def _ensure_5_block_derivatives(
@@ -430,6 +876,59 @@ def _apply_inv_B(
     ]
     inv_B = sp.bmat(blocks, format="csc")
     return inv_B @ L0
+
+
+def _apply_inv_B_petsc(
+    L0: "PETSc.Mat",
+    model: str,
+    ngp: int,
+    RHO: np.ndarray,
+    U: np.ndarray,
+    V: np.ndarray,
+    W: np.ndarray,
+    T: np.ndarray,
+    kappa: float,
+    Ma: float,
+) -> None:
+    """Apply the analytical ``inv(B/1j)`` left scaling directly to PETSc rows."""
+    from petsc4py import PETSc
+    from ..utils.petsc_core import petsc_to_scipy
+
+    row_scaling = np.ones(5 * ngp, dtype=complex)
+    if model == "2d":
+        row_scaling[1*ngp:2*ngp] = 1.0 / RHO
+        row_scaling[2*ngp:3*ngp] = 1.0 / RHO
+        row_scaling[3*ngp:4*ngp] = 1.0 / RHO
+        row_scaling[4*ngp:5*ngp] = 1.0 / RHO
+        diag = PETSc.Vec().createWithArray(np.ascontiguousarray(row_scaling, dtype=complex))
+        try:
+            L0.diagonalScale(L=diag)
+        finally:
+            diag.destroy()
+        L0.assemble()
+        return
+
+    L0_sp = petsc_to_scipy(L0, format="csr")
+    transformed_csr = sp.csr_matrix(
+        _apply_inv_B(L0_sp, model, ngp, RHO, U, V, W, T, kappa, Ma),
+        dtype=complex,
+    )
+    transformed_csr.sum_duplicates()
+    transformed_csr.eliminate_zeros()
+    rebuilt = PETSc.Mat().createAIJ(
+        size=L0.getSize(),
+        csr=(transformed_csr.indptr, transformed_csr.indices, transformed_csr.data),
+        comm=L0.getComm(),
+    )
+    rebuilt.assemble()
+    # Allow new nonzero positions from the lower-triangular inv(B) multiply.
+    L0.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    try:
+        L0.zeroEntries()
+        L0.axpy(1.0, rebuilt, structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN)
+    finally:
+        rebuilt.destroy()
+    L0.assemble()
 
 
 def _create_axy_diff_matrices(

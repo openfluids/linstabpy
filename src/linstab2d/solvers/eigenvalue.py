@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import NoReturn
 
 import numpy as np
 import scipy.sparse as sp
@@ -14,6 +15,9 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from .petsc_utils import (
+    _is_petsc_matrix,
+    _operator_shape,
+    petsc_to_scipy,
     require_complex,
     scipy_to_petsc,
     scipy_to_petsc_distributed_from_root,
@@ -24,15 +28,22 @@ from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 logger = logging.getLogger(__name__)
 
 
-def _check_inputs_shape(operator: sp.spmatrix, n_modes: int) -> tuple[sp.csc_matrix, int]:
-    """Validate input dimensions for eigensolvers and return CSC copy."""
+def _check_inputs_shape(
+    operator: sp.spmatrix | PETSc.Mat,
+    n_modes: int,
+) -> tuple[sp.csc_matrix | PETSc.Mat, int]:
+    """Validate input dimensions for eigensolvers and return normalized operator."""
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")
-    if operator.shape[0] != operator.shape[1]:
+    nrows, ncols = _operator_shape(operator)
+    if nrows != ncols:
         raise ValueError("L0 must be a square matrix")
-    if n_modes > operator.shape[0]:
+    if n_modes > nrows:
         raise ValueError("n_modes cannot exceed matrix size")
-    return sp.csc_matrix(operator, dtype=complex), operator.shape[0]
+    if _is_petsc_matrix(operator):
+        # No copy here — _eigs_near_target makes its own working copy.
+        return operator, nrows
+    return sp.csc_matrix(operator, dtype=complex), nrows
 
 
 def _normalize_in_weighted_inner(
@@ -62,12 +73,22 @@ def _normalize_in_weighted_inner(
 
 
 def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
-    order = np.argsort(np.abs(values - target))
+    """Sort eigenpairs by distance to ``target`` with deterministic tie-breaking.
+
+    Eigenvalues within ``tie_tol`` of each other are considered equidistant
+    and broken by real then imaginary part for reproducibility.
+    """
+    distances = np.abs(values - target)
+    # Bucket tolerance for tie-breaking: eigenvalues closer than this are
+    # considered equidistant from the target and sorted by value instead.
+    tie_tol = 1e-10
+    distance_buckets = np.rint(distances / tie_tol)
+    order = np.lexsort((np.imag(values), np.real(values), distance_buckets))
     return values[order], vectors[:, order]
 
 
 def _warn_if_shifted_operator_is_ill_conditioned(
-    operator: sp.csc_matrix,
+    operator: sp.csc_matrix | PETSc.Mat,
     target: complex,
     solver_cfg: dict | None = None,
 ) -> None:
@@ -82,11 +103,19 @@ def _warn_if_shifted_operator_is_ill_conditioned(
 
     max_n = _scfg_int(_ecfg, "cond_warn_max_n", "LINSTAB2D_EIGEN_COND_WARN_MAX_N", 1500)
     threshold = _scfg_float(_ecfg, "cond_warn_threshold", "LINSTAB2D_EIGEN_COND_WARN_THRESHOLD", 1e12)
-    ndof = operator.shape[0]
+    ndof = _operator_shape(operator)[0]
     if ndof > max_n:
         return
 
-    shifted = operator - target * sp.identity(ndof, format="csc", dtype=complex)
+    if _is_petsc_matrix(operator):
+        try:
+            operator_sp = petsc_to_scipy(operator, format="csc")
+        except (NotImplementedError, TypeError):
+            return
+    else:
+        operator_sp = operator
+
+    shifted = operator_sp - target * sp.identity(ndof, format="csc", dtype=complex)
     try:
         kappa = float(np.linalg.cond(np.asarray(shifted.toarray())))
     except np.linalg.LinAlgError:
@@ -118,8 +147,96 @@ def _resolve_ncv(
     return min(max(ncv, n_modes + 1), max_ncv)
 
 
+def _scaled_operator(
+    operator: sp.csc_matrix | PETSc.Mat,
+    scale: complex,
+) -> sp.csc_matrix | PETSc.Mat:
+    """Return a copy of ``operator`` multiplied by ``scale``."""
+    if _is_petsc_matrix(operator):
+        scaled = operator.copy()
+        scaled.scale(scale)
+        return scaled
+    return scale * operator
+
+
+def _safe_petsc_info(callable_obj, default: object = "?") -> object:
+    """Best-effort PETSc/SLEPc query helper for diagnostics."""
+    try:
+        return callable_obj()
+    except Exception:
+        return default
+
+
+def _raise_eps_setup_failure(
+    *,
+    exc: Exception,
+    A: PETSc.Mat,
+    eps: SLEPc.EPS,
+    st: SLEPc.ST,
+    ksp: PETSc.KSP,
+    pc: PETSc.PC,
+    ndof: int,
+    n_modes: int,
+    ncv: int,
+    target: complex,
+    st_solver: str,
+) -> NoReturn:
+    """Raise a richer error when SLEPc/PETSc setup fails."""
+    details: list[str] = [
+        f"type={type(exc).__name__}",
+        f"message={exc}",
+        f"ndof={ndof}",
+        f"nev={n_modes}",
+        f"ncv={ncv}",
+        f"target={target}",
+        f"eps_type={_safe_petsc_info(eps.getType)}",
+        f"st_type={_safe_petsc_info(st.getType)}",
+        f"st_solver={st_solver}",
+        f"ksp_type={_safe_petsc_info(ksp.getType)}",
+        f"pc_type={_safe_petsc_info(pc.getType)}",
+        f"pc_side={_safe_petsc_info(ksp.getPCSide)}",
+        f"mat_nnz={_safe_petsc_info(lambda: int(A.getInfo()['nz_used']))}",
+    ]
+
+    factor_solver = _safe_petsc_info(pc.getFactorSolverType, None)
+    if factor_solver is not None and factor_solver != "?":
+        details.append(f"factor_solver={factor_solver}")
+
+    factor_matrix = _safe_petsc_info(pc.getFactorMatrix, None)
+    if factor_matrix is not None and factor_matrix != "?":
+        icntl7 = _safe_petsc_info(lambda: factor_matrix.getMumpsIcntl(7), None)
+        infog1 = _safe_petsc_info(lambda: factor_matrix.getMumpsInfog(1), None)
+        infog2 = _safe_petsc_info(lambda: factor_matrix.getMumpsInfog(2), None)
+        if icntl7 not in {None, "?"}:
+            details.append(f"mumps_icntl7={icntl7}")
+        if infog1 not in {None, "?"}:
+            details.append(f"mumps_infog1={infog1}")
+        if infog2 not in {None, "?"}:
+            details.append(f"mumps_infog2={infog2}")
+
+    raise RuntimeError("SLEPc EPS.setUp failed: " + ", ".join(str(item) for item in details)) from exc
+
+
+def _raise_eps_solve_failure(
+    *,
+    exc: Exception,
+    eps: SLEPc.EPS,
+    ksp: PETSc.KSP,
+    target: complex,
+) -> NoReturn:
+    """Raise a richer error when SLEPc solve fails after setup."""
+    details = [
+        f"type={type(exc).__name__}",
+        f"message={exc}",
+        f"target={target}",
+        f"eps_reason={_safe_petsc_info(eps.getConvergedReason)}",
+        f"ksp_reason={_safe_petsc_info(ksp.getConvergedReason)}",
+    ]
+    raise RuntimeError("SLEPc EPS.solve failed: " + ", ".join(str(item) for item in details)) from exc
+
+
 def _eigs_near_target(
-    operator: sp.csc_matrix,
+    operator: sp.csc_matrix | PETSc.Mat,
     n_modes: int,
     target: complex,
     *,
@@ -128,11 +245,13 @@ def _eigs_near_target(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
     require_complex(solver_cfg)
-    ndof = operator.shape[0]
+    ndof = _operator_shape(operator)[0]
     _warn_if_shifted_operator_is_ill_conditioned(operator, target, solver_cfg)
 
     if ndof <= 2 or n_modes >= ndof - 1:
-        dense = np.asarray(operator.toarray())
+        dense = np.asarray(
+            petsc_to_scipy(operator).toarray() if _is_petsc_matrix(operator) else operator.toarray()
+        )
         all_vals, all_vecs = np.linalg.eig(dense)
         order = np.argsort(np.abs(all_vals - target))
         sel = order[:n_modes]
@@ -141,11 +260,14 @@ def _eigs_near_target(
     _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
     st_solver = _scfg(_ecfg, "st_solver", "LINSTAB2D_EIGEN_ST_SOLVER", "mumps")
     use_root_scatter = (
-        PETSc.COMM_WORLD.getSize() > 1
+        not _is_petsc_matrix(operator)
+        and PETSc.COMM_WORLD.getSize() > 1
         and st_solver in {"iterative", "krylov", "slepc"}
         and _scfg_bool(solver_cfg, "root_scatter", "LINSTAB2D_PETSC_ROOT_SCATTER", False)
     )
-    if use_root_scatter:
+    if _is_petsc_matrix(operator):
+        A = operator.copy()
+    elif use_root_scatter:
         rank = PETSc.COMM_WORLD.getRank()
         A = scipy_to_petsc_distributed_from_root(
             operator if rank == 0 else None,
@@ -170,7 +292,9 @@ def _eigs_near_target(
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
-    eps.setTolerances(tol=1e-8, max_it=max(500, 10 * ndof))
+    eps_tol = _scfg_float(_ecfg, "eps_tol", "LINSTAB2D_EIGEN_EPS_TOL", 1e-10)
+    eps_max_it = _scfg_int(_ecfg, "eps_max_it", "LINSTAB2D_EIGEN_EPS_MAX_IT", max(500, 10 * ndof))
+    eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
 
     # Shift-invert spectral transformation; linear solver backend is selectable.
     #
@@ -267,13 +391,31 @@ def _eigs_near_target(
     ):
         eps.setTrueResidual(True)
 
-    eps.setUp()
+    try:
+        eps.setUp()
+    except Exception as exc:
+        _raise_eps_setup_failure(
+            exc=exc,
+            A=A,
+            eps=eps,
+            st=st,
+            ksp=ksp,
+            pc=pc,
+            ndof=ndof,
+            n_modes=n_modes,
+            ncv=ncv,
+            target=target,
+            st_solver=st_solver,
+        )
 
     logger.info(
         "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d ...",
         np.real(target), np.imag(target), n_modes,
     )
-    eps.solve()
+    try:
+        eps.solve()
+    except Exception as exc:
+        _raise_eps_solve_failure(exc=exc, eps=eps, ksp=ksp, target=target)
 
     nconv = eps.getConverged()
     if nconv == 0:
@@ -292,16 +434,22 @@ def _eigs_near_target(
 
     vr = A.createVecRight()
     vi = A.createVecRight()
-    for i in range(n_extract):
-        eig = eps.getEigenpair(i, vr, vi)
-        eigenvalues[i] = eig
-        eigenvectors[:, i] = vec_to_numpy(vr)
+    try:
+        for i in range(n_extract):
+            eig = eps.getEigenpair(i, vr, vi)
+            eigenvalues[i] = eig
+            eigenvectors[:, i] = vec_to_numpy(vr)
+    finally:
+        vr.destroy()
+        vi.destroy()
+        eps.destroy()
+        A.destroy()
 
     return eigenvalues, eigenvectors
 
 
 def temporal_eigenvalues(
-    L0: sp.spmatrix,
+    L0: sp.spmatrix | PETSc.Mat,
     n_modes: int,
     target: float | complex,
     W_diag: np.ndarray | None = None,
@@ -339,7 +487,7 @@ def temporal_eigenvalues(
     """
     operator, _ = _check_inputs_shape(L0, n_modes)
 
-    temporal_operator = 1j * operator
+    temporal_operator = _scaled_operator(operator, 1j)
     omega = complex(target)
     eigenvalues, eigenvectors = _eigs_near_target(
         temporal_operator,
@@ -390,7 +538,7 @@ def _build_adjoint_operator(
 
 
 def adjoint_eigenvalues(
-    L0: sp.spmatrix,
+    L0: sp.spmatrix | PETSc.Mat,
     n_modes: int,
     target: float | complex,
     W_diag: np.ndarray,
@@ -404,6 +552,11 @@ def adjoint_eigenvalues(
     with shift-invert at ``target``.
     """
     operator, _ = _check_inputs_shape(L0, n_modes)
+    if _is_petsc_matrix(operator):
+        raise NotImplementedError(
+            "adjoint_eigenvalues() does not yet support PETSc matrices; "
+            "assemble with backend='scipy' for adjoint workflows"
+        )
     adjoint_op = _build_adjoint_operator(operator, W_diag, invW_diag)
 
     omega = complex(target)

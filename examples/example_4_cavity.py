@@ -18,7 +18,6 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 from linstab2d.utils.jsonc import load_jsonc, parse_complex
 
 from ._helpers import (
@@ -63,11 +62,19 @@ def compute(cfg: dict):
     """Run cavity direct/adjoint temporal eigenproblems."""
     from linstab2d.baseflow import load_cavity, sutherland_air
     from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.operators.assembly import build_lnse_system
     from linstab2d.operators.energy_norm import compute_chu_norm
     from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
 
     solver_cfg = cfg.get("solver")
+    if solver_cfg is None:
+        solver_cfg = {}
+    assembly_backend = cfg.get("assembly_backend", "scipy")
+    if assembly_backend != "scipy":
+        raise NotImplementedError(
+            "example_4_cavity currently supports only assembly_backend='scipy' because the adjoint workflow remains SciPy-based"
+        )
+    bc_penalty = cfg["bc"].get("penalty", 1e4)
 
     omega_target = parse_complex(cfg["omega_target"])
     n_modes = cfg["n_modes"]
@@ -150,9 +157,16 @@ def compute(cfg: dict):
     sponge = sponge_flat.reshape(mesh.X.shape, order="F")
     mesh.sponge = sponge
 
-    L0, idx = build_lnse_operator(mesh, baseflow, model=cfg.get("model", "2D"), kx=beta)
-    bc_penalty = cfg["bc"].get("penalty", 1e4)
-    L0, bc_indices = apply_bc_recipe(L0, mesh, idx, cfg["bc"]["recipe"], penalty=bc_penalty)
+    L0, idx, bc_indices = build_lnse_system(
+        mesh,
+        baseflow,
+        model=cfg.get("model", "2D"),
+        kx=beta,
+        bc_recipe=cfg["bc"]["recipe"],
+        bc_penalty=bc_penalty,
+        backend=assembly_backend,
+        solver_cfg=solver_cfg,
+    )
 
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]

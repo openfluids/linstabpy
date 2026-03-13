@@ -7,12 +7,56 @@ combined BC index set.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.sparse as sp
 
 from ..mesh.mesh import Mesh
-from .dirichlet import apply_dirichlet
-from .neumann import apply_neumann
+from .dirichlet import apply_dirichlet, apply_dirichlet_petsc
+from .neumann import apply_neumann, apply_neumann_petsc
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
+    from petsc4py import PETSc
+
+
+def _apply_bc_recipe_impl(
+    L0,
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: list[dict],
+    *,
+    penalty: float,
+    dirichlet_fn,
+    neumann_fn,
+):
+    """Apply a declarative BC recipe using backend-specific BC functions."""
+    all_bc: list[np.ndarray] = []
+
+    for rule in recipe:
+        bc_type = rule["type"].lower()
+        borders = rule["borders"]
+        variables = rule["variables"]
+
+        if bc_type == "dirichlet":
+            L0, bc_idx = dirichlet_fn(
+                L0, idx, borders, variables, mesh.ngp, penalty=penalty,
+            )
+        elif bc_type == "neumann":
+            L0, bc_idx = neumann_fn(
+                L0, mesh, idx, borders, variables, penalty=penalty,
+            )
+        else:
+            raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
+
+        all_bc.append(bc_idx)
+
+    if all_bc:
+        bc_indices = np.unique(np.concatenate(all_bc))
+    else:
+        bc_indices = np.array([], dtype=np.int64)
+
+    return L0, bc_indices
 
 
 def apply_bc_recipe(
@@ -51,29 +95,31 @@ def apply_bc_recipe(
     bc_indices : ndarray
         Sorted unique DOF indices affected by the full recipe.
     """
-    all_bc: list[np.ndarray] = []
+    return _apply_bc_recipe_impl(
+        L0,
+        mesh,
+        idx,
+        recipe,
+        penalty=penalty,
+        dirichlet_fn=apply_dirichlet,
+        neumann_fn=apply_neumann,
+    )
 
-    for rule in recipe:
-        bc_type = rule["type"].lower()
-        borders = rule["borders"]
-        variables = rule["variables"]
 
-        if bc_type == "dirichlet":
-            L0, bc_idx = apply_dirichlet(
-                L0, idx, borders, variables, mesh.ngp, penalty=penalty,
-            )
-        elif bc_type == "neumann":
-            L0, bc_idx = apply_neumann(
-                L0, mesh, idx, borders, variables, penalty=penalty,
-            )
-        else:
-            raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
-
-        all_bc.append(bc_idx)
-
-    if all_bc:
-        bc_indices = np.unique(np.concatenate(all_bc))
-    else:
-        bc_indices = np.array([], dtype=np.int64)
-
-    return L0, bc_indices
+def apply_bc_recipe_petsc(
+    L0: "PETSc.Mat",
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: list[dict],
+    penalty: float = 1e4,
+) -> tuple["PETSc.Mat", np.ndarray]:
+    """Apply a declarative BC recipe directly to a PETSc LNSE matrix."""
+    return _apply_bc_recipe_impl(
+        L0,
+        mesh,
+        idx,
+        recipe,
+        penalty=penalty,
+        dirichlet_fn=apply_dirichlet_petsc,
+        neumann_fn=apply_neumann_petsc,
+    )

@@ -13,15 +13,28 @@ from scipy.optimize import linear_sum_assignment
 
 ROOT = Path(__file__).resolve().parent.parent
 PY_NPZ = ROOT / "results/case1/case1.npz"
+PY_STABILITY_NPZ = ROOT / "results/case1/output/runs/case1_stability.npz"
 MAT_SPEC = ROOT / "results/case1/MATLAB_results/spectrum.mat"
 MAT_MODE7 = ROOT / "results/case1/MATLAB_results/eigenvector_7.mat"
 
 
-def _require_inputs() -> None:
-    missing = [p for p in (PY_NPZ, MAT_SPEC, MAT_MODE7) if not p.exists()]
+def _load_stability_npz() -> dict[str, np.ndarray]:
+    candidates = [PY_NPZ, PY_STABILITY_NPZ]
+    missing = [p for p in candidates + [MAT_SPEC, MAT_MODE7] if not p.exists()]
     if missing:
         msg = ", ".join(str(p) for p in missing)
         pytest.skip(f"Case 1 parity inputs missing: {msg}. Run case1 first.")
+
+    for path in candidates:
+        with np.load(path, allow_pickle=False) as data:
+            omega = np.asarray(data["omega"], dtype=complex).reshape(-1)
+            if omega.size > 0:
+                return {k: np.array(data[k]) for k in data.files}
+
+    pytest.skip(
+        "Case 1 stability spectra are unavailable: checked top-level and output/runs stability NPZ files, "
+        "but both contain empty 'omega' arrays. Re-run the stability workflow."
+    )
 
 
 def _diag_or_flat(values: np.ndarray) -> np.ndarray:
@@ -37,11 +50,11 @@ def _hungarian_errors(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return cost[r, c]
 
 
-def _phase_align(ref: np.ndarray, cand: np.ndarray) -> np.ndarray:
-    num = np.vdot(cand, ref)
-    if num == 0:
-        return cand
-    return cand * np.exp(-1j * np.angle(num))
+def _best_complex_scale(reference: np.ndarray, candidate: np.ndarray) -> complex:
+    denom = np.vdot(candidate, candidate)
+    if denom == 0:
+        return complex(1.0)
+    return np.vdot(candidate, reference) / denom
 
 
 def _rel_l2(a: np.ndarray, b: np.ndarray) -> float:
@@ -52,8 +65,7 @@ def _rel_l2(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def test_case1_spectrum_parity() -> None:
-    _require_inputs()
-    py = np.load(PY_NPZ, allow_pickle = False)
+    py = _load_stability_npz()
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
     omega_target = complex(np.asarray(py["omega_target"]).reshape(-1)[0])
     omega_mat = _diag_or_flat(loadmat(MAT_SPEC)["omega"])
@@ -78,8 +90,7 @@ def test_case1_spectrum_parity() -> None:
 
 
 def test_case1_mode7_u_field_parity() -> None:
-    _require_inputs()
-    py = np.load(PY_NPZ, allow_pickle = False)
+    py = _load_stability_npz()
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
     direct = np.asarray(py["direct_modes"], dtype=complex)
     idx_u = np.asarray(py["idx_u_j"], dtype=int)
@@ -92,7 +103,7 @@ def test_case1_mode7_u_field_parity() -> None:
     mode_idx_py = int(np.argmin(np.abs(omega_py - omega_ref)))
 
     u_py = direct[:, mode_idx_py][idx_u].reshape(-1)
-    u_py = _phase_align(u_mat, u_py)
+    u_py = u_py * _best_complex_scale(u_mat, u_py)
 
     u_mat_n = u_mat / max(np.linalg.norm(u_mat), 1e-30)
     u_py_n = u_py / max(np.linalg.norm(u_py), 1e-30)

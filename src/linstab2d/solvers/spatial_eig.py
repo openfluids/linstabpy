@@ -14,28 +14,32 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
+from .eigenvalue import _resolve_ncv
+from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_to_scipy, require_complex, scipy_to_petsc, vec_to_numpy
 from ..utils._solver_cfg import _scfg
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_ncv(
-    *,
-    ndof: int,
-    n_modes: int,
-    default_ncv: int,
-    requested_ncv: int | None,
-) -> int:
-    """Choose a valid Arnoldi subspace size for SLEPc EPS."""
-    max_ncv = max(1, ndof - 1)
-    ncv = default_ncv if requested_ncv is None else int(requested_ncv)
-    return min(max(ncv, n_modes + 1), max_ncv)
+def _to_dense_generalized_pair(
+    A: sp.spmatrix | PETSc.Mat,
+    B: sp.spmatrix | PETSc.Mat,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Convert a generalized eigenpair matrix pair to dense arrays."""
+    if _is_petsc_matrix(A):
+        A_sp = petsc_to_scipy(A, format="csc")
+    else:
+        A_sp = sp.csc_matrix(A, dtype=complex)
+    if _is_petsc_matrix(B):
+        B_sp = petsc_to_scipy(B, format="csc")
+    else:
+        B_sp = sp.csc_matrix(B, dtype=complex)
+    return np.asarray(A_sp.toarray()), np.asarray(B_sp.toarray())
 
 
 def _eigs_generalized(
-    Lc: sp.spmatrix,
-    R: sp.spmatrix,
+    Lc: sp.spmatrix | PETSc.Mat,
+    R: sp.spmatrix | PETSc.Mat,
     n_modes: int,
     target: float | complex,
     *,
@@ -46,30 +50,29 @@ def _eigs_generalized(
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")
 
-    A_sp = sp.csc_matrix(Lc, dtype=complex)
-    B_sp = sp.csc_matrix(R, dtype=complex)
-    if A_sp.shape[0] != A_sp.shape[1] or B_sp.shape != A_sp.shape:
+    a_shape = _operator_shape(Lc)
+    b_shape = _operator_shape(R)
+    if a_shape[0] != a_shape[1] or b_shape != a_shape:
         raise ValueError("Lc and R must have identical square shapes")
-    if n_modes > A_sp.shape[0]:
+    if n_modes > a_shape[0]:
         raise ValueError("n_modes cannot exceed matrix size")
 
-    ndof = A_sp.shape[0]
+    ndof = a_shape[0]
 
     if ndof <= 2 or n_modes >= ndof - 1:
         # Use QZ-based generalized eigensolver (not B⁻¹A) because B is
         # often singular in spatial problems — boundary-condition rows and
         # algebraic constraints introduce zero rows in B.  QZ handles this
         # natively, returning inf eigenvalues for the null subspace.
-        dense = np.asarray(A_sp.toarray())
-        dense_R = np.asarray(B_sp.toarray())
+        dense, dense_R = _to_dense_generalized_pair(Lc, R)
         eigvals, eigvecs = scipy.linalg.eig(dense, dense_R)
         order = np.argsort(np.abs(eigvals - target))
         sel = order[:n_modes]
         return eigvals[sel], eigvecs[:, sel]
 
     require_complex(solver_cfg)
-    A = scipy_to_petsc(A_sp, solver_cfg)
-    B = scipy_to_petsc(B_sp, solver_cfg)
+    A = Lc.copy() if _is_petsc_matrix(Lc) else scipy_to_petsc(sp.csc_matrix(Lc, dtype=complex), solver_cfg)
+    B = R.copy() if _is_petsc_matrix(R) else scipy_to_petsc(sp.csc_matrix(R, dtype=complex), solver_cfg)
 
     eps = SLEPc.EPS().create()
     eps.setOperators(A, B)
@@ -128,18 +131,25 @@ def _eigs_generalized(
 
     vr = A.createVecRight()
     vi = A.createVecRight()
-    for i in range(n_extract):
-        eig = eps.getEigenpair(i, vr, vi)
-        eigenvalues[i] = eig
-        eigenvectors[:, i] = vec_to_numpy(vr)
+    try:
+        for i in range(n_extract):
+            eig = eps.getEigenpair(i, vr, vi)
+            eigenvalues[i] = eig
+            eigenvectors[:, i] = vec_to_numpy(vr)
+    finally:
+        vr.destroy()
+        vi.destroy()
+        eps.destroy()
+        A.destroy()
+        B.destroy()
 
     return eigenvalues, eigenvectors
 
 
 def spatial_eigenvalues(
-    Lc: sp.spmatrix,
-    Lw: sp.spmatrix,
-    R: sp.spmatrix,
+    Lc: sp.spmatrix | PETSc.Mat,
+    Lw: sp.spmatrix | PETSc.Mat,
+    R: sp.spmatrix | PETSc.Mat,
     omega: float | complex,
     n_modes: int,
     target: float | complex,
@@ -154,8 +164,14 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
+    lhs = Lc.copy() if _is_petsc_matrix(Lc) else sp.csc_matrix(Lc, dtype=complex)
+    if _is_petsc_matrix(lhs):
+        lhs.axpy(omega, Lw, structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN)
+    else:
+        lhs = lhs + omega * sp.csc_matrix(Lw, dtype=complex)
+
     eigenvalues, eigenvectors = _eigs_generalized(
-        Lc + omega * Lw,
+        lhs,
         R,
         n_modes,
         target,

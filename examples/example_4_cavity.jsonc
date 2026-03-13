@@ -49,6 +49,10 @@
     ]
   },
 
+  // Assembly backend selector.
+  // Cavity currently keeps the SciPy path because the adjoint build remains SciPy-based.
+  "assembly_backend": "scipy",
+
   // Solver configuration
   "solver": {
     "petsc_matrix_mode": "auto",

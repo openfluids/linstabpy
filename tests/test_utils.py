@@ -1,10 +1,11 @@
-"""Tests for Floquet reconstruction and flow plotting utilities."""
+"""Tests for Floquet reconstruction, PETSc/SciPy parity utilities, and flow plotting utilities."""
 
 import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
 import pytest
+import scipy.sparse as sp
 from linstab2d.mesh import Mesh
 from examples._helpers import leading_mode_real_frequency
 from examples.example_3_streaky_bl import (
@@ -12,6 +13,14 @@ from examples.example_3_streaky_bl import (
     _resolve_baseflow_plot_field,
 )
 from linstab2d.utils import reconstruct_floquet, plot_flow
+from linstab2d.utils.petsc_core import (
+    compare_petsc_against_scipy,
+    compare_sparse_matrices,
+    compact_petsc_matrix,
+    petsc_matvec_residual,
+    petsc_to_scipy,
+    scipy_to_petsc,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +134,98 @@ class TestPlotFlow:
         from matplotlib.collections import QuadMesh
         has_quadmesh = any(isinstance(c, QuadMesh) for c in ax.collections)
         assert not has_quadmesh, "NaN field fell back to pcolormesh"
+
+
+class TestPetscSciPyParityUtilities:
+    """Tests for PETSc/SciPy conversion and comparison helpers."""
+
+    def test_petsc_to_scipy_roundtrip_matches_reference(self):
+        base = np.array(
+            [
+                [1.0 + 2.0j, 0.0, 3.0 - 1.0j],
+                [0.0, -4.0j, 0.0],
+                [2.5, 0.0, 5.0 + 0.5j],
+            ],
+            dtype=complex,
+        )
+        ref = sp.csr_matrix(base)
+        mat = scipy_to_petsc(ref)
+
+        recovered = petsc_to_scipy(mat, format="csr")
+        report = compare_sparse_matrices(ref, recovered, check_structure=True)
+
+        assert report["pass"]
+        assert report["shape_match"]
+        assert report["structure_match"]
+        assert report["nnz_delta"] == 0
+
+        mat.destroy()
+
+    def test_compact_petsc_matrix_matches_roundtrip_canonical_structure(self):
+        base = sp.csr_matrix(
+            np.array(
+                [
+                    [1.0 + 0.0j, 2.0 - 1.0j, 0.0],
+                    [0.0, -3.0 + 0.5j, 4.0 + 0.0j],
+                    [5.0 - 2.0j, 0.0, 6.0 + 0.0j],
+                ],
+                dtype=complex,
+            )
+        )
+        mat = scipy_to_petsc(base)
+        mat.setValue(0, 1, 0.0)
+        mat.setValue(1, 2, 0.0)
+        mat.assemble()
+
+        compact = compact_petsc_matrix(mat)
+        recovered = petsc_to_scipy(compact, format="csr")
+        expected = petsc_to_scipy(mat, format="csr")
+        report = compare_sparse_matrices(expected, recovered, check_structure=True)
+
+        assert report["pass"]
+        assert report["structure_match"]
+        assert report["nnz_candidate"] == report["nnz_reference"]
+
+        compact.destroy()
+        mat.destroy()
+
+    def test_compare_petsc_against_scipy_reports_zero_residuals(self):
+        ref = sp.csr_matrix(
+            np.array(
+                [
+                    [0.0, 2.0 + 1.0j, 0.0],
+                    [3.0 - 4.0j, 0.0, 5.0],
+                    [0.0, 0.0, -2.0j],
+                ],
+                dtype=complex,
+            )
+        )
+        mat = scipy_to_petsc(ref)
+
+        report = compare_petsc_against_scipy(ref, mat, check_structure=True)
+
+        assert report["pass"]
+        assert report["max_abs_residual"] == pytest.approx(0.0)
+        assert report["max_rel_residual"] == pytest.approx(0.0)
+        assert report["structure_match"]
+
+        mat.destroy()
+
+    def test_petsc_matvec_residual_reports_zero_for_exact_conversion(self):
+        rng = np.random.default_rng(123)
+        dense = rng.standard_normal((6, 6)) + 1j * rng.standard_normal((6, 6))
+        dense[np.abs(dense) < 0.6] = 0.0
+        ref = sp.csr_matrix(dense)
+        mat = scipy_to_petsc(ref)
+
+        report = petsc_matvec_residual(ref, mat, seed=7, trials=4)
+
+        assert report["pass"]
+        assert report["max_abs_residual"] < 1e-12
+        assert report["max_rel_residual"] < 1e-12
+        assert len(report["trials"]) == 4
+
+        mat.destroy()
 
 
 def test_leading_mode_real_frequency_uses_least_damped_mode() -> None:
