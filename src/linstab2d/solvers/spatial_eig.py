@@ -15,6 +15,7 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from .petsc_utils import require_complex, scipy_to_petsc, vec_to_numpy
+from ..utils._solver_cfg import _scfg
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ def _eigs_generalized(
     target: float | complex,
     *,
     ncv: int | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur."""
     if n_modes <= 0:
@@ -65,9 +67,9 @@ def _eigs_generalized(
         sel = order[:n_modes]
         return eigvals[sel], eigvecs[:, sel]
 
-    require_complex()
-    A = scipy_to_petsc(A_sp)
-    B = scipy_to_petsc(B_sp)
+    require_complex(solver_cfg)
+    A = scipy_to_petsc(A_sp, solver_cfg)
+    B = scipy_to_petsc(B_sp, solver_cfg)
 
     eps = SLEPc.EPS().create()
     eps.setOperators(A, B)
@@ -85,17 +87,21 @@ def _eigs_generalized(
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
 
-    # Shift-invert spectral transformation with MUMPS
+    # Shift-invert spectral transformation (MUMPS by default, configurable).
+    _scfg_spatial = solver_cfg.get("spatial", solver_cfg.get("eigen", {})) if solver_cfg is not None else None
+    st_solver = _scfg(_scfg_spatial, "st_solver", "LINSTAB2D_SPATIAL_ST_SOLVER", "mumps")
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
     # Mirror the temporal solver and set the shift explicitly on ST so the
     # generalized shift-invert center is not left implicit.
     st.setShift(target)
     ksp = st.getKSP()
-    ksp.setType(PETSc.KSP.Type.PREONLY)
-    pc = ksp.getPC()
-    pc.setType(PETSc.PC.Type.LU)
-    pc.setFactorSolverType("mumps")
+    if st_solver in {"mumps", "direct", "lu"}:
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.LU)
+        if st_solver == "mumps":
+            pc.setFactorSolverType("mumps")
 
     eps.setUp()
 
@@ -138,6 +144,7 @@ def spatial_eigenvalues(
     n_modes: int,
     target: float | complex,
     ncv: int | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve the spatial EVP `(Lc + omega Lw) @ v = alpha R @ v`.
 
@@ -153,5 +160,6 @@ def spatial_eigenvalues(
         n_modes,
         target,
         ncv=ncv,
+        solver_cfg=solver_cfg,
     )
     return eigenvalues, eigenvectors

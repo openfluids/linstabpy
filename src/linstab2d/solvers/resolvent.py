@@ -53,6 +53,7 @@ def resolvent_analysis(
     C_mat: sp.spmatrix | None = None,
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute resolvent gains, optimal forcings, and optimal responses.
 
@@ -96,7 +97,7 @@ def resolvent_analysis(
     forcings : ndarray, shape (ndof, n_modes)
         Optimal forcing modes (columns), normalised in the *W*-inner product.
     """
-    require_complex()
+    require_complex(solver_cfg)
     ndof = L0.shape[0]
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d",
                 omega, n_modes, ndof)
@@ -111,7 +112,7 @@ def resolvent_analysis(
     # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT")
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
     logger.info("  linear solver backend: %s", lu.backend)
     logger.info("  MUMPS factorisation done.")
 
@@ -234,6 +235,7 @@ def compute_resolvent_svd_residuals(
     W_diag: np.ndarray,
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute self-residuals for resolvent SVD triplets.
 
@@ -285,7 +287,7 @@ def compute_resolvent_svd_residuals(
     rho_adj : ndarray, shape (n_modes,)
         Adjoint residuals (primary quality signal; ≈ SLEPc tol for correct solutions).
     """
-    require_complex()
+    require_complex(solver_cfg)
     n_modes = gains.shape[0]
     logger.info("Computing resolvent SVD residuals for %d modes ...", n_modes)
 
@@ -295,7 +297,7 @@ def compute_resolvent_svd_residuals(
     # Rebuild shifted operator and factorization (same path as resolvent_analysis).
     L_sigma = sp.csc_matrix(L0, copy=True)
     L_sigma.setdiag(L_sigma.diagonal() - 1j * omega)
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT")
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
 
     _filt = filter_fn if filter_fn is not None else (lambda v: v)
     _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)

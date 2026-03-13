@@ -15,23 +15,25 @@ from .petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
+from ._solver_cfg import _scfg, _scfg_bool
+
 
 _petsc_configured = False
 
 
-def _petsc_matrix_mode() -> str:
+def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
     """Resolve PETSc matrix conversion mode."""
-    raw = os.getenv("LINSTAB2D_PETSC_MATRIX_MODE", "auto").strip().lower()
+    raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTAB2D_PETSC_MATRIX_MODE", "auto")
     if raw in {"auto", "local", "serial", "distributed", "mpi", "parallel"}:
         return raw
     raise ValueError(
-        "Invalid LINSTAB2D_PETSC_MATRIX_MODE="
+        f"Invalid petsc_matrix_mode="
         f"{raw!r}; expected one of auto|local|serial|distributed|mpi|parallel"
     )
 
 
-def _use_distributed_matrix() -> bool:
-    mode = _petsc_matrix_mode()
+def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
+    mode = _petsc_matrix_mode(solver_cfg)
     if mode in {"distributed", "mpi", "parallel"}:
         return True
     if mode in {"local", "serial"}:
@@ -40,7 +42,7 @@ def _use_distributed_matrix() -> bool:
     return PETSc.COMM_WORLD.getSize() > 1
 
 
-def require_complex() -> None:
+def require_complex(solver_cfg: dict | None = None) -> None:
     """Assert PETSc was built with complex scalar type and set defaults."""
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
         raise RuntimeError(
@@ -49,20 +51,21 @@ def require_complex() -> None:
         )
     global _petsc_configured
     if not _petsc_configured:
-        if os.getenv("LINSTAB2D_PETSC_SET_MUMPS_ICNTL_7", "0") == "1":
+        if _scfg_bool(solver_cfg, "mumps_icntl_7", "LINSTAB2D_PETSC_SET_MUMPS_ICNTL_7", False):
             PETSc.Options().setValue("mat_mumps_icntl_7", "5")  # METIS ordering
         _petsc_configured = True
 
 
-def scipy_to_petsc(mat: sp.spmatrix) -> PETSc.Mat:
+def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Mat:
     """Convert a SciPy sparse matrix to a PETSc AIJ Mat.
 
-    Behavior is controlled by ``LINSTAB2D_PETSC_MATRIX_MODE``:
+    Behavior is controlled by ``petsc_matrix_mode`` (JSONC) or
+    ``LINSTAB2D_PETSC_MATRIX_MODE`` (env var):
     - ``local``/``serial``: local AIJ from full CSR (single-rank style)
     - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ
     - ``auto`` (default): distributed when MPI size > 1, else local
     """
-    if _use_distributed_matrix():
+    if _use_distributed_matrix(solver_cfg):
         return scipy_to_petsc_distributed(mat, comm=PETSc.COMM_WORLD)
 
     csr = sp.csr_matrix(mat, dtype=complex)

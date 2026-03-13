@@ -4,6 +4,13 @@ Example 4: Cavity global/adjoint stability analysis.
 
 Translates example_4_Cavity.m using a masked cavity geometry, deformed mesh,
 and direct + adjoint temporal eigenvalue problems.
+
+OUTPUTS:
+  - example_4_cavity.npz
+  - example_4_cavity_baseflow.png
+  - example_4_cavity.png
+  - example_4_cavity_direct.png
+  - example_4_cavity_adjoint.png
 """
 from __future__ import annotations
 
@@ -11,35 +18,69 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.baseflow import load_cavity, sutherland_air
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
-from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
-from linstab2d.utils.plotting import plot_flow
+from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+from linstab2d.utils.jsonc import load_jsonc, parse_complex
 
-from ._helpers import env_complex, env_int, to_grid
+from ._helpers import (
+    format_complex,
+    format_scientific_ticks,
+    label_axes,
+    load_parity_npz,
+    mesh_view,
+    parity_npz_get,
+    plot_scalar_panel,
+    plot_signed_panel,
+    save_figure,
+    set_suptitle,
+    to_grid,
+)
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
+OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
+MATLAB_DIRECT_STEM = "example_4_Cavity_results_direct"
+MATLAB_ADJOINT_STEM = "example_4_Cavity_results_adjoint"
 
 
-def compute():
+def _load_matlab_spectra() -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Load extracted MATLAB direct and adjoint spectra when available."""
+    try:
+        direct_bundle = load_parity_npz(MATLAB_DIRECT_STEM)
+        adjoint_bundle = load_parity_npz(MATLAB_ADJOINT_STEM)
+    except FileNotFoundError:
+        return None, None
+
+    omega_direct = np.asarray(parity_npz_get(direct_bundle, "results_Cavity_direct/omega"), dtype=complex).reshape(-1)
+    omega_adjoint = np.asarray(
+        parity_npz_get(adjoint_bundle, "results_Cavity_adjoint/omegaAdj"),
+        dtype=complex,
+    ).reshape(-1)
+    return omega_direct, np.conj(omega_adjoint)
+
+
+def compute(cfg: dict):
     """Run cavity direct/adjoint temporal eigenproblems."""
-    omega_target = env_complex("LINSTAB2D_CAVITY_OMEGA_TARGET", 1.5 + 1.0j)
-    n_modes = env_int("LINSTAB2D_CAVITY_N_MODES", 50)
+    from linstab2d.baseflow import load_cavity, sutherland_air
+    from linstab2d.mesh import Mesh
+    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.operators.energy_norm import compute_chu_norm
+    from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
+
+    solver_cfg = cfg.get("solver")
+
+    omega_target = parse_complex(cfg["omega_target"])
+    n_modes = cfg["n_modes"]
     n_plot = min(3, n_modes)
-    beta = 0.0
-    arnoldi_ncv = env_int("LINSTAB2D_CAVITY_NCV", 300)
+    beta = cfg["beta"]
+    arnoldi_ncv = cfg["ncv"]
 
-    Nx = env_int("LINSTAB2D_CAVITY_NX", 241)
-    Ny = env_int("LINSTAB2D_CAVITY_NY", 101)
-    FDorder = 4
+    nx = cfg["nx"]
+    ny = cfg["ny"]
+    fd_order = cfg["fd_order"]
 
-    x_cavity_start = 0.34029
-    L_cavity = 1.9995
+    x_cavity_start = cfg["x_cavity_start"]
+    L_cavity = cfg["L_cavity"]
     xrange = (
         x_cavity_start - L_cavity,
         x_cavity_start + 2 * L_cavity,
@@ -49,42 +90,50 @@ def compute():
     cmesh = Mesh.create(
         xrange,
         yrange,
-        Nx,
-        Ny,
-        FDorder,
-        y_symmetry=True,
-        x_periodicity=False,
-        alpha_filter=0.0,
+        nx,
+        ny,
+        fd_order,
+        y_symmetry=cfg["y_symmetry"],
+        x_periodicity=cfg["x_periodicity"],
+        alpha_filter=cfg["alpha_filter"],
     )
     # MATLAB convention: mask=True means "remove this point".
     # Python Mesh.mask() convention: mask=True means "keep this point".
     # Negate to convert.
-    remove = (cmesh.Y < 0.0) & ((cmesh.X < 0.34) | (cmesh.X > 2.34))
+    mask_x_left = cfg["mask_x_left"]
+    mask_x_right = cfg["mask_x_right"]
+    remove = (cmesh.Y < 0.0) & ((cmesh.X < mask_x_left) | (cmesh.X > mask_x_right))
     mesh = cmesh.mask(~remove)
 
     # --- y-deformation (mesh concentration + top stretch) ------------------
+    deform = cfg["deform"]
     Y = mesh.Y.copy()
-    a = 0.5
+    a = deform["y_cubic_a"]
     Y = (Y**3 + a * Y) / (1 + a)
-    strech_n = 3
-    p = Y > 0.0
-    Y[p] = Y[p] + 2.0 * ((Y[p] - 0.0) / (np.max(Y[p]) - 0.0)) ** strech_n
+    stretch_n = deform["stretch_n"]
+    y_threshold = deform["y_threshold"]
+    y_amplitude = deform["y_amplitude"]
+    p = Y > y_threshold
+    Y[p] = Y[p] + y_amplitude * ((Y[p] - y_threshold) / (np.max(Y[p]) - y_threshold)) ** stretch_n
     mesh = mesh.deform(Y_new=Y)
 
     # --- x-stretch on the right ------------------------------------------
+    x_threshold = deform["x_threshold"]
+    x_amplitude = deform["x_amplitude"]
     X = mesh.X.copy()
-    p = X > 2.8
-    X[p] = X[p] + 1.0 * ((X[p] - 2.8) / (np.max(X[p]) - 2.8)) ** strech_n
+    p = X > x_threshold
+    X[p] = X[p] + x_amplitude * ((X[p] - x_threshold) / (np.max(X[p]) - x_threshold)) ** stretch_n
     mesh = mesh.deform(X_new=X)
 
     baseflow = load_cavity(mesh)
     sutherland_air(baseflow)
 
-    xs_trans = 0.5
-    xs_offset = 0.5
-    ys_trans = 0.5
-    ys_offset = 1.0
-    sponge_amp = 5.0
+    sp_cfg = cfg["sponge"]
+    xs_trans = sp_cfg["xs_trans"]
+    xs_offset = sp_cfg["xs_offset"]
+    ys_trans = sp_cfg["ys_trans"]
+    ys_offset = sp_cfg["ys_offset"]
+    sponge_amp = sp_cfg["amplitude"]
     sponge = np.zeros(mesh.X.shape, dtype=float)
     ind = mesh.used_ind
     x = mesh.X.ravel(order="F")[ind]
@@ -101,10 +150,9 @@ def compute():
     sponge = sponge_flat.reshape(mesh.X.shape, order="F")
     mesh.sponge = sponge
 
-    L0, idx = build_lnse_operator(mesh, baseflow, model="2D", kx=beta)
-    borders = "lbtrm"
-    vars_ = "uvwT"
-    L0, bc_indices = apply_dirichlet(L0, idx, borders, vars_, mesh.ngp)
+    L0, idx = build_lnse_operator(mesh, baseflow, model=cfg.get("model", "2D"), kx=beta)
+    bc_penalty = cfg["bc"].get("penalty", 1e4)
+    L0, bc_indices = apply_bc_recipe(L0, mesh, idx, cfg["bc"]["recipe"], penalty=bc_penalty)
 
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]
@@ -127,6 +175,7 @@ def compute():
         omega_target,
         W_diag=W_diag,
         ncv=arnoldi_ncv,
+        solver_cfg=solver_cfg,
     )
     omega_adj_target = 1j * np.conj(omega_target)
     omega_adj, adjoint_modes = adjoint_eigenvalues(
@@ -136,6 +185,7 @@ def compute():
         W_diag,
         invW_diag,
         ncv=arnoldi_ncv,
+        solver_cfg=solver_cfg,
     )
 
     # ---- Eigenvalue self-residuals (informational; PASS gate unchanged) ----
@@ -180,8 +230,58 @@ def compute():
         used_ind=mesh.used_ind,
         bc_indices=bc_indices,
         n_plot=n_plot,
+        baseflow_u=baseflow.U,
     )
     print(f"Results saved to {OUTPUT_NPZ}")
+
+
+def _load_baseflow_u(data) -> np.ndarray:
+    """Reload the cavity baseflow when plotting from an older cache."""
+    if "baseflow_u" in data:
+        return np.asarray(data["baseflow_u"], dtype=float)
+    try:
+        bundle = load_parity_npz("example_4_Cavity_results_base")
+    except FileNotFoundError:
+        bundle = None
+    if bundle is not None:
+        return np.asarray(parity_npz_get(bundle, "results_Cavity_base/baseFlow/U"), dtype=float).T
+    from linstab2d.baseflow import load_cavity
+
+    return np.asarray(load_cavity(mesh_view(data["X"], data["Y"], used_ind=data["used_ind"])).U, dtype=float)
+
+
+def _style_cavity_axis(ax) -> None:
+    """Apply common styling for cavity plots with masked walls."""
+    ax.set_facecolor("#8e8e8e")
+    ax.set_xlim(float(np.min(ax.get_xlim())), float(np.max(ax.get_xlim())))
+
+
+def _cavity_baseflow_plot_field(X: np.ndarray, Y: np.ndarray, field: np.ndarray) -> np.ndarray:
+    """Mask wall-line cells that show spurious corner values in the baseflow preview."""
+    cavity_left = 0.34029
+    cavity_right = 2.34
+    y_floor = float(np.nanmin(Y))
+    x_spacing = float(np.min(np.diff(np.unique(np.asarray(X, dtype=float)[0, :]))))
+    y_spacing = float(np.min(np.diff(np.unique(np.asarray(Y, dtype=float)[:, 0]))))
+    x_tol = 0.55 * x_spacing
+    y_tol = 0.55 * y_spacing
+
+    plot_field = np.array(field, dtype=float, copy=True)
+    floor_mask = (Y <= y_floor + y_tol) & (X >= cavity_left - x_tol) & (X <= cavity_right + x_tol)
+    left_wall_mask = (np.abs(X - cavity_left) <= x_tol) & (Y <= 0.0 + y_tol)
+    right_wall_mask = (np.abs(X - cavity_right) <= x_tol) & (Y <= 0.0 + y_tol)
+    plot_field[floor_mask | left_wall_mask | right_wall_mask] = np.nan
+    return plot_field
+
+
+def _draw_cavity_outline(ax) -> None:
+    """Draw the cavity floor and sidewalls so masked wall cells remain visible."""
+    cavity_left = 0.34029
+    cavity_right = 2.34
+    y_floor = -1.0
+    ax.plot([cavity_left, cavity_left], [0.0, y_floor], color="black", lw=1.1)
+    ax.plot([cavity_left, cavity_right], [y_floor, y_floor], color="black", lw=1.1)
+    ax.plot([cavity_right, cavity_right], [y_floor, 0.0], color="black", lw=1.1)
 
 
 def plot(data):
@@ -205,6 +305,11 @@ def plot(data):
     idx_w = data["idx_w_j"]
     idx_T = data["idx_T_j"]
     n_plot = int(data["n_plot"])
+    baseflow_u = _load_baseflow_u(data)
+    summary_modes = min(2, n_plot)
+    plot_xlim = (-1.65, 5.34)
+    plot_ylim = (-1.0, 0.6)
+    matlab_direct, matlab_adjoint = _load_matlab_spectra()
 
     direct_order = np.argsort(np.imag(omega))[::-1][:n_plot]
 
@@ -215,28 +320,94 @@ def plot(data):
     omega_d_from_adj = np.conj(-1j * omega_adj)
     adj_order = np.argsort(np.imag(omega_d_from_adj))[::-1][:n_plot]
 
-    fig = plt.figure(figsize=(14, 10))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(np.real(omega), np.imag(omega), "ob", ms=7, mew=1, label="Direct")
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 3.6))
+    plot_scalar_panel(
+        ax_base,
+        X,
+        Y,
+        _cavity_baseflow_plot_field(X, Y, baseflow_u),
+        title=r"Cavity baseflow $u/U_\infty$",
+        cmap="turbo",
+        xlim=plot_xlim,
+        ylim=plot_ylim,
+        aspect="auto",
+        levels=101,
+        colorbar_kwargs={"pad": 0.012},
+        title_pad=4.0,
+    )
+    ax_base.set_facecolor("#8e8e8e")
+    _draw_cavity_outline(ax_base)
+    label_axes(ax_base)
+    save_figure(fig_base, OUTPUT_BASEFLOW)
+
+    fig = plt.figure(figsize=(12.5, 8.3))
+    grid = fig.add_gridspec(
+        3,
+        2,
+        height_ratios=(1.25, 1.0, 1.0),
+        hspace=0.34,
+        wspace=0.18,
+    )
+    ax = fig.add_subplot(grid[0, :])
+    if matlab_direct is not None:
+        ax.plot(
+            np.real(matlab_direct),
+            np.imag(matlab_direct),
+            "o",
+            mfc="white",
+            mec="#2a5caa",
+            mew=1.2,
+            ms=7,
+            label="MATLAB direct",
+            zorder=2,
+        )
+    ax.plot(
+        np.real(omega),
+        np.imag(omega),
+        "o",
+        color="#2a5caa",
+        ms=6,
+        mew=1,
+        label="Python direct",
+        zorder=3,
+    )
+    if matlab_adjoint is not None:
+        ax.plot(
+            np.real(matlab_adjoint),
+            np.imag(matlab_adjoint),
+            "s",
+            mfc="white",
+            mec="#d99100",
+            mew=1.2,
+            ms=6.5,
+            label="MATLAB adjoint",
+            zorder=2,
+        )
     ax.plot(
         np.real(omega_d_from_adj),
         np.imag(omega_d_from_adj),
         "x",
-        color="orange",
-        ms=14,
-        mew=2.2,
-        label="Adjoint",
+        color="#d99100",
+        ms=10,
+        mew=2.0,
+        label="Python adjoint",
         zorder=4,
     )
     ax.set_xlabel(r"$\omega_r$")
     ax.set_ylabel(r"$\omega_i$")
-    ax.set_title("Temporal spectra")
-    ax.grid(True)
-    ax.legend()
+    ax.set_title("Temporal spectra", pad=4.0)
+    ax.grid(True, alpha=0.3)
+    format_scientific_ticks(ax)
+    ax.legend(loc="upper right", frameon=False)
 
     for i, j in enumerate(direct_order):
         mode = direct_modes[:, int(j)]
-        fig_mode, axes = plt.subplots(3, 2, figsize=(12, 10))
+        fig_mode, axes = plt.subplots(
+            3,
+            2,
+            figsize=(12, 10),
+            gridspec_kw={"wspace": 0.18, "hspace": 0.28},
+        )
         fields = [
             (idx_rho, r"$\rho$"),
             (idx_u, r"$u$"),
@@ -247,20 +418,41 @@ def plot(data):
         for k, (idx_var, title_) in enumerate(fields):
             ax_k = axes.flat[k]
             field = to_grid(mode[idx_var], used_ind, X.shape)
-            plot_flow(X, Y, np.real(field), ax=ax_k, levels=51, cmap="RdBu_r")
-            ax_k.set_title(f"Direct {title_}, ω={omega[j]:.3f}")
+            plot_signed_panel(
+                ax_k,
+                X,
+                Y,
+                np.real(field),
+                title=rf"Direct {title_}, $\omega = {format_complex(omega[j])}$",
+                xlim=plot_xlim,
+                ylim=plot_ylim,
+                aspect="auto",
+                title_pad=4.0,
+            )
+            ax_k.set_facecolor("#8e8e8e")
+            label_axes(ax_k)
         axes.flat[-1].set_visible(False)
 
-        fig_mode.suptitle(f"Direct mode {int(j) + 1}")
-        fig_mode.tight_layout()
+        set_suptitle(
+            fig_mode,
+            f"Direct mode {int(j) + 1} (rank {i + 1} by growth rate)",
+            y=0.985,
+            fontsize=15,
+        )
+        fig_mode.tight_layout(rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
         if i == 0:
-            fig_mode.savefig(output_direct, dpi=600, bbox_inches="tight")
+            save_figure(fig_mode, output_direct)
+        else:
             plt.close(fig_mode)
-            print(f"Direct mode figure saved to {output_direct}")
 
     for i, j in enumerate(adj_order):
         mode = adjoint_modes[:, int(j)]
-        fig_mode, axes = plt.subplots(3, 2, figsize=(12, 10))
+        fig_mode, axes = plt.subplots(
+            3,
+            2,
+            figsize=(12, 10),
+            gridspec_kw={"wspace": 0.18, "hspace": 0.28},
+        )
         fields = [
             (idx_rho, r"$\rho$"),
             (idx_u, r"$u$"),
@@ -271,33 +463,76 @@ def plot(data):
         for k, (idx_var, title_) in enumerate(fields):
             ax_k = axes.flat[k]
             field = to_grid(mode[idx_var], used_ind, X.shape)
-            plot_flow(X, Y, np.real(field), ax=ax_k, levels=51, cmap="RdBu_r")
-            ax_k.set_title(f"Adjoint ω*={omega_d_from_adj[j]:.3f} : {title_}")
+            plot_signed_panel(
+                ax_k,
+                X,
+                Y,
+                np.real(field),
+                title=rf"Adjoint {title_}, $\omega = {format_complex(omega_d_from_adj[j])}$",
+                xlim=plot_xlim,
+                ylim=plot_ylim,
+                aspect="auto",
+                title_pad=4.0,
+            )
+            ax_k.set_facecolor("#8e8e8e")
+            label_axes(ax_k)
         axes.flat[-1].set_visible(False)
 
-        fig_mode.suptitle(f"Adjoint mode {int(j) + 1}")
-        fig_mode.tight_layout()
+        set_suptitle(
+            fig_mode,
+            f"Adjoint mode {int(j) + 1} (rank {i + 1} by growth rate)",
+            y=0.985,
+            fontsize=15,
+        )
+        fig_mode.tight_layout(rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
         if i == 0:
-            fig_mode.savefig(output_adjoint, dpi=600, bbox_inches="tight")
+            save_figure(fig_mode, output_adjoint)
+        else:
             plt.close(fig_mode)
-            print(f"Adjoint mode figure saved to {output_adjoint}")
 
-    fig.savefig(output_spectrum, dpi=600, bbox_inches="tight")
-    plt.close(fig)
-    print(
-        "Figures saved to:\n"
-        f"- Spectrum: {output_spectrum}\n"
-        f"- Direct mode: {output_direct}\n"
-        f"- Adjoint mode: {output_adjoint}"
-    )
+    for row, order, modes, label in [
+        (1, adj_order[:summary_modes], adjoint_modes, "Adjoint"),
+        (2, direct_order[:summary_modes], direct_modes, "Direct"),
+    ]:
+        for col, j in enumerate(order):
+            ax_mode = fig.add_subplot(grid[row, col])
+            field = to_grid(modes[:, int(j)][idx_u], used_ind, X.shape)
+            plot_signed_panel(
+                ax_mode,
+                X,
+                Y,
+                np.real(field),
+                title=(
+                    rf"{label} $u$, $\omega = {format_complex(omega_d_from_adj[j])}$"
+                    if label == "Adjoint"
+                    else rf"{label} $u$, $\omega = {format_complex(omega[j])}$"
+                ),
+                xlim=plot_xlim,
+                ylim=plot_ylim,
+                aspect="auto",
+                colorbar=False,
+                title_pad=4.0,
+            )
+            ax_mode.set_facecolor("#8e8e8e")
+            ax_mode.set_ylabel(r"$y$")
+            if row == 2:
+                ax_mode.set_xlabel(r"$x$")
+            else:
+                ax_mode.set_xticklabels([])
+
+    set_suptitle(fig, "Cavity direct and adjoint mode support", y=0.972)
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    save_figure(fig, output_spectrum)
 
 
 def main():
+    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
+
     try:
         data = np.load(OUTPUT_NPZ)
     except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
         print(f"Cached results unavailable or invalid ({exc}), recomputing.")
-        compute()
+        compute(cfg)
         data = np.load(OUTPUT_NPZ)
 
     plot(data)

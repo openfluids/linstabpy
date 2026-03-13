@@ -7,7 +7,6 @@ MUMPS factorisation.
 
 from __future__ import annotations
 
-import os
 import logging
 from dataclasses import dataclass
 from typing import Callable
@@ -21,6 +20,7 @@ init_petsc_from_argv()
 from petsc4py import PETSc
 
 from .petsc_utils import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
+from ..utils._solver_cfg import _scfg, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ def make_linear_solver(
     operator: sp.spmatrix,
     *,
     env_prefix: str = "LINSTAB2D_LINSOLVE",
+    solver_cfg: dict | None = None,
 ) -> LinearSolver:
     """Build a reusable PETSc linear solver for ``operator``.
 
@@ -47,23 +48,27 @@ def make_linear_solver(
         Square sparse matrix to factor (typically a shifted LNSE operator).
     env_prefix:
         Environment prefix controlling solver options.
-
-        Supported keys:
-        - ``{prefix}_TYPE``: ``mumps`` (default) or ``iterative``
-        - ``{prefix}_KSP_TYPE`` (iterative): default ``gmres``
-        - ``{prefix}_PC_TYPE`` (iterative): default ``bjacobi``
-        - ``{prefix}_KSP_RTOL`` (iterative): default ``1e-10``
-        - ``{prefix}_KSP_ATOL`` (iterative): default ``1e-14``
-        - ``{prefix}_KSP_MAX_IT`` (iterative): default ``20000``
-        - ``{prefix}_ASM_OVERLAP`` (iterative + ASM): default ``2``
-        - ``{prefix}_SUB_KSP_TYPE`` (iterative + ASM/BJACOBI): default ``preonly``
-        - ``{prefix}_SUB_PC_TYPE`` (iterative + ASM/BJACOBI): default ``lu``
+    solver_cfg:
+        Optional solver config dict (from JSONC ``"solver"`` section).
+        When provided, the appropriate subsection is selected based on
+        ``env_prefix``: ``"resolvent"`` subsection for
+        ``LINSTAB2D_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
+        subsection override the corresponding env vars.
     """
-    require_complex()
+    require_complex(solver_cfg)
 
-    A = scipy_to_petsc(operator)
+    A = scipy_to_petsc(operator, solver_cfg)
     n = operator.shape[0]
-    solver_type = os.getenv(f"{env_prefix}_TYPE", "mumps").strip().lower()
+
+    # Resolve the config subsection for this linear-solver instance.
+    _sub: dict | None = None
+    if solver_cfg is not None:
+        if env_prefix == "LINSTAB2D_RESOLVENT":
+            _sub = solver_cfg.get("resolvent", solver_cfg.get("linsolve", {}))
+        else:
+            _sub = solver_cfg.get("linsolve", {})
+
+    solver_type = _scfg(_sub, "type", f"{env_prefix}_TYPE", "mumps")
 
     ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
     ksp.setOperators(A)
@@ -101,15 +106,15 @@ def make_linear_solver(
             logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, operator.nnz)
         backend = "MUMPS"
     elif solver_type in {"iterative", "krylov", "petsc"}:
-        ksp_type = os.getenv(f"{env_prefix}_KSP_TYPE", "fgmres").strip().lower()
-        pc_type = os.getenv(f"{env_prefix}_PC_TYPE", "asm").strip().lower()
-        pc_side = os.getenv(f"{env_prefix}_KSP_PC_SIDE", "right").strip().lower()
-        ksp_rtol = float(os.getenv(f"{env_prefix}_KSP_RTOL", "1e-10"))
-        ksp_atol = float(os.getenv(f"{env_prefix}_KSP_ATOL", "1e-14"))
-        ksp_max_it = int(os.getenv(f"{env_prefix}_KSP_MAX_IT", "20000"))
-        asm_overlap = int(os.getenv(f"{env_prefix}_ASM_OVERLAP", "2"))
-        sub_ksp_type = os.getenv(f"{env_prefix}_SUB_KSP_TYPE", "preonly").strip().lower()
-        sub_pc_type = os.getenv(f"{env_prefix}_SUB_PC_TYPE", "lu").strip().lower()
+        ksp_type = _scfg(_sub, "ksp_type", f"{env_prefix}_KSP_TYPE", "fgmres")
+        pc_type = _scfg(_sub, "pc_type", f"{env_prefix}_PC_TYPE", "asm")
+        pc_side = _scfg(_sub, "ksp_pc_side", f"{env_prefix}_KSP_PC_SIDE", "right")
+        ksp_rtol = _scfg_float(_sub, "ksp_rtol", f"{env_prefix}_KSP_RTOL", 1e-10)
+        ksp_atol = _scfg_float(_sub, "ksp_atol", f"{env_prefix}_KSP_ATOL", 1e-14)
+        ksp_max_it = _scfg_int(_sub, "ksp_max_it", f"{env_prefix}_KSP_MAX_IT", 20000)
+        asm_overlap = _scfg_int(_sub, "asm_overlap", f"{env_prefix}_ASM_OVERLAP", 2)
+        sub_ksp_type = _scfg(_sub, "sub_ksp_type", f"{env_prefix}_SUB_KSP_TYPE", "preonly")
+        sub_pc_type = _scfg(_sub, "sub_pc_type", f"{env_prefix}_SUB_PC_TYPE", "lu")
 
         ksp.setType(ksp_type)
         if pc_side == "left":

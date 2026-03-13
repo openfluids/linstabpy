@@ -3,7 +3,7 @@ requires = ["setuptools >= 68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "linstab2d"
+name = "linstabpy"
 version = "0.1.0"
 description = "Stability and resolvent analysis of compressible viscous flows"
 requires-python = ">=3.10"
@@ -39,9 +39,9 @@ test = ["pytest", "pytest-cov", "sympy>=1.13"]
 dev = [{include-group = "test"}, "h5py"]
 
 [project.urls]
-Repository = "https://github.com/ricardofrantz/linstab2d"
-Documentation = "https://github.com/ricardofrantz/linstab2d#readme"
-Issues = "https://github.com/ricardofrantz/linstab2d/issues"
+Repository = "https://github.com/ricardofrantz/LinStabPy"
+Documentation = "https://github.com/ricardofrantz/LinStabPy#readme"
+Issues = "https://github.com/ricardofrantz/LinStabPy/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

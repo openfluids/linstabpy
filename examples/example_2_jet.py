@@ -4,7 +4,11 @@ Example 2: Jet resolvent analysis.
 
 Translates example_2_Jet.m for an axisymmetric (m=0) jet base flow.
 
-OUTPUTS: example_2_jet.npz, example_2_jet.png
+OUTPUTS:
+  - example_2_jet.npz
+  - example_2_jet.png
+  - example_2_jet_baseflow.png
+  - example_2_jet_support_components.png
 USAGE:   python example_2_jet.py                       # .npz exists → plot only
          rm example_2_jet.npz && python example_2_jet.py  # recompute
 """
@@ -14,29 +18,37 @@ import time
 from pathlib import Path
 
 import numpy as np
-import scipy.sparse as sp
-from scipy.interpolate import RegularGridInterpolator
-from scipy.io import loadmat
 
-from linstab2d.baseflow import load_jet, sutherland_air
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
-from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.resolvent import resolvent_analysis, compute_resolvent_svd_residuals
-from linstab2d.utils.plotting import plot_flow
+from linstab2d.utils.jsonc import load_jsonc
+from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 
-from ._helpers import env_int
+from ._helpers import (
+    label_axes,
+    load_parity_npz,
+    mesh_view,
+    parity_npz_get,
+    plot_gain_bars,
+    plot_scalar_panel,
+    plot_signed_panel,
+    save_figure,
+    set_suptitle,
+)
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
+OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
+OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_components.png")
 REFERENCE_MAT = SCRIPT.with_name("example_2_reference.mat")
+MATLAB_RESULTS_STEM = "example_2_Jet_results"
 
-
-from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
-
-_BASEFLOW_MAT = _BASEFLOW_DATA_DIR / "M09jet.mat"
+def _load_matlab_gains() -> np.ndarray | None:
+    """Load MATLAB gain references when the extracted parity bundle is available."""
+    try:
+        bundle = load_parity_npz(MATLAB_RESULTS_STEM)
+    except FileNotFoundError:
+        return None
+    return np.asarray(parity_npz_get(bundle, "results_Jet/S"), dtype=float).reshape(-1)
 
 
 def _as_grid(values: np.ndarray, shape: tuple[int, int], name: str) -> np.ndarray:
@@ -47,6 +59,8 @@ def _as_grid(values: np.ndarray, shape: tuple[int, int], name: str) -> np.ndarra
 
 
 def _reference_or_warn(label: str, actual: np.ndarray, key: str) -> None:
+    from scipy.io import loadmat
+
     if not REFERENCE_MAT.exists():
         return
     try:
@@ -72,7 +86,12 @@ def _reference_or_warn(label: str, actual: np.ndarray, key: str) -> None:
 
 
 def _load_sponge(mesh, r_1D: np.ndarray, z_1D: np.ndarray) -> np.ndarray:
-    mat = loadmat(_BASEFLOW_MAT)
+    from scipy.interpolate import RegularGridInterpolator
+    from scipy.io import loadmat
+
+    from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
+
+    mat = loadmat(_BASEFLOW_DATA_DIR / "M09jet.mat")
     source_shape = (int(r_1D.size), int(z_1D.size))
     sponge = _as_grid(mat["spongeFun"], source_shape, "spongeFun")
     if tuple(mesh.X.shape) == source_shape:
@@ -108,17 +127,29 @@ def _dominant_component(fields: dict[str, np.ndarray]) -> str:
     return max(norms, key=norms.get)
 
 
-def compute():
+def compute(cfg: dict):
     """Run jet resolvent analysis."""
-    St = 0.39
-    omega = 2 * np.pi * St
-    coarsen = env_int("LINSTAB2D_JET_COARSEN", 1)
-    coarsen = max(1, coarsen)
-    n_modes = 3
-    m = 0
-    fd_order = 4
+    import scipy.sparse as sp
+    from scipy.io import loadmat
 
-    data = loadmat(_BASEFLOW_MAT)
+    from linstab2d.baseflow import load_jet, sutherland_air
+    from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
+    from linstab2d.mesh import Mesh
+    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.operators.energy_norm import compute_chu_norm
+    from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+
+    solver_cfg = cfg.get("solver")
+
+    St = cfg["St"]
+    omega = 2 * np.pi * St
+    coarsen = max(1, cfg["coarsen"])
+    n_modes = cfg["n_modes"]
+    m = cfg["m"]
+    fd_order = cfg["fd_order"]
+    model = cfg["model"]
+
+    data = loadmat(_BASEFLOW_DATA_DIR / "M09jet.mat")
     r_1D = np.asarray(data["r_1D"], dtype=float).ravel()
     z_1D = np.asarray(data["z_1D"], dtype=float).ravel()
     nr = int(r_1D[::coarsen].size)
@@ -136,9 +167,9 @@ def compute():
         nz,
         nr,
         fd_order,
-        y_symmetry=True,
-        x_periodicity=False,
-        alpha_filter=0.0,
+        y_symmetry=cfg["y_symmetry"],
+        x_periodicity=cfg["x_periodicity"],
+        alpha_filter=cfg["alpha_filter"],
     )
     X = np.meshgrid(z_1D_coarse, r_1D_coarse, indexing="xy")[0]
     Y = np.meshgrid(z_1D_coarse, r_1D_coarse, indexing="xy")[1]
@@ -154,12 +185,11 @@ def compute():
     mesh.sponge = _load_sponge(mesh, r_1D, z_1D)
 
     t_lnse = time.perf_counter()
-    L0, idx = build_lnse_operator(mesh, baseflow, model="axy", m=m)
+    L0, idx = build_lnse_operator(mesh, baseflow, model=model, m=m)
     t_lnse = time.perf_counter() - t_lnse
 
-    borders = "ltr"
-    vars_ = "uvwT"
-    L0, _ = apply_dirichlet(L0, idx, borders, vars_, mesh.ngp)
+    bc_recipe = cfg["bc"]["recipe"]
+    L0, _ = apply_bc_recipe(L0, mesh, idx, bc_recipe)
 
     used_ind = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[used_ind]
@@ -173,7 +203,7 @@ def compute():
         baseflow.kappa,
         baseflow.Ma,
         mesh.ngp,
-        model="axy",
+        model=model,
         R=R,
     )
 
@@ -194,6 +224,7 @@ def compute():
         C_mat=B_mat,
         filter_fn=mesh.filters.filter if mesh.filters is not None else None,
         filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+        solver_cfg=solver_cfg,
     )
     t_resolvent = time.perf_counter() - t_resolvent
     print(f"Resolvent gains: {gains}")
@@ -219,6 +250,7 @@ def compute():
         W_diag,
         filter_fn=mesh.filters.filter if mesh.filters is not None else None,
         filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+        solver_cfg=solver_cfg,
     )
 
     np.savez_compressed(
@@ -238,13 +270,24 @@ def compute():
         idx_w_j=idx["w_j"],
         idx_T_j=idx["T_j"],
         ngp=mesh.ngp,
+        baseflow_u=baseflow.U,
     )
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
-def _plot_field(ax, x, y, field, title: str) -> None:
-    contour = plot_flow(x, y, field, ax=ax, levels=51, cmap="RdBu_r")
-    ax.set_title(title)
+def _load_baseflow_u(data: np.lib.npyio.NpzFile) -> np.ndarray:
+    """Reload the jet baseflow when plotting from an older cache."""
+    if "baseflow_u" in data:
+        return np.asarray(data["baseflow_u"], dtype=float)
+    try:
+        bundle = load_parity_npz(MATLAB_RESULTS_STEM)
+    except FileNotFoundError:
+        bundle = None
+    if bundle is not None:
+        return np.asarray(parity_npz_get(bundle, "results_Jet/baseFlow/U"), dtype=float).T
+    from linstab2d.baseflow import load_jet
+
+    return np.asarray(load_jet(mesh_view(data["X"], data["Y"])).U, dtype=float)
 
 
 def _load_index_vector(
@@ -269,14 +312,14 @@ def _read_field_components(
 
 
 def plot(data: np.lib.npyio.NpzFile) -> None:
-    """Plot forcing and response dominant components for the computed modes."""
+    """Plot paper-style and support figures for the jet example."""
     import matplotlib.pyplot as plt
 
-    gains = data["gains"]
-    responses = data["responses"]
-    forcings = data["forcings"]
-    X = data["X"]
-    Y = data["Y"]
+    gains = np.asarray(data["gains"], dtype=float).reshape(-1)
+    responses = np.asarray(data["responses"], dtype=complex)
+    forcings = np.asarray(data["forcings"], dtype=complex)
+    X = np.asarray(data["X"], dtype=float)
+    Y = np.asarray(data["Y"], dtype=float)
     shape = X.shape
     ngp = int(data["ngp"])
     idx_rho = _load_index_vector(data, "idx_rho_j", ngp, 0)
@@ -298,58 +341,152 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
     r_T = _read_field_components(responses, idx_T, shape)
 
     n_modes = min(int(data["n_modes"]), len(gains))
-    fig, axes = plt.subplots(max(1, n_modes), 2, figsize=(14, 6 * max(1, n_modes)))
-    if n_modes == 1:
-        axes = np.array([axes])
+    baseflow_u = _load_baseflow_u(data)
+    base_xlim = (0.0, 30.0)
+    base_ylim = (0.0, 3.0)
+    mode_xlim = (0.0, 20.0)
+    mode_ylim = (0.0, 1.05)
 
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 3.3))
+    plot_scalar_panel(
+        ax_base,
+        X,
+        Y,
+        baseflow_u / max(float(np.max(baseflow_u)), 1e-12),
+        title=r"Axisymmetric jet baseflow $u/U_j$",
+        cmap="turbo",
+        xlim=base_xlim,
+        ylim=base_ylim,
+        aspect="auto",
+        levels=101,
+        colorbar_kwargs={"pad": 0.012},
+        title_pad=4.0,
+    )
+    label_axes(ax_base)
+    ax_base.annotate(
+        r"$U_j$",
+        xy=(0.22, 0.18),
+        xytext=(0.08, 0.18),
+        xycoords="axes fraction",
+        textcoords="axes fraction",
+        arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "black"},
+        fontsize=16,
+        va="center",
+    )
+    save_figure(fig_base, OUTPUT_BASEFLOW)
+
+    fig = plt.figure(figsize=(12.5, 7.8))
+    grid = fig.add_gridspec(
+        n_modes,
+        3,
+        width_ratios=(1.0, 2.2, 2.2),
+        hspace=0.28,
+        wspace=0.22,
+    )
+    ax_gain = fig.add_subplot(grid[:, 0])
+    plot_gain_bars(ax_gain, gains[:n_modes], matlab_gains=_load_matlab_gains())
     for i in range(n_modes):
-        forcing_fields = {
-            "rho": f_rho,
-            "u": f_u,
-            "v": f_v,
-            "w": f_w,
-            "T": f_T,
-        }
-        response_fields = {
-            "rho": r_rho,
-            "u": r_u,
-            "v": r_v,
-            "w": r_w,
-            "T": r_T,
-        }
+        ax_f = fig.add_subplot(grid[i, 1])
+        ax_r = fig.add_subplot(grid[i, 2])
+        plot_signed_panel(
+            ax_f,
+            X,
+            Y,
+            np.real(f_u[:, :, i]),
+            title=rf"$f_u^{{({i + 1})}}$",
+            xlim=mode_xlim,
+            ylim=mode_ylim,
+            aspect="auto",
+            colorbar=False,
+            title_pad=4.0,
+        )
+        plot_signed_panel(
+            ax_r,
+            X,
+            Y,
+            np.real(r_u[:, :, i]),
+            title=rf"$u^{{({i + 1})}}$",
+            xlim=mode_xlim,
+            ylim=mode_ylim,
+            aspect="auto",
+            colorbar=False,
+            title_pad=4.0,
+        )
+        ax_f.text(
+            0.02,
+            0.88,
+            rf"$\sigma_{i + 1}={gains[i]:.2f}$",
+            transform=ax_f.transAxes,
+            fontsize=10,
+            bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+        )
+        ax_f.set_ylabel(r"$y$")
+        ax_r.set_ylabel(r"$y$")
+        if i < n_modes - 1:
+            ax_f.set_xticklabels([])
+            ax_r.set_xticklabels([])
+        else:
+            ax_f.set_xlabel(r"$x$")
+            ax_r.set_xlabel(r"$x$")
+    set_suptitle(fig, r"Jet resolvent summary at $St = 0.39$", y=0.972)
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    save_figure(fig, OUTPUT_PNG)
+
+    fig_support, axes_support = plt.subplots(
+        n_modes,
+        2,
+        figsize=(12.2, 3.8 * n_modes),
+        gridspec_kw={"wspace": 0.18, "hspace": 0.34},
+    )
+    if n_modes == 1:
+        axes_support = np.array([axes_support])
+    forcing_fields = {"rho": f_rho, "u": f_u, "v": f_v, "w": f_w, "T": f_T}
+    response_fields = {"rho": r_rho, "u": r_u, "v": r_v, "w": r_w, "T": r_T}
+    for i in range(n_modes):
         f_name = _dominant_component(forcing_fields)
         r_name = _dominant_component(response_fields)
-
-        _plot_field(
-            axes[i, 0],
+        plot_signed_panel(
+            axes_support[i, 0],
             X,
             Y,
             np.real(forcing_fields[f_name][:, :, i]),
-            f"f_{f_name}^({i + 1}), sigma = {gains[i]:.2f}",
+            title=rf"Full-domain $f_{{{f_name}}}^{{({i + 1})}}$",
+            xlim=(0.0, float(np.max(X))),
+            ylim=(0.0, 3.0),
+            aspect="auto",
+            robust_percentile=98.0,
+            title_pad=4.0,
         )
-        _plot_field(
-            axes[i, 1],
+        plot_signed_panel(
+            axes_support[i, 1],
             X,
             Y,
             np.real(response_fields[r_name][:, :, i]),
-            f"{r_name}^({i + 1})",
+            title=rf"Full-domain ${r_name}^{{({i + 1})}}$",
+            xlim=(0.0, float(np.max(X))),
+            ylim=(0.0, 3.0),
+            aspect="auto",
+            robust_percentile=98.0,
+            title_pad=4.0,
         )
-
-    axes[-1, 0].set_xlabel("x")
-    axes[-1, 1].set_xlabel("x")
-    fig.suptitle("Jet Resolvent Analysis (m=0, axy)")
-    fig.tight_layout()
-    fig.savefig(OUTPUT_PNG, dpi=600, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Figure saved to {OUTPUT_PNG}")
+        label_axes(axes_support[i, 0])
+        label_axes(axes_support[i, 1])
+    set_suptitle(
+        fig_support,
+        "Jet support panels with full-domain component selection",
+        y=0.975,
+    )
+    fig_support.tight_layout(rect=(0.0, 0.0, 1.0, 0.945), pad=0.7)
+    save_figure(fig_support, OUTPUT_SUPPORT)
 
 
 def main():
+    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
     try:
         data = np.load(OUTPUT_NPZ)
     except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
         print(f"Cached results unavailable or invalid ({exc}), recomputing.")
-        compute()
+        compute(cfg)
         data = np.load(OUTPUT_NPZ)
 
     plot(data)

@@ -1,138 +1,23 @@
 """Shared helpers for example scripts.
 
-Environment-variable parsing, grid reconstruction, and other utilities
-used across multiple examples.
+Grid reconstruction, plotting, and other utilities used across multiple examples.
 """
 
 from __future__ import annotations
 
-import json
-import os
+from functools import lru_cache
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
+# Re-export from canonical location for callers that import from here.
+from linstab2d.utils.jsonc import load_jsonc  # noqa: F401
+
 FIGURE_DPI = 600
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
-
-
-def env_bool(name: str, default: bool = False) -> bool:
-    """Read an environment variable as a boolean."""
-    v = os.getenv(name)
-    if v is None:
-        return default
-    return v.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def env_int(name: str, default: int) -> int:
-    """Read an environment variable as a positive integer."""
-    v = os.getenv(name)
-    if v is None:
-        return default
-    try:
-        value = int(v)
-    except (TypeError, ValueError):
-        print(f"Invalid {name}={v!r}; using {default}.")
-        return default
-    return max(1, value)
-
-
-def env_float(name: str, default: float) -> float:
-    """Read an environment variable as a float."""
-    v = os.getenv(name)
-    if v is None:
-        return default
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        print(f"Invalid {name}={v!r}; using {default}.")
-        return default
-
-
-def env_complex(name: str, default: complex) -> complex:
-    """Read an environment variable as a complex number."""
-    v = os.getenv(name)
-    if v is None:
-        return default
-    try:
-        return complex(v)
-    except (TypeError, ValueError):
-        print(f"Invalid {name}={v!r}; using {default}.")
-        return default
-
-
-def load_jsonc(path: str | Path) -> dict:
-    """Load a JSONC file (JSON with // and /* */ comments)."""
-    text = Path(path).read_text(encoding="utf-8")
-    cleaned = _strip_jsonc_comments(text)
-    data = json.loads(cleaned)
-    if not isinstance(data, dict):
-        raise ValueError(f"Top-level JSONC object must be a dict: {path}")
-    return data
-
-
-def _strip_jsonc_comments(text: str) -> str:
-    """Remove // and /* */ comments while preserving string literals."""
-    out: list[str] = []
-    i = 0
-    n = len(text)
-    in_string = False
-    in_line_comment = False
-    in_block_comment = False
-    escape = False
-
-    while i < n:
-        ch = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
-
-        if in_line_comment:
-            if ch == "\n":
-                in_line_comment = False
-                out.append(ch)
-            i += 1
-            continue
-
-        if in_block_comment:
-            if ch == "*" and nxt == "/":
-                in_block_comment = False
-                i += 2
-            else:
-                i += 1
-            continue
-
-        if in_string:
-            out.append(ch)
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == '"':
-                in_string = False
-            i += 1
-            continue
-
-        if ch == '"':
-            in_string = True
-            out.append(ch)
-            i += 1
-            continue
-
-        if ch == "/" and nxt == "/":
-            in_line_comment = True
-            i += 2
-            continue
-
-        if ch == "/" and nxt == "*":
-            in_block_comment = True
-            i += 2
-            continue
-
-        out.append(ch)
-        i += 1
-
-    return "".join(out)
+_STYLE_CONFIGURED = False
 
 
 def to_grid(
@@ -162,10 +47,94 @@ def save_figure(fig, path: str | Path) -> None:
     """Save a matplotlib figure with the repo-wide example defaults."""
     import matplotlib.pyplot as plt
 
+    configure_example_style()
     output = Path(path)
     fig.savefig(output, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     print(f"Figure saved to {output}")
+
+
+def configure_example_style() -> None:
+    """Apply a consistent math-text-heavy style across all example figures."""
+    global _STYLE_CONFIGURED
+    if _STYLE_CONFIGURED:
+        return
+
+    import matplotlib as mpl
+
+    mpl.rcParams.update(
+        {
+            "font.family": "STIXGeneral",
+            "mathtext.fontset": "stix",
+            "axes.unicode_minus": False,
+            "axes.formatter.use_mathtext": True,
+            "axes.titlesize": 14,
+            "axes.labelsize": 15,
+            "figure.titlesize": 18,
+            "xtick.labelsize": 12,
+            "ytick.labelsize": 12,
+            "legend.fontsize": 11,
+        }
+    )
+    _STYLE_CONFIGURED = True
+
+
+@lru_cache(maxsize=1)
+def signed_zero_white_cmap():
+    """Return a diverging colormap with a white band centered at zero."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+
+    colors = plt.get_cmap("RdBu_r")(np.linspace(0.0, 1.0, 257))
+    mid = colors.shape[0] // 2
+    colors[mid - 4 : mid + 5, :3] = 1.0
+    return ListedColormap(colors, name="rdbu_white_center")
+
+
+def label_axes(
+    ax,
+    *,
+    xlabel: str = r"$x$",
+    ylabel: str = r"$y$",
+) -> None:
+    """Apply math-text axis labels."""
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+
+def format_scientific_ticks(
+    ax,
+    *,
+    axes: tuple[str, ...] = ("x", "y"),
+    powerlimits: tuple[int, int] = (-2, 2),
+) -> None:
+    """Use scientific-notation formatters with math text on selected axes."""
+    from matplotlib.ticker import ScalarFormatter
+
+    for axis_name in axes:
+        if axis_name == "x":
+            axis = ax.xaxis
+        elif axis_name == "y":
+            axis = ax.yaxis
+        else:
+            raise ValueError(f"Unknown axis {axis_name!r}")
+
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_scientific(True)
+        formatter.set_powerlimits(powerlimits)
+        formatter.set_useOffset(False)
+        axis.set_major_formatter(formatter)
+
+
+def set_suptitle(
+    fig,
+    title: str,
+    *,
+    y: float = 0.985,
+    fontsize: float = 16.0,
+) -> None:
+    """Set a compact figure title with consistent vertical placement."""
+    fig.suptitle(title, y=y, fontsize=fontsize)
 
 
 def load_parity_npz(stem: str) -> dict[str, np.ndarray]:
@@ -213,26 +182,34 @@ def plot_signed_panel(
     levels: int = 81,
     colorbar: bool = True,
     robust_percentile: float | None = 99.5,
+    colorbar_kwargs: dict | None = None,
+    title_pad: float = 5.0,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ):
     """Plot a signed field with a symmetric color scale."""
     from linstab2d.utils.plotting import plot_flow
 
+    configure_example_style()
     contour = plot_flow(
         X,
         Y,
         field,
         ax=ax,
-        cmap="RdBu_r",
+        cmap=signed_zero_white_cmap(),
         levels=levels,
         colorbar=colorbar,
+        colorbar_kwargs=colorbar_kwargs,
         symmetric=True,
         robust_percentile=robust_percentile,
         aspect=aspect,
         xlim=xlim,
         ylim=ylim,
         return_contour=True,
+        vmin=vmin,
+        vmax=vmax,
     )
-    ax.set_title(title)
+    ax.set_title(title, pad=title_pad)
     return contour
 
 
@@ -249,10 +226,15 @@ def plot_scalar_panel(
     aspect: str | float | None = "auto",
     levels: int = 81,
     colorbar: bool = True,
+    colorbar_kwargs: dict | None = None,
+    title_pad: float = 5.0,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ):
     """Plot a non-signed scalar field with standard example defaults."""
     from linstab2d.utils.plotting import plot_flow
 
+    configure_example_style()
     contour = plot_flow(
         X,
         Y,
@@ -261,12 +243,15 @@ def plot_scalar_panel(
         cmap=cmap,
         levels=levels,
         colorbar=colorbar,
+        colorbar_kwargs=colorbar_kwargs,
         aspect=aspect,
         xlim=xlim,
         ylim=ylim,
         return_contour=True,
+        vmin=vmin,
+        vmax=vmax,
     )
-    ax.set_title(title)
+    ax.set_title(title, pad=title_pad)
     return contour
 
 
@@ -279,6 +264,7 @@ def plot_gain_bars(
     matlab_label: str = "MATLAB",
 ) -> None:
     """Plot a compact gain bar chart."""
+    configure_example_style()
     values = np.asarray(gains, dtype=float).reshape(-1)
     indices = np.arange(1, values.size + 1, dtype=int)
     ax.bar(indices, values, color="#a8add5", edgecolor="#394264", linewidth=0.9, label="Python")

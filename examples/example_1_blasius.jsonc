@@ -1,0 +1,63 @@
+{
+  // Example 1: Blasius boundary-layer resolvent analysis
+  // Computes resolvent gains, optimal forcings and responses for
+  // a compressible Blasius boundary layer.
+
+  // Physics
+  "Re": 6e5,
+  "Ma": 0.3,
+  "Pr": 0.7,
+  "kappa": 1.4,
+  "T_0": 273.15,
+
+  // Grid
+  "nx": 300,
+  "ny": 100,
+  "fd_order": 4,
+  "alpha_filter": 0.0,
+
+  // Physical domain construction
+  "dx": 0.01,              // grid spacing used to derive x_min and x_max
+  "x_min_factor": 5,       // x_min = x_min_factor * dx
+  "x_max_base": 1.25,      // x_max = x_max_base + dx
+  "y_i": 0.01,             // Hanifi 1996 inner mapping parameter
+  "y_max": 0.05,           // physical domain height
+
+  // Sponge
+  "sponge": {
+    "amplitude": 5.0,
+    "xs_trans": 0.02,
+    "xs_offset": 0.02,
+    "ys_trans": 0.01,
+    "ys_offset": 0.01
+  },
+
+  // Analysis (resolvent)
+  "omega": 60.0,           // angular frequency (computed from Re in code)
+  "n_modes": 3,
+  "kx": 0.0,               // spanwise wavenumber
+  "model": "2D",
+
+  // Forcing mask: zero these variables in the B/C matrices
+  "forcing_zero_vars": ["T", "rho", "w"],
+
+  // Boundary conditions
+  "bc": {
+    "penalty": 1e4,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lrbt", "variables": "uvwT"}
+    ]
+  },
+
+  // Solver configuration
+  "solver": {
+    // PETSc matrix transfer: "auto" (default), "local", "distributed"
+    "petsc_matrix_mode": "auto",
+
+    // Linear solver (resolvent factorization)
+    "linsolve": {
+      // "mumps" (direct LU) or "iterative" (Krylov)
+      "type": "mumps"
+    }
+  }
+}

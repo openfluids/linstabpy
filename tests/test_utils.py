@@ -7,7 +7,10 @@ import numpy as np
 import pytest
 from linstab2d.mesh import Mesh
 from examples._helpers import leading_mode_real_frequency
-from examples.example_3_streaky_bl import _merge_temporal_target_batches
+from examples.example_3_streaky_bl import (
+    _merge_temporal_target_batches,
+    _resolve_baseflow_plot_field,
+)
 from linstab2d.utils import reconstruct_floquet, plot_flow
 
 
@@ -169,3 +172,14 @@ def test_merge_temporal_target_batches_preserves_target_quotas() -> None:
         ),
     )
     assert modes.shape == (4, 5)
+
+
+def test_resolve_baseflow_plot_field_prefers_streamwise_w() -> None:
+    field, title = _resolve_baseflow_plot_field(
+        {
+            "baseflow_u": np.array([[1.0, 2.0]], dtype=float),
+            "baseflow_w": np.array([[3.0, 4.0]], dtype=float),
+        }
+    )
+    np.testing.assert_allclose(field, np.array([[3.0, 4.0]], dtype=float))
+    assert title.endswith("$W$")

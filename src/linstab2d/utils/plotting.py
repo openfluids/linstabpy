@@ -70,6 +70,9 @@ def plot_flow(
 
     if colorbar_kwargs is None:
         colorbar_kwargs = {}
+    else:
+        colorbar_kwargs = dict(colorbar_kwargs)
+    colorbar_kwargs.setdefault("pad", 0.02)
 
     data = np.asarray(field)
     if data.shape != np.asarray(X).shape:
@@ -153,9 +156,19 @@ def plot_flow(
     if colorbar:
         cbar = ax.figure.colorbar(contour, ax=ax, **colorbar_kwargs)
         try:
-            from matplotlib.ticker import MaxNLocator
+            from matplotlib.ticker import MaxNLocator, ScalarFormatter
 
-            cbar.locator = MaxNLocator(nbins=6)
+            if "ticks" not in colorbar_kwargs:
+                lo = getattr(contour.norm, "vmin", vmin)
+                hi = getattr(contour.norm, "vmax", vmax)
+                if lo is not None and hi is not None and np.isfinite(lo) and np.isfinite(hi):
+                    cbar.set_ticks(np.linspace(float(lo), float(hi), 5))
+            cbar.locator = MaxNLocator(nbins=5)
+            formatter = ScalarFormatter(useMathText=True)
+            formatter.set_scientific(True)
+            formatter.set_powerlimits((-2, 2))
+            formatter.set_useOffset(False)
+            cbar.formatter = formatter
             cbar.update_ticks()
         except Exception:
             pass

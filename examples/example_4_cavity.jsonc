@@ -1,0 +1,59 @@
+{
+  // Example 4: Cavity global/adjoint stability analysis
+  // Masked cavity geometry, deformed mesh, direct + adjoint temporal EVP.
+
+  // Grid
+  "nx": 241,
+  "ny": 101,
+  "fd_order": 4,
+  "alpha_filter": 0.0,
+  "y_symmetry": true,
+  "x_periodicity": false,
+
+  // Geometry
+  "x_cavity_start": 0.34029,
+  "L_cavity": 1.9995,
+  "mask_x_left": 0.34,      // mask threshold for left wall
+  "mask_x_right": 2.34,     // mask threshold for right wall
+
+  // Mesh deformation
+  "deform": {
+    "y_cubic_a": 0.5,       // cubic-blend coefficient for y-deformation
+    "stretch_n": 3,          // exponent for y/x stretching
+    "y_threshold": 0.0,     // y > threshold gets stretched
+    "y_amplitude": 2.0,     // stretch amplitude in y
+    "x_threshold": 2.8,     // x > threshold gets stretched
+    "x_amplitude": 1.0      // stretch amplitude in x
+  },
+
+  // Sponge
+  "sponge": {
+    "amplitude": 5.0,
+    "xs_trans": 0.5,
+    "xs_offset": 0.5,
+    "ys_trans": 0.5,
+    "ys_offset": 1.0
+  },
+
+  // Analysis (direct + adjoint eigenvalues)
+  "omega_target": [1.5, 1.0],   // complex: 1.5 + 1.0j
+  "n_modes": 50,
+  "ncv": 300,                    // Arnoldi subspace dimension
+  "beta": 0.0,
+  "model": "2D",
+
+  // Boundary conditions
+  "bc": {
+    "recipe": [
+      {"type": "dirichlet", "borders": "lbtrm", "variables": "uvwT"}
+    ]
+  },
+
+  // Solver configuration
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "linsolve": {
+      "type": "mumps"
+    }
+  }
+}

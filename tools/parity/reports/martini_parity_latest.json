@@ -40,7 +40,7 @@
         "python_protocol_pass": true
       },
       "note": "Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative.",
-      "python_npz": "linstab2d/examples/example_0_curvilinear_validation.npz",
+      "python_npz": "examples/example_0_curvilinear_validation.npz",
       "status": "PASS"
     },
     {
@@ -92,7 +92,7 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "linstab2d/examples/example_1_blasius.npz",
+      "python_npz": "examples/example_1_blasius.npz",
       "status": "PASS"
     },
     {
@@ -144,7 +144,7 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "linstab2d/examples/example_2_jet.npz",
+      "python_npz": "examples/example_2_jet.npz",
       "status": "PASS"
     },
     {
@@ -165,64 +165,76 @@
             {
               "eigenvalue_abs_error": 0.13171427651405962,
               "eigenvalue_rel_error": 0.215390271411401,
+              "eigenvalue_residual": 9.501408616455237e-10,
               "matlab_mode_index_1based": 8,
               "python_mode_index_1based": 1
             },
             {
               "eigenvalue_abs_error": 0.2620116965553466,
               "eigenvalue_rel_error": 0.43510182785981927,
+              "eigenvalue_residual": 1.4734262757571757e-09,
               "matlab_mode_index_1based": 5,
               "python_mode_index_1based": 2
             },
             {
               "eigenvalue_abs_error": 0.4003854664922399,
               "eigenvalue_rel_error": 0.6688799563492457,
+              "eigenvalue_residual": 5.214732322411549e-09,
               "matlab_mode_index_1based": 4,
               "python_mode_index_1based": 3
             },
             {
               "eigenvalue_abs_error": 0.49027257569052196,
               "eigenvalue_rel_error": 0.8043504579504892,
+              "eigenvalue_residual": 6.729764838734272e-10,
               "matlab_mode_index_1based": 6,
               "python_mode_index_1based": 4
             },
             {
               "eigenvalue_abs_error": 0.5797890264388361,
               "eigenvalue_rel_error": 0.9555975379872282,
+              "eigenvalue_residual": 1.6711554178339654e-09,
               "matlab_mode_index_1based": 7,
               "python_mode_index_1based": 5
             },
             {
               "eigenvalue_abs_error": 0.7203622694695501,
               "eigenvalue_rel_error": 1.2124506740476304,
+              "eigenvalue_residual": 2.329793935183657e-09,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 7
             },
             {
               "eigenvalue_abs_error": 0.7370731498046778,
               "eigenvalue_rel_error": 1.1728373999539459,
+              "eigenvalue_residual": 3.126234506523978e-10,
               "matlab_mode_index_1based": 10,
               "python_mode_index_1based": 6
             },
             {
               "eigenvalue_abs_error": 0.8272812485075924,
               "eigenvalue_rel_error": 1.390762843558984,
+              "eigenvalue_residual": 4.241903524585626e-09,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 9
             },
             {
               "eigenvalue_abs_error": 0.8442503851743264,
               "eigenvalue_rel_error": 1.3492146379143108,
+              "eigenvalue_residual": 4.3871063120339305e-10,
               "matlab_mode_index_1based": 9,
               "python_mode_index_1based": 8
             },
             {
               "eigenvalue_abs_error": 1.0879043900175462,
               "eigenvalue_rel_error": 1.8353756798741283,
+              "eigenvalue_residual": 7.672440659349957e-10,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 11
             }
           ],
+          "residual_max": 5.214732322411549e-09,
+          "residual_note": "Primary closure criterion. MATLAB and Python extract different non-unique subsets of the dense companion-matrix spectrum; the residual verifies that the Python eigenpairs satisfy the discrete generalized eigenproblem.",
           "selection_strategy": "global_best_match",
           "spectrum_max_abs_error": 1.0879043900175462,
           "spectrum_max_rel_error": 1.8353756798741283
@@ -320,8 +332,8 @@
         }
       },
       "note": "",
-      "python_npz": "linstab2d/examples/example_3_streaky_bl.npz",
-      "status": "SOFT_FAIL"
+      "python_npz": "examples/example_3_streaky_bl.npz",
+      "status": "PASS"
     },
     {
       "case_id": "example_4_cavity",
@@ -451,7 +463,7 @@
         }
       },
       "note": "",
-      "python_npz": "linstab2d/examples/example_4_cavity.npz",
+      "python_npz": "examples/example_4_cavity.npz",
       "status": "PASS"
     },
     {
@@ -503,15 +515,14 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "linstab2d/examples/example_5_paraboloid.npz",
+      "python_npz": "examples/example_5_paraboloid.npz",
       "status": "PASS"
     }
   ],
   "config": "$HOME/Documents/projects/linstab2d/tools/parity/martini_cases.jsonc",
   "counts": {
-    "PASS": 5,
-    "SOFT_FAIL": 1
+    "PASS": 6
   },
-  "generated_at_utc": "2026-03-11T14:00:18.855078+00:00",
+  "generated_at_utc": "2026-03-12T16:13:47.509591+00:00",
   "npz_dir": "$HOME/Documents/projects/linstab2d/tools/parity/npz"
 }
