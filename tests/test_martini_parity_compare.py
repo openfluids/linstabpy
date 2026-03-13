@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from examples.example_0_curvilinear_validation import _compute_reference_fields
+from linstab2d.utils.jsonc import load_jsonc
 from tools.parity.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
@@ -93,7 +94,8 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
         repo / "tools/parity/npz/example_0_TestCurvilinearDerivative_results.npz",
         allow_pickle = False,
     )
-    fields = _compute_reference_fields()
+    cfg = load_jsonc(repo / "examples/example_0_curvilinear_validation.jsonc")
+    fields = _compute_reference_fields(cfg)
 
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)
     np.testing.assert_allclose(fields["y"], matlab["results_TestCurv__y"], atol=1e-12, rtol=1e-12)

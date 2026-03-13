@@ -6,7 +6,6 @@ dependencies between the mesh and solver layers.
 
 from __future__ import annotations
 
-import os
 import numpy as np
 import scipy.sparse as sp
 
@@ -19,6 +18,19 @@ from ._solver_cfg import _scfg, _scfg_bool
 
 
 _petsc_configured = False
+
+
+def _is_petsc_matrix(operator) -> bool:
+    """Return ``True`` when ``operator`` is already a PETSc matrix."""
+    return isinstance(operator, PETSc.Mat)
+
+
+def _operator_shape(operator) -> tuple[int, int]:
+    """Return matrix shape for SciPy or PETSc operators."""
+    if _is_petsc_matrix(operator):
+        nrows, ncols = operator.getSize()
+        return int(nrows), int(ncols)
+    return int(operator.shape[0]), int(operator.shape[1])
 
 
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
@@ -75,6 +87,42 @@ def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Ma
     )
     A.assemble()
     return A
+
+
+def compact_petsc_matrix(mat: PETSc.Mat, solver_cfg: dict | None = None) -> PETSc.Mat:
+    """Rebuild a sequential PETSc AIJ matrix into canonical compact form.
+
+    This is primarily intended for matrices that have undergone in-place PETSc
+    row/column modification paths and may retain stored structural zeros or
+    duplicate allocation patterns that do not affect the algebraic operator but
+    can perturb downstream direct factorization.
+    """
+    csr = petsc_to_scipy(mat, format="csr")
+    compact = scipy_to_petsc(csr, solver_cfg)
+
+    prefix = mat.getOptionsPrefix()
+    if prefix:
+        compact.setOptionsPrefix(prefix)
+
+    try:
+        row_bs, col_bs = mat.getBlockSizes()
+        if int(row_bs) > 0 and int(col_bs) > 0:
+            compact.setBlockSizes(int(row_bs), int(col_bs))
+    except (PETSc.Error, AttributeError, TypeError):
+        pass
+
+    nullspace = mat.getNullSpace()
+    if nullspace is not None:
+        compact.setNullSpace(nullspace)
+
+    near_nullspace = getattr(mat, "getNearNullSpace", None)
+    if callable(near_nullspace):
+        ns = near_nullspace()
+        if ns is not None:
+            compact.setNearNullSpace(ns)
+
+    compact.assemble()
+    return compact
 
 
 def create_distributed_aij(
@@ -267,6 +315,250 @@ def scipy_to_petsc_distributed_from_root(
     if int(nrows) > 0:
         insert_local_csr_rows(matrix, local_rows, row_start=int(row_start))
     return assemble_matrix(matrix)
+
+
+def petsc_to_scipy(mat: PETSc.Mat, *, format: str = "csr") -> sp.csr_matrix | sp.csc_matrix:
+    """Convert a sequential PETSc AIJ matrix into a SciPy sparse matrix.
+
+    Parameters
+    ----------
+    mat:
+        PETSc matrix to extract.
+    format:
+        Output sparse format, either ``"csr"`` or ``"csc"``.
+
+    Notes
+    -----
+    The initial implementation supports only sequential matrices. This is
+    sufficient for parity tests and local development. Distributed-gather
+    support can be added later if needed.
+    """
+    out_format = format.lower()
+    if out_format not in {"csr", "csc"}:
+        raise ValueError(f"Unsupported sparse format {format!r}; expected 'csr' or 'csc'")
+
+    comm = mat.getComm()
+    if comm.getSize() != 1:
+        raise NotImplementedError("petsc_to_scipy currently supports only sequential PETSc matrices")
+
+    try:
+        indptr, indices, data = mat.getValuesCSR()
+    except Exception as exc:  # pragma: no cover - PETSc type guard
+        raise TypeError("PETSc matrix does not support CSR extraction via getValuesCSR()") from exc
+
+    csr = sp.csr_matrix(
+        (
+            np.array(data, copy=True),
+            np.array(indices, dtype=np.int64, copy=True),
+            np.array(indptr, dtype=np.int64, copy=True),
+        ),
+        shape=mat.getSize(),
+        dtype=complex,
+    )
+    csr.sum_duplicates()
+    csr.eliminate_zeros()
+    if out_format == "csr":
+        return csr
+    return csr.tocsc()
+
+
+def _canonical_sparse(mat: sp.spmatrix) -> sp.csr_matrix:
+    """Return a canonical CSR matrix for robust sparse comparisons."""
+    csr = sp.csr_matrix(mat, dtype=complex).copy()
+    csr.sum_duplicates()
+    csr.eliminate_zeros()
+    csr.sort_indices()
+    return csr
+
+
+def _matrix_entry(mat: sp.csr_matrix, row: int, col: int) -> complex:
+    """Return a scalar sparse entry as a Python complex number."""
+    value = mat[row, col]
+    if hasattr(value, "item"):
+        value = value.item()
+    return complex(value)
+
+
+def compare_sparse_matrices(
+    reference: sp.spmatrix,
+    candidate: sp.spmatrix,
+    *,
+    abs_tol: float = 1e-12,
+    rel_tol: float = 1e-12,
+    check_structure: bool = False,
+    max_terms: int = 20,
+) -> dict:
+    """Compare two sparse matrices and return a structured parity report."""
+    ref = _canonical_sparse(reference)
+    cand = _canonical_sparse(candidate)
+
+    shape_match = ref.shape == cand.shape
+    if not shape_match:
+        return {
+            "shape_match": False,
+            "reference_shape": ref.shape,
+            "candidate_shape": cand.shape,
+            "nnz_reference": int(ref.nnz),
+            "nnz_candidate": int(cand.nnz),
+            "nnz_delta": None,
+            "structure_match": False,
+            "max_abs_residual": float("inf"),
+            "max_rel_residual": float("inf"),
+            "frob_rel_residual": float("inf"),
+            "threshold": None,
+            "largest_mismatches": [],
+            "pass": False,
+        }
+
+    structure_match = bool(
+        np.array_equal(ref.indptr, cand.indptr) and np.array_equal(ref.indices, cand.indices)
+    )
+
+    delta = (cand - ref).tocsr()
+    delta.sum_duplicates()
+    delta.eliminate_zeros()
+
+    if delta.nnz:
+        max_abs_residual = float(np.max(np.abs(delta.data)))
+        ref_scale = float(np.max(np.abs(ref.data))) if ref.nnz else 0.0
+        delta_norm = float(np.linalg.norm(delta.data))
+        ref_norm = float(np.linalg.norm(ref.data)) if ref.nnz else 0.0
+
+        # Work entirely in COO so row/col/data arrays share the same ordering.
+        delta_coo = delta.tocoo()
+        abs_delta_coo = np.abs(delta_coo.data)
+        order = np.argsort(abs_delta_coo)[::-1]
+        largest_mismatches = []
+        for idx in order[:max_terms]:
+            row = int(delta_coo.row[idx])
+            col = int(delta_coo.col[idx])
+            ref_val = _matrix_entry(ref, row, col)
+            cand_val = _matrix_entry(cand, row, col)
+            resid = cand_val - ref_val
+            largest_mismatches.append(
+                {
+                    "row": row,
+                    "col": col,
+                    "reference": ref_val,
+                    "candidate": cand_val,
+                    "abs_residual": float(abs(resid)),
+                    "rel_residual": float(abs(resid) / max(abs(ref_val), 1e-30)),
+                }
+            )
+    else:
+        max_abs_residual = 0.0
+        ref_scale = float(np.max(np.abs(ref.data))) if ref.nnz else 0.0
+        delta_norm = 0.0
+        ref_norm = float(np.linalg.norm(ref.data)) if ref.nnz else 0.0
+        largest_mismatches = []
+
+    max_rel_residual = float(max_abs_residual / max(ref_scale, 1e-30))
+    frob_rel_residual = float(delta_norm / max(ref_norm, 1e-30))
+    threshold = float(abs_tol + rel_tol * ref_scale)
+    passed = bool(
+        max_abs_residual <= threshold and (structure_match or not check_structure)
+    )
+
+    return {
+        "shape_match": True,
+        "reference_shape": ref.shape,
+        "candidate_shape": cand.shape,
+        "nnz_reference": int(ref.nnz),
+        "nnz_candidate": int(cand.nnz),
+        "nnz_delta": int(delta.nnz),
+        "structure_match": structure_match,
+        "max_abs_residual": max_abs_residual,
+        "max_rel_residual": max_rel_residual,
+        "frob_rel_residual": frob_rel_residual,
+        "threshold": threshold,
+        "largest_mismatches": largest_mismatches,
+        "pass": passed,
+    }
+
+
+def compare_petsc_against_scipy(
+    reference: sp.spmatrix,
+    candidate: PETSc.Mat,
+    *,
+    abs_tol: float = 1e-12,
+    rel_tol: float = 1e-12,
+    check_structure: bool = False,
+    max_terms: int = 20,
+) -> dict:
+    """Compare a PETSc matrix against a SciPy sparse reference matrix."""
+    candidate_sp = petsc_to_scipy(candidate, format="csr")
+    report = compare_sparse_matrices(
+        reference,
+        candidate_sp,
+        abs_tol=abs_tol,
+        rel_tol=rel_tol,
+        check_structure=check_structure,
+        max_terms=max_terms,
+    )
+    report["candidate_format"] = "petsc"
+    return report
+
+
+def petsc_matvec_residual(
+    reference: sp.spmatrix,
+    candidate: PETSc.Mat,
+    *,
+    seed: int = 0,
+    trials: int = 3,
+    abs_tol: float = 1e-12,
+    rel_tol: float = 1e-12,
+) -> dict:
+    """Compare PETSc and SciPy matrix-vector products over random trials."""
+    ref = _canonical_sparse(reference)
+    if ref.shape != candidate.getSize():
+        raise ValueError(
+            f"Shape mismatch: reference has shape {ref.shape}, candidate has shape {candidate.getSize()}"
+        )
+    if trials <= 0:
+        raise ValueError(f"trials must be positive, got {trials}")
+
+    rng = np.random.default_rng(seed)
+    max_abs_residual = 0.0
+    max_rel_residual = 0.0
+    trial_reports = []
+
+    for trial in range(trials):
+        x = rng.standard_normal(ref.shape[1]) + 1j * rng.standard_normal(ref.shape[1])
+        y_ref = ref @ x
+
+        x_vec = petsc_vec(x)
+        y_vec = candidate.createVecLeft()
+        try:
+            candidate.mult(x_vec, y_vec)
+            y_petsc = vec_to_numpy(y_vec)
+        finally:
+            x_vec.destroy()
+            y_vec.destroy()
+
+        residual = y_petsc - y_ref
+        trial_abs = float(np.max(np.abs(residual))) if residual.size else 0.0
+        trial_rel = float(np.linalg.norm(residual) / max(np.linalg.norm(y_ref), 1e-30))
+        trial_reports.append(
+            {
+                "trial": trial,
+                "max_abs_residual": trial_abs,
+                "rel_residual": trial_rel,
+            }
+        )
+        max_abs_residual = max(max_abs_residual, trial_abs)
+        max_rel_residual = max(max_rel_residual, trial_rel)
+
+    ref_scale = float(np.max(np.abs(ref.data))) if ref.nnz else 0.0
+    threshold = float(abs_tol + rel_tol * ref_scale)
+    passed = bool(max_abs_residual <= threshold or max_rel_residual <= rel_tol)
+
+    return {
+        "trials": trial_reports,
+        "max_abs_residual": max_abs_residual,
+        "max_rel_residual": max_rel_residual,
+        "threshold": threshold,
+        "pass": passed,
+    }
 
 
 def petsc_vec(arr: np.ndarray) -> PETSc.Vec:

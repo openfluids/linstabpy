@@ -21,7 +21,7 @@ import time
 import numpy as np
 
 from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+from linstab2d.operators.assembly import build_lnse_system
 
 from ._helpers import (
     label_axes,
@@ -59,7 +59,6 @@ def compute(cfg: dict):
 
     from linstab2d.baseflow import load_blasius, sutherland_air
     from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_operator
     from linstab2d.operators.energy_norm import compute_chu_norm
     from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
@@ -125,14 +124,19 @@ def compute(cfg: dict):
 
     # ---- Assemble LNSE operator ----
     kx = cfg["kx"]
+    assembly_backend = cfg.get("assembly_backend")
     t_lnse = time.perf_counter()
-    L0, idx = build_lnse_operator(mesh, bf, kx=kx)
+    L0, idx, bc_indices = build_lnse_system(
+        mesh,
+        bf,
+        kx=kx,
+        model=cfg.get("model", "2D"),
+        bc_recipe=cfg["bc"]["recipe"],
+        bc_penalty=cfg["bc"]["penalty"],
+        backend=assembly_backend,
+        solver_cfg=solver_cfg,
+    )
     t_lnse = time.perf_counter() - t_lnse
-
-    # ---- Apply BCs ----
-    bc_penalty = cfg["bc"]["penalty"]
-    L0, bc_indices = apply_bc_recipe(L0, mesh, idx, cfg["bc"]["recipe"], penalty=bc_penalty)
-    print(f"BC penalty: {bc_penalty:.3e}")
 
     # ---- Energy norm ----
     p = mesh.used_ind

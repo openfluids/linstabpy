@@ -543,7 +543,7 @@ wheels = [
 ]
 
 [[package]]
-name = "linstab2d"
+name = "linstabpy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

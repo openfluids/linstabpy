@@ -39,18 +39,79 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from .linsolve import make_linear_solver
-from .petsc_utils import require_complex, petsc_vec, vec_to_numpy
+from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, petsc_vec, vec_to_numpy
 
 logger = logging.getLogger(__name__)
 
 
+def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
+    """Return the square-system size for SciPy or PETSc operators."""
+    nrows, ncols = _operator_shape(operator)
+    if nrows != ncols:
+        raise ValueError("L0 must be a square matrix")
+    return nrows
+
+
+def _shifted_operator(
+    operator: sp.spmatrix | PETSc.Mat,
+    omega: complex,
+) -> sp.csc_matrix | PETSc.Mat:
+    """Return ``operator - 1j*omega*I`` preserving the backend."""
+    if _is_petsc_matrix(operator):
+        shifted = operator.copy()
+        shifted.shift(-1j * omega)
+        shifted.assemble()
+        return shifted
+    shifted = sp.csc_matrix(operator, copy=True)
+    shifted.setdiag(shifted.diagonal() - 1j * omega)
+    return shifted
+
+
+def _apply_optional_matrix(
+    matrix: sp.spmatrix | PETSc.Mat | None,
+    vector: np.ndarray,
+) -> np.ndarray:
+    """Apply an optional SciPy/PETSc matrix to a NumPy vector."""
+    if matrix is None:
+        return vector
+    if isinstance(matrix, PETSc.Mat):
+        x = petsc_vec(vector)
+        y = x.duplicate()
+        try:
+            matrix.mult(x, y)
+            return vec_to_numpy(y)
+        finally:
+            x.destroy()
+            y.destroy()
+    return matrix @ vector
+
+
+def _apply_optional_adjoint_matrix(
+    matrix: sp.spmatrix | PETSc.Mat | None,
+    vector: np.ndarray,
+) -> np.ndarray:
+    """Apply an optional conjugate-transpose matrix to a NumPy vector."""
+    if matrix is None:
+        return vector
+    if isinstance(matrix, PETSc.Mat):
+        x = petsc_vec(vector)
+        y = x.duplicate()
+        try:
+            matrix.multHermitian(x, y)
+            return vec_to_numpy(y)
+        finally:
+            x.destroy()
+            y.destroy()
+    return matrix.conj().T @ vector
+
+
 def resolvent_analysis(
-    L0: sp.spmatrix,
+    L0: sp.spmatrix | PETSc.Mat,
     omega: float,
     n_modes: int,
     W_diag: np.ndarray,
-    B_mat: sp.spmatrix | None = None,
-    C_mat: sp.spmatrix | None = None,
+    B_mat: sp.spmatrix | PETSc.Mat | None = None,
+    C_mat: sp.spmatrix | PETSc.Mat | None = None,
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
@@ -98,21 +159,23 @@ def resolvent_analysis(
         Optimal forcing modes (columns), normalised in the *W*-inner product.
     """
     require_complex(solver_cfg)
-    ndof = L0.shape[0]
+    ndof = _operator_ndof(L0)
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d",
                 omega, n_modes, ndof)
 
     # ------------------------------------------------------------------
     # 1. Form the shifted operator  L_sigma = L0 - i*omega*I
     # ------------------------------------------------------------------
-    L_sigma = sp.csc_matrix(L0, copy=True)
-    L_sigma.setdiag(L_sigma.diagonal() - 1j * omega)
+    L_sigma = _shifted_operator(L0, omega)
 
     # ------------------------------------------------------------------
     # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
     lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
+    # make_linear_solver copies the operator internally; free the shifted copy.
+    if _is_petsc_matrix(L_sigma):
+        L_sigma.destroy()
     logger.info("  linear solver backend: %s", lu.backend)
     logger.info("  MUMPS factorisation done.")
 
@@ -125,20 +188,18 @@ def resolvent_analysis(
     def _apply_H(v: np.ndarray) -> np.ndarray:
         """Apply resolvent: H v = FILTER(C inv(L_sigma) B FILTER(v))."""
         w = _filt(v)
-        w = B_mat @ w if B_mat is not None else w
+        w = _apply_optional_matrix(B_mat, w)
         w = lu.solve(w)
-        if C_mat is not None:
-            w = C_mat @ w
+        w = _apply_optional_matrix(C_mat, w)
         w = _filt(w)
         return w
 
     def _apply_H_adj(v: np.ndarray) -> np.ndarray:
         """Apply adjoint resolvent: H^H v = FILTER_ct(B^H inv(L_sigma^H) C^H FILTER_ct(v))."""
         w = _filt_ct(v)
-        w = C_mat.conj().T @ w if C_mat is not None else w
+        w = _apply_optional_adjoint_matrix(C_mat, w)
         w = lu.solve_transpose(w)
-        if B_mat is not None:
-            w = B_mat.conj().T @ w
+        w = _apply_optional_adjoint_matrix(B_mat, w)
         w = _filt_ct(w)
         return w
 
@@ -200,21 +261,27 @@ def resolvent_analysis(
 
     vr = htrh_shell.createVecRight()
     vi = htrh_shell.createVecRight()
-    for i in range(n_extract):
-        eig = eps.getEigenpair(i, vr, vi)
-        sigma = float(np.sqrt(max(float(np.real(eig)), 0.0)))
-        gains[i] = sigma
+    try:
+        for i in range(n_extract):
+            eig = eps.getEigenpair(i, vr, vi)
+            sigma = float(np.sqrt(max(float(np.real(eig)), 0.0)))
+            gains[i] = sigma
 
-        forcing = vec_to_numpy(vr)
-        norm_sq = float(np.real(np.vdot(forcing, W_vec * forcing)))
-        if norm_sq > 0.0:
-            forcing = forcing / np.sqrt(norm_sq)
-        forcings[:, i] = forcing
+            forcing = vec_to_numpy(vr)
+            norm_sq = float(np.real(np.vdot(forcing, W_vec * forcing)))
+            if norm_sq > 0.0:
+                forcing = forcing / np.sqrt(norm_sq)
+            forcings[:, i] = forcing
 
-        response = _apply_H(forcing)
-        if sigma > 0.0:
-            response = response / sigma
-        responses[:, i] = response
+            response = _apply_H(forcing)
+            if sigma > 0.0:
+                response = response / sigma
+            responses[:, i] = response
+    finally:
+        vr.destroy()
+        vi.destroy()
+        eps.destroy()
+        htrh_shell.destroy()
 
     order = np.argsort(gains)[::-1]
     gains = gains[order]
@@ -225,10 +292,10 @@ def resolvent_analysis(
 
 
 def compute_resolvent_svd_residuals(
-    L0: sp.spmatrix,
+    L0: sp.spmatrix | PETSc.Mat,
     omega: complex,
-    B_mat: sp.spmatrix | None,
-    C_mat: sp.spmatrix | None,
+    B_mat: sp.spmatrix | PETSc.Mat | None,
+    C_mat: sp.spmatrix | PETSc.Mat | None,
     gains: np.ndarray,
     forcings: np.ndarray,
     responses: np.ndarray,
@@ -295,28 +362,27 @@ def compute_resolvent_svd_residuals(
     invW_vec = 1.0 / W_vec
 
     # Rebuild shifted operator and factorization (same path as resolvent_analysis).
-    L_sigma = sp.csc_matrix(L0, copy=True)
-    L_sigma.setdiag(L_sigma.diagonal() - 1j * omega)
+    L_sigma = _shifted_operator(L0, omega)
     lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
+    if _is_petsc_matrix(L_sigma):
+        L_sigma.destroy()
 
     _filt = filter_fn if filter_fn is not None else (lambda v: v)
     _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
 
     def _apply_H(v: np.ndarray) -> np.ndarray:
         w = _filt(v)
-        w = B_mat @ w if B_mat is not None else w
+        w = _apply_optional_matrix(B_mat, w)
         w = lu.solve(w)
-        if C_mat is not None:
-            w = C_mat @ w
+        w = _apply_optional_matrix(C_mat, w)
         w = _filt(w)
         return w
 
     def _apply_H_adj(v: np.ndarray) -> np.ndarray:
         w = _filt_ct(v)
-        w = C_mat.conj().T @ w if C_mat is not None else w
+        w = _apply_optional_adjoint_matrix(C_mat, w)
         w = lu.solve_transpose(w)
-        if B_mat is not None:
-            w = B_mat.conj().T @ w
+        w = _apply_optional_adjoint_matrix(B_mat, w)
         w = _filt_ct(w)
         return w
 

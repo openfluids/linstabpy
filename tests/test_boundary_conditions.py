@@ -415,47 +415,12 @@ class TestNeumannBC:
             apply_neumann(L0.copy(), mesh, idx, "l", "q")
 
     # ------------------------------------------------------------------ #
-    # 6. Corner duplicates keep first border normal ordering
+    # 6. Corner duplicates are rejected as ambiguous multi-normal rules
     # ------------------------------------------------------------------ #
-    def test_neumann_corner_dedup_prefers_first_border(self, small_mesh_2d, uniform_baseflow):
+    def test_neumann_corner_overlap_raises(self, small_mesh_2d, uniform_baseflow):
         mesh = small_mesh_2d
         bf = uniform_baseflow
         L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
-        ngp = mesh.ngp
-        penalty = 2.5
 
-        L0_bc, bc_indices = apply_neumann(
-            L0.copy(), mesh, idx, "lt", "u", penalty=penalty
-        )
-
-        left_set = set(map(int, idx["li"]))
-        top_set = set(map(int, idx["ti"]))
-        corners = left_set.intersection(top_set)
-        assert len(corners) > 0, "Expected at least one corner in lr border set"
-        corner = int(sorted(corners)[0])
-
-        corner_dof = ngp + corner
-        assert corner_dof in set(bc_indices), "Corner DOF should still be in BC set"
-
-        # Left-border branch is applied first for l,t because borders are
-        # evaluated in order.
-        x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
-        y_flat = mesh.Y.ravel(order="F")[mesh.used_ind]
-        gradX_x = mesh.Dx @ x_flat
-        gradX_y = mesh.Dy @ x_flat
-        gradY_x = mesh.Dx @ y_flat
-        gradY_y = mesh.Dy @ y_flat
-
-        sx, sy = self._row_scales("l", gradX_x, gradX_y, gradY_x, gradY_y, corner)
-        expected = penalty * (sx * mesh.Dx.getrow(corner) + sy * mesh.Dy.getrow(corner))
-
-        row = L0_bc.tocsc().getrow(corner_dof).toarray().ravel()
-        expected_row = np.zeros(L0.shape[0], dtype=row.dtype)
-        expected_row[ngp : 2 * ngp] = expected.toarray().ravel()
-
-        np.testing.assert_allclose(
-            row,
-            expected_row,
-            atol=1e-11,
-            err_msg="Corner BC row should use left-border normal when left is first"
-        )
+        with pytest.raises(ValueError, match="Ambiguous Neumann BC"):
+            apply_neumann(L0.copy(), mesh, idx, "lt", "u", penalty=2.5)

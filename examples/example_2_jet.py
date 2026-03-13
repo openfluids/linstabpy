@@ -20,7 +20,6 @@ from pathlib import Path
 import numpy as np
 
 from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 
 from ._helpers import (
     label_axes,
@@ -135,8 +134,9 @@ def compute(cfg: dict):
     from linstab2d.baseflow import load_jet, sutherland_air
     from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
     from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.operators.assembly import build_lnse_system
     from linstab2d.operators.energy_norm import compute_chu_norm
+    from linstab2d.solvers.petsc_utils import scipy_to_petsc
     from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
     solver_cfg = cfg.get("solver")
@@ -185,11 +185,19 @@ def compute(cfg: dict):
     mesh.sponge = _load_sponge(mesh, r_1D, z_1D)
 
     t_lnse = time.perf_counter()
-    L0, idx = build_lnse_operator(mesh, baseflow, model=model, m=m)
+    assembly_backend = cfg.get("assembly_backend")
+    bc_penalty = cfg["bc"].get("penalty", 1e4)
+    L0, idx, _ = build_lnse_system(
+        mesh,
+        baseflow,
+        model=model,
+        m=m,
+        bc_recipe=cfg["bc"]["recipe"],
+        bc_penalty=bc_penalty,
+        backend=assembly_backend,
+        solver_cfg=solver_cfg,
+    )
     t_lnse = time.perf_counter() - t_lnse
-
-    bc_recipe = cfg["bc"]["recipe"]
-    L0, _ = apply_bc_recipe(L0, mesh, idx, bc_recipe)
 
     used_ind = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[used_ind]
@@ -212,7 +220,9 @@ def compute(cfg: dict):
     # This repeats each grid-point mask entry across the flattened 5-field
     # vector in the same order as the reference workflow.
     B_diag = np.repeat(sponge0, 5)
-    B_mat = sp.diags(B_diag).tocsc()
+    B_mat_sp = sp.diags(B_diag).tocsc()
+    B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
+    C_mat = B_mat.copy()
 
     t_resolvent = time.perf_counter()
     gains, responses, forcings = resolvent_analysis(
@@ -221,7 +231,7 @@ def compute(cfg: dict):
         n_modes,
         W_diag,
         B_mat=B_mat,
-        C_mat=B_mat,
+        C_mat=C_mat,
         filter_fn=mesh.filters.filter if mesh.filters is not None else None,
         filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
         solver_cfg=solver_cfg,
@@ -243,7 +253,7 @@ def compute(cfg: dict):
         L0,
         omega,
         B_mat,
-        B_mat,
+        C_mat,
         gains,
         forcings,
         responses,

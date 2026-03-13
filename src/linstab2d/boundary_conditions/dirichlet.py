@@ -129,6 +129,34 @@ def apply_dirichlet(
     return L0, bc_indices
 
 
+def apply_dirichlet_petsc(
+    L0: "PETSc.Mat",
+    idx: dict[str, np.ndarray],
+    borders: str,
+    variables: str,
+    ngp: int,
+    penalty: float = 1e4,
+) -> tuple["PETSc.Mat", np.ndarray]:
+    """Apply Dirichlet boundary conditions directly to a PETSc matrix.
+
+    This mirrors :func:`apply_dirichlet` for solver-facing PETSc matrices by
+    zeroing the selected rows and columns and placing ``penalty`` on the
+    diagonal entries of the constrained degrees of freedom.
+    """
+    bc_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
+    if bc_indices.size == 0:
+        return L0, bc_indices
+
+    if L0.getSize()[0] != L0.getSize()[1]:
+        raise ValueError("L0 must be square")
+    if bc_indices.min() < 0 or bc_indices.max() >= L0.getSize()[0]:
+        raise ValueError("Dirichlet indices are out of bounds for the PETSc matrix")
+
+    L0.zeroRowsColumns(np.asarray(bc_indices, dtype=np.int32), diag=complex(penalty))
+    L0.assemble()
+    return L0, bc_indices
+
+
 def _collect_dirichlet_indices(
     idx: dict[str, np.ndarray],
     borders: str,
@@ -201,6 +229,38 @@ def apply_dirichlet_spatial(
     # R: zero rows/cols only (no penalty)
     R = _zero_rows_cols(R)
 
+    return Lc, R, bc_indices
+
+
+def apply_dirichlet_spatial_petsc(
+    Lc: "PETSc.Mat",
+    R: "PETSc.Mat",
+    idx: dict[str, np.ndarray],
+    borders: str,
+    variables: str,
+    ngp: int,
+    penalty: float = 1e4,
+) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
+    """Apply Dirichlet BCs directly to doubled spatial PETSc matrices."""
+    base_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
+    if base_indices.size == 0:
+        return Lc, R, np.array([], dtype=int)
+
+    if Lc.getSize()[0] != Lc.getSize()[1] or R.getSize()[0] != R.getSize()[1]:
+        raise ValueError("Lc and R must be square")
+    if Lc.getSize() != R.getSize():
+        raise ValueError("Lc and R must have identical shapes")
+
+    n = ngp * 5
+    bc_indices = np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
+    if bc_indices.min() < 0 or bc_indices.max() >= Lc.getSize()[0]:
+        raise ValueError("Dirichlet indices are out of bounds for the spatial PETSc matrices")
+
+    bc_idx = np.asarray(bc_indices, dtype=np.int32)
+    Lc.zeroRowsColumns(bc_idx, diag=complex(penalty))
+    R.zeroRowsColumns(bc_idx, diag=0.0)
+    Lc.assemble()
+    R.assemble()
     return Lc, R, bc_indices
 
 

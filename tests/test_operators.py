@@ -5,12 +5,34 @@ import scipy.sparse as sp
 import pytest
 
 from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air
-from linstab2d.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
+from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
+from linstab2d.boundary_conditions import (
+    apply_bc_recipe,
+    apply_bc_recipe_petsc,
+    apply_dirichlet,
+    apply_dirichlet_petsc,
+    apply_dirichlet_spatial,
+    apply_dirichlet_spatial_petsc,
+    apply_neumann,
+    apply_neumann_petsc,
+)
+from linstab2d.operators import (
+    build_lnse_operator,
+    build_lnse_operator_petsc,
+    build_lnse_system,
+    compute_chu_norm,
+    build_spatial_operator,
+    build_spatial_operator_petsc,
+)
 from linstab2d.operators.assembly import _create_axy_diff_matrices, _apply_inv_B, _prepare_coefficients
 from linstab2d.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
+)
+from linstab2d.utils.petsc_core import (
+    compare_petsc_against_scipy,
+    petsc_matvec_residual,
+    scipy_to_petsc,
 )
 
 slow = pytest.mark.slow
@@ -290,6 +312,878 @@ class TestOperatorAssembly:
         prepared = _prepare_coefficients(mesh, uniform_baseflow, kx=0.0, model="2D", m=0.0)
         assert (prepared["D2RZ"] != mesh.Dyx).nnz == 0
 
+    def test_scipy_to_petsc_pre_bc_l0_has_sparse_parity(self):
+        """Pre-BC L0 survives SciPy->PETSc conversion with entrywise parity."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=14,
+            ny=10,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=1.0 + 0.03 * np.cos(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            U=1.0 + 0.08 * np.sin(np.pi * X) * np.exp(-0.8 * Y),
+            V=0.04 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.03 * np.sin(1.5 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.05 * np.cos(np.pi * X) * np.exp(-0.4 * Y),
+        )
+        sutherland_air(bf)
+
+        L0, _ = build_lnse_operator(mesh, bf, kx=0.35, model="2D")
+        L0_petsc = scipy_to_petsc(L0)
+        try:
+            report = compare_petsc_against_scipy(L0, L0_petsc, check_structure=True)
+            assert report["pass"], report
+            assert report["nnz_delta"] == 0
+        finally:
+            L0_petsc.destroy()
+
+    def test_scipy_to_petsc_pre_bc_l0_has_matvec_parity(self):
+        """Pre-BC L0 has matching PETSc and SciPy operator action."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.4,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=300.0,
+            RHO=1.0 + 0.02 * np.cos(0.75 * np.pi * X) * np.cos(np.pi * Y),
+            U=0.9 + 0.12 * np.sin(np.pi * X) * np.exp(-Y),
+            V=0.03 * np.cos(np.pi * X) * np.sin(np.pi * Y),
+            W=0.02 * np.sin(0.5 * np.pi * X) * np.cos(np.pi * Y),
+            T=1.0 + 0.04 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        L0, _ = build_lnse_operator(mesh, bf, kx=0.2, model="2D")
+        L0_petsc = scipy_to_petsc(L0)
+        try:
+            report = petsc_matvec_residual(L0, L0_petsc, seed=11, trials=3)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-11
+            assert report["max_rel_residual"] < 1e-11
+        finally:
+            L0_petsc.destroy()
+    def test_direct_petsc_pre_bc_l0_has_sparse_parity(self):
+        """Direct PETSc pre-BC L0 matches the SciPy reference entrywise."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=14,
+            ny=10,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=1.0 + 0.03 * np.cos(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            U=1.0 + 0.08 * np.sin(np.pi * X) * np.exp(-0.8 * Y),
+            V=0.04 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.03 * np.sin(1.5 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.05 * np.cos(np.pi * X) * np.exp(-0.4 * Y),
+        )
+        sutherland_air(bf)
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.35, model="2D")
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.35, model="2D")
+        try:
+            for key, value in idx.items():
+                assert key in idx_petsc
+                np.testing.assert_array_equal(idx_petsc[key], value)
+
+            report = compare_petsc_against_scipy(L0, L0_petsc, check_structure=True)
+            assert report["pass"], report
+            assert report["nnz_delta"] == 0
+        finally:
+            L0_petsc.destroy()
+
+    def test_direct_petsc_pre_bc_l0_has_matvec_parity(self):
+        """Direct PETSc pre-BC L0 matches the SciPy operator action."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.4,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=300.0,
+            RHO=1.0 + 0.02 * np.cos(0.75 * np.pi * X) * np.cos(np.pi * Y),
+            U=0.9 + 0.12 * np.sin(np.pi * X) * np.exp(-Y),
+            V=0.03 * np.cos(np.pi * X) * np.sin(np.pi * Y),
+            W=0.02 * np.sin(0.5 * np.pi * X) * np.cos(np.pi * Y),
+            T=1.0 + 0.04 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        L0, _ = build_lnse_operator(mesh, bf, kx=0.2, model="2D")
+        L0_petsc, _ = build_lnse_operator_petsc(mesh, bf, kx=0.2, model="2D")
+        try:
+            report = petsc_matvec_residual(L0, L0_petsc, seed=11, trials=3)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+            assert report["max_rel_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+    def test_direct_petsc_post_dirichlet_l0_has_sparse_parity(self):
+        """Direct PETSc Dirichlet enforcement matches the SciPy BC path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=14,
+            ny=10,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=1.0 + 0.03 * np.cos(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            U=1.0 + 0.08 * np.sin(np.pi * X) * np.exp(-0.8 * Y),
+            V=0.04 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.03 * np.sin(1.5 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.05 * np.cos(np.pi * X) * np.exp(-0.4 * Y),
+        )
+        sutherland_air(bf)
+
+        borders = "lt"
+        variables = "uvwT"
+        penalty = 1.0e4
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.35, model="2D")
+        L0_bc, bc_indices = apply_dirichlet(L0, idx, borders, variables, mesh.ngp, penalty=penalty)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.35, model="2D")
+        try:
+            L0_petsc_bc, bc_indices_petsc = apply_dirichlet_petsc(
+                L0_petsc,
+                idx_petsc,
+                borders,
+                variables,
+                mesh.ngp,
+                penalty=penalty,
+            )
+            np.testing.assert_array_equal(bc_indices_petsc, bc_indices)
+
+            report = compare_petsc_against_scipy(L0_bc, L0_petsc_bc, check_structure=False)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+
+    def test_direct_petsc_post_dirichlet_l0_has_matvec_parity(self):
+        """Direct PETSc Dirichlet enforcement preserves operator action parity."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.4,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=300.0,
+            RHO=1.0 + 0.02 * np.cos(0.75 * np.pi * X) * np.cos(np.pi * Y),
+            U=0.9 + 0.12 * np.sin(np.pi * X) * np.exp(-Y),
+            V=0.03 * np.cos(np.pi * X) * np.sin(np.pi * Y),
+            W=0.02 * np.sin(0.5 * np.pi * X) * np.cos(np.pi * Y),
+            T=1.0 + 0.04 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        borders = "lrbt"
+        variables = "uvwT"
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.2, model="2D")
+        L0_bc, _ = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.2, model="2D")
+        try:
+            L0_petsc_bc, _ = apply_dirichlet_petsc(L0_petsc, idx_petsc, borders, variables, mesh.ngp)
+            report = petsc_matvec_residual(L0_bc, L0_petsc_bc, seed=17, trials=3)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+            assert report["max_rel_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+    def test_direct_petsc_post_neumann_l0_has_sparse_parity(self):
+        """Direct PETSc Neumann enforcement matches the SciPy BC path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=14,
+            ny=10,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=1.0 + 0.03 * np.cos(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            U=1.0 + 0.08 * np.sin(np.pi * X) * np.exp(-0.8 * Y),
+            V=0.04 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.03 * np.sin(1.5 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.05 * np.cos(np.pi * X) * np.exp(-0.4 * Y),
+        )
+        sutherland_air(bf)
+
+        borders = "bt"
+        variables = "T"
+        penalty = 1.0e4
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.35, model="2D")
+        L0_bc, bc_indices = apply_neumann(L0, mesh, idx, borders, variables, penalty=penalty)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.35, model="2D")
+        try:
+            L0_petsc_bc, bc_indices_petsc = apply_neumann_petsc(
+                L0_petsc,
+                mesh,
+                idx_petsc,
+                borders,
+                variables,
+                penalty=penalty,
+            )
+            np.testing.assert_array_equal(bc_indices_petsc, bc_indices)
+
+            report = compare_petsc_against_scipy(L0_bc, L0_petsc_bc, check_structure=False)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+
+    def test_direct_petsc_post_neumann_l0_has_matvec_parity(self):
+        """Direct PETSc Neumann enforcement preserves operator action parity."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.4,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=300.0,
+            RHO=1.0 + 0.02 * np.cos(0.75 * np.pi * X) * np.cos(np.pi * Y),
+            U=0.9 + 0.12 * np.sin(np.pi * X) * np.exp(-Y),
+            V=0.03 * np.cos(np.pi * X) * np.sin(np.pi * Y),
+            W=0.02 * np.sin(0.5 * np.pi * X) * np.cos(np.pi * Y),
+            T=1.0 + 0.04 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        borders = "lr"
+        variables = "u"
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.2, model="2D")
+        L0_bc, _ = apply_neumann(L0, mesh, idx, borders, variables)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.2, model="2D")
+        try:
+            L0_petsc_bc, _ = apply_neumann_petsc(L0_petsc, mesh, idx_petsc, borders, variables)
+            report = petsc_matvec_residual(L0_bc, L0_petsc_bc, seed=23, trials=3)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+            assert report["max_rel_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+
+    def test_neumann_rejects_ambiguous_corner_rules(self, small_mesh_2d, uniform_baseflow):
+        """Overlapping Neumann borders on the same variable should fail at corners."""
+        L0, idx = build_lnse_operator(small_mesh_2d, uniform_baseflow, kx=0.0, model="2D")
+        with pytest.raises(ValueError, match="Ambiguous Neumann BC"):
+            apply_neumann(L0, small_mesh_2d, idx, borders="lb", variables="u")
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.0,
+            model="2D",
+        )
+        try:
+            with pytest.raises(ValueError, match="Ambiguous Neumann BC"):
+                apply_neumann_petsc(L0_petsc, small_mesh_2d, idx_petsc, borders="lb", variables="u")
+        finally:
+            L0_petsc.destroy()
+
+    def test_bc_recipe_petsc_matches_scipy_with_mixed_conditions(self):
+        """Recipe-based PETSc BC application matches the SciPy mixed-BC path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=13,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=9e3,
+            Ma=0.35,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=295.0,
+            RHO=1.0 + 0.025 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.95 + 0.10 * np.sin(np.pi * X) * np.exp(-0.7 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.015 * np.sin(1.2 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.03 * np.cos(0.8 * np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        recipe = [
+            {"type": "dirichlet", "borders": "lt", "variables": "uvw"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+        penalty = 1.0e4
+
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.25, model="2D")
+        L0_bc, bc_indices = apply_bc_recipe(L0, mesh, idx, recipe, penalty=penalty)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.25, model="2D")
+        try:
+            L0_petsc_bc, bc_indices_petsc = apply_bc_recipe_petsc(
+                L0_petsc,
+                mesh,
+                idx_petsc,
+                recipe,
+                penalty=penalty,
+            )
+            np.testing.assert_array_equal(bc_indices_petsc, bc_indices)
+
+            sparse_report = compare_petsc_against_scipy(L0_bc, L0_petsc_bc, check_structure=False)
+            assert sparse_report["pass"], sparse_report
+            assert sparse_report["max_abs_residual"] < 1e-10
+
+            matvec_report = petsc_matvec_residual(L0_bc, L0_petsc_bc, seed=29, trials=3)
+            assert matvec_report["pass"], matvec_report
+            assert matvec_report["max_abs_residual"] < 1e-10
+            assert matvec_report["max_rel_residual"] < 1e-10
+        finally:
+            L0_petsc.destroy()
+
+    def test_build_lnse_system_scipy_matches_reference_pipeline(self):
+        """Workflow helper should reproduce the existing SciPy assembly+BC path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=13,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=9e3,
+            Ma=0.35,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=295.0,
+            RHO=1.0 + 0.025 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.95 + 0.10 * np.sin(np.pi * X) * np.exp(-0.7 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.015 * np.sin(1.2 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.03 * np.cos(0.8 * np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        recipe = [
+            {"type": "dirichlet", "borders": "lt", "variables": "uvw"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+        penalty = 1.0e4
+
+        L0_ref, idx_ref = build_lnse_operator(mesh, bf, kx=0.25, model="2D")
+        L0_ref, bc_indices_ref = apply_bc_recipe(L0_ref, mesh, idx_ref, recipe, penalty=penalty)
+
+        L0_sys, idx_sys, bc_indices_sys = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.25,
+            model="2D",
+            bc_recipe=recipe,
+            bc_penalty=penalty,
+            backend="scipy",
+        )
+
+        for key, value in idx_ref.items():
+            assert key in idx_sys
+            np.testing.assert_array_equal(idx_sys[key], value)
+        np.testing.assert_array_equal(bc_indices_sys, bc_indices_ref)
+
+        delta = (L0_sys - L0_ref).tocsr()
+        assert delta.nnz == 0 or np.max(np.abs(delta.data)) < 1e-12
+
+    def test_build_lnse_system_petsc_matches_recipe_path(self):
+        """Workflow helper should reproduce the PETSc direct-assembly+recipe path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=13,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=9e3,
+            Ma=0.35,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=295.0,
+            RHO=1.0 + 0.025 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.95 + 0.10 * np.sin(np.pi * X) * np.exp(-0.7 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.015 * np.sin(1.2 * np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.03 * np.cos(0.8 * np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        recipe = [
+            {"type": "dirichlet", "borders": "lt", "variables": "uvw"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+        penalty = 1.0e4
+
+        L0_ref, idx_ref = build_lnse_operator(mesh, bf, kx=0.25, model="2D")
+        L0_ref, bc_indices_ref = apply_bc_recipe(L0_ref, mesh, idx_ref, recipe, penalty=penalty)
+
+        L0_sys, idx_sys, bc_indices_sys = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.25,
+            model="2D",
+            bc_recipe=recipe,
+            bc_penalty=penalty,
+            backend="petsc",
+        )
+        try:
+            for key, value in idx_ref.items():
+                assert key in idx_sys
+                np.testing.assert_array_equal(idx_sys[key], value)
+            np.testing.assert_array_equal(bc_indices_sys, bc_indices_ref)
+
+            sparse_report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
+            assert sparse_report["pass"], sparse_report
+            assert sparse_report["max_abs_residual"] < 1e-10
+
+            matvec_report = petsc_matvec_residual(L0_ref, L0_sys, seed=31, trials=3)
+            assert matvec_report["pass"], matvec_report
+            assert matvec_report["max_abs_residual"] < 1e-10
+            assert matvec_report["max_rel_residual"] < 1e-10
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_auto_selects_petsc_for_local_2d(self):
+        """Auto backend should select PETSc for the validated local 2D path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+
+        L0_sys, _, _ = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            backend="auto",
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+        try:
+            assert hasattr(L0_sys, "getValuesCSR")
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_auto_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
+        """Auto backend should use direct distributed PETSc assembly for supported 2D cases."""
+        import linstab2d.utils.petsc_core as petsc_core
+
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+
+        L0_ref, idx_ref, bc_ref = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+
+        def _unexpected_fallback(*args, **kwargs):
+            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+
+        monkeypatch.setattr(petsc_core, "scipy_to_petsc", _unexpected_fallback)
+
+        L0_sys, idx_sys, bc_sys = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            backend="auto",
+            solver_cfg={"petsc_matrix_mode": "distributed"},
+        )
+        try:
+            for key, value in idx_ref.items():
+                assert key in idx_sys
+                np.testing.assert_array_equal(idx_sys[key], value)
+            np.testing.assert_array_equal(bc_sys, bc_ref)
+
+            assert hasattr(L0_sys, "getOwnershipRange")
+            report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+
+            matvec_report = petsc_matvec_residual(L0_ref, L0_sys, seed=41, trials=3)
+            assert matvec_report["pass"], matvec_report
+            assert matvec_report["max_abs_residual"] < 1e-10
+            assert matvec_report["max_rel_residual"] < 1e-10
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_petsc_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
+        """Explicit PETSc backend should use direct distributed PETSc assembly for supported 2D cases."""
+        import linstab2d.utils.petsc_core as petsc_core
+
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+        recipe = [{"type": "neumann", "borders": "lr", "variables": "u"}]
+
+        L0_ref, idx_ref, bc_ref = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+
+        def _unexpected_fallback(*args, **kwargs):
+            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+
+        monkeypatch.setattr(petsc_core, "scipy_to_petsc", _unexpected_fallback)
+
+        L0_sys, idx_sys, bc_sys = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            backend="petsc",
+            solver_cfg={"petsc_matrix_mode": "distributed"},
+        )
+        try:
+            for key, value in idx_ref.items():
+                assert key in idx_sys
+                np.testing.assert_array_equal(idx_sys[key], value)
+            np.testing.assert_array_equal(bc_sys, bc_ref)
+
+            assert hasattr(L0_sys, "getOwnershipRange")
+            report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
+            assert report["pass"], report
+            assert report["max_abs_residual"] < 1e-10
+
+            matvec_report = petsc_matvec_residual(L0_ref, L0_sys, seed=43, trials=3)
+            assert matvec_report["pass"], matvec_report
+            assert matvec_report["max_abs_residual"] < 1e-10
+            assert matvec_report["max_rel_residual"] < 1e-10
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_petsc_matches_axy_recipe_path(self):
+        """Explicit PETSc backend should reproduce the SciPy axy workflow path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+            y_symmetry=True,
+        )
+        R = mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.9,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R),
+            U=0.9 / np.cosh(R) ** 2,
+            V=np.zeros_like(R),
+            W=np.zeros_like(R),
+            T=np.ones_like(R),
+        )
+        sutherland_air(bf)
+
+        recipe = [{"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}]
+
+        L0_ref, idx_ref = build_lnse_operator(mesh, bf, model="axy", m=1)
+        L0_ref, bc_indices_ref = apply_bc_recipe(L0_ref, mesh, idx_ref, recipe)
+
+        L0_sys, idx_sys, bc_indices_sys = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=1,
+            bc_recipe=recipe,
+            backend="petsc",
+        )
+        try:
+            for key, value in idx_ref.items():
+                assert key in idx_sys
+                np.testing.assert_array_equal(idx_sys[key], value)
+            np.testing.assert_array_equal(bc_indices_sys, bc_indices_ref)
+
+            sparse_report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
+            assert sparse_report["pass"], sparse_report
+            assert sparse_report["max_abs_residual"] < 1e-10
+
+            matvec_report = petsc_matvec_residual(L0_ref, L0_sys, seed=37, trials=3)
+            assert matvec_report["pass"], matvec_report
+            assert matvec_report["max_abs_residual"] < 1e-10
+            assert matvec_report["max_rel_residual"] < 1e-10
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_auto_selects_petsc_for_local_axy(self):
+        """Auto backend should select PETSc for the validated local axy path."""
+        mesh = Mesh.create(
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+            y_symmetry=True,
+        )
+        R = mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.8,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R),
+            U=0.85 / np.cosh(0.8 * R) ** 2,
+            V=np.zeros_like(R),
+            W=np.zeros_like(R),
+            T=np.ones_like(R),
+        )
+        sutherland_air(bf)
+
+        L0_sys, _, _ = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            backend="auto",
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+        try:
+            assert hasattr(L0_sys, "getValuesCSR")
+        finally:
+            L0_sys.destroy()
+
+    def test_build_lnse_system_default_backend_is_scipy(self):
+        """Unset backend should preserve the existing SciPy-first workflow default."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+
+        L0_sys, _, _ = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+        assert sp.issparse(L0_sys)
+
+    def test_build_lnse_system_config_auto_matches_explicit_auto_for_distributed_axy(self):
+        """Config-driven auto should match explicit auto fallback behavior for distributed axy."""
+        mesh = Mesh.create(
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+            y_symmetry=True,
+        )
+        R = mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.8,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R),
+            U=0.85 / np.cosh(0.8 * R) ** 2,
+            V=np.zeros_like(R),
+            W=np.zeros_like(R),
+            T=np.ones_like(R),
+        )
+        sutherland_air(bf)
+        recipe = [{"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}]
+        solver_cfg_explicit = {"petsc_matrix_mode": "distributed"}
+        solver_cfg_config = {
+            "assembly_backend": "auto",
+            "petsc_matrix_mode": "distributed",
+        }
+
+        L0_explicit, idx_explicit, bc_explicit = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            bc_recipe=recipe,
+            backend="auto",
+            solver_cfg=solver_cfg_explicit,
+        )
+        L0_config, idx_config, bc_config = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            bc_recipe=recipe,
+            solver_cfg=solver_cfg_config,
+        )
+        L0_ref, idx_ref, bc_ref = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+        try:
+            assert hasattr(L0_explicit, "getOwnershipRange")
+            assert hasattr(L0_config, "getOwnershipRange")
+            for key, value in idx_ref.items():
+                assert key in idx_explicit
+                assert key in idx_config
+                np.testing.assert_array_equal(idx_explicit[key], value)
+                np.testing.assert_array_equal(idx_config[key], value)
+            np.testing.assert_array_equal(bc_explicit, bc_ref)
+            np.testing.assert_array_equal(bc_config, bc_ref)
+
+            explicit_report = compare_petsc_against_scipy(L0_ref, L0_explicit, check_structure=False)
+            config_report = compare_petsc_against_scipy(L0_ref, L0_config, check_structure=False)
+            assert explicit_report["pass"], explicit_report
+            assert config_report["pass"], config_report
+            assert explicit_report["max_abs_residual"] < 1e-10
+            assert config_report["max_abs_residual"] < 1e-10
+        finally:
+            L0_explicit.destroy()
+            L0_config.destroy()
+
 
 # =========================================================================
 # TestChuEnergyNorm
@@ -370,6 +1264,97 @@ class TestChuEnergyNorm:
 # TestSpatialOperator
 # =========================================================================
 
+
+
+class TestSpatialOperator:
+    """Parity checks for spatial SciPy/PETSc operator assembly."""
+
+    def test_direct_petsc_spatial_operator_has_sparse_parity(self):
+        """Direct PETSc spatial matrices should match the SciPy reference entrywise."""
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=12,
+            ny=9,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.35,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=295.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.7 * np.pi * Y),
+            U=0.95 + 0.07 * np.sin(np.pi * X) * np.exp(-0.6 * Y),
+            V=0.015 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.012 * np.sin(1.1 * np.pi * X) * np.cos(0.4 * np.pi * Y),
+            T=1.0 + 0.03 * np.cos(0.8 * np.pi * X) * np.exp(-0.5 * Y),
+        )
+        sutherland_air(bf)
+
+        Lc_sp, R_sp, Lw_sp, idx_sp = build_spatial_operator(mesh, bf, model="2D", delta=0.4)
+        Lc_petsc, R_petsc, Lw_petsc, idx_petsc = build_spatial_operator_petsc(
+            mesh,
+            bf,
+            model="2D",
+            delta=0.4,
+        )
+        try:
+            for key, value in idx_sp.items():
+                assert key in idx_petsc
+                np.testing.assert_array_equal(idx_petsc[key], value)
+
+            for ref, candidate in ((Lc_sp, Lc_petsc), (R_sp, R_petsc), (Lw_sp, Lw_petsc)):
+                report = compare_petsc_against_scipy(ref, candidate, check_structure=False)
+                assert report["pass"], report
+                assert report["max_abs_residual"] < 1e-10
+        finally:
+            Lc_petsc.destroy()
+            R_petsc.destroy()
+            Lw_petsc.destroy()
+
+    def test_direct_petsc_spatial_operator_with_dirichlet_has_sparse_parity(self):
+        """Spatial Dirichlet enforcement should match between SciPy and PETSc paths."""
+        mesh = Mesh.create(
+            xrange=(200.0, 300.0),
+            yrange=(0.0, 30.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+        )
+        s = 3.0
+        Y_new = 30.0 * np.sinh(s * mesh.Y / 30.0) / np.sinh(s)
+        mesh = mesh.deform(Y_new=Y_new)
+
+        bf = load_blasius(mesh.X, mesh.Y, Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15)
+        sutherland_air(bf)
+
+        Lc_sp, R_sp, _, idx = build_spatial_operator(mesh, bf, model="2D")
+        Lc_sp, R_sp, bc_indices = apply_dirichlet_spatial(Lc_sp, R_sp, idx, "bt", "uvwT", mesh.ngp)
+
+        Lc_petsc, R_petsc, Lw_petsc, idx_petsc = build_spatial_operator_petsc(mesh, bf, model="2D")
+        try:
+            Lc_petsc, R_petsc, bc_indices_petsc = apply_dirichlet_spatial_petsc(
+                Lc_petsc,
+                R_petsc,
+                idx_petsc,
+                "bt",
+                "uvwT",
+                mesh.ngp,
+            )
+            np.testing.assert_array_equal(bc_indices_petsc, bc_indices)
+
+            lc_report = compare_petsc_against_scipy(Lc_sp, Lc_petsc, check_structure=False)
+            r_report = compare_petsc_against_scipy(R_sp, R_petsc, check_structure=False)
+            assert lc_report["pass"], lc_report
+            assert r_report["pass"], r_report
+            assert lc_report["max_abs_residual"] < 1e-10
+            assert r_report["max_abs_residual"] < 1e-10
+        finally:
+            Lc_petsc.destroy()
+            R_petsc.destroy()
+            Lw_petsc.destroy()
 
 
 # =========================================================================

@@ -5,19 +5,39 @@ All tests in this file are marked @pytest.mark.slow.
 
 import numpy as np
 import pytest
+import scipy.sparse as sp
 
 from linstab2d.mesh import Mesh
 from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
-from linstab2d.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
-from linstab2d.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
+from linstab2d.operators import (
+    build_lnse_operator,
+    build_lnse_operator_petsc,
+    build_lnse_system,
+    compute_chu_norm,
+    build_spatial_operator,
+    build_spatial_operator_petsc,
+)
+from linstab2d.boundary_conditions import (
+    apply_bc_recipe,
+    apply_bc_recipe_petsc,
+    apply_dirichlet,
+    apply_dirichlet_petsc,
+    apply_dirichlet_spatial,
+    apply_dirichlet_spatial_petsc,
+)
 from linstab2d.solvers import (
     resolvent_analysis,
     temporal_eigenvalues,
     adjoint_eigenvalues,
     spatial_eigenvalues,
 )
-from linstab2d.solvers.eigenvalue import _resolve_ncv as _resolve_temporal_ncv
+from linstab2d.solvers.eigenvalue import (
+    _resolve_ncv as _resolve_temporal_ncv,
+    _sort_nearest as _sort_temporal_nearest,
+)
 from linstab2d.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
+from linstab2d.solvers.linsolve import make_linear_solver
+from linstab2d.solvers.petsc_utils import scipy_to_petsc
 
 
 @pytest.fixture
@@ -42,6 +62,62 @@ def blasius_problem():
     W_diag, invW_diag = compute_chu_norm(W_int, RHO, T, bf.kappa, bf.Ma, ngp)
 
     return mesh, bf, L0, idx, ngp, W_diag, invW_diag
+
+
+def _build_blasius_problem_petsc(
+    mesh: Mesh,
+    bf: BaseFlow,
+    ngp: int,
+):
+    """Build the direct-PETSc Blasius operator used by solver tests."""
+    L0_petsc, idx = build_lnse_operator_petsc(mesh, bf, kx=0.0)
+    L0_petsc, bc_indices = apply_dirichlet_petsc(L0_petsc, idx, "bt", "uvwT", ngp)
+    return L0_petsc, idx, bc_indices
+
+
+def _build_blasius_problem_recipe_petsc(
+    mesh: Mesh,
+    bf: BaseFlow,
+):
+    """Build the direct-PETSc Blasius operator via the BC recipe workflow."""
+    recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+    L0_petsc, idx = build_lnse_operator_petsc(mesh, bf, kx=0.0)
+    L0_petsc, bc_indices = apply_bc_recipe_petsc(L0_petsc, mesh, idx, recipe)
+    return L0_petsc, idx, bc_indices
+
+
+def _build_blasius_problem_distributed_fallback(
+    mesh: Mesh,
+    bf: BaseFlow,
+    *,
+    backend: str = "petsc",
+):
+    """Build a PETSc matrix through the distributed fallback workflow path."""
+    recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+    solver_cfg = {"petsc_matrix_mode": "distributed"}
+    L0_petsc, idx, bc_indices = build_lnse_system(
+        mesh,
+        bf,
+        kx=0.0,
+        bc_recipe=recipe,
+        backend=backend,
+        solver_cfg=solver_cfg,
+    )
+    return L0_petsc, idx, bc_indices, solver_cfg
+
+
+def _shift_petsc_operator_diagonal(L0_petsc, shift: complex):
+
+    shifted = L0_petsc.copy()
+    diag = shifted.getDiagonal()
+    try:
+        diag_arr = diag.getArray()
+        diag_arr -= complex(shift)
+        shifted.setDiagonal(diag)
+    finally:
+        diag.destroy()
+    shifted.assemble()
+    return shifted
 
 
 def test_temporal_resolve_ncv_respects_requested_subspace() -> None:
@@ -110,6 +186,50 @@ class TestResolventAnalysis:
         assert responses.shape[1] == 3
         assert forcings.shape[1] == 3
 
+    def test_direct_petsc_resolvent_matches_scipy(self, blasius_problem):
+        """Direct-PETSc resolvent input should reproduce the SciPy gains and modes."""
+        mesh, bf, L0, _, ngp, W_diag, _ = blasius_problem
+        L0_petsc, _, bc_indices = _build_blasius_problem_petsc(mesh, bf, ngp)
+
+        B_diag = np.ones(L0.shape[0])
+        B_diag[bc_indices] = 0.0
+        B_mat_sp = sp.diags(B_diag).tocsc()
+        C_mat_sp = B_mat_sp.copy()
+        B_mat = scipy_to_petsc(B_mat_sp)
+        C_mat = scipy_to_petsc(C_mat_sp)
+        try:
+            gains_sp, responses_sp, forcings_sp = resolvent_analysis(
+                L0,
+                omega=60.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat_sp,
+                C_mat=C_mat_sp,
+            )
+            gains_petsc, responses_petsc, forcings_petsc = resolvent_analysis(
+                L0_petsc,
+                omega=60.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat,
+                C_mat=C_mat,
+            )
+
+            np.testing.assert_allclose(gains_petsc, gains_sp, atol=1e-8, rtol=1e-8)
+            for j in range(gains_sp.size):
+                phase_response = np.vdot(responses_sp[:, j], responses_petsc[:, j])
+                if phase_response != 0:
+                    responses_petsc[:, j] *= np.exp(-1j * np.angle(phase_response))
+                phase_forcing = np.vdot(forcings_sp[:, j], forcings_petsc[:, j])
+                if phase_forcing != 0:
+                    forcings_petsc[:, j] *= np.exp(-1j * np.angle(phase_forcing))
+            np.testing.assert_allclose(responses_petsc, responses_sp, atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(forcings_petsc, forcings_sp, atol=1e-7, rtol=1e-7)
+        finally:
+            L0_petsc.destroy()
+            B_mat.destroy()
+            C_mat.destroy()
+
     def test_response_shape(self, blasius_problem):
         """Response array must be (ndof, n_modes)."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
@@ -155,6 +275,21 @@ class TestTemporalEigenvalues:
         dists = np.abs(omega - target)
         np.testing.assert_array_less(dists[:-1], dists[1:] + 1e-12)
 
+    def test_direct_petsc_matches_scipy_eigenvalues(self, blasius_problem):
+        """Direct-PETSc input should reproduce the SciPy temporal spectrum."""
+        mesh, bf, L0, _, ngp, _, _ = blasius_problem
+        L0_petsc, _, _ = _build_blasius_problem_petsc(mesh, bf, ngp)
+
+        target = -0.1j
+        omega_sp, _ = temporal_eigenvalues(L0, n_modes=3, target=target)
+        omega_petsc, _ = temporal_eigenvalues(L0_petsc, n_modes=3, target=target)
+
+        omega_sp, _ = _sort_temporal_nearest(omega_sp, np.eye(omega_sp.size, dtype=complex), target)
+        omega_petsc, _ = _sort_temporal_nearest(
+            omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
+        )
+        np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+
     def test_n_modes_zero_raises(self, blasius_problem):
         """n_modes <= 0 must raise ValueError."""
         _, _, L0, _, _, _, _ = blasius_problem
@@ -162,9 +297,154 @@ class TestTemporalEigenvalues:
             temporal_eigenvalues(L0, n_modes=0, target=0.0)
 
 
-# ---------------------------------------------------------------------------
-# Adjoint eigenvalues
-# ---------------------------------------------------------------------------
+@pytest.mark.slow
+class TestDirectPetscSolverInputs:
+    """Tests for feeding direct-PETSc operators into solver entry points."""
+
+    def test_linear_solver_matches_scipy_solution(self, blasius_problem):
+        """Direct-PETSc linear solves should match the SciPy-based path."""
+        mesh, bf, L0, _, ngp, _, _ = blasius_problem
+        L0_petsc, _, _ = _build_blasius_problem_petsc(mesh, bf, ngp)
+
+        shift = 5.0 + 20.0j
+        L_sigma = L0.copy()
+        L_sigma.setdiag(L_sigma.diagonal() - shift)
+        L_sigma_petsc = _shift_petsc_operator_diagonal(L0_petsc, shift)
+
+        rng = np.random.default_rng(7)
+        rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
+
+        try:
+            solver_sp = make_linear_solver(L_sigma)
+            solver_petsc = make_linear_solver(L_sigma_petsc)
+
+            x_sp = solver_sp.solve(rhs)
+            x_petsc = solver_petsc.solve(rhs)
+
+            np.testing.assert_allclose(x_petsc, x_sp, atol=1e-8, rtol=1e-8)
+        finally:
+            L0_petsc.destroy()
+            L_sigma_petsc.destroy()
+
+    def test_recipe_applied_direct_petsc_matches_scipy_eigenvalues(self, blasius_problem):
+        """Recipe-driven PETSc assembly should match the SciPy temporal spectrum."""
+        mesh, bf, L0, idx, _, _, _ = blasius_problem
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+
+        L0_ref, _ = apply_bc_recipe(build_lnse_operator(mesh, bf, kx=0.0)[0], mesh, idx, recipe)
+        L0_petsc, _, _ = _build_blasius_problem_recipe_petsc(mesh, bf)
+        try:
+            target = -0.1j
+            omega_sp, _ = temporal_eigenvalues(L0_ref, n_modes=3, target=target)
+            omega_petsc, _ = temporal_eigenvalues(L0_petsc, n_modes=3, target=target)
+
+            omega_sp, _ = _sort_temporal_nearest(
+                omega_sp, np.eye(omega_sp.size, dtype=complex), target
+            )
+            omega_petsc, _ = _sort_temporal_nearest(
+                omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
+            )
+            np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+        finally:
+            L0_petsc.destroy()
+@pytest.mark.slow
+class TestDistributedPetscFallbackSolverInputs:
+    """Tests for solver entry points fed by the distributed PETSc fallback workflow."""
+
+    def test_temporal_eigenvalues_match_scipy(self, blasius_problem):
+        """Distributed-fallback PETSc matrices should match SciPy temporal eigenvalues."""
+        mesh, bf, L0, _, _, _, _ = blasius_problem
+        L0_petsc, _, _, solver_cfg = _build_blasius_problem_distributed_fallback(mesh, bf)
+        try:
+            target = -0.1j
+            omega_sp, _ = temporal_eigenvalues(L0, n_modes=3, target=target)
+            omega_petsc, _ = temporal_eigenvalues(
+                L0_petsc,
+                n_modes=3,
+                target=target,
+                solver_cfg=solver_cfg,
+            )
+
+            omega_sp, _ = _sort_temporal_nearest(
+                omega_sp, np.eye(omega_sp.size, dtype=complex), target
+            )
+            omega_petsc, _ = _sort_temporal_nearest(
+                omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
+            )
+            np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+        finally:
+            L0_petsc.destroy()
+
+    def test_linear_solver_matches_scipy_solution(self, blasius_problem):
+        """Distributed-fallback PETSc matrices should match SciPy linear solves."""
+        mesh, bf, L0, _, _, _, _ = blasius_problem
+        L0_petsc, _, _, solver_cfg = _build_blasius_problem_distributed_fallback(mesh, bf)
+        shift = 5.0 + 20.0j
+        L_sigma = L0.copy()
+        L_sigma.setdiag(L_sigma.diagonal() - shift)
+        L_sigma_petsc = L0_petsc.copy()
+        L_sigma_petsc.shift(-shift)
+        L_sigma_petsc.assemble()
+
+        rng = np.random.default_rng(17)
+        rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
+
+        try:
+            solver_sp = make_linear_solver(L_sigma)
+            solver_petsc = make_linear_solver(L_sigma_petsc, solver_cfg=solver_cfg)
+
+            x_sp = solver_sp.solve(rhs)
+            x_petsc = solver_petsc.solve(rhs)
+            np.testing.assert_allclose(x_petsc, x_sp, atol=1e-8, rtol=1e-8)
+        finally:
+            L0_petsc.destroy()
+            L_sigma_petsc.destroy()
+
+    def test_resolvent_matches_scipy(self, blasius_problem):
+        """Distributed-fallback PETSc matrices should match SciPy resolvent outputs."""
+        mesh, bf, L0, _, _, W_diag, _ = blasius_problem
+        L0_petsc, _, bc_indices, solver_cfg = _build_blasius_problem_distributed_fallback(mesh, bf)
+
+        B_diag = np.ones(L0.shape[0])
+        B_diag[bc_indices] = 0.0
+        B_mat_sp = sp.diags(B_diag).tocsc()
+        C_mat_sp = B_mat_sp.copy()
+        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg)
+        C_mat = scipy_to_petsc(C_mat_sp, solver_cfg)
+        try:
+            gains_sp, responses_sp, forcings_sp = resolvent_analysis(
+                L0,
+                omega=60.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat_sp,
+                C_mat=C_mat_sp,
+            )
+            gains_petsc, responses_petsc, forcings_petsc = resolvent_analysis(
+                L0_petsc,
+                omega=60.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat,
+                C_mat=C_mat,
+                solver_cfg=solver_cfg,
+            )
+
+            np.testing.assert_allclose(gains_petsc, gains_sp, atol=1e-8, rtol=1e-8)
+            for j in range(gains_sp.size):
+                phase_response = np.vdot(responses_sp[:, j], responses_petsc[:, j])
+                if phase_response != 0:
+                    responses_petsc[:, j] *= np.exp(-1j * np.angle(phase_response))
+                phase_forcing = np.vdot(forcings_sp[:, j], forcings_petsc[:, j])
+                if phase_forcing != 0:
+                    forcings_petsc[:, j] *= np.exp(-1j * np.angle(phase_forcing))
+            np.testing.assert_allclose(responses_petsc, responses_sp, atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(forcings_petsc, forcings_sp, atol=1e-7, rtol=1e-7)
+        finally:
+            L0_petsc.destroy()
+            B_mat.destroy()
+            C_mat.destroy()
+
 
 
 @pytest.mark.slow
@@ -226,6 +506,22 @@ class TestAdjointEigenvalues:
             norm_val = v.conj() @ (W_diag * v)
             np.testing.assert_allclose(np.abs(norm_val), 1.0, atol=1e-8)
 
+    def test_petsc_input_raises_not_implemented(self, blasius_problem):
+        """Adjoint solver should fail early on PETSc matrices until that path exists."""
+        mesh, bf, _, _, ngp, W_diag, invW_diag = blasius_problem
+        L0_petsc, _, _ = _build_blasius_problem_petsc(mesh, bf, ngp)
+        try:
+            with pytest.raises(NotImplementedError, match="does not yet support PETSc matrices"):
+                adjoint_eigenvalues(
+                    L0_petsc,
+                    n_modes=3,
+                    target=-0.1j,
+                    W_diag=W_diag,
+                    invW_diag=invW_diag,
+                )
+        finally:
+            L0_petsc.destroy()
+
 
 # ---------------------------------------------------------------------------
 # Spatial eigenvalues
@@ -250,16 +546,49 @@ class TestSpatialEigenvalues:
         Lc, R_mat, Lw, idx = build_spatial_operator(mesh, bf, model="2D")
         ngp = mesh.ngp
         Lc, R_mat, bc_indices = apply_dirichlet_spatial(Lc, R_mat, idx, "bt", "uvwT", ngp)
-        return Lc, Lw, R_mat, ngp
+        return mesh, bf, Lc, Lw, R_mat, ngp
 
     def test_returns_n_modes(self, spatial_problem):
         """Must return exactly n_modes eigenvalues."""
-        Lc, Lw, R_mat, _ = spatial_problem
+        _, _, Lc, Lw, R_mat, _ = spatial_problem
         alpha, modes = spatial_eigenvalues(
             Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j
         )
         assert alpha.shape == (3,)
         assert modes.shape[1] == 3
+
+    def test_direct_petsc_matches_scipy_spatial_eigenvalues(self, spatial_problem):
+        """Direct-PETSc spatial matrices should reproduce the SciPy spectrum."""
+        mesh, bf, Lc, Lw, R_mat, ngp = spatial_problem
+        Lc_petsc, R_petsc, Lw_petsc, idx_petsc = build_spatial_operator_petsc(mesh, bf, model="2D")
+        try:
+            Lc_petsc, R_petsc, _ = apply_dirichlet_spatial_petsc(
+                Lc_petsc,
+                R_petsc,
+                idx_petsc,
+                "bt",
+                "uvwT",
+                ngp,
+            )
+            alpha_sp, _ = spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j)
+            alpha_petsc, _ = spatial_eigenvalues(
+                Lc_petsc,
+                Lw_petsc,
+                R_petsc,
+                omega=60.0,
+                n_modes=3,
+                target=0.1 + 0.01j,
+            )
+            np.testing.assert_allclose(
+                np.sort_complex(alpha_petsc),
+                np.sort_complex(alpha_sp),
+                atol=1e-8,
+                rtol=1e-8,
+            )
+        finally:
+            Lc_petsc.destroy()
+            R_petsc.destroy()
+            Lw_petsc.destroy()
 
     def test_eigenvalues_finite_and_modes_nonzero(self, spatial_problem):
         """Spatial eigenvalues are finite; eigenvectors are nonzero.
@@ -268,7 +597,7 @@ class TestSpatialEigenvalues:
         (rank 1495 of 1500), so the generalized EVP is ill-conditioned.
         We verify structural properties rather than the eigenpair residual.
         """
-        Lc, Lw, R_mat, _ = spatial_problem
+        _, _, Lc, Lw, R_mat, _ = spatial_problem
         alpha, modes = spatial_eigenvalues(
             Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j
         )
@@ -278,7 +607,7 @@ class TestSpatialEigenvalues:
 
     def test_n_modes_zero_raises(self, spatial_problem):
         """n_modes <= 0 must raise ValueError."""
-        Lc, Lw, R_mat, _ = spatial_problem
+        _, _, Lc, Lw, R_mat, _ = spatial_problem
         with pytest.raises(ValueError):
             spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=0, target=0.0)
 
@@ -328,19 +657,161 @@ class TestCylindricalTemporalEigenvalues:
                 f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
             )
 
-    def test_axy_eigenpair_residual_m1(self):
-        """Eigenvalues of axy model at m=1 satisfy eigenpair equation."""
-        _, _, L0, _, _ = _build_synthetic_jet(m=1)
-        omega, modes = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
-        iL0 = 1j * L0
-        for i in range(len(omega)):
-            v = modes[:, i]
-            residual = iL0 @ v - omega[i] * v
-            rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
-            assert rel_err < 1e-6, (
-                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
+    def test_direct_petsc_matches_scipy_axy_eigenvalues_m1(self):
+        """Direct-PETSc axy input should reproduce the SciPy temporal spectrum."""
+        mesh = Mesh.create(
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+            y_symmetry=True,
+        )
+        R = mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.9,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R),
+            U=0.9 / np.cosh(R) ** 2,
+            V=np.zeros_like(R),
+            W=np.zeros_like(R),
+            T=np.ones_like(R),
+        )
+        sutherland_air(bf)
+
+        recipe = [{"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}]
+        L0_sp, idx = build_lnse_operator(mesh, bf, model="axy", m=1)
+        L0_sp, _ = apply_bc_recipe(L0_sp, mesh, idx, recipe)
+
+        L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, model="axy", m=1)
+        try:
+            L0_petsc, _ = apply_bc_recipe_petsc(L0_petsc, mesh, idx_petsc, recipe)
+            target = -0.1j
+            omega_sp, _ = temporal_eigenvalues(L0_sp, n_modes=3, target=target)
+            omega_petsc, _ = temporal_eigenvalues(L0_petsc, n_modes=3, target=target)
+
+            omega_sp, _ = _sort_temporal_nearest(
+                omega_sp, np.eye(omega_sp.size, dtype=complex), target
+            )
+            omega_petsc, _ = _sort_temporal_nearest(
+                omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
+            )
+            np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+        finally:
+            L0_petsc.destroy()
+
+
+@pytest.mark.slow
+class TestCylindricalResolventAnalysis:
+    """Resolvent parity tests for the cylindrical (axy) model."""
+
+    def test_direct_petsc_matches_scipy_axy_resolvent(self):
+        """Direct-PETSc axy workflow should reproduce SciPy resolvent gains and modes."""
+        mesh = Mesh.create(
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+            y_symmetry=True,
+        )
+        R = mesh.Y
+        bf = BaseFlow(
+            Re=1e4,
+            Ma=0.9,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R),
+            U=0.9 / np.cosh(R) ** 2,
+            V=np.zeros_like(R),
+            W=np.zeros_like(R),
+            T=np.ones_like(R),
+        )
+        sutherland_air(bf)
+
+        recipe = [{"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}]
+        L0_sp, _, bc_indices_sp = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+        L0_petsc, _, bc_indices_petsc = build_lnse_system(
+            mesh,
+            bf,
+            model="axy",
+            m=0,
+            bc_recipe=recipe,
+            backend="petsc",
+        )
+
+        B_mat = None
+        C_mat = None
+        try:
+            np.testing.assert_array_equal(bc_indices_petsc, bc_indices_sp)
+
+            used_ind = mesh.used_ind
+            W_int = mesh.W.ravel(order="F")[used_ind]
+            rho = bf.RHO.ravel(order="F")[used_ind]
+            T = bf.T.ravel(order="F")[used_ind]
+            R_used = mesh.Y.ravel(order="F")[used_ind]
+            W_diag, _ = compute_chu_norm(
+                W_int,
+                rho,
+                T,
+                bf.kappa,
+                bf.Ma,
+                mesh.ngp,
+                model="axy",
+                R=R_used,
             )
 
+            B_diag = np.ones(L0_sp.shape[0])
+            B_diag[bc_indices_sp] = 0.0
+            B_mat_sp = sp.diags(B_diag).tocsc()
+            C_mat_sp = B_mat_sp.copy()
+            B_mat = scipy_to_petsc(B_mat_sp)
+            C_mat = scipy_to_petsc(C_mat_sp)
+
+            gains_sp, responses_sp, forcings_sp = resolvent_analysis(
+                L0_sp,
+                omega=2.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat_sp,
+                C_mat=C_mat_sp,
+            )
+            gains_petsc, responses_petsc, forcings_petsc = resolvent_analysis(
+                L0_petsc,
+                omega=2.0,
+                n_modes=2,
+                W_diag=W_diag,
+                B_mat=B_mat,
+                C_mat=C_mat,
+            )
+
+            np.testing.assert_allclose(gains_petsc, gains_sp, atol=1e-8, rtol=1e-8)
+            for j in range(gains_sp.size):
+                phase_response = np.vdot(responses_sp[:, j], responses_petsc[:, j])
+                if phase_response != 0:
+                    responses_petsc[:, j] *= np.exp(-1j * np.angle(phase_response))
+                phase_forcing = np.vdot(forcings_sp[:, j], forcings_petsc[:, j])
+                if phase_forcing != 0:
+                    forcings_petsc[:, j] *= np.exp(-1j * np.angle(phase_forcing))
+            np.testing.assert_allclose(responses_petsc, responses_sp, atol=1e-7, rtol=1e-7)
+            np.testing.assert_allclose(forcings_petsc, forcings_sp, atol=1e-7, rtol=1e-7)
+        finally:
+            L0_petsc.destroy()
+            if B_mat is not None:
+                B_mat.destroy()
+            if C_mat is not None:
+                C_mat.destroy()
 
 
 @pytest.mark.slow

@@ -17,7 +17,6 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 from linstab2d.utils.jsonc import load_jsonc
 
 from ._helpers import (
@@ -58,8 +57,9 @@ def compute(cfg: dict):
 
     from linstab2d.baseflow import load_paraboloid, sutherland_air
     from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.operators.assembly import build_lnse_system
     from linstab2d.operators.energy_norm import compute_chu_norm
+    from linstab2d.solvers.petsc_utils import scipy_to_petsc
     from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
     solver_cfg = cfg.get("solver")
@@ -126,9 +126,18 @@ def compute(cfg: dict):
     sponge_y = np.tanh((Y - ys) / ys_trans) + 1
     mesh.sponge = sponge_amp / 2 * np.maximum(sponge_x, sponge_y)
 
-    L0, idx = build_lnse_operator(mesh, baseflow, model=cfg["model"], m=m)
+    assembly_backend = cfg.get("assembly_backend")
     bc_penalty = cfg["bc"].get("penalty", 1e4)
-    L0, bc_indices = apply_bc_recipe(L0, mesh, idx, cfg["bc"]["recipe"], penalty=bc_penalty)
+    L0, idx, bc_indices = build_lnse_system(
+        mesh,
+        baseflow,
+        model=cfg["model"],
+        m=m,
+        bc_recipe=cfg["bc"]["recipe"],
+        bc_penalty=bc_penalty,
+        backend=assembly_backend,
+        solver_cfg=solver_cfg,
+    )
 
     used_ind = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[used_ind]
@@ -151,7 +160,8 @@ def compute(cfg: dict):
     for var_name in cfg.get("forcing_zero_vars", []):
         B_diag[idx[var_map[var_name]]] = 0.0
     B_diag[bc_indices] = 0.0
-    B_mat = sp.diags(B_diag).tocsc()
+    B_mat_sp = sp.diags(B_diag).tocsc()
+    B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
     C_mat = B_mat.copy()
 
     # Paraboloid at ω=0 can be singular depending on discretization and
@@ -433,7 +443,7 @@ def main():
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
     try:
         data = np.load(OUTPUT_NPZ)
-    except FileNotFoundError:
+    except (FileNotFoundError, EOFError, OSError, ValueError):
         compute(cfg)
         data = np.load(OUTPUT_NPZ)
 

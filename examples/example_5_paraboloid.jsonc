@@ -34,6 +34,10 @@
   "m": 5,
   "model": "axy",
 
+  // Optional assembly backend: "scipy", "petsc", or "auto"
+  // Explicit "petsc" is now validated for the local axy temporal/resolvent path.
+  "assembly_backend": "auto",
+
   // Forcing mask: zero these variables in the B/C matrices
   "forcing_zero_vars": ["T", "rho"],
 

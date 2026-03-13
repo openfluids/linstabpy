@@ -15,8 +15,13 @@
   "x_periodicity": false,
   "model": "axy",           // axisymmetric model
 
+  // Optional assembly backend: "scipy", "petsc", or "auto"
+  // Explicit "petsc" is now validated for the local axy temporal/resolvent path.
+  "assembly_backend": "auto",
+
   // Boundary conditions
   "bc": {
+    "penalty": 1e4,
     "recipe": [
       {"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}
     ]
