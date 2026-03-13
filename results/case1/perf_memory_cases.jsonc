@@ -1,7 +1,7 @@
 {
   // Case 1 efficiency harness cases.
   // Enable one or more entries below, then run:
-  //   ./.venv/bin/python tools/parity/perf_memory.py
+  //   ../../.venv/bin/python tools/parity/perf_memory.py
   //
   // Each case launches the canonical case1.compute() pipeline in a
   // child process, monitors wall time and peak process-tree RSS, parses nnz
@@ -18,8 +18,8 @@
     // Sampling interval for process-tree RSS monitoring.
     "monitor_interval_seconds": 0.5,
 
-    // Python executable used to launch the child run.
-    "python_exe": "./.venv/bin/python",
+    // Python executable used to launch the child run from the repo root.
+    "python_exe": "../../.venv/bin/python",
 
     // Baseline environment for all cases. Override per case only when needed.
     "env": {

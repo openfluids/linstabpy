@@ -39,6 +39,13 @@
   pages         = {215--234}
 }
 
+@book{dolean2015introduction,
+  title         = {An Introduction to Domain Decomposition Methods: Algorithms, Theory, and Parallel Implementation},
+  author        = {Dolean, Victorita and Jolivet, Pierre and Nataf, Fr{\'e}d{\'e}ric},
+  year          = 2015,
+  publisher     = {SIAM}
+}
+
 @article{frantz2023krylov,
   title         = {{Krylov} methods for large-scale dynamical systems: Application in fluid dynamics},
   author        = {Frantz, Ricardo A. S. and Loiseau, Jean-Christophe and Robinet, Jean-Christophe},
@@ -94,6 +101,17 @@
   pages         = {16--42}
 }
 
+@article{lui2022unsteadiness,
+  title         = {Unsteadiness of shock-boundary layer interactions in a {Mach} 2.0 supersonic turbine cascade},
+  author        = {Lui, Hugo F. S. and Ricciardi, Tulio R. and Wolf, William R. and Braun, James and Rahbari, Iman and Paniagua, Guillermo},
+  year          = 2022,
+  journal       = {Physical Review Fluids},
+  volume        = 7,
+  number        = 9,
+  pages         = {094602},
+  doi           = {10.1103/PhysRevFluids.7.094602}
+}
+
 @article{malik1990numerical,
   title         = {Numerical methods for hypersonic boundary layer stability},
   author        = {Malik, Mujeeb R.},
@@ -108,8 +126,18 @@
   title         = {{Linstab2D}: stability and resolvent analysis of compressible viscous flows in {MATLAB}},
   author        = {Martini, Eduardo and Schmidt, Oliver},
   year          = 2024,
-  journal       = {Flow, Turbulence and Combustion},
-  note          = {Published online 13 August 2024}
+  journal       = {Theoretical and Computational Fluid Dynamics},
+  volume        = 38,
+  number        = 5,
+  pages         = {665--685},
+  doi           = {10.1007/s00162-024-00706-0}
+}
+
+@misc{linstab2drepo,
+  title         = {{LinStab2D} repository},
+  year          = 2026,
+  note          = {GitHub repository, accessed 2026-03-13},
+  howpublished  = {\url{https://github.com/LinStab2D/LinStab2D}}
 }
 
 @article{martins2003complex,
@@ -141,6 +169,16 @@
   pages         = {336--382}
 }
 
+@article{mettot2014computation,
+  title         = {Computation of eigenvalue sensitivity to base flow modifications in a discrete framework: Application to open-loop control},
+  author        = {Mettot, Cl{\'e}ment and Sipp, Denis and B{\'e}zard, Herv{\'e}},
+  year          = 2014,
+  journal       = {Journal of Computational Physics},
+  volume        = 269,
+  pages         = {234--258},
+  doi           = {10.1016/j.jcp.2014.03.022}
+}
+
 @article{mohseni2000numerical,
   title         = {Numerical treatment of polar coordinate singularities},
   author        = {Mohseni, Kamran and Colonius, Tim},
@@ -161,6 +199,64 @@
   doi           = {10.1016/j.softx.2025.102286}
 }
 
+@misc{resolvent4pyrepo,
+  title         = {{resolvent4py} repository},
+  year          = 2026,
+  note          = {GitHub repository, accessed 2026-03-13},
+  howpublished  = {\url{https://github.com/albertopadovan/resolvent4py}}
+}
+
+@article{padovan2020harmonic,
+  title         = {Analysis of amplification mechanisms and cross-frequency interactions in nonlinear flows via the harmonic resolvent},
+  author        = {Padovan, Alberto and Otto, Samuel E. and Rowley, Clarence W.},
+  year          = 2020,
+  journal       = {Journal of Fluid Mechanics},
+  volume        = 900,
+  pages         = {A14},
+  doi           = {10.1017/jfm.2020.497}
+}
+
+@article{padovan2022subharmonic,
+  title         = {Analysis of the dynamics of subharmonic flow structures via the harmonic resolvent: application to vortex pairing in an axisymmetric jet},
+  author        = {Padovan, Alberto and Rowley, Clarence W.},
+  year          = 2022,
+  journal       = {Physical Review Fluids},
+  volume        = 7,
+  number        = 7,
+  pages         = {073903},
+  doi           = {10.1103/PhysRevFluids.7.073903}
+}
+
+@article{farghadan2025timestepping,
+  title         = {Efficient harmonic resolvent analysis via time stepping},
+  author        = {Farghadan, Ali and Jung, Junoh and Bhagwat, Rutvij and Towne, Aaron},
+  year          = 2024,
+  journal       = {Theoretical and Computational Fluid Dynamics},
+  volume        = 38,
+  number        = 3,
+  pages         = {331--353},
+  doi           = {10.1007/s00162-024-00694-1}
+}
+
+@misc{dnami2022,
+  title         = {dNami: a framework for solving systems of balance laws using explicit numerical schemes on structured meshes},
+  author        = {Alferez, Nicolas and Touber, Emile and Winn, Stephen and Ali, Yussuf},
+  year          = 2022,
+  note          = {Zenodo software release},
+  doi           = {10.5281/zenodo.6720593},
+  howpublished  = {\url{https://doi.org/10.5281/zenodo.6720593}}
+}
+
+@article{poulain2023broadcast,
+  title         = {{BROADCAST}: A high-order compressible {CFD} toolbox for stability and sensitivity using algorithmic differentiation},
+  author        = {Poulain, Arthur and Content, C{\'e}dric and Sipp, Denis and Rigas, Georgios and Garnier, Eric},
+  year          = 2023,
+  journal       = {Computer Physics Communications},
+  volume        = 283,
+  pages         = {108557},
+  doi           = {10.1016/j.cpc.2022.108557}
+}
+
 @misc{resolvent4pycgl,
   title         = {resolvent4py example gallery: CGL},
   author        = {Padovan, Alberto},
@@ -169,19 +265,25 @@
   howpublished  = {\url{https://albertopadovan.github.io/resolvent4py/auto\_examples/cgl/index.html}}
 }
 
+% ───────────────────────────────────────────────────────────
+% New references — SWBLI / GSA validation
+% ───────────────────────────────────────────────────────────
+@article{robinet2007bifurcations,
+  title         = {Bifurcations in shock-wave/laminar-boundary-layer interaction: global instability approach},
+  author        = {Robinet, Jean-Christophe},
+  year          = 2007,
+  journal       = {Journal of Fluid Mechanics},
+  volume        = 579,
+  pages         = {85--112},
+  doi           = {10.1017/S0022112007005095}
+}
+
 @book{saad2003iterative,
   title         = {Iterative Methods for Sparse Linear Systems},
   author        = {Saad, Yousef},
   year          = 2003,
   publisher     = {SIAM},
   edition       = 2
-}
-
-@book{dolean2015introduction,
-  title         = {An Introduction to Domain Decomposition Methods: Algorithms, Theory, and Parallel Implementation},
-  author        = {Dolean, Victorita and Jolivet, Pierre and Nataf, Fr{\'e}d{\'e}ric},
-  year          = 2015,
-  publisher     = {SIAM}
 }
 
 % ───────────────────────────────────────────────────────────
@@ -201,6 +303,16 @@
   journal       = {Annual Review of Fluid Mechanics},
   volume        = 39,
   pages         = {129--162}
+}
+
+@article{song2023global,
+  title         = {Global instability of the interaction between an oblique shock and a laminar boundary layer},
+  author        = {Song, Ziming and Hao, Jiaao},
+  year          = 2023,
+  journal       = {Physics of Fluids},
+  volume        = 35,
+  number        = 8,
+  doi           = {10.1063/5.0160648}
 }
 
 % ───────────────────────────────────────────────────────────

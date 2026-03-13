@@ -1,41 +1,44 @@
-# Metascience in Aerospace manuscript package (`paper`)
+# Paper workspace (`paper`)
 
-This directory is the active paper workspace for submission to:
-- `Metascience in Aerospace` (AIMS Press)
+This directory is the active paper workspace for the current two-file split:
+
+- `brief.tex`: front-paper brief communication
+- `supp.tex`: Supplementary Material
+- `refs.bib`: shared bibliography for both targets
 
 ## Files
 
-- `manuscript.tex`: single working manuscript file (equations, methods, results story).
-- `refs.bib`: bibliography.
-- `aims.cls`, `logo.pdf`, `logobottom.pdf`: official class/assets copied from AIMS MINA template.
-- `template/`: downloaded official MINA template archive and original files.
+- `brief.tex`: concise framework paper with references to the Supplementary Material.
+- `supp.tex`: technical derivations, fidelity/validation structure, solver details, and reproducibility map.
+- `refs.bib`: shared bibliography.
+- `figs/example_grid.py` and `figs/example_grid.png`: maintained local figure assets still used by `supp.tex`.
+
+Legacy draft sources from the pre-split paper workflow have been removed from
+this directory. The active paper workspace now consists only of the brief/supp
+pair, their shared bibliography, and the figure assets still referenced by the
+supplement.
 
 ## Build
 
-Draft PDF:
+Build both active targets:
 
 ```bash
 cd paper
-pdflatex -interaction=nonstopmode manuscript.tex
-bibtex manuscript
-pdflatex -interaction=nonstopmode manuscript.tex
-pdflatex -interaction=nonstopmode manuscript.tex
+make
 ```
 
-## Confirmed journal guidance used
+Build a single target:
 
-- MINA instructions for authors (official content endpoint):
-  - `https://www.aimspress.com/data/news/news-detail-data?newsId=2460`
-- MINA journal page (APC/APF listing):
-  - `https://www.aimspress.com/journal/mina`
-- Official MINA TeX template zip:
-  - `https://www.aimspress.com/aimspress-upload/news/mina/202411503338785.zip`
+```bash
+cd paper
+make brief
+make supp
+```
 
-## Submission-relevant constraints (current)
+## Notes
 
-- LaTeX template available and accepted.
-- Suggested LaTeX line numbering for review (`lineno`, pagewise).
-- Abstract under 300 words (target 200-300).
-- 5-10 keywords.
-- No fixed manuscript length limit.
-- MINA page currently states APC/APF `0 USD`.
+- `supp.tex` points directly at existing artifact paths under `examples/`,
+  `validation/`, `results/`, and `paper/figs/` instead of duplicating figures
+  under the paper workspace.
+- Missing future artifacts should remain explicit placeholders in the TeX
+  source until the generating workflow is finalized.

@@ -18,6 +18,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
+export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 # -------------------------------------------------------------------
 # 0) Logging/session metadata
@@ -32,11 +34,18 @@ SCRIPT_START_TS="$(date +%s)"
 SCRIPT_START_HUMAN="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 echo "[case1] start: $SCRIPT_START_HUMAN"
 
-# Basic runtime prerequisite: repo-local virtual environment.
-if [[ ! -x ".venv/bin/python" ]]; then
-  echo "[case1] missing .venv/bin/python. Run install first."
-  exit 1
+# Basic runtime prerequisite: use the repo-root venv shared by the whole repo.
+# Allow an explicit override via LINSTAB2D_PYTHON_BIN when needed.
+PYTHON_BIN="${LINSTAB2D_PYTHON_BIN:-}"
+if [[ -z "$PYTHON_BIN" ]]; then
+  if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+    PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+  else
+    echo "[case1] missing Python runtime: $REPO_ROOT/.venv/bin/python"
+    exit 1
+  fi
 fi
+echo "[case1] python: $PYTHON_BIN"
 
 # -------------------------------------------------------------------
 # 1) Verbosity and monitor options
@@ -337,12 +346,12 @@ prepare_run_config() {
   local use_sponge_aux="$4"
   local out_cfg="output/tmp/case1_${pass_name}_config.json"
 
-  .venv/bin/python - "$LINSTAB2D_CASE1_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
+  "$PYTHON_BIN" - "$LINSTAB2D_CASE1_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-from examples._helpers import load_jsonc
+from linstab2d.utils.jsonc import load_jsonc
 
 src = Path(sys.argv[1])
 dst = Path(sys.argv[2])
@@ -427,7 +436,7 @@ run_solver_pass() {
     echo "[case1] internal error: MPI_PROCS=${MPI_PROCS} without MPI launcher."
     exit 1
   fi
-  solver_cmd+=(".venv/bin/python" -u -c "from case1 import compute; compute()")
+  solver_cmd+=("$PYTHON_BIN" -u -c "from case1 import compute; compute()")
   if [[ "${#PETSC_VERBOSE_OPTS[@]}" -gt 0 ]]; then
     solver_cmd+=("${PETSC_VERBOSE_OPTS[@]}")
   fi
@@ -485,7 +494,7 @@ run_solver_pass() {
   if [[ "$pass_run_stability" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing spectrum parity artifact"
     set +e
-    .venv/bin/python check_spectrum.py \
+    "$PYTHON_BIN" check_spectrum.py \
       --python-npz case1.npz \
       --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
       --artifact "output/parity/case1_spectrum_parity_${pass_name}.json"
@@ -499,7 +508,7 @@ run_solver_pass() {
   if [[ "$pass_run_resolvent" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing operator-stage parity artifact"
     set +e
-    .venv/bin/python check_operator_stages.py \
+    "$PYTHON_BIN" check_operator_stages.py \
       --config "$pass_cfg_path" \
       --artifact "output/parity/case1_operator_stage_parity_${pass_name}.json"
     op_parity_exit=$?
@@ -510,7 +519,7 @@ run_solver_pass() {
 
     echo "[case1] pass=${pass_name} writing resolvent parity artifact"
     set +e
-    .venv/bin/python check_resolvent.py \
+    "$PYTHON_BIN" check_resolvent.py \
       --config "$pass_cfg_path" \
       --python-npz case1.npz \
       --matlab-resolvent "$RESOLVENT_SVD_REF" \
@@ -523,7 +532,7 @@ run_solver_pass() {
   fi
 
   echo "[case1] pass=${pass_name} generating figures"
-  .venv/bin/python generate_figures.py \
+  "$PYTHON_BIN" generate_figures.py \
     --python-npz case1.npz \
     --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
     --matlab-mode "$STABILITY_MODE7_REF" \
@@ -552,7 +561,7 @@ build_master_dashboard() {
   fi
 
   echo "[case1] building master dashboard (2x3)"
-  .venv/bin/python - "$stability_dir" "$resolvent_dir" "$master_png" <<'PY'
+  "$PYTHON_BIN" - "$stability_dir" "$resolvent_dir" "$master_png" <<'PY'
 from pathlib import Path
 import sys
 

@@ -94,15 +94,15 @@
         "temporal_spectrum_abs": 1e-4,
         "temporal_spectrum_rel": 1e-4,
         "temporal_mode_rel": 2e-2,
-        // SPATIAL — OPEN.
+        // SPATIAL — CLOSED by residual gate.
         // The companion-matrix spatial eigenproblem yields a large dense spectrum;
-        // MATLAB and Python extract different non-unique subsets, so the two exports
-        // differ by |alpha| = 0.13–1.09 (21–184%).  The tolerances below are not
-        // achievable by design and do not indicate a solver error.
-        // Fix (not yet implemented): compute spatial residuals
-        //   rho[i] = ||A q_i - alpha_i B q_i|| / (|alpha_i| ||q_i||)
-        // and add spatial_residual_max: 1e-8 to gate on those instead.
-        // See tools/parity/example_3_blocker.md for the full plan.
+        // MATLAB and Python extract different non-unique subsets, so spectrum-match
+        // tolerances are informational only.  The primary closure criterion is the
+        // generalized-eigenproblem residual
+        //   rho[i] = ||A q_i - alpha_i B q_i|| / (|alpha_i| ||q_i||).
+        // Historical note: docs/archive/example_3_blocker.md records the original
+        // mismatch and the switch to this residual-based gate.
+        "spatial_residual_max": 1e-8,
         "spatial_spectrum_abs": 1e-4,
         "spatial_spectrum_rel": 1e-4
       }

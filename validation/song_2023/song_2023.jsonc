@@ -1,0 +1,48 @@
+{
+  // Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case
+  // Configuration: oblique shock on flat-plate laminar BL
+  // Reference: Robinet (2007) JFM 579:85-112, Song & Hao (2023) PoF 35:084119
+
+  // Flow parameters
+  "Re": 1e5,          // Reynolds number (based on distance to impingement)
+  "Ma": 2.15,         // Mach number
+  "Pr": 0.72,         // Prandtl number
+  "kappa": 1.4,       // Ratio of specific heats
+  "T_0": 153.33,      // Reference temperature [K]
+
+  // Stability parameters
+  "beta": 19.2,       // Spanwise wavenumber
+  "St": 0.0,          // Strouhal number (St=0 for GSA)
+
+  // Solver settings
+  "n_modes_stability": 20,   // Number of eigenvalues to extract
+  "n_modes_resolvent": 10,   // Number of resolvent singular values
+  "run_stability": true,     // Run temporal eigenvalue analysis
+  "run_resolvent": true,     // Run resolvent analysis
+
+  // Discretization
+  "fd_order": 2,             // SBP finite-difference order
+  "stride_ksi": 1,           // Streamwise stride (1 = full resolution)
+  "stride_eta": 1,           // Wall-normal stride
+  "penalty": 1e8,            // BC penalty parameter
+  "alpha_filter": "none",    // Implicit filter strength ("none" to disable)
+
+  // Boundary conditions
+  "bc": {
+    "penalty": 1e8,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+      {"type": "neumann",   "borders": "b",   "variables": "T"},
+      {"type": "neumann",   "borders": "r",   "variables": "ruvwT"}
+    ]
+  },
+
+  // Solver configuration
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "linsolve": {
+      "type": "mumps"
+    }
+  }
+}

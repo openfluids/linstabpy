@@ -52,7 +52,13 @@
   },
 
   "bc": {
-    "penalty": 100000000.0
+    "penalty": 100000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+      {"type": "neumann",   "borders": "b",   "variables": "T"},
+      {"type": "neumann",   "borders": "r",   "variables": "ruvwT"}
+    ]
   },
 
   "analysis": {
@@ -75,5 +81,24 @@
     "operator_stage_max_abs_early": 1e-3,
     "spectrum_max_rel": 1e-6,
     "mode_min_corr_real": 0.99
+  },
+
+  // Solver configuration
+  // Replaces LINSTAB2D_* env vars previously set in case1.sh.
+  "solver": {
+    // PETSc matrix transfer: "auto" (default), "local", "distributed"
+    "petsc_matrix_mode": "auto",
+
+    // Eigenvalue solver (temporal, adjoint, spatial)
+    "eigen": {
+      // Spectral transformation: "mumps" (direct LU) or "iterative"
+      "st_solver": "mumps"
+    },
+
+    // Linear solver (resolvent factorization)
+    "linsolve": {
+      // "mumps" (direct LU) or "iterative" (Krylov)
+      "type": "mumps"
+    }
   }
 }

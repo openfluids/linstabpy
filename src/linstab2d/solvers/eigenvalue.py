@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import logging
 
 import numpy as np
@@ -20,6 +19,7 @@ from .petsc_utils import (
     scipy_to_petsc_distributed_from_root,
     vec_to_numpy,
 )
+from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
 
@@ -69,17 +69,19 @@ def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> t
 def _warn_if_shifted_operator_is_ill_conditioned(
     operator: sp.csc_matrix,
     target: complex,
+    solver_cfg: dict | None = None,
 ) -> None:
     """Warn when ``cond(operator - target*I)`` exceeds a configurable threshold.
 
     The exact dense condition number can be expensive for large sparse systems, so
-    this check is limited to moderate sizes by ``LINSTAB2D_EIGEN_COND_WARN_MAX_N``.
+    this check is limited to moderate sizes by ``cond_warn_max_n``.
     """
-    if os.getenv("LINSTAB2D_EIGEN_COND_WARN", "1").strip().lower() in {"0", "false", "no", "off"}:
+    _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
+    if not _scfg_bool(_ecfg, "cond_warn", "LINSTAB2D_EIGEN_COND_WARN", True):
         return
 
-    max_n = int(os.getenv("LINSTAB2D_EIGEN_COND_WARN_MAX_N", "1500"))
-    threshold = float(os.getenv("LINSTAB2D_EIGEN_COND_WARN_THRESHOLD", "1e12"))
+    max_n = _scfg_int(_ecfg, "cond_warn_max_n", "LINSTAB2D_EIGEN_COND_WARN_MAX_N", 1500)
+    threshold = _scfg_float(_ecfg, "cond_warn_threshold", "LINSTAB2D_EIGEN_COND_WARN_THRESHOLD", 1e12)
     ndof = operator.shape[0]
     if ndof > max_n:
         return
@@ -122,11 +124,12 @@ def _eigs_near_target(
     target: complex,
     *,
     ncv: int | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
-    require_complex()
+    require_complex(solver_cfg)
     ndof = operator.shape[0]
-    _warn_if_shifted_operator_is_ill_conditioned(operator, target)
+    _warn_if_shifted_operator_is_ill_conditioned(operator, target, solver_cfg)
 
     if ndof <= 2 or n_modes >= ndof - 1:
         dense = np.asarray(operator.toarray())
@@ -135,11 +138,12 @@ def _eigs_near_target(
         sel = order[:n_modes]
         return all_vals[sel], all_vecs[:, sel]
 
-    st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
+    _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
+    st_solver = _scfg(_ecfg, "st_solver", "LINSTAB2D_EIGEN_ST_SOLVER", "mumps")
     use_root_scatter = (
         PETSc.COMM_WORLD.getSize() > 1
         and st_solver in {"iterative", "krylov", "slepc"}
-        and os.getenv("LINSTAB2D_PETSC_ROOT_SCATTER", "0").strip().lower() in {"1", "true", "yes", "on"}
+        and _scfg_bool(solver_cfg, "root_scatter", "LINSTAB2D_PETSC_ROOT_SCATTER", False)
     )
     if use_root_scatter:
         rank = PETSc.COMM_WORLD.getRank()
@@ -150,7 +154,7 @@ def _eigs_near_target(
             comm=PETSc.COMM_WORLD,
         )
     else:
-        A = scipy_to_petsc(operator)
+        A = scipy_to_petsc(operator, solver_cfg)
 
     eps = SLEPc.EPS().create()
     eps.setOperators(A)
@@ -188,14 +192,14 @@ def _eigs_near_target(
         if st_solver == "mumps":
             pc.setFactorSolverType("mumps")
     elif st_solver in {"iterative", "krylov", "slepc"}:
-        ksp_type = os.getenv("LINSTAB2D_EIGEN_KSP_TYPE", "gmres").strip().lower()
-        pc_type = os.getenv("LINSTAB2D_EIGEN_PC_TYPE", "asm").strip().lower()
-        pc_side = os.getenv("LINSTAB2D_EIGEN_KSP_PC_SIDE", "left").strip().lower()
-        ksp_rtol = float(os.getenv("LINSTAB2D_EIGEN_KSP_RTOL", "1e-8"))
-        ksp_max_it = int(os.getenv("LINSTAB2D_EIGEN_KSP_MAX_IT", "20000"))
-        asm_overlap = int(os.getenv("LINSTAB2D_EIGEN_ASM_OVERLAP", "2"))
-        sub_ksp_type = os.getenv("LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly").strip().lower()
-        sub_pc_type = os.getenv("LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu").strip().lower()
+        ksp_type = _scfg(_ecfg, "ksp_type", "LINSTAB2D_EIGEN_KSP_TYPE", "gmres")
+        pc_type = _scfg(_ecfg, "pc_type", "LINSTAB2D_EIGEN_PC_TYPE", "asm")
+        pc_side = _scfg(_ecfg, "ksp_pc_side", "LINSTAB2D_EIGEN_KSP_PC_SIDE", "left")
+        ksp_rtol = _scfg_float(_ecfg, "ksp_rtol", "LINSTAB2D_EIGEN_KSP_RTOL", 1e-8)
+        ksp_max_it = _scfg_int(_ecfg, "ksp_max_it", "LINSTAB2D_EIGEN_KSP_MAX_IT", 20000)
+        asm_overlap = _scfg_int(_ecfg, "asm_overlap", "LINSTAB2D_EIGEN_ASM_OVERLAP", 2)
+        sub_ksp_type = _scfg(_ecfg, "sub_ksp_type", "LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly")
+        sub_pc_type = _scfg(_ecfg, "sub_pc_type", "LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu")
         ksp.setType(ksp_type)
         if pc_side == "left":
             ksp.setPCSide(PETSc.PC.Side.LEFT)
@@ -259,7 +263,7 @@ def _eigs_near_target(
     if (
         st_solver in {"iterative", "krylov", "slepc"}
         and hasattr(eps, "setTrueResidual")
-        and os.getenv("LINSTAB2D_EIGEN_TRUE_RESIDUAL", "0").strip().lower() in {"1", "true", "yes", "on"}
+        and _scfg_bool(_ecfg, "true_residual", "LINSTAB2D_EIGEN_TRUE_RESIDUAL", False)
     ):
         eps.setTrueResidual(True)
 
@@ -302,6 +306,7 @@ def temporal_eigenvalues(
     target: float | complex,
     W_diag: np.ndarray | None = None,
     ncv: int | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
 
@@ -322,6 +327,8 @@ def temporal_eigenvalues(
     ncv:
         Optional Arnoldi subspace dimension. When omitted, use the generic
         default ``max(2*n_modes+3, 30)`` clipped to the matrix size.
+    solver_cfg:
+        Optional solver config dict (from JSONC ``"solver"`` section).
 
     Returns
     -------
@@ -339,15 +346,19 @@ def temporal_eigenvalues(
         n_modes,
         omega,
         ncv=ncv,
+        solver_cfg=solver_cfg,
     )
     eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
 
     if W_diag is not None:
         eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
         if eigenvectors.shape[1] > 0:
+            _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
             v0 = eigenvectors[:, 0]
             weighted_norm_error = np.abs(np.vdot(v0, np.asarray(W_diag) * v0) - 1.0)
-            weighted_norm_tol = float(os.getenv("LINSTAB2D_EIGEN_WEIGHTED_NORM_TOL", "1e-12"))
+            weighted_norm_tol = _scfg_float(
+                _ecfg, "weighted_norm_tol", "LINSTAB2D_EIGEN_WEIGHTED_NORM_TOL", 1e-12,
+            )
             if weighted_norm_error > weighted_norm_tol:
                 logger.warning(
                     "Leading weighted norm check failed: |v^H W v - 1|=%.3e > %.3e",
@@ -385,6 +396,7 @@ def adjoint_eigenvalues(
     W_diag: np.ndarray,
     invW_diag: np.ndarray,
     ncv: int | None = None,
+    solver_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute adjoint temporal eigenvalues near a target with W weighting.
 
@@ -400,6 +412,7 @@ def adjoint_eigenvalues(
         n_modes,
         omega,
         ncv=ncv,
+        solver_cfg=solver_cfg,
     )
     eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
     eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))

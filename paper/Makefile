@@ -1,17 +1,25 @@
 PYTHON := uv run --no-sync python
+PDFLATEX := pdflatex -interaction=nonstopmode
 
-.PHONY: figs paper clean
+.PHONY: all figs brief supp clean
+
+all: brief supp
 
 figs:
 	$(PYTHON) figs/example_grid.py
-	$(PYTHON) figs/scaling_reference.py
-	$(PYTHON) figs/case1_dashboard.py
 
-paper: figs
-	pdflatex -interaction=nonstopmode manuscript.tex
-	bibtex manuscript
-	pdflatex -interaction=nonstopmode manuscript.tex
-	pdflatex -interaction=nonstopmode manuscript.tex
+brief:
+	$(PDFLATEX) brief.tex
+	bibtex brief
+	$(PDFLATEX) brief.tex
+	$(PDFLATEX) brief.tex
+
+supp: figs
+	$(PDFLATEX) supp.tex
+	bibtex supp
+	$(PDFLATEX) supp.tex
+	$(PDFLATEX) supp.tex
 
 clean:
-	rm -f manuscript.aux manuscript.bbl manuscript.blg manuscript.fdb_latexmk manuscript.fls manuscript.log manuscript.out
+	rm -f brief.aux brief.bbl brief.blg brief.fdb_latexmk brief.fls brief.log brief.out
+	rm -f supp.aux supp.bbl supp.blg supp.fdb_latexmk supp.fls supp.log supp.out

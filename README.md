@@ -1,4 +1,4 @@
-# linstab2d
+# LinStabPy
 
 Sparse linear stability and resolvent analysis for compressible viscous flows.
 
@@ -6,11 +6,11 @@ Sparse linear stability and resolvent analysis for compressible viscous flows.
 
 Stability and resolvent analysis of 2D base flows requires solving large sparse linear systems built from the linearized compressible Navier-Stokes equations (LNSE). MATLAB's `backslash` operator uses dense LU factorization — O(n^2) memory — which makes problems above ~50k DOFs impractical: a 150k-DOF system needs ~180 GB of RAM, crashing even high-memory workstations. Realistic 2D base flows from LES or DNS data routinely produce 10^5-10^6 DOFs.
 
-`linstab2d` is built on sparse matrices from the ground up, with all solvers backed by PETSc/SLEPc and MUMPS. Python handles matrix assembly and orchestration; the heavy linear algebra runs through compiled C/Fortran libraries optimized for large sparse systems. No MATLAB license required.
+`LinStabPy` is built on sparse matrices from the ground up, with all solvers backed by PETSc/SLEPc and MUMPS. Python handles matrix assembly and orchestration; the heavy linear algebra runs through compiled C/Fortran libraries optimized for large sparse systems. No MATLAB license required. The distribution name is `linstabpy`.
 
 ## What it does
 
-`linstab2d` constructs the LNSE operator on structured 2D meshes using summation-by-parts (SBP) finite difference schemes, then solves for resolvent gains, eigenvalues, or optimal forcing/response modes:
+`LinStabPy` constructs the LNSE operator on structured 2D meshes using summation-by-parts (SBP) finite difference schemes, then solves for resolvent gains, eigenvalues, or optimal forcing/response modes:
 
 - **Resolvent analysis** — optimal gain, forcing, and response mode shapes via SVD of the resolvent operator (SLEPc TRLANCZOS)
 - **Temporal stability** — direct and adjoint eigenvalues of the LNSE operator (SLEPc Krylov-Schur + shift-invert)
@@ -224,8 +224,8 @@ Operational rule:
 
 ```bash
 # Clone and set up
-git clone --recurse-submodules https://github.com/ricardofrantz/linstab2d.git
-cd linstab2d
+git clone --recurse-submodules https://github.com/ricardofrantz/LinStabPy.git
+cd LinStabPy
 ./install.sh          # creates .venv, installs dependencies via uv
 # If submodules were not cloned with --recurse-submodules:
 git submodule update --init --recursive
@@ -247,7 +247,7 @@ bash install.sh
 - system prerequisites (compiler/MPI/X11 toolchain) via detected package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`)
 - Python environment creation with `uv` (`.venv`, Python 3.13)
 - PETSc/SLEPc + `petsc4py`/`slepc4py` installation and verification
-- editable install of `linstab2d` and test tools
+- editable install of `linstabpy` and test tools
 
 If your machine is already provisioned (or you cannot install system packages), skip the system-deps step:
 
@@ -267,9 +267,9 @@ All dependencies are installed by `install.sh` via [uv](https://docs.astral.sh/u
 
 ## Packaging
 
-`linstab2d` follows current PyPA packaging guidance and the Scientific Python
+`LinStabPy` follows current PyPA packaging guidance and the Scientific Python
 Development Guide: `pyproject.toml` build, `src/` layout for importable code,
-PETSc/SLEPc as optional dependencies (`pip install linstab2d[petsc]`).
+PETSc/SLEPc as optional dependencies (`pip install linstabpy[petsc]`).
 
 ## Architecture
 
@@ -293,7 +293,7 @@ tools/parity/                # MATLAB comparison tooling
 
 ## Reference MATLAB source boundary
 
-- **Project implementation:** the Python code in this repository (`src/linstab2d/`, `tests/`, tooling files) is the source of this package.
+- **Project implementation:** the Python code in this repository (`src/linstab2d/`, `tests/`, tooling files) is the source of the `linstabpy` distribution.
 - **Reference source:** the MATLAB reference code and `.mat` base-flow files are kept in the git submodule at `src/linstab2d/data/baseflows`, which points to the upstream MATLAB repository.
 - **Local workflow:** `./install.sh` ensures the submodule is initialized so MATLAB files are present on disk for inspection.
 - **Boundary rule:** modify/commit only files in this repository unless you intentionally update the submodule itself (rare, with explicit intent).
@@ -331,7 +331,7 @@ Test suite: 321 tests (`pytest tests/`), covering mesh construction, operators, 
 
 ## Citing
 
-`linstab2d` implements the theoretical framework described in:
+`LinStabPy` implements the theoretical framework described in:
 
 > Martini, E., Schmidt, O. (2024). Linstab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* [doi:10.1007/s00162-024-00706-0](https://doi.org/10.1007/s00162-024-00706-0)
 

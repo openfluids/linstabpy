@@ -25,14 +25,13 @@ from petsc4py import PETSc
 from mpi4py import MPI
 
 from linstab2d.baseflow import load_hamada_case, sutherland_air
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
+from linstab2d.boundary_conditions.recipe import apply_bc_recipe
 from linstab2d.mesh import Mesh
 from linstab2d.operators.assembly import build_lnse_operator
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.resolvent import resolvent_analysis
-from examples._helpers import env_bool, env_float, env_int, load_jsonc
+from linstab2d.utils.jsonc import load_jsonc
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -47,23 +46,6 @@ def _log(message: str) -> None:
 def _log_stage(stage: str, stage_start: float) -> None:
     """Emit a machine-parseable stage timing line."""
     _log(f"stage complete: stage={stage} elapsed={time.perf_counter() - stage_start:.2f}s")
-
-
-def _bc_setup(mesh: Mesh, idx: dict[str, np.ndarray], L0: sp.csc_matrix, penalty: float) -> tuple[sp.csc_matrix, np.ndarray]:
-    """Apply the Case 1 boundary-condition recipe used in the MATLAB case.
-
-    Layout:
-    - Dirichlet on ``lt`` for ``ruvwT``
-    - Dirichlet on ``b`` for ``ruvw``
-    - Neumann on ``b`` for ``T``
-    - Neumann on ``r`` for ``ruvwT``
-    """
-    L0, idx_dirichlet_lt = apply_dirichlet(L0, idx, "lt", "ruvwT", mesh.ngp, penalty=penalty)
-    L0, idx_dirichlet_b = apply_dirichlet(L0, idx, "b", "ruvw", mesh.ngp, penalty=penalty)
-    L0, idx_neumann_b = apply_neumann(L0, mesh, idx, "b", "T", penalty=penalty)
-    L0, idx_neumann_r = apply_neumann(L0, mesh, idx, "r", "ruvwT", penalty=penalty)
-    bc_all = np.unique(np.concatenate((idx_dirichlet_lt, idx_dirichlet_b, idx_neumann_b, idx_neumann_r)))
-    return L0, bc_all
 
 
 def compute() -> None:
@@ -99,74 +81,70 @@ def compute() -> None:
     # 1) Read runtime configuration from environment variables.
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
-    case_dir = Path(os.getenv("LINSTAB2D_CASE1_CASE_DIR", str(cfg("paths.case_dir", str(SCRIPT.parent)))))
-    sponge_mat_path = Path(
-        os.getenv(
-            "LINSTAB2D_CASE1_CASE_INPUTS_MAT",
-            str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat")),
-        )
-    )
-    Re = env_float("LINSTAB2D_CASE1_RE", float(cfg("physics.Re", 395000.0)))
-    Ma = env_float("LINSTAB2D_CASE1_MA", float(cfg("physics.Ma", 2.0)))
-    Pr = env_float("LINSTAB2D_CASE1_PR", float(cfg("physics.Pr", 0.747)))
+    case_dir = Path(str(cfg("paths.case_dir", str(SCRIPT.parent))))
+    sponge_mat_path = Path(str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat")))
+    Re = float(cfg("physics.Re", 395000.0))
+    Ma = float(cfg("physics.Ma", 2.0))
+    Pr = float(cfg("physics.Pr", 0.747))
     # MATLAB export note:
     # - `case_inputs_used.mat/baseFlow.kappa` is 1.4
     # - `run_metadata.mat/kappa` is 1.31
     # The assembled reference operators/spectrum align with baseFlow.kappa.
-    kappa = env_float("LINSTAB2D_CASE1_KAPPA", float(cfg("physics.kappa", 1.4)))
-    T_0 = env_float("LINSTAB2D_CASE1_T0", float(cfg("physics.T_0", 1540.0)))
+    kappa = float(cfg("physics.kappa", 1.4))
+    T_0 = float(cfg("physics.T_0", 1540.0))
 
-    stride_ksi = env_int("LINSTAB2D_CASE1_STRIDE_KSI", int(cfg("numerics.stride_ksi", 1)))
-    stride_eta = env_int("LINSTAB2D_CASE1_STRIDE_ETA", int(cfg("numerics.stride_eta", 1)))
-    fd_order = env_int("LINSTAB2D_CASE1_FD_ORDER", int(cfg("numerics.fd_order", 4)))
-    beta = env_float("LINSTAB2D_CASE1_BETA", float(cfg("numerics.beta", 0.0)))
-    penalty = env_float("LINSTAB2D_CASE1_BC_PENALTY", float(cfg("bc.penalty", 1e8)))
+    stride_ksi = int(cfg("numerics.stride_ksi", 1))
+    stride_eta = int(cfg("numerics.stride_eta", 1))
+    fd_order = int(cfg("numerics.fd_order", 4))
+    beta = float(cfg("numerics.beta", 0.0))
+    penalty = float(cfg("bc.penalty", 1e8))
 
-    ratio_u = env_float("LINSTAB2D_CASE1_RATIO_UINF", float(cfg("analysis.ratio_uinf", 1.0)))
-    ratio_l = env_float("LINSTAB2D_CASE1_RATIO_L", float(cfg("analysis.ratio_l", 0.1)))
-    St = env_float("LINSTAB2D_CASE1_ST", float(cfg("analysis.St", 0.1)))
+    ratio_u = float(cfg("analysis.ratio_uinf", 1.0))
+    ratio_l = float(cfg("analysis.ratio_l", 0.1))
+    St = float(cfg("analysis.St", 0.1))
 
     # Target angular frequency used by resolvent and shift-invert EVP.
     omega_target = 2.0 * np.pi * St * ratio_u / ratio_l
 
-    n_modes = env_int("LINSTAB2D_CASE1_N_MODES", int(cfg("analysis.n_modes_stability", 100)))
-    n_modes_resolvent = env_int(
-        "LINSTAB2D_CASE1_N_MODES_RESOLVENT",
-        int(cfg("analysis.n_modes_resolvent", 10)),
-    )
-    run_resolvent = env_bool("LINSTAB2D_CASE1_RUN_RESOLVENT", bool(cfg("analysis.run_resolvent", True)))
-    run_stability = env_bool("LINSTAB2D_CASE1_RUN_STABILITY", bool(cfg("analysis.run_stability", True)))
-    zero_spanwise = env_bool("LINSTAB2D_CASE1_ZERO_W", bool(cfg("physics.zero_spanwise", False)))
-    use_matlab_sponge_aux = env_bool(
-        "LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX",
-        bool(cfg("physics.use_matlab_sponge_aux", True)),
-    )
-    alpha_filter_default = cfg("numerics.alpha_filter", "none")
-    alpha_filter_env = os.getenv("LINSTAB2D_CASE1_ALPHA_FILTER", str(alpha_filter_default))
+    n_modes = int(cfg("analysis.n_modes_stability", 100))
+    n_modes_resolvent = int(cfg("analysis.n_modes_resolvent", 10))
+    run_resolvent = bool(cfg("analysis.run_resolvent", True))
+    run_stability = bool(cfg("analysis.run_stability", True))
+    zero_spanwise = bool(cfg("physics.zero_spanwise", False))
+    use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", True))
+    alpha_filter_raw = cfg("numerics.alpha_filter", "none")
     try:
-        alpha_filter: float | str = float(alpha_filter_env)
-    except ValueError:
-        alpha_filter = alpha_filter_env.strip()
+        alpha_filter: float | str = float(alpha_filter_raw)
+    except (ValueError, TypeError):
+        alpha_filter = str(alpha_filter_raw).strip()
     # MATLAB export note:
     # case_inputs_used.mat stores uppercase dMUdT/d2MUdT2 as zeros; GetLinProblem.m
     # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
     # for strict parity with the exported reference matrices/spectrum.
-    zero_mu_t_derivs = env_bool(
-        "LINSTAB2D_CASE1_ZERO_MU_T_DERIVS",
-        bool(cfg("physics.zero_mu_t_derivs", True)),
-    )
+    zero_mu_t_derivs = bool(cfg("physics.zero_mu_t_derivs", True))
     # MATLAB stability convention:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
-    use_raw_eigs = env_bool("LINSTAB2D_CASE1_USE_RAW_EIGS", bool(cfg("analysis.use_raw_eigs", False)))
-    st_solver = os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps").strip().lower()
+    use_raw_eigs = bool(cfg("analysis.use_raw_eigs", False))
+    solver_cfg = config.get("solver")
+    if solver_cfg is None:
+        solver_cfg = {}
+        config["solver"] = solver_cfg
+
+    # Read solver knobs from JSONC (env-var fallback for backward compat).
+    _ecfg = solver_cfg.get("eigen", {})
+    st_solver = _ecfg.get("st_solver",
+                          os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps")).strip().lower()
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
-    requested_root_operator = size > 1 and env_bool("LINSTAB2D_CASE1_ROOT_ASSEMBLY", iterative_st_solver)
+    _root_raw = os.getenv("LINSTAB2D_CASE1_ROOT_ASSEMBLY")
+    requested_root_operator = size > 1 and (
+        (_root_raw.strip().lower() in {"1", "true", "yes", "on"}) if _root_raw is not None else iterative_st_solver
+    )
     use_root_operator = requested_root_operator and iterative_st_solver
     if requested_root_operator and not iterative_st_solver:
         _log(
             "root-assembly mode requested but disabled because "
-            f"LINSTAB2D_EIGEN_ST_SOLVER={st_solver!r} is not iterative"
+            f"eigen.st_solver={st_solver!r} is not iterative"
         )
     if use_root_operator and run_resolvent:
         raise RuntimeError(
@@ -174,7 +152,12 @@ def compute() -> None:
             "Set LINSTAB2D_CASE1_ROOT_ASSEMBLY=0 when running resolvent in MPI."
         )
     if use_root_operator:
-        os.environ.setdefault("LINSTAB2D_PETSC_ROOT_SCATTER", "1")
+        solver_cfg.setdefault("root_scatter", True)
+
+    _linsolve = solver_cfg.get("linsolve", {})
+    _resolvent_cfg = solver_cfg.get("resolvent", _linsolve)
+    resolvent_type = _resolvent_cfg.get("type", _linsolve.get("type", "mumps"))
+    matrix_mode = solver_cfg.get("petsc_matrix_mode", "auto")
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
@@ -186,9 +169,9 @@ def compute() -> None:
         "solver setup: "
         f"mpi_ranks={size} "
         f"st_solver={st_solver} "
-        f"resolvent_solver={os.getenv('LINSTAB2D_RESOLVENT_TYPE', 'mumps').strip().lower()} "
+        f"resolvent_solver={resolvent_type} "
         f"root_assembly={use_root_operator} "
-        f"matrix_mode={os.getenv('LINSTAB2D_PETSC_MATRIX_MODE', 'auto')}"
+        f"matrix_mode={matrix_mode}"
     )
 
     # ------------------------------------------------------------------
@@ -262,7 +245,13 @@ def compute() -> None:
         _log(f"operator assembled: shape={L0.shape}, nnz={L0.nnz}")
         _log_stage("assemble_operator", stage_start)
         stage_start = time.perf_counter()
-        L0, bc_indices = _bc_setup(mesh, idx, L0, penalty)
+        bc_recipe = cfg("bc.recipe", [
+            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+            {"type": "neumann", "borders": "r", "variables": "ruvwT"},
+        ])
+        L0, bc_indices = apply_bc_recipe(L0, mesh, idx, bc_recipe, penalty=penalty)
         _log(f"boundary conditions applied: bc_dofs={bc_indices.size}, nnz={L0.nnz}")
         _log_stage("apply_bc", stage_start)
 
@@ -301,6 +290,7 @@ def compute() -> None:
             C_mat=C_mat,
             filter_fn=mesh.filters.filter if mesh.filters is not None else None,
             filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+            solver_cfg=solver_cfg,
         )
         _log("resolvent analysis finished")
         _log_stage("resolvent", stage_start)
@@ -324,6 +314,7 @@ def compute() -> None:
                 L0.tocsc(),
                 n_modes=n_modes,
                 target=omega_target,
+                solver_cfg=solver_cfg,
             )
             order = np.argsort(np.abs(omega - omega_target))
             omega = omega[order]
@@ -338,6 +329,7 @@ def compute() -> None:
                 n_modes=n_modes,
                 target=omega_target,
                 W_diag=W_diag,
+                solver_cfg=solver_cfg,
             )
         _log(f"stability analysis finished: converged_modes={omega.size}")
         _log_stage("stability", stage_start)
