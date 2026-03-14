@@ -3,6 +3,12 @@
 All tests in this file are marked @pytest.mark.slow.
 """
 
+import json
+import shutil
+import textwrap
+
+from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ownership
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -38,6 +44,114 @@ from linstab2d.solvers.eigenvalue import (
 from linstab2d.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from linstab2d.solvers.linsolve import make_linear_solver
 from linstab2d.solvers.petsc_utils import scipy_to_petsc
+
+
+def _build_linsolve_mpi_script() -> str:
+    return textwrap.dedent(
+        """
+        import json
+        import numpy as np
+        from linstab2d.mesh import Mesh
+        from linstab2d.baseflow import BaseFlow, sutherland_air
+        from linstab2d.operators import build_lnse_system
+        from linstab2d.solvers.linsolve import make_linear_solver
+        import linstab2d.utils.petsc_core as petsc_core
+
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+
+        def _unexpected_fallback(*args, **kwargs):
+            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+
+        petsc_core.scipy_to_petsc = _unexpected_fallback
+
+        L0_ref, _, _ = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+        L0_sys, _, _ = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            backend="petsc",
+            solver_cfg={"petsc_matrix_mode": "distributed"},
+        )
+
+        shift = 5.0 + 20.0j
+        L_sigma_ref = L0_ref.copy()
+        L_sigma_ref.setdiag(L_sigma_ref.diagonal() - shift)
+        L_sigma_sys = L0_sys.copy()
+        L_sigma_sys.shift(-shift)
+        L_sigma_sys.assemble()
+
+        try:
+            solver_ref = make_linear_solver(L_sigma_ref)
+            solver_sys = make_linear_solver(L_sigma_sys, solver_cfg={"petsc_matrix_mode": "distributed"})
+
+            rng = np.random.default_rng(17)
+            rhs = rng.standard_normal(L0_ref.shape[0]) + 1j * rng.standard_normal(L0_ref.shape[0])
+            expected = solver_ref.solve(rhs)
+            expected_adj = solver_ref.solve_transpose(rhs)
+
+            b = L_sigma_sys.createVecLeft()
+            r0, r1 = b.getOwnershipRange()
+            if r1 > r0:
+                rows = np.arange(r0, r1, dtype=np.int32)
+                b.setValues(rows, rhs[r0:r1])
+            b.assemblyBegin()
+            b.assemblyEnd()
+
+            x = solver_sys.solve_vec(b)
+            x_adj = solver_sys.solve_transpose_vec(b)
+            try:
+                np.testing.assert_allclose(np.array(x.array_r, copy=True), expected[r0:r1], atol=1e-8, rtol=1e-8)
+                np.testing.assert_allclose(np.array(x_adj.array_r, copy=True), expected_adj[r0:r1], atol=1e-8, rtol=1e-8)
+                print(
+                    json.dumps(
+                        {
+                            "rank": L_sigma_sys.getComm().getRank(),
+                            "ownership_range": [int(r0), int(r1)],
+                            "nrows": int(L_sigma_sys.getSize()[0]),
+                            "local_rhs": int(r1 - r0),
+                        }
+                    )
+                )
+            finally:
+                x.destroy()
+                x_adj.destroy()
+                b.destroy()
+        finally:
+            L_sigma_sys.destroy()
+            L0_sys.destroy()
+        """
+    )
 
 
 @pytest.fixture
@@ -396,6 +510,29 @@ class TestDistributedPetscFallbackSolverInputs:
             x_sp = solver_sp.solve(rhs)
             x_petsc = solver_petsc.solve(rhs)
             np.testing.assert_allclose(x_petsc, x_sp, atol=1e-8, rtol=1e-8)
+
+            b = L_sigma_petsc.createVecLeft()
+            r0, r1 = b.getOwnershipRange()
+            if r1 > r0:
+                rows = np.arange(r0, r1, dtype=np.int32)
+                b.setValues(rows, rhs[r0:r1])
+            b.assemblyBegin()
+            b.assemblyEnd()
+
+            x_vec = solver_petsc.solve_vec(b)
+            x_adj_vec = solver_petsc.solve_transpose_vec(b)
+            try:
+                np.testing.assert_allclose(np.array(x_vec.array_r, copy=True), x_sp[r0:r1], atol=1e-8, rtol=1e-8)
+                np.testing.assert_allclose(
+                    np.array(x_adj_vec.array_r, copy=True),
+                    solver_sp.solve_transpose(rhs)[r0:r1],
+                    atol=1e-8,
+                    rtol=1e-8,
+                )
+            finally:
+                x_vec.destroy()
+                x_adj_vec.destroy()
+                b.destroy()
         finally:
             L0_petsc.destroy()
             L_sigma_petsc.destroy()
@@ -444,6 +581,22 @@ class TestDistributedPetscFallbackSolverInputs:
             L0_petsc.destroy()
             B_mat.destroy()
             C_mat.destroy()
+
+    @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
+    @pytest.mark.parametrize("n_ranks", [2, 4])
+    def test_linear_solver_petsc_vec_real_mpi_matches_scipy_solution(self, n_ranks):
+        """Real MPI PETSc Vec solves should match the SciPy reference slices on each rank."""
+        proc = run_mpi_python(n_ranks, _build_linsolve_mpi_script())
+        if proc.returncode != 0:
+            pytest.fail(
+                f"{n_ranks}-rank linear-solver MPI harness failed.\n"
+                f"stdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+
+        reports = parse_mpi_reports(proc.stdout)
+        assert_split_ownership(reports, n_ranks)
+        assert all(report["local_rhs"] > 0 for report in reports)
 
 
 
