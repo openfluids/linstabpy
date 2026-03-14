@@ -32,7 +32,7 @@ def _matrix_nnz(operator: sp.spmatrix | PETSc.Mat) -> int:
     return int(operator.nnz)
 
 
-@dataclass(frozen=True)
+@dataclass
 class LinearSolver:
     """Callable wrapper for forward and adjoint solves."""
 
@@ -41,6 +41,17 @@ class LinearSolver:
     solve_transpose: Callable[[np.ndarray], np.ndarray]
     solve_vec: Callable[[PETSc.Vec], PETSc.Vec]
     solve_transpose_vec: Callable[[PETSc.Vec], PETSc.Vec]
+    _ksp: PETSc.KSP | None = None
+    _mat: PETSc.Mat | None = None
+
+    def destroy(self) -> None:
+        """Release PETSc KSP and matrix resources."""
+        if self._ksp is not None:
+            self._ksp.destroy()
+            self._ksp = None
+        if self._mat is not None:
+            self._mat.destroy()
+            self._mat = None
 
 
 def make_linear_solver(
@@ -251,4 +262,6 @@ def make_linear_solver(
         solve_transpose=solve_transpose,
         solve_vec=solve_vec,
         solve_transpose_vec=solve_transpose_vec,
+        _ksp=ksp,
+        _mat=A,
     )
