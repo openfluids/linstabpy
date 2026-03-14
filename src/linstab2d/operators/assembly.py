@@ -502,7 +502,7 @@ def _assemble_from_prepared_petsc(
                 local_diag.set(0.0)
                 local_values = -sponge_diag[r0:r1]
                 if local_values.size:
-                    local_rows = np.arange(r0, r1, dtype=np.int32)
+                    local_rows = np.arange(r0, r1, dtype=PETSc.IntType)
                     local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
                 local_diag.assemble()
                 L0_petsc.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
@@ -900,8 +900,18 @@ def _apply_inv_B_petsc(
         row_scaling[2*ngp:3*ngp] = 1.0 / RHO
         row_scaling[3*ngp:4*ngp] = 1.0 / RHO
         row_scaling[4*ngp:5*ngp] = 1.0 / RHO
-        diag = PETSc.Vec().createWithArray(np.ascontiguousarray(row_scaling, dtype=complex))
+        diag = L0.createVecLeft()
         try:
+            r0, r1 = diag.getOwnershipRange()
+            if r1 > r0:
+                rows = np.arange(r0, r1, dtype=PETSc.IntType)
+                diag.setValues(
+                    rows,
+                    np.ascontiguousarray(row_scaling[r0:r1], dtype=complex),
+                    addv=PETSc.InsertMode.INSERT_VALUES,
+                )
+            diag.assemblyBegin()
+            diag.assemblyEnd()
             L0.diagonalScale(L=diag)
         finally:
             diag.destroy()

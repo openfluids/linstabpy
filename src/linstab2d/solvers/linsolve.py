@@ -19,7 +19,7 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
+from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, scipy_to_petsc, vec_to_numpy
 from ..utils._solver_cfg import _scfg, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,8 @@ class LinearSolver:
     backend: str
     solve: Callable[[np.ndarray], np.ndarray]
     solve_transpose: Callable[[np.ndarray], np.ndarray]
+    solve_vec: Callable[[PETSc.Vec], PETSc.Vec]
+    solve_transpose_vec: Callable[[PETSc.Vec], PETSc.Vec]
 
 
 def make_linear_solver(
@@ -85,7 +87,7 @@ def make_linear_solver(
 
     solver_type = _scfg(_sub, "type", f"{env_prefix}_TYPE", "mumps")
 
-    ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
+    ksp = PETSc.KSP().create(comm=A.getComm())
     ksp.setOperators(A)
     pc = ksp.getPC()
 
@@ -183,25 +185,70 @@ def make_linear_solver(
             "expected mumps|direct|lu|iterative|krylov|petsc"
         )
 
-    def solve(rhs: np.ndarray) -> np.ndarray:
-        b = petsc_vec(rhs)
-        x = b.duplicate()
+    def _check_vec_size(rhs: PETSc.Vec) -> None:
+        if int(rhs.getSize()) != n:
+            raise ValueError(f"rhs must have size {n}, got {rhs.getSize()}")
+
+    def _rhs_vec_from_numpy(rhs: np.ndarray) -> PETSc.Vec:
+        rhs_arr = np.asarray(rhs, dtype=complex)
+        if rhs_arr.ndim != 1 or rhs_arr.size != n:
+            raise ValueError(f"rhs must be a 1-D array of length {n}, got shape {rhs_arr.shape}")
+
+        b = A.createVecLeft()
+        r0, r1 = b.getOwnershipRange()
+        if r1 > r0:
+            rows = np.arange(r0, r1, dtype=PETSc.IntType)
+            b.setValues(rows, rhs_arr[r0:r1], addv=PETSc.InsertMode.INSERT_VALUES)
+        b.assemblyBegin()
+        b.assemblyEnd()
+        return b
+
+    def solve_vec(rhs: PETSc.Vec) -> PETSc.Vec:
+        """Solve ``A x = rhs`` while preserving PETSc vector distribution."""
+        _check_vec_size(rhs)
+        x = rhs.duplicate()
+        ksp.solve(rhs, x)
+        return x
+
+    def solve_transpose_vec(rhs: PETSc.Vec) -> PETSc.Vec:
+        """Solve ``A^H x = rhs`` while preserving PETSc vector distribution."""
+        _check_vec_size(rhs)
+        b = rhs.copy()
+        x = rhs.duplicate()
         try:
-            ksp.solve(b, x)
-            return vec_to_numpy(x)
+            b.conjugate()
+            ksp.solveTranspose(b, x)
+            x.conjugate()
+            return x
         finally:
             b.destroy()
-            x.destroy()
+
+    def solve(rhs: np.ndarray) -> np.ndarray:
+        b = _rhs_vec_from_numpy(rhs)
+        try:
+            x = solve_vec(b)
+            try:
+                return vec_to_numpy(x)
+            finally:
+                x.destroy()
+        finally:
+            b.destroy()
 
     def solve_transpose(rhs: np.ndarray) -> np.ndarray:
-        """Solve A^H x = rhs via conjugation: A^T conj(x) = conj(rhs)."""
-        b = petsc_vec(rhs.conj())
-        x = b.duplicate()
+        b = _rhs_vec_from_numpy(rhs)
         try:
-            ksp.solveTranspose(b, x)
-            return vec_to_numpy(x).conj()
+            x = solve_transpose_vec(b)
+            try:
+                return vec_to_numpy(x)
+            finally:
+                x.destroy()
         finally:
             b.destroy()
-            x.destroy()
 
-    return LinearSolver(backend=backend, solve=solve, solve_transpose=solve_transpose)
+    return LinearSolver(
+        backend=backend,
+        solve=solve,
+        solve_transpose=solve_transpose,
+        solve_vec=solve_vec,
+        solve_transpose_vec=solve_transpose_vec,
+    )
