@@ -412,6 +412,24 @@ class TestTemporalEigenvalues:
 
 
 @pytest.mark.slow
+class TestLinearSolverLifecycle:
+    """Tests for LinearSolver resource management."""
+
+    def test_linear_solver_destroy_releases_petsc_objects(self):
+        """LinearSolver.destroy() should release KSP and Mat without error."""
+        n = 50
+        diag = np.arange(1, n + 1, dtype=complex) + 0.1j
+        A_sp = sp.diags(diag, format="csc")
+        solver = make_linear_solver(A_sp)
+        assert solver._ksp is not None
+        assert solver._mat is not None
+        solver.destroy()
+        assert solver._ksp is None
+        assert solver._mat is None
+        # Double destroy should be safe (no-op)
+        solver.destroy()
+
+
 class TestDirectPetscSolverInputs:
     """Tests for feeding direct-PETSc operators into solver entry points."""
 
