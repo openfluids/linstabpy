@@ -1,5 +1,10 @@
 """Tests for Floquet reconstruction, PETSc/SciPy parity utilities, and flow plotting utilities."""
 
+import shutil
+import textwrap
+
+from tests.mpi_helpers import run_mpi_python, parse_mpi_reports
+
 import matplotlib
 matplotlib.use("Agg")
 
@@ -17,6 +22,7 @@ from linstab2d.utils.petsc_core import (
     compare_petsc_against_scipy,
     compare_sparse_matrices,
     compact_petsc_matrix,
+    petsc_owned_rows,
     petsc_matvec_residual,
     petsc_to_scipy,
     scipy_to_petsc,
@@ -112,13 +118,6 @@ class TestPlotFlow:
         with pytest.raises(ValueError):
             plot_flow(self.X, self.Y, bad_field)
 
-    def test_masked_field_tricontourf(self):
-        """plot_flow handles NaN-holed fields without error (tricontourf path)."""
-        field = self.field.copy()
-        field[4:6, 4:6] = np.nan
-        ax = plot_flow(self.X, self.Y, field, component="real")
-        assert ax is not None
-
     def test_masked_field_uses_tricontourf(self):
         """NaN-holed fields should use tricontourf, not pcolormesh."""
         import matplotlib.tri as mtri
@@ -138,6 +137,93 @@ class TestPlotFlow:
 
 class TestPetscSciPyParityUtilities:
     """Tests for PETSc/SciPy conversion and comparison helpers."""
+
+    def test_petsc_owned_rows_matches_sequential_csr_reference(self):
+        ref = sp.csr_matrix(
+            np.array(
+                [
+                    [1.0 + 2.0j, 0.0, 0.0, 3.0 - 1.0j],
+                    [0.0, -4.0j, 5.0 + 0.5j, 0.0],
+                    [2.5, 0.0, 0.0, 0.0],
+                    [0.0, 6.0 - 3.0j, 0.0, 7.0 + 0.0j],
+                ],
+                dtype=complex,
+            )
+        )
+        mat = scipy_to_petsc(ref)
+
+        try:
+            owned = petsc_owned_rows(mat)
+        finally:
+            mat.destroy()
+
+        assert owned["ownership_range"] == (0, ref.shape[0])
+        np.testing.assert_array_equal(owned["row_ids"], np.arange(ref.shape[0], dtype=np.int64))
+        np.testing.assert_array_equal(owned["indptr"], ref.indptr)
+        np.testing.assert_array_equal(owned["indices"], ref.indices)
+        np.testing.assert_allclose(owned["data"], ref.data)
+
+    @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
+    def test_petsc_owned_rows_matches_owned_csr_blocks_under_mpi(self):
+        script = textwrap.dedent(
+            """
+            import json
+            import numpy as np
+            import scipy.sparse as sp
+            from petsc4py import PETSc
+            from linstab2d.utils.petsc_core import petsc_owned_rows, scipy_to_petsc_distributed
+
+            ref = sp.csr_matrix(
+                np.array(
+                    [
+                        [1.0 + 0.0j, 0.0, 0.0, 0.0, 9.0 + 0.0j, 0.0],
+                        [0.0, 2.0 + 0.0j, 0.0, 0.0, 0.0, 8.0 + 0.0j],
+                        [0.0, 0.0, 3.0 + 0.0j, 7.0 + 0.0j, 0.0, 0.0],
+                        [6.0 + 0.0j, 0.0, 0.0, 4.0 + 0.0j, 0.0, 0.0],
+                        [0.0, 5.0 + 0.0j, 0.0, 0.0, 5.0 + 0.0j, 0.0],
+                        [0.0, 0.0, 4.0 + 0.0j, 0.0, 0.0, 6.0 + 0.0j],
+                    ],
+                    dtype=complex,
+                )
+            )
+
+            mat = scipy_to_petsc_distributed(ref, comm=PETSc.COMM_WORLD)
+            try:
+                owned = petsc_owned_rows(mat)
+                r0, r1 = owned["ownership_range"]
+                expected = ref[r0:r1].tocsr()
+                np.testing.assert_array_equal(owned["row_ids"], np.arange(r0, r1, dtype=np.int64))
+                np.testing.assert_array_equal(owned["indptr"], expected.indptr)
+                np.testing.assert_array_equal(owned["indices"], expected.indices)
+                np.testing.assert_allclose(owned["data"], expected.data)
+                print(
+                    json.dumps(
+                        {
+                            "rank": PETSc.COMM_WORLD.getRank(),
+                            "ownership_range": [int(r0), int(r1)],
+                            "nnz": int(owned["data"].size),
+                        }
+                    )
+                )
+            finally:
+                mat.destroy()
+            """
+        )
+        proc = run_mpi_python(2, script)
+        if proc.returncode != 0:
+            pytest.fail(
+                "2-rank PETSc owned-row subprocess failed.\n"
+                f"stdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+
+        reports = parse_mpi_reports(proc.stdout)
+        assert len(reports) == 2, proc.stdout
+        assert {report["rank"] for report in reports} == {0, 1}
+
+        ownership_ranges = sorted(tuple(report["ownership_range"]) for report in reports)
+        assert ownership_ranges == [(0, 3), (3, 6)]
+        assert all(report["nnz"] > 0 for report in reports)
 
     def test_petsc_to_scipy_roundtrip_matches_reference(self):
         base = np.array(
