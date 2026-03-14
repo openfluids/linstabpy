@@ -1,5 +1,11 @@
 """Tests for LNSE coefficients, assembly, energy norm, and spatial formulation."""
 
+import json
+import shutil
+import textwrap
+
+from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ownership
+
 import numpy as np
 import scipy.sparse as sp
 import pytest
@@ -87,6 +93,107 @@ def _call_cartesian(ngp, *, kx=0.0, Re=1e5, Ma=0.3, Pr=0.72, kappa=1.4,
         derivs["d2Tdx2"], derivs["d2Tdy2"],
         derivs["d2Udxdy"], derivs["d2Vdxdy"], derivs["d2Wdxdy"],
         derivs["dmudT"], derivs["d2mudT2"],
+    )
+
+
+def _build_lnse_system_mpi_script(*, bc_recipe: list[dict] | None) -> str:
+    recipe_json = json.dumps(bc_recipe)
+    return textwrap.dedent(
+        f"""
+        import json
+        import numpy as np
+        import scipy.sparse as sp
+        from linstab2d.mesh import Mesh
+        from linstab2d.baseflow import BaseFlow, sutherland_air
+        from linstab2d.operators import build_lnse_system
+        from linstab2d.utils.petsc_core import petsc_owned_rows
+        import linstab2d.utils.petsc_core as petsc_core
+
+        recipe = json.loads({recipe_json!r})
+        mesh = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=10,
+            ny=8,
+            fd_order=4,
+        )
+        X, Y = mesh.X, mesh.Y
+        bf = BaseFlow(
+            Re=8e3,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=290.0,
+            RHO=1.0 + 0.02 * np.cos(np.pi * X) * np.cos(0.75 * np.pi * Y),
+            U=0.9 + 0.09 * np.sin(np.pi * X) * np.exp(-0.5 * Y),
+            V=0.02 * np.cos(0.5 * np.pi * X) * np.sin(np.pi * Y),
+            W=0.01 * np.sin(np.pi * X) * np.cos(0.5 * np.pi * Y),
+            T=1.0 + 0.02 * np.cos(0.8 * np.pi * X) * np.exp(-0.3 * Y),
+        )
+        sutherland_air(bf)
+
+        def _unexpected_fallback(*args, **kwargs):
+            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+
+        petsc_core.scipy_to_petsc = _unexpected_fallback
+
+        L0_ref, idx_ref, bc_ref = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            solver_cfg={{"petsc_matrix_mode": "local"}},
+        )
+        L0_sys, idx_sys, bc_sys = build_lnse_system(
+            mesh,
+            bf,
+            kx=0.2,
+            model="2D",
+            bc_recipe=recipe,
+            backend="petsc",
+            solver_cfg={{"petsc_matrix_mode": "distributed"}},
+        )
+
+        try:
+            for key, value in idx_ref.items():
+                np.testing.assert_array_equal(idx_sys[key], value)
+            np.testing.assert_array_equal(bc_sys, bc_ref)
+
+            owned = petsc_owned_rows(L0_sys)
+            r0, r1 = owned["ownership_range"]
+            expected = L0_ref.tocsr()[r0:r1].copy()
+            expected.sum_duplicates()
+            expected.eliminate_zeros()
+            expected.sort_indices()
+
+            candidate = sp.csr_matrix(
+                (owned["data"], owned["indices"], owned["indptr"]),
+                shape=(r1 - r0, L0_sys.getSize()[1]),
+                dtype=complex,
+            )
+            candidate.sum_duplicates()
+            candidate.eliminate_zeros()
+            candidate.sort_indices()
+
+            np.testing.assert_array_equal(owned["row_ids"], np.arange(r0, r1, dtype=np.int64))
+            np.testing.assert_array_equal(candidate.indptr, expected.indptr)
+            np.testing.assert_array_equal(candidate.indices, expected.indices)
+            np.testing.assert_allclose(candidate.data, expected.data, atol=1e-10, rtol=1e-10)
+
+            print(
+                json.dumps(
+                    {{
+                        "rank": L0_sys.getComm().getRank(),
+                        "ownership_range": [int(r0), int(r1)],
+                        "nrows": int(L0_sys.getSize()[0]),
+                        "nnz": int(owned["data"].size),
+                    }}
+                )
+            )
+        finally:
+            L0_sys.destroy()
+        """
     )
 
 
@@ -901,7 +1008,6 @@ class TestOperatorAssembly:
                 np.testing.assert_array_equal(idx_sys[key], value)
             np.testing.assert_array_equal(bc_sys, bc_ref)
 
-            assert hasattr(L0_sys, "getOwnershipRange")
             report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
             assert report["pass"], report
             assert report["max_abs_residual"] < 1e-10
@@ -969,7 +1075,6 @@ class TestOperatorAssembly:
                 np.testing.assert_array_equal(idx_sys[key], value)
             np.testing.assert_array_equal(bc_sys, bc_ref)
 
-            assert hasattr(L0_sys, "getOwnershipRange")
             report = compare_petsc_against_scipy(L0_ref, L0_sys, check_structure=False)
             assert report["pass"], report
             assert report["max_abs_residual"] < 1e-10
@@ -980,6 +1085,56 @@ class TestOperatorAssembly:
             assert matvec_report["max_rel_residual"] < 1e-10
         finally:
             L0_sys.destroy()
+
+    @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
+    @pytest.mark.parametrize("n_ranks", [2, 4])
+    def test_build_lnse_system_petsc_real_mpi_assembly_matches_owned_scipy_rows(self, n_ranks):
+        """Real MPI direct PETSc assembly should match the owned SciPy reference rows."""
+        proc = run_mpi_python(n_ranks, _build_lnse_system_mpi_script(bc_recipe=None))
+        if proc.returncode != 0:
+            pytest.fail(
+                f"{n_ranks}-rank assembly MPI harness failed.\n"
+                f"stdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+
+        reports = parse_mpi_reports(proc.stdout)
+        assert_split_ownership(reports, n_ranks)
+        assert all(report["nnz"] > 0 for report in reports)
+
+    @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
+    @pytest.mark.parametrize("n_ranks", [2, 4])
+    def test_build_lnse_system_petsc_real_mpi_dirichlet_matches_owned_scipy_rows(self, n_ranks):
+        """Real MPI Dirichlet BC application should match the owned SciPy reference rows."""
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+        proc = run_mpi_python(n_ranks, _build_lnse_system_mpi_script(bc_recipe=recipe))
+        if proc.returncode != 0:
+            pytest.fail(
+                f"{n_ranks}-rank Dirichlet MPI harness failed.\n"
+                f"stdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+
+        reports = parse_mpi_reports(proc.stdout)
+        assert_split_ownership(reports, n_ranks)
+        assert all(report["nnz"] > 0 for report in reports)
+
+    @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
+    @pytest.mark.parametrize("n_ranks", [2, 4])
+    def test_build_lnse_system_petsc_real_mpi_neumann_matches_owned_scipy_rows(self, n_ranks):
+        """Real MPI Neumann BC application should match the owned SciPy reference rows."""
+        recipe = [{"type": "neumann", "borders": "lr", "variables": "u"}]
+        proc = run_mpi_python(n_ranks, _build_lnse_system_mpi_script(bc_recipe=recipe))
+        if proc.returncode != 0:
+            pytest.fail(
+                f"{n_ranks}-rank Neumann MPI harness failed.\n"
+                f"stdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+
+        reports = parse_mpi_reports(proc.stdout)
+        assert_split_ownership(reports, n_ranks)
+        assert all(report["nnz"] > 0 for report in reports)
 
     def test_build_lnse_system_petsc_matches_axy_recipe_path(self):
         """Explicit PETSc backend should reproduce the SciPy axy workflow path."""
@@ -1164,8 +1319,6 @@ class TestOperatorAssembly:
             backend="scipy",
         )
         try:
-            assert hasattr(L0_explicit, "getOwnershipRange")
-            assert hasattr(L0_config, "getOwnershipRange")
             for key, value in idx_ref.items():
                 assert key in idx_explicit
                 assert key in idx_config
