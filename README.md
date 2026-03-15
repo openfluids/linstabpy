@@ -6,7 +6,12 @@ Sparse linear stability and resolvent analysis for compressible viscous flows.
 
 Stability and resolvent analysis of 2D base flows requires solving large sparse linear systems built from the linearized compressible Navier-Stokes equations (LNSE). MATLAB's `backslash` operator uses dense LU factorization — O(n^2) memory — which makes problems above ~50k DOFs impractical: a 150k-DOF system needs ~180 GB of RAM, crashing even high-memory workstations. Realistic 2D base flows from LES or DNS data routinely produce 10^5-10^6 DOFs.
 
-`LinStabPy` is built on sparse matrices from the ground up, with all solvers backed by PETSc/SLEPc and MUMPS. Python handles matrix assembly and orchestration; the heavy linear algebra runs through compiled C/Fortran libraries optimized for large sparse systems. No MATLAB license required. The distribution name is `linstabpy`.
+`LinStabPy` is built on sparse matrices from the ground up, with all solvers backed by PETSc/SLEPc and MUMPS. Python handles matrix assembly and orchestration; the heavy linear algebra runs through compiled C/Fortran libraries optimized for large sparse systems. No MATLAB license required.
+
+Naming convention:
+- public project name: `LinStabPy`
+- GitHub repository and distribution name: `linstabpy`
+- current implementation package: `linstab2d`
 
 ## What it does
 
@@ -318,14 +323,15 @@ Scope note:
 - branch scope uses explicit `required_exclusions` for combinations not yet required
 - to enforce full cross-product branch coverage later, reduce/remove exclusions and validate incrementally
 
-Test suite: 321 tests (`pytest tests/`), covering mesh construction, operators, boundary conditions, solvers, and full integration.
+Current test suite size: `535` collected tests (`pytest --collect-only tests`), covering mesh construction, operators, boundary conditions, solvers, parity tooling, and integration workflows.
 
 ## Roadmap
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Core assembly + 5 examples | Done | All 5 examples validated, 321 tests |
+| Core assembly + 5 examples | Done | All 5 examples validated, Martini parity gate closed |
 | PETSc/SLEPc solvers | Done | MUMPS direct solves, SLEPc eigenvalue/SVD |
+| Additional validation cases | In progress | Song2023 and Case 1 workflow hardening |
 | Solver optimization | Planned | Push matrix-forming efficiency to its limits |
 | Matrix-free Krylov | Future | Time-stepper approach for 3D problems |
 
