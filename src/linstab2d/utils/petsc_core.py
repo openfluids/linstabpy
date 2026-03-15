@@ -129,10 +129,24 @@ def create_distributed_aij(
     shape: tuple[int, int],
     *,
     comm: PETSc.Comm | None = None,
-    nnz_diag: int | None = None,
-    nnz_offdiag: int | None = None,
+    nnz_diag: int | np.ndarray | None = None,
+    nnz_offdiag: int | np.ndarray | None = None,
 ) -> PETSc.Mat:
-    """Create an MPI AIJ matrix with optional constant preallocation."""
+    """Create an MPI AIJ matrix with optional preallocation.
+
+    ``nnz_diag`` and ``nnz_offdiag`` may be:
+
+    * **scalar** — constant upper bound per row (simple but can overflow
+      ``PetscInt`` for wide stencils on large matrices);
+    * **array of length nrows** — exact per-row count (avoids the
+      ``nrows × max`` product that causes int32 overflow, and allocates
+      less memory).
+
+    For MPI AIJ matrices, ``nnz_diag`` refers to the diagonal block
+    (columns owned by this rank) and ``nnz_offdiag`` to the off-diagonal
+    block. Per-row arrays are automatically clipped to the local block
+    widths so that PETSc's preallocation check does not reject them.
+    """
     if len(shape) != 2:
         raise ValueError(f"shape must be 2D, got {shape}")
     nrows, ncols = int(shape[0]), int(shape[1])
@@ -144,9 +158,34 @@ def create_distributed_aij(
     matrix.setSizes((nrows, ncols))
 
     if nnz_diag is not None or nnz_offdiag is not None:
-        diag_nnz = int(nnz_diag if nnz_diag is not None else nnz_offdiag)
-        offdiag_nnz = int(nnz_offdiag if nnz_offdiag is not None else diag_nnz)
-        matrix.setPreallocationNNZ((diag_nnz, offdiag_nnz))
+        d = nnz_diag if nnz_diag is not None else nnz_offdiag
+        o = nnz_offdiag if nnz_offdiag is not None else nnz_diag
+        if isinstance(d, np.ndarray) or isinstance(o, np.ndarray):
+            # Per-row arrays: clip to the local block widths so PETSc's
+            # preallocation sanity check does not reject oversized entries.
+            r0, r1 = matrix.getOwnershipRange()
+            local_nrows = r1 - r0
+            local_ncols = local_nrows  # square partition for square matrices
+            offdiag_ncols = ncols - local_ncols
+
+            d_arr = np.asarray(d, dtype=np.int64)
+            o_arr = np.asarray(o, dtype=np.int64)
+            # Slice to locally-owned rows if full-size arrays are passed.
+            if d_arr.size == nrows:
+                d_arr = d_arr[r0:r1]
+            if o_arr.size == nrows:
+                o_arr = o_arr[r0:r1]
+            np.clip(d_arr, 0, local_ncols, out=d_arr)
+            np.clip(o_arr, 0, max(offdiag_ncols, 1), out=o_arr)
+            matrix.setPreallocationNNZ(
+                (d_arr.astype(PETSc.IntType), o_arr.astype(PETSc.IntType))
+            )
+            # Per-row counts are upper-bound estimates; allow PETSc to
+            # dynamically reallocate the few rows where the estimate is
+            # slightly low rather than aborting on insertion.
+            matrix.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        else:
+            matrix.setPreallocationNNZ((int(d), int(o)))
 
     matrix.setUp()
     return matrix
@@ -156,6 +195,41 @@ def ownership_range(matrix: PETSc.Mat) -> tuple[int, int]:
     """Return global owned row range for this rank: [rstart, rend)."""
     rstart, rend = matrix.getOwnershipRange()
     return int(rstart), int(rend)
+
+
+def petsc_owned_rows(mat: PETSc.Mat) -> dict:
+    """Return CSR data for the rows owned by the current rank.
+
+    For sequential AIJ matrices this is the full matrix. For MPI AIJ matrices,
+    PETSc exposes the locally-owned row block through ``getValuesCSR()``, with
+    column indices reported in the global numbering.
+    """
+    rstart, rend = ownership_range(mat)
+    row_ids = np.arange(rstart, rend, dtype=np.int64)
+
+    try:
+        indptr, indices, data = mat.getValuesCSR()
+    except Exception as exc:  # pragma: no cover - PETSc type guard
+        raise TypeError("PETSc matrix does not support CSR extraction via getValuesCSR()") from exc
+
+    indptr_arr = np.array(indptr, dtype=np.int64, copy=True)
+    indices_arr = np.array(indices, dtype=np.int64, copy=True)
+    data_arr = np.array(data, copy=True)
+
+    expected_indptr_size = int(row_ids.size) + 1
+    if indptr_arr.size != expected_indptr_size:
+        raise RuntimeError(
+            "PETSc CSR extraction returned an unexpected local row count: "
+            f"ownership_range={(rstart, rend)}, len(indptr)={indptr_arr.size}"
+        )
+
+    return {
+        "ownership_range": (rstart, rend),
+        "row_ids": row_ids,
+        "indptr": indptr_arr,
+        "indices": indices_arr,
+        "data": data_arr,
+    }
 
 
 def insert_local_csr_rows(

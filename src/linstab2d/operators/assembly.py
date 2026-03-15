@@ -591,28 +591,32 @@ def _assemble_block_operator_petsc(
     D2Z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
     D2RZ_blocks = _ensure_5_block_derivatives(D2RZ, ngp)
 
-    def _max_row_nnz(blocks: list[sp.csc_matrix]) -> int:
-        best = 0
-        for block in blocks:
-            row_nnz = np.asarray(block.getnnz(axis=1)).ravel()
-            if row_nnz.size:
-                best = max(best, int(row_nnz.max()))
-        return best
+    def _block_row_nnz(block_row_index: int) -> np.ndarray:
+        """Compute per-row nnz for one block-row (5 blocks of ngp×ngp)."""
+        row_nnz = np.ones(ngp, dtype=np.int64)  # diagonal entry at minimum
+        for j in range(5):
+            # The sparsity pattern of block (i,j) is the union of the
+            # derivative operator patterns scaled by the coefficient arrays.
+            # Upper-bound: sum the row nnz of all derivative operators that
+            # have nonzero coefficients for this (i,j) pair.
+            for op_blocks in (DR_blocks, D2R_blocks, DZ_blocks, D2Z_blocks, D2RZ_blocks):
+                op = op_blocks[j]
+                op_nnz = np.asarray(op.getnnz(axis=1)).ravel()
+                if op_nnz.size:
+                    row_nnz += op_nnz
+        return row_nnz
 
-    # Conservative constant preallocation: one full derivative stencil per term.
-    stencil_nnz = max(
-        _max_row_nnz(DR_blocks),
-        _max_row_nnz(D2R_blocks),
-        _max_row_nnz(DZ_blocks),
-        _max_row_nnz(D2Z_blocks),
-        _max_row_nnz(D2RZ_blocks),
-        1,
-    )
-    block_row_nnz = 1 + 5 * stencil_nnz
+    # Per-row preallocation: avoids the nrows × max_nnz_per_row product
+    # that causes int32 overflow on wide stencils (e.g. fd_order=8).
+    d_nnz = np.zeros(total_size, dtype=np.int64)
+    for i in range(5):
+        d_nnz[i * ngp : (i + 1) * ngp] = _block_row_nnz(i)
+    np.clip(d_nnz, 1, total_size, out=d_nnz)
+
     matrix = create_distributed_aij(
         (total_size, total_size),
-        nnz_diag=5 * block_row_nnz,
-        nnz_offdiag=5 * block_row_nnz,
+        nnz_diag=d_nnz,
+        nnz_offdiag=d_nnz,
     )
 
     if _use_distributed_matrix(solver_cfg):
