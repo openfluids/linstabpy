@@ -118,10 +118,10 @@ class TestBlasiusLoader:
 
 def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
     repo = Path(__file__).resolve().parents[1]
-    bundle = np.load(
-        repo / "tools/parity/npz/example_3_Streaky_BL_results_base.npz",
-        allow_pickle = False,
-    )
+    bundle_path = repo / "tools/parity/npz/example_3_Streaky_BL_results_base.npz"
+    if not bundle_path.exists():
+        pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
+    bundle = np.load(bundle_path, allow_pickle=False)
 
     class _MeshView:
         pass
