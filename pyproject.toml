@@ -39,9 +39,9 @@ test = ["pytest", "pytest-cov", "sympy>=1.13"]
 dev = [{include-group = "test"}, "h5py"]
 
 [project.urls]
-Repository = "https://github.com/ricardofrantz/LinStabPy"
-Documentation = "https://github.com/ricardofrantz/LinStabPy#readme"
-Issues = "https://github.com/ricardofrantz/LinStabPy/issues"
+Repository = "https://github.com/ricardofrantz/linstabpy"
+Documentation = "https://github.com/ricardofrantz/linstabpy#readme"
+Issues = "https://github.com/ricardofrantz/linstabpy/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
