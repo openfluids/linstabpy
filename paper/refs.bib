@@ -16,6 +16,16 @@
   note          = {ANL-95/11 - Revision 3.24}
 }
 
+@article{barkley2008direct,
+  title         = {Direct optimal growth analysis for timesteppers},
+  author        = {Barkley, Dwight and Blackburn, Hugh M. and Sherwin, Spencer J.},
+  year          = 2008,
+  journal       = {International Journal for Numerical Methods in Fluids},
+  volume        = 57,
+  number        = 9,
+  pages         = {1435--1458}
+}
+
 @article{benzi2002preconditioning,
   title         = {Preconditioning techniques for large linear systems: a survey},
   author        = {Benzi, Michele},
@@ -39,11 +49,41 @@
   pages         = {215--234}
 }
 
+@misc{dnami2022,
+  title         = {dNami: a framework for solving systems of balance laws using explicit numerical schemes on structured meshes},
+  author        = {Alferez, Nicolas and Touber, Emile and Winn, Stephen and Ali, Yussuf},
+  year          = 2022,
+  doi           = {10.5281/zenodo.6720593},
+  note          = {Zenodo software release},
+  howpublished  = {\url{https://doi.org/10.5281/zenodo.6720593}}
+}
+
 @book{dolean2015introduction,
   title         = {An Introduction to Domain Decomposition Methods: Algorithms, Theory, and Parallel Implementation},
   author        = {Dolean, Victorita and Jolivet, Pierre and Nataf, Fr{\'e}d{\'e}ric},
   year          = 2015,
   publisher     = {SIAM}
+}
+
+@article{edwards1994krylov,
+  title         = {{Krylov} methods for the incompressible {Navier--Stokes} equations},
+  author        = {Edwards, W. S. and Tuckerman, Laurette S. and Friesner, Richard A. and Sorensen, Danny C.},
+  year          = 1994,
+  journal       = {Journal of Computational Physics},
+  volume        = 110,
+  number        = 1,
+  pages         = {82--102}
+}
+
+@article{farghadan2025timestepping,
+  title         = {Efficient harmonic resolvent analysis via time stepping},
+  author        = {Farghadan, Ali and Jung, Junoh and Bhagwat, Rutvij and Towne, Aaron},
+  year          = 2024,
+  journal       = {Theoretical and Computational Fluid Dynamics},
+  volume        = 38,
+  number        = 3,
+  pages         = {331--353},
+  doi           = {10.1007/s00162-024-00694-1}
 }
 
 @article{frantz2023krylov,
@@ -89,6 +129,16 @@
 }
 
 % ───────────────────────────────────────────────────────────
+% Matrix-forming vs time-stepper references
+% ───────────────────────────────────────────────────────────
+@book{lehoucq1998arpack,
+  title         = {{ARPACK} Users' Guide: Solution of Large-Scale Eigenvalue Problems with Implicitly Restarted {Arnoldi} Methods},
+  author        = {Lehoucq, Richard B. and Sorensen, Danny C. and Yang, Chao},
+  year          = 1998,
+  publisher     = {SIAM}
+}
+
+% ───────────────────────────────────────────────────────────
 % New references — compact schemes and filtering
 % ───────────────────────────────────────────────────────────
 @article{lele1992compact,
@@ -99,6 +149,13 @@
   volume        = 103,
   number        = 1,
   pages         = {16--42}
+}
+
+@misc{linstab2drepo,
+  title         = {{LinStab2D} repository},
+  year          = 2026,
+  note          = {GitHub repository, accessed 2026-03-13},
+  howpublished  = {\url{https://github.com/LinStab2D/LinStab2D}}
 }
 
 @article{lui2022unsteadiness,
@@ -131,13 +188,6 @@
   number        = 5,
   pages         = {665--685},
   doi           = {10.1007/s00162-024-00706-0}
-}
-
-@misc{linstab2drepo,
-  title         = {{LinStab2D} repository},
-  year          = 2026,
-  note          = {GitHub repository, accessed 2026-03-13},
-  howpublished  = {\url{https://github.com/LinStab2D/LinStab2D}}
 }
 
 @article{martins2003complex,
@@ -189,23 +239,6 @@
   pages         = {787--795}
 }
 
-@article{padovan2025resolvent4py,
-  title         = {Resolvent4py: An open-source package for stability, resolvent and modal decomposition analyses in Python},
-  author        = {Padovan, Alberto and Anantharaman, Vishal and Rowley, Clarence W. and Vollmer, Blaine and Colonius, Tim and Bodony, Daniel J.},
-  year          = 2025,
-  journal       = {SoftwareX},
-  volume        = 31,
-  pages         = 102286,
-  doi           = {10.1016/j.softx.2025.102286}
-}
-
-@misc{resolvent4pyrepo,
-  title         = {{resolvent4py} repository},
-  year          = 2026,
-  note          = {GitHub repository, accessed 2026-03-13},
-  howpublished  = {\url{https://github.com/albertopadovan/resolvent4py}}
-}
-
 @article{padovan2020harmonic,
   title         = {Analysis of amplification mechanisms and cross-frequency interactions in nonlinear flows via the harmonic resolvent},
   author        = {Padovan, Alberto and Otto, Samuel E. and Rowley, Clarence W.},
@@ -227,24 +260,14 @@
   doi           = {10.1103/PhysRevFluids.7.073903}
 }
 
-@article{farghadan2025timestepping,
-  title         = {Efficient harmonic resolvent analysis via time stepping},
-  author        = {Farghadan, Ali and Jung, Junoh and Bhagwat, Rutvij and Towne, Aaron},
-  year          = 2024,
-  journal       = {Theoretical and Computational Fluid Dynamics},
-  volume        = 38,
-  number        = 3,
-  pages         = {331--353},
-  doi           = {10.1007/s00162-024-00694-1}
-}
-
-@misc{dnami2022,
-  title         = {dNami: a framework for solving systems of balance laws using explicit numerical schemes on structured meshes},
-  author        = {Alferez, Nicolas and Touber, Emile and Winn, Stephen and Ali, Yussuf},
-  year          = 2022,
-  note          = {Zenodo software release},
-  doi           = {10.5281/zenodo.6720593},
-  howpublished  = {\url{https://doi.org/10.5281/zenodo.6720593}}
+@article{padovan2025resolvent4py,
+  title         = {Resolvent4py: An open-source package for stability, resolvent and modal decomposition analyses in Python},
+  author        = {Padovan, Alberto and Anantharaman, Vishal and Rowley, Clarence W. and Vollmer, Blaine and Colonius, Tim and Bodony, Daniel J.},
+  year          = 2025,
+  journal       = {SoftwareX},
+  volume        = 31,
+  pages         = 102286,
+  doi           = {10.1016/j.softx.2025.102286}
 }
 
 @article{poulain2023broadcast,
@@ -253,7 +276,7 @@
   year          = 2023,
   journal       = {Computer Physics Communications},
   volume        = 283,
-  pages         = {108557},
+  pages         = 108557,
   doi           = {10.1016/j.cpc.2022.108557}
 }
 
@@ -263,6 +286,13 @@
   year          = 2026,
   note          = {Accessed 2026-03-01},
   howpublished  = {\url{https://albertopadovan.github.io/resolvent4py/auto\_examples/cgl/index.html}}
+}
+
+@misc{resolvent4pyrepo,
+  title         = {{resolvent4py} repository},
+  year          = 2026,
+  note          = {GitHub repository, accessed 2026-03-13},
+  howpublished  = {\url{https://github.com/albertopadovan/resolvent4py}}
 }
 
 % ───────────────────────────────────────────────────────────
@@ -405,6 +435,13 @@
   volume        = 261,
   number        = 5121,
   pages         = {578--584}
+}
+
+@book{trefethen2005spectra,
+  title         = {Spectra and Pseudospectra: The Behavior of Nonnormal Matrices and Operators},
+  author        = {Trefethen, Lloyd N. and Embree, Mark},
+  year          = 2005,
+  publisher     = {Princeton University Press}
 }
 
 @article{visbal2002use,

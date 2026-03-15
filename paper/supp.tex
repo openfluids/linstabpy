@@ -65,7 +65,7 @@
   }%
 }
 
-\title{Supplementary Material for\\LinStabPy: a framework for compressible stability and resolvent analysis}
+\title{Supplementary Material for\\LinStabPy: compressible stability and resolvent analysis}
 \author{%
 Gabriel Y.~R.~Hamada$^{1,2}$, Ricardo A.~S.~Frantz$^{3}$\\[0.75em]
 \small $^{1}$ School of Mechanical Engineering, University of Campinas, Campinas, SP 13083-860, Brazil\\
@@ -778,8 +778,11 @@ live under \path{validation/song_2023/}.
 \begin{figure}[t]
 \centering
 \artifactinclude{width=0.82\textwidth}{../validation/song_2023/song_2023.png}
-\caption{Current validation artifact for the Robinet/Song oblique SWBLI
-benchmark, included directly from \texttt{validation/song\_2023/}.}
+\caption{Robinet/Song oblique SWBLI validation artifact. Left: temporal
+spectrum with Python (filled), MATLAB (open circles), and Song original
+(squares) eigenvalues. Right: side-by-side MATLAB (top) and Python (bottom)
+streamwise velocity eigenmodes for a steady (left column) and oscillatory
+(right column) branch. Python modes are phase-aligned to MATLAB.}
 \label{fig:song_validation_artifact}
 \end{figure}
 
@@ -787,6 +790,31 @@ The comparison targets are the leading eigenvalue, the threshold
 value reported in the source literature, and the associated mode or
 spectrum overlays. Normalization conventions are stated alongside the
 comparison tables.
+
+\paragraph{Validation status.}
+After correcting the input-data layout convention (the saved MATLAB-exported
+fields use \texttt{(x\_index, y\_index)} ordering, which must be transposed
+before entering the \texttt{(ny, nx)} mesh path), both the SciPy-assembled
+and PETSc-assembled operators produce consistent eigenvalue spectra under
+direct LU/MUMPS factorization. On a reduced grid, the two assembly backends
+match exactly (mean nearest-MATLAB eigenvalue distance $1.37 \times 10^{-2}$,
+leading-mode growth rate $\mathrm{Im}(\omega_1) = +0.0605$). On the full
+$599 \times 301$ grid with the default filtered baseflow and an
+over-extraction strategy (24 modes requested, 20 nearest to target retained),
+the 20-mode comparison gives a mean nearest-MATLAB distance of
+$1.16 \times 10^{-2}$ and a maximum of $3.01 \times 10^{-2}$. The leading
+eigenvalue is $\mathrm{Im}(\omega_1) = +0.0573$, compared to the MATLAB
+reference $+0.0589$ (${\approx}\,3\%$ difference). Only three matched pairs
+exceed $2 \times 10^{-2}$, and the previously observed deep-damped outlier
+pair is resolved by the enlarged extraction window.
+
+Figure~\ref{fig:song_validation_artifact} shows the current Song summary
+artifact: a temporal spectrum panel with Python, MATLAB, and Song original
+eigenvalues overlaid, and side-by-side Python/MATLAB mode shapes for
+a steady (Mode~1) and an oscillatory (Mode~2) eigenmode. The Python
+eigenvectors are phase-aligned to MATLAB via a complex least-squares
+projection before plotting, so that the signed contour levels are directly
+comparable.
 
 \subsection{Application-facing Case 1 status}
 \label{sec:case1}
@@ -892,8 +920,8 @@ to a PETSc AIJ matrix.
   \node[core, right=of petsc] (st) {SLEPc spectral transform\\\texttt{ST = SINVERT/PRECOND}};
   \node[core, right=of st] (outer) {Outer eigensolver/SVD\\\texttt{EPS/Krylov-Schur}};
 
-  \node[patha, below=1.4cm of st] (a) {Strategy A (robust)\\\texttt{KSP = PREONLY}\\\texttt{PC = LU(MUMPS)}};
-  \node[pathb, below=1.4cm of petsc] (b) {Strategy B (scalable)\\\texttt{KSP = GMRES/FGMRES}\\\texttt{PC = ASM/fieldsplit}};
+  \node[patha, below=1.4cm of st] (a) {Direct path (EVP + resolvent)\\\texttt{KSP = PREONLY}\\\texttt{PC = LU(MUMPS)}};
+  \node[pathb, below=1.4cm of petsc] (b) {Iterative path (resolvent only)\\\texttt{KSP = FGMRES}\\\texttt{PC = ASM/fieldsplit}};
   \end{pgfonlayer}
 
   \draw[->, thick] (asm) -- (petsc);
@@ -913,21 +941,35 @@ and resolvent workflows operate through PETSc/SLEPc.}
 \subsection{Direct and iterative strategies}
 \label{sec:iterative}
 
-Two solver strategies are exposed. Strategy~A is a robust MUMPS sparse-direct
-baseline:
+Two solver strategies are exposed. The \emph{direct path} is a MUMPS
+sparse-direct baseline used for both eigenvalue problems and resolvent
+analysis:
 \begin{itemize}[nosep]
   \item \textbf{Direct solver:} factor the shifted sparse matrix once, then
     apply forward/back substitutions for each right-hand side.
 \end{itemize}
-Strategy~B is a scalable iterative route:
+The \emph{iterative path} is a Krylov/preconditioner route currently used only
+for the resolvent linear solves:
 \begin{itemize}[nosep]
   \item \textbf{Iterative solver:} build successive approximations using
     Krylov matrix-vector products and a preconditioner until the residual
     tolerance is met.
 \end{itemize}
-In the current implementation, the default iterative route is built around
+In the current implementation, the iterative route is built around
 ASM/domain-decomposition preconditioners; for the algorithmic background of
 these methods, see \citet{dolean2015introduction}.
+
+\paragraph{Remark: iterative inner solvers for eigenvalue problems.}
+The code infrastructure allows an iterative KSP to replace the direct solver
+inside the SLEPc shift-invert spectral transformation. Systematic testing on
+the Martini example family has shown that lightweight preconditioners (ASM,
+block-Jacobi, ILU, Jacobi) diverge on all tested cases, and that GMRES with
+an exact LU preconditioner is the only iterative configuration that converges
+on the reduced Example~3 and Example~4 operators. Because even the LU-
+preconditioned iterative path has not yet been validated on harder cases,
+the eigenvalue path uses only the direct solver at present. See
+Section~\ref{sec:krylov_roles} for a discussion of the distinction between
+inner and outer Krylov strategies and the role of shifted-system conditioning.
 
 \begin{table}[t]
 \centering
@@ -935,18 +977,19 @@ these methods, see \citet{dolean2015introduction}.
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{L{2.8cm}L{4.4cm}L{4.4cm}}
 \toprule
-Criterion & Strategy A: MUMPS sparse-direct & Strategy B: preconditioned Krylov \\
+Criterion & Direct path: MUMPS sparse-direct & Iterative path: preconditioned Krylov \\
 \midrule
 Core mechanism & Sparse LU factorization once, then triangular solves for each right-hand side. & Iterative residual reduction with matrix-vector products and preconditioner applications. \\
-Robustness & High robustness for difficult non-normal shifted systems. & Strongly dependent on preconditioner quality and shift conditioning. \\
+Robustness & High robustness for difficult non-normal shifted systems. & Dependent on preconditioner quality and shift conditioning. \\
 Memory profile & Higher memory demand due to fill-in and factor storage. & Lower memory footprint because no global LU factors are formed. \\
 Setup cost & Potentially high one-time factorization cost. & Lower setup cost, but solve cost depends on iteration count. \\
 Repeated solves & Efficient after factorization, especially for many solves at fixed shift. & Cost scales with the inner-iteration history and can vary across shifts/frequencies. \\
-Best-use regime & Default when factors fit in memory and maximum reliability is required. & Preferred when direct factorization is memory-limited and scalable execution is needed. \\
+Current scope & Used for all eigenvalue problems and as the resolvent default. & Used for resolvent analyses only; not yet validated for the shift-invert eigensolver inner loop. \\
 \bottomrule
 \end{tabular}
-\caption{Comparison of the two solver strategies used in the
-current implementation.}
+\caption{Comparison of the two solver strategies. The iterative path is
+currently used only for resolvent analyses; see the remark in
+Section~\ref{sec:iterative} regarding eigenvalue-problem limitations.}
 \label{tab:direct_iterative_compare}
 \end{table}
 
@@ -959,9 +1002,8 @@ current implementation.}
 Layer & Option pattern & Default role & Why chosen & When to change \\
 \midrule
 SLEPc & $ST=$ SINVERT & Interior-target extraction & Maps target eigenvalues to dominant transformed eigenpairs & Change shift $\sigma$ when the target region moves \\
-PETSc KSP/PC & PREONLY + LU(MUMPS) & Strategy A inner solve & Maximum robustness for difficult shifted systems & Replace when factor memory becomes limiting \\
-PETSc KSP/PC & GMRES + ASM & Strategy B eigensolver inner solve & Default iterative route for shift-invert eigenproblems & Switch to fieldsplit when the chosen block structure is advantageous \\
-PETSc KSP/PC & FGMRES + ASM & Strategy B resolvent & Flexible Krylov route for variable preconditioning quality & Adjust overlap or preconditioner family when convergence stalls \\
+PETSc KSP/PC & PREONLY + LU(MUMPS) & EVP and resolvent direct inner solve & Necessary for the non-normal shifted LNSE systems encountered in practice & Replace only after validating an iterative alternative on the target case \\
+PETSc KSP/PC & FGMRES + ASM & Resolvent iterative solve & Flexible Krylov route for variable preconditioning quality & Adjust overlap or preconditioner family when convergence stalls \\
 Conv. guard & \path{ksp_error_if_not_converged} & Hard failure semantics & Prevents polluted outer spectra from unconverged inner solves & Do not disable for production claims \\
 \bottomrule
 \end{tabular}
@@ -973,15 +1015,108 @@ layer.}
 The solver-selection workflow is intentionally explicit:
 \begin{enumerate}[label=\arabic*., nosep]
   \item assemble and validate the operator on the target grid;
-  \item run Strategy~A as the robustness reference when factor memory is
-    feasible;
-  \item switch to Strategy~B only when memory or distribution constraints make
+  \item use the direct path (PREONLY + LU/MUMPS) for all eigenvalue problems;
+  \item for resolvent analyses, use the direct path as the reference, then
+    switch to the iterative path when memory or distribution constraints make
     direct factorization impractical;
-  \item compare outputs against a nearby Strategy~A reference case before
-    scaling up;
+  \item compare iterative resolvent outputs against a nearby direct-path
+    reference case before scaling up;
   \item reject production results when inner linear solves fail their
     prescribed tolerances.
 \end{enumerate}
+
+\subsection{Matrix-forming versus time-stepper Krylov strategies}
+\label{sec:krylov_roles}
+
+A point of frequent confusion in the stability-analysis literature is the role
+of Krylov methods. The term ``Krylov'' appears in two distinct contexts that
+share mathematical foundations but differ in their numerical requirements and
+failure modes. Because LinStabPy is a matrix-forming code, this distinction
+directly determines the solver architecture.
+
+\paragraph{Outer Krylov: the time-stepper approach.}
+In the time-stepper formulation
+\citep{edwards1994krylov,barkley2008direct,frantz2023krylov}, the linearized
+operator $\bL$ is never assembled. Instead, the action of the propagator
+$\mathrm{e}^{\bL \Delta t}$ (or an approximation to it) is evaluated by
+advancing the linearized equations one time step. The Arnoldi algorithm builds
+a Krylov basis $\{\bv, \mathrm{e}^{\bL\Delta t}\bv,
+(\mathrm{e}^{\bL\Delta t})^2 \bv, \ldots\}$ and extracts the dominant
+eigenvalues of the propagator, which correspond to the least-stable temporal
+modes \citep{lehoucq1998arpack}. No matrix is stored, no system is inverted,
+and the Arnoldi recurrence operates on the smooth output of the time-stepper.
+This is the approach used by spectral-element codes such as Nek5000 and
+Nektar++, and by operator-free resolvent tools such as
+\texttt{LightKrylov}~\citep{kern2026lightkrylov}.
+
+\paragraph{Inner Krylov: iterative shift-invert.}
+When a matrix-forming code needs interior eigenvalues near a target $\sigma$,
+the standard technique is the shift-invert spectral transformation:
+the eigensolver (Krylov--Schur in SLEPc) repeatedly applies
+$(\bL - \sigma\bI)^{-1}$ to Arnoldi vectors
+\citep{hernandez2005slepc,lehoucq1998arpack}. Each application requires
+solving the shifted linear system $(\bL - \sigma\bI)\bx = \bb$. With a
+direct solver (LU/MUMPS) this reduces to forward/back substitutions using
+a precomputed factorization. If instead an iterative Krylov method (e.g.\
+GMRES) is used for these inner solves, it must invert the shifted operator
+to high accuracy at every outer Arnoldi step.
+
+\paragraph{Why the inner solve is demanding for compressible LNSE.}
+The shifted temporal operator $\mathrm{i}\bL - \sigma\bI$ inherits the
+non-normality of the linearized Navier--Stokes equations. For compressible
+flows, the LNSE operator couples five thermodynamic variables with disparate
+scales and supports convective non-normality
+\citep{trefethen1993hydrodynamic,schmid2007nonmodal} as well as
+continuous-spectrum modes near the real axis. When the spectral target
+$\sigma$ lies near the continuous spectrum or a cluster of eigenvalues, the
+shifted operator can become poorly conditioned
+\citep{trefethen2005spectra,saad2003iterative}.
+
+The practical consequences were observed in the Martini example family.
+On reduced grids of Example~3 (streaky boundary layer) and Example~4
+(cavity), a systematic sweep of ten Krylov/preconditioner configurations
+found that only GMRES with an exact LU preconditioner (\texttt{gmres +
+lu}, right-preconditioned) converges; all lightweight preconditioners (ASM,
+block-Jacobi, ILU, Jacobi, fieldsplit) diverged
+(\texttt{KSP\_DIVERGED\_ITS}, 20\,000~iterations). This indicates that the
+inner shifted solve requires a preconditioner that closely approximates the
+inverse of the shifted operator --- local or incomplete approximations are
+insufficient for the non-normal compressible LNSE.
+
+For the direct path (\texttt{PREONLY} + LU/MUMPS), the outer Krylov--Schur
+iteration checks only the \emph{eigenpair} residual, not the inner
+linear-system residual. The direct solve therefore succeeds even on shifted
+systems where the inner-solve accuracy would be marginal for an iterative
+method, because the outer eigensolver tolerates moderate perturbations in
+the search directions.
+
+\paragraph{Implications for solver selection.}
+The distinction between outer and inner Krylov roles leads to a practical
+guideline:
+\begin{itemize}[nosep]
+\item \emph{Matrix-forming codes} (including LinStabPy): use direct
+  factorization for the shift-invert inner solves. The formed matrix enables
+  exact factorization, which decouples the outer eigenvalue convergence from
+  inner-solve accuracy. This is the default and currently the only validated
+  EVP path.
+\item \emph{Time-stepper / matrix-free codes}: use the outer Krylov approach
+  on the propagator. No inner linear system is formed or inverted; the
+  non-normality is encoded in the time-stepper output, which the outer
+  Arnoldi handles without shift-invert.
+\item \emph{Resolvent analysis}: both paths are viable. The resolvent requires
+  solving a single shifted system $(\bL + \mathrm{i}\omega\bI)\bx = \bb$
+  rather than embedding the solve inside an outer eigenvalue loop. The
+  accuracy requirement is therefore that of a one-shot linear solve, which is
+  less demanding than the repeated inner solves needed by shift-invert.
+  Iterative Krylov with domain-decomposition preconditioning (FGMRES + ASM)
+  may therefore succeed for resolvent even when it fails for eigenvalue
+  problems.
+\end{itemize}
+These observations are consistent with the broader experience reviewed by
+\citet{theofilis2011global} and \citet{frantz2023krylov}: the choice between
+matrix-forming and time-stepper approaches is not simply a matter of
+preference but determines which solver strategies are available and where
+non-normality enters the computation.
 
 \subsection{Performance structure}
 \label{sec:scaling}
@@ -992,20 +1127,20 @@ configuration, and hardware metadata.
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{rcccccc}
+\begin{tabular}{rcccc}
 \toprule
- & \multicolumn{3}{c}{Strategy A (MUMPS)} & \multicolumn{3}{c}{Strategy B (FGMRES+ASM)} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-$n = 5N$ & Assemble [s] & Factor [s] & Mem [GB] & Assemble [s] & Solve [s] & Mem [GB] \\
+ & \multicolumn{4}{c}{Direct path (MUMPS)} \\
+\cmidrule(lr){2-5}
+$n = 5N$ & Assemble [s] & Factor [s] & Solve [s] & Mem [GB] \\
 \midrule
-pending & pending & pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending & pending & pending \\
+pending & pending & pending & pending & pending \\
+pending & pending & pending & pending & pending \\
+pending & pending & pending & pending & pending \\
+pending & pending & pending & pending & pending \\
 \bottomrule
 \end{tabular}
-\caption{Performance-reporting template for the scaling study. Entries
-are populated from reproducible case artifacts.}
+\caption{Performance-reporting template for the scaling study (eigenvalue
+problems). Entries are populated from reproducible case artifacts.}
 \label{tab:scaling}
 \end{table}
 
