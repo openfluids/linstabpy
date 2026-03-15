@@ -269,6 +269,15 @@ def load_my_case(
                 sponge.npy
 
     All arrays must be 2-D with the same shape.
+
+    Notes
+    -----
+    The Song2023 `.npy` exports are stored in the original MATLAB-oriented
+    layout where the first axis marches in streamwise direction and the second
+    axis marches wall-normal. Most of this repo expects mesh arrays in the
+    usual ``(ny, nx)`` convention, so Song runs should set
+    ``transpose_input=True`` unless they explicitly want the raw storage layout
+    for diagnostics.
     """
     root = Path(case_dir) / "baseflow"
 

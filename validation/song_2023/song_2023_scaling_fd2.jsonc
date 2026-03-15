@@ -1,0 +1,74 @@
+{
+  // Dedicated fd2-only full scaling probe on the current MacBook.
+  //
+  // This keeps the experiment narrow:
+  // - reuse the already-completed rank-1 serial baseline if desired
+  // - probe ranks 2, 4, and 8 one by one with a more permissive swap guard
+  // - stop immediately when the machine pressure becomes unacceptable
+
+  "output_root": "validation/song_2023/scaling_fd2_runs",
+
+  "base_config": "validation/song_2023/song_2023.jsonc",
+
+  "memory_guard": {
+    "machine_memory_mib": 16384.0,
+    "stop_on_peak_memory_mib_max_rank": 12000.0,
+    "stop_on_peak_memory_mib_sum_ranks": 14000.0,
+    "stop_on_swap_delta_mib": 2048.0
+  },
+
+  "variants": [
+    {
+      "name": "fd2_rank1_serial",
+      "ranks": 1,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank2_dist",
+      "ranks": 2,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank4_dist",
+      "ranks": 4,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank8_dist",
+      "ranks": 8,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    }
+  ]
+}

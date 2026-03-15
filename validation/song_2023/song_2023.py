@@ -5,6 +5,8 @@ Usage (from repo root):
 """
 from __future__ import annotations
 
+import argparse
+import math
 import os
 import time
 from datetime import datetime, timezone
@@ -28,6 +30,7 @@ from linstab2d.solvers.eigenvalue import temporal_eigenvalues  # noqa: E402
 from linstab2d.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
 from linstab2d.solvers.resolvent import resolvent_analysis  # noqa: E402
 from linstab2d.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
+from linstab2d.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
 from examples._helpers import (  # noqa: E402
     format_complex,
@@ -104,6 +107,89 @@ def _resolve_frequency_target(cfg: dict) -> tuple[complex, str]:
     return 0.0 + 0.0j, "default omega_target=0"
 
 
+def _resolve_baseflow_input_options(cfg: dict) -> dict[str, bool]:
+    """Resolve Song baseflow-loader layout options from JSONC.
+
+    Song's saved `.npy` fields follow the original MATLAB export layout, not
+    the repo-wide `(ny, nx)` mesh convention. Expose that explicitly in JSONC
+    so the validation case does not silently assemble the mesh with swapped
+    physical edges.
+    """
+    input_cfg = cfg.get("baseflow_input", {})
+    if input_cfg is None:
+        input_cfg = {}
+    if not isinstance(input_cfg, dict):
+        raise TypeError("baseflow_input must be a JSON object when provided")
+    return {
+        "transpose_input": bool(input_cfg.get("transpose_input", False)),
+        "zero_spanwise": bool(input_cfg.get("zero_spanwise", False)),
+    }
+
+
+def _resolve_stability_request_count(cfg: dict) -> int:
+    """Return how many temporal modes to extract before optional truncation."""
+    n_modes = int(cfg["n_modes_stability"])
+    extra = int(cfg.get("stability_search_extra_modes", 0))
+    if extra < 0:
+        raise ValueError("stability_search_extra_modes must be >= 0")
+    return n_modes + extra
+
+
+def _safe_float(value: float) -> float:
+    try:
+        out = float(value)
+    except Exception:
+        return float("nan")
+    return out if math.isfinite(out) else float("nan")
+
+
+def _summarize_rank_metrics(
+    step_stats_by_rank: list[list[tuple[str, float, float]]],
+    elapsed_by_rank: list[float],
+    memory_by_rank: list[float],
+) -> dict[str, object]:
+    """Aggregate per-rank Song metrics into min/mean/max summaries."""
+    elapsed = np.asarray([_safe_float(v) for v in elapsed_by_rank], dtype=float)
+    memory = np.asarray([_safe_float(v) for v in memory_by_rank], dtype=float)
+
+    step_order: list[str] = []
+    for stats in step_stats_by_rank:
+        for name, _, _ in stats:
+            if name not in step_order:
+                step_order.append(name)
+
+    step_summary: dict[str, dict[str, float | int]] = {}
+    for name in step_order:
+        times = []
+        mems = []
+        for stats in step_stats_by_rank:
+            for step_name, dt, dmem in stats:
+                if step_name == name:
+                    times.append(_safe_float(dt))
+                    mems.append(_safe_float(dmem))
+        t = np.asarray(times, dtype=float)
+        m = np.asarray(mems, dtype=float)
+        step_summary[name] = {
+            "count": int(t.size),
+            "time_min": float(np.nanmin(t)) if t.size else float("nan"),
+            "time_mean": float(np.nanmean(t)) if t.size else float("nan"),
+            "time_max": float(np.nanmax(t)) if t.size else float("nan"),
+            "memory_min": float(np.nanmin(m)) if m.size else float("nan"),
+            "memory_mean": float(np.nanmean(m)) if m.size else float("nan"),
+            "memory_max": float(np.nanmax(m)) if m.size else float("nan"),
+        }
+
+    return {
+        "total_time_min": float(np.nanmin(elapsed)) if elapsed.size else float("nan"),
+        "total_time_mean": float(np.nanmean(elapsed)) if elapsed.size else float("nan"),
+        "total_time_max": float(np.nanmax(elapsed)) if elapsed.size else float("nan"),
+        "peak_memory_rank0": float(memory[0]) if memory.size else float("nan"),
+        "peak_memory_max": float(np.nanmax(memory)) if memory.size else float("nan"),
+        "peak_memory_sum": float(np.nansum(memory)) if memory.size else float("nan"),
+        "step_summary": step_summary,
+    }
+
+
 def run_case(
     case_dir: str | Path,
     *,
@@ -118,6 +204,7 @@ def run_case(
     St: float = 0.0,
     omega_target: complex = 0.0 + 0.0j,
     n_modes_stability: int = 20,
+    n_modes_stability_request: int | None = None,
     n_modes_resolvent: int = 10,
     run_stability: bool = True,
     run_resolvent: bool = False,
@@ -131,14 +218,23 @@ def run_case(
     bc_recipe: list[dict] | None = None,
     solver_cfg: dict | None = None,
     preprocess_cfg: dict | None = None,
+    transpose_input: bool = False,
+    zero_spanwise: bool = False,
 ) -> None:
     """Driver for the Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case."""
     comm = PETSc.COMM_WORLD
     rank = comm.getRank()
+    size = comm.getSize()
 
     t0 = time.perf_counter()
     mem0 = _get_memory_mb()
     step_stats: List[Tuple[str, float, float]] = []
+    matrix_mode = _petsc_matrix_mode(solver_cfg)
+    distributed_matrix = _use_distributed_matrix(solver_cfg)
+    matrix_type = "scipy"
+    ownership_ranges: list[tuple[int, int]] | None = None
+    operator_shape: tuple[int, int] | None = None
+    operator_nnz: int | None = None
 
     def _status(message: str) -> None:
         if rank == 0:
@@ -150,6 +246,11 @@ def run_case(
         f"(beta={beta:.3f}, St={St:.3f}, omega_target={omega_target.real:+.6e}{omega_target.imag:+.6e}j, "
         f"fd_order={fd_order}, stride=({stride_ksi},{stride_eta}), "
         f"stability={run_stability}, resolvent={run_resolvent})"
+    )
+    _status(
+        "runtime mode "
+        f"(mpi_ranks={size}, petsc_matrix_mode={matrix_mode}, "
+        f"distributed_matrix={distributed_matrix})"
     )
 
     # 1) Load baseflow and sponge from .npy files
@@ -165,6 +266,8 @@ def run_case(
         T_0=T_0,
         stride_ksi=stride_ksi,
         stride_eta=stride_eta,
+        transpose_input=transpose_input,
+        zero_spanwise=zero_spanwise,
         preprocess_cfg=preprocess_cfg,
     )
     t_end = time.perf_counter()
@@ -220,6 +323,16 @@ def run_case(
     mem_end = _get_memory_mb()
     step_stats.append(("assemble_operator_bc", t_end - t_start, mem_end - mem_start))
     nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
+    operator_shape = (mesh.ngp * 5, mesh.ngp * 5)
+    operator_nnz = nnz
+    if hasattr(L0, "getOwnershipRange"):
+        matrix_type = str(L0.getType())
+        ownership_ranges = list(MPI.COMM_WORLD.allgather(tuple(int(v) for v in L0.getOwnershipRange())))
+        if rank == 0:
+            _status(
+                "PETSc operator "
+                f"(type={matrix_type}, ownership_ranges={ownership_ranges})"
+            )
     _status(f"assembled operator shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
 
     # 4) Chu energy norm
@@ -272,13 +385,21 @@ def run_case(
         _status(f"starting stability eigensolve for {n_modes_stability} modes at omega_target={omega_target:.6g}")
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
+        requested_modes = (
+            n_modes_stability
+            if n_modes_stability_request is None
+            else max(int(n_modes_stability_request), int(n_modes_stability))
+        )
         omega, direct_modes = temporal_eigenvalues(
             L0,
-            n_modes=n_modes_stability,
+            n_modes=requested_modes,
             target=omega_target,
             W_diag=W_diag,
             solver_cfg=solver_cfg,
         )
+        if requested_modes > n_modes_stability:
+            omega = omega[:n_modes_stability]
+            direct_modes = direct_modes[:, :n_modes_stability]
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
         step_stats.append(("stability", t_end - t_start, mem_end - mem_start))
@@ -317,23 +438,56 @@ def run_case(
             invW_diag=invW_diag,
             preprocess_enabled=bool(preprocess_info.get("enabled", False)),
             preprocess_summary=np.asarray(preprocess_info.get("summary", "")),
-            preprocess_info=np.asarray([preprocess_info], dtype=object),
+            transpose_input=bool(transpose_input),
+            zero_spanwise=bool(zero_spanwise),
+            n_modes_stability_requested=(
+                int(n_modes_stability)
+                if n_modes_stability_request is None
+                else max(int(n_modes_stability_request), int(n_modes_stability))
+            ),
+            mpi_ranks=np.int32(size),
+            petsc_matrix_mode=np.asarray(matrix_mode),
+            distributed_matrix=bool(distributed_matrix),
+            matrix_type=np.asarray(matrix_type),
         )
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
         step_stats.append(("save_output", t_end - t_start, mem_end - mem_start))
 
-        elapsed = time.perf_counter() - t0
-        mem_total = _get_memory_mb()
+    elapsed_local = time.perf_counter() - t0
+    mem_total_local = _get_memory_mb()
+    gathered_steps = MPI.COMM_WORLD.gather(step_stats, root=0)
+    gathered_elapsed = MPI.COMM_WORLD.gather(elapsed_local, root=0)
+    gathered_memory = MPI.COMM_WORLD.gather(mem_total_local, root=0)
 
-        print(f"[song_2023] run finished in {elapsed:.2f}s, output={out_path}")
+    if rank == 0:
+        summary = _summarize_rank_metrics(gathered_steps, gathered_elapsed, gathered_memory)
+        total_time_s = float(summary["total_time_max"])
+        peak_memory_mib = float(summary["peak_memory_max"])
+        peak_memory_sum_mib = float(summary["peak_memory_sum"])
+        peak_memory_rank0_mib = float(summary["peak_memory_rank0"])
+
+        print(f"[song_2023] run finished in {total_time_s:.2f}s, output={out_path}")
         print("[song_2023] step timings (s) and memory deltas (MiB):")
-        for name, dt, dmem in step_stats:
-            print(f"  - {name:20s}: {dt:8.3f} s, Δmem={dmem:8.2f} MiB")
-        if not np.isnan(mem_total):
-            print(f"[song_2023] approximate current/peak memory: {mem_total:.2f} MiB")
+        for name, metrics in summary["step_summary"].items():
+            print(
+                "  - "
+                f"{name:20s}: "
+                f"t[min/mean/max]=({metrics['time_min']:.3f}, {metrics['time_mean']:.3f}, {metrics['time_max']:.3f}) s, "
+                f"Δmem[min/mean/max]=({metrics['memory_min']:.2f}, {metrics['memory_mean']:.2f}, {metrics['memory_max']:.2f}) MiB"
+            )
+        if not np.isnan(peak_memory_mib):
+            print(
+                "[song_2023] peak memory summary: "
+                f"rank0={peak_memory_rank0_mib:.2f} MiB, "
+                f"max-rank={peak_memory_mib:.2f} MiB, "
+                f"sum-ranks={peak_memory_sum_mib:.2f} MiB"
+            )
         if not np.isnan(mem0):
-            print(f"[song_2023] overall Δmem since start: {mem_total - mem0:.2f} MiB")
+            print(
+                "[song_2023] overall Δmem since start (rank 0): "
+                f"{peak_memory_rank0_mib - mem0:.2f} MiB"
+            )
 
         # Write timing and memory stats to .log for comparison with other codes
         log_file = out_path.with_suffix(".log")
@@ -347,17 +501,46 @@ def run_case(
                 f"beta={beta} St={St} omega_target={omega_target.real:+.16e}{omega_target.imag:+.16e}j "
                 f"fd_order={fd_order} stride_ksi={stride_ksi} stride_eta={stride_eta}\n"
             )
+            f.write(
+                f"baseflow_input.transpose_input={bool(transpose_input)} "
+                f"baseflow_input.zero_spanwise={bool(zero_spanwise)}\n"
+            )
+            f.write(
+                f"mpi_ranks={size} petsc_matrix_mode={matrix_mode} "
+                f"distributed_matrix={bool(distributed_matrix)} matrix_type={matrix_type}\n"
+            )
+            if ownership_ranges is not None:
+                f.write(f"ownership_ranges={ownership_ranges}\n")
+            if operator_shape is not None:
+                f.write(f"operator_shape={operator_shape}\n")
+            if operator_nnz is not None:
+                f.write(f"operator_nnz={operator_nnz}\n")
             f.write(f"baseflow_preprocess={preprocess_info.get('summary', '')}\n")
             f.write(f"nx={nx} ny={ny} ngp={mesh.ngp}\n")
-            f.write(f"n_modes_stability={n_modes_stability} n_modes_resolvent={n_modes_resolvent}\n")
+            f.write(
+                f"n_modes_stability={n_modes_stability} "
+                f"n_modes_stability_requested="
+                f"{(int(n_modes_stability) if n_modes_stability_request is None else max(int(n_modes_stability_request), int(n_modes_stability)))} "
+                f"n_modes_resolvent={n_modes_resolvent}\n"
+            )
             f.write(f"run_stability={run_stability} run_resolvent={run_resolvent}\n")
-            f.write(f"total_time_s={elapsed:.6f}\n")
-            f.write(f"peak_memory_mib={mem_total:.4f}\n")
+            f.write(f"total_time_s={total_time_s:.6f}\n")
+            f.write(f"total_time_s_min_rank={float(summary['total_time_min']):.6f}\n")
+            f.write(f"total_time_s_mean_rank={float(summary['total_time_mean']):.6f}\n")
+            f.write(f"peak_memory_mib={peak_memory_mib:.4f}\n")
+            f.write(f"peak_memory_mib_rank0={peak_memory_rank0_mib:.4f}\n")
+            f.write(f"peak_memory_mib_sum_ranks={peak_memory_sum_mib:.4f}\n")
             if not np.isnan(mem0):
-                f.write(f"memory_delta_mib={mem_total - mem0:.4f}\n")
-            f.write("# step name | time_s | memory_delta_mib\n")
-            for name, dt, dmem in step_stats:
-                f.write(f"step {name} {dt:.6f} {dmem:.4f}\n")
+                f.write(f"memory_delta_mib_rank0={peak_memory_rank0_mib - mem0:.4f}\n")
+            f.write("# step name | time_min time_mean time_max mem_min mem_mean mem_max count\n")
+            for name, metrics in summary["step_summary"].items():
+                f.write(
+                    "step_summary "
+                    f"{name} "
+                    f"{metrics['time_min']:.6f} {metrics['time_mean']:.6f} {metrics['time_max']:.6f} "
+                    f"{metrics['memory_min']:.4f} {metrics['memory_mean']:.4f} {metrics['memory_max']:.4f} "
+                    f"{metrics['count']}\n"
+                )
         print(f"[song_2023] stats written to {log_file}")
 
     MPI.COMM_WORLD.Barrier()
@@ -402,6 +585,41 @@ def _load_song_original_omega() -> np.ndarray | None:
         return None
     length_scale = 80.0
     return length_scale * (values[:, 0] + 1j * values[:, 1])
+
+
+def _load_spectrum_overlays(overlay_cfg: dict | None) -> list[dict[str, object]]:
+    """Load optional extra Python spectra for the Song summary spectrum panel."""
+    if not overlay_cfg or not bool(overlay_cfg.get("enabled", False)):
+        return []
+
+    variants = overlay_cfg.get("variants", [])
+    if not isinstance(variants, list):
+        raise TypeError("spectrum_overlay.variants must be a list when provided")
+
+    overlays: list[dict[str, object]] = []
+    for item in variants:
+        if not isinstance(item, dict):
+            raise TypeError("Each spectrum_overlay variant must be a JSON object")
+        raw_path = item.get("npz")
+        if raw_path is None:
+            raise ValueError("Each spectrum_overlay variant must define an 'npz' path")
+        npz_path = Path(str(raw_path))
+        if not npz_path.is_absolute():
+            npz_path = (SCRIPT.parent / npz_path).resolve()
+        if not npz_path.exists():
+            continue
+        with np.load(npz_path, allow_pickle=False) as data:
+            if "omega" not in data:
+                continue
+            overlays.append(
+                {
+                    "label": str(item.get("label", npz_path.parent.name)),
+                    "marker": str(item.get("marker", "^")),
+                    "color": str(item.get("color", "#c26d00")),
+                    "omega": np.asarray(data["omega"], dtype=complex).reshape(-1),
+                }
+            )
+    return overlays
 
 
 def _load_song_reference_baseflow() -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
@@ -463,25 +681,84 @@ def _load_matlab_u_mode(index_1based: int, shape: tuple[int, int]) -> np.ndarray
     return None
 
 
-def _best_mode_pairs(omega_mat: np.ndarray, omega_py: np.ndarray, n_pairs: int) -> list[tuple[int, int]]:
-    """Match MATLAB and Python eigenvalues by nearest distance in the complex plane."""
+def _select_reference_mode_indices(omega_ref: np.ndarray, target: complex = 0.0 + 0.0j) -> list[int]:
+    """Pick the steady and oscillatory reference modes for summary plots.
+
+    Mode 1:
+        the reference eigenvalue closest to the target (for Song, the
+        nearly-steady branch near positive growth).
+    Mode 2:
+        the closest reference eigenvalue with non-zero real part, preferring
+        the positive-real member when the oscillatory pair is symmetric.
+    """
+    omega_ref = np.asarray(omega_ref, dtype=complex).reshape(-1)
+    if omega_ref.size == 0:
+        return []
+
+    distances = np.abs(omega_ref - target)
+    steady_idx = int(np.argmin(distances))
+    selected = [steady_idx]
+
+    nonzero_real = np.flatnonzero(np.abs(np.real(omega_ref)) > 1e-8)
+    if nonzero_real.size:
+        osc_dist = distances[nonzero_real]
+        best = float(np.min(osc_dist))
+        near = nonzero_real[np.abs(osc_dist - best) <= 1e-10]
+        positive = near[np.real(omega_ref[near]) > 0.0]
+        if positive.size:
+            oscillatory_idx = int(positive[np.argmin(np.abs(omega_ref[positive] - target))])
+        else:
+            oscillatory_idx = int(near[np.argmin(np.abs(omega_ref[near] - target))])
+        if oscillatory_idx not in selected:
+            selected.append(oscillatory_idx)
+
+    if len(selected) < 2 and omega_ref.size > 1:
+        for idx in np.argsort(distances):
+            idx = int(idx)
+            if idx not in selected:
+                selected.append(idx)
+                break
+
+    return selected[:2]
+
+
+def _match_selected_modes(
+    omega_ref: np.ndarray,
+    omega_py: np.ndarray,
+    *,
+    target: complex = 0.0 + 0.0j,
+) -> list[tuple[int, int]]:
+    """Match selected MATLAB reference modes to unique Python modes."""
+    omega_ref = np.asarray(omega_ref, dtype=complex).reshape(-1)
+    omega_py = np.asarray(omega_py, dtype=complex).reshape(-1)
+
     pairs: list[tuple[int, int]] = []
     used_py: set[int] = set()
-    for mat_i in np.argsort(np.imag(omega_mat)):
-        distances = np.abs(omega_py - omega_mat[mat_i])
-        py_order = np.argsort(distances)
-        for py_i in py_order:
-            if int(py_i) not in used_py:
-                pairs.append((int(mat_i), int(py_i)))
-                used_py.add(int(py_i))
+    for ref_i in _select_reference_mode_indices(omega_ref, target=target):
+        distances = np.abs(omega_py - omega_ref[ref_i])
+        for py_i in np.argsort(distances):
+            py_i = int(py_i)
+            if py_i not in used_py:
+                pairs.append((int(ref_i), py_i))
+                used_py.add(py_i)
                 break
-        if len(pairs) >= n_pairs:
-            break
-    pairs.sort(key=lambda pair: np.imag(omega_py[pair[1]]))
     return pairs
 
 
-def _plot(data: dict[str, np.ndarray]) -> None:
+def _align_mode_to_reference(candidate: np.ndarray, reference: np.ndarray | None) -> np.ndarray:
+    """Return ``candidate`` aligned to ``reference`` by complex least-squares phase."""
+    candidate = np.asarray(candidate, dtype=complex)
+    if reference is None:
+        return candidate
+    reference = np.asarray(reference, dtype=complex)
+    denom = np.vdot(candidate.reshape(-1), candidate.reshape(-1))
+    if abs(denom) == 0.0:
+        return candidate
+    phase = np.vdot(candidate.reshape(-1), reference.reshape(-1)) / denom
+    return candidate * phase
+
+
+def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> None:
     """Generate baseflow, stability, and optional resolvent figures for Song 2023."""
     import matplotlib.pyplot as plt
 
@@ -522,16 +799,28 @@ def _plot(data: dict[str, np.ndarray]) -> None:
     direct_modes = np.asarray(data["direct_modes"], dtype=complex)
     matlab_omega = _load_matlab_omega()
     song_omega = _load_song_original_omega()
+    overlay_spectra = _load_spectrum_overlays(overlay_cfg)
     if omega.size:
-        n_show = min(2, omega.size)
+        target = complex(np.asarray(data.get("omega_target", 0.0 + 0.0j)).reshape(-1)[0])
         if matlab_omega is not None and matlab_omega.size:
-            matched = _best_mode_pairs(np.asarray(matlab_omega, dtype=complex).reshape(-1), omega, n_show)
+            matched = _match_selected_modes(
+                np.asarray(matlab_omega, dtype=complex).reshape(-1),
+                omega,
+                target=target,
+            )
         else:
-            order = np.argsort(np.imag(omega))[:n_show]
+            order = np.argsort(np.abs(omega - target))[:2]
             matched = [(i, int(py_i)) for i, py_i in enumerate(order)]
+        n_show = len(matched)
 
-        fig = plt.figure(figsize=(12.8, 7.4))
-        grid = fig.add_gridspec(n_show, 2, width_ratios=(1.0, 1.5), hspace=0.24, wspace=0.18)
+        fig = plt.figure(figsize=(15.4, 7.8))
+        grid = fig.add_gridspec(
+            2,
+            3,
+            width_ratios=(1.0, 1.15, 1.15),
+            hspace=0.24,
+            wspace=0.18,
+        )
         ax_spec = fig.add_subplot(grid[:, 0])
         if song_omega is not None and song_omega.size:
             ax_spec.plot(
@@ -563,14 +852,46 @@ def _plot(data: dict[str, np.ndarray]) -> None:
             "o",
             color="#2a5caa",
             ms=5,
-            label="Python",
+            label="Python 2nd",
             zorder=3,
         )
-        for _, py_i in matched:
-            ax_spec.plot(np.real(omega[py_i]), np.imag(omega[py_i]), "D", color="#d99100", mec="black", mew=0.5, ms=8)
+        for overlay in overlay_spectra:
+            omega_extra = np.asarray(overlay["omega"], dtype=complex).reshape(-1)
+            if omega_extra.size == 0:
+                continue
+            ax_spec.plot(
+                np.real(omega_extra),
+                np.imag(omega_extra),
+                linestyle="none",
+                marker=str(overlay["marker"]),
+                color=str(overlay["color"]),
+                ms=5,
+                label=str(overlay["label"]),
+                zorder=2.5,
+            )
+        for row, (mat_i, py_i) in enumerate(matched, start=1):
+            ax_spec.plot(
+                np.real(omega[py_i]),
+                np.imag(omega[py_i]),
+                "D",
+                color="#d99100",
+                mec="black",
+                mew=0.5,
+                ms=8,
+            )
+            if matlab_omega is not None and matlab_omega.size and mat_i < matlab_omega.size:
+                ax_spec.text(
+                    np.real(omega[py_i]) + 0.01,
+                    np.imag(omega[py_i]) + 0.01,
+                    f"M{row}",
+                    fontsize=9,
+                )
         ax_spec.set_xlabel(r"$\Re(\omega)$")
         ax_spec.set_ylabel(r"$\Im(\omega)$")
-        ax_spec.set_title(rf"Temporal spectrum at $\beta={float(np.asarray(data['beta']).reshape(-1)[0]):.2f}$")
+        ax_spec.set_title(
+            rf"(a) Temporal spectrum at $\beta={float(np.asarray(data['beta']).reshape(-1)[0]):.2f}$",
+            loc="left",
+        )
         ax_spec.grid(True, alpha=0.3)
         if (
             (matlab_omega is not None and matlab_omega.size)
@@ -578,15 +899,67 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         ):
             ax_spec.legend(loc="lower right", frameon=False, fontsize=9)
 
-        for row, (mat_i, py_i) in enumerate(matched):
-            ax_mode = fig.add_subplot(grid[row, 1])
-            field = _component(direct_modes, ngp, 1, py_i, shape)
+        mode_labels = ["Mode 1 (steady)", "Mode 2 (oscillatory)"]
+        subplot_labels = [("b", "d"), ("c", "e")]
+        for col, (mat_i, py_i) in enumerate(matched):
+            ax_mat = fig.add_subplot(grid[0, col + 1])
+            ax_py = fig.add_subplot(grid[1, col + 1])
+            py_field = _component(direct_modes, ngp, 1, py_i, shape)
+            mat_field = _load_matlab_u_mode(mat_i + 1, shape)
+            py_aligned = _align_mode_to_reference(py_field, mat_field)
+
+            ax_mat.text(
+                0.0,
+                1.08,
+                mode_labels[col] if col < len(mode_labels) else f"Mode {col + 1}",
+                transform=ax_mat.transAxes,
+                ha="left",
+                va="bottom",
+                fontsize=12,
+            )
+            if mat_field is not None:
+                plot_signed_panel(
+                    ax_mat,
+                    X,
+                    Y,
+                    np.real(mat_field),
+                    title="",
+                    xlim=xlim,
+                    ylim=ylim,
+                    aspect="auto",
+                    colorbar=False,
+                    robust_percentile=99.0,
+                )
+                if float(np.nanmax(sponge)) > 0.0:
+                    ax_mat.contour(X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7)
+                ax_mat.set_title(rf"({subplot_labels[col][0]}) MATLAB $u$", loc="left")
+            else:
+                ax_mat.set_title(rf"({subplot_labels[col][0]}) MATLAB mode unavailable", loc="left")
+                ax_mat.text(
+                    0.5,
+                    0.5,
+                    "Reference field unavailable\nfor this grid shape or mode",
+                    ha="center",
+                    va="center",
+                    transform=ax_mat.transAxes,
+                    fontsize=10,
+                )
+            if matlab_omega is not None and matlab_omega.size and mat_i < matlab_omega.size:
+                ax_mat.text(
+                    0.02,
+                    0.92,
+                    rf"$\omega={format_complex(matlab_omega[mat_i], real_precision=4)}$",
+                    transform=ax_mat.transAxes,
+                    fontsize=9,
+                    bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+                )
+
             plot_signed_panel(
-                ax_mode,
+                ax_py,
                 X,
                 Y,
-                np.real(field),
-                title=rf"Direct $u$, $\omega={format_complex(omega[py_i], real_precision=4)}$",
+                np.real(py_aligned),
+                title="",
                 xlim=xlim,
                 ylim=ylim,
                 aspect="auto",
@@ -594,21 +967,23 @@ def _plot(data: dict[str, np.ndarray]) -> None:
                 robust_percentile=99.0,
             )
             if float(np.nanmax(sponge)) > 0.0:
-                ax_mode.contour(X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7)
-            ax_mode.set_xlabel("x")
-            ax_mode.set_ylabel("y")
-            if matlab_omega is not None and matlab_omega.size and mat_i < matlab_omega.size:
-                ax_mode.text(
-                    0.02,
-                    0.90,
-                    rf"MATLAB #{mat_i + 1}: $\omega={format_complex(matlab_omega[mat_i], real_precision=4)}$",
-                    transform=ax_mode.transAxes,
-                    fontsize=9,
-                    bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
-                )
+                ax_py.contour(X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7)
+            ax_py.set_title(rf"({subplot_labels[col][1]}) Python $u$", loc="left")
+            ax_py.text(
+                0.02,
+                0.92,
+                rf"$\omega={format_complex(omega[py_i], real_precision=4)}$",
+                transform=ax_py.transAxes,
+                fontsize=9,
+                bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+            )
 
-        fig.suptitle("Song 2023 stability summary", fontsize=14)
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+            ax_py.set_xlabel("x")
+            ax_py.set_ylabel("y")
+            ax_mat.set_xlabel("")
+            ax_mat.set_ylabel("y")
+
+        fig.tight_layout()
         save_figure(fig, OUTPUT_PNG)
 
         song_mode1 = _load_song_mode1_u()
@@ -618,11 +993,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         for row, (mat_i, py_i) in enumerate(matched):
             py_field = _component(direct_modes, ngp, 1, py_i, shape)
             mat_field = _load_matlab_u_mode(mat_i + 1, shape)
-            phase = 1.0 + 0.0j
-            denom = np.vdot(py_field.reshape(-1), py_field.reshape(-1))
-            if mat_field is not None and abs(denom) > 0:
-                phase = np.vdot(py_field.reshape(-1), mat_field.reshape(-1)) / denom
-            py_aligned = py_field * phase
+            py_aligned = _align_mode_to_reference(py_field, mat_field)
             diff = np.real(py_aligned - mat_field) if mat_field is not None else None
 
             panels = [
@@ -714,8 +1085,25 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         save_figure(fig_res, OUTPUT_RESOLVENT)
 
 
-def _resolve_config_path() -> Path:
-    """Return the Song configuration path, optionally overridden by env var."""
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the Song2023 / Robinet validation case.")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to a JSONC config file. Defaults to song_2023.jsonc next to this module.",
+    )
+    return parser.parse_args()
+
+
+def _resolve_config_path(cli_config_path: Path | None = None) -> Path:
+    """Return the Song configuration path.
+
+    Preferred selection is the explicit ``--config`` CLI argument so all run
+    settings live in JSONC files rather than environment variables.
+    """
+    if cli_config_path is not None:
+        return cli_config_path.expanduser().resolve()
     raw = os.getenv("LINSTAB2D_SONG2023_CONFIG")
     if raw is None or raw.strip() == "":
         return DEFAULT_CONFIG_PATH
@@ -725,8 +1113,11 @@ def _resolve_config_path() -> Path:
 def main() -> None:
     """Load parameters from song_2023.jsonc, run the case if needed, then plot."""
     case_dir = Path(__file__).resolve().parent
-    config_path = _resolve_config_path()
+    args = _parse_args()
+    config_path = _resolve_config_path(args.config)
     cfg = load_jsonc(config_path)
+    baseflow_input = _resolve_baseflow_input_options(cfg)
+    n_modes_stability_request = _resolve_stability_request_count(cfg)
     omega_target, frequency_source = _resolve_frequency_target(cfg)
     if "St" in cfg:
         St = float(cfg["St"])
@@ -755,6 +1146,7 @@ def main() -> None:
             St=St,
             omega_target=omega_target,
             n_modes_stability=cfg["n_modes_stability"],
+            n_modes_stability_request=n_modes_stability_request,
             n_modes_resolvent=cfg["n_modes_resolvent"],
             run_stability=cfg["run_stability"],
             run_resolvent=cfg["run_resolvent"],
@@ -768,11 +1160,13 @@ def main() -> None:
             bc_recipe=bc_recipe,
             solver_cfg=cfg.get("solver"),
             preprocess_cfg=cfg.get("baseflow_preprocess"),
+            transpose_input=baseflow_input["transpose_input"],
+            zero_spanwise=baseflow_input["zero_spanwise"],
         )
         data = _load_existing_npz(OUTPUT_NPZ)
     if not required.issubset(data):
         raise RuntimeError(f"Failed to generate {OUTPUT_NPZ}")
-    _plot(data)
+    _plot(data, overlay_cfg=cfg.get("spectrum_overlay"))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,184 @@
+{
+  // Sequential full Song2023 rank/order benchmark on the current workstation.
+  //
+  // Run order:
+  // - fd2: ranks 1, 2, 4, 8
+  // - fd4: ranks 1, 2, 4, 8
+  // - fd6: ranks 1, 2, 4, 8
+  //
+  // Stop as soon as:
+  // - a run fails
+  // - distributed proof is missing on ranks > 1
+  // - peak memory exceeds configured guard
+  // - swap usage grows beyond the configured delta guard
+
+  "output_root": "validation/song_2023/scaling_runs",
+
+  "base_config": "validation/song_2023/song_2023.jsonc",
+
+  "memory_guard": {
+    "machine_memory_mib": 16384.0,
+    "stop_on_peak_memory_mib_max_rank": 12000.0,
+    "stop_on_peak_memory_mib_sum_ranks": 14000.0,
+    "stop_on_swap_delta_mib": 256.0
+  },
+
+  "variants": [
+    {
+      "name": "fd2_rank1_serial",
+      "ranks": 1,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank2_dist",
+      "ranks": 2,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank4_dist",
+      "ranks": 4,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd2_rank8_dist",
+      "ranks": 8,
+      "overrides": {
+        "fd_order": 2,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd4_rank1_serial",
+      "ranks": 1,
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd4_rank2_dist",
+      "ranks": 2,
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd4_rank4_dist",
+      "ranks": 4,
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd4_rank8_dist",
+      "ranks": 8,
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd6_rank1_serial",
+      "ranks": 1,
+      "overrides": {
+        "fd_order": 6,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd6_rank2_dist",
+      "ranks": 2,
+      "overrides": {
+        "fd_order": 6,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd6_rank4_dist",
+      "ranks": 4,
+      "overrides": {
+        "fd_order": 6,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      "name": "fd6_rank8_dist",
+      "ranks": 8,
+      "overrides": {
+        "fd_order": 6,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    }
+  ]
+}

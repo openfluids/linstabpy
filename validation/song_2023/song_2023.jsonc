@@ -21,7 +21,8 @@
   "St": 0.0,          // Legacy Strouhal input; use omega_target/frequency_target for general cases
 
   // Solver settings
-  "n_modes_stability": 20,   // Number of eigenvalues to extract
+  "n_modes_stability": 20,   // Number of eigenvalues to report/save
+  "stability_search_extra_modes": 4, // Over-extract a few extra modes so paired deep-damped branches are less likely to be cut by the 20-mode window
   "n_modes_resolvent": 10,   // Number of resolvent singular values (ignored while disabled)
   "run_stability": true,     // Run temporal eigenvalue analysis
   "run_resolvent": false,    // Disable resolvent analysis for now; stability only
@@ -33,8 +34,20 @@
   "penalty": 1e8,            // BC penalty parameter
   "alpha_filter": "none",    // Implicit filter strength ("none" to disable)
 
+  // Input layout
+  "baseflow_input": {
+    // Song's saved .npy fields follow the original MATLAB storage layout:
+    // axis 0 marches in x and axis 1 marches in y. The mesh builder expects
+    // the repo convention (ny, nx), so transpose once before assembly.
+    "transpose_input": true,
+    "zero_spanwise": false
+  },
+
   // Baseflow preprocessing
-  // Start with least-invasive conditioning before trying shock-specific logic.
+  // After correcting the Song input orientation, this explicit filter branch
+  // is currently closer to the MATLAB reduced-spectrum reference than the raw
+  // unfiltered branch. Keep the raw branch available in the matrix runner as a
+  // diagnostic comparison, but use this filtered path as the default recipe.
   "baseflow_preprocess": {
     "enabled": true,
     "sponge": {
