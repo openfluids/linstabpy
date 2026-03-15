@@ -465,8 +465,15 @@ SBP first-derivative operator is written as
 where $H$ is a symmetric positive-definite quadrature matrix and $B$ encodes
 the boundary terms. This discrete integration-by-parts structure is the basis
 for the boundary treatment and the weighted adjoint relations used later in the
-resolvent workflow. The current implementation ships order-$2$, $4$, and $6$
-SBP operators on structured meshes.
+resolvent workflow. The implementation ships reference tables for order-$2$,
+$4$, $6$, and $8$ SBP operators on structured meshes, and includes an
+automatic generator for arbitrary even order. Interior stencils are computed
+via the Fornberg algorithm \citep{fornberg1988generation}, while boundary
+closures are determined from the accuracy conditions and the SBP constraint
+\eqref{eq:sbp_property}; the free parameters that arise for orders $\ge 6$
+are resolved by maximising the accuracy at the rows nearest the interior
+\citep{strand1994summation}. This makes the framework extensible to
+higher-order discretisations without manual coefficient transcription.
 
 \subsection{Curvilinear coordinate transformation}
 \label{sec:curvilinear}
