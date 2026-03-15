@@ -27,3 +27,6 @@ output/
 .beads/
 gmn_*.json
 gmn_*.txt
+
+# Validation run caches (large, regenerable)
+*_runs/
