@@ -28,6 +28,63 @@ from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 logger = logging.getLogger(__name__)
 
 
+def _apply_ksp_jsonc_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
+    """Apply PETSc KSP options from JSONC via the object's options prefix.
+
+    This keeps solver choices in JSONC while still using PETSc's native
+    options-based hooks for GMRES orthogonalization/refinement details that are
+    not consistently exposed as direct petsc4py methods.
+    """
+    if not cfg:
+        return
+
+    opts = PETSc.Options()
+    prefix = ksp.getOptionsPrefix() or ""
+    temp_keys: list[str] = []
+
+    def _set_opt(key_suffix: str, value: str) -> None:
+        full_key = f"{prefix}{key_suffix}"
+        opts.setValue(full_key, value)
+        temp_keys.append(full_key)
+
+    orth = cfg.get("gmres_orthogonalization")
+    if orth is not None:
+        orth_name = str(orth).strip().lower()
+        if orth_name in {"modified", "modifiedgramschmidt", "mgs"}:
+            _set_opt("ksp_gmres_modifiedgramschmidt", "true")
+        elif orth_name in {"classical", "classicalgramschmidt", "cgs"}:
+            _set_opt("ksp_gmres_classicalgramschmidt", "true")
+        else:
+            raise ValueError(
+                f"Invalid gmres_orthogonalization={orth!r}; "
+                "expected modified|mgs|classical|cgs"
+            )
+
+    refinement = cfg.get("gmres_cgs_refinement_type")
+    if refinement is not None:
+        refinement_name = str(refinement).strip().lower()
+        valid = {"refine_never", "refine_ifneeded", "refine_always"}
+        if refinement_name not in valid:
+            raise ValueError(
+                f"Invalid gmres_cgs_refinement_type={refinement!r}; "
+                "expected refine_never|refine_ifneeded|refine_always"
+            )
+        _set_opt("ksp_gmres_cgs_refinement_type", refinement_name)
+
+    restart = cfg.get("gmres_restart")
+    if restart is not None:
+        _set_opt("ksp_gmres_restart", str(int(restart)))
+
+    try:
+        ksp.setFromOptions()
+    finally:
+        for key in temp_keys:
+            try:
+                opts.delValue(key)
+            except PETSc.Error:
+                pass
+
+
 def _check_inputs_shape(
     operator: sp.spmatrix | PETSc.Mat,
     n_modes: int,
@@ -318,6 +375,12 @@ def _eigs_near_target(
     elif st_solver in {"iterative", "krylov", "slepc"}:
         ksp_type = _scfg(_ecfg, "ksp_type", "LINSTAB2D_EIGEN_KSP_TYPE", "gmres")
         pc_type = _scfg(_ecfg, "pc_type", "LINSTAB2D_EIGEN_PC_TYPE", "asm")
+        pc_factor_solver_type = _scfg(
+            _ecfg,
+            "pc_factor_solver_type",
+            "LINSTAB2D_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            "",
+        )
         pc_side = _scfg(_ecfg, "ksp_pc_side", "LINSTAB2D_EIGEN_KSP_PC_SIDE", "left")
         ksp_rtol = _scfg_float(_ecfg, "ksp_rtol", "LINSTAB2D_EIGEN_KSP_RTOL", 1e-8)
         ksp_max_it = _scfg_int(_ecfg, "ksp_max_it", "LINSTAB2D_EIGEN_KSP_MAX_IT", 20000)
@@ -340,8 +403,13 @@ def _eigs_near_target(
             pc.setType(PETSc.PC.Type.FIELDSPLIT)
         else:
             pc.setType(pc_type)
+            if pc_type == "lu":
+                factor_solver_type = pc_factor_solver_type if pc_factor_solver_type else "mumps"
+                pc.setFactorSolverType(factor_solver_type)
         ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
+        if ksp_type in {"gmres", "fgmres"}:
+            _apply_ksp_jsonc_options(ksp, _ecfg)
         if pc_type in {"fieldsplit", "fs"}:
             # Physics-aware 5-variable split for compressible LNSE state:
             # fluid = [rho, u, v, T], spanwise = [w]
@@ -381,9 +449,17 @@ def _eigs_near_target(
         )
 
     # Allow PETSc/SLEPc options DB overrides from command-line flags.
-    ksp.setFromOptions()
+    if not (st_solver in {"iterative", "krylov", "slepc"} and ksp_type in {"gmres", "fgmres"}):
+        ksp.setFromOptions()
     st.setFromOptions()
     eps.setFromOptions()
+    logger.info(
+        "ST KSP configuration: type=%s, pc=%s, factor_solver=%s, pc_side=%s",
+        _safe_petsc_info(ksp.getType),
+        _safe_petsc_info(pc.getType),
+        _safe_petsc_info(pc.getFactorSolverType, "?"),
+        _safe_petsc_info(ksp.getPCSide, "?"),
+    )
     if (
         st_solver in {"iterative", "krylov", "slepc"}
         and hasattr(eps, "setTrueResidual")
