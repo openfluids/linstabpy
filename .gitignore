@@ -30,3 +30,6 @@ gmn_*.txt
 
 # Validation run caches (large, regenerable)
 *_runs/
+
+# MATLAB reference exports (large .mat files, managed outside git)
+martini_examples/
