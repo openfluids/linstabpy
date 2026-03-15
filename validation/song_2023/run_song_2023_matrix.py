@@ -78,11 +78,29 @@ def _summarize(npz_path: Path, log_path: Path) -> dict[str, Any]:
             }
     if log_path.exists():
         lines = log_path.read_text(encoding="utf-8").splitlines()
+        step_summary: dict[str, dict[str, float]] = {}
         for line in lines:
             if line.startswith("total_time_s="):
                 summary["total_time_s"] = float(line.split("=", 1)[1])
             elif line.startswith("peak_memory_mib="):
                 summary["peak_memory_mib"] = float(line.split("=", 1)[1])
+            elif line.startswith("step_summary "):
+                # Format: step_summary <name> <time_min> <time_mean> <time_max>
+                #         <mem_min> <mem_mean> <mem_max> <count>
+                parts = line.split()
+                if len(parts) >= 9:
+                    step_name = parts[1]
+                    step_summary[step_name] = {
+                        "time_min": float(parts[2]),
+                        "time_mean": float(parts[3]),
+                        "time_max": float(parts[4]),
+                        "memory_min": float(parts[5]),
+                        "memory_mean": float(parts[6]),
+                        "memory_max": float(parts[7]),
+                        "count": int(parts[8]),
+                    }
+        if step_summary:
+            summary["step_summary"] = step_summary
     return summary
 
 

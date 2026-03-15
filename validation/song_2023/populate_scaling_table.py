@@ -28,8 +28,6 @@ SUPP_TEX = REPO / "paper/supp.tex"
 def _format_time(seconds: float | None) -> str:
     if seconds is None:
         return "---"
-    if seconds < 60:
-        return f"{seconds:.0f}"
     return f"{seconds:.0f}"
 
 

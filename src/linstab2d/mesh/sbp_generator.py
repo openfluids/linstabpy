@@ -159,8 +159,6 @@ def _solve_rational_lstsq(
     aug = [row + [rhs] for row, rhs in zip(AF, bF)]
     pivot_row = 0
 
-    col_order = list(range(n_cols))  # column permutation for full pivoting
-
     for col in range(n_cols):
         # Find pivot (largest absolute value in remaining rows)
         best_row = None
