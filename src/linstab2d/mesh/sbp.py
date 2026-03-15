@@ -24,10 +24,14 @@ import scipy.sparse as sp
 def sbp_stencils(order: int) -> dict[str, np.ndarray]:
     """Return SBP stencil coefficients for a given finite-difference order.
 
+    For orders 2–8, returns the hardcoded reference tables from Strand (1994)
+    and Mattsson & Nordström (2004). For higher even orders, delegates to
+    :func:`~linstab2d.mesh.sbp_generator.generate_sbp_stencils`.
+
     Parameters
     ----------
     order : int
-        Finite-difference order (2, 4, 6, or 8).
+        Even finite-difference order (2, 4, 6, 8, 10, 12, ...).
 
     Returns
     -------
@@ -41,7 +45,7 @@ def sbp_stencils(order: int) -> dict[str, np.ndarray]:
     Raises
     ------
     ValueError
-        If *order* is not one of {2, 4, 6, 8}.
+        If *order* is not a positive even integer.
     """
     if order == 2:
         a_i1 = np.array([-1 / 2, 0, 1 / 2])
@@ -118,9 +122,8 @@ def sbp_stencils(order: int) -> dict[str, np.ndarray]:
         ])
 
     else:
-        raise ValueError(
-            f"SBP order {order} not implemented. Choose from {{2, 4, 6, 8}}."
-        )
+        from .sbp_generator import generate_sbp_stencils
+        return generate_sbp_stencils(order)
 
     return {"a_i1": a_i1, "a_i2": a_i2, "a_b1": a_b1, "a_b2": a_b2}
 
