@@ -308,14 +308,26 @@ def _resolve_baseflow_plot_field(data: dict[str, np.ndarray]) -> tuple[np.ndarra
 def _compute(cfg: dict) -> None:
     """Run temporal and spatial eigensolutions."""
     from linstab2d.baseflow import load_streaky_bl
-    from linstab2d.boundary_conditions.dirichlet import apply_dirichlet, apply_dirichlet_spatial
-    from linstab2d.operators.assembly import build_lnse_operator
+    from linstab2d.boundary_conditions.dirichlet import (
+        apply_dirichlet,
+        apply_dirichlet_petsc,
+        apply_dirichlet_spatial,
+        apply_dirichlet_spatial_petsc,
+    )
+    from linstab2d.operators.assembly import build_lnse_operator, build_lnse_operator_petsc
     from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.operators.spatial import build_spatial_operator
+    from linstab2d.operators.spatial import build_spatial_operator, build_spatial_operator_petsc
     from linstab2d.solvers.eigenvalue import temporal_eigenvalues
+    from linstab2d.solvers.petsc_utils import petsc_to_scipy
     from linstab2d.solvers.spatial_eig import spatial_eigenvalues
 
     solver_cfg = cfg.get("solver")
+    assembly_backend = str(cfg.get("assembly_backend", "scipy")).lower()
+    use_petsc_assembly = assembly_backend == "petsc"
+    if assembly_backend not in {"scipy", "petsc"}:
+        raise ValueError(
+            f"Invalid assembly_backend={assembly_backend!r}; expected 'scipy' or 'petsc'"
+        )
 
     print(f"Streaky BL grid points: Nx={cfg['nx']}, Ny={cfg['ny']}")
     mesh, Lx, Ly = _build_streaky_mesh(cfg)
@@ -350,6 +362,9 @@ def _compute(cfg: dict) -> None:
     results = _load_existing_npz()
     used_ind = mesh.used_ind
 
+    def _to_scipy_matrix(mat):
+        return petsc_to_scipy(mat, format="csc") if use_petsc_assembly else mat
+
     common = {
         "X": mesh.X,
         "Y": mesh.Y,
@@ -369,14 +384,25 @@ def _compute(cfg: dict) -> None:
         if not run_spatial:
             for key in ("spatial_alpha", "spatial_modes", "omega_spatial", "spatial_residuals"):
                 results.pop(key, None)
-        L0, idx = build_lnse_operator(
-            mesh,
-            baseflow,
-            kx=alpha_temp,
-            model="2D",
-            floquet_exp=floquet_exp,
-        )
-        L0, _ = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
+        if use_petsc_assembly:
+            L0, idx = build_lnse_operator_petsc(
+                mesh,
+                baseflow,
+                kx=alpha_temp,
+                model="2D",
+                floquet_exp=floquet_exp,
+                solver_cfg=solver_cfg,
+            )
+            L0, _ = apply_dirichlet_petsc(L0, idx, borders, variables, mesh.ngp)
+        else:
+            L0, idx = build_lnse_operator(
+                mesh,
+                baseflow,
+                kx=alpha_temp,
+                model="2D",
+                floquet_exp=floquet_exp,
+            )
+            L0, _ = apply_dirichlet(L0, idx, borders, variables, mesh.ngp)
 
         W_int = mesh.W.ravel(order="F")[used_ind]
         rho_p = baseflow.RHO.ravel(order="F")[used_ind]
@@ -402,7 +428,7 @@ def _compute(cfg: dict) -> None:
             dedupe_tol=dedupe_tol,
         )
 
-        iL0 = 1j * L0
+        iL0 = 1j * _to_scipy_matrix(L0)
         temporal_residuals = np.array(
             [
                 np.linalg.norm(iL0 @ q - omega * q)
@@ -446,13 +472,23 @@ def _compute(cfg: dict) -> None:
             imag_shift=spatial_omega_imag_shift,
         )
 
-        Lc, R, Lw, idx = build_spatial_operator(
-            mesh,
-            baseflow,
-            model="2D",
-            floquet_exp=floquet_exp,
-        )
-        Lc, R, _ = apply_dirichlet_spatial(Lc, R, idx, borders, variables, mesh.ngp)
+        if use_petsc_assembly:
+            Lc, R, Lw, idx = build_spatial_operator_petsc(
+                mesh,
+                baseflow,
+                model="2D",
+                floquet_exp=floquet_exp,
+                solver_cfg=solver_cfg,
+            )
+            Lc, R, _ = apply_dirichlet_spatial_petsc(Lc, R, idx, borders, variables, mesh.ngp)
+        else:
+            Lc, R, Lw, idx = build_spatial_operator(
+                mesh,
+                baseflow,
+                model="2D",
+                floquet_exp=floquet_exp,
+            )
+            Lc, R, _ = apply_dirichlet_spatial(Lc, R, idx, borders, variables, mesh.ngp)
         spatial_alpha, spatial_modes = spatial_eigenvalues(
             Lc,
             Lw,
@@ -464,9 +500,9 @@ def _compute(cfg: dict) -> None:
             solver_cfg=solver_cfg,
         )
         spatial_residuals = _compute_spatial_residuals(
-            Lc,
-            Lw,
-            R,
+            _to_scipy_matrix(Lc),
+            _to_scipy_matrix(Lw),
+            _to_scipy_matrix(R),
             omega_spatial,
             spatial_alpha,
             spatial_modes,

@@ -644,8 +644,8 @@
       "stem": "example_5_Paraboloid_results"
     }
   ],
-  "generated_at_utc": "2026-03-07T09:20:32.225142+00:00",
-  "input_dir": "$HOME/Documents/projects/linstab2d/martini_examples",
+  "generated_at_utc": "2026-03-14T15:05:28.092356+00:00",
+  "input_dir": "$HOME/Documents/projects/linstabpy/martini_examples",
   "notes": [],
-  "output_dir": "$HOME/Documents/projects/linstab2d/tools/parity/npz"
+  "output_dir": "$HOME/Documents/projects/linstabpy/tools/parity/npz"
 }
