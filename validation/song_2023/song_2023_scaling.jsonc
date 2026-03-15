@@ -16,11 +16,14 @@
 
   "base_config": "validation/song_2023/song_2023.jsonc",
 
+  // Memory guard — adjust for target machine:
+  //   16 GB laptop: max_rank=12000, sum=14000
+  //   64 GB c8:     max_rank=48000, sum=56000
   "memory_guard": {
-    "machine_memory_mib": 16384.0,
-    "stop_on_peak_memory_mib_max_rank": 12000.0,
-    "stop_on_peak_memory_mib_sum_ranks": 14000.0,
-    "stop_on_swap_delta_mib": 256.0
+    "machine_memory_mib": 65536.0,
+    "stop_on_peak_memory_mib_max_rank": 48000.0,
+    "stop_on_peak_memory_mib_sum_ranks": 56000.0,
+    "stop_on_swap_delta_mib": 512.0
   },
 
   "variants": [
