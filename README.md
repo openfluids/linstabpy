@@ -224,8 +224,8 @@ Operational rule:
 
 ```bash
 # Clone and set up
-git clone --recurse-submodules https://github.com/ricardofrantz/LinStabPy.git
-cd LinStabPy
+git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
+cd linstabpy
 ./install.sh          # creates .venv, installs dependencies via uv
 # If submodules were not cloned with --recurse-submodules:
 git submodule update --init --recursive
