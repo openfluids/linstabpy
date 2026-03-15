@@ -1134,20 +1134,22 @@ configuration, and hardware metadata.
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{rcccc}
+\begin{tabular}{lccccc}
 \toprule
- & \multicolumn{4}{c}{Direct path (MUMPS)} \\
-\cmidrule(lr){2-5}
-$n = 5N$ & Assemble [s] & Factor [s] & Solve [s] & Mem [GB] \\
+ & & \multicolumn{4}{c}{Serial, direct LU/MUMPS} \\
+\cmidrule(lr){3-6}
+Order & DOF ($5N$) & Assemble [s] & Solve [s] & Total [s] & Peak [GB] \\
 \midrule
-pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending \\
-pending & pending & pending & pending & pending \\
+fd2 & 901\,495 & pending & pending & pending & pending \\
+fd4 & 901\,495 & pending & pending & pending & pending \\
+fd6 & 901\,495 & pending & pending & pending & pending \\
 \bottomrule
 \end{tabular}
-\caption{Performance-reporting template for the scaling study (eigenvalue
-problems). Entries are populated from reproducible case artifacts.}
+\caption{Song 2023 oblique SWBLI benchmark on the $599\times301$ grid:
+assembly and eigensolve cost versus finite-difference order. All runs are
+serial (1~MPI rank) with PETSc local assembly and MUMPS direct
+factorisation. The DOF count is constant because all orders share the same
+grid; only the stencil bandwidth changes.}
 \label{tab:scaling}
 \end{table}
 
