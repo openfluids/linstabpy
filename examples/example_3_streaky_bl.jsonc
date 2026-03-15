@@ -47,6 +47,11 @@
     ]
   },
 
+  // Optional assembly backend for the temporal/spatial operators:
+  // "scipy" keeps the historical SciPy assembly path,
+  // "petsc" uses direct PETSc assembly for the validated local 2D path.
+  "assembly_backend": "scipy",
+
   // Solver configuration
   "solver": {
     "petsc_matrix_mode": "auto",
