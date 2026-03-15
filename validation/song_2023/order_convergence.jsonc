@@ -1,0 +1,69 @@
+{
+  // Song2023 fd-order convergence study — serial full eigensolves.
+  //
+  // Purpose:
+  // - Measure how the leading eigenvalue, mean nearest-MATLAB distance,
+  //   and eigenvalue residuals converge with increasing fd_order.
+  // - Produce the timing and memory data for the paper's scaling table (tab:scaling).
+  //
+  // All runs are serial (1 rank) with PETSc local assembly and MUMPS direct
+  // factorization. The memory guard stops before swap pressure.
+
+  "output_root": "validation/song_2023/order_convergence_runs",
+
+  "base_config": "validation/song_2023/song_2023.jsonc",
+
+  // 16 GB laptop guardrail
+  "memory_guard": {
+    "machine_memory_mib": 16384.0,
+    "stop_on_peak_memory_mib": 13000.0
+  },
+
+  "variants": [
+    {
+      // fd2: the coarsest operator. Baseline reference for convergence.
+      "name": "fd2_serial",
+      "overrides": {
+        "fd_order": 2,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      // fd4: standard production order. Should improve spectrum accuracy.
+      "name": "fd4_serial",
+      "overrides": {
+        "fd_order": 4,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      // fd6: higher accuracy. May require more memory for the wider stencil.
+      "name": "fd6_serial",
+      "overrides": {
+        "fd_order": 6,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    }
+  ]
+}
