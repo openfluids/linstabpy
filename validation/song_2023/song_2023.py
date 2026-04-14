@@ -470,11 +470,13 @@ def run_case(
         print(f"[song_2023] run finished in {total_time_s:.2f}s, output={out_path}")
         print("[song_2023] step timings (s) and memory deltas (MiB):")
         for name, metrics in summary["step_summary"].items():
+            share = metrics["time_max"] / total_time_s if total_time_s > 0.0 else float("nan")
             print(
                 "  - "
                 f"{name:20s}: "
                 f"t[min/mean/max]=({metrics['time_min']:.3f}, {metrics['time_mean']:.3f}, {metrics['time_max']:.3f}) s, "
-                f"Δmem[min/mean/max]=({metrics['memory_min']:.2f}, {metrics['memory_mean']:.2f}, {metrics['memory_max']:.2f}) MiB"
+                f"Δmem[min/mean/max]=({metrics['memory_min']:.2f}, {metrics['memory_mean']:.2f}, {metrics['memory_max']:.2f}) MiB, "
+                f"share={100.0 * share:.1f}%"
             )
         if not np.isnan(peak_memory_mib):
             print(
@@ -534,6 +536,7 @@ def run_case(
                 f.write(f"memory_delta_mib_rank0={peak_memory_rank0_mib - mem0:.4f}\n")
             f.write("# step name | time_min time_mean time_max mem_min mem_mean mem_max count\n")
             for name, metrics in summary["step_summary"].items():
+                share = metrics["time_max"] / total_time_s if total_time_s > 0.0 else float("nan")
                 f.write(
                     "step_summary "
                     f"{name} "
@@ -541,6 +544,7 @@ def run_case(
                     f"{metrics['memory_min']:.4f} {metrics['memory_mean']:.4f} {metrics['memory_max']:.4f} "
                     f"{metrics['count']}\n"
                 )
+                f.write(f"step_share_total {name} {share:.8f}\n")
         print(f"[song_2023] stats written to {log_file}")
 
     MPI.COMM_WORLD.Barrier()

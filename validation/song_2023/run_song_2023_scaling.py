@@ -24,6 +24,7 @@ REPO = SCRIPT.parents[2]
 DEFAULT_CONFIG = SCRIPT.with_name("song_2023_scaling.jsonc")
 SWAP_RE = re.compile(r"used = ([0-9.]+)M")
 FREE_RE = re.compile(r"System-wide memory free percentage:\s*([0-9.]+)%")
+MEMINFO_RE = re.compile(r"^([A-Za-z_()]+):\s+([0-9]+)\s+kB$", re.MULTILINE)
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -49,6 +50,19 @@ def _json_safe(value: Any) -> Any:
 
 
 def _read_swap_used_mib() -> float | None:
+    meminfo = Path("/proc/meminfo")
+    if sys.platform.startswith("linux") and meminfo.exists():
+        try:
+            text = meminfo.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        fields = {match.group(1): float(match.group(2)) for match in MEMINFO_RE.finditer(text)}
+        swap_total = fields.get("SwapTotal")
+        swap_free = fields.get("SwapFree")
+        if swap_total is None or swap_free is None:
+            return None
+        return (swap_total - swap_free) / 1024.0
+
     try:
         out = subprocess.check_output(["sysctl", "vm.swapusage"], text=True, stderr=subprocess.STDOUT)
     except Exception:
@@ -58,6 +72,19 @@ def _read_swap_used_mib() -> float | None:
 
 
 def _read_free_percent() -> float | None:
+    meminfo = Path("/proc/meminfo")
+    if sys.platform.startswith("linux") and meminfo.exists():
+        try:
+            text = meminfo.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        fields = {match.group(1): float(match.group(2)) for match in MEMINFO_RE.finditer(text)}
+        total = fields.get("MemTotal")
+        available = fields.get("MemAvailable")
+        if total is None or available is None or total <= 0.0:
+            return None
+        return 100.0 * available / total
+
     try:
         out = subprocess.check_output(["memory_pressure", "-Q"], text=True, stderr=subprocess.STDOUT)
     except Exception:
@@ -68,36 +95,89 @@ def _read_free_percent() -> float | None:
 
 def _parse_log_metrics(log_path: Path) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
+    step_summary: dict[str, dict[str, float | int]] = {}
     if not log_path.exists():
         return metrics
     for line in log_path.read_text(encoding="utf-8").splitlines():
-        if "=" not in line:
+        if line.startswith("step_summary "):
+            parts = line.split()
+            if len(parts) >= 9:
+                name = parts[1]
+                step_summary[name] = {
+                    "time_min": float(parts[2]),
+                    "time_mean": float(parts[3]),
+                    "time_max": float(parts[4]),
+                    "memory_min": float(parts[5]),
+                    "memory_mean": float(parts[6]),
+                    "memory_max": float(parts[7]),
+                    "count": int(parts[8]),
+                }
             continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if key in {
-            "total_time_s",
-            "total_time_s_min_rank",
-            "total_time_s_mean_rank",
-            "peak_memory_mib",
-            "peak_memory_mib_rank0",
-            "peak_memory_mib_sum_ranks",
-            "memory_delta_mib_rank0",
-            "operator_nnz",
-        }:
-            try:
-                metrics[key] = float(value)
-            except ValueError:
+        for token in line.split():
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            key = key.strip()
+            value = value.strip().rstrip(",")
+            if key in {
+                "total_time_s",
+                "total_time_s_min_rank",
+                "total_time_s_mean_rank",
+                "peak_memory_mib",
+                "peak_memory_mib_rank0",
+                "peak_memory_mib_sum_ranks",
+                "memory_delta_mib_rank0",
+                "operator_nnz",
+            }:
+                try:
+                    metrics[key] = float(value)
+                except ValueError:
+                    metrics[key] = value
+            elif key in {"mpi_ranks"}:
+                try:
+                    metrics[key] = int(value)
+                except ValueError:
+                    metrics[key] = value
+            elif key in {"petsc_matrix_mode", "distributed_matrix", "matrix_type"}:
                 metrics[key] = value
-        elif key in {"mpi_ranks"}:
-            try:
-                metrics[key] = int(value.split()[0])
-            except ValueError:
-                metrics[key] = value
-        elif key in {"petsc_matrix_mode", "distributed_matrix", "matrix_type", "ownership_ranges"}:
-            metrics[key] = value
+        if line.startswith("ownership_ranges="):
+            metrics["ownership_ranges"] = line.split("=", 1)[1].strip()
+    if step_summary:
+        total_time = metrics.get("total_time_s")
+        if isinstance(total_time, (int, float)) and float(total_time) > 0.0:
+            for step_name, step_metrics in step_summary.items():
+                step_metrics["time_share_total"] = float(step_metrics["time_max"]) / float(total_time)
+        metrics["step_summary"] = step_summary
     return metrics
+
+
+def _collect_existing_result(run_dir: Path, *, ranks: int, name: str) -> dict[str, Any] | None:
+    target_npz = run_dir / "song_2023.npz"
+    target_log = run_dir / "song_2023.log"
+    stdout_path = run_dir / "stdout.txt"
+    stderr_path = run_dir / "stderr.txt"
+    if not target_npz.exists() or not target_log.exists():
+        return None
+
+    summary = _parse_log_metrics(target_log)
+    result: dict[str, Any] = {
+        "variant": name,
+        "ranks": ranks,
+        "returncode": 0,
+        "status": "ok",
+        "stdout_log": str(stdout_path.relative_to(REPO)) if stdout_path.exists() else "",
+        "stderr_log": str(stderr_path.relative_to(REPO)) if stderr_path.exists() else "",
+        "config_path": str((run_dir / "song_2023.variant.jsonc").relative_to(REPO)),
+        "swap_before_mib": None,
+        "swap_after_mib": None,
+        "swap_peak_mib": None,
+        "swap_delta_mib": None,
+        "free_before_percent": None,
+        "free_after_percent": None,
+        "summary": summary,
+        "reused_existing": True,
+    }
+    return result
 
 
 def _run_guarded(
@@ -197,6 +277,11 @@ def main() -> None:
         default="",
         help="Comma-separated scaling variant names to run (default: all).",
     )
+    parser.add_argument(
+        "--rerun-existing",
+        action="store_true",
+        help="Re-run variants even when song_2023.npz and song_2023.log already exist.",
+    )
     args = parser.parse_args()
 
     cfg_path = args.config.expanduser().resolve()
@@ -215,6 +300,13 @@ def main() -> None:
         ranks = int(variant["ranks"])
         run_dir = output_root / name
         run_dir.mkdir(parents=True, exist_ok=True)
+
+        if not args.rerun_existing:
+            existing = _collect_existing_result(run_dir, ranks=ranks, name=name)
+            if existing is not None:
+                print(f"[song-scaling] {name} (reusing existing result)")
+                results.append(existing)
+                continue
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
         config_path = run_dir / "song_2023.variant.jsonc"
