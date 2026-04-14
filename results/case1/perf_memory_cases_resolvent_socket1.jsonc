@@ -1,0 +1,97 @@
+{
+  // Case 1 resolvent study pinned to socket 1 physical cores only.
+  //
+  // Run with:
+  //   LINSTAB2D_CASE1_PERF_CONFIG=results/case1/perf_memory_cases_resolvent_socket1.jsonc ../../.venv/bin/python results/case1/perf_memory.py
+
+  "outputs": {
+    "report_json": "output/resolvent_socket1/case1_perf_memory_latest.json",
+    "report_csv": "output/resolvent_socket1/case1_perf_memory_table.csv",
+    "log_dir": "output/resolvent_socket1/logs",
+    "run_dir": "output/resolvent_socket1/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --cpu-set 10-19 --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "use_raw_eigs": false,
+          "run_stability": false,
+          "run_resolvent": true,
+          "n_modes_resolvent": 10
+        },
+        "physics": {
+          "use_matlab_sponge_aux": false,
+          "sponge": {
+            "enabled": true,
+            "preset": "case1_smooth_half"
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-12
+          },
+          "linsolve": {
+            "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps"
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "case1_resolvent_fd4_sponge_sigma_0p5",
+      "label": "Case 1 resolvent fd4, sponge sigma_max=0.5",
+      "enabled": true
+    },
+    {
+      "case_id": "case1_resolvent_fd6_sponge_sigma_0p5",
+      "label": "Case 1 resolvent fd6, sponge sigma_max=0.5",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    },
+    {
+      "case_id": "case1_resolvent_fd8_sponge_sigma_0p5",
+      "label": "Case 1 resolvent fd8, sponge sigma_max=0.5",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8
+        }
+      }
+    }
+  ]
+}

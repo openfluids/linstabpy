@@ -1,11 +1,14 @@
 {
-  // Case 1 efficiency harness cases.
-  // Enable one or more entries below, then run:
-  //   ../../.venv/bin/python tools/parity/perf_memory.py
+  // Fresh Case 1 native-sponge stability study.
   //
-  // Each case launches the canonical case1.compute() pipeline in a
-  // child process, monitors wall time and peak process-tree RSS, parses nnz
-  // from the real log stream, and stores a copy of case1.npz.
+  // Run with:
+  //   ../../.venv/bin/python perf_memory.py
+  //
+  // This matrix is intentionally minimal:
+  // - 10 MPI ranks only
+  // - nev = 150 for every case
+  // - filtered branch only (alpha_filter = 0.0)
+  // - four cases: fd4/fd6 × sponge off/on
 
   "outputs": {
     "report_json": "output/case1_perf_memory_latest.json",
@@ -15,88 +18,102 @@
   },
 
   "defaults": {
-    // Sampling interval for process-tree RSS monitoring.
+    "base_config": "parity_config.jsonc",
     "monitor_interval_seconds": 0.5,
-
-    // Python executable used to launch the child run from the repo root.
     "python_exe": "../../.venv/bin/python",
-
-    // Baseline environment for all cases. Override per case only when needed.
     "env": {
-      "LINSTAB2D_CASE1_CONFIG": "case1/parity_config.jsonc",
-      "LINSTAB2D_CASE1_CASE_DIR": "case1",
-      "LINSTAB2D_CASE1_CASE_INPUTS_MAT": "case1/MATLAB_exports_resolvent/case_inputs_used.mat",
-      "LINSTAB2D_CASE1_ZERO_MU_T_DERIVS": "1",
-      "LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX": "1",
-      "LINSTAB2D_CASE1_ALPHA_FILTER": "0.0",
-
-      // Default robust direct-solver baseline.
-      "LINSTAB2D_EIGEN_ST_SOLVER": "mumps",
-      "LINSTAB2D_RESOLVENT_TYPE": "mumps"
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
     },
-
-    // Launcher defaults. For MPI runs, set e.g. launcher="mpiexec" and
-    // mpi_procs>1 in the case entry.
     "launcher": {
-      "mpi_procs": 1,
-      "launcher": ""
+      "mpi_procs": 10,
+      "launcher": "mpiexec"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "use_raw_eigs": false,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 150
+        },
+        "physics": {
+          "use_matlab_sponge_aux": false,
+          "sponge": {
+            "enabled": false,
+            "preset": "case1_stability"
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-12,
+            "ncv": 360
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
     }
   },
 
   "cases": [
     {
-      "case_id": "case1_stability_stride_12",
-      "label": "Case 1 stability, reduced grid for local verification",
+      "case_id": "case1_fd4_sponge_off",
+      "label": "Case 1 stability: fd4, sponge off",
+      "enabled": true
+    },
+    {
+      "case_id": "case1_fd4_sponge_on",
+      "label": "Case 1 stability: fd4, sponge on",
       "enabled": true,
-      "stride_ksi": 12,
-      "stride_eta": 12,
-      "run_stability": true,
-      "run_resolvent": false,
-      "n_modes_stability": 10
+      "config_overrides": {
+        "physics": {
+          "sponge": {
+            "enabled": true,
+            "preset": "case1_smooth_soft"
+          }
+        }
+      }
     },
     {
-      "case_id": "case1_resolvent_stride_12",
-      "label": "Case 1 resolvent, reduced grid for local verification",
-      "enabled": false,
-      "stride_ksi": 12,
-      "stride_eta": 12,
-      "run_stability": false,
-      "run_resolvent": true,
-      "n_modes_resolvent": 3
+      "case_id": "case1_fd6_sponge_off",
+      "label": "Case 1 stability: fd6, sponge off",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
     },
     {
-      "case_id": "case1_stability_stride_1",
-      "label": "Case 1 full-grid stability baseline",
-      "enabled": false,
-      "stride_ksi": 1,
-      "stride_eta": 1,
-      "run_stability": true,
-      "run_resolvent": false,
-      "n_modes_stability": 30
-    },
-    {
-      "case_id": "case1_resolvent_stride_1",
-      "label": "Case 1 full-grid resolvent baseline",
-      "enabled": false,
-      "stride_ksi": 1,
-      "stride_eta": 1,
-      "run_stability": false,
-      "run_resolvent": true,
-      "n_modes_resolvent": 5
-    },
-    {
-      "case_id": "case1_stability_stride_1_iterative",
-      "label": "Case 1 full-grid stability with iterative ST solve",
-      "enabled": false,
-      "stride_ksi": 1,
-      "stride_eta": 1,
-      "run_stability": true,
-      "run_resolvent": false,
-      "n_modes_stability": 30,
-      "env": {
-        "LINSTAB2D_EIGEN_ST_SOLVER": "iterative",
-        "LINSTAB2D_EIGEN_KSP_TYPE": "fgmres",
-        "LINSTAB2D_EIGEN_PC_TYPE": "asm"
+      "case_id": "case1_fd6_sponge_on",
+      "label": "Case 1 stability: fd6, sponge on",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        },
+        "physics": {
+          "sponge": {
+            "enabled": true,
+            "preset": "case1_smooth_soft"
+          }
+        }
       }
     }
   ]

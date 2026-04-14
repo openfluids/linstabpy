@@ -21,7 +21,6 @@ import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,7 +45,7 @@ DEFAULT_RUN_DIR = CASE_DIR / "output" / "runs"
 DEFAULT_OUTPUT_NPZ = CASE_DIR / "case1.npz"
 
 _RE_CASE_SHAPE = re.compile(r"shape=\((\d+),\s*(\d+)\), points=(\d+)")
-_RE_OPERATOR = re.compile(r"operator assembled: shape=\((\d+),\s*(\d+)\), nnz=(\d+)")
+_RE_OPERATOR = re.compile(r"operator assembled(?: with BCs)?: shape=\((\d+),\s*(\d+)\), nnz=(\d+)")
 _RE_BC = re.compile(r"boundary conditions applied: bc_dofs=(\d+), nnz=(\d+)")
 _RE_STAB = re.compile(r"stability analysis finished: converged_modes=(\d+)")
 _RE_RES = re.compile(r"running resolvent: omega_target=([^\s,]+), modes=(\d+)")
@@ -56,6 +55,28 @@ _RE_SOLVER = re.compile(
     r"solver setup: mpi_ranks=(\d+) st_solver=([^\s]+) "
     r"resolvent_solver=([^\s]+) root_assembly=(True|False) matrix_mode=([^\s]+)"
 )
+
+_LEGACY_CONFIG_FIELD_MAP = {
+    "case_dir": "paths.case_dir",
+    "case_inputs_mat": "paths.case_inputs_mat",
+    "stride_ksi": "numerics.stride_ksi",
+    "stride_eta": "numerics.stride_eta",
+    "fd_order": "numerics.fd_order",
+    "beta": "numerics.beta",
+    "alpha_filter": "numerics.alpha_filter",
+    "bc_penalty": "bc.penalty",
+    "run_stability": "analysis.run_stability",
+    "run_resolvent": "analysis.run_resolvent",
+    "n_modes_stability": "analysis.n_modes_stability",
+    "n_modes_resolvent": "analysis.n_modes_resolvent",
+    "use_raw_eigs": "analysis.use_raw_eigs",
+    "use_matlab_sponge_aux": "physics.use_matlab_sponge_aux",
+    "zero_mu_t_derivs": "physics.zero_mu_t_derivs",
+    "zero_spanwise": "physics.zero_spanwise",
+    "matrix_mode": "solver.petsc_matrix_mode",
+    "st_solver": "solver.eigen.st_solver",
+    "resolvent_solver": "solver.linsolve.type",
+}
 
 
 def _now_utc() -> str:
@@ -85,6 +106,62 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
         else:
             merged[key] = value
     return merged
+
+
+def _resolve_path(base_dir: Path, raw: str | Path) -> Path:
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    return (base_dir / path).resolve()
+
+
+def _resolve_input_path(primary_dir: Path, raw: str | Path, *fallback_dirs: Path) -> Path:
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    candidates = [primary_dir, *fallback_dirs]
+    for base_dir in candidates:
+        candidate = (base_dir / path).resolve()
+        if candidate.exists():
+            return candidate
+    return (primary_dir / path).resolve()
+
+
+def _resolve_executable(base_dir: Path, raw: str, *fallback_dirs: Path) -> str:
+    path = Path(raw)
+    if path.is_absolute():
+        return str(path)
+    if path.parent != Path("."):
+        return str(_resolve_input_path(base_dir, raw, *fallback_dirs))
+    return raw
+
+
+def _set_nested(mapping: dict[str, Any], dotted_path: str, value: Any) -> None:
+    node = mapping
+    keys = dotted_path.split(".")
+    for key in keys[:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            child = {}
+            node[key] = child
+        node = child
+    node[keys[-1]] = value
+
+
+def _legacy_case_overrides(case: dict[str, Any]) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    for key, dotted_path in _LEGACY_CONFIG_FIELD_MAP.items():
+        if key in case:
+            _set_nested(overrides, dotted_path, case[key])
+    return overrides
+
+
+def _build_case_config(base_config: dict[str, Any], case: dict[str, Any]) -> dict[str, Any]:
+    cfg = _deep_merge(base_config, _legacy_case_overrides(case))
+    explicit = case.get("config_overrides", {})
+    if isinstance(explicit, dict):
+        cfg = _deep_merge(cfg, explicit)
+    return cfg
 
 
 def _ps_table() -> dict[int, tuple[int, int]]:
@@ -154,7 +231,128 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
         if "X" in data:
             shape = np.asarray(data["X"]).shape
             result["mesh_shape"] = [int(shape[0]), int(shape[1])]
+        if "fd_order" in data:
+            result["fd_order_saved"] = int(np.asarray(data["fd_order"]).reshape(-1)[0])
+        if "alpha_filter" in data:
+            result["alpha_filter_saved"] = str(np.asarray(data["alpha_filter"]).reshape(-1)[0])
+        if "use_matlab_sponge_aux" in data:
+            result["use_matlab_sponge_aux_saved"] = bool(np.asarray(data["use_matlab_sponge_aux"]).reshape(-1)[0])
+        if "sponge_enabled" in data:
+            result["sponge_enabled"] = bool(np.asarray(data["sponge_enabled"]).reshape(-1)[0])
+        if "sponge_source" in data:
+            result["sponge_source"] = str(np.asarray(data["sponge_source"]).reshape(-1)[0])
+        if "sponge_preset" in data:
+            result["sponge_preset"] = str(np.asarray(data["sponge_preset"]).reshape(-1)[0])
+        if "n_modes_stability_requested" in data:
+            result["n_modes_stability_requested"] = int(
+                np.asarray(data["n_modes_stability_requested"]).reshape(-1)[0]
+            )
+        if "stability_eps_nev" in data:
+            result["stability_eps_nev"] = int(np.asarray(data["stability_eps_nev"]).reshape(-1)[0])
+        if "stability_eps_ncv" in data:
+            result["stability_eps_ncv"] = int(np.asarray(data["stability_eps_ncv"]).reshape(-1)[0])
+        if "stability_eps_nconv" in data:
+            result["stability_eps_nconv"] = int(np.asarray(data["stability_eps_nconv"]).reshape(-1)[0])
+        if "stability_eps_iterations" in data:
+            result["stability_eps_iterations"] = int(np.asarray(data["stability_eps_iterations"]).reshape(-1)[0])
+        if "stability_eps_conv_test" in data:
+            result["stability_eps_conv_test"] = str(np.asarray(data["stability_eps_conv_test"]).reshape(-1)[0])
+        if "stability_eps_tol" in data:
+            result["stability_eps_tol"] = float(np.asarray(data["stability_eps_tol"]).reshape(-1)[0])
+        if "stability_eps_setup_seconds" in data:
+            result["stability_eps_setup_seconds"] = float(
+                np.asarray(data["stability_eps_setup_seconds"]).reshape(-1)[0]
+            )
+        if "stability_eps_solve_seconds" in data:
+            result["stability_eps_solve_seconds"] = float(
+                np.asarray(data["stability_eps_solve_seconds"]).reshape(-1)[0]
+            )
+        if "stability_true_residual" in data:
+            result["stability_true_residual"] = bool(np.asarray(data["stability_true_residual"]).reshape(-1)[0])
+        if "stability_reduce_dirichlet" in data:
+            result["stability_reduce_dirichlet"] = bool(
+                np.asarray(data["stability_reduce_dirichlet"]).reshape(-1)[0]
+            )
+        if "stability_reduce_dirichlet_set" in data:
+            result["stability_reduce_dirichlet_set"] = str(
+                np.asarray(data["stability_reduce_dirichlet_set"]).reshape(-1)[0]
+            )
+        if "stability_constrained_dirichlet_count" in data:
+            result["stability_constrained_dirichlet_count"] = int(
+                np.asarray(data["stability_constrained_dirichlet_count"]).reshape(-1)[0]
+            )
+        if "stability_residual_error_type" in data:
+            result["stability_residual_error_type"] = str(
+                np.asarray(data["stability_residual_error_type"]).reshape(-1)[0]
+            )
+        if "stability_residual_estimates" in data:
+            residuals = np.asarray(data["stability_residual_estimates"], dtype=float).reshape(-1)
+            finite = residuals[np.isfinite(residuals)]
+            result["stability_residual_count"] = int(residuals.size)
+            if finite.size:
+                result["stability_residual_max"] = float(np.max(finite))
+                result["stability_residual_median"] = float(np.median(finite))
+                result["stability_residual_first10_max"] = float(np.max(finite[: min(10, finite.size)]))
+        if "stability_residual_relative" in data:
+            residuals_rel = np.asarray(data["stability_residual_relative"], dtype=float).reshape(-1)
+            finite_rel = residuals_rel[np.isfinite(residuals_rel)]
+            result["stability_residual_relative_count"] = int(residuals_rel.size)
+            if finite_rel.size:
+                result["stability_residual_relative_min"] = float(np.min(finite_rel))
+                result["stability_residual_relative_max"] = float(np.max(finite_rel))
+                result["stability_residual_relative_median"] = float(np.median(finite_rel))
+                result["stability_residual_relative_count_le_1e6"] = int(np.sum(finite_rel <= 1e-6))
+                result["stability_residual_relative_count_le_1e4"] = int(np.sum(finite_rel <= 1e-4))
+                result["stability_residual_relative_count_le_1e3"] = int(np.sum(finite_rel <= 1e-3))
+        if "stability_postcheck_residual_rel" in data:
+            post_rel = np.asarray(data["stability_postcheck_residual_rel"], dtype=float).reshape(-1)
+            finite_post_rel = post_rel[np.isfinite(post_rel)]
+            result["stability_postcheck_residual_rel_count"] = int(post_rel.size)
+            if finite_post_rel.size:
+                result["stability_postcheck_residual_rel_min"] = float(np.min(finite_post_rel))
+                result["stability_postcheck_residual_rel_max"] = float(np.max(finite_post_rel))
+                result["stability_postcheck_residual_rel_median"] = float(np.median(finite_post_rel))
+                result["stability_postcheck_residual_rel_count_le_1e6"] = int(
+                    np.sum(finite_post_rel <= 1e-6)
+                )
+                result["stability_postcheck_residual_rel_count_le_1e4"] = int(
+                    np.sum(finite_post_rel <= 1e-4)
+                )
+                result["stability_postcheck_residual_rel_count_le_1e3"] = int(
+                    np.sum(finite_post_rel <= 1e-3)
+                )
+        if "stability_postcheck_target_distance" in data:
+            post_dist = np.asarray(data["stability_postcheck_target_distance"], dtype=float).reshape(-1)
+            finite_post_dist = post_dist[np.isfinite(post_dist)]
+            result["stability_postcheck_target_distance_count"] = int(post_dist.size)
+            if finite_post_dist.size:
+                result["stability_postcheck_target_distance_min"] = float(np.min(finite_post_dist))
+                result["stability_postcheck_target_distance_max"] = float(np.max(finite_post_dist))
+                result["stability_postcheck_target_distance_median"] = float(np.median(finite_post_dist))
+        if "stability_postcheck_bc_leak_max" in data:
+            leak = np.asarray(data["stability_postcheck_bc_leak_max"], dtype=float).reshape(-1)
+            finite_leak = leak[np.isfinite(leak)]
+            result["stability_postcheck_bc_leak_count"] = int(leak.size)
+            if finite_leak.size:
+                result["stability_postcheck_bc_leak_max"] = float(np.max(finite_leak))
+                result["stability_postcheck_bc_leak_median"] = float(np.median(finite_leak))
+        if "stability_postcheck_dirichlet_leak_max" in data:
+            leak = np.asarray(data["stability_postcheck_dirichlet_leak_max"], dtype=float).reshape(-1)
+            finite_leak = leak[np.isfinite(leak)]
+            result["stability_postcheck_dirichlet_leak_count"] = int(leak.size)
+            if finite_leak.size:
+                result["stability_postcheck_dirichlet_leak_max"] = float(np.max(finite_leak))
+                result["stability_postcheck_dirichlet_leak_median"] = float(np.median(finite_leak))
         return result
+
+
+def _cfg_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
+    node: Any = cfg
+    for key in path.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return node
 
 
 def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
@@ -166,13 +364,14 @@ def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
             if match:
                 metrics["case_shape"] = [int(match.group(1)), int(match.group(2))]
                 metrics["case_points"] = int(match.group(3))
-        elif "operator assembled:" in line:
+        else:
             match = _RE_OPERATOR.search(line)
             if match:
                 metrics["operator_shape"] = [int(match.group(1)), int(match.group(2))]
                 metrics["ndof"] = int(match.group(1))
                 metrics["nnz_pre_bc"] = int(match.group(3))
-        elif "boundary conditions applied:" in line:
+                continue
+        if "boundary conditions applied:" in line:
             match = _RE_BC.search(line)
             if match:
                 metrics["bc_dofs"] = int(match.group(1))
@@ -209,39 +408,16 @@ def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
 
 def _build_env(default_env: dict[str, str], case: dict[str, Any]) -> dict[str, str]:
     env = dict(default_env)
-
-    mapping = {
-        "stride_ksi": "LINSTAB2D_CASE1_STRIDE_KSI",
-        "stride_eta": "LINSTAB2D_CASE1_STRIDE_ETA",
-        "fd_order": "LINSTAB2D_CASE1_FD_ORDER",
-        "beta": "LINSTAB2D_CASE1_BETA",
-        "alpha_filter": "LINSTAB2D_CASE1_ALPHA_FILTER",
-        "run_stability": "LINSTAB2D_CASE1_RUN_STABILITY",
-        "run_resolvent": "LINSTAB2D_CASE1_RUN_RESOLVENT",
-        "n_modes_stability": "LINSTAB2D_CASE1_N_MODES",
-        "n_modes_resolvent": "LINSTAB2D_CASE1_N_MODES_RESOLVENT",
-        "bc_penalty": "LINSTAB2D_CASE1_BC_PENALTY",
-        "case_dir": "LINSTAB2D_CASE1_CASE_DIR",
-        "case_inputs_mat": "LINSTAB2D_CASE1_CASE_INPUTS_MAT",
-    }
-    for key, env_name in mapping.items():
-        if key in case:
-            value = case[key]
-            if isinstance(value, bool):
-                env[env_name] = "1" if value else "0"
-            else:
-                env[env_name] = str(value)
-
     for key, value in dict(case.get("env", {})).items():
         env[str(key)] = str(value)
-
     return env
 
 
 def _build_command(python_exe: str, launcher_cfg: dict[str, Any]) -> list[str]:
     mpi_procs = int(launcher_cfg.get("mpi_procs", 1))
     launcher = str(launcher_cfg.get("launcher", "")).strip()
-    command = [python_exe, "-u", "-c", "from case1 import compute; compute()"]
+    case_module = os.getenv("LINSTAB2D_CASE_MODULE", "case1").strip() or "case1"
+    command = [python_exe, "-u", "-c", f"from {case_module} import compute; compute()"]
     if mpi_procs <= 1:
         return command
     if not launcher:
@@ -310,6 +486,7 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
     parsed = dict(case.get("parsed", {}))
     output = dict(case.get("output", {}))
     effective = dict(case.get("effective_case", {}))
+    resolved_cfg = dict(case.get("resolved_config", {}))
     stage_timings = dict(parsed.get("stage_timings_seconds", {}))
     return {
         "case_id": case["case_id"],
@@ -322,10 +499,58 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
         "peak_process_count": metrics.get("peak_process_count"),
-        "stride_ksi": effective.get("stride_ksi"),
-        "stride_eta": effective.get("stride_eta"),
-        "run_stability": effective.get("run_stability"),
-        "run_resolvent": effective.get("run_resolvent"),
+        "fd_order": _cfg_get(resolved_cfg, "numerics.fd_order", effective.get("fd_order")),
+        "alpha_filter": _cfg_get(resolved_cfg, "numerics.alpha_filter"),
+        "sponge_enabled": _cfg_get(
+            resolved_cfg,
+            "physics.sponge.enabled",
+            output.get("sponge_enabled"),
+        ),
+        "use_matlab_sponge_aux": _cfg_get(
+            resolved_cfg,
+            "physics.use_matlab_sponge_aux",
+            effective.get("use_matlab_sponge_aux"),
+        ),
+        "stride_ksi": _cfg_get(resolved_cfg, "numerics.stride_ksi", effective.get("stride_ksi")),
+        "stride_eta": _cfg_get(resolved_cfg, "numerics.stride_eta", effective.get("stride_eta")),
+        "run_stability": _cfg_get(resolved_cfg, "analysis.run_stability", effective.get("run_stability")),
+        "run_resolvent": _cfg_get(resolved_cfg, "analysis.run_resolvent", effective.get("run_resolvent")),
+        "n_modes_stability_requested": output.get("n_modes_stability_requested"),
+        "stability_eps_nev": output.get("stability_eps_nev"),
+        "stability_eps_ncv": output.get("stability_eps_ncv"),
+        "stability_eps_nconv": output.get("stability_eps_nconv"),
+        "stability_eps_iterations": output.get("stability_eps_iterations"),
+        "stability_eps_conv_test": output.get("stability_eps_conv_test"),
+        "stability_eps_tol": output.get("stability_eps_tol"),
+        "stability_eps_setup_seconds": output.get("stability_eps_setup_seconds"),
+        "stability_eps_solve_seconds": output.get("stability_eps_solve_seconds"),
+        "stability_true_residual": output.get("stability_true_residual"),
+        "stability_reduce_dirichlet": output.get("stability_reduce_dirichlet"),
+        "stability_reduce_dirichlet_set": output.get("stability_reduce_dirichlet_set"),
+        "stability_constrained_dirichlet_count": output.get("stability_constrained_dirichlet_count"),
+        "stability_residual_error_type": output.get("stability_residual_error_type"),
+        "stability_residual_max": output.get("stability_residual_max"),
+        "stability_residual_median": output.get("stability_residual_median"),
+        "stability_residual_first10_max": output.get("stability_residual_first10_max"),
+        "stability_residual_relative_min": output.get("stability_residual_relative_min"),
+        "stability_residual_relative_max": output.get("stability_residual_relative_max"),
+        "stability_residual_relative_median": output.get("stability_residual_relative_median"),
+        "stability_residual_relative_count_le_1e6": output.get("stability_residual_relative_count_le_1e6"),
+        "stability_residual_relative_count_le_1e4": output.get("stability_residual_relative_count_le_1e4"),
+        "stability_residual_relative_count_le_1e3": output.get("stability_residual_relative_count_le_1e3"),
+        "stability_postcheck_residual_rel_min": output.get("stability_postcheck_residual_rel_min"),
+        "stability_postcheck_residual_rel_max": output.get("stability_postcheck_residual_rel_max"),
+        "stability_postcheck_residual_rel_median": output.get("stability_postcheck_residual_rel_median"),
+        "stability_postcheck_residual_rel_count_le_1e6": output.get("stability_postcheck_residual_rel_count_le_1e6"),
+        "stability_postcheck_residual_rel_count_le_1e4": output.get("stability_postcheck_residual_rel_count_le_1e4"),
+        "stability_postcheck_residual_rel_count_le_1e3": output.get("stability_postcheck_residual_rel_count_le_1e3"),
+        "stability_postcheck_target_distance_min": output.get("stability_postcheck_target_distance_min"),
+        "stability_postcheck_target_distance_max": output.get("stability_postcheck_target_distance_max"),
+        "stability_postcheck_target_distance_median": output.get("stability_postcheck_target_distance_median"),
+        "stability_postcheck_bc_leak_max": output.get("stability_postcheck_bc_leak_max"),
+        "stability_postcheck_bc_leak_median": output.get("stability_postcheck_bc_leak_median"),
+        "stability_postcheck_dirichlet_leak_max": output.get("stability_postcheck_dirichlet_leak_max"),
+        "stability_postcheck_dirichlet_leak_median": output.get("stability_postcheck_dirichlet_leak_median"),
         "mpi_ranks": parsed.get("mpi_ranks"),
         "st_solver": parsed.get("st_solver"),
         "resolvent_solver": parsed.get("resolvent_solver"),
@@ -337,7 +562,8 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "bc_dofs": parsed.get("bc_dofs"),
         "load_case_seconds": stage_timings.get("load_case"),
         "build_mesh_seconds": stage_timings.get("build_mesh"),
-        "assemble_operator_seconds": stage_timings.get("assemble_operator"),
+        "assemble_operator_seconds": stage_timings.get("assemble_operator_bc"),
+        "assemble_operator_bc_seconds": stage_timings.get("assemble_operator_bc"),
         "apply_bc_seconds": stage_timings.get("apply_bc"),
         "compute_chu_norm_seconds": stage_timings.get("compute_chu_norm"),
         "stability_seconds": stage_timings.get("stability"),
@@ -348,6 +574,7 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "leading_omega_imag": output.get("leading_omega_imag"),
         "leading_gain": output.get("leading_gain"),
         "max_gain": output.get("max_gain"),
+        "case_config_path": case.get("case_config_path"),
         "log_path": case.get("log_path"),
         "artifact_npz": case.get("artifact_npz"),
         "error": case.get("error"),
@@ -364,10 +591,50 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "peak_rss_bytes",
         "peak_rss_gib",
         "peak_process_count",
+        "fd_order",
+        "alpha_filter",
+        "sponge_enabled",
+        "use_matlab_sponge_aux",
         "stride_ksi",
         "stride_eta",
         "run_stability",
         "run_resolvent",
+        "n_modes_stability_requested",
+        "stability_eps_nev",
+        "stability_eps_ncv",
+        "stability_eps_nconv",
+        "stability_eps_iterations",
+        "stability_eps_conv_test",
+        "stability_eps_tol",
+        "stability_eps_setup_seconds",
+        "stability_eps_solve_seconds",
+        "stability_true_residual",
+        "stability_reduce_dirichlet",
+        "stability_reduce_dirichlet_set",
+        "stability_constrained_dirichlet_count",
+        "stability_residual_error_type",
+        "stability_residual_max",
+        "stability_residual_median",
+        "stability_residual_first10_max",
+        "stability_residual_relative_min",
+        "stability_residual_relative_max",
+        "stability_residual_relative_median",
+        "stability_residual_relative_count_le_1e6",
+        "stability_residual_relative_count_le_1e4",
+        "stability_residual_relative_count_le_1e3",
+        "stability_postcheck_residual_rel_min",
+        "stability_postcheck_residual_rel_max",
+        "stability_postcheck_residual_rel_median",
+        "stability_postcheck_residual_rel_count_le_1e6",
+        "stability_postcheck_residual_rel_count_le_1e4",
+        "stability_postcheck_residual_rel_count_le_1e3",
+        "stability_postcheck_target_distance_min",
+        "stability_postcheck_target_distance_max",
+        "stability_postcheck_target_distance_median",
+        "stability_postcheck_bc_leak_max",
+        "stability_postcheck_bc_leak_median",
+        "stability_postcheck_dirichlet_leak_max",
+        "stability_postcheck_dirichlet_leak_median",
         "mpi_ranks",
         "st_solver",
         "resolvent_solver",
@@ -380,6 +647,7 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "load_case_seconds",
         "build_mesh_seconds",
         "assemble_operator_seconds",
+        "assemble_operator_bc_seconds",
         "apply_bc_seconds",
         "compute_chu_norm_seconds",
         "stability_seconds",
@@ -390,6 +658,7 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "leading_omega_imag",
         "leading_gain",
         "max_gain",
+        "case_config_path",
         "log_path",
         "artifact_npz",
         "error",
@@ -400,15 +669,46 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+def _report_payload(
+    *,
+    config_path: Path,
+    report_cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "generated_at_utc": _now_utc(),
+        "git_commit": _git_commit(),
+        "hostname": socket.gethostname(),
+        "platform": platform.platform(),
+        "config_path": str(config_path),
+        "cases": report_cases,
+        "ok_count": sum(case["status"] == "ok" for case in report_cases),
+        "fail_count": sum(case["status"] != "ok" for case in report_cases),
+    }
+
+
+def _flush_reports(
+    *,
+    config_path: Path,
+    report_json: Path,
+    report_csv: Path,
+    report_cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    report = _report_payload(config_path=config_path, report_cases=report_cases)
+    _write_json(report_json, report)
+    _write_csv(report_csv, report_cases)
+    return report
+
+
 def main() -> int:
     config_path = Path(os.getenv("LINSTAB2D_CASE1_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
     cfg = load_jsonc(config_path)
+    config_dir = config_path.parent
 
     outputs = dict(cfg.get("outputs", {}))
-    report_json = Path(outputs.get("report_json", DEFAULT_JSON)).resolve()
-    report_csv = Path(outputs.get("report_csv", DEFAULT_CSV)).resolve()
-    log_dir = Path(outputs.get("log_dir", DEFAULT_LOG_DIR)).resolve()
-    run_dir = Path(outputs.get("run_dir", DEFAULT_RUN_DIR)).resolve()
+    report_json = _resolve_path(config_dir, outputs.get("report_json", str(DEFAULT_JSON)))
+    report_csv = _resolve_path(config_dir, outputs.get("report_csv", str(DEFAULT_CSV)))
+    log_dir = _resolve_path(config_dir, outputs.get("log_dir", str(DEFAULT_LOG_DIR)))
+    run_dir = _resolve_path(config_dir, outputs.get("run_dir", str(DEFAULT_RUN_DIR)))
     run_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -416,7 +716,13 @@ def main() -> int:
     default_env = {str(k): str(v) for k, v in dict(defaults.get("env", {})).items()}
     default_launcher = dict(defaults.get("launcher", {}))
     monitor_interval_seconds = float(defaults.get("monitor_interval_seconds", 0.5))
-    python_exe = str(defaults.get("python_exe", sys.executable))
+    python_exe = _resolve_executable(config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR)
+    default_base_config = defaults.get("base_config", default_env.get("LINSTAB2D_CASE1_CONFIG", "parity_config.jsonc"))
+    default_case_workdir = _resolve_input_path(
+        config_dir,
+        defaults.get("case_workdir", "."),
+        CASE_DIR,
+    )
 
     cases_cfg = cfg.get("cases", [])
     if not isinstance(cases_cfg, list) or not cases_cfg:
@@ -447,11 +753,36 @@ def main() -> int:
 
         case_log = log_dir / f"case1_perf_{case_id}_{timestamp}.log"
         case_npz = run_dir / f"case1_perf_{case_id}_{timestamp}.npz"
+        case_cfg_path = run_dir / f"case1_perf_{case_id}_{timestamp}.config.json"
         case_report["log_path"] = str(case_log)
         case_report["artifact_npz"] = str(case_npz)
+        case_report["case_config_path"] = str(case_cfg_path)
+        case_workdir = _resolve_input_path(
+            config_dir,
+            effective_case.get("case_workdir", str(default_case_workdir)),
+            CASE_DIR,
+        )
+        case_report["case_workdir"] = str(case_workdir)
+
+        base_config_path = _resolve_input_path(
+            config_dir,
+            effective_case.get("base_config", default_base_config),
+            CASE_DIR,
+        )
+        base_config = load_jsonc(base_config_path)
+        case_config = _build_case_config(base_config, effective_case)
+        _write_json(case_cfg_path, case_config)
+        case_report["resolved_config"] = case_config
 
         env = os.environ.copy()
         env.update(_build_env(default_env, effective_case))
+        env["LINSTAB2D_CASE1_CONFIG"] = str(case_cfg_path)
+        env["LINSTAB2D_CASE1_OUTPUT_NPZ"] = str(case_npz)
+        pythonpath_entries = [str(ROOT / "src"), str(ROOT)]
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(
+            pythonpath_entries + ([existing_pythonpath] if existing_pythonpath else [])
+        )
         launcher_cfg = _deep_merge(default_launcher, dict(effective_case.get("launcher", {})))
         command = _build_command(python_exe, launcher_cfg)
         case_report["command"] = command
@@ -461,7 +792,7 @@ def main() -> int:
             metrics = _monitor_process(
                 command,
                 env,
-                cwd=ROOT,
+                cwd=case_workdir,
                 log_path=case_log,
                 sample_interval_seconds=monitor_interval_seconds,
             )
@@ -473,8 +804,10 @@ def main() -> int:
             }
             case_report["parsed"] = _parse_log_metrics(metrics["stdout_lines"])
 
-            if metrics["returncode"] == 0 and DEFAULT_OUTPUT_NPZ.exists():
-                shutil.copy2(DEFAULT_OUTPUT_NPZ, case_npz)
+            output_npz = case_npz if case_npz.exists() else DEFAULT_OUTPUT_NPZ
+            if metrics["returncode"] == 0 and output_npz.exists():
+                if output_npz != case_npz:
+                    shutil.copy2(output_npz, case_npz)
                 case_report["output"] = _read_output_npz(case_npz)
                 case_report["status"] = "ok"
             else:
@@ -482,19 +815,18 @@ def main() -> int:
         except Exception as exc:
             case_report["error"] = str(exc)
 
-    report = {
-        "generated_at_utc": _now_utc(),
-        "git_commit": _git_commit(),
-        "hostname": socket.gethostname(),
-        "platform": platform.platform(),
-        "config_path": str(config_path),
-        "cases": report_cases,
-        "ok_count": sum(case["status"] == "ok" for case in report_cases),
-        "fail_count": sum(case["status"] != "ok" for case in report_cases),
-    }
-
-    _write_json(report_json, report)
-    _write_csv(report_csv, report_cases)
+        _flush_reports(
+            config_path=config_path,
+            report_json=report_json,
+            report_csv=report_csv,
+            report_cases=report_cases,
+        )
+    report = _flush_reports(
+        config_path=config_path,
+        report_json=report_json,
+        report_csv=report_csv,
+        report_cases=report_cases,
+    )
     print(
         "[case1-perf]",
         f"ok={report['ok_count']}",
