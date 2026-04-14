@@ -102,23 +102,25 @@ choices. Together, these define a fully discrete linearized operator.
 Temporal stability, spatial stability, and resolvent analysis then act on that
 shared operator or on derived shifted/block variants, while the sparse linear
 algebra is handled through PETSc/SLEPc \citep{balay2025petsc,hernandez2005slepc}
-with MUMPS direct factorization \citep{amestoy2001mumps} for eigenvalue
-problems and either direct or iterative Krylov/preconditioning routes
+with SLEPc Krylov--Schur plus shift-invert and MUMPS direct factorization
+\citep{amestoy2001mumps} for eigenvalue problems, and either direct or
+iterative Krylov/preconditioning routes
 \citep{saad2003iterative,benzi2002preconditioning} for resolvent analyses.
 
-Because the operator is assembled explicitly as a sparse matrix, it pairs
-naturally with direct sparse-LU factorization for the shift-invert inner
-solves that eigenvalue problems require. This is distinct from the
+Because the operator is assembled explicitly as a sparse matrix, the current
+eigenvalue workflow uses SLEPc Krylov--Schur as the outer eigensolver together
+with a shift-invert transformation, while each shifted linear system is solved
+directly by sparse LU factorization with MUMPS. This is distinct from the
 time-stepper approach \citep{edwards1994krylov,barkley2008direct}, in which
 the linearized operator is never formed and Krylov methods serve as the
 \emph{outer} eigensolver acting on propagator snapshots; see
 \citet{frantz2023krylov} for a review. The two approaches use ``Krylov
 methods'' in different roles (outer iteration on the propagator versus inner
 iteration on a shifted system), and the distinction matters for solver
-selection: iterative inner solves encounter the non-normality of the shifted
-operator directly, whereas the time-stepper outer loop avoids inversion
-altogether. The Supplementary Material (Section~S6) discusses this point
-in detail.
+selection: in the current matrix-forming eigenvalue workflow the outer method
+is Krylov--Schur, but the inner shifted solves are direct rather than
+iterative, whereas the time-stepper outer loop avoids inversion altogether.
+The Supplementary Material (Section~S6) discusses this point in detail.
 
 The framework separates physical assembly from operator analysis: changing the
 finite-difference order, coordinate mapping, or boundary recipe affects only

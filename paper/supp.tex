@@ -275,7 +275,12 @@ transformation is used:
   \label{eq:shift_invert}
 \end{equation}
 Each Krylov iteration of the outer eigensolver therefore requires one sparse
-linear solve with the shifted matrix $(\bL - \sigma\bM)$.
+linear solve with the shifted matrix $(\bL - \sigma\bM)$. In the current
+implementation, including the Song benchmark runs reported below, the outer
+eigensolver is SLEPc Krylov--Schur and the shifted linear systems are solved
+directly with PETSc \texttt{KSP = PREONLY}, \texttt{PC = LU}, and MUMPS as the
+factorization backend. Thus the eigenvalue workflow is Krylov at the outer
+eigensolver level, but not iterative at the inner linear-solver level.
 
 \paragraph{Adjoint eigenvalues.}
 The adjoint operator in the $\bW$-weighted inner product is
@@ -821,7 +826,10 @@ eigenvalues overlaid, and side-by-side Python/MATLAB mode shapes for
 a steady (Mode~1) and an oscillatory (Mode~2) eigenmode. The Python
 eigenvectors are phase-aligned to MATLAB via a complex least-squares
 projection before plotting, so that the signed contour levels are directly
-comparable.
+comparable. All current Song stability results in this manuscript use the
+same solver stack: SLEPc Krylov--Schur as the outer eigensolver, shift-invert
+for spectral targeting, and direct LU factorization with MUMPS for the inner
+shifted solves.
 
 \subsection{Application-facing Case 1 status}
 \label{sec:case1}
@@ -955,6 +963,9 @@ analysis:
   \item \textbf{Direct solver:} factor the shifted sparse matrix once, then
     apply forward/back substitutions for each right-hand side.
 \end{itemize}
+For the current Song stability calculations, this direct path appears inside
+the SLEPc shift-invert eigensolver: the outer algorithm is Krylov--Schur,
+while each shifted linear system is handled by direct LU/MUMPS.
 The \emph{iterative path} is a Krylov/preconditioner route currently used only
 for the resolvent linear solves:
 \begin{itemize}[nosep]
@@ -1066,7 +1077,9 @@ solving the shifted linear system $(\bL - \sigma\bI)\bx = \bb$. With a
 direct solver (LU/MUMPS) this reduces to forward/back substitutions using
 a precomputed factorization. If instead an iterative Krylov method (e.g.\
 GMRES) is used for these inner solves, it must invert the shifted operator
-to high accuracy at every outer Arnoldi step.
+to high accuracy at every outer Arnoldi step. The current Song runs use the
+former configuration: outer Krylov--Schur with direct LU/MUMPS inner solves,
+not GMRES/ASM or another iterative inner KSP.
 
 \paragraph{Why the inner solve is demanding for compressible LNSE.}
 The shifted temporal operator $\mathrm{i}\bL - \sigma\bI$ inherits the
