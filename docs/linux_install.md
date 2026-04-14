@@ -22,7 +22,9 @@ consistent across workstations and cluster nodes.
 3. Install with `bash install.sh`.
    The main installer now prefers a verified `mpiexec`, rebuilds `mpi4py` from
    source when the wheel ABI does not match the system MPI, and verifies the
-   stack under `mpiexec -n 1` on Linux.
+   stack under `mpiexec -n 1` on Linux. If required system packages are
+   missing, it prints the suggested package-manager commands and exits instead
+   of trying `sudo` by default.
 4. Under MPI, pin threaded math libraries to one thread per rank.
    Use:
 
@@ -75,6 +77,21 @@ If you already manage compilers and MPI yourself:
 LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
 ```
 
+If you are on a workstation and want the installer to use the package manager
+for missing system tools:
+
+```bash
+LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh
+```
+
+Cluster-friendly flow:
+
+```bash
+bash diagnose.sh
+module load <compiler> <mpi> <hdf5>
+bash install.sh
+```
+
 Useful overrides:
 
 - `LINSTAB2D_PETSC_MPIEXEC=/path/to/mpiexec`
@@ -82,6 +99,7 @@ Useful overrides:
 - `LINSTAB2D_MPI4PY_NO_BINARY=1`
 - `LINSTAB2D_WITH_H5PY=1`
 - `LINSTAB2D_SKIP_SYS_DEPS=1`
+- `LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1`
 
 ## Running examples
 
@@ -97,8 +115,19 @@ artifacts:
 
 ```bash
 .venv/bin/python -m examples.example_1_blasius_smoke
-mpiexec.mpich -n 1 .venv/bin/python -m examples.example_1_blasius_smoke
+bash run_mpi_example.sh -n 1 -m examples.example_1_blasius_smoke
 ```
+
+For MPI runs in general, prefer the wrapper:
+
+```bash
+bash run_mpi_example.sh -m examples.example_1_blasius_smoke
+bash run_mpi_example.sh -n 10 -m examples.example_3_streaky_bl
+```
+
+It probes a working `mpiexec` and exports `OMP_NUM_THREADS=1`,
+`MKL_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1`, `NUMEXPR_NUM_THREADS=1`, and
+`VECLIB_MAXIMUM_THREADS=1` unless you override them yourself.
 
 ## Scaling guidance
 

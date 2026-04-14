@@ -255,7 +255,7 @@ Operational rule:
 git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
 cd linstabpy
 bash diagnose.sh      # read-only Linux preflight (recommended)
-bash install.sh       # creates .venv, installs dependencies via uv
+bash install.sh       # creates .venv and installs Python/PETSc stack; no sudo by default
 # If submodules were not cloned with --recurse-submodules:
 git submodule update --init --recursive
 
@@ -269,21 +269,32 @@ python -m examples.example_1_blasius
 For most Linux users, setup is:
 
 ```bash
+bash diagnose.sh
 bash install.sh
 ```
 
 `install.sh` handles:
-- system prerequisites (compiler/MPI/X11 toolchain) via detected package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`)
 - Python environment creation with `uv` (`.venv`, Python 3.13)
 - PETSc/SLEPc + `petsc4py`/`slepc4py` installation and verification
 - MPI launcher validation for PETSc configure / verification on Linux
 - `mpi4py` ABI recovery by rebuilding from source when the wheel does not match the selected system MPI
 - editable install of `linstabpy` and test tools
 
+If required Linux build tools are missing, `install.sh` now prints the exact
+package-manager commands and stops. This avoids unexpected `sudo` or
+package-manager calls on cluster/module environments.
+
 If your machine is already provisioned (or you cannot install system packages), skip the system-deps step:
 
 ```bash
 LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
+```
+
+If you are on a workstation and want the installer to install missing system
+packages for you:
+
+```bash
+LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh
 ```
 
 Recommended post-install checks:
@@ -298,6 +309,11 @@ Linux runtime policy:
 - run MPI jobs with `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, and `OPENBLAS_NUM_THREADS=1`
 - treat direct PETSc assembly as an explicit opt-in, not the installation baseline
 - start performance checks with the shipped smoke benchmark before running the full Martini examples
+- on clusters, run `bash diagnose.sh`, load the required modules, and only then run `bash install.sh`
+
+Copy-paste collaborator guide:
+- [LINUX_QUICKSTART.md](LINUX_QUICKSTART.md)
+- [docs/linux_install.md](docs/linux_install.md)
 
 Details and troubleshooting are documented in [docs/linux_install.md](docs/linux_install.md).
 
