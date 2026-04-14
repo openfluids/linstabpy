@@ -103,6 +103,28 @@ def make_linear_solver(
     pc = ksp.getPC()
 
     if solver_type in {"mumps", "direct", "lu"}:
+        ignored_iterative_keys = sorted(
+            key for key in (
+                "ksp_type",
+                "pc_type",
+                "ksp_pc_side",
+                "ksp_rtol",
+                "ksp_atol",
+                "ksp_max_it",
+                "asm_overlap",
+                "sub_ksp_type",
+                "sub_pc_type",
+            )
+            if _sub is not None and key in _sub
+        )
+        if ignored_iterative_keys:
+            logger.warning(
+                "Ignoring iterative linear-solver options for direct %s path "
+                "(type=%s uses KSPPREONLY+PCLU): %s",
+                env_prefix,
+                solver_type,
+                ", ".join(ignored_iterative_keys),
+            )
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
         pc.setFactorSolverType("mumps")

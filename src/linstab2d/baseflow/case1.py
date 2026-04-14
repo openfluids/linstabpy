@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 
 from .baseflow import BaseFlow
+from .sponge import case1_sponge_from_config
 
 
 def _load_field(case_dir: Path, name: str) -> np.ndarray:
@@ -52,6 +53,7 @@ def load_hamada_case(
     zero_spanwise: bool = False,
     sponge_mat_path: str | Path | None = None,
     prefer_matlab_sponge_aux: bool = False,
+    native_sponge_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray, BaseFlow, np.ndarray]:
     """Load Hamada case arrays and build a ``BaseFlow`` object."""
     root = Path(case_dir)
@@ -63,7 +65,14 @@ def load_hamada_case(
     if transpose_input:
         fields = {name: arr.T for name, arr in fields.items()}
 
-    if prefer_matlab_sponge_aux and sponge_mat_path is not None:
+    if native_sponge_cfg is not None:
+        fields["sponge"] = case1_sponge_from_config(
+            fields["sponge"].shape,
+            native_sponge_cfg,
+            X=fields["x"],
+            Y=fields["y"],
+        )
+    elif prefer_matlab_sponge_aux and sponge_mat_path is not None:
         sponge_aux = _load_sponge_aux(Path(sponge_mat_path))
         if sponge_aux.shape != fields["sponge"].shape:
             if sponge_aux.T.shape == fields["sponge"].shape:

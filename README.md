@@ -63,6 +63,12 @@ Results are cached to `.npz`; subsequent runs plot directly without recomputing.
 
 **What makes it interesting:** The resolvent operator `H = C inv(L_sigma) B` is never formed as a matrix. Instead, a PETSc MatShell wraps the MUMPS factorization: each SVD iteration applies `H` via a forward solve and `H^H` via a conjugate-transpose solve. This means a 150k x 150k system requires only the memory of one sparse LU factorization, not a dense matrix.
 
+Important numerical distinction:
+
+- the shifted linear solve `inv(L_sigma)` is controlled by the linear-solver path (`solver.linsolve`)
+- the leading resolvent gains are extracted from an `EPS` solve on the `H^H W H` shell operator (`solver.resolvent.eigen`)
+- in the direct MUMPS path, iterative `KSP` tolerances are not the main accuracy knobs; the relevant eigensolver knobs are the `EPS` settings on `H^H W H` such as `eps_tol`, `conv_test`, `true_residual`, `nev`, and `ncv`
+
 **Key output:** Resolvent gains sigma_1 >> sigma_2 >> sigma_3, confirming rank-1 amplification characteristic of convective instabilities.
 
 ---
@@ -162,6 +168,14 @@ SciPy sparse (matrix assembly)  →  PETSc (linear solves via MUMPS)  →  SLEPc
 - **SLEPc TRLANCZOS** computes the resolvent SVD directly (no operator squaring), which is numerically more stable than eigendecomposing H^H W H.
 - The entire solver chain is MPI-ready for future distributed-memory parallelism.
 
+For the current Case 1 / Case 2 resolvent implementation, users should also
+keep the following distinction clear:
+
+- `solver.resolvent.eigen.*` controls the `EPS` eigenproblem on the `H^H W H` shell operator
+- `solver.linsolve.*` controls the shifted linear solves used inside each shell-operator application
+- if `solver.linsolve.type=mumps`, the linear solve is `KSPPREONLY+PCLU+MUMPS`, so iterative `KSP` tolerances are not the main tuning knobs
+- if `solver.linsolve.type=iterative`, then `ksp_rtol`, `ksp_atol`, `ksp_max_it`, `pc_type`, and related settings become meaningful
+
 ## Linear-system nature (Case 1) and solver strategies
 
 For the assembled LNSE operator (after BCs), the current Case 1 has:
@@ -178,9 +192,18 @@ The block system is compressible and mostly coupled in `rho/u/v/T`, with a decou
 ### Strategy A (robust baseline): MUMPS direct
 
 - `ST=SINVERT`, `KSP=PREONLY`, `PC=LU`, `solver=MUMPS`
+- the main accuracy/selection knobs are `eps_tol`, `conv_test`, `true_residual`, `nev`, `ncv`, and the target shift
+- `KSP` iterative tolerances are not meaningful knobs in this path because `KSPPREONLY` does not run a Krylov iteration
 - use for medium cases where direct factorization memory fits
 - this is the current reliable MATLAB-parity path in this repository
 - verified on **2026-02-26** (`case1`, `n_modes=30`, `MPI=1`, `threads=6`): converged in `~98s`, parity `pass=True`
+
+For the temporal EVP, users should keep the following distinction clear:
+
+- `eps_tol` is an eigensolver convergence threshold, not a guarantee on final full-operator residual
+- `conv_test` decides how SLEPc interprets that threshold (`abs`, `rel`, `norm`)
+- `true_residual=true` is valuable in shift-invert runs because cheap transformed residual estimates can be optimistic
+- the explicit postcheck residual remains the final acceptance gate for returned modes
 
 ### Strategy B (scalable, in progress): PETSc iterative + strong preconditioner
 

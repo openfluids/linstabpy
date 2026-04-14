@@ -9,7 +9,7 @@ from .dirichlet import (
     build_dirichlet_restriction_matrices,
 )
 from .neumann import apply_neumann, apply_neumann_petsc
-from .recipe import apply_bc_recipe, apply_bc_recipe_petsc
+from .recipe import analyze_bc_recipe, apply_bc_recipe, apply_bc_recipe_petsc
 
 __all__ = [
     "apply_dirichlet",
@@ -20,6 +20,7 @@ __all__ = [
     "apply_dirichlet_identity_pair",
     "apply_neumann",
     "apply_neumann_petsc",
+    "analyze_bc_recipe",
     "apply_bc_recipe",
     "apply_bc_recipe_petsc",
 ]

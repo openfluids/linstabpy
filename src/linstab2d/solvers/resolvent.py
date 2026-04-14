@@ -40,6 +40,7 @@ from slepc4py import SLEPc
 
 from .linsolve import make_linear_solver
 from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, petsc_vec, vec_to_numpy
+from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,60 @@ def _apply_optional_adjoint_matrix(
             x.destroy()
             y.destroy()
     return matrix.conj().T @ vector
+
+
+def _resolve_resolvent_ncv(ndof: int, n_modes: int, requested_ncv: int | None) -> int:
+    """Resolve the EPS subspace size for the resolvent H*H eigenproblem."""
+    default_ncv = min(max(2 * n_modes + 3, 20), ndof - 1)
+    if requested_ncv is None:
+        return default_ncv
+    ncv = int(requested_ncv)
+    if ncv <= n_modes:
+        raise ValueError(f"Resolvent ncv must be > nev ({n_modes}), got {ncv}")
+    return min(max(ncv, n_modes + 1), ndof - 1)
+
+
+def _resolve_resolvent_conv_test(name: str) -> SLEPc.EPS.Conv:
+    """Map config strings to SLEPc EPS convergence tests."""
+    key = str(name).strip().lower()
+    mapping = {
+        "abs": SLEPc.EPS.Conv.ABS,
+        "absolute": SLEPc.EPS.Conv.ABS,
+        "rel": SLEPc.EPS.Conv.REL,
+        "relative": SLEPc.EPS.Conv.REL,
+        "norm": SLEPc.EPS.Conv.NORM,
+    }
+    try:
+        return mapping[key]
+    except KeyError as exc:
+        raise ValueError(
+            f"Invalid resolvent EPS convergence test {name!r}; expected abs|rel|norm"
+        ) from exc
+
+
+def _install_resolvent_eps_monitor(eps: SLEPc.EPS, every: int) -> None:
+    """Emit sparse resolvent EPS progress directly into the case log."""
+    interval = max(int(every), 1)
+
+    def _monitor(
+        eps_obj: SLEPc.EPS,
+        iteration: int,
+        nconv: int,
+        eigs: list[complex],
+        errs: list[float],
+    ) -> None:
+        if iteration != 1 and iteration % interval != 0:
+            return
+        finite_errs = [float(val) for val in errs if np.isfinite(val)]
+        max_err = max(finite_errs) if finite_errs else float("nan")
+        min_err = min(finite_errs) if finite_errs else float("nan")
+        PETSc.Sys.Print(
+            f"[resolvent] EPS iter={int(iteration)} nconv={int(nconv)} "
+            f"err_range=[{min_err:.3e}, {max_err:.3e}]"
+        )
+
+    eps.setTrackAll(True)
+    eps.setMonitor(_monitor)
 
 
 def resolvent_analysis(
@@ -219,7 +274,12 @@ def resolvent_analysis(
             v = _apply_H(v)
             v = W_vec * v
             v = _apply_H_adj(v)
-            y.setArray(invW_vec * v)
+            weighted = invW_vec * v
+            if y.getComm().getSize() == 1:
+                y.setArray(weighted)
+            else:
+                r0, r1 = y.getOwnershipRange()
+                y.setArray(weighted[r0:r1])
 
     htrh_shell = PETSc.Mat().createPython((ndof, ndof), context=_HtrHShell())
     htrh_shell.setUp()
@@ -227,8 +287,30 @@ def resolvent_analysis(
     # ------------------------------------------------------------------
     # 5. SLEPc EPS on HtrH (MATLAB-parity route)
     # ------------------------------------------------------------------
-    ncv = min(max(2 * n_modes + 3, 20), ndof - 1)
-    logger.info("  SLEPc EPS on HtrH operator (nev=%d, ncv=%d) ...", n_modes, ncv)
+    _res_cfg = solver_cfg.get("resolvent", solver_cfg.get("linsolve", {})) if solver_cfg else {}
+    _res_eps_cfg = _res_cfg.get("eigen", _res_cfg) if isinstance(_res_cfg, dict) else {}
+    ncv = _resolve_resolvent_ncv(
+        ndof,
+        n_modes,
+        int(_res_eps_cfg["ncv"]) if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg else None,
+    )
+    eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTAB2D_RESOLVENT_EPS_TOL", 1e-8)
+    eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTAB2D_RESOLVENT_EPS_MAX_IT", 1000)
+    conv_test_name = _scfg(_res_eps_cfg, "conv_test", "LINSTAB2D_RESOLVENT_EPS_CONV_TEST", "")
+    true_residual = _scfg_bool(
+        _res_eps_cfg,
+        "true_residual",
+        "LINSTAB2D_RESOLVENT_EPS_TRUE_RESIDUAL",
+        False,
+    )
+    logger.info(
+        "  SLEPc EPS on HtrH operator (nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s) ...",
+        n_modes,
+        ncv,
+        eps_tol,
+        conv_test_name or "default",
+        true_residual,
+    )
 
     eps = SLEPc.EPS().create()
     eps.setOperators(htrh_shell)
@@ -236,7 +318,16 @@ def resolvent_analysis(
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.LARGEST_MAGNITUDE)
-    eps.setTolerances(tol=1e-12, max_it=1000)
+    if conv_test_name:
+        eps.setConvergenceTest(_resolve_resolvent_conv_test(conv_test_name))
+    eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
+    if hasattr(eps, "setTrueResidual") and true_residual:
+        eps.setTrueResidual(True)
+    if _scfg_bool(_res_eps_cfg, "monitor", "LINSTAB2D_RESOLVENT_EPS_MONITOR", False):
+        _install_resolvent_eps_monitor(
+            eps,
+            _scfg_int(_res_eps_cfg, "monitor_every", "LINSTAB2D_RESOLVENT_EPS_MONITOR_EVERY", 10),
+        )
     eps.setFromOptions()
     eps.solve()
 

@@ -91,14 +91,63 @@
 
     // Eigenvalue solver (temporal, adjoint, spatial)
     "eigen": {
-      // Spectral transformation: "mumps" (direct LU) or "iterative"
-      "st_solver": "mumps"
+      // Spectral transformation backend:
+      //   "mumps"     -> direct shift-invert, with KSP=PREONLY and PC=LU
+      //   "iterative" -> Krylov linear solve inside ST
+      //
+      // In the direct-MUMPS path, the meaningful tuning knobs are EPS-level
+      // settings such as eps_tol / conv_test / true_residual / ncv, not KSP
+      // Krylov tolerances.
+      "st_solver": "mumps",
+
+      // EPS convergence threshold (not the same as explicit postchecked
+      // full-operator residual).
+      "eps_tol": 1e-6,
+
+      // Krylov subspace size for EPS. This is often a quality knob, not just
+      // a performance knob, for interior non-normal problems.
+      "ncv": 300,
+
+      // EPS convergence test:
+      //   "rel" = relative to eigenvalue magnitude
+      //   "abs" = absolute
+      //   "norm" = matrix-norm-based
+      "conv_test": "rel",
+
+      // With shift-invert, true residuals are safer than cheap transformed
+      // residual estimates, at some extra cost.
+      "true_residual": true
     },
 
     // Linear solver (resolvent factorization)
     "linsolve": {
-      // "mumps" (direct LU) or "iterative" (Krylov)
+      // Shifted linear solve used inside each resolvent shell application:
+      //   "mumps"     -> direct KSPPREONLY + PCLU + MUMPS
+      //   "iterative" -> Krylov linear solve with meaningful KSP tolerances
       "type": "mumps"
+    },
+
+    // EPS settings for the H^H W H shell eigenproblem used to extract
+    // resolvent gains and forcing/response modes.
+    "resolvent": {
+      "eigen": {
+        // EPS convergence threshold on the shell-operator eigenproblem.
+        "eps_tol": 1e-8,
+
+        // Krylov subspace size for the shell-operator EPS solve. Increase this
+        // when singular values/modes are not saturating cleanly.
+        "ncv": 40,
+
+        // EPS convergence test on the shell-operator eigenproblem.
+        "conv_test": "rel",
+
+        // With shell operators and transformed residual estimates, true
+        // residuals are safer at some extra cost.
+        "true_residual": true,
+
+        // Maximum EPS iterations on H^H W H.
+        "eps_max_it": 1000
+      }
     }
   }
 }

@@ -665,3 +665,40 @@ def vec_to_numpy(v: PETSc.Vec) -> np.ndarray:
     finally:
         scatter.destroy()
         gathered.destroy()
+
+
+def numpy_columns_to_petsc_vecs(template: PETSc.Mat | PETSc.Vec, modes: np.ndarray) -> list[PETSc.Vec]:
+    """Convert dense full-state mode columns into ownership-compatible PETSc Vecs."""
+    arr = np.asarray(modes, dtype=complex)
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
+    if arr.ndim != 2:
+        raise ValueError("modes must be a 1-D vector or a 2-D column matrix")
+
+    make_vec = template.createVecRight if hasattr(template, "createVecRight") else template.duplicate
+    probe = make_vec()
+    try:
+        r0, r1 = probe.getOwnershipRange()
+        ndof = int(probe.getSize())
+    finally:
+        probe.destroy()
+
+    if arr.shape[0] != ndof:
+        raise ValueError(
+            f"initial-space row count {arr.shape[0]} does not match operator size {ndof}"
+        )
+
+    vecs: list[PETSc.Vec] = []
+    rows = np.arange(r0, r1, dtype=PETSc.IntType) if r1 > r0 else np.array([], dtype=PETSc.IntType)
+    for j in range(arr.shape[1]):
+        vec = make_vec()
+        column = np.asarray(arr[:, j], dtype=complex)
+        norm = float(np.linalg.norm(column))
+        if norm > 0.0:
+            column = column / norm
+        if r1 > r0:
+            vec.setValues(rows, column[r0:r1], addv=PETSc.InsertMode.INSERT_VALUES)
+        vec.assemblyBegin()
+        vec.assemblyEnd()
+        vecs.append(vec)
+    return vecs

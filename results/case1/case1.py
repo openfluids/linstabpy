@@ -25,22 +25,37 @@ from petsc4py import PETSc
 from mpi4py import MPI
 
 from linstab2d.baseflow import load_hamada_case, sutherland_air
+from linstab2d.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
 from linstab2d.mesh import Mesh
 from linstab2d.operators.assembly import build_lnse_system
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
-from linstab2d.solvers.petsc_utils import scipy_to_petsc
+from linstab2d.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.utils.jsonc import load_jsonc
 
 SCRIPT = Path(__file__).resolve()
-OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
+
+
+def _output_npz_path() -> Path:
+    """Return the per-run output archive path.
+
+    Defaults to the legacy ``case1.npz`` location, but allows the timing
+    harness to isolate concurrent runs by providing a unique target path.
+    """
+    raw = os.getenv("LINSTAB2D_CASE1_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz")))
+    return Path(raw).resolve()
+
+
+def _log_prefix() -> str:
+    """Return the runtime log prefix for the current case runner."""
+    return os.getenv("LINSTAB2D_CASE_LOG_PREFIX", "case1").strip() or "case1"
 
 
 def _log(message: str) -> None:
     """Small helper for consistent prefixed progress messages."""
     if PETSc.COMM_WORLD.getRank() == 0:
-        print(f"[case1] {message}", flush=True)
+        print(f"[{_log_prefix()}] {message}", flush=True)
 
 
 def _log_stage(stage: str, stage_start: float) -> None:
@@ -48,9 +63,161 @@ def _log_stage(stage: str, stage_start: float) -> None:
     _log(f"stage complete: stage={stage} elapsed={time.perf_counter() - stage_start:.2f}s")
 
 
+def _restrict_operator_for_stability(
+    operator: sp.spmatrix | PETSc.Mat,
+    W_diag: np.ndarray,
+    constrained_indices: np.ndarray,
+) -> tuple[sp.spmatrix | PETSc.Mat, np.ndarray, np.ndarray]:
+    """Remove constrained DOFs from the stability EVP."""
+    ndof = int(operator.getSize()[0]) if _is_petsc_matrix(operator) else int(operator.shape[0])
+    _, _, free_dofs = build_dirichlet_restriction_matrices(ndof, constrained_indices)
+    W_reduced = np.asarray(W_diag, dtype=float)[free_dofs]
+    if _is_petsc_matrix(operator):
+        r0, r1 = operator.getOwnershipRange()
+        free_local = free_dofs[(free_dofs >= r0) & (free_dofs < r1)].astype(PETSc.IntType, copy=False)
+        is_free = PETSc.IS().createGeneral(free_local, comm=operator.getComm())
+        try:
+            reduced = operator.createSubMatrix(is_free, is_free)
+        finally:
+            is_free.destroy()
+        return reduced, W_reduced, free_dofs
+    reduced = operator.tocsc()[free_dofs][:, free_dofs].tocsc()
+    return reduced, W_reduced, free_dofs
+
+
+def _expand_reduced_modes(modes_reduced: np.ndarray, n_full: int, free_dofs: np.ndarray) -> np.ndarray:
+    """Expand reduced eigenvectors back into the full state space."""
+    if modes_reduced.size == 0:
+        return np.empty((n_full, 0), dtype=complex)
+    modes_full = np.zeros((n_full, modes_reduced.shape[1]), dtype=complex)
+    modes_full[free_dofs, :] = modes_reduced
+    return modes_full
+
+
+def _build_distributed_vec_from_global_array(mat: PETSc.Mat, values: np.ndarray) -> PETSc.Vec:
+    """Create a PETSc vector matching ``mat`` ownership from a global array."""
+    vec = mat.createVecRight()
+    r0, r1 = vec.getOwnershipRange()
+    if r1 > r0:
+        rows = np.arange(r0, r1, dtype=PETSc.IntType)
+        vec.setValues(rows, np.asarray(values[r0:r1], dtype=complex), addv=PETSc.InsertMode.INSERT_VALUES)
+    vec.assemblyBegin()
+    vec.assemblyEnd()
+    return vec
+
+
+def _postcheck_stability_modes(
+    L0: sp.spmatrix | PETSc.Mat,
+    omega: np.ndarray,
+    modes: np.ndarray,
+    *,
+    target: complex,
+    bc_indices: np.ndarray,
+    constrained_dirichlet_indices: np.ndarray,
+) -> dict[str, object]:
+    """Compute explicit residual and BC-leakage diagnostics for returned modes."""
+    n_modes = int(np.asarray(omega).size)
+    empty = np.array([], dtype=float)
+    if n_modes == 0 or modes.size == 0:
+        return {
+            "postcheck_residual_abs": empty,
+            "postcheck_residual_rel": empty,
+            "postcheck_residual_interior_abs": empty,
+            "postcheck_residual_bc_abs": empty,
+            "postcheck_bc_leak_max": empty,
+            "postcheck_bc_leak_p99": empty,
+            "postcheck_dirichlet_leak_max": empty,
+            "postcheck_dirichlet_leak_p99": empty,
+            "postcheck_target_distance": empty,
+        }
+
+    bc_idx = np.unique(np.asarray(bc_indices, dtype=int))
+    dir_idx = np.unique(np.asarray(constrained_dirichlet_indices, dtype=int))
+    n_full = int(modes.shape[0])
+    mask = np.ones(n_full, dtype=bool)
+    mask[bc_idx] = False
+
+    residual_abs = np.full(n_modes, np.nan, dtype=float)
+    residual_rel = np.full(n_modes, np.nan, dtype=float)
+    residual_interior_abs = np.full(n_modes, np.nan, dtype=float)
+    residual_bc_abs = np.full(n_modes, np.nan, dtype=float)
+    bc_leak_max = np.full(n_modes, np.nan, dtype=float)
+    bc_leak_p99 = np.full(n_modes, np.nan, dtype=float)
+    dir_leak_max = np.full(n_modes, np.nan, dtype=float)
+    dir_leak_p99 = np.full(n_modes, np.nan, dtype=float)
+    target_distance = np.abs(np.asarray(omega, dtype=complex) - complex(target))
+
+    for i in range(n_modes):
+        mode = np.asarray(modes[:, i], dtype=complex)
+        if bc_idx.size:
+            bc_amp = np.abs(mode[bc_idx])
+            bc_leak_max[i] = float(np.max(bc_amp))
+            bc_leak_p99[i] = float(np.quantile(bc_amp, 0.99))
+        if dir_idx.size:
+            dir_amp = np.abs(mode[dir_idx])
+            dir_leak_max[i] = float(np.max(dir_amp))
+            dir_leak_p99[i] = float(np.quantile(dir_amp, 0.99))
+
+        if _is_petsc_matrix(L0):
+            x = _build_distributed_vec_from_global_array(L0, mode)
+            y = x.duplicate()
+            try:
+                L0.mult(x, y)
+                y.scale(1j)
+                y.axpy(-complex(omega[i]), x)
+                res = vec_to_numpy(y)
+            finally:
+                x.destroy()
+                y.destroy()
+        else:
+            res = 1j * (L0 @ mode) - complex(omega[i]) * mode
+
+        residual_abs[i] = float(np.linalg.norm(res))
+        mode_norm = float(np.linalg.norm(mode))
+        residual_rel[i] = residual_abs[i] / max(mode_norm, np.finfo(float).eps)
+        residual_interior_abs[i] = float(np.linalg.norm(res[mask]))
+        residual_bc_abs[i] = float(np.linalg.norm(res[bc_idx])) if bc_idx.size else 0.0
+
+    return {
+        "postcheck_residual_abs": residual_abs,
+        "postcheck_residual_rel": residual_rel,
+        "postcheck_residual_interior_abs": residual_interior_abs,
+        "postcheck_residual_bc_abs": residual_bc_abs,
+        "postcheck_bc_leak_max": bc_leak_max,
+        "postcheck_bc_leak_p99": bc_leak_p99,
+        "postcheck_dirichlet_leak_max": dir_leak_max,
+        "postcheck_dirichlet_leak_p99": dir_leak_p99,
+        "postcheck_target_distance": np.asarray(target_distance, dtype=float),
+    }
+
+
+def _resolve_omega_target(raw: object, default: complex) -> complex:
+    """Parse an optional explicit omega target override from config."""
+    if raw is None:
+        return complex(default)
+    if isinstance(raw, (int, float, np.floating)):
+        return complex(float(raw), 0.0)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return complex(default)
+        return complex(text)
+    if isinstance(raw, dict):
+        real = float(raw.get("real", np.real(default)))
+        imag = float(raw.get("imag", np.imag(default)))
+        return complex(real, imag)
+    if isinstance(raw, (list, tuple)) and len(raw) == 2:
+        return complex(float(raw[0]), float(raw[1]))
+    raise ValueError(
+        "analysis.omega_target must be null, a number, a complex-like string, "
+        "a [real, imag] pair, or an object with {real, imag}"
+    )
+
+
 def compute() -> None:
     """Run the full Case 1 pipeline and write ``case1.npz``."""
     t0 = time.perf_counter()
+    output_npz = _output_npz_path()
     _log("starting compute")
     comm = PETSc.COMM_WORLD
     rank = comm.getRank()
@@ -104,13 +271,19 @@ def compute() -> None:
     St = float(cfg("analysis.St", 0.1))
 
     # Target angular frequency used by resolvent and shift-invert EVP.
-    omega_target = 2.0 * np.pi * St * ratio_u / ratio_l
+    omega_target = _resolve_omega_target(
+        cfg("analysis.omega_target", None),
+        2.0 * np.pi * St * ratio_u / ratio_l,
+    )
 
     n_modes = int(cfg("analysis.n_modes_stability", 100))
     n_modes_resolvent = int(cfg("analysis.n_modes_resolvent", 10))
     run_resolvent = bool(cfg("analysis.run_resolvent", True))
     run_stability = bool(cfg("analysis.run_stability", True))
     zero_spanwise = bool(cfg("physics.zero_spanwise", False))
+    sponge_cfg_raw = cfg("physics.sponge", None)
+    sponge_cfg = sponge_cfg_raw if isinstance(sponge_cfg_raw, dict) else None
+    native_sponge_enabled = bool((sponge_cfg or {}).get("enabled", False))
     use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", True))
     alpha_filter_raw = cfg("numerics.alpha_filter", "none")
     try:
@@ -126,6 +299,7 @@ def compute() -> None:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
     use_raw_eigs = bool(cfg("analysis.use_raw_eigs", False))
+    prefer_matlab_sponge_aux = (not native_sponge_enabled) and use_matlab_sponge_aux and sponge_mat_path.exists()
     solver_cfg = config.get("solver")
     if solver_cfg is None:
         solver_cfg = {}
@@ -159,12 +333,19 @@ def compute() -> None:
     resolvent_type = _resolvent_cfg.get("type", _linsolve.get("type", "mumps"))
     matrix_mode = solver_cfg.get("petsc_matrix_mode", "auto")
     assembly_backend = cfg("assembly_backend", None)
+    reduce_dirichlet = bool(_ecfg.get("reduce_dirichlet", False))
+    reduce_dirichlet_set = str(_ecfg.get("reduce_dirichlet_set", "column_zeroed")).strip().lower()
+    if reduce_dirichlet_set not in {"effective", "column_zeroed"}:
+        raise ValueError(
+            "solver.eigen.reduce_dirichlet_set must be 'effective' or 'column_zeroed'"
+        )
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
         f"run_stability={run_stability} run_resolvent={run_resolvent} "
         f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs} "
-        f"alpha_filter={alpha_filter} matlab_sponge_aux={use_matlab_sponge_aux}"
+        f"alpha_filter={alpha_filter} "
+        f"sponge_request={'native' if native_sponge_enabled else ('matlab_aux' if prefer_matlab_sponge_aux else 'baseflow_file')}"
     )
     _log(
         "solver setup: "
@@ -192,15 +373,26 @@ def compute() -> None:
         transpose_input=True,
         zero_spanwise=zero_spanwise,
         sponge_mat_path=sponge_mat_path,
-        prefer_matlab_sponge_aux=use_matlab_sponge_aux and sponge_mat_path.exists(),
+        prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
+        native_sponge_cfg=sponge_cfg,
     )
 
     sutherland_air(baseflow)
     if zero_mu_t_derivs:
         baseflow.dmudT[:] = 0.0
         baseflow.d2mudT2[:] = 0.0
+    sponge_enabled = bool(np.count_nonzero(sponge))
+    if native_sponge_enabled:
+        sponge_source = "native"
+    elif prefer_matlab_sponge_aux:
+        sponge_source = "matlab_aux"
+    elif sponge_enabled:
+        sponge_source = "baseflow_file"
+    else:
+        sponge_source = "off"
     _log(
         f"loaded case arrays: shape={X.shape}, points={X.size}, "
+        f"sponge_source={sponge_source}, "
         f"sponge_max={float(np.max(sponge)):.3g}, sponge_nnz={int(np.count_nonzero(sponge))}"
     )
     _log_stage("load_case", stage_start)
@@ -225,6 +417,12 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 4) Assemble LNSE operator and impose boundary conditions.
     # ------------------------------------------------------------------
+    bc_recipe = cfg("bc.recipe", [
+        {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+        {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+        {"type": "neumann", "borders": "b", "variables": "T", "exclude_corners": True},
+        {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
+    ])
     if use_root_operator and rank != 0:
         # Root-assembly mode for MPI scalability:
         # non-root ranks keep only a shape-compatible placeholder; the real
@@ -242,12 +440,6 @@ def compute() -> None:
     else:
         stage_start = time.perf_counter()
         _log("assembling LNSE operator")
-        bc_recipe = cfg("bc.recipe", [
-            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
-            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
-            {"type": "neumann", "borders": "b", "variables": "T"},
-            {"type": "neumann", "borders": "r", "variables": "ruvwT"},
-        ])
         L0, idx, bc_indices = build_lnse_system(
             mesh,
             baseflow,
@@ -261,6 +453,46 @@ def compute() -> None:
         nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
         _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
         _log_stage("assemble_operator_bc", stage_start)
+
+    bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
+    effective_dirichlet_indices = np.asarray(
+        bc_analysis.get("effective_dirichlet_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    effective_neumann_indices = np.asarray(
+        bc_analysis.get("effective_neumann_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    overlap_indices = np.asarray(
+        bc_analysis.get("overlap_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    column_zeroed_dirichlet_indices = np.asarray(
+        bc_analysis.get("column_zeroed_dirichlet_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    total_bc_indices = np.asarray(
+        bc_analysis.get("total_bc_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    constrained_dirichlet_indices = (
+        column_zeroed_dirichlet_indices
+        if reduce_dirichlet_set == "column_zeroed"
+        else effective_dirichlet_indices
+    )
+    if rank == 0:
+        if total_bc_indices.size and not np.array_equal(np.unique(bc_indices), total_bc_indices):
+            _log(
+                "warning: analyzed BC index set differs from assembled BC index set "
+                f"(assembled={np.unique(bc_indices).size}, analyzed={total_bc_indices.size})"
+            )
+        _log(
+            "bc analysis: "
+            f"dirichlet_total={column_zeroed_dirichlet_indices.size} "
+            f"effective_dirichlet={effective_dirichlet_indices.size} "
+            f"effective_neumann={effective_neumann_indices.size} "
+            f"cross_type_overlap={overlap_indices.size}"
+        )
 
     # ------------------------------------------------------------------
     # 5) Build Chu energy norm weights. These weights are required for
@@ -285,7 +517,7 @@ def compute() -> None:
         stage_start = time.perf_counter()
         _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
-        B_diag[bc_indices] = 0.0
+        B_diag[total_bc_indices] = 0.0
         B_mat_sp = sp.diags(B_diag, format="csc")
         B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
         C_mat = B_mat.copy()
@@ -305,6 +537,7 @@ def compute() -> None:
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
+    stability_info: dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # 7) Optional stability analysis.
@@ -313,33 +546,123 @@ def compute() -> None:
     # ------------------------------------------------------------------
     if run_stability:
         stage_start = time.perf_counter()
+        stability_meta = {
+            "reduce_dirichlet": bool(reduce_dirichlet and not use_root_operator),
+            "reduce_dirichlet_set": reduce_dirichlet_set,
+            "effective_dirichlet_count": int(effective_dirichlet_indices.size),
+            "constrained_dirichlet_count": int(constrained_dirichlet_indices.size),
+            "effective_neumann_count": int(effective_neumann_indices.size),
+            "cross_type_overlap_count": int(overlap_indices.size),
+        }
+        stability_info.update(stability_meta)
         if use_raw_eigs:
             _log(
                 "running raw eigensolve on L0 "
                 f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
             )
-            omega, direct_modes = _eigs_near_target(
+            omega, direct_modes, stability_info = _eigs_near_target(
                 L0.tocsc(),
                 n_modes=n_modes,
                 target=omega_target,
                 solver_cfg=solver_cfg,
+                return_info=True,
             )
             order = np.argsort(np.abs(omega - omega_target))
             omega = omega[order]
             direct_modes = direct_modes[:, order]
+            for key in (
+                "residual_estimates",
+                "residual_absolute",
+                "residual_relative",
+                "residual_backward",
+            ):
+                residuals_raw = np.asarray(
+                    stability_info.get(key, np.array([], dtype=float)),
+                    dtype=float,
+                )
+                if residuals_raw.size == omega.size:
+                    stability_info[key] = residuals_raw[order]
         else:
-            _log(
-                "running temporal eigensolve on i*L0 "
-                f"(MATLAB convention): target={omega_target:.8g}, modes={n_modes}"
+            if reduce_dirichlet and use_root_operator:
+                _log("reduced stability EVP requested but disabled with root-assembly mode")
+            if reduce_dirichlet and constrained_dirichlet_indices.size and not use_root_operator:
+                _log(
+                    "running reduced temporal eigensolve on i*L0 "
+                    f"(reduce_set={reduce_dirichlet_set}, constrained={constrained_dirichlet_indices.size}, modes={n_modes})"
+                )
+                L0_stab, W_stab, free_dofs = _restrict_operator_for_stability(
+                    L0,
+                    W_diag,
+                    constrained_dirichlet_indices,
+                )
+                try:
+                    omega, modes_reduced, stability_info = temporal_eigenvalues(
+                        L0_stab,
+                        n_modes=n_modes,
+                        target=omega_target,
+                        W_diag=W_stab,
+                        solver_cfg=solver_cfg,
+                        return_info=True,
+                    )
+                finally:
+                    if _is_petsc_matrix(L0_stab):
+                        L0_stab.destroy()
+                direct_modes = _expand_reduced_modes(modes_reduced, mesh.ngp * 5, free_dofs)
+                stability_info["free_dof_count"] = int(free_dofs.size)
+                stability_info["constrained_dirichlet_indices"] = np.asarray(
+                    constrained_dirichlet_indices, dtype=np.int64
+                )
+            else:
+                _log(
+                    "running temporal eigensolve on i*L0 "
+                    f"(MATLAB convention): target={omega_target:.8g}, modes={n_modes}"
+                )
+                omega, direct_modes, stability_info = temporal_eigenvalues(
+                    L0,
+                    n_modes=n_modes,
+                    target=omega_target,
+                    W_diag=W_diag,
+                    solver_cfg=solver_cfg,
+                    return_info=True,
+                )
+        if not use_root_operator:
+            stability_info.update(
+                _postcheck_stability_modes(
+                    L0,
+                    omega,
+                    direct_modes,
+                    target=omega_target,
+                    bc_indices=total_bc_indices,
+                    constrained_dirichlet_indices=constrained_dirichlet_indices,
+                )
             )
-            omega, direct_modes = temporal_eigenvalues(
-                L0,
-                n_modes=n_modes,
-                target=omega_target,
-                W_diag=W_diag,
-                solver_cfg=solver_cfg,
-            )
+        stability_info.update(stability_meta)
         _log(f"stability analysis finished: converged_modes={omega.size}")
+        residuals = np.asarray(stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float)
+        if residuals.size:
+            finite = residuals[np.isfinite(residuals)]
+            if finite.size:
+                _log(
+                    "stability eig convergence: "
+                    f"nev={stability_info.get('nev_requested')} "
+                    f"ncv={stability_info.get('ncv_used')} "
+                    f"nconv={stability_info.get('nconv')} "
+                    f"eps_iterations={stability_info.get('eps_iterations')} "
+                    f"max_residual={float(np.max(finite)):.3e} "
+                    f"median_residual={float(np.median(finite)):.3e}"
+                )
+        postcheck_rel = np.asarray(
+            stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
+            dtype=float,
+        )
+        if postcheck_rel.size:
+            finite_post = postcheck_rel[np.isfinite(postcheck_rel)]
+            if finite_post.size:
+                _log(
+                    "stability postcheck: "
+                    f"max_rel={float(np.max(finite_post)):.3e} "
+                    f"median_rel={float(np.median(finite_post)):.3e}"
+                )
         _log_stage("stability", stage_start)
 
     # ------------------------------------------------------------------
@@ -347,8 +670,60 @@ def compute() -> None:
     # ------------------------------------------------------------------
     if rank == 0:
         stage_start = time.perf_counter()
+        stability_residual_estimates = np.asarray(
+            stability_info.get("residual_estimates", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_residual_absolute = np.asarray(
+            stability_info.get("residual_absolute", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_residual_relative = np.asarray(
+            stability_info.get("residual_relative", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_residual_backward = np.asarray(
+            stability_info.get("residual_backward", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_residual_abs = np.asarray(
+            stability_info.get("postcheck_residual_abs", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_residual_rel = np.asarray(
+            stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_residual_interior_abs = np.asarray(
+            stability_info.get("postcheck_residual_interior_abs", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_residual_bc_abs = np.asarray(
+            stability_info.get("postcheck_residual_bc_abs", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_bc_leak_max = np.asarray(
+            stability_info.get("postcheck_bc_leak_max", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_bc_leak_p99 = np.asarray(
+            stability_info.get("postcheck_bc_leak_p99", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_dirichlet_leak_max = np.asarray(
+            stability_info.get("postcheck_dirichlet_leak_max", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_dirichlet_leak_p99 = np.asarray(
+            stability_info.get("postcheck_dirichlet_leak_p99", np.array([], dtype=float)),
+            dtype=float,
+        )
+        stability_postcheck_target_distance = np.asarray(
+            stability_info.get("postcheck_target_distance", np.array([], dtype=float)),
+            dtype=float,
+        )
         np.savez_compressed(
-            OUTPUT_NPZ,
+            output_npz,
             omega=omega,
             direct_modes=direct_modes,
             gains=gains,
@@ -358,6 +733,16 @@ def compute() -> None:
             use_raw_eigs=use_raw_eigs,
             St=St,
             beta=beta,
+            fd_order=fd_order,
+            alpha_filter=np.array(str(alpha_filter)),
+            use_matlab_sponge_aux=use_matlab_sponge_aux,
+            sponge_enabled=sponge_enabled,
+            sponge_source=np.array(sponge_source),
+            sponge_preset=np.array(str((sponge_cfg or {}).get("preset", ""))),
+            native_sponge_requested=native_sponge_enabled,
+            matlab_sponge_aux_requested=use_matlab_sponge_aux,
+            n_modes_stability_requested=n_modes,
+            n_modes_resolvent_requested=n_modes_resolvent,
             Re=Re,
             Ma=Ma,
             Pr=Pr,
@@ -373,12 +758,53 @@ def compute() -> None:
             idx_w_j=idx["w_j"],
             idx_T_j=idx["T_j"],
             bc_indices=bc_indices,
+            bc_total_indices=total_bc_indices,
+            bc_effective_dirichlet_indices=effective_dirichlet_indices,
+            bc_column_zeroed_dirichlet_indices=column_zeroed_dirichlet_indices,
+            bc_effective_neumann_indices=effective_neumann_indices,
+            bc_overlap_indices=overlap_indices,
             W_diag=W_diag,
             invW_diag=invW_diag,
+            stability_eps_nev=int(stability_info.get("nev_requested", -1)),
+            stability_eps_ncv=int(stability_info.get("ncv_used", -1)),
+            stability_eps_nconv=int(stability_info.get("nconv", -1)),
+            stability_eps_iterations=int(stability_info.get("eps_iterations", -1)),
+            stability_eps_reason=np.array(str(stability_info.get("eps_reason", ""))),
+            stability_ksp_reason=np.array(str(stability_info.get("ksp_reason", ""))),
+            stability_eps_conv_test=np.array(str(stability_info.get("conv_test", ""))),
+            stability_eps_tol=float(stability_info.get("eps_tol", np.nan)),
+            stability_eps_max_it=int(stability_info.get("eps_max_it", -1)),
+            stability_eps_setup_seconds=float(stability_info.get("eps_setup_seconds", np.nan)),
+            stability_eps_solve_seconds=float(stability_info.get("eps_solve_seconds", np.nan)),
+            stability_true_residual=bool(stability_info.get("true_residual", False)),
+            stability_reduce_dirichlet=bool(stability_info.get("reduce_dirichlet", False)),
+            stability_reduce_dirichlet_set=np.array(str(stability_info.get("reduce_dirichlet_set", ""))),
+            stability_free_dof_count=int(stability_info.get("free_dof_count", -1)),
+            stability_constrained_dirichlet_count=int(
+                stability_info.get("constrained_dirichlet_count", -1)
+            ),
+            stability_residual_error_type=np.array(str(stability_info.get("residual_error_type", ""))),
+            stability_residual_estimates=stability_residual_estimates,
+            stability_residual_absolute=stability_residual_absolute,
+            stability_residual_relative=stability_residual_relative,
+            stability_residual_backward=stability_residual_backward,
+            stability_postcheck_residual_abs=stability_postcheck_residual_abs,
+            stability_postcheck_residual_rel=stability_postcheck_residual_rel,
+            stability_postcheck_residual_interior_abs=stability_postcheck_residual_interior_abs,
+            stability_postcheck_residual_bc_abs=stability_postcheck_residual_bc_abs,
+            stability_postcheck_bc_leak_max=stability_postcheck_bc_leak_max,
+            stability_postcheck_bc_leak_p99=stability_postcheck_bc_leak_p99,
+            stability_postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
+            stability_postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
+            stability_postcheck_target_distance=stability_postcheck_target_distance,
+            stability_leading_weighted_norm_error=float(
+                stability_info.get("leading_weighted_norm_error", np.nan)
+            ),
+            stability_weighted_norm_tol=float(stability_info.get("weighted_norm_tol", np.nan)),
         )
         _log_stage("save_results", stage_start)
     elapsed = time.perf_counter() - t0
-    _log(f"results saved to {OUTPUT_NPZ}")
+    _log(f"results saved to {output_npz}")
     _log(f"compute finished in {elapsed:.2f}s")
     comm.barrier()
 
@@ -387,10 +813,11 @@ def main() -> None:
     """Cache-aware entrypoint used when launched as ``python ...``."""
     comm = PETSc.COMM_WORLD
     rank = comm.getRank()
+    output_npz = _output_npz_path()
     need_recompute = False
     if rank == 0:
         try:
-            np.load(OUTPUT_NPZ, allow_pickle = False)
+            np.load(output_npz, allow_pickle = False)
         except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
             print(f"Cached results unavailable or invalid ({exc}), recomputing.")
             need_recompute = True

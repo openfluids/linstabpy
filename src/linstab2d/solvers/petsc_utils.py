@@ -7,6 +7,7 @@ Solver modules can continue to import from here without changes.
 from linstab2d.utils.petsc_core import (  # noqa: F401
     _is_petsc_matrix,
     _operator_shape,
+    numpy_columns_to_petsc_vecs,
     require_complex,
     petsc_to_scipy,
     scipy_to_petsc,
