@@ -1,0 +1,46 @@
+{
+  // Optional, isolated Case 2 shock-cleanup experiment.
+  // This does not affect the default case2.py workflow.
+
+  "base_config": "parity_config.jsonc",
+  "output_dir": "output/shock_cleanup_experiment",
+
+  "experiment": {
+    "run_baseline": true,
+    "run_cleaned": true,
+    "run_stability": true,
+    "run_resolvent": true,
+    "plot_fields": ["rho", "u", "v", "T"],
+    "save_mode_count": 3
+  },
+
+  // Optional overrides applied on top of parity_config.jsonc for this
+  // experiment only. Leave empty to reuse the base configuration as-is.
+  "config_overrides": {},
+
+  // Defaults are fully off. Turn on the pieces you want to test.
+  "shock_cleanup": {
+    "enabled": false,
+    "sensor": {
+      "enabled": false,
+      "kind": "compression_ducros",
+      "compression_threshold": -1.0,
+      "ducros_threshold": 0.95,
+      "eps": 1e-14,
+      "buffer_cells": 3,
+      "blend_sigma": 0.0
+    },
+    "filter": {
+      "enabled": false,
+      "passes": 1,
+      "directions": ["x", "y"],
+      "fields": ["rho", "u", "v", "T"]
+    },
+    "sponge": {
+      "enabled": false,
+      "amplitude": 0.0,
+      "mode": "add",
+      "smooth_sigma": 0.0
+    }
+  }
+}

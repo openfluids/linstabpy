@@ -1,0 +1,71 @@
+{
+  // Reduced, reproducible shock-cleanup comparison run aligned with the
+  // current low-frequency stability target near omega = 0 - 0.85i.
+
+  "base_config": "parity_config.jsonc",
+  "output_dir": "output/shock_cleanup_experiment_lowfreq_yonly",
+
+  "experiment": {
+    "run_baseline": true,
+    "run_cleaned": true,
+    "run_stability": true,
+    "run_resolvent": true,
+    "plot_fields": ["rho", "u", "v", "T"],
+    "save_mode_count": 3
+  },
+
+  "config_overrides": {
+    "numerics": {
+      "stride_ksi": 4,
+      "stride_eta": 4
+    },
+    "analysis": {
+      "omega_target": [0.0, -0.85],
+      "n_modes_stability": 6,
+      "n_modes_resolvent": 2,
+      "run_stability": true,
+      "run_resolvent": true
+    },
+    "solver": {
+      "eigen": {
+        "ncv": 200,
+        "eps_tol": 1e-5
+      },
+      "resolvent": {
+        "type": "mumps",
+        "eigen": {
+          "eps_tol": 1e-6,
+          "eps_max_it": 400
+        }
+      },
+      "linsolve": {
+        "type": "mumps"
+      }
+    }
+  },
+
+  "shock_cleanup": {
+    "enabled": true,
+    "sensor": {
+      "enabled": true,
+      "kind": "compression_ducros",
+      "compression_threshold": -5.0,
+      "ducros_threshold": 0.9,
+      "eps": 1e-14,
+      "buffer_cells": 3,
+      "blend_sigma": 0.0
+    },
+    "filter": {
+      "enabled": true,
+      "passes": 1,
+      "directions": ["y"],
+      "fields": ["rho", "u", "v", "T"]
+    },
+    "sponge": {
+      "enabled": false,
+      "amplitude": 0.0,
+      "mode": "add",
+      "smooth_sigma": 0.0
+    }
+  }
+}
