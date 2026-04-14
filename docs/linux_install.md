@@ -101,6 +101,31 @@ Useful overrides:
 - `LINSTAB2D_SKIP_SYS_DEPS=1`
 - `LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1`
 
+## Known-good reference stack
+
+This repository now carries one tested Linux reference stack from a machine
+where `diagnose.sh`, `install.sh --check`, `run_mpi_example.sh`, and
+`benchmark.sh local-smoke` all passed:
+
+- [known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json](known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json)
+
+Treat it as a comparison target, not a universal hard pin. The main use is to
+diff a problematic machine against a working one:
+
+```bash
+.venv/bin/python tools/export_known_good_stack.py --output docs/known_good/<machine>.json
+```
+
+If you intend to commit the exported file, add `--redact-local-details`.
+
+The exported manifest records:
+
+- Python package versions
+- compiler + MPI toolchain versions
+- the MPI launcher that passed the `-n 1 /bin/true` probe
+- the one-thread-per-rank runtime policy
+- an optional benchmark summary if `benchmark_runs/*/benchmark_summary.csv` exists
+
 ## Running examples
 
 Always run examples as modules from the repository root:

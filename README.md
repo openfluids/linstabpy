@@ -315,6 +315,11 @@ Copy-paste collaborator guide:
 - [LINUX_QUICKSTART.md](LINUX_QUICKSTART.md)
 - [docs/linux_install.md](docs/linux_install.md)
 
+Known-good Linux reference stack:
+- [docs/known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json](docs/known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json)
+- export the current machine with `.venv/bin/python tools/export_known_good_stack.py --output docs/known_good/<label>.json`
+- if you plan to commit that file, add `--redact-local-details`
+
 Details and troubleshooting are documented in [docs/linux_install.md](docs/linux_install.md).
 
 ### Dependencies

@@ -1,0 +1,37 @@
+{
+  // Example 2: Jet resolvent analysis
+  // Axisymmetric (m=0) Mach 0.9 turbulent jet.
+
+  // Analysis
+  "St": 0.39,               // Strouhal number
+  "n_modes": 3,
+  "m": 0,                   // azimuthal Fourier mode
+
+  // Grid
+  "coarsen": 1,             // coarsening factor for the loaded mesh (1 = full)
+  "fd_order": 4,
+  "alpha_filter": 0.0,
+  "y_symmetry": true,
+  "x_periodicity": false,
+  "model": "axy",           // axisymmetric model
+
+  // Optional assembly backend: "scipy", "petsc", or "auto"
+  // Explicit "petsc" is now validated for the local axy temporal/resolvent path.
+  "assembly_backend": "auto",
+
+  // Boundary conditions
+  "bc": {
+    "penalty": 1e4,
+    "recipe": [
+      {"type": "dirichlet", "borders": "ltr", "variables": "uvwT"}
+    ]
+  },
+
+  // Solver configuration
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "linsolve": {
+      "type": "mumps"
+    }
+  }
+}
