@@ -1,0 +1,69 @@
+{
+  // Example 1 SMOKE: same physics/solver path as example_1_blasius.jsonc but a tiny grid.
+  // For fast PETSc / MPI / assembly timing on slow nodes (e.g. stab1). Not for MATLAB parity.
+
+  // Physics
+  "Re": 6e5,
+  "Ma": 0.3,
+  "Pr": 0.7,
+  "kappa": 1.4,
+  "T_0": 273.15,
+
+  // Grid (small — diagnostic only)
+  "nx": 64,
+  "ny": 24,
+  "fd_order": 4,
+  "alpha_filter": 0.0,
+
+  // Physical domain construction
+  "dx": 0.01,              // grid spacing used to derive x_min and x_max
+  "x_min_factor": 5,       // x_min = x_min_factor * dx
+  "x_max_base": 1.25,      // x_max = x_max_base + dx
+  "y_i": 0.01,             // Hanifi 1996 inner mapping parameter
+  "y_max": 0.05,           // physical domain height
+
+  // Sponge
+  "sponge": {
+    "amplitude": 5.0,
+    "xs_trans": 0.02,
+    "xs_offset": 0.02,
+    "ys_trans": 0.01,
+    "ys_offset": 0.01
+  },
+
+  // Analysis (resolvent)
+  "omega": 60.0,           // angular frequency (computed from Re in code)
+  "n_modes": 2,
+  "kx": 0.0,               // spanwise wavenumber
+  "model": "2D",
+
+  // Forcing mask: zero these variables in the B/C matrices
+  "forcing_zero_vars": ["T", "rho", "w"],
+
+  // Boundary conditions
+  "bc": {
+    "penalty": 1e4,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lrbt", "variables": "uvwT"}
+    ]
+  },
+
+  // Use "scipy" here so operator assembly stays fast on small grids: with
+  // "auto"/"petsc" the direct-PETSc path inserts matrix entries row-by-row
+  // (many Python->PETSc calls), which can take 10+ seconds even at 64x24.
+  // Resolvent still uses PETSc/MUMPS via make_linear_solver after one SciPy->PETSc copy.
+  // Set "petsc" or "auto" only if you intentionally want to stress that assembly path.
+  "assembly_backend": "scipy",
+
+  // Solver configuration
+  "solver": {
+    // PETSc matrix transfer: "auto" (default), "local", "distributed"
+    "petsc_matrix_mode": "auto",
+
+    // Linear solver (resolvent factorization)
+    "linsolve": {
+      // "mumps" (direct LU) or "iterative" (Krylov)
+      "type": "mumps"
+    }
+  }
+}

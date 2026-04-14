@@ -49,9 +49,11 @@
     ]
   },
 
-  // Optional assembly backend: "scipy", "petsc", or "auto"
-  // "petsc" is currently validated for the local 2D LNSE path used here.
-  "assembly_backend": "auto",
+  // Assembly backend:
+  // - "scipy" is the robust cross-machine baseline
+  // - "petsc" is an explicit opt-in for the direct PETSc assembly path
+  // - avoid "auto" for installation baselines; it may select host-sensitive paths
+  "assembly_backend": "scipy",
 
   // Solver configuration
   "solver": {

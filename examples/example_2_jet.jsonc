@@ -15,9 +15,11 @@
   "x_periodicity": false,
   "model": "axy",           // axisymmetric model
 
-  // Optional assembly backend: "scipy", "petsc", or "auto"
-  // Explicit "petsc" is now validated for the local axy temporal/resolvent path.
-  "assembly_backend": "auto",
+  // Assembly backend:
+  // - "scipy" is the robust cross-machine baseline
+  // - "petsc" is an explicit opt-in for the validated local axy PETSc path
+  // - avoid "auto" for installation baselines; it may select host-sensitive paths
+  "assembly_backend": "scipy",
 
   // Boundary conditions
   "bc": {

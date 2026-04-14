@@ -254,13 +254,14 @@ Operational rule:
 # Clone and set up
 git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
 cd linstabpy
-./install.sh          # creates .venv, installs dependencies via uv
+bash diagnose.sh      # read-only Linux preflight (recommended)
+bash install.sh       # creates .venv, installs dependencies via uv
 # If submodules were not cloned with --recurse-submodules:
 git submodule update --init --recursive
 
 # Activate and run
 source .venv/bin/activate
-python examples/example_1_blasius.py
+python -m examples.example_1_blasius
 ```
 
 ### Linux one-command install (recommended)
@@ -275,6 +276,8 @@ bash install.sh
 - system prerequisites (compiler/MPI/X11 toolchain) via detected package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`)
 - Python environment creation with `uv` (`.venv`, Python 3.13)
 - PETSc/SLEPc + `petsc4py`/`slepc4py` installation and verification
+- MPI launcher validation for PETSc configure / verification on Linux
+- `mpi4py` ABI recovery by rebuilding from source when the wheel does not match the selected system MPI
 - editable install of `linstabpy` and test tools
 
 If your machine is already provisioned (or you cannot install system packages), skip the system-deps step:
@@ -282,6 +285,21 @@ If your machine is already provisioned (or you cannot install system packages), 
 ```bash
 LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
 ```
+
+Recommended post-install checks:
+
+```bash
+bash install.sh --check
+bash benchmark.sh
+```
+
+Linux runtime policy:
+- use exactly one MPI stack per environment
+- run MPI jobs with `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, and `OPENBLAS_NUM_THREADS=1`
+- treat direct PETSc assembly as an explicit opt-in, not the installation baseline
+- start performance checks with the shipped smoke benchmark before running the full Martini examples
+
+Details and troubleshooting are documented in [docs/linux_install.md](docs/linux_install.md).
 
 ### Dependencies
 
