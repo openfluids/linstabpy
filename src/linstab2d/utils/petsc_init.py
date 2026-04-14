@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import sys
 
-import petsc4py
-
 _PETSC_INIT_DONE = False
 _SLEPC_INIT_DONE = False
 
@@ -73,10 +71,18 @@ def _sanitize_petsc_argv(argv: list[str]) -> list[str]:
 
 
 def init_petsc_from_argv(argv: list[str] | None = None) -> None:
-    """Initialize petsc4py once, forwarding argv for options database parsing."""
+    """Initialize petsc4py once, forwarding argv for options database parsing.
+
+    mpi4py must bind to the launcher's MPI before ``petsc4py.init``. On some
+    Linux MPICH / Hydra configurations, importing petsc4py first can leave
+    every process believing ``COMM_WORLD`` has size 1 even under ``mpiexec``.
+    """
     global _PETSC_INIT_DONE
     if _PETSC_INIT_DONE:
         return
+    import mpi4py.MPI  # noqa: F401 - import before petsc4py (upstream requirement)
+    import petsc4py
+
     args = _sanitize_petsc_argv(list(sys.argv if argv is None else argv))
     try:
         petsc4py.init(args)
