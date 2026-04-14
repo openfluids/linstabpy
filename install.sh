@@ -31,6 +31,78 @@ err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
 ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
+ensure_reference_submodule() {
+    [ -d "${ROOT_DIR}/.git" ] || return 0
+
+    local submodule_path="src/linstab2d/data/baseflows"
+    if ! git -C "${ROOT_DIR}" config --file .gitmodules --get-regexp '^submodule\..*\.path$' \
+        | awk '{print $2}' | grep -Fxq "${submodule_path}"; then
+        warn "Skipping baseflow submodule init; ${submodule_path} is not declared in .gitmodules."
+        return 0
+    fi
+
+    if git -C "${ROOT_DIR}" submodule status -- "${submodule_path}" >/dev/null 2>&1; then
+        ok "Reference baseflow submodule is available."
+        return 0
+    fi
+
+    warn "Initializing MATLAB reference submodule..."
+    git -C "${ROOT_DIR}" submodule update --init --recursive -- "${submodule_path}"
+}
+
+linux_wrap_venv_python() {
+    [ "${OS_NAME}" = "Linux" ] || return 0
+
+    local py_bin="${VENV_DIR}/bin/python"
+    local py_real="${VENV_DIR}/bin/python-real"
+    local real_target=""
+
+    [ -e "${py_bin}" ] || return 0
+    if [ -f "${py_bin}" ] && grep -q 'LINSTAB2D Linux runtime wrapper' "${py_bin}" 2>/dev/null; then
+        return 0
+    fi
+
+    if [ -L "${py_bin}" ]; then
+        real_target="$(readlink -f "${py_bin}")"
+    elif [ -L "${py_real}" ]; then
+        real_target="$(readlink -f "${py_real}")"
+    else
+        warn "Skipping Linux runtime wrapper; ${py_bin} is not a venv symlink."
+        return 0
+    fi
+    if [ -z "${real_target}" ] || [ ! -x "${real_target}" ]; then
+        warn "Could not resolve the base Python interpreter for Linux runtime wrapper."
+        return 0
+    fi
+
+    rm -f "${py_real}"
+    ln -s "${real_target}" "${py_real}"
+    rm -f "${py_bin}"
+    cat > "${py_bin}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# LINSTAB2D Linux runtime wrapper:
+# PETSc wheels depend on bundled ScaLAPACK/MUMPS shared libraries that are not
+# discoverable from a bare uv-created venv Python on this workstation.
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_venv_dir="$(cd "${_script_dir}/.." && pwd)"
+_site_packages="$(printf '%s\n' "${_venv_dir}"/lib/python*/site-packages | head -n 1)"
+_petsc_lib="${_site_packages}/petsc/lib"
+_slepc_lib="${_site_packages}/slepc/lib"
+
+export LD_LIBRARY_PATH="${_petsc_lib}:${_slepc_lib}:${LD_LIBRARY_PATH:-}"
+exec -a "${_script_dir}/python" "${_script_dir}/python-real" "$@"
+EOF
+    chmod +x "${py_bin}"
+
+    for link_name in python3 "python${PYTHON_VERSION}"; do
+        ln -sfn python "${VENV_DIR}/bin/${link_name}"
+    done
+
+    ok "Installed Linux runtime wrapper for .venv/bin/python"
+}
+
 linux_install_system_deps() {
     [ "${OS_NAME}" = "Linux" ] || return 0
     [ "${LINSTAB2D_SKIP_SYS_DEPS:-0}" = "1" ] && {
@@ -100,12 +172,7 @@ linux_install_system_deps() {
 }
 
 # Ensure reference MATLAB data/code is present locally for local inspection.
-if [ -d "${ROOT_DIR}/.git" ]; then
-    if ! git -C "${ROOT_DIR}" submodule status linstab2d/data/baseflows >/dev/null 2>&1; then
-        warn "Initializing MATLAB reference submodule..."
-        git -C "${ROOT_DIR}" submodule update --init --recursive
-    fi
-fi
+ensure_reference_submodule
 
 # ── Quick verification mode ──────────────────────────────────────────────────
 if [[ "${1:-}" == "--check" ]]; then
@@ -156,6 +223,8 @@ else
     log "Creating virtual environment (Python ${PYTHON_VERSION}) at ${VENV_DIR}"
     "${UV_BIN}" venv --python "${PYTHON_VERSION}" "${VENV_DIR}"
 fi
+
+linux_wrap_venv_python
 
 PY_BIN="${VENV_DIR}/bin/python"
 PIP_INSTALL="${UV_BIN} pip install --python ${PY_BIN}"
