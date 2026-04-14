@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import NoReturn
 
 import numpy as np
@@ -17,6 +18,7 @@ from slepc4py import SLEPc
 from .petsc_utils import (
     _is_petsc_matrix,
     _operator_shape,
+    numpy_columns_to_petsc_vecs,
     petsc_to_scipy,
     require_complex,
     scipy_to_petsc,
@@ -129,18 +131,19 @@ def _normalize_in_weighted_inner(
     return normed
 
 
-def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
-    """Sort eigenpairs by distance to ``target`` with deterministic tie-breaking.
-
-    Eigenvalues within ``tie_tol`` of each other are considered equidistant
-    and broken by real then imaginary part for reproducibility.
-    """
+def _nearest_order(values: np.ndarray, target: complex) -> np.ndarray:
+    """Return the stable ordering of eigenvalues nearest to ``target``."""
     distances = np.abs(values - target)
     # Bucket tolerance for tie-breaking: eigenvalues closer than this are
     # considered equidistant from the target and sorted by value instead.
     tie_tol = 1e-10
     distance_buckets = np.rint(distances / tie_tol)
-    order = np.lexsort((np.imag(values), np.real(values), distance_buckets))
+    return np.lexsort((np.imag(values), np.real(values), distance_buckets))
+
+
+def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
+    """Sort eigenpairs by distance to ``target`` with deterministic tie-breaking."""
+    order = _nearest_order(values, target)
     return values[order], vectors[:, order]
 
 
@@ -204,6 +207,43 @@ def _resolve_ncv(
     return min(max(ncv, n_modes + 1), max_ncv)
 
 
+def _resolve_eps_convergence_test(name: str) -> SLEPc.EPS.Conv:
+    """Map config strings to SLEPc EPS convergence tests."""
+    key = str(name).strip().lower()
+    mapping = {
+        "abs": SLEPc.EPS.Conv.ABS,
+        "absolute": SLEPc.EPS.Conv.ABS,
+        "rel": SLEPc.EPS.Conv.REL,
+        "relative": SLEPc.EPS.Conv.REL,
+        "norm": SLEPc.EPS.Conv.NORM,
+    }
+    try:
+        return mapping[key]
+    except KeyError as exc:
+        raise ValueError(
+            f"Invalid EPS convergence test {name!r}; expected abs|rel|norm"
+        ) from exc
+
+
+def _resolve_eps_error_type(name: str) -> SLEPc.EPS.ErrorType:
+    """Map config strings to SLEPc EPS residual/error types."""
+    key = str(name).strip().lower()
+    mapping = {
+        "abs": SLEPc.EPS.ErrorType.ABSOLUTE,
+        "absolute": SLEPc.EPS.ErrorType.ABSOLUTE,
+        "rel": SLEPc.EPS.ErrorType.RELATIVE,
+        "relative": SLEPc.EPS.ErrorType.RELATIVE,
+        "bwd": SLEPc.EPS.ErrorType.BACKWARD,
+        "backward": SLEPc.EPS.ErrorType.BACKWARD,
+    }
+    try:
+        return mapping[key]
+    except KeyError as exc:
+        raise ValueError(
+            f"Invalid EPS error type {name!r}; expected absolute|relative|backward"
+        ) from exc
+
+
 def _scaled_operator(
     operator: sp.csc_matrix | PETSc.Mat,
     scale: complex,
@@ -214,6 +254,63 @@ def _scaled_operator(
         scaled.scale(scale)
         return scaled
     return scale * operator
+
+
+def _install_eps_monitor(eps: SLEPc.EPS, every: int) -> dict[str, float | int]:
+    """Log sparse progress updates from SLEPc EPS iterations."""
+    interval = max(int(every), 1)
+    state: dict[str, float | int] = {
+        "last_nconv": -1,
+        "last_iteration": 0,
+        "last_min_err": float("nan"),
+        "last_max_err": float("nan"),
+    }
+
+    def _monitor(
+        eps_obj: SLEPc.EPS,
+        iteration: int,
+        nconv: int,
+        eigs: list[complex],
+        errs: list[float],
+    ) -> None:
+        should_log = iteration == 1 or iteration % interval == 0 or nconv != state["last_nconv"]
+        if not should_log:
+            return
+        finite_errs = [float(val) for val in errs if np.isfinite(val)]
+        max_err = max(finite_errs) if finite_errs else float("nan")
+        min_err = min(finite_errs) if finite_errs else float("nan")
+        state["last_iteration"] = int(iteration)
+        state["last_nconv"] = int(nconv)
+        state["last_min_err"] = float(min_err)
+        state["last_max_err"] = float(max_err)
+        PETSc.Sys.Print(
+            f"[eigs] EPS iter={int(iteration)} nconv={int(nconv)} "
+            f"err_range=[{min_err:.3e}, {max_err:.3e}]"
+        )
+
+    eps.setTrackAll(True)
+    eps.setMonitor(_monitor)
+    return state
+
+
+def _monitor_state_details(state: dict[str, float | int] | None) -> list[str]:
+    """Format the latest EPS monitor state for logs and errors."""
+    if not state:
+        return []
+    details: list[str] = []
+    last_iteration = int(state.get("last_iteration", 0))
+    if last_iteration > 0:
+        details.append(f"monitor_iter={last_iteration}")
+    last_nconv = int(state.get("last_nconv", -1))
+    if last_nconv >= 0:
+        details.append(f"monitor_nconv={last_nconv}")
+    last_min_err = float(state.get("last_min_err", np.nan))
+    if np.isfinite(last_min_err):
+        details.append(f"monitor_min_err={last_min_err:.3e}")
+    last_max_err = float(state.get("last_max_err", np.nan))
+    if np.isfinite(last_max_err):
+        details.append(f"monitor_max_err={last_max_err:.3e}")
+    return details
 
 
 def _safe_petsc_info(callable_obj, default: object = "?") -> object:
@@ -280,16 +377,33 @@ def _raise_eps_solve_failure(
     eps: SLEPc.EPS,
     ksp: PETSc.KSP,
     target: complex,
+    monitor_state: dict[str, float | int] | None = None,
 ) -> NoReturn:
     """Raise a richer error when SLEPc solve fails after setup."""
     details = [
         f"type={type(exc).__name__}",
         f"message={exc}",
         f"target={target}",
+        f"eps_iterations={_safe_petsc_info(eps.getIterationNumber, '?')}",
+        f"nconv={_safe_petsc_info(eps.getConverged, '?')}",
         f"eps_reason={_safe_petsc_info(eps.getConvergedReason)}",
         f"ksp_reason={_safe_petsc_info(ksp.getConvergedReason)}",
     ]
+    details.extend(_monitor_state_details(monitor_state))
     raise RuntimeError("SLEPc EPS.solve failed: " + ", ".join(str(item) for item in details)) from exc
+
+
+def _reorder_info_residuals(info: dict[str, object], order: np.ndarray) -> None:
+    """Keep saved residual arrays aligned with the returned eigenpair order."""
+    for key in (
+        "residual_estimates",
+        "residual_absolute",
+        "residual_relative",
+        "residual_backward",
+    ):
+        arr = np.asarray(info.get(key, np.array([], dtype=float)), dtype=float)
+        if arr.size == order.size:
+            info[key] = arr[order]
 
 
 def _eigs_near_target(
@@ -298,8 +412,10 @@ def _eigs_near_target(
     target: complex,
     *,
     ncv: int | None = None,
+    initial_space: np.ndarray | None = None,
     solver_cfg: dict | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    return_info: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
     require_complex(solver_cfg)
     ndof = _operator_shape(operator)[0]
@@ -312,7 +428,25 @@ def _eigs_near_target(
         all_vals, all_vecs = np.linalg.eig(dense)
         order = np.argsort(np.abs(all_vals - target))
         sel = order[:n_modes]
-        return all_vals[sel], all_vecs[:, sel]
+        eigenvalues = all_vals[sel]
+        eigenvectors = all_vecs[:, sel]
+        if not return_info:
+            return eigenvalues, eigenvectors
+        dense_info: dict[str, object] = {
+            "method": "dense",
+            "ndof": int(ndof),
+            "nev_requested": int(n_modes),
+            "ncv_used": None,
+            "nconv": int(eigenvalues.size),
+            "eps_iterations": 0,
+            "eps_reason": "dense",
+            "ksp_reason": "dense",
+            "eps_tol": None,
+            "eps_max_it": None,
+            "st_solver": "dense",
+            "residual_estimates": np.full(eigenvalues.size, np.nan, dtype=float),
+        }
+        return eigenvalues, eigenvectors, dense_info
 
     _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
     st_solver = _scfg(_ecfg, "st_solver", "LINSTAB2D_EIGEN_ST_SOLVER", "mumps")
@@ -340,18 +474,52 @@ def _eigs_near_target(
     eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
     default_ncv = min(max(2 * n_modes + 3, 30), ndof - 1)
+    requested_ncv = ncv
+    if requested_ncv is None and _ecfg is not None and "ncv" in _ecfg:
+        requested_ncv = int(_ecfg["ncv"])
     ncv = _resolve_ncv(
         ndof=ndof,
         n_modes=n_modes,
         default_ncv=default_ncv,
-        requested_ncv=ncv,
+        requested_ncv=requested_ncv,
     )
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
+    conv_test_name = _scfg(_ecfg, "conv_test", "LINSTAB2D_EIGEN_CONV_TEST", "")
+    if conv_test_name:
+        eps.setConvergenceTest(_resolve_eps_convergence_test(conv_test_name))
     eps_tol = _scfg_float(_ecfg, "eps_tol", "LINSTAB2D_EIGEN_EPS_TOL", 1e-10)
     eps_max_it = _scfg_int(_ecfg, "eps_max_it", "LINSTAB2D_EIGEN_EPS_MAX_IT", max(500, 10 * ndof))
     eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
+    residual_error_type_name = _scfg(
+        _ecfg,
+        "residual_error_type",
+        "LINSTAB2D_EIGEN_RESIDUAL_ERROR_TYPE",
+        "relative",
+    )
+    residual_error_type = _resolve_eps_error_type(residual_error_type_name)
+    monitor_state: dict[str, float | int] | None = None
+    if _scfg_bool(_ecfg, "monitor", "LINSTAB2D_EIGEN_MONITOR", False):
+        monitor_state = _install_eps_monitor(
+            eps,
+            _scfg_int(_ecfg, "monitor_every", "LINSTAB2D_EIGEN_MONITOR_EVERY", 10),
+        )
+    initial_vecs: list[PETSc.Vec] = []
+    if initial_space is not None:
+        initial_arr = np.asarray(initial_space, dtype=complex)
+        if initial_arr.ndim == 1:
+            initial_arr = initial_arr.reshape(-1, 1)
+        if initial_arr.ndim != 2:
+            raise ValueError("initial_space must be a 1-D vector or a 2-D column matrix")
+        if initial_arr.shape[0] != ndof:
+            raise ValueError(
+                f"initial_space row count {initial_arr.shape[0]} does not match operator size {ndof}"
+            )
+        n_seed = min(initial_arr.shape[1], max(1, ncv - 1))
+        if n_seed > 0:
+            initial_vecs = numpy_columns_to_petsc_vecs(A, initial_arr[:, :n_seed])
+            eps.setInitialSpace(initial_vecs)
 
     # Shift-invert spectral transformation; linear solver backend is selectable.
     #
@@ -368,6 +536,30 @@ def _eigs_near_target(
     pc = ksp.getPC()
 
     if st_solver in {"mumps", "direct", "lu"}:
+        ignored_iterative_keys = sorted(
+            key for key in (
+                "ksp_type",
+                "pc_type",
+                "pc_factor_solver_type",
+                "ksp_pc_side",
+                "ksp_rtol",
+                "ksp_max_it",
+                "asm_overlap",
+                "sub_ksp_type",
+                "sub_pc_type",
+                "gmres_orthogonalization",
+                "gmres_cgs_refinement_type",
+                "gmres_restart",
+            )
+            if _ecfg is not None and key in _ecfg
+        )
+        if ignored_iterative_keys:
+            logger.warning(
+                "Ignoring iterative ST-KSP options for direct eigensolve path "
+                "(st_solver=%s uses KSPPREONLY+PCLU): %s",
+                st_solver,
+                ", ".join(ignored_iterative_keys),
+            )
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
         if st_solver == "mumps":
@@ -460,15 +652,16 @@ def _eigs_near_target(
         _safe_petsc_info(pc.getFactorSolverType, "?"),
         _safe_petsc_info(ksp.getPCSide, "?"),
     )
-    if (
-        st_solver in {"iterative", "krylov", "slepc"}
-        and hasattr(eps, "setTrueResidual")
-        and _scfg_bool(_ecfg, "true_residual", "LINSTAB2D_EIGEN_TRUE_RESIDUAL", False)
-    ):
+    true_residual = _scfg_bool(_ecfg, "true_residual", "LINSTAB2D_EIGEN_TRUE_RESIDUAL", False)
+    if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
 
+    eps_setup_seconds = 0.0
+    eps_solve_seconds = 0.0
     try:
+        setup_t0 = time.perf_counter()
         eps.setUp()
+        eps_setup_seconds = time.perf_counter() - setup_t0
     except Exception as exc:
         _raise_eps_setup_failure(
             exc=exc,
@@ -485,18 +678,42 @@ def _eigs_near_target(
         )
 
     logger.info(
-        "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d ...",
-        np.real(target), np.imag(target), n_modes,
+        "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s ...",
+        np.real(target), np.imag(target), n_modes, ncv, eps_tol,
+        conv_test_name or "default",
+        true_residual,
     )
     try:
+        solve_t0 = time.perf_counter()
         eps.solve()
+        eps_solve_seconds = time.perf_counter() - solve_t0
     except Exception as exc:
-        _raise_eps_solve_failure(exc=exc, eps=eps, ksp=ksp, target=target)
+        _raise_eps_solve_failure(
+            exc=exc,
+            eps=eps,
+            ksp=ksp,
+            target=target,
+            monitor_state=monitor_state,
+        )
 
     nconv = eps.getConverged()
     if nconv == 0:
+        details = [
+            f"target={target}",
+            f"nev={n_modes}",
+            f"ncv={ncv}",
+            f"eps_tol={eps_tol:g}",
+            f"eps_iterations={_safe_petsc_info(eps.getIterationNumber, '?')}",
+            f"eps_reason={_safe_petsc_info(eps.getConvergedReason, '?')}",
+            f"ksp_reason={_safe_petsc_info(ksp.getConvergedReason, '?')}",
+            f"eps_setup_seconds={eps_setup_seconds:.2f}",
+            f"eps_solve_seconds={eps_solve_seconds:.2f}",
+            f"true_residual={bool(true_residual)}",
+            f"conv_test={conv_test_name or 'default'}",
+        ]
+        details.extend(_monitor_state_details(monitor_state))
         raise RuntimeError(
-            f"SLEPc EPS did not converge for any eigenpair (target={target})"
+            "SLEPc EPS did not converge for any eigenpair: " + ", ".join(details)
         )
     if nconv < n_modes:
         logger.warning(
@@ -504,9 +721,16 @@ def _eigs_near_target(
             nconv, n_modes,
         )
 
-    n_extract = min(nconv, n_modes)
+    extract_all_converged = _scfg_bool(
+        _ecfg, "extract_all_converged", "LINSTAB2D_EIGEN_EXTRACT_ALL_CONVERGED", False,
+    )
+    n_extract = int(nconv) if extract_all_converged else min(int(nconv), int(n_modes))
     eigenvalues = np.empty(n_extract, dtype=complex)
     eigenvectors = np.empty((ndof, n_extract), dtype=complex)
+    residual_estimates = np.full(n_extract, np.nan, dtype=float)
+    residual_absolute = np.full(n_extract, np.nan, dtype=float)
+    residual_relative = np.full(n_extract, np.nan, dtype=float)
+    residual_backward = np.full(n_extract, np.nan, dtype=float)
 
     vr = A.createVecRight()
     vi = A.createVecRight()
@@ -515,12 +739,73 @@ def _eigs_near_target(
             eig = eps.getEigenpair(i, vr, vi)
             eigenvalues[i] = eig
             eigenvectors[:, i] = vec_to_numpy(vr)
+            residual_absolute[i] = float(
+                _safe_petsc_info(
+                    lambda: eps.computeError(i, SLEPc.EPS.ErrorType.ABSOLUTE),
+                    np.nan,
+                )
+            )
+            residual_relative[i] = float(
+                _safe_petsc_info(
+                    lambda: eps.computeError(i, SLEPc.EPS.ErrorType.RELATIVE),
+                    np.nan,
+                )
+            )
+            residual_backward[i] = float(
+                _safe_petsc_info(
+                    lambda: eps.computeError(i, SLEPc.EPS.ErrorType.BACKWARD),
+                    np.nan,
+                )
+            )
+            residual_estimates[i] = float(
+                _safe_petsc_info(lambda: eps.computeError(i, residual_error_type), np.nan)
+            )
     finally:
         vr.destroy()
         vi.destroy()
-        eps.destroy()
-        A.destroy()
+        for vec in initial_vecs:
+            vec.destroy()
 
+    if extract_all_converged:
+        order = _nearest_order(eigenvalues, target)
+        keep = order[: min(n_modes, order.size)]
+        eigenvalues = eigenvalues[keep]
+        eigenvectors = eigenvectors[:, keep]
+        residual_estimates = residual_estimates[keep]
+        residual_absolute = residual_absolute[keep]
+        residual_relative = residual_relative[keep]
+        residual_backward = residual_backward[keep]
+
+    info: dict[str, object] = {
+        "method": "slepc",
+        "ndof": int(ndof),
+        "nev_requested": int(n_modes),
+        "ncv_used": int(ncv),
+        "nconv": int(nconv),
+        "nextract_total": int(n_extract),
+        "extract_all_converged": bool(extract_all_converged),
+        "eps_iterations": int(_safe_petsc_info(eps.getIterationNumber, 0)),
+        "eps_reason": str(_safe_petsc_info(eps.getConvergedReason, "?")),
+        "ksp_reason": str(_safe_petsc_info(ksp.getConvergedReason, "?")),
+        "conv_test": str(_safe_petsc_info(eps.getConvergenceTest, "?")),
+        "eps_tol": float(eps_tol),
+        "eps_max_it": int(eps_max_it),
+        "eps_setup_seconds": float(eps_setup_seconds),
+        "eps_solve_seconds": float(eps_solve_seconds),
+        "st_solver": st_solver,
+        "true_residual": bool(true_residual),
+        "residual_error_type": str(residual_error_type_name),
+        "residual_estimates": residual_estimates,
+        "residual_absolute": residual_absolute,
+        "residual_relative": residual_relative,
+        "residual_backward": residual_backward,
+    }
+    info.update({key: value for key, value in (monitor_state or {}).items()})
+    eps.destroy()
+    A.destroy()
+
+    if return_info:
+        return eigenvalues, eigenvectors, info
     return eigenvalues, eigenvectors
 
 
@@ -530,8 +815,10 @@ def temporal_eigenvalues(
     target: float | complex,
     W_diag: np.ndarray | None = None,
     ncv: int | None = None,
+    initial_space: np.ndarray | None = None,
     solver_cfg: dict | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    return_info: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
 
     The eigensolver operates on ``i*L0`` so that ``omega = eig(i*L0)``.
@@ -565,14 +852,30 @@ def temporal_eigenvalues(
 
     temporal_operator = _scaled_operator(operator, 1j)
     omega = complex(target)
-    eigenvalues, eigenvectors = _eigs_near_target(
-        temporal_operator,
-        n_modes,
-        omega,
-        ncv=ncv,
-        solver_cfg=solver_cfg,
-    )
-    eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
+    if return_info:
+        eigenvalues, eigenvectors, info = _eigs_near_target(
+            temporal_operator,
+            n_modes,
+            omega,
+            ncv=ncv,
+            initial_space=initial_space,
+            solver_cfg=solver_cfg,
+            return_info=True,
+        )
+    else:
+        eigenvalues, eigenvectors = _eigs_near_target(
+            temporal_operator,
+            n_modes,
+            omega,
+            ncv=ncv,
+            initial_space=initial_space,
+            solver_cfg=solver_cfg,
+        )
+        info = {}
+    order = _nearest_order(eigenvalues, omega)
+    eigenvalues = eigenvalues[order]
+    eigenvectors = eigenvectors[:, order]
+    _reorder_info_residuals(info, order)
 
     if W_diag is not None:
         eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
@@ -589,7 +892,11 @@ def temporal_eigenvalues(
                     weighted_norm_error,
                     weighted_norm_tol,
                 )
+            info["leading_weighted_norm_error"] = float(weighted_norm_error)
+            info["weighted_norm_tol"] = float(weighted_norm_tol)
 
+    if return_info:
+        return eigenvalues, eigenvectors, info
     return eigenvalues, eigenvectors
 
 

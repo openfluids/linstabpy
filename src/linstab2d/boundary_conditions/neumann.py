@@ -27,6 +27,8 @@ def _collect_neumann_indices(
     borders: str,
     variables: str,
     ngp: int,
+    *,
+    exclude_corners: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Collect boundary dof indices, mesh indices, and normals for Neumann BC.
 
@@ -50,7 +52,21 @@ def _collect_neumann_indices(
             raise ValueError(
                 f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't'"
             )
-        boundary_points = idx[border_key]
+        boundary_points = np.asarray(idx[border_key], dtype=int)
+        if exclude_corners and boundary_points.size:
+            if b in ("l", "r"):
+                corner_points = np.concatenate(
+                    (np.asarray(idx["bi"], dtype=int), np.asarray(idx["ti"], dtype=int))
+                )
+            else:
+                corner_points = np.concatenate(
+                    (np.asarray(idx["li"], dtype=int), np.asarray(idx["ri"], dtype=int))
+                )
+            boundary_points = np.setdiff1d(
+                boundary_points,
+                np.unique(corner_points),
+                assume_unique=False,
+            )
         boundary_count = boundary_points.size
         if boundary_count == 0:
             continue
@@ -160,6 +176,8 @@ def apply_neumann(
     borders: str,
     variables: str,
     penalty: float = 1e4,
+    *,
+    exclude_corners: bool = False,
 ) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply Neumann boundary conditions to the LNSE operator.
 
@@ -169,7 +187,7 @@ def apply_neumann(
     """
     ngp = mesh.ngp
     index_set, index_mesh, border_tags = _collect_neumann_indices(
-        idx, borders, variables, ngp
+        idx, borders, variables, ngp, exclude_corners=exclude_corners
     )
 
     if index_set.size == 0:
@@ -207,13 +225,15 @@ def apply_neumann_petsc(
     borders: str,
     variables: str,
     penalty: float = 1e4,
+    *,
+    exclude_corners: bool = False,
 ) -> tuple["PETSc.Mat", np.ndarray]:
     """Apply Neumann boundary conditions directly to a PETSc matrix."""
     from petsc4py import PETSc
 
     ngp = mesh.ngp
     index_set, index_mesh, border_tags = _collect_neumann_indices(
-        idx, borders, variables, ngp
+        idx, borders, variables, ngp, exclude_corners=exclude_corners
     )
 
     if index_set.size == 0:

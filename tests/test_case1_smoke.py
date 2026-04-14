@@ -115,7 +115,18 @@ def test_case1_operator_and_small_temporal_eigs() -> None:
         bf.Ma,
         mesh.ngp,
     )
-    omega, modes = temporal_eigenvalues(L0, n_modes=2, target=2.0 * np.pi, W_diag=W_diag)
+    omega, modes, info = temporal_eigenvalues(
+        L0,
+        n_modes=2,
+        target=2.0 * np.pi,
+        W_diag=W_diag,
+        return_info=True,
+    )
 
     assert omega.shape == (2,)
     assert modes.shape == (mesh.ngp * 5, 2)
+    assert int(info["nconv"]) >= 2
+    assert int(info["ncv_used"]) >= 3
+    residuals = np.asarray(info["residual_estimates"], dtype=float)
+    assert residuals.shape == (2,)
+    assert np.all(np.isfinite(residuals))

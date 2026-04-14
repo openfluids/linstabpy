@@ -380,7 +380,18 @@ def _make_filter_ksp(
         Transpose solve ``M^T x = rhs``, handles 2D arrays column-wise.
     """
     require_complex()
-    A = scipy_to_petsc(M_sp.tocsc())
+    # Filter application currently works on gathered full-state vectors
+    # inside Python callbacks (e.g. resolvent MatShell multiplies). The
+    # filter factorization therefore has to be a local sequential PETSc
+    # matrix on every rank; a distributed AIJ here would expect only the
+    # owned vector slice and fails on the gathered full vector length.
+    csr = M_sp.tocsr().astype(complex)
+    A = PETSc.Mat().createAIJ(
+        size=csr.shape,
+        csr=(csr.indptr, csr.indices, csr.data),
+        comm=PETSc.COMM_SELF,
+    )
+    A.assemble()
     ksp = PETSc.KSP().create()
     ksp.setOperators(A)
     ksp.setType(PETSc.KSP.Type.PREONLY)
@@ -393,10 +404,15 @@ def _make_filter_ksp(
         solve_fn = ksp.solveTranspose if transpose else ksp.solve
         out = np.empty_like(rhs, dtype=complex)
         for j in range(rhs.shape[1]):
-            b = petsc_vec(rhs[:, j])
+            b = PETSc.Vec().createWithArray(
+                np.ascontiguousarray(rhs[:, j], dtype=complex),
+                comm=PETSc.COMM_SELF,
+            )
             x = b.duplicate()
             solve_fn(b, x)
-            out[:, j] = vec_to_numpy(x)
+            out[:, j] = np.array(x.array_r, copy=True)
+            b.destroy()
+            x.destroy()
         return out
 
     def solve(rhs: np.ndarray) -> np.ndarray:

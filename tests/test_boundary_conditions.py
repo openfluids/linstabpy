@@ -6,6 +6,7 @@ import pytest
 
 from linstab2d.operators import build_lnse_operator
 from linstab2d.boundary_conditions import (
+    analyze_bc_recipe,
     apply_dirichlet,
     apply_dirichlet_identity_pair,
     apply_dirichlet_spatial,
@@ -424,3 +425,69 @@ class TestNeumannBC:
 
         with pytest.raises(ValueError, match="Ambiguous Neumann BC"):
             apply_neumann(L0.copy(), mesh, idx, "lt", "u", penalty=2.5)
+
+
+class TestRecipeAnalysis:
+    """Tests for sequential mixed BC recipe analysis."""
+
+    def test_case1_recipe_overlap_and_effective_sets(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        _, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+
+        recipe = [
+            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+            {"type": "neumann", "borders": "r", "variables": "ruvwT"},
+        ]
+        analysis = analyze_bc_recipe(mesh, idx, recipe)
+
+        left_bottom = np.intersect1d(idx["li"], idx["bi"])
+        top_right = np.intersect1d(idx["ti"], idx["ri"])
+        bottom_right = np.intersect1d(idx["bi"], idx["ri"])
+
+        expected_overlap = np.sort(
+            np.unique(
+                np.concatenate(
+                    [
+                        4 * ngp + left_bottom,
+                        np.concatenate([block * ngp + top_right for block in range(5)]),
+                        np.concatenate([block * ngp + bottom_right for block in range(4)]),
+                    ]
+                )
+            )
+        )
+
+        np.testing.assert_array_equal(analysis["overlap_indices"], expected_overlap)
+
+        dirichlet_total = np.asarray(analysis["column_zeroed_dirichlet_indices"], dtype=int)
+        effective_dirichlet = np.asarray(analysis["effective_dirichlet_indices"], dtype=int)
+        expected_effective = np.setdiff1d(dirichlet_total, expected_overlap, assume_unique=True)
+        np.testing.assert_array_equal(effective_dirichlet, expected_effective)
+
+        assert len(analysis["rule_reports"]) == 4
+        assert analysis["rule_reports"][2]["cross_type_overlap"].size == 1
+        assert analysis["rule_reports"][3]["cross_type_overlap"].size == 9
+
+    def test_case1_recipe_neumann_exclude_corners_removes_cross_type_overlap(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        _, idx = build_lnse_operator(mesh, bf, kx=0.0)
+
+        recipe = [
+            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+            {"type": "neumann", "borders": "b", "variables": "T", "exclude_corners": True},
+            {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
+        ]
+        analysis = analyze_bc_recipe(mesh, idx, recipe)
+
+        assert analysis["overlap_indices"].size == 0
+        assert analysis["rule_reports"][2]["cross_type_overlap"].size == 0
+        assert analysis["rule_reports"][3]["cross_type_overlap"].size == 0
