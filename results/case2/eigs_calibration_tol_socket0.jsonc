@@ -56,6 +56,16 @@
           },
           "linsolve": {
             "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
           }
         }
       }
@@ -68,7 +78,12 @@
       "label": "fd4 nev10 ncv200 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-4}}
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -76,7 +91,12 @@
       "label": "fd4 nev10 ncv200 tol3e-5",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 3e-5}}
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 3e-5
+          }
+        }
       }
     },
     {
@@ -84,7 +104,12 @@
       "label": "fd4 nev10 ncv200 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-5}}
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -92,7 +117,12 @@
       "label": "fd4 nev10 ncv200 tol3e-6",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 3e-6}}
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 3e-6
+          }
+        }
       }
     },
     {
@@ -100,7 +130,12 @@
       "label": "fd4 nev10 ncv200 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-6}}
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-6
+          }
+        }
       }
     },
 
@@ -109,7 +144,12 @@
       "label": "fd4 nev10 ncv700 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 700, "eps_tol": 1e-4}}
+        "solver": {
+          "eigen": {
+            "ncv": 700,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -117,7 +157,12 @@
       "label": "fd4 nev10 ncv700 tol3e-5",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 700, "eps_tol": 3e-5}}
+        "solver": {
+          "eigen": {
+            "ncv": 700,
+            "eps_tol": 3e-5
+          }
+        }
       }
     },
     {
@@ -125,7 +170,12 @@
       "label": "fd4 nev10 ncv700 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 700, "eps_tol": 1e-5}}
+        "solver": {
+          "eigen": {
+            "ncv": 700,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -133,7 +183,12 @@
       "label": "fd4 nev10 ncv700 tol3e-6",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 700, "eps_tol": 3e-6}}
+        "solver": {
+          "eigen": {
+            "ncv": 700,
+            "eps_tol": 3e-6
+          }
+        }
       }
     },
     {
@@ -141,7 +196,12 @@
       "label": "fd4 nev10 ncv700 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 700, "eps_tol": 1e-6}}
+        "solver": {
+          "eigen": {
+            "ncv": 700,
+            "eps_tol": 1e-6
+          }
+        }
       }
     }
   ]

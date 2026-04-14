@@ -58,6 +58,16 @@
           },
           "linsolve": {
             "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
           }
         }
       }

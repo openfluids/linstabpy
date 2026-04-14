@@ -329,6 +329,58 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
                 result["stability_postcheck_target_distance_min"] = float(np.min(finite_post_dist))
                 result["stability_postcheck_target_distance_max"] = float(np.max(finite_post_dist))
                 result["stability_postcheck_target_distance_median"] = float(np.median(finite_post_dist))
+        if "stability_acceptance_postcheck_rel_max" in data:
+            result["stability_acceptance_postcheck_rel_max"] = float(
+                np.asarray(data["stability_acceptance_postcheck_rel_max"]).reshape(-1)[0]
+            )
+        if "stability_acceptance_target_distance_max" in data:
+            result["stability_acceptance_target_distance_max"] = float(
+                np.asarray(data["stability_acceptance_target_distance_max"]).reshape(-1)[0]
+            )
+        if "stability_acceptance_omega_real_abs_max" in data:
+            result["stability_acceptance_omega_real_abs_max"] = float(
+                np.asarray(data["stability_acceptance_omega_real_abs_max"]).reshape(-1)[0]
+            )
+        if "stability_acceptance_omega_imag_abs_max" in data:
+            result["stability_acceptance_omega_imag_abs_max"] = float(
+                np.asarray(data["stability_acceptance_omega_imag_abs_max"]).reshape(-1)[0]
+            )
+        if "stability_accepted_count" in data:
+            result["stability_accepted_count"] = int(
+                np.asarray(data["stability_accepted_count"]).reshape(-1)[0]
+            )
+        if "stability_accepted_postcheck_rel_min" in data:
+            result["stability_accepted_postcheck_rel_min"] = float(
+                np.asarray(data["stability_accepted_postcheck_rel_min"]).reshape(-1)[0]
+            )
+        if "stability_accepted_postcheck_rel_median" in data:
+            result["stability_accepted_postcheck_rel_median"] = float(
+                np.asarray(data["stability_accepted_postcheck_rel_median"]).reshape(-1)[0]
+            )
+        if "stability_accepted_target_distance_min" in data:
+            result["stability_accepted_target_distance_min"] = float(
+                np.asarray(data["stability_accepted_target_distance_min"]).reshape(-1)[0]
+            )
+        if "stability_accepted_target_distance_median" in data:
+            result["stability_accepted_target_distance_median"] = float(
+                np.asarray(data["stability_accepted_target_distance_median"]).reshape(-1)[0]
+            )
+        if "stability_accepted_omega_real_min" in data:
+            result["stability_accepted_omega_real_min"] = float(
+                np.asarray(data["stability_accepted_omega_real_min"]).reshape(-1)[0]
+            )
+        if "stability_accepted_omega_real_max" in data:
+            result["stability_accepted_omega_real_max"] = float(
+                np.asarray(data["stability_accepted_omega_real_max"]).reshape(-1)[0]
+            )
+        if "stability_accepted_omega_imag_min" in data:
+            result["stability_accepted_omega_imag_min"] = float(
+                np.asarray(data["stability_accepted_omega_imag_min"]).reshape(-1)[0]
+            )
+        if "stability_accepted_omega_imag_max" in data:
+            result["stability_accepted_omega_imag_max"] = float(
+                np.asarray(data["stability_accepted_omega_imag_max"]).reshape(-1)[0]
+            )
         if "stability_postcheck_bc_leak_max" in data:
             leak = np.asarray(data["stability_postcheck_bc_leak_max"], dtype=float).reshape(-1)
             finite_leak = leak[np.isfinite(leak)]
@@ -547,6 +599,19 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "stability_postcheck_target_distance_min": output.get("stability_postcheck_target_distance_min"),
         "stability_postcheck_target_distance_max": output.get("stability_postcheck_target_distance_max"),
         "stability_postcheck_target_distance_median": output.get("stability_postcheck_target_distance_median"),
+        "stability_acceptance_postcheck_rel_max": output.get("stability_acceptance_postcheck_rel_max"),
+        "stability_acceptance_target_distance_max": output.get("stability_acceptance_target_distance_max"),
+        "stability_acceptance_omega_real_abs_max": output.get("stability_acceptance_omega_real_abs_max"),
+        "stability_acceptance_omega_imag_abs_max": output.get("stability_acceptance_omega_imag_abs_max"),
+        "stability_accepted_count": output.get("stability_accepted_count"),
+        "stability_accepted_postcheck_rel_min": output.get("stability_accepted_postcheck_rel_min"),
+        "stability_accepted_postcheck_rel_median": output.get("stability_accepted_postcheck_rel_median"),
+        "stability_accepted_target_distance_min": output.get("stability_accepted_target_distance_min"),
+        "stability_accepted_target_distance_median": output.get("stability_accepted_target_distance_median"),
+        "stability_accepted_omega_real_min": output.get("stability_accepted_omega_real_min"),
+        "stability_accepted_omega_real_max": output.get("stability_accepted_omega_real_max"),
+        "stability_accepted_omega_imag_min": output.get("stability_accepted_omega_imag_min"),
+        "stability_accepted_omega_imag_max": output.get("stability_accepted_omega_imag_max"),
         "stability_postcheck_bc_leak_max": output.get("stability_postcheck_bc_leak_max"),
         "stability_postcheck_bc_leak_median": output.get("stability_postcheck_bc_leak_median"),
         "stability_postcheck_dirichlet_leak_max": output.get("stability_postcheck_dirichlet_leak_max"),
@@ -631,6 +696,19 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "stability_postcheck_target_distance_min",
         "stability_postcheck_target_distance_max",
         "stability_postcheck_target_distance_median",
+        "stability_acceptance_postcheck_rel_max",
+        "stability_acceptance_target_distance_max",
+        "stability_acceptance_omega_real_abs_max",
+        "stability_acceptance_omega_imag_abs_max",
+        "stability_accepted_count",
+        "stability_accepted_postcheck_rel_min",
+        "stability_accepted_postcheck_rel_median",
+        "stability_accepted_target_distance_min",
+        "stability_accepted_target_distance_median",
+        "stability_accepted_omega_real_min",
+        "stability_accepted_omega_real_max",
+        "stability_accepted_omega_imag_min",
+        "stability_accepted_omega_imag_max",
         "stability_postcheck_bc_leak_max",
         "stability_postcheck_bc_leak_median",
         "stability_postcheck_dirichlet_leak_max",

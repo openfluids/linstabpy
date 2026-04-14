@@ -21,7 +21,9 @@ rm -f "$EXIT_FILE"
 export LINSTAB2D_CASE_MODULE="$CASE_MODULE"
 export LINSTAB2D_CASE1_PERF_CONFIG="$CONFIG_JSONC"
 
+set +e
 "$PYTHON_EXE" "$HARNESS"
 STATUS=$?
+set -e
 printf "%s\n" "$STATUS" > "$EXIT_FILE"
 exit "$STATUS"

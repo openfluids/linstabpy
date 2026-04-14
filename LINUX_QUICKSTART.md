@@ -113,6 +113,8 @@ If the machine still behaves badly, send these files:
 - the `install.sh` output
 - `benchmark_runs/<id>/benchmark_summary.csv`
 - the relevant `benchmark_runs/<id>/*.log`
+- a local stack manifest from:
+  `.venv/bin/python tools/export_known_good_stack.py --output docs/known_good/<machine>.json`
 
 That is enough to tell whether the problem is:
 

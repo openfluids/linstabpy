@@ -70,6 +70,16 @@
       "residual_error_type": "relative",
       "extract_all_converged": true
     },
+    "linsolve": {
+      // Shifted linear solve used inside each resolvent shell application:
+      //   "mumps"     -> direct KSPPREONLY + PCLU + MUMPS
+      //   "iterative" -> Krylov linear solve with meaningful KSP tolerances
+      //
+      // In the direct-MUMPS path, iterative KSP tolerances are not the main
+      // accuracy knobs. The important resolvent extraction knobs are in
+      // solver.resolvent.eigen.*.
+      "type": "mumps"
+    },
     "resolvent": {
       // EPS settings for the H^H W H shell eigenproblem used to extract
       // resolvent gains and forcing/response modes.
@@ -88,16 +98,6 @@
         // Maximum EPS iterations on H^H W H.
         "eps_max_it": 1000
       }
-    },
-    "linsolve": {
-      // Shifted linear solve used inside each resolvent shell application:
-      //   "mumps"     -> direct KSPPREONLY + PCLU + MUMPS
-      //   "iterative" -> Krylov linear solve with meaningful KSP tolerances
-      //
-      // In the direct-MUMPS path, iterative KSP tolerances are not the main
-      // accuracy knobs. The important resolvent extraction knobs are in
-      // solver.resolvent.eigen.*.
-      "type": "mumps"
     }
   }
 }

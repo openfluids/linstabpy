@@ -153,6 +153,20 @@ to isolate the branch more cleanly.
 This should be treated as a numerical search choice, not as a change in the
 underlying physics being sought.
 
+### Branch-localize before scaling up `nev`
+
+For temporal Case 2 studies, the reliable workflow is:
+
+- start with a small solve, such as `nev=10`
+- try a few complex targets that sit on the branch of interest
+- judge success using the explicit postcheck residual together with distance to
+  the requested target
+- only after that branch is localized should `nev` and `ncv` be increased
+
+In other words, raw `nconv` is not enough to say that the requested physics has
+been captured. A run can return many EPS-converged Ritz pairs while still
+locking onto the wrong spectral pocket.
+
 ## What To Check On Every Run
 
 Before trusting a spectrum, check all of the following:

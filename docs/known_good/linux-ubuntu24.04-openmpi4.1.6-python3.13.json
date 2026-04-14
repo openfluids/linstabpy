@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "kind": "linstabpy_known_good_linux_stack",
+  "label": "ubuntu24.04-openmpi4.1.6-py3.13-reference",
+  "captured_at_utc": "2026-04-14T19:25:06.473695+00:00",
+  "notes": [
+    "This is a tested reference environment, not a mandatory pin for every Linux machine.",
+    "Match the MPI vendor/runtime policy first; exact distro package versions matter less than ABI/toolchain consistency."
+  ],
+  "repo": {
+    "root": "~/linstabpy",
+    "git": {
+      "available": true,
+      "commit": "18330d09ca7cc3f8144450c2195dad04b7afbfc8",
+      "branch": "master",
+      "dirty": true
+    },
+    "uv_lock_present": true
+  },
+  "host": {
+    "hostname": "<redacted-host>",
+    "platform": "Linux-6.8.0-84-generic-x86_64-with-glibc2.39",
+    "system": "Linux",
+    "release": "6.8.0-84-generic",
+    "machine": "x86_64",
+    "distro": "Ubuntu 24.04.3 LTS",
+    "distribution_id": "ubuntu",
+    "distribution_version": "24.04"
+  },
+  "python": {
+    "executable": "~/linstabpy/.venv/bin/python",
+    "version": "3.13.11"
+  },
+  "toolchain": {
+    "gcc": {
+      "path": "/usr/bin/gcc",
+      "version_line": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+    },
+    "gfortran": {
+      "path": "/usr/bin/gfortran",
+      "version_line": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+    },
+    "cmake": {
+      "path": "/usr/bin/cmake",
+      "version_line": "cmake version 3.28.3"
+    },
+    "uv": {
+      "path": "~/.local/bin/uv",
+      "version_line": "uv 0.10.10"
+    },
+    "mpi": {
+      "vendor": "openmpi",
+      "mpiexec_path": "/usr/bin/mpiexec",
+      "mpiexec_version_line": "mpiexec (OpenRTE) 4.1.6",
+      "mpicc_path": "/usr/bin/mpicc",
+      "mpicc_show": "gcc -I/usr/lib/x86_64-linux-gnu/openmpi/include -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -L/usr/lib/x86_64-linux-gnu/openmpi/lib -lmpi -lopen-rte -lopen-pal -lhwloc -levent_core -levent_pthreads -lm -lz",
+      "best_working_mpiexec": "/usr/bin/mpiexec.openmpi",
+      "launcher_probe": [
+        {
+          "candidate": "mpiexec.openmpi",
+          "path": "/usr/bin/mpiexec.openmpi",
+          "ok": true,
+          "returncode": 0
+        },
+        {
+          "candidate": "mpirun.openmpi",
+          "path": "/usr/bin/mpirun.openmpi",
+          "ok": true,
+          "returncode": 0
+        },
+        {
+          "candidate": "mpiexec",
+          "path": "/usr/bin/mpiexec",
+          "ok": true,
+          "returncode": 0
+        }
+      ]
+    }
+  },
+  "linstabpy_runtime_policy": {
+    "use_one_mpi_stack_per_environment": true,
+    "prefer_example_configs_with_assembly_backend": "scipy",
+    "mpi_example_wrapper": "bash run_mpi_example.sh",
+    "environment": {
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    },
+    "rank_guidance": "Start with half of the physical cores or one socket, then compare against all physical cores."
+  },
+  "python_packages": {
+    "numpy": "2.4.3",
+    "scipy": "1.17.1",
+    "matplotlib": "3.10.8",
+    "mpi4py": "4.1.1",
+    "petsc4py": "3.24.2",
+    "slepc4py": "3.24.2",
+    "h5py": "3.16.0"
+  },
+  "petsc_probe": {
+    "petsc_version": "3.24.2",
+    "slepc_version": "3.24.2",
+    "petsc_scalar_type": "complex"
+  },
+  "hardware_probe": {
+    "lscpu_summary": [
+      "Architecture:                         x86_64",
+      "CPU(s):                               40",
+      "Thread(s) per core:                   2",
+      "Core(s) per socket:                   10",
+      "Socket(s):                            2"
+    ]
+  },
+  "benchmark_reference": {
+    "source": "benchmark_runs/20260414T185748Z_local-smoke/benchmark_summary.csv",
+    "rows": [
+      {
+        "example": "example_0_curvilinear_validation",
+        "variant": "single",
+        "ranks": 1,
+        "wall_seconds": 15.85,
+        "peak_rss_kb": 768228.0,
+        "exit_code": 0
+      },
+      {
+        "example": "example_1_blasius_smoke",
+        "variant": "all_cores",
+        "ranks": 20,
+        "wall_seconds": 144.81,
+        "peak_rss_kb": 984828.0,
+        "exit_code": 0
+      },
+      {
+        "example": "example_1_blasius_smoke",
+        "variant": "half_cores",
+        "ranks": 10,
+        "wall_seconds": 63.1,
+        "peak_rss_kb": 993136.0,
+        "exit_code": 0
+      }
+    ]
+  }
+}

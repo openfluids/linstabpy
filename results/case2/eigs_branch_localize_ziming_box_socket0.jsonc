@@ -1,0 +1,189 @@
+{
+  // Case 2 branch-localization sweep using Ziming-seeded low-frequency targets
+  // on the full-resolution baseflow.
+  //
+  // Acceptance workflow:
+  // - broad postcheck gate: residual_rel <= 1e-5
+  // - broad target hit gate: |lambda - lambda_target| <= 0.5
+  // - broad physics box: |Re(lambda)| <= 2*pi and |Im(lambda)| <= 1
+  //
+  // Interpretation in the current solver convention:
+  // - Re(lambda): oscillation frequency omega
+  // - Im(lambda): growth/decay rate sigma
+  //
+  // Once one of these targets produces a clean accepted pocket, tighten:
+  // - target_distance_max
+  // - omega_real_abs_max / omega_imag_abs_max
+  // around that pocket before changing other solver settings.
+
+  "outputs": {
+    "report_json": "output/eigs_branch_localize_ziming_box_socket0/case2_eigs_branch_localize_latest.json",
+    "report_csv": "output/eigs_branch_localize_ziming_box_socket0/case2_eigs_branch_localize_table.csv",
+    "log_dir": "output/eigs_branch_localize_ziming_box_socket0/logs",
+    "run_dir": "output/eigs_branch_localize_ziming_box_socket0/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "case_workdir": ".",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 10,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-5,
+            "target_distance_max": 0.5,
+            "omega_real_abs_max": 6.283185307179586,
+            "omega_imag_abs_max": 1.0
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-5,
+            "conv_test": "rel",
+            "true_residual": true,
+            "residual_error_type": "relative",
+            "extract_all_converged": true,
+            "monitor": true,
+            "monitor_every": 5,
+            "eps_max_it": 1000,
+            "ncv": 200
+          },
+          "linsolve": {
+            "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "fd4_target_steady_m011_ncv200",
+      "label": "fd4 target 0-0.109i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.109141476955
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_lowfreq_m0705_ncv200",
+      "label": "fd4 target 0-0.705i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.704804200672
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_0p326m0p292_ncv200",
+      "label": "fd4 target 0.326-0.292i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.325638043091,
+            "imag": -0.291981984069
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_0p596m0p429_ncv200",
+      "label": "fd4 target 0.596-0.429i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.595547134892,
+            "imag": -0.428743456273
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_0p855m0p639_ncv200",
+      "label": "fd4 target 0.855-0.639i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.855385199177,
+            "imag": -0.639177603756
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_1p077m0p837_ncv200",
+      "label": "fd4 target 1.077-0.837i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 1.076886352735,
+            "imag": -0.837300961365
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_steady_p005_disabled",
+      "label": "fd4 target 0+0.054i tol1e-5 ncv200",
+      "enabled": false,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": 0.054171352262
+          }
+        }
+      }
+    }
+  ]
+}

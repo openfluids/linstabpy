@@ -12,6 +12,7 @@
       "eps_max_it": 1200
     }
   ],
+  // These keys are merged into solver.eigen.* from the base config.
   "solver": {
     "conv_test": "rel",
     "true_residual": true,

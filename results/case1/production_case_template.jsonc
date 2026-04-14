@@ -31,7 +31,13 @@
   },
 
   "bc": {
-    "penalty": 100000000.0
+    "penalty": 100000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+      {"type": "neumann",   "borders": "b",   "variables": "T"},
+      {"type": "neumann",   "borders": "r",   "variables": "ruvwT"}
+    ]
   },
 
   "analysis": {
@@ -50,5 +56,29 @@
     "operator_stage_max_abs_early": 1e-3,
     "spectrum_max_rel": 1e-6,
     "mode_min_corr_real": 0.99
+  },
+
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "eigen": {
+      "st_solver": "mumps",
+      "eps_tol": 1e-6,
+      "ncv": 300,
+      "conv_test": "rel",
+      "true_residual": true
+    },
+    "linsolve": {
+      "type": "mumps"
+    },
+    "resolvent": {
+      "type": "mumps",
+      "eigen": {
+        "eps_tol": 1e-8,
+        "ncv": 40,
+        "conv_test": "rel",
+        "true_residual": true,
+        "eps_max_it": 1000
+      }
+    }
   }
 }

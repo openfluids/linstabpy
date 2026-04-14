@@ -1,0 +1,166 @@
+{
+  // Case 2 branch-localization sweep pinned to socket 0 physical cores.
+  //
+  // Purpose:
+  // - stop wasting time on the empty real-axis target at 6.283+0i
+  // - target the two spectral pockets already seen in fresh Case 2 runs
+  // - use a moderate EPS tolerance and judge success with the explicit postcheck
+  //
+  // Run with:
+  //   setsid -f bash -lc "
+  //     echo \$BASHPID > /home/ghamada/linstabpy/results/case2/output/eigs_branch_localize_socket0/queue_nohup.pid;
+  //     exec nohup /home/ghamada/linstabpy/results/case2/run_perf_queue_once.sh \
+  //       /home/ghamada/linstabpy/results/case2/eigs_branch_localize_socket0.jsonc \
+  //       /home/ghamada/linstabpy/results/case2/output/eigs_branch_localize_socket0 \
+  //       case2 \
+  //       > /home/ghamada/linstabpy/results/case2/output/eigs_branch_localize_socket0/queue_nohup.log 2>&1 < /dev/null"
+
+  "outputs": {
+    "report_json": "output/eigs_branch_localize_socket0/case2_eigs_branch_localize_latest.json",
+    "report_csv": "output/eigs_branch_localize_socket0/case2_eigs_branch_localize_table.csv",
+    "log_dir": "output/eigs_branch_localize_socket0/logs",
+    "run_dir": "output/eigs_branch_localize_socket0/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "case_workdir": ".",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 10,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-5,
+            "target_distance_max": 0.5
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-5,
+            "conv_test": "rel",
+            "true_residual": true,
+            "residual_error_type": "relative",
+            "extract_all_converged": true,
+            "monitor": true,
+            "monitor_every": 5,
+            "eps_max_it": 1000
+          },
+          "linsolve": {
+            "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "fd4_target_lowfreq_tol1e5_ncv200",
+      "label": "fd4 target 0-0.85i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.85
+          }
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 200
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_lowfreq_tol1e5_ncv500",
+      "label": "fd4 target 0-0.85i tol1e-5 ncv500",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.85
+          }
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 500
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_6p283m8i_tol1e5_ncv200",
+      "label": "fd4 target 6.283-8i tol1e-5 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 6.283185307179586,
+            "imag": -8.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 200
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_target_6p283m8i_tol1e5_ncv500",
+      "label": "fd4 target 6.283-8i tol1e-5 ncv500",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 6.283185307179586,
+            "imag": -8.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 500
+          }
+        }
+      }
+    }
+  ]
+}

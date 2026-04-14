@@ -33,6 +33,7 @@ from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstab2d.solvers.resolvent import resolvent_analysis
 from linstab2d.utils.jsonc import load_jsonc
+from linstab2d.utils.stability_acceptance import evaluate_stability_acceptance
 
 SCRIPT = Path(__file__).resolve()
 
@@ -214,6 +215,27 @@ def _resolve_omega_target(raw: object, default: complex) -> complex:
     )
 
 
+def _resolve_optional_float(raw: object) -> float:
+    """Parse an optional scalar threshold from config, returning NaN when unset."""
+    if raw is None:
+        return float("nan")
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text or text.lower() in {"none", "null", "nan"}:
+            return float("nan")
+        return float(text)
+    return float(raw)
+
+
+def _cfg_first(cfg_fn, *paths: str) -> object:
+    """Return the first configured value across a list of dotted config paths."""
+    for path in paths:
+        value = cfg_fn(path, None)
+        if value is not None:
+            return value
+    return None
+
+
 def compute() -> None:
     """Run the full Case 1 pipeline and write ``case1.npz``."""
     t0 = time.perf_counter()
@@ -274,6 +296,28 @@ def compute() -> None:
     omega_target = _resolve_omega_target(
         cfg("analysis.omega_target", None),
         2.0 * np.pi * St * ratio_u / ratio_l,
+    )
+    stability_acceptance_postcheck_rel_max = _resolve_optional_float(
+        cfg("analysis.stability_acceptance.postcheck_rel_max", None)
+    )
+    stability_acceptance_target_distance_max = _resolve_optional_float(
+        cfg("analysis.stability_acceptance.target_distance_max", None)
+    )
+    stability_acceptance_omega_real_abs_max = _resolve_optional_float(
+        _cfg_first(
+            cfg,
+            "analysis.stability_acceptance.omega_real_abs_max",
+            "analysis.stability_acceptance.frequency_abs_max",
+            "analysis.stability_acceptance.omega_abs_max",
+        )
+    )
+    stability_acceptance_omega_imag_abs_max = _resolve_optional_float(
+        _cfg_first(
+            cfg,
+            "analysis.stability_acceptance.omega_imag_abs_max",
+            "analysis.stability_acceptance.growth_abs_max",
+            "analysis.stability_acceptance.sigma_abs_max",
+        )
     )
 
     n_modes = int(cfg("analysis.n_modes_stability", 100))
@@ -722,6 +766,25 @@ def compute() -> None:
             stability_info.get("postcheck_target_distance", np.array([], dtype=float)),
             dtype=float,
         )
+        stability_acceptance = evaluate_stability_acceptance(
+            omega,
+            stability_postcheck_residual_rel,
+            stability_postcheck_target_distance,
+            postcheck_rel_max=stability_acceptance_postcheck_rel_max,
+            target_distance_max=stability_acceptance_target_distance_max,
+            omega_real_abs_max=stability_acceptance_omega_real_abs_max,
+            omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
+        )
+        if stability_acceptance:
+            accepted_count = int(stability_acceptance.get("accepted_count", 0))
+            _log(
+                "stability acceptance: "
+                f"accepted_modes={accepted_count} "
+                f"postcheck_rel_max={stability_acceptance_postcheck_rel_max:.3e} "
+                f"target_distance_max={stability_acceptance_target_distance_max:.3e} "
+                f"omega_real_abs_max={stability_acceptance_omega_real_abs_max:.3e} "
+                f"omega_imag_abs_max={stability_acceptance_omega_imag_abs_max:.3e}"
+            )
         np.savez_compressed(
             output_npz,
             omega=omega,
@@ -797,6 +860,39 @@ def compute() -> None:
             stability_postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
             stability_postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
             stability_postcheck_target_distance=stability_postcheck_target_distance,
+            stability_acceptance_postcheck_rel_max=float(stability_acceptance_postcheck_rel_max),
+            stability_acceptance_target_distance_max=float(stability_acceptance_target_distance_max),
+            stability_acceptance_omega_real_abs_max=float(stability_acceptance_omega_real_abs_max),
+            stability_acceptance_omega_imag_abs_max=float(stability_acceptance_omega_imag_abs_max),
+            stability_accepted_count=int(stability_acceptance.get("accepted_count", -1)),
+            stability_accepted_indices=np.asarray(
+                stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+                dtype=np.int32,
+            ),
+            stability_accepted_postcheck_rel_min=float(
+                stability_acceptance.get("accepted_postcheck_rel_min", np.nan)
+            ),
+            stability_accepted_postcheck_rel_median=float(
+                stability_acceptance.get("accepted_postcheck_rel_median", np.nan)
+            ),
+            stability_accepted_target_distance_min=float(
+                stability_acceptance.get("accepted_target_distance_min", np.nan)
+            ),
+            stability_accepted_target_distance_median=float(
+                stability_acceptance.get("accepted_target_distance_median", np.nan)
+            ),
+            stability_accepted_omega_real_min=float(
+                stability_acceptance.get("accepted_omega_real_min", np.nan)
+            ),
+            stability_accepted_omega_real_max=float(
+                stability_acceptance.get("accepted_omega_real_max", np.nan)
+            ),
+            stability_accepted_omega_imag_min=float(
+                stability_acceptance.get("accepted_omega_imag_min", np.nan)
+            ),
+            stability_accepted_omega_imag_max=float(
+                stability_acceptance.get("accepted_omega_imag_max", np.nan)
+            ),
             stability_leading_weighted_norm_error=float(
                 stability_info.get("leading_weighted_norm_error", np.nan)
             ),

@@ -130,6 +130,7 @@
     // EPS settings for the H^H W H shell eigenproblem used to extract
     // resolvent gains and forcing/response modes.
     "resolvent": {
+      "type": "mumps",
       "eigen": {
         // EPS convergence threshold on the shell-operator eigenproblem.
         "eps_tol": 1e-8,

@@ -57,6 +57,16 @@
           },
           "linsolve": {
             "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
           }
         }
       }
@@ -69,7 +79,11 @@
       "label": "fd4 nev10 tol1e-4 ncv400",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 400}}
+        "solver": {
+          "eigen": {
+            "ncv": 400
+          }
+        }
       }
     },
     {
@@ -77,7 +91,11 @@
       "label": "fd4 nev10 tol1e-4 ncv600",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 600}}
+        "solver": {
+          "eigen": {
+            "ncv": 600
+          }
+        }
       }
     },
     {
@@ -85,7 +103,11 @@
       "label": "fd4 nev10 tol1e-4 ncv800",
       "enabled": true,
       "config_overrides": {
-        "solver": {"eigen": {"ncv": 800}}
+        "solver": {
+          "eigen": {
+            "ncv": 800
+          }
+        }
       }
     }
   ]

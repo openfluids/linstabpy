@@ -57,6 +57,19 @@
             "monitor": true,
             "monitor_every": 10,
             "eps_max_it": 800
+          },
+          "linsolve": {
+            "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
           }
         }
       }
@@ -69,8 +82,15 @@
       "label": "Case 2 stability fd4 nev10 ncv80 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 10},
-        "solver": {"eigen": {"ncv": 80, "eps_tol": 1e-4}}
+        "analysis": {
+          "n_modes_stability": 10
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 80,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -78,8 +98,15 @@
       "label": "Case 2 stability fd4 nev10 ncv80 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 10},
-        "solver": {"eigen": {"ncv": 80, "eps_tol": 1e-5}}
+        "analysis": {
+          "n_modes_stability": 10
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 80,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -87,8 +114,15 @@
       "label": "Case 2 stability fd4 nev10 ncv80 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 10},
-        "solver": {"eigen": {"ncv": 80, "eps_tol": 1e-6}}
+        "analysis": {
+          "n_modes_stability": 10
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 80,
+            "eps_tol": 1e-6
+          }
+        }
       }
     },
 
@@ -97,8 +131,15 @@
       "label": "Case 2 stability fd4 nev20 ncv120 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 20},
-        "solver": {"eigen": {"ncv": 120, "eps_tol": 1e-4}}
+        "analysis": {
+          "n_modes_stability": 20
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 120,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -106,8 +147,15 @@
       "label": "Case 2 stability fd4 nev20 ncv120 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 20},
-        "solver": {"eigen": {"ncv": 120, "eps_tol": 1e-5}}
+        "analysis": {
+          "n_modes_stability": 20
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 120,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -115,8 +163,15 @@
       "label": "Case 2 stability fd4 nev20 ncv120 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 20},
-        "solver": {"eigen": {"ncv": 120, "eps_tol": 1e-6}}
+        "analysis": {
+          "n_modes_stability": 20
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 120,
+            "eps_tol": 1e-6
+          }
+        }
       }
     },
 
@@ -125,8 +180,15 @@
       "label": "Case 2 stability fd4 nev50 ncv200 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 50},
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-4}}
+        "analysis": {
+          "n_modes_stability": 50
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -134,8 +196,15 @@
       "label": "Case 2 stability fd4 nev50 ncv200 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 50},
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-5}}
+        "analysis": {
+          "n_modes_stability": 50
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -143,8 +212,15 @@
       "label": "Case 2 stability fd4 nev50 ncv200 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 50},
-        "solver": {"eigen": {"ncv": 200, "eps_tol": 1e-6}}
+        "analysis": {
+          "n_modes_stability": 50
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 200,
+            "eps_tol": 1e-6
+          }
+        }
       }
     },
 
@@ -153,8 +229,15 @@
       "label": "Case 2 stability fd4 nev100 ncv300 tol1e-4",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 100},
-        "solver": {"eigen": {"ncv": 300, "eps_tol": 1e-4}}
+        "analysis": {
+          "n_modes_stability": 100
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 300,
+            "eps_tol": 1e-4
+          }
+        }
       }
     },
     {
@@ -162,8 +245,15 @@
       "label": "Case 2 stability fd4 nev100 ncv300 tol1e-5",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 100},
-        "solver": {"eigen": {"ncv": 300, "eps_tol": 1e-5}}
+        "analysis": {
+          "n_modes_stability": 100
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 300,
+            "eps_tol": 1e-5
+          }
+        }
       }
     },
     {
@@ -171,8 +261,15 @@
       "label": "Case 2 stability fd4 nev100 ncv300 tol1e-6",
       "enabled": true,
       "config_overrides": {
-        "analysis": {"n_modes_stability": 100},
-        "solver": {"eigen": {"ncv": 300, "eps_tol": 1e-6}}
+        "analysis": {
+          "n_modes_stability": 100
+        },
+        "solver": {
+          "eigen": {
+            "ncv": 300,
+            "eps_tol": 1e-6
+          }
+        }
       }
     }
   ]
