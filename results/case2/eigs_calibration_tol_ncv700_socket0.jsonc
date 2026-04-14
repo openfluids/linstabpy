@@ -1,0 +1,92 @@
+{
+  // Case 2 stability tolerance sweep at fixed ncv=700.
+  // Purpose: test whether increasing Krylov space resolves the residual floor
+  // observed in the cheaper ncv=200 runs.
+
+  "outputs": {
+    "report_json": "output/eigs_calibration_tol_ncv700_socket0/case2_eigs_calibration_tol_ncv700_latest.json",
+    "report_csv": "output/eigs_calibration_tol_ncv700_socket0/case2_eigs_calibration_tol_ncv700_table.csv",
+    "log_dir": "output/eigs_calibration_tol_ncv700_socket0/logs",
+    "run_dir": "output/eigs_calibration_tol_ncv700_socket0/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "case_workdir": ".",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 10
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "conv_test": "rel",
+            "true_residual": true,
+            "residual_error_type": "relative",
+            "extract_all_converged": true,
+            "monitor": true,
+            "monitor_every": 10,
+            "eps_max_it": 1000,
+            "ncv": 700
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "fd4_nev10_ncv700_tol1e4",
+      "label": "fd4 nev10 ncv700 tol1e-4",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {"eigen": {"eps_tol": 1e-4}}
+      }
+    },
+    {
+      "case_id": "fd4_nev10_ncv700_tol3e5",
+      "label": "fd4 nev10 ncv700 tol3e-5",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {"eigen": {"eps_tol": 3e-5}}
+      }
+    },
+    {
+      "case_id": "fd4_nev10_ncv700_tol1e5",
+      "label": "fd4 nev10 ncv700 tol1e-5",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {"eigen": {"eps_tol": 1e-5}}
+      }
+    }
+  ]
+}

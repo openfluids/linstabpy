@@ -1,0 +1,23 @@
+{
+  "base_config": "parity_config.jsonc",
+  "output_dir": "output/ncv_probe_nev50_ncv1000_tol1e6_rank20",
+  "fd_orders": [4],
+  "omega_target": null,
+  "stages": [
+    {
+      "name": "probe50_ncv1000_tol1e6_rank20",
+      "nev": 50,
+      "ncv": 1000,
+      "eps_tol": 1e-6,
+      "eps_max_it": 1200
+    }
+  ],
+  "solver": {
+    "conv_test": "rel",
+    "true_residual": true,
+    "residual_error_type": "relative",
+    "extract_all_converged": true,
+    "monitor": true,
+    "monitor_every": 10
+  }
+}

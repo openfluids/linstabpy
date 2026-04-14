@@ -1,0 +1,141 @@
+{
+  // Case 2 stability calibration, phase 1:
+  // fixed fd4 / nev10 / eps_tol=1e-4, sweep NCV on one pinned socket.
+  //
+  // Run with:
+  //   LINSTAB2D_CASE_MODULE=case2 \
+  //   LINSTAB2D_CASE1_PERF_CONFIG=results/case2/eigs_calibration_ncv_socket0.jsonc \
+  //   ../../.venv/bin/python results/case1/perf_memory.py
+
+  "outputs": {
+    "report_json": "output/eigs_calibration_ncv_socket0/case2_eigs_calibration_ncv_latest.json",
+    "report_csv": "output/eigs_calibration_ncv_socket0/case2_eigs_calibration_ncv_table.csv",
+    "log_dir": "output/eigs_calibration_ncv_socket0/logs",
+    "run_dir": "output/eigs_calibration_ncv_socket0/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "case_workdir": ".",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 10
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-4,
+            "conv_test": "rel",
+            "true_residual": true,
+            "residual_error_type": "relative",
+            "extract_all_converged": true
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv100",
+      "label": "fd4 nev10 tol1e-4 ncv100",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 100
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv200",
+      "label": "fd4 nev10 tol1e-4 ncv200",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 200
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv300",
+      "label": "fd4 nev10 tol1e-4 ncv300",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 300
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv500",
+      "label": "fd4 nev10 tol1e-4 ncv500",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 500
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv700",
+      "label": "fd4 nev10 tol1e-4 ncv700",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 700
+          }
+        }
+      }
+    },
+    {
+      "case_id": "fd4_nev10_tol1e4_ncv1000",
+      "label": "fd4 nev10 tol1e-4 ncv1000",
+      "enabled": true,
+      "config_overrides": {
+        "solver": {
+          "eigen": {
+            "ncv": 1000
+          }
+        }
+      }
+    }
+  ]
+}

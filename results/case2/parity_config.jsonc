@@ -1,0 +1,103 @@
+{
+  // Canonical Case 2 configuration.
+  // Same physics and parameters as Case 1, but using the full-resolution Case 2 baseflow.
+
+  "paths": {
+    "case_dir": "baseflow"
+  },
+
+  "physics": {
+    "Re": 395000.0,
+    "Ma": 2.0,
+    "Pr": 0.747,
+    "kappa": 1.4,
+    "T_0": 1540.0,
+    "zero_spanwise": false,
+    "use_matlab_sponge_aux": false,
+    "zero_mu_t_derivs": true
+  },
+
+  "numerics": {
+    "stride_ksi": 1,
+    "stride_eta": 1,
+    "fd_order": 4,
+    "beta": 0.0,
+    "alpha_filter": 0.0
+  },
+
+  "bc": {
+    "penalty": 1000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+      {"type": "neumann",   "borders": "b",   "variables": "T",     "exclude_corners": true},
+      {"type": "neumann",   "borders": "r",   "variables": "ruvwT", "exclude_corners": true}
+    ]
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.1,
+    "n_modes_stability": 50,
+    "n_modes_resolvent": 10,
+    "run_stability": true,
+    "run_resolvent": true,
+    "use_raw_eigs": false
+  },
+
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "eigen": {
+      // Direct shift-invert path:
+      //   ST=SINVERT, KSP=PREONLY, PC=LU, factor solver = MUMPS.
+      // In this mode the important knobs are EPS-level settings
+      // (`eps_tol`, `conv_test`, `true_residual`, `ncv`, target), not
+      // KSP iterative tolerances.
+      "st_solver": "mumps",
+      // EPS convergence threshold. This is not the same as the explicit
+      // postchecked full-operator residual used to accept returned modes.
+      "eps_tol": 1e-6,
+      "ncv": 300,
+      // EPS convergence test:
+      //   "rel" = relative to eigenvalue magnitude
+      //   "abs" = absolute
+      //   "norm" = matrix-norm-based
+      "conv_test": "rel",
+      // With shift-invert, true residuals are safer than cheap transformed
+      // residual estimates, at some extra cost.
+      "true_residual": true,
+      "residual_error_type": "relative",
+      "extract_all_converged": true
+    },
+    "resolvent": {
+      // EPS settings for the H^H W H shell eigenproblem used to extract
+      // resolvent gains and forcing/response modes.
+      "type": "mumps",
+      "eigen": {
+        // EPS convergence threshold on the shell-operator eigenproblem.
+        "eps_tol": 1e-8,
+        // Krylov subspace size for the shell-operator EPS solve. Increase this
+        // when singular values/modes are not saturating cleanly.
+        "ncv": 40,
+        // EPS convergence test on the shell-operator eigenproblem.
+        "conv_test": "rel",
+        // With shell operators and transformed residual estimates, true
+        // residuals are safer at some extra cost.
+        "true_residual": true,
+        // Maximum EPS iterations on H^H W H.
+        "eps_max_it": 1000
+      }
+    },
+    "linsolve": {
+      // Shifted linear solve used inside each resolvent shell application:
+      //   "mumps"     -> direct KSPPREONLY + PCLU + MUMPS
+      //   "iterative" -> Krylov linear solve with meaningful KSP tolerances
+      //
+      // In the direct-MUMPS path, iterative KSP tolerances are not the main
+      // accuracy knobs. The important resolvent extraction knobs are in
+      // solver.resolvent.eigen.*.
+      "type": "mumps"
+    }
+  }
+}
