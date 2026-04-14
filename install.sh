@@ -11,7 +11,12 @@ set -euo pipefail
 # Usage:
 #   bash install.sh                    # full install (no h5py by default)
 #   LINSTAB2D_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
+#   LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
+#
+# On Linux, missing system packages do not trigger sudo/package-manager calls by
+# default. The script prints the suggested commands and exits so cluster/module
+# environments can load the right toolchain first.
 #
 # If PETSc source configure fails with "Unable to run MPI program with /usr/bin/mpiexec":
 #   LINSTAB2D_PETSC_MPIEXEC=/usr/bin/mpiexec.mpich bash install.sh
@@ -253,7 +258,17 @@ linux_install_system_deps() {
         exit 1
     fi
 
-    log "Installing Linux system dependencies via ${pm}..."
+    if [ "${LINSTAB2D_AUTO_INSTALL_SYS_DEPS:-0}" != "1" ]; then
+        err "Refusing to install system packages automatically."
+        err "This is intentional so cluster/module environments do not trigger unexpected sudo/package-manager calls."
+        warn "Run 'bash diagnose.sh' first, load the required modules or install the packages manually, then re-run install.sh."
+        warn "If you really want the installer to call the package manager, re-run with LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1."
+        warn "Suggested commands:"
+        [ -n "${update_cmd}" ] && printf '  %s\n' "${update_cmd}"
+        printf '  %s\n' "${install_cmd}"
+        exit 1
+    fi
+    log "Installing Linux system dependencies via ${pm} (LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1)..."
     if [ "$(id -u)" -eq 0 ]; then
         [ -n "${update_cmd}" ] && bash -lc "${update_cmd}"
         bash -lc "${install_cmd}"
@@ -261,7 +276,7 @@ linux_install_system_deps() {
         [ -n "${update_cmd}" ] && sudo bash -lc "${update_cmd}"
         sudo bash -lc "${install_cmd}"
     else
-        err "Need root privileges to install system dependencies (sudo not found). Re-run as root."
+        err "Need root privileges to install system dependencies (sudo not found). Re-run as root or install manually."
         exit 1
     fi
 
