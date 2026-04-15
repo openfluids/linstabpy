@@ -4,17 +4,13 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
+
+from linstab2d.results_runtime import compute as _runtime_compute
+from linstab2d.results_runtime import main as _runtime_main
 
 
 SCRIPT = Path(__file__).resolve()
-CASE1_DIR = SCRIPT.parents[1] / "case1"
-if str(CASE1_DIR) not in sys.path:
-    sys.path.insert(0, str(CASE1_DIR))
-
-from case1 import compute as _case1_compute
-from case1 import main as _case1_main
 
 
 def _prepare_env() -> None:
@@ -33,13 +29,13 @@ def _prepare_env() -> None:
 def compute() -> None:
     """Run the Case 2 workflow."""
     _prepare_env()
-    _case1_compute()
+    _runtime_compute()
 
 
 def main() -> None:
     """Cache-aware entrypoint."""
     _prepare_env()
-    _case1_main()
+    _runtime_main()
 
 
 if __name__ == "__main__":

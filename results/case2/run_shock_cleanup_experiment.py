@@ -11,7 +11,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -21,11 +20,8 @@ import numpy as np
 import scipy.sparse as sp
 
 SCRIPT = Path(__file__).resolve()
-CASE1_DIR = SCRIPT.parents[1] / "case1"
-if str(CASE1_DIR) not in sys.path:
-    sys.path.insert(0, str(CASE1_DIR))
-
-from case1 import (  # type: ignore[attr-defined]
+from linstab2d.results_runtime import (
+    _effective_alpha_filter,
     _expand_reduced_modes,
     _log,
     _log_stage,
@@ -195,10 +191,11 @@ def _run_branch(
     beta = float(_cfg_get(config, "numerics.beta", 0.0))
     penalty = float(_cfg_get(config, "bc.penalty", 1e6))
     alpha_filter_raw = _cfg_get(config, "numerics.alpha_filter", 0.0)
-    try:
-        alpha_filter: float | str = float(alpha_filter_raw)
-    except (ValueError, TypeError):
-        alpha_filter = str(alpha_filter_raw).strip()
+    alpha_filter = _effective_alpha_filter(
+        alpha_filter_raw,
+        run_resolvent=run_resolvent,
+        context=name,
+    )
 
     ratio_u = float(_cfg_get(config, "analysis.ratio_uinf", 1.0))
     ratio_l = float(_cfg_get(config, "analysis.ratio_l", 0.1))
@@ -702,6 +699,40 @@ def main() -> int:
         zero_mu_t_derivs=bool(load_meta["zero_mu_t_derivs"]),
     )
 
+    if PETSc.COMM_WORLD.getRank() == 0:
+        _plot_baseflow_comparison(
+            {
+                "X": X,
+                "Y": Y,
+                "rho": raw_baseflow.RHO,
+                "u": raw_baseflow.U,
+                "v": raw_baseflow.V,
+                "w": raw_baseflow.W,
+                "T": raw_baseflow.T,
+                "sponge": raw_sponge,
+                "cleanup_summary": "disabled",
+            },
+            {
+                "X": X,
+                "Y": Y,
+                "rho": cleaned_baseflow.RHO,
+                "u": cleaned_baseflow.U,
+                "v": cleaned_baseflow.V,
+                "w": cleaned_baseflow.W,
+                "T": cleaned_baseflow.T,
+                "sponge": sponge_c,
+                "cleanup_summary": str(cleanup_info.get("summary", "disabled")),
+            },
+            fields=plot_fields,
+            output_path=output_dir / "baseflow_compare.png",
+        )
+        _plot_mask_summary(
+            X,
+            Y,
+            cleanup_info,
+            output_path=output_dir / "cleanup_mask.png",
+        )
+
     baseline_branch: dict[str, Any] | None = None
     cleaned_branch: dict[str, Any] | None = None
     if run_baseline:
@@ -769,18 +800,6 @@ def main() -> int:
             "cleanup_summary": str(cleanup_info.get("summary", "disabled")),
         }
 
-        _plot_baseflow_comparison(
-            reference_baseline,
-            reference_cleaned,
-            fields=plot_fields,
-            output_path=output_dir / "baseflow_compare.png",
-        )
-        _plot_mask_summary(
-            X,
-            Y,
-            cleanup_info,
-            output_path=output_dir / "cleanup_mask.png",
-        )
         if run_stability and baseline_branch is not None and cleaned_branch is not None:
             _plot_stability_compare(
                 baseline_branch,

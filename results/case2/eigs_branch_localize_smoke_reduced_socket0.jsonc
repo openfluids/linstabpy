@@ -1,0 +1,91 @@
+{
+  // Fastest useful reduced-grid branch-localization smoke run.
+  //
+  // Purpose:
+  // - get one completed low-resolution localization result quickly
+  // - validate the reduced workflow before increasing ncv, nev, and resolution
+  // - use a broad acceptance window now, then tighten once a pocket is identified
+
+  "outputs": {
+    "report_json": "output/eigs_branch_localize_smoke_reduced_socket0/case2_eigs_branch_localize_latest.json",
+    "report_csv": "output/eigs_branch_localize_smoke_reduced_socket0/case2_eigs_branch_localize_table.csv",
+    "log_dir": "output/eigs_branch_localize_smoke_reduced_socket0/logs",
+    "run_dir": "output/eigs_branch_localize_smoke_reduced_socket0/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "case_workdir": ".",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 2,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-4,
+            "target_distance_max": 0.5,
+            "omega_real_abs_max": 6.283185307179586,
+            "omega_imag_abs_max": 1.0
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 5e-5,
+            "conv_test": "rel",
+            "true_residual": true,
+            "residual_error_type": "relative",
+            "extract_all_converged": true,
+            "monitor": true,
+            "monitor_every": 5,
+            "eps_max_it": 200,
+            "ncv": 40
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "smoke_reduced_fd4_target_steady_m011_tol5e5_ncv40",
+      "label": "smoke reduced fd4 target 0-0.109i tol5e-5 ncv40",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.109141476955
+          }
+        }
+      }
+    }
+  ]
+}

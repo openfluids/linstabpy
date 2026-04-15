@@ -1,0 +1,78 @@
+{
+  // Fast reduced-grid shock-cleanup comparison around the current low-frequency target.
+  //
+  // Purpose:
+  // - produce before/after mean-flow plots quickly
+  // - compare low-frequency stability and resolvent changes without the full-resolution cost
+  // - validate the cleanup workflow before spending time on the full grid
+
+  "base_config": "parity_config.jsonc",
+  "output_dir": "output/shock_cleanup_experiment_lowfreq_yonly_fast",
+
+  "experiment": {
+    "run_baseline": true,
+    "run_cleaned": true,
+    "run_stability": true,
+    "run_resolvent": true,
+    "plot_fields": ["rho", "u", "v", "T"],
+    "save_mode_count": 2
+  },
+
+  "config_overrides": {
+    "numerics": {
+      "stride_ksi": 4,
+      "stride_eta": 4
+    },
+    "analysis": {
+      "omega_target": [0.0, -0.85],
+      "n_modes_stability": 4,
+      "n_modes_resolvent": 1,
+      "run_stability": true,
+      "run_resolvent": true
+    },
+    "solver": {
+      "petsc_matrix_mode": "distributed",
+      "eigen": {
+        "ncv": 80,
+        "eps_tol": 1e-5,
+        "eps_max_it": 400
+      },
+      "resolvent": {
+        "type": "mumps",
+        "eigen": {
+          "eps_tol": 1e-6,
+          "eps_max_it": 300,
+          "ncv": 30
+        }
+      },
+      "linsolve": {
+        "type": "mumps"
+      }
+    }
+  },
+
+  "shock_cleanup": {
+    "enabled": true,
+    "sensor": {
+      "enabled": true,
+      "kind": "compression_ducros",
+      "compression_threshold": -5.0,
+      "ducros_threshold": 0.9,
+      "eps": 1e-14,
+      "buffer_cells": 3,
+      "blend_sigma": 0.0
+    },
+    "filter": {
+      "enabled": true,
+      "passes": 1,
+      "directions": ["y"],
+      "fields": ["rho", "u", "v", "T"]
+    },
+    "sponge": {
+      "enabled": false,
+      "amplitude": 0.0,
+      "mode": "add",
+      "smooth_sigma": 0.0
+    }
+  }
+}

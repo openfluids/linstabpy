@@ -7,18 +7,19 @@ import copy
 import csv
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
 import numpy as np
 
 SCRIPT = Path(__file__).resolve()
-CASE1_DIR = SCRIPT.parents[1] / "case1"
-if str(CASE1_DIR) not in sys.path:
-    sys.path.insert(0, str(CASE1_DIR))
-
-from case1 import _log, _log_stage, _postcheck_stability_modes, _resolve_omega_target
+from linstab2d.results_runtime import (
+    _effective_alpha_filter,
+    _log,
+    _log_stage,
+    _postcheck_stability_modes,
+    _resolve_omega_target,
+)
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions import analyze_bc_recipe
 from linstab2d.mesh import Mesh
@@ -81,11 +82,13 @@ def _prepare_case(config: dict) -> tuple[PETSc.Mat | np.ndarray, np.ndarray, np.
     penalty = float(_cfg_get(config, "bc.penalty", 1e6))
     zero_spanwise = bool(_cfg_get(config, "physics.zero_spanwise", False))
     use_matlab_sponge_aux = bool(_cfg_get(config, "physics.use_matlab_sponge_aux", False))
+    run_resolvent = bool(_cfg_get(config, "analysis.run_resolvent", True))
     alpha_filter_raw = _cfg_get(config, "numerics.alpha_filter", 0.0)
-    try:
-        alpha_filter: float | str = float(alpha_filter_raw)
-    except (ValueError, TypeError):
-        alpha_filter = str(alpha_filter_raw).strip()
+    alpha_filter = _effective_alpha_filter(
+        alpha_filter_raw,
+        run_resolvent=run_resolvent,
+        context="case2-ncv",
+    )
     zero_mu_t_derivs = bool(_cfg_get(config, "physics.zero_mu_t_derivs", True))
     ratio_u = float(_cfg_get(config, "analysis.ratio_uinf", 1.0))
     ratio_l = float(_cfg_get(config, "analysis.ratio_l", 0.1))
