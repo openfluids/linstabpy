@@ -1,5 +1,18 @@
 # Case 2 EVP-First Campaign
 
+## Comece Aqui
+
+Se a sua dúvida é operacional, e não científica, comece por:
+
+- [tutorial.md](tutorial.md)
+
+Ele explica:
+
+- como rodar **um caso só**
+- como rodar **uma campanha**
+- como usar MPI corretamente
+- quais arquivos criar e editar
+
 ## Objective
 
 Reset `results/case2` around one clear goal:
@@ -83,6 +96,31 @@ Historical configs, scripts, and plots live under:
 - `results/case2/legacy/`
 
 They are kept for evidence, but they are intentionally out of the active path.
+
+## Artifact Layout
+
+Each active campaign should save into one directory under:
+
+- `results/case2/output/<campaign_name>/`
+
+Within that campaign directory, keep the layout stable:
+
+- `runs/`
+  - one `.npz` per completed run
+  - one `.config.json` snapshot beside each `.npz`
+- `logs/`
+  - one text log per run
+- `plots/spectra/`
+  - campaign-level spectral overlays
+- `plots/modes/<run_name>/`
+  - per-run mode figures, one PNG per saved eigenmode
+- top-level campaign summaries
+  - latest JSON table
+  - CSV summary table
+  - queue log and queue exit code when the harness is used
+
+This separation matters once we start comparing stride 4, 2, and 1, because
+flat plot directories become unreadable very quickly.
 
 ## First Execution Order
 
@@ -194,6 +232,20 @@ Queued matrix run through the shared campaign harness:
 ```bash
 LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride4_localize.jsonc \
 ./.venv/bin/python results/case2/perf_memory.py
+```
+
+Plot the saved spectrum overlay for one campaign:
+
+```bash
+./.venv/bin/python results/case2/plot_saved_spectra.py \
+  --run-dir results/case2/output/evp_stride4_localize/runs
+```
+
+Plot all saved modes for one campaign:
+
+```bash
+./.venv/bin/python results/case2/plot_saved_modes.py \
+  --run-dir results/case2/output/evp_stride4_localize/runs
 ```
 
 ## Delete Policy

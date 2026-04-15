@@ -7,65 +7,99 @@
   //   ../../.venv/bin/python results/case2/perf_memory.py
 
   "outputs": {
+    // Summary JSON rewritten by the harness after each completed case.
     "report_json": "output/evp_stride4_localize/case2_evp_stride4_localize_latest.json",
+    // Flat table used for quick comparisons across cases.
     "report_csv": "output/evp_stride4_localize/case2_evp_stride4_localize_table.csv",
+    // One text log per launched case.
     "log_dir": "output/evp_stride4_localize/logs",
+    // One NPZ + config snapshot per completed case.
     "run_dir": "output/evp_stride4_localize/runs"
   },
 
   "defaults": {
+    // Base runtime config. Campaign cases override pieces of this file.
     "base_config": "parity_config.jsonc",
+    // Directory where relative paths inside this campaign are resolved.
     "case_workdir": ".",
+    // Sampling period for the perf/memory harness process monitor.
     "monitor_interval_seconds": 0.5,
+    // Explicit interpreter to avoid PATH drift.
     "python_exe": "../../.venv/bin/python",
     "env": {
+      // Keep one BLAS/OpenMP thread per MPI rank.
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",
       "MKL_NUM_THREADS": "1",
       "NUMEXPR_NUM_THREADS": "1"
     },
     "launcher": {
+      // Ten ranks pinned to one socket for reproducible EVP timing.
       "mpi_procs": 10,
+      // Rankfile keeps CPU placement stable across runs.
       "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/results/case2/socket0.rankfile --bind-to core"
     },
     "case_defaults": {
       "config_overrides": {
         "numerics": {
+          // Mesh decimation in computational ksi/eta coordinates.
           "stride_ksi": 4,
           "stride_eta": 4,
+          // Finite-difference order used for all derivative operators.
           "fd_order": 4,
+          // Spanwise wavenumber beta. beta=0 means spanwise-uniform perturbations.
           "beta": 0.0,
+          // Explicitly disable the mesh filter for this EVP-only localization study.
           "alpha_filter": "none"
         },
         "analysis": {
+          // Non-dimensionalization factors carried over from the base config.
           "ratio_uinf": 1.0,
           "ratio_l": 0.1,
+          // Strouhal number used elsewhere in the workflow; kept fixed here.
           "St": 0.1,
+          // Enable temporal EVP.
           "run_stability": true,
+          // Disable resolvent; this campaign is EVP only.
           "run_resolvent": false,
+          // Number of temporal eigenpairs requested from SLEPc.
           "n_modes_stability": 2,
           "stability_acceptance": {
+            // Explicit postcheck residual gate on returned modes.
             "postcheck_rel_max": 1e-4,
+            // Maximum distance from omega_target for a mode to count as accepted.
             "target_distance_max": 0.5,
+            // Spectral box used to reject obviously irrelevant modes.
             "omega_real_abs_max": 6.283185307179586,
             "omega_imag_abs_max": 1.0
           }
         },
         "solver": {
+          // Assemble the EVP operator directly as a distributed PETSc matrix.
           "petsc_matrix_mode": "distributed",
           "eigen": {
+            // Shift-invert linear solves inside EPS use direct LU with MUMPS.
             "st_solver": "mumps",
+            // EPS convergence tolerance for the requested eigenpairs.
             "eps_tol": 5e-5,
+            // Use SLEPc's relative convergence test.
             "conv_test": "rel",
+            // Also ask SLEPc to compute true residuals, not only estimates.
             "true_residual": true,
+            // Report relative residuals in the saved metadata.
             "residual_error_type": "relative",
+            // Save every converged pair, not only the first nev slots.
             "extract_all_converged": true,
+            // Emit periodic EPS monitor lines to the case log.
             "monitor": true,
             "monitor_every": 5,
+            // Safety cap on the number of EPS outer iterations.
             "eps_max_it": 200,
+            // Arnoldi/Krylov subspace size.
             "ncv": 40
           },
           "linsolve": {
+            // Linear solve backend used outside EPS where relevant.
             "type": "mumps"
           }
         }
@@ -75,11 +109,16 @@
 
   "cases": [
     {
+      // Stable identifier used by the harness in filenames and tables.
       "case_id": "target_steady_m011",
+      // Human-readable description for logs and CSV summaries.
       "label": "stride4 target 0-0.109i",
+      // Toggle this case without deleting it from the matrix.
       "enabled": true,
       "config_overrides": {
         "analysis": {
+          // Martini convention: real = oscillation frequency omega_r,
+          // imag = growth/decay rate omega_i.
           "omega_target": {
             "real": 0.0,
             "imag": -0.109141476955
@@ -93,6 +132,7 @@
       "enabled": true,
       "config_overrides": {
         "analysis": {
+          // Search centre for the shift-invert EVP, not an imposed answer.
           "omega_target": {
             "real": 0.0,
             "imag": -0.704804200672
@@ -106,6 +146,7 @@
       "enabled": true,
       "config_overrides": {
         "analysis": {
+          // Legacy "box" point inherited from earlier target-localization scans.
           "omega_target": {
             "real": 0.325638043091,
             "imag": -0.291981984069
@@ -119,6 +160,7 @@
       "enabled": true,
       "config_overrides": {
         "analysis": {
+          // Another inherited target point inside the old localization box.
           "omega_target": {
             "real": 0.595547134892,
             "imag": -0.428743456273

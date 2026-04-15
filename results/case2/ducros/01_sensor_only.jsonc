@@ -1,0 +1,80 @@
+{
+  // Etapa 1 do tutorial Ducros: só o sensor, sem filtro e sem sponge.
+  // Objetivo: gerar cleanup_mask.png rápido pra calibrar ducros_threshold
+  // e compression_threshold visualmente, ANTES de ativar o filtro.
+  //
+  // Nessa etapa não rodamos EVP nem resolvent. O objetivo é só inspecionar
+  // cleanup_mask.png e baseflow_compare.png com custo mínimo.
+  //
+  // Rodar:
+  //   bash results/case2/ducros/run.sh results/case2/ducros/01_sensor_only.jsonc
+
+  "base_config": "../parity_config.jsonc",
+  // output_dir is resolved by the runner relative to legacy/, so "../ducros/..."
+  // lands inside results/case2/ducros/output/.
+  "output_dir": "../ducros/output/01_sensor_only",
+
+  "experiment": {
+    "run_baseline": false,
+    "run_cleaned": false,
+    "run_stability": false,
+    "run_resolvent": false,
+    "plot_fields": ["rho", "u", "v", "T"],
+    "save_mode_count": 3
+  },
+
+  "config_overrides": {
+    "paths": {
+      // load_hamada_case is resolved by the legacy runner relative to legacy/,
+      // so "../baseflow" lands in results/case2/baseflow.
+      "case_dir": "../baseflow"
+    },
+    "numerics": {
+      "stride_ksi": 4,
+      "stride_eta": 4
+    },
+    "analysis": {
+      "n_modes_stability": 4,
+      "run_stability": false,
+      "run_resolvent": false
+    },
+    "solver": {
+      "eigen": {
+        "ncv": 30,
+        "eps_tol": 1e-5
+      },
+      "linsolve": {
+        "type": "mumps"
+      }
+    }
+  },
+
+  "shock_cleanup": {
+    "enabled": true,
+    "sensor": {
+      "enabled": true,
+      "kind": "compression_ducros",
+      // Comece com -1.0 (desligado) e só ligue compression_threshold depois
+      // de ver o mask sozinho com Ducros. Valores típicos quando ativar: -3.0 a -5.0.
+      "compression_threshold": -1.0,
+      // Default agressivo. Suba pra 0.97 se a máscara pegar cisalhamento.
+      "ducros_threshold": 0.9,
+      "eps": 1e-14,
+      "buffer_cells": 3,
+      "blend_sigma": 0.0
+    },
+    "filter": {
+      // Desligado nessa etapa.
+      "enabled": false,
+      "passes": 1,
+      "directions": ["x", "y"],
+      "fields": ["rho", "u", "v", "T"]
+    },
+    "sponge": {
+      "enabled": false,
+      "amplitude": 0.0,
+      "mode": "add",
+      "smooth_sigma": 0.0
+    }
+  }
+}
