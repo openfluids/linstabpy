@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Case 2 runner reusing the Case 1 SWBLI pipeline on the finer baseflow."""
+"""Case 2 wrapper over the shared results runtime."""
 
 from __future__ import annotations
 
@@ -14,16 +14,14 @@ SCRIPT = Path(__file__).resolve()
 
 
 def _prepare_env() -> None:
-    """Map Case 2 defaults onto the existing Case 1 runtime knobs."""
+    """Install Case 2 defaults expected by the shared runtime."""
+    config_path = os.getenv("LINSTAB2D_CASE2_CONFIG", str(SCRIPT.parent / "parity_config.jsonc"))
+    output_npz = os.getenv("LINSTAB2D_CASE2_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz")))
     os.environ.setdefault("LINSTAB2D_CASE_LOG_PREFIX", "case2")
-    os.environ.setdefault(
-        "LINSTAB2D_CASE1_CONFIG",
-        os.getenv("LINSTAB2D_CASE2_CONFIG", str(SCRIPT.parent / "parity_config.jsonc")),
-    )
-    os.environ.setdefault(
-        "LINSTAB2D_CASE1_OUTPUT_NPZ",
-        os.getenv("LINSTAB2D_CASE2_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz"))),
-    )
+    os.environ.setdefault("LINSTAB2D_CASE2_CONFIG", config_path)
+    os.environ.setdefault("LINSTAB2D_CASE2_OUTPUT_NPZ", output_npz)
+    os.environ.setdefault("LINSTAB2D_CASE_CONFIG", config_path)
+    os.environ.setdefault("LINSTAB2D_CASE_OUTPUT_NPZ", output_npz)
 
 
 def compute() -> None:

@@ -1,7 +1,7 @@
 {
   // Case 2 stability queue pinned to socket 0 physical cores (CPUs 0-9).
   // Run with:
-  //   LINSTAB2D_CASE_MODULE=case2 LINSTAB2D_CASE1_PERF_CONFIG=results/case2/perf_memory_cases_stability_socket0.jsonc ../../.venv/bin/python results/case1/perf_memory.py
+  //   LINSTAB2D_CASE_MODULE=case2 LINSTAB2D_CASE2_PERF_CONFIG=results/case2/perf_memory_cases_stability_socket0.jsonc ../../.venv/bin/python results/case2/perf_memory.py
 
   "outputs": {
     "report_json": "output/stability_socket0/case2_perf_memory_latest.json",

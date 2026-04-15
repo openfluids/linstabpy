@@ -5,8 +5,8 @@
   //
   // Run with:
   //   LINSTAB2D_CASE_MODULE=case2 \
-  //   LINSTAB2D_CASE1_PERF_CONFIG=results/case2/eigs_convergence_cases.jsonc \
-  //   ../../.venv/bin/python results/case1/perf_memory.py
+  //   LINSTAB2D_CASE2_PERF_CONFIG=results/case2/eigs_convergence_cases.jsonc \
+  //   ../../.venv/bin/python results/case2/perf_memory.py
 
   "outputs": {
     "report_json": "output/eigs_convergence/case2_eigs_convergence_latest.json",

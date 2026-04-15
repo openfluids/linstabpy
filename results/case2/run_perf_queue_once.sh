@@ -12,14 +12,14 @@ CASE_MODULE="${3:-case2}"
 
 ROOT="/home/ghamada/linstabpy"
 PYTHON_EXE="$ROOT/.venv/bin/python"
-HARNESS="$ROOT/results/case1/perf_memory.py"
+HARNESS="$ROOT/results/case2/perf_memory.py"
 EXIT_FILE="$OUTPUT_DIR/queue_exit_code.txt"
 
 mkdir -p "$OUTPUT_DIR"
 rm -f "$EXIT_FILE"
 
 export LINSTAB2D_CASE_MODULE="$CASE_MODULE"
-export LINSTAB2D_CASE1_PERF_CONFIG="$CONFIG_JSONC"
+export LINSTAB2D_CASE2_PERF_CONFIG="$CONFIG_JSONC"
 
 set +e
 "$PYTHON_EXE" "$HARNESS"

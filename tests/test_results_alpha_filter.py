@@ -11,8 +11,8 @@ from linstab2d import results_runtime
 
 
 ROOT = Path(__file__).resolve().parent.parent
-NCV_PATH = ROOT / "results" / "case2" / "run_ncv_milestones.py"
-SHOCK_PATH = ROOT / "results" / "case2" / "run_shock_cleanup_experiment.py"
+NCV_PATH = ROOT / "results" / "case2" / "legacy" / "run_ncv_milestones.py"
+SHOCK_PATH = ROOT / "results" / "case2" / "legacy" / "run_shock_cleanup_experiment.py"
 
 
 def _load_module(path: Path, name: str):

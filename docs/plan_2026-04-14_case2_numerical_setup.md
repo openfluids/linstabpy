@@ -1,138 +1,348 @@
-# Case 2 Numerical-Setup Plan
+# Case 2 EVP-First Numerical-Setup Plan
 
-Date: 2026-04-14
+Date: 2026-04-15
 
 ## Purpose
 
-Build an evidence-backed numerical setup guide for Case 2.
+Build a publication-quality Case 2 workflow around the temporal EVP before
+touching resolvent.
 
-This plan does not assume we already know the best settings. It treats the
-current configuration as a baseline to test, not as a recommendation to
-publish.
+The core requirement is stronger than "the solver runs":
 
-## Fixed Baseline
+- for a fixed `stride`, the accepted EVP spectrum must be insensitive to the
+  main SLEPc/PETSc parameters
 
-Keep these choices fixed until the solver-calibration phases are complete:
+Only after that is shown do we study:
 
-- Case: `results/case2/parity_config.jsonc`
-- Baseflow: Case 2 full-resolution baseflow
-- MPI layout: 10 ranks pinned to one physical socket
-- Threads: `OMP_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1`, `MKL_NUM_THREADS=1`
-- Operator path: distributed PETSc matrix assembly
-- Temporal EVP: SLEPc EPS Krylov-Schur + shift-invert
-- Shifted linear solves: direct LU with MUMPS
-- BC recipe: no-corner Neumann recipe already validated against the earlier bug
-- Physics knobs held fixed for solver calibration:
-  - `fd_order = 4`
-  - `alpha_filter = 0.0`
-  - current Case 2 sponge path from the baseline config
+- filter sensitivity
+- Ducros or shock-cleanup sensitivity
+- higher resolution through smaller `stride`
 
-## Questions To Answer
+## Publication Standard
 
-1. How large does `ncv` need to be before the accepted spectrum saturates?
-2. How much does tightening `eps_tol` improve explicit postchecked residuals?
-3. For a fixed accepted-quality target, what is the cheapest working setup?
-4. Once the small-`nev` problem is stable, how far can we increase `nev`
-   before cost becomes unacceptable?
-5. After the solver is calibrated on one socket, how much do rank placement
-   and rank count change runtime and memory?
-6. Only after the solver setup is stable: how sensitive are the spectra to
-   `fd_order`, filtering, and sponge choices?
+For each `stride`, the workflow must answer this sequence in order:
+
+1. Can we identify the relevant spectral pocket reliably?
+2. Is the accepted spectrum insensitive to the main solver knobs?
+3. Once the solver is converged, how sensitive is the spectrum to filter and
+   shock-capturing choices?
+4. Only then: what changes when we move to a finer mesh?
+
+This means:
+
+- first `stride = 4`
+- then `stride = 2`
+- then `stride = 1`
+
+We do not promote the resolution until the lower-resolution case is already
+understood.
+
+## Scope
+
+Active scope now:
+
+- temporal EVP only
+- distributed PETSc operator assembly
+- SLEPc EPS shift-invert eigensolves
+
+Frozen for later:
+
+- resolvent runs
+- mixed stability+resolvent campaigns
+- shock-cleanup experiments as a default workflow
+
+## Fixed Baseline Per Stride
+
+Until a stride is declared solver-converged, keep these choices fixed:
+
+- Case: `results/case2/baseflow`
+- `run_stability = true`
+- `run_resolvent = false`
+- `fd_order = 4`
+- `beta = 0.0`
+- `alpha_filter = "none"` for EVP-only studies
+- shock cleanup disabled
+- one physical socket, 10 MPI ranks
+- `petsc_matrix_mode = distributed`
+- direct shift-invert with MUMPS
+- current BC recipe from `results/case2/parity_config.jsonc`
+
+Important note:
+
+- historical configs often store `alpha_filter = 0.0`
+- the runtime now overrides that to `"none"` when `run_resolvent = false`
+- for new EVP-only studies, write `"none"` explicitly to avoid ambiguity
+
+## Open Interpretation Risk
+
+`beta` is not yet fully documented in the Python-facing Case 2 workflow.
+
+Current code path:
+
+- Case 2 configs expose `numerics.beta`
+- the runtime passes that value into `build_lnse_system(..., kx=beta, ...)`
+- the continuous equations and literature notation suggest `beta` is the
+  spanwise wavenumber
+
+So the action item is:
+
+- verify the exact meaning of `beta` in the current implementation before any
+  publication-facing `beta` sweep
+
+Until then:
+
+- keep `beta = 0.0` in the baseline
 
 ## Acceptance Metrics
 
-Every run must record the same metrics:
+Every EVP run must record:
 
 - wall time
 - peak RSS
-- MPI rank count and launch layout
+- stage timings
+- `stride`
+- `fd_order`
+- `beta`
 - requested `nev`
+- used `ncv`
+- `eps_tol`
+- `conv_test`
+- `true_residual`
 - actual `nconv`
-- EPS relative residual counts
-- explicit postcheck residual counts
-- median and max explicit postcheck residual
-- BC leakage diagnostics
+- explicit postcheck residuals
+- target-distance diagnostics
+- accepted-mode counts
+- saved eigenvalue spectrum artifact
 
-The setup guide should quote only metrics measured from these outputs.
+Do not use `nconv` as the acceptance criterion by itself.
+
+## What "Solver-Converged" Means
+
+For one fixed `stride`, we declare the EVP setup solver-converged only when:
+
+- the same spectral pocket is found across the useful solver settings
+- the leading accepted eigenvalues stop moving in a material way when `ncv`
+  and `eps_tol` are tightened
+- accepted-mode counts stop changing materially across the useful solver range
+- explicit postcheck residuals are below the agreed quality gate
+- runtime may still change, but the accepted spectrum should not
+
+The exact numeric thresholds should be recorded in the campaign summary for
+each stride, but the qualitative rule is:
+
+- solver knobs may change cost
+- they must not change the published physics conclusion
 
 ## Phase Order
 
-### Phase 1: `ncv` sweep at fixed `nev`
+### Phase 0: Inventory and freeze
 
-Goal: find the useful Krylov-basis range without changing any other knob.
+Goal:
 
-Status:
-- already completed for `nev = 10`, `eps_tol = 1e-4`
-- output:
-  - `results/case2/output/eigs_calibration_ncv_socket0/case2_eigs_calibration_ncv_table.csv`
+- simplify the campaign before launching more jobs
 
-Current evidence:
-- `ncv = 200` is much cheaper than `700` and already gives median explicit
-  postcheck residual around `8.5e-6`
-- `ncv = 700` is slightly better on median residual, but much more expensive
-- `ncv = 1000` is not currently justified by quality gain
+Actions:
 
-Working conclusion:
-- the next phase should focus on `ncv = 200` and `ncv = 700`
+- mark EVP as the only active path
+- freeze resolvent and shock-cleanup studies
+- keep legacy files for evidence, but do not schedule new runs from them
+- document the active path in `results/case2/README.md`
 
-### Phase 2: tolerance sweep at fixed `nev = 10`
+Exit condition:
 
-Goal: determine whether tighter `eps_tol` actually improves explicit
-postchecked residuals or only increases cost.
+- everyone can identify which files are active, frozen, or legacy
 
-Run matrix:
-- `ncv = 200`, `eps_tol = 1e-4, 3e-5, 1e-5, 3e-6, 1e-6`
-- `ncv = 700`, `eps_tol = 1e-4, 3e-5, 1e-5, 3e-6, 1e-6`
+### Phase 1: Stride-4 branch localization
 
-Decision rule:
-- if tighter tolerance does not materially improve explicit postcheck
-  residuals, do not keep paying for it
+Goal:
 
-### Phase 3: `nev` growth at the best solver point
+- find a trustworthy spectral pocket cheaply before large sweeps
 
-Goal: increase requested eigenpairs only after the per-mode setup is stable.
+Rules:
 
-Planned ladder:
-- `nev = 10, 20, 50, 100`
+- keep `fd_order = 4`, `beta = 0.0`, filter off, shock cleanup off
+- use small `nev`
+- use a broad but explicit acceptance window
 
-Rule:
-- choose `ncv` from Phase 2, then scale `ncv` with `nev` conservatively
-- stop increasing `nev` when accepted-mode quality degrades or cost explodes
+Questions answered here:
 
-### Phase 4: MPI placement and rank-count study
+- which target pocket should the solver chase at stride 4
+- are there multiple candidate pockets worth following
 
-Goal: separate numerical convergence from hardware-launch effects.
+Exit condition:
 
-Planned comparisons:
-- 1 socket, 10 ranks
-- 2 sockets, 20 ranks
-- optional 1 rank reference only if cost is reasonable
+- one target region is selected for the stride-4 convergence study
 
-Measure:
-- wall time
-- peak memory
-- accepted-mode counts at the same numerical setup
+### Phase 2: Stride-4 PETSc/SLEPc insensitivity study
 
-### Phase 5: physics/discretization sensitivity
+Goal:
 
-Goal: once the solver is stable, test the physical discretization knobs.
+- show that the stride-4 EVP is not sensitive to the main solver knobs
 
-Planned comparisons:
-- `fd_order = 4, 6, 8`
-- filter choices as needed
-- sponge sensitivity only after the solver setup is no longer the dominant
-  uncertainty
+Subphase 2A: `ncv` sweep
+
+- fix target pocket
+- fix small `nev`
+- vary `ncv`
+
+Decision:
+
+- identify the smallest `ncv` range that stabilizes the accepted spectrum
+
+Subphase 2B: `eps_tol` sweep
+
+- hold target and `nev` fixed
+- sweep `eps_tol` over a practical range
+
+Decision:
+
+- identify the cheapest tolerance that does not move the accepted spectrum
+
+Subphase 2C: `nev` growth
+
+- increase `nev` only after `ncv` and `eps_tol` are stable
+
+Decision:
+
+- determine how far the eigensolve can grow before accepted quality degrades or
+  cost becomes unreasonable
+
+Subphase 2D: ambiguity breakers
+
+Only if the spectrum still changes materially:
+
+- compare `conv_test = rel|abs|norm`
+- compare `true_residual = true|false`
+- check `eps_max_it` only if there is evidence of iteration truncation
+
+Exit condition:
+
+- stride 4 has a solver setup that is publication-safe
+
+### Phase 3: Stride-4 physical and numerical sensitivity
+
+Goal:
+
+- once solver uncertainty is removed, test the non-solver knobs
+
+Order:
+
+1. filter sensitivity
+2. shock-cleanup or Ducros sensitivity
+3. `beta` sensitivity
+
+Rules:
+
+- vary one family at a time
+- keep the solver setup fixed from Phase 2
+- compare spectra against the stride-4 converged baseline
+
+Questions answered here:
+
+- does the filter materially change the accepted spectrum
+- does Ducros or shock cleanup materially change the accepted spectrum
+- how sensitive is the spectrum to `beta`
+
+Exit condition:
+
+- stride 4 has both a converged solver setup and a documented sensitivity map
+
+### Phase 4: Promote to stride 2
+
+Goal:
+
+- repeat the same logic on a finer grid
+
+Rules:
+
+- start from the stride-4 winner, not from scratch
+- keep filter off and shock cleanup off initially
+- rerun branch localization only if the target pocket moved
+
+Required order:
+
+1. target confirmation
+2. solver-insensitivity check
+3. filter sensitivity
+4. Ducros sensitivity
+
+Exit condition:
+
+- stride 2 reaches the same level of confidence already achieved at stride 4
+
+### Phase 5: Promote to stride 1
+
+Goal:
+
+- confirm the final high-resolution spectrum
+
+Rules:
+
+- only carry the narrowed settings from stride 2
+- do not reopen broad solver sweeps unless the spectrum changes materially
+
+Required order:
+
+1. target confirmation
+2. solver-insensitivity check
+3. filter sensitivity
+4. Ducros sensitivity
+
+Exit condition:
+
+- stride 1 is good enough to support publication claims
+
+### Phase 6: Resolvent
+
+Goal:
+
+- return to resolvent only after the EVP path is understood
+
+At that point:
+
+- revisit mesh filtering in resolvent mode
+- revisit shock cleanup if it still matters
+- compare resolvent conclusions against the already-converged EVP baseline
+
+## Recommended Campaign Matrix
+
+For each stride:
+
+1. localization run
+2. `ncv` sweep at fixed low `nev`
+3. `eps_tol` sweep at the useful `ncv`
+4. `nev` growth at the chosen solver point
+5. filter sensitivity
+6. Ducros sensitivity
+7. `beta` sensitivity
+
+That matrix is the minimum needed to defend non-sensitivity claims.
+
+## Delete Policy
+
+Do not delete the legacy files yet.
+
+First:
+
+- complete the EVP-first reset
+- identify the active config set
+- get one stride-4 converged story
+
+After that:
+
+- archive or delete the legacy mixed-study files with much less risk
 
 ## Deliverables
 
-The final `docs/numerical_setup.md` should contain only:
+The Case 2 campaign is only complete when we have:
 
-- solver facts we know from the code
-- defaults supported by measured runs
-- open questions still under test
+- one clear README for the case
+- one documented active EVP path
+- one converged stride-4 story
+- one converged stride-2 story
+- one converged stride-1 story
+- a justified statement about filter sensitivity
+- a justified statement about Ducros or shock-cleanup sensitivity
+- a justified statement about solver non-sensitivity
 
-It should not present guesses as recommendations.
-
-Current note:
-- a provisional `docs/numerical_setup.md` draft has already been created to
-  capture the durable, atemporal guidance before it is forgotten
+Only then should the results be treated as publication-ready.

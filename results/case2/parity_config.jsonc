@@ -1,6 +1,6 @@
 {
   // Canonical Case 2 configuration.
-  // Same physics and parameters as Case 1, but using the full-resolution Case 2 baseflow.
+  // Full-resolution Case 2 baseflow with the current standalone Case 2 defaults.
 
   "paths": {
     "case_dir": "baseflow"
