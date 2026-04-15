@@ -52,43 +52,66 @@ err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
 ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-# Print a directory containing libmpi.so* (Open MPI / MPICH) or return non-zero.
+# Print a directory containing libmpi.so* / libmpich.so* (Open MPI, MPICH, Intel MPI)
+# or return non-zero.
 linstab2d_resolve_mpi_libdir() {
     local mpicc_bin=""
     local d=""
     local so=""
+    # libmpi.so* covers Open MPI and Intel MPI; libmpich.so* covers MPICH on Debian/Ubuntu.
+    local _has_mpi_so='ls "${1}"/libmpi.so* >/dev/null 2>&1 || ls "${1}"/libmpich.so* >/dev/null 2>&1'
+    _dir_has_mpi_so() { ls "${1}"/libmpi.so* >/dev/null 2>&1 || ls "${1}"/libmpich.so* >/dev/null 2>&1; }
     if [ -x /usr/bin/mpicc ]; then
         mpicc_bin="/usr/bin/mpicc"
     elif has_cmd mpicc; then
         mpicc_bin="$(command -v mpicc)"
     fi
     if [ -n "${mpicc_bin}" ]; then
+        # Open MPI: --showme:libdir / --showme:link
         d="$("${mpicc_bin}" --showme:libdir 2>/dev/null || true)"
         if [ -z "${d}" ] || [ ! -d "${d}" ]; then
             d="$("${mpicc_bin}" --showme:link 2>/dev/null | tr ' ' '\n' | awk '/^-L/{print substr($0,3); exit}')"
         fi
+        # MPICH / Intel MPI: -show (returns the underlying cc line with -L<dir>)
         if [ -z "${d}" ] || [ ! -d "${d}" ]; then
             d="$("${mpicc_bin}" -show 2>/dev/null | tr ' ' '\n' | awk '/^-L/{print substr($0,3); exit}')"
         fi
+        # MPICH: -compile-info / -link-info
+        if [ -z "${d}" ] || [ ! -d "${d}" ]; then
+            d="$("${mpicc_bin}" -link-info 2>/dev/null | tr ' ' '\n' | awk '/^-L/{print substr($0,3); exit}')"
+        fi
         d="$(printf '%s\n' "${d}" | sed -e 's|///*|/|g' -e 's|/$||')"
-        if [ -n "${d}" ] && [ -d "${d}" ] && ls "${d}"/libmpi.so* >/dev/null 2>&1; then
+        if [ -n "${d}" ] && [ -d "${d}" ] && _dir_has_mpi_so "${d}"; then
             printf '%s\n' "${d}"
             return 0
         fi
     fi
+    # Common install locations (Open MPI, MPICH, Intel oneAPI MPI).
     for _cand in \
         /usr/lib/x86_64-linux-gnu/openmpi/lib \
         /usr/lib/x86_64-linux-gnu \
         /usr/lib64/openmpi/lib \
-        /usr/lib/openmpi/lib
+        /usr/lib/openmpi/lib \
+        /usr/lib/x86_64-linux-gnu/mpich \
+        /usr/lib64/mpich/lib \
+        /usr/lib/mpich/lib \
+        /opt/intel/oneapi/mpi/latest/lib \
+        /opt/intel/oneapi/mpi/latest/lib/release
     do
-        if [ -d "${_cand}" ] && ls "${_cand}"/libmpi.so* >/dev/null 2>&1; then
+        if [ -d "${_cand}" ] && _dir_has_mpi_so "${_cand}"; then
+            printf '%s\n' "${_cand}"
+            return 0
+        fi
+    done
+    # Intel oneAPI: glob versioned dirs as a last resort.
+    for _cand in /opt/intel/oneapi/mpi/*/lib /opt/intel/oneapi/mpi/*/lib/release; do
+        if [ -d "${_cand}" ] && _dir_has_mpi_so "${_cand}"; then
             printf '%s\n' "${_cand}"
             return 0
         fi
     done
     if has_cmd ldconfig; then
-        so="$(ldconfig -p 2>/dev/null | awk '/libmpi\.so\.[0-9]/{print $NF; exit}')"
+        so="$(ldconfig -p 2>/dev/null | awk '/lib(mpi|mpich)\.so\.[0-9]/{print $NF; exit}')"
         if [ -n "${so}" ] && [ -f "${so}" ]; then
             d="$(dirname "${so}")"
             d="$(printf '%s\n' "${d}" | sed -e 's|///*|/|g' -e 's|/$||')"
@@ -97,6 +120,23 @@ linstab2d_resolve_mpi_libdir() {
         fi
     fi
     return 1
+}
+
+# Run the verify Python snippet, filtering benign Hydra "cmd=finalize / Bad file
+# descriptor" chatter that MPICH prints after the child process exits. Any other
+# stderr output is forwarded untouched. Preserves the child's exit code.
+#
+# Usage: linstab2d_run_verify <py_bin> <heredoc_path>
+linstab2d_run_verify() {
+    local py_bin="$1"; shift
+    local snippet_file="$1"; shift
+    local _err _rc
+    _err="$(mktemp)"
+    "${LINSTAB_VERIFY_MPIWRAP[@]}" "${py_bin}" "${snippet_file}" 2>"${_err}"
+    _rc=$?
+    grep -v -E '^\[cli_[0-9]+\]: write_line error|^system msg for write_line failure|^:cmd=finalize$|^:$' "${_err}" >&2 || true
+    rm -f "${_err}"
+    return "${_rc}"
 }
 
 ensure_reference_submodule() {
@@ -524,7 +564,8 @@ if [[ "${1:-}" == "--check" ]]; then
         exit 1
     fi
     linstab2d_prepare_verify_mpiwrap
-    "${LINSTAB_VERIFY_MPIWRAP[@]}" "${VENV_DIR}/bin/python" - <<'PY'
+    _check_snippet="$(mktemp --suffix=.py)"
+    cat >"${_check_snippet}" <<'PY'
 import sys, numpy as np
 # mpi4py must bind MPI before petsc4py (same rule as linstab2d.utils.petsc_init).
 import mpi4py.MPI  # noqa: F401
@@ -539,7 +580,10 @@ print(f"petsc4py={'.'.join(map(str,PETSc.Sys.getVersion()))}, scalar={scalar}")
 print(f"slepc4py={'.'.join(map(str,SLEPc.Sys.getVersion()))}")
 print("All checks passed.")
 PY
-    exit $?
+    linstab2d_run_verify "${VENV_DIR}/bin/python" "${_check_snippet}"
+    _check_rc=$?
+    rm -f "${_check_snippet}"
+    exit "${_check_rc}"
 fi
 
 log "Detected OS: ${OS_NAME}"
@@ -869,7 +913,8 @@ if [[ "${LINSTAB2D_INSTALL_SKIP_VERIFY:-0}" = "1" ]]; then
 else
 log "Verifying installation..."
 linstab2d_prepare_verify_mpiwrap
-"${LINSTAB_VERIFY_MPIWRAP[@]}" "${PY_BIN}" - <<'PY'
+_verify_snippet="$(mktemp --suffix=.py)"
+cat >"${_verify_snippet}" <<'PY'
 import sys
 import numpy as np
 import scipy
@@ -906,6 +951,13 @@ print(f"  linstab2d    = {linstab2d.__version__}", flush=True)
 print()
 print("  All checks passed.", flush=True)
 PY
+linstab2d_run_verify "${PY_BIN}" "${_verify_snippet}"
+_verify_rc=$?
+rm -f "${_verify_snippet}"
+if [ "${_verify_rc}" -ne 0 ]; then
+    err "Verification failed (exit ${_verify_rc})."
+    exit "${_verify_rc}"
+fi
 fi
 
 echo
