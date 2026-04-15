@@ -7,12 +7,23 @@ Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+import logging
+import os
+import resource
+import sys
+import time
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Iterator
 
 import numpy as np
 import scipy.sparse as sp
 
-from ..utils._solver_cfg import _scfg
+from ..utils._solver_cfg import _scfg, _scfg_bool
 from ..mesh.mesh import Mesh
 from ..baseflow.baseflow import BaseFlow
 from .coefficients import (
@@ -23,6 +34,331 @@ from .coefficients import (
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
     from petsc4py import PETSc
+
+
+logger = logging.getLogger(__name__)
+
+_CURRENT_ASSEMBLY_METRICS: ContextVar["_AssemblyMetricsCollector | None"] = ContextVar(
+    "_CURRENT_ASSEMBLY_METRICS",
+    default=None,
+)
+_COEFF_TENSOR_NAMES = ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
+
+
+def _now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _peak_rss_bytes() -> int:
+    rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    if sys.platform == "darwin":
+        return rss
+    return rss * 1024
+
+
+def _jsonify_metric_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _jsonify_metric_value(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonify_metric_value(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _raw_cfg_value(cfg: dict | None, key: str, env_var: str) -> str | None:
+    if cfg is not None and key in cfg:
+        value = cfg[key]
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+    raw = os.getenv(env_var)
+    if raw is None:
+        return None
+    raw = raw.strip()
+    return raw or None
+
+
+def _detect_rank_size() -> tuple[int, int]:
+    try:
+        from petsc4py import PETSc
+
+        comm = PETSc.COMM_WORLD
+        return int(comm.getRank()), int(comm.getSize())
+    except Exception:
+        return 0, 1
+
+
+def _matrix_nnz(operator: sp.spmatrix | "PETSc.Mat") -> int | None:
+    if hasattr(operator, "nnz"):
+        return int(operator.nnz)
+    get_info = getattr(operator, "getInfo", None)
+    if callable(get_info):
+        try:
+            info = get_info()
+            if "nz_used" in info:
+                return int(info["nz_used"])
+        except Exception:
+            return None
+    return None
+
+
+@dataclass(frozen=True)
+class _AssemblyMetricsConfig:
+    enabled: bool
+    output: str | None = None
+    directory: str | None = None
+    tag: str | None = None
+    log: bool = False
+
+
+@dataclass
+class _AssemblyMetricsCollector:
+    config: _AssemblyMetricsConfig
+    metadata: dict[str, Any]
+    rank: int
+    size: int
+    stages: dict[str, dict[str, Any]] = field(default_factory=dict)
+    started_at_utc: str = field(default_factory=_now_utc)
+    start_time: float = field(default_factory=time.perf_counter)
+
+    def record_stage(self, name: str, payload: dict[str, Any]) -> None:
+        self.stages[name] = _jsonify_metric_value(payload)
+
+    def update_metadata(self, *, overwrite: bool = True, **kwargs: Any) -> None:
+        for key, value in kwargs.items():
+            if value is None:
+                continue
+            if overwrite or key not in self.metadata:
+                self.metadata[key] = _jsonify_metric_value(value)
+
+    def _output_path(self) -> Path | None:
+        if self.config.output:
+            template = self.config.output
+            try:
+                rendered = template.format(rank=self.rank, size=self.size)
+            except KeyError as exc:  # pragma: no cover - config guard
+                raise ValueError(
+                    f"Invalid assembly_metrics_output placeholder {exc!s}; "
+                    "supported placeholders are {rank} and {size}"
+                ) from exc
+            path = Path(rendered)
+            if path.suffix == "":
+                path = path.with_suffix(".json")
+            if self.size > 1 and "{rank" not in template and "{size" not in template:
+                path = path.with_name(f"{path.stem}_rank{self.rank:04d}{path.suffix}")
+            return path
+        if not self.config.directory:
+            return None
+        stem = "assembly_metrics"
+        if self.config.tag:
+            stem = f"{stem}_{self.config.tag}"
+        filename = f"{stem}_rank{self.rank:04d}.json"
+        return Path(self.config.directory) / filename
+
+    def _log_summary(self, payload: dict[str, Any], output_path: Path | None) -> None:
+        if not self.config.log:
+            return
+        logger.info(
+            "Assembly metrics: backend=%s resolved=%s ndof=%s nnz=%s wall=%.3fs path=%s",
+            payload.get("requested_backend", "?"),
+            payload.get("resolved_backend", "?"),
+            payload.get("ndof", "?"),
+            payload.get("nnz", "?"),
+            payload.get("wall_seconds", float("nan")),
+            output_path if output_path is not None else "<log-only>",
+        )
+        for name, stage in payload.get("stages", {}).items():
+            logger.info(
+                "  %s: %.3fs peak_rss_delta=%.1f MiB%s",
+                name,
+                float(stage.get("seconds", 0.0)),
+                float(stage.get("rss_peak_delta_bytes", 0)) / (1024.0 * 1024.0),
+                " [skipped]" if stage.get("skipped") else "",
+            )
+
+    def finish(self) -> None:
+        payload = {
+            **self.metadata,
+            "rank": self.rank,
+            "size": self.size,
+            "started_at_utc": self.started_at_utc,
+            "finished_at_utc": _now_utc(),
+            "wall_seconds": time.perf_counter() - self.start_time,
+            "stages": self.stages,
+        }
+        output_path = self._output_path()
+        if output_path is not None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with output_path.open("w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2, sort_keys=True)
+                fh.write("\n")
+        self._log_summary(payload, output_path)
+
+
+def _resolve_assembly_metrics_config(solver_cfg: dict | None) -> _AssemblyMetricsConfig:
+    output = _raw_cfg_value(
+        solver_cfg,
+        "assembly_metrics_output",
+        "LINSTAB2D_ASSEMBLY_METRICS_OUTPUT",
+    )
+    directory = _raw_cfg_value(
+        solver_cfg,
+        "assembly_metrics_dir",
+        "LINSTAB2D_ASSEMBLY_METRICS_DIR",
+    )
+    tag = _raw_cfg_value(
+        solver_cfg,
+        "assembly_metrics_tag",
+        "LINSTAB2D_ASSEMBLY_METRICS_TAG",
+    )
+    enabled = (
+        _scfg_bool(solver_cfg, "assembly_metrics", "LINSTAB2D_ASSEMBLY_METRICS", False)
+        or output is not None
+        or directory is not None
+    )
+    log_enabled = _scfg_bool(
+        solver_cfg,
+        "assembly_metrics_log",
+        "LINSTAB2D_ASSEMBLY_METRICS_LOG",
+        enabled,
+    )
+    return _AssemblyMetricsConfig(
+        enabled=enabled,
+        output=output,
+        directory=directory,
+        tag=tag,
+        log=log_enabled,
+    )
+
+
+def _current_assembly_metrics() -> _AssemblyMetricsCollector | None:
+    return _CURRENT_ASSEMBLY_METRICS.get()
+
+
+def _note_assembly_metadata(*, overwrite: bool = True, **kwargs: Any) -> None:
+    collector = _current_assembly_metrics()
+    if collector is None:
+        return
+    collector.update_metadata(overwrite=overwrite, **kwargs)
+
+
+@contextmanager
+def _assembly_metrics_session(
+    *,
+    solver_cfg: dict | None,
+    **metadata: Any,
+) -> Iterator[_AssemblyMetricsCollector | None]:
+    existing = _current_assembly_metrics()
+    if existing is not None:
+        existing.update_metadata(overwrite=False, **metadata)
+        yield existing
+        return
+
+    config = _resolve_assembly_metrics_config(solver_cfg)
+    if not config.enabled:
+        yield None
+        return
+
+    rank, size = _detect_rank_size()
+    collector = _AssemblyMetricsCollector(
+        config=config,
+        metadata={},
+        rank=rank,
+        size=size,
+    )
+    collector.update_metadata(
+        rank=rank,
+        size=size,
+        status="running",
+        **metadata,
+    )
+    token = _CURRENT_ASSEMBLY_METRICS.set(collector)
+    try:
+        yield collector
+    except Exception as exc:
+        collector.update_metadata(
+            status="error",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
+    else:
+        collector.update_metadata(status="ok")
+    finally:
+        _CURRENT_ASSEMBLY_METRICS.reset(token)
+        collector.finish()
+
+
+@contextmanager
+def _assembly_stage(name: str) -> Iterator[dict[str, Any]]:
+    stage: dict[str, Any] = {}
+    collector = _current_assembly_metrics()
+    rss0 = _peak_rss_bytes()
+    t0 = time.perf_counter()
+    try:
+        yield stage
+    except Exception as exc:
+        stage["status"] = "error"
+        stage["error"] = f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        if collector is not None:
+            rss1 = _peak_rss_bytes()
+            stage.setdefault("seconds", time.perf_counter() - t0)
+            stage.setdefault("rss_peak_before_bytes", rss0)
+            stage.setdefault("rss_peak_after_bytes", rss1)
+            stage.setdefault("rss_peak_delta_bytes", max(0, rss1 - rss0))
+            collector.record_stage(name, stage)
+
+
+@dataclass(frozen=True)
+class _CSRDerivativeCache:
+    csr: sp.csr_matrix
+    row_nnz: np.ndarray
+    row_indices: np.ndarray
+
+
+def _make_csr_derivative_cache(op: sp.spmatrix) -> _CSRDerivativeCache:
+    """Convert a derivative operator into a canonical CSR cache."""
+    if not sp.issparse(op):
+        raise TypeError("Derivative operator must be a sparse matrix")
+    csr = op if sp.isspmatrix_csr(op) else op.tocsr()
+    if not getattr(csr, "has_canonical_format", False):
+        csr = csr.copy()
+        csr.sum_duplicates()
+        csr.sort_indices()
+    if not np.issubdtype(csr.dtype, np.complexfloating):
+        csr = csr.astype(complex)
+    row_nnz = np.diff(csr.indptr).astype(np.int64, copy=False)
+    row_indices = np.repeat(np.arange(csr.shape[0], dtype=np.int64), row_nnz)
+    return _CSRDerivativeCache(csr=csr, row_nnz=row_nnz, row_indices=row_indices)
+
+
+def _as_csr_derivative_cache(op: _CSRDerivativeCache | sp.spmatrix) -> _CSRDerivativeCache:
+    if isinstance(op, _CSRDerivativeCache):
+        return op
+    return _make_csr_derivative_cache(op)
+
+
+def _cache_5_block_derivatives(
+    op: list[sp.spmatrix] | tuple[sp.spmatrix, ...] | sp.spmatrix,
+    ngp: int,
+) -> list[_CSRDerivativeCache]:
+    if isinstance(op, (list, tuple)):
+        if len(op) != 5:
+            raise ValueError("Expected five derivative blocks for axy mode")
+        return [_make_csr_derivative_cache(mat) for mat in op]
+
+    if not sp.issparse(op):
+        raise TypeError("Derivative operator must be a sparse matrix or 5-block list/tuple")
+
+    cache = _make_csr_derivative_cache(op)
+    if cache.csr.shape != (ngp, ngp):
+        raise ValueError(f"Expected derivative operator with shape {(ngp, ngp)}, got {cache.csr.shape}")
+    return [cache] * 5
 
 
 def build_lnse_operator(
@@ -70,10 +406,27 @@ def build_lnse_operator(
         - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable
         - '{border}_{var}': DOF indices for each variable at each border
     """
-    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
-    L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
-    idx = _build_index_structure(mesh.idx, mesh.ngp)
-    return L0, idx
+    model_name = str(model).lower()
+    with _assembly_metrics_session(
+        solver_cfg=None,
+        path_kind="operator",
+        requested_backend="scipy",
+        resolved_backend="scipy",
+        distributed_requested=False,
+        direct_petsc_supported=False,
+        model=model_name,
+        kx=float(kx),
+        m=float(m),
+        floquet_exp=float(floquet_exp),
+    ):
+        prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+        L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
+        idx = _build_index_structure(mesh.idx, mesh.ngp)
+        _note_assembly_metadata(
+            nnz_pre_bc=_matrix_nnz(L0),
+            matrix_type="scipy",
+        )
+        return L0, idx
 
 
 def build_lnse_operator_petsc(
@@ -94,12 +447,29 @@ def build_lnse_operator_petsc(
     """
     from ..utils.petsc_core import require_complex
 
-    _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
-    require_complex(solver_cfg)
-    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
-    L0 = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
-    idx = _build_index_structure(mesh.idx, mesh.ngp)
-    return L0, idx
+    model_name = str(model).lower()
+    with _assembly_metrics_session(
+        solver_cfg=solver_cfg,
+        path_kind="operator",
+        requested_backend="petsc",
+        resolved_backend="petsc",
+        distributed_requested=None,
+        direct_petsc_supported=True,
+        model=model_name,
+        kx=float(kx),
+        m=float(m),
+        floquet_exp=float(floquet_exp),
+    ):
+        _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
+        require_complex(solver_cfg)
+        prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+        L0 = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
+        idx = _build_index_structure(mesh.idx, mesh.ngp)
+        _note_assembly_metadata(
+            nnz_pre_bc=_matrix_nnz(L0),
+            matrix_type="petsc",
+        )
+        return L0, idx
 
 
 def _validate_direct_petsc_backend(
@@ -195,16 +565,20 @@ def _build_lnse_system_scipy(
         m=m,
         floquet_exp=floquet_exp,
     )
-    if bc_recipe:
-        L0, bc_indices = apply_bc_recipe(
-            L0,
-            mesh,
-            idx,
-            bc_recipe,
-            penalty=bc_penalty,
-        )
-    else:
-        bc_indices = np.array([], dtype=np.int64)
+    with _assembly_stage("apply_bc") as stage:
+        if bc_recipe:
+            L0, bc_indices = apply_bc_recipe(
+                L0,
+                mesh,
+                idx,
+                bc_recipe,
+                penalty=bc_penalty,
+            )
+        else:
+            stage["skipped"] = True
+            bc_indices = np.array([], dtype=np.int64)
+        stage["bc_indices_count"] = int(bc_indices.size)
+        stage["nnz"] = _matrix_nnz(L0)
     return L0, idx, bc_indices
 
 
@@ -235,15 +609,101 @@ def build_lnse_system(
     resolved_backend = _resolve_lnse_backend(backend, model=model, solver_cfg=solver_cfg)
     distributed_requested = _use_distributed_matrix(solver_cfg)
     direct_supported = _direct_petsc_backend_supported(model=model, solver_cfg=solver_cfg)
-
     use_petsc_fallback = (
         requested_backend in {"petsc", "auto"}
         and distributed_requested
         and resolved_backend == "scipy"
     )
 
-    if use_petsc_fallback:
-        L0_sp, idx, bc_indices = _build_lnse_system_scipy(
+    with _assembly_metrics_session(
+        solver_cfg=solver_cfg,
+        path_kind="system",
+        requested_backend=requested_backend,
+        resolved_backend=resolved_backend,
+        distributed_requested=distributed_requested,
+        direct_petsc_supported=direct_supported,
+        use_petsc_fallback=use_petsc_fallback,
+        model=str(model).lower(),
+        kx=float(kx),
+        m=float(m),
+        floquet_exp=float(floquet_exp),
+        bc_recipe_enabled=bool(bc_recipe),
+    ):
+        if use_petsc_fallback:
+            L0_sp, idx, bc_indices = _build_lnse_system_scipy(
+                mesh,
+                baseflow,
+                kx=kx,
+                model=model,
+                m=m,
+                floquet_exp=floquet_exp,
+                bc_recipe=bc_recipe,
+                bc_penalty=bc_penalty,
+            )
+            nnz_post_bc = _matrix_nnz(L0_sp)
+            with _assembly_stage("scipy_to_petsc") as stage:
+                L0 = scipy_to_petsc(L0_sp, solver_cfg)
+                stage["nnz"] = _matrix_nnz(L0)
+            with _assembly_stage("petsc_compaction") as stage:
+                stage["skipped"] = True
+            _note_assembly_metadata(
+                nnz_post_bc=nnz_post_bc,
+                nnz_final=_matrix_nnz(L0),
+                nnz=_matrix_nnz(L0),
+                bc_indices_count=int(bc_indices.size),
+                matrix_type="petsc",
+            )
+            return L0, idx, bc_indices
+
+        if resolved_backend == "petsc":
+            from ..boundary_conditions.recipe import apply_bc_recipe_petsc
+
+            L0, idx = build_lnse_operator_petsc(
+                mesh,
+                baseflow,
+                kx=kx,
+                model=model,
+                m=m,
+                floquet_exp=floquet_exp,
+                solver_cfg=solver_cfg,
+            )
+            with _assembly_stage("apply_bc") as stage:
+                if bc_recipe:
+                    L0, bc_indices = apply_bc_recipe_petsc(
+                        L0,
+                        mesh,
+                        idx,
+                        bc_recipe,
+                        penalty=bc_penalty,
+                    )
+                else:
+                    stage["skipped"] = True
+                    bc_indices = np.array([], dtype=np.int64)
+                stage["bc_indices_count"] = int(bc_indices.size)
+                stage["nnz"] = _matrix_nnz(L0)
+            nnz_post_bc = _matrix_nnz(L0)
+            with _assembly_stage("scipy_to_petsc") as stage:
+                stage["skipped"] = True
+            with _assembly_stage("petsc_compaction") as stage:
+                if not distributed_requested and direct_supported:
+                    L0 = compact_petsc_matrix(L0, solver_cfg)
+                    stage["nnz"] = _matrix_nnz(L0)
+                else:
+                    stage["skipped"] = True
+            _note_assembly_metadata(
+                nnz_post_bc=nnz_post_bc,
+                nnz_final=_matrix_nnz(L0),
+                nnz=_matrix_nnz(L0),
+                bc_indices_count=int(bc_indices.size),
+                matrix_type="petsc",
+            )
+            return L0, idx, bc_indices
+
+        with _assembly_stage("scipy_to_petsc") as stage:
+            stage["skipped"] = True
+        with _assembly_stage("petsc_compaction") as stage:
+            stage["skipped"] = True
+        L0, idx, bc_indices = _build_lnse_system_scipy(
             mesh,
             baseflow,
             kx=kx,
@@ -253,44 +713,14 @@ def build_lnse_system(
             bc_recipe=bc_recipe,
             bc_penalty=bc_penalty,
         )
-        return scipy_to_petsc(L0_sp, solver_cfg), idx, bc_indices
-
-    if resolved_backend == "petsc":
-        from ..boundary_conditions.recipe import apply_bc_recipe_petsc
-
-        L0, idx = build_lnse_operator_petsc(
-            mesh,
-            baseflow,
-            kx=kx,
-            model=model,
-            m=m,
-            floquet_exp=floquet_exp,
-            solver_cfg=solver_cfg,
+        _note_assembly_metadata(
+            nnz_post_bc=_matrix_nnz(L0),
+            nnz_final=_matrix_nnz(L0),
+            nnz=_matrix_nnz(L0),
+            bc_indices_count=int(bc_indices.size),
+            matrix_type="scipy",
         )
-        if bc_recipe:
-            L0, bc_indices = apply_bc_recipe_petsc(
-                L0,
-                mesh,
-                idx,
-                bc_recipe,
-                penalty=bc_penalty,
-            )
-        else:
-            bc_indices = np.array([], dtype=np.int64)
-        if not distributed_requested and direct_supported:
-            L0 = compact_petsc_matrix(L0, solver_cfg)
         return L0, idx, bc_indices
-
-    return _build_lnse_system_scipy(
-        mesh,
-        baseflow,
-        kx=kx,
-        model=model,
-        m=m,
-        floquet_exp=floquet_exp,
-        bc_recipe=bc_recipe,
-        bc_penalty=bc_penalty,
-    )
 
 
 def _prepare_coefficients(
@@ -306,109 +736,126 @@ def _prepare_coefficients(
     Returns a dict with everything needed by ``_assemble_from_prepared``,
     separated from the Floquet shift so the spatial EVP can reuse it.
     """
-    ngp = mesh.ngp
-    p = mesh.used_ind
+    with _assembly_stage("prepare_coefficients") as stage:
+        ngp = mesh.ngp
+        p = mesh.used_ind
 
-    U = baseflow.U.ravel(order="F")[p]
-    V = baseflow.V.ravel(order="F")[p]
-    W = baseflow.W.ravel(order="F")[p]
-    RHO = baseflow.RHO.ravel(order="F")[p]
-    T = baseflow.T.ravel(order="F")[p]
-    MU = baseflow.MU.ravel(order="F")[p]
-    dmudT = baseflow.dmudT.ravel(order="F")[p]
-    d2mudT2 = baseflow.d2mudT2.ravel(order="F")[p]
+        U = baseflow.U.ravel(order="F")[p]
+        V = baseflow.V.ravel(order="F")[p]
+        W = baseflow.W.ravel(order="F")[p]
+        RHO = baseflow.RHO.ravel(order="F")[p]
+        T = baseflow.T.ravel(order="F")[p]
+        MU = baseflow.MU.ravel(order="F")[p]
+        dmudT = baseflow.dmudT.ravel(order="F")[p]
+        d2mudT2 = baseflow.d2mudT2.ravel(order="F")[p]
 
-    kappa = baseflow.kappa
-    Ma = baseflow.Ma
-    Re = baseflow.Re
-    Pr = baseflow.Pr
+        kappa = baseflow.kappa
+        Ma = baseflow.Ma
+        Re = baseflow.Re
+        Pr = baseflow.Pr
 
-    P = RHO * T / (Ma**2 * kappa)
+        P = RHO * T / (Ma**2 * kappa)
 
-    Dx = mesh.Dx
-    D2x = mesh.D2x
-    Dy = mesh.Dy
-    D2y = mesh.D2y
-    # MATLAB 2D path uses Dzr = Dz*Dr (GetLinProblem.m: D2RZ=blkdiag(Dzr)).
-    # In this codebase that is Dyx = Dy @ Dx, not Dxy.
-    D2RZ = mesh.Dyx
+        Dx = mesh.Dx
+        D2x = mesh.D2x
+        Dy = mesh.Dy
+        D2y = mesh.D2y
+        # MATLAB 2D path uses Dzr = Dz*Dr (GetLinProblem.m: D2RZ=blkdiag(Dzr)).
+        # In this codebase that is Dyx = Dy @ Dx, not Dxy.
+        D2RZ = mesh.Dyx
 
-    model = model.lower()
-    if model == "2d":
-        dUdx = Dx @ U;    dUdy = Dy @ U
-        dVdx = Dx @ V;    dVdy = Dy @ V
-        dWdx = Dx @ W;    dWdy = Dy @ W
-        dRHOdx = Dx @ RHO;  dRHOdy = Dy @ RHO
-        dTdx = Dx @ T;    dTdy = Dy @ T
-        dPdx = Dx @ P;    dPdy = Dy @ P
+        model = model.lower()
+        if model == "2d":
+            dUdx = Dx @ U;    dUdy = Dy @ U
+            dVdx = Dx @ V;    dVdy = Dy @ V
+            dWdx = Dx @ W;    dWdy = Dy @ W
+            dRHOdx = Dx @ RHO;  dRHOdy = Dy @ RHO
+            dTdx = Dx @ T;    dTdy = Dy @ T
+            dPdx = Dx @ P;    dPdy = Dy @ P
 
-        d2Udx2 = D2x @ U;  d2Udy2 = D2y @ U
-        d2Vdx2 = D2x @ V;  d2Vdy2 = D2y @ V
-        d2Wdx2 = D2x @ W;  d2Wdy2 = D2y @ W
-        d2Tdx2 = D2x @ T;  d2Tdy2 = D2y @ T
+            d2Udx2 = D2x @ U;  d2Udy2 = D2y @ U
+            d2Vdx2 = D2x @ V;  d2Vdy2 = D2y @ V
+            d2Wdx2 = D2x @ W;  d2Wdy2 = D2y @ W
+            d2Tdx2 = D2x @ T;  d2Tdy2 = D2y @ T
 
-        d2Udxdy = Dx @ dUdy
-        d2Vdxdy = Dx @ dVdy
-        d2Wdxdy = Dx @ dWdy
+            d2Udxdy = Dx @ dUdy
+            d2Vdxdy = Dx @ dVdy
+            d2Wdxdy = Dx @ dWdy
 
-        coeffs = compute_cartesian_coefficients(
-            U=U, V=V, W=W, RHO=RHO, T=T, MU=MU, P=P,
-            kx=kx, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
-            dUdx=dUdx, dVdx=dVdx, dWdx=dWdx,
-            dRHOdx=dRHOdx, dTdx=dTdx, dPdx=dPdx,
-            dUdy=dUdy, dVdy=dVdy, dWdy=dWdy,
-            dRHOdy=dRHOdy, dTdy=dTdy, dPdy=dPdy,
-            d2Udx2=d2Udx2, d2Vdx2=d2Vdx2, d2Wdx2=d2Wdx2,
-            d2Udy2=d2Udy2, d2Vdy2=d2Vdy2, d2Wdy2=d2Wdy2,
-            d2Tdx2=d2Tdx2, d2Tdy2=d2Tdy2,
-            d2Udxdy=d2Udxdy, d2Vdxdy=d2Vdxdy, d2Wdxdy=d2Wdxdy,
-            dmudT=dmudT, d2mudT2=d2mudT2,
+            coeffs = compute_cartesian_coefficients(
+                U=U, V=V, W=W, RHO=RHO, T=T, MU=MU, P=P,
+                kx=kx, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
+                dUdx=dUdx, dVdx=dVdx, dWdx=dWdx,
+                dRHOdx=dRHOdx, dTdx=dTdx, dPdx=dPdx,
+                dUdy=dUdy, dVdy=dVdy, dWdy=dWdy,
+                dRHOdy=dRHOdy, dTdy=dTdy, dPdy=dPdy,
+                d2Udx2=d2Udx2, d2Vdx2=d2Vdx2, d2Wdx2=d2Wdx2,
+                d2Udy2=d2Udy2, d2Vdy2=d2Vdy2, d2Wdy2=d2Wdy2,
+                d2Tdx2=d2Tdx2, d2Tdy2=d2Tdy2,
+                d2Udxdy=d2Udxdy, d2Vdxdy=d2Vdxdy, d2Wdxdy=d2Wdxdy,
+                dmudT=dmudT, d2mudT2=d2mudT2,
+            )
+
+            DR = Dy
+            D2R = D2y
+            DZ = Dx
+            D2Z = D2x
+
+        elif model == "axy":
+            R = mesh.Y.ravel(order="F")[p]
+            U_c = baseflow.V.ravel(order="F")[p]
+            V_c = baseflow.W.ravel(order="F")[p]
+            W_c = baseflow.U.ravel(order="F")[p]
+
+            dUdr = Dy @ U_c;    dVdr = Dy @ V_c;    dWdr = Dy @ W_c
+            dRHOdr = Dy @ RHO;  dTdr = Dy @ T
+            dUdz = Dx @ U_c;    dVdz = Dx @ V_c;    dWdz = Dx @ W_c
+            dRHOdz = Dx @ RHO;  dTdz = Dx @ T
+
+            d2Udr2 = D2y @ U_c;  d2Vdr2 = D2y @ V_c;  d2Wdr2 = D2y @ W_c
+            d2Tdr2 = D2y @ T
+            d2Udz2 = D2x @ U_c;  d2Vdz2 = D2x @ V_c;  d2Wdz2 = D2x @ W_c
+            d2Tdz2 = D2x @ T
+
+            d2Udrz = Dx @ dUdr;  d2Vdrz = Dx @ dVdr;  d2Wdrz = Dx @ dWdr
+
+            coeffs = compute_cylindrical_coefficients(
+                U=U_c, V=V_c, W=W_c, R=R, RHO=RHO, T=T, MU=MU, m=m, Re=Re, Ma=Ma,
+                Pr=Pr, kappa=kappa,
+                dUdr=dUdr, dVdr=dVdr, dWdr=dWdr, dRHOdr=dRHOdr, dTdr=dTdr,
+                dUdz=dUdz, dVdz=dVdz, dWdz=dWdz, dRHOdz=dRHOdz, dTdz=dTdz,
+                d2Udr2=d2Udr2, d2Vdr2=d2Vdr2, d2Wdr2=d2Wdr2, d2Tdr2=d2Tdr2,
+                d2Udz2=d2Udz2, d2Vdz2=d2Vdz2, d2Wdz2=d2Wdz2, d2Tdz2=d2Tdz2,
+                d2Udrz=d2Udrz, d2Vdrz=d2Vdrz, d2Wdrz=d2Wdrz,
+                dmudT=dmudT, d2mudT2=d2mudT2,
+            )
+            DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m)
+
+        else:
+            raise ValueError("model must be '2D' or 'axy'")
+
+        coeff_tensor_bytes = {
+            name: int(getattr(coeffs, name).nbytes)
+            for name in _COEFF_TENSOR_NAMES
+        }
+        coeff_tensor_bytes_total = int(sum(coeff_tensor_bytes.values()))
+        stage["ngp"] = int(ngp)
+        stage["ndof"] = int(5 * ngp)
+        stage["coeff_tensor_bytes_by_array"] = coeff_tensor_bytes
+        stage["coeff_tensor_bytes_total"] = coeff_tensor_bytes_total
+        _note_assembly_metadata(
+            ngp=int(ngp),
+            ndof=int(5 * ngp),
+            coeff_tensor_bytes_by_array=coeff_tensor_bytes,
+            coeff_tensor_bytes_total=coeff_tensor_bytes_total,
         )
 
-        DR = Dy
-        D2R = D2y
-        DZ = Dx
-        D2Z = D2x
-
-    elif model == "axy":
-        R = mesh.Y.ravel(order="F")[p]
-        U_c = baseflow.V.ravel(order="F")[p]
-        V_c = baseflow.W.ravel(order="F")[p]
-        W_c = baseflow.U.ravel(order="F")[p]
-
-        dUdr = Dy @ U_c;    dVdr = Dy @ V_c;    dWdr = Dy @ W_c
-        dRHOdr = Dy @ RHO;  dTdr = Dy @ T
-        dUdz = Dx @ U_c;    dVdz = Dx @ V_c;    dWdz = Dx @ W_c
-        dRHOdz = Dx @ RHO;  dTdz = Dx @ T
-
-        d2Udr2 = D2y @ U_c;  d2Vdr2 = D2y @ V_c;  d2Wdr2 = D2y @ W_c
-        d2Tdr2 = D2y @ T
-        d2Udz2 = D2x @ U_c;  d2Vdz2 = D2x @ V_c;  d2Wdz2 = D2x @ W_c
-        d2Tdz2 = D2x @ T
-
-        d2Udrz = Dx @ dUdr;  d2Vdrz = Dx @ dVdr;  d2Wdrz = Dx @ dWdr
-
-        coeffs = compute_cylindrical_coefficients(
-            U=U_c, V=V_c, W=W_c, R=R, RHO=RHO, T=T, MU=MU, m=m, Re=Re, Ma=Ma,
-            Pr=Pr, kappa=kappa,
-            dUdr=dUdr, dVdr=dVdr, dWdr=dWdr, dRHOdr=dRHOdr, dTdr=dTdr,
-            dUdz=dUdz, dVdz=dVdz, dWdz=dWdz, dRHOdz=dRHOdz, dTdz=dTdz,
-            d2Udr2=d2Udr2, d2Vdr2=d2Vdr2, d2Wdr2=d2Wdr2, d2Tdr2=d2Tdr2,
-            d2Udz2=d2Udz2, d2Vdz2=d2Vdz2, d2Wdz2=d2Wdz2, d2Tdz2=d2Tdz2,
-            d2Udrz=d2Udrz, d2Vdrz=d2Vdrz, d2Wdrz=d2Wdrz,
-            dmudT=dmudT, d2mudT2=d2mudT2,
-        )
-        DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m)
-
-    else:
-        raise ValueError("model must be '2D' or 'axy'")
-
-    return {
-        "ngp": ngp, "model": model, "coeffs": coeffs,
-        "DR": DR, "D2R": D2R, "DZ": DZ, "D2Z": D2Z, "D2RZ": D2RZ,
-        "RHO": RHO, "U": U, "V": V, "W": W, "T": T,
-        "kappa": kappa, "Ma": Ma, "mesh": mesh,
-    }
+        return {
+            "ngp": ngp, "model": model, "coeffs": coeffs,
+            "DR": DR, "D2R": D2R, "DZ": DZ, "D2Z": D2Z, "D2RZ": D2RZ,
+            "RHO": RHO, "U": U, "V": V, "W": W, "T": T,
+            "kappa": kappa, "Ma": Ma, "mesh": mesh,
+        }
 
 
 def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_matrix:
@@ -432,19 +879,27 @@ def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_m
         i_alpha = 1j * floquet_exp
         DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
 
-    L0 = _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
+    with _assembly_stage("assemble_raw_blocks") as stage:
+        L0 = _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
+        stage["nnz"] = _matrix_nnz(L0)
 
-    L0 = _apply_inv_B(
-        L0, model, ngp,
-        prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
-        prep["kappa"], prep["Ma"],
-    )
+    with _assembly_stage("apply_invB") as stage:
+        L0 = _apply_inv_B(
+            L0, model, ngp,
+            prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
+            prep["kappa"], prep["Ma"],
+        )
+        stage["nnz"] = _matrix_nnz(L0)
 
-    if mesh.sponge is not None:
-        p = mesh.used_ind
-        sponge = mesh.sponge.ravel(order="F")[p]
-        sponge_diag = np.tile(sponge, 5)
-        L0 = L0 - sp.diags(sponge_diag)
+    with _assembly_stage("apply_sponge") as stage:
+        if mesh.sponge is not None:
+            p = mesh.used_ind
+            sponge = mesh.sponge.ravel(order="F")[p]
+            sponge_diag = np.tile(sponge, 5)
+            L0 = L0 - sp.diags(sponge_diag)
+        else:
+            stage["skipped"] = True
+        stage["nnz"] = _matrix_nnz(L0)
 
     return L0.tocsc()
 
@@ -473,49 +928,57 @@ def _assemble_from_prepared_petsc(
         i_alpha = 1j * floquet_exp
         DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
 
-    L0_petsc = _assemble_block_operator_petsc(
-        ngp,
-        coeffs,
-        DR,
-        D2R,
-        DZ,
-        D2Z,
-        D2RZ,
-        solver_cfg=solver_cfg,
-    )
-    _apply_inv_B_petsc(
-        L0_petsc,
-        model,
-        ngp,
-        prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
-        prep["kappa"], prep["Ma"],
-    )
+    with _assembly_stage("assemble_raw_blocks") as stage:
+        L0_petsc = _assemble_block_operator_petsc(
+            ngp,
+            coeffs,
+            DR,
+            D2R,
+            DZ,
+            D2Z,
+            D2RZ,
+            solver_cfg=solver_cfg,
+        )
+        stage["nnz"] = _matrix_nnz(L0_petsc)
+    with _assembly_stage("apply_invB") as stage:
+        _apply_inv_B_petsc(
+            L0_petsc,
+            model,
+            ngp,
+            prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
+            prep["kappa"], prep["Ma"],
+        )
+        stage["nnz"] = _matrix_nnz(L0_petsc)
 
-    if mesh.sponge is not None:
-        p = mesh.used_ind
-        sponge = np.asarray(mesh.sponge.ravel(order="F")[p], dtype=complex)
-        sponge_diag = np.tile(sponge, 5)
-        if _use_distributed_matrix(solver_cfg):
-            r0, r1 = ownership_range(L0_petsc)
-            local_diag = L0_petsc.createVecLeft()
-            try:
-                local_diag.set(0.0)
-                local_values = -sponge_diag[r0:r1]
-                if local_values.size:
-                    local_rows = np.arange(r0, r1, dtype=PETSc.IntType)
-                    local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
-                local_diag.assemble()
-                L0_petsc.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
-            finally:
-                local_diag.destroy()
+    with _assembly_stage("apply_sponge") as stage:
+        if mesh.sponge is not None:
+            p = mesh.used_ind
+            sponge = np.asarray(mesh.sponge.ravel(order="F")[p], dtype=complex)
+            sponge_diag = np.tile(sponge, 5)
+            if _use_distributed_matrix(solver_cfg):
+                r0, r1 = ownership_range(L0_petsc)
+                local_diag = L0_petsc.createVecLeft()
+                try:
+                    local_diag.set(0.0)
+                    local_values = -sponge_diag[r0:r1]
+                    if local_values.size:
+                        local_rows = np.arange(r0, r1, dtype=PETSc.IntType)
+                        local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
+                    local_diag.assemble()
+                    L0_petsc.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
+                finally:
+                    local_diag.destroy()
+            else:
+                diag = L0_petsc.getDiagonal()
+                try:
+                    diag_arr = diag.getArray()
+                    diag_arr -= sponge_diag
+                    L0_petsc.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
+                finally:
+                    diag.destroy()
         else:
-            diag = L0_petsc.getDiagonal()
-            try:
-                diag_arr = diag.getArray()
-                diag_arr -= sponge_diag
-                L0_petsc.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
-            finally:
-                diag.destroy()
+            stage["skipped"] = True
+        stage["nnz"] = _matrix_nnz(L0_petsc)
 
     return assemble_matrix(L0_petsc)
 
@@ -537,11 +1000,11 @@ def _assemble_block_operator(
     where the coefficient vectors multiply the rows (left-multiply by diag).
     """
     blocks = [[None] * 5 for _ in range(5)]
-    DR_blocks = _ensure_5_block_derivatives(DR, ngp)
-    D2R_blocks = _ensure_5_block_derivatives(D2R, ngp)
-    DZ_blocks = _ensure_5_block_derivatives(DZ, ngp)
-    D2Z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
-    D2RZ_blocks = _ensure_5_block_derivatives(D2RZ, ngp)
+    DR_blocks = _cache_5_block_derivatives(DR, ngp)
+    D2R_blocks = _cache_5_block_derivatives(D2R, ngp)
+    DZ_blocks = _cache_5_block_derivatives(DZ, ngp)
+    D2Z_blocks = _cache_5_block_derivatives(D2Z, ngp)
+    D2RZ_blocks = _cache_5_block_derivatives(D2RZ, ngp)
 
     for i in range(5):
         for j in range(5):
@@ -561,6 +1024,47 @@ def _assemble_block_operator(
             )
 
     return sp.bmat(blocks, format="csc")
+
+
+def _assemble_block_operator_csr(
+    ngp: int,
+    coeffs: LNSECoefficients,
+    DR: sp.spmatrix,
+    D2R: sp.spmatrix,
+    DZ: sp.spmatrix,
+    D2Z: sp.spmatrix,
+    D2RZ: sp.spmatrix,
+) -> sp.csr_matrix:
+    """Assemble the LNSE raw block operator directly into a global CSR matrix."""
+    block_rows: list[sp.csr_matrix] = []
+    DR_blocks = _cache_5_block_derivatives(DR, ngp)
+    D2R_blocks = _cache_5_block_derivatives(D2R, ngp)
+    DZ_blocks = _cache_5_block_derivatives(DZ, ngp)
+    D2Z_blocks = _cache_5_block_derivatives(D2Z, ngp)
+    D2RZ_blocks = _cache_5_block_derivatives(D2RZ, ngp)
+
+    for i in range(5):
+        row_parts = []
+        for j in range(5):
+            row_parts.append(
+                _build_block_csr(
+                    ngp,
+                    coeffs.A0[i, j, :],
+                    coeffs.Ax[i, j, :],
+                    coeffs.Ay[i, j, :],
+                    coeffs.Axx[i, j, :],
+                    coeffs.Ayy[i, j, :],
+                    coeffs.Axy[i, j, :],
+                    DR_blocks[j],
+                    D2R_blocks[j],
+                    DZ_blocks[j],
+                    D2Z_blocks[j],
+                    D2RZ_blocks[j],
+                )
+            )
+        block_rows.append(sp.hstack(row_parts, format="csr"))
+
+    return sp.vstack(block_rows, format="csr")
 
 
 def _assemble_block_operator_petsc(
@@ -585,32 +1089,31 @@ def _assemble_block_operator_petsc(
     )
 
     total_size = 5 * ngp
-    DR_blocks = _ensure_5_block_derivatives(DR, ngp)
-    D2R_blocks = _ensure_5_block_derivatives(D2R, ngp)
-    DZ_blocks = _ensure_5_block_derivatives(DZ, ngp)
-    D2Z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
-    D2RZ_blocks = _ensure_5_block_derivatives(D2RZ, ngp)
+    distributed_matrix = _use_distributed_matrix(solver_cfg)
+    if not distributed_matrix and PETSc.COMM_WORLD.getSize() == 1:
+        csr = _assemble_block_operator_csr(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
+        _note_assembly_metadata(raw_block_assembly_mode="petsc_local_full_csr")
+        mat = PETSc.Mat().createAIJ(
+            size=csr.shape,
+            csr=(csr.indptr, csr.indices, csr.data),
+        )
+        mat.assemble()
+        return mat
 
-    def _block_row_nnz(block_row_index: int) -> np.ndarray:
-        """Compute per-row nnz for one block-row (5 blocks of ngp×ngp)."""
-        row_nnz = np.ones(ngp, dtype=np.int64)  # diagonal entry at minimum
-        for j in range(5):
-            # The sparsity pattern of block (i,j) is the union of the
-            # derivative operator patterns scaled by the coefficient arrays.
-            # Upper-bound: sum the row nnz of all derivative operators that
-            # have nonzero coefficients for this (i,j) pair.
-            for op_blocks in (DR_blocks, D2R_blocks, DZ_blocks, D2Z_blocks, D2RZ_blocks):
-                op = op_blocks[j]
-                op_nnz = np.asarray(op.getnnz(axis=1)).ravel()
-                if op_nnz.size:
-                    row_nnz += op_nnz
-        return row_nnz
+    DR_blocks = _cache_5_block_derivatives(DR, ngp)
+    D2R_blocks = _cache_5_block_derivatives(D2R, ngp)
+    DZ_blocks = _cache_5_block_derivatives(DZ, ngp)
+    D2Z_blocks = _cache_5_block_derivatives(D2Z, ngp)
+    D2RZ_blocks = _cache_5_block_derivatives(D2RZ, ngp)
 
-    # Per-row preallocation: avoids the nrows × max_nnz_per_row product
-    # that causes int32 overflow on wide stencils (e.g. fd_order=8).
-    d_nnz = np.zeros(total_size, dtype=np.int64)
-    for i in range(5):
-        d_nnz[i * ngp : (i + 1) * ngp] = _block_row_nnz(i)
+    # Per-row preallocation: cache row nnz once instead of recalculating
+    # ``getnnz(axis=1)`` inside every block-row estimate.
+    block_row_nnz = np.ones(ngp, dtype=np.int64)
+    for op_blocks in (DR_blocks, D2R_blocks, DZ_blocks, D2Z_blocks, D2RZ_blocks):
+        for cache in op_blocks:
+            if cache.row_nnz.size:
+                block_row_nnz += cache.row_nnz
+    d_nnz = np.tile(block_row_nnz, 5)
     np.clip(d_nnz, 1, total_size, out=d_nnz)
 
     matrix = create_distributed_aij(
@@ -619,7 +1122,8 @@ def _assemble_block_operator_petsc(
         nnz_offdiag=d_nnz,
     )
 
-    if _use_distributed_matrix(solver_cfg):
+    if distributed_matrix:
+        _note_assembly_metadata(raw_block_assembly_mode="petsc_distributed_owned_rows")
         r0, r1 = ownership_range(matrix)
         owned_blocks = []
         for i in range(5):
@@ -654,6 +1158,7 @@ def _assemble_block_operator_petsc(
                 insert_local_csr_rows(matrix, local_rows, row_start=i * ngp + row_start)
         return assemble_matrix(matrix)
 
+    _note_assembly_metadata(raw_block_assembly_mode="petsc_local_row_insert_fallback")
     for i in range(5):
         for j in range(5):
             block = _build_block_csr(
@@ -730,11 +1235,11 @@ def _build_block_csr(
     axx: np.ndarray,
     ayy: np.ndarray,
     axy: np.ndarray,
-    DR: sp.spmatrix,
-    D2R: sp.spmatrix,
-    DZ: sp.spmatrix,
-    D2Z: sp.spmatrix,
-    D2RZ: sp.spmatrix,
+    DR: _CSRDerivativeCache | sp.spmatrix,
+    D2R: _CSRDerivativeCache | sp.spmatrix,
+    DZ: _CSRDerivativeCache | sp.spmatrix,
+    D2Z: _CSRDerivativeCache | sp.spmatrix,
+    D2RZ: _CSRDerivativeCache | sp.spmatrix,
 ) -> sp.csr_matrix:
     """Build one ngp×ngp block in CSR format from row-scaled derivative terms."""
     # Compute flags once to avoid scanning each coefficient array twice.
@@ -748,40 +1253,52 @@ def _build_block_csr(
     if not (has_a0 or has_ay or has_ax or has_ayy or has_axx or has_axy):
         return sp.csr_matrix((ngp, ngp), dtype=complex)
 
-    block = sp.csr_matrix((ngp, ngp), dtype=complex)
-    if has_a0:
-        block = block + sp.diags(a0, format="csr")
-    if has_ay:
-        block = block + sp.diags(ay, format="csr") @ sp.csr_matrix(DR, dtype=complex)
-    if has_ax:
-        block = block + sp.diags(ax, format="csr") @ sp.csr_matrix(DZ, dtype=complex)
-    if has_ayy:
-        block = block + sp.diags(ayy, format="csr") @ sp.csr_matrix(D2R, dtype=complex)
-    if has_axx:
-        block = block + sp.diags(axx, format="csr") @ sp.csr_matrix(D2Z, dtype=complex)
-    if has_axy:
-        block = block + sp.diags(axy, format="csr") @ sp.csr_matrix(D2RZ, dtype=complex)
+    dr_cache = _as_csr_derivative_cache(DR)
+    d2r_cache = _as_csr_derivative_cache(D2R)
+    dz_cache = _as_csr_derivative_cache(DZ)
+    d2z_cache = _as_csr_derivative_cache(D2Z)
+    d2rz_cache = _as_csr_derivative_cache(D2RZ)
 
+    row_parts: list[np.ndarray] = []
+    col_parts: list[np.ndarray] = []
+    data_parts: list[np.ndarray] = []
+
+    if has_a0:
+        diag_idx = np.arange(ngp, dtype=np.int64)
+        row_parts.append(diag_idx)
+        col_parts.append(diag_idx)
+        data_parts.append(np.asarray(a0, dtype=complex))
+
+    def _append_scaled_term(coeff: np.ndarray, cache: _CSRDerivativeCache) -> None:
+        if cache.csr.nnz == 0:
+            return
+        row_parts.append(cache.row_indices)
+        col_parts.append(cache.csr.indices)
+        data_parts.append(coeff[cache.row_indices] * cache.csr.data)
+
+    if has_ay:
+        _append_scaled_term(ay, dr_cache)
+    if has_ax:
+        _append_scaled_term(ax, dz_cache)
+    if has_ayy:
+        _append_scaled_term(ayy, d2r_cache)
+    if has_axx:
+        _append_scaled_term(axx, d2z_cache)
+    if has_axy:
+        _append_scaled_term(axy, d2rz_cache)
+
+    if not data_parts:
+        return sp.csr_matrix((ngp, ngp), dtype=complex)
+
+    block = sp.csr_matrix(
+        (np.concatenate(data_parts), (np.concatenate(row_parts), np.concatenate(col_parts))),
+        shape=(ngp, ngp),
+        dtype=complex,
+    )
     block.sum_duplicates()
     block.eliminate_zeros()
     block.sort_indices()
     return block
-
-
-def _ensure_5_block_derivatives(
-    op, ngp: int
-) -> list[sp.csc_matrix]:
-    """Return axis-specific derivative operators as a list of 5 blocks."""
-    if isinstance(op, (list, tuple)):
-        if len(op) != 5:
-            raise ValueError("Expected five derivative blocks for axy mode")
-        return [sp.csc_matrix(mat) for mat in op]
-
-    if not sp.issparse(op):
-        raise TypeError("Derivative operator must be a sparse matrix or 5-block list/tuple")
-
-    mat = op.tocsc()
-    return [mat for _ in range(5)]
 
 
 def _apply_floquet_shift(
