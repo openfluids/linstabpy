@@ -35,13 +35,30 @@ from linstab2d.utils.stability_acceptance import evaluate_stability_acceptance
 SCRIPT = Path(__file__).resolve()
 
 
+def _first_env(*names: str, default: str | None = None) -> str | None:
+    """Return the first non-empty environment value across ``names``."""
+    for name in names:
+        raw = os.getenv(name)
+        if raw is None:
+            continue
+        text = raw.strip()
+        if text:
+            return text
+    return default
+
+
 def _output_npz_path() -> Path:
     """Return the per-run output archive path.
 
     Defaults to the legacy ``case1.npz`` location, but allows the timing
     harness to isolate concurrent runs by providing a unique target path.
     """
-    raw = os.getenv("LINSTAB2D_CASE1_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz")))
+    raw = _first_env(
+        "LINSTAB2D_CASE_OUTPUT_NPZ",
+        "LINSTAB2D_CASE2_OUTPUT_NPZ",
+        "LINSTAB2D_CASE1_OUTPUT_NPZ",
+        default=str(SCRIPT.with_suffix(".npz")),
+    )
     return Path(raw).resolve()
 
 
@@ -301,7 +318,7 @@ def _cfg_first(cfg_fn, *paths: str) -> object:
 
 
 def compute() -> None:
-    """Run the full Case 1 pipeline and write ``case1.npz``."""
+    """Run the shared case pipeline and write the requested NPZ artifact."""
     t0 = time.perf_counter()
     output_npz = _output_npz_path()
     _log("starting compute")
@@ -310,17 +327,26 @@ def compute() -> None:
     size = comm.getSize()
 
     config_path = Path(
-        os.getenv(
+        _first_env(
+            "LINSTAB2D_CASE_CONFIG",
+            "LINSTAB2D_CASE2_CONFIG",
             "LINSTAB2D_CASE1_CONFIG",
-            str(SCRIPT.parent / "parity_config.jsonc"),
+            default=str(SCRIPT.parent / "parity_config.jsonc"),
         )
     )
     config: dict = {}
     if config_path.exists():
         config = load_jsonc(config_path)
         _log(f"loaded config: {config_path}")
-    elif "LINSTAB2D_CASE1_CONFIG" in os.environ:
-        raise FileNotFoundError(f"LINSTAB2D_CASE1_CONFIG file not found: {config_path}")
+    elif any(
+        name in os.environ
+        for name in (
+            "LINSTAB2D_CASE_CONFIG",
+            "LINSTAB2D_CASE2_CONFIG",
+            "LINSTAB2D_CASE1_CONFIG",
+        )
+    ):
+        raise FileNotFoundError(f"case config file not found: {config_path}")
 
     def cfg(path: str, default):
         node = config
@@ -423,7 +449,11 @@ def compute() -> None:
     st_solver = _ecfg.get("st_solver",
                           os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps")).strip().lower()
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
-    _root_raw = os.getenv("LINSTAB2D_CASE1_ROOT_ASSEMBLY")
+    _root_raw = _first_env(
+        "LINSTAB2D_CASE_ROOT_ASSEMBLY",
+        "LINSTAB2D_CASE2_ROOT_ASSEMBLY",
+        "LINSTAB2D_CASE1_ROOT_ASSEMBLY",
+    )
     requested_root_operator = size > 1 and (
         (_root_raw.strip().lower() in {"1", "true", "yes", "on"}) if _root_raw is not None else iterative_st_solver
     )
@@ -436,7 +466,7 @@ def compute() -> None:
     if use_root_operator and run_resolvent:
         raise RuntimeError(
             "Root-only operator assembly mode is currently intended for stability solves only. "
-            "Set LINSTAB2D_CASE1_ROOT_ASSEMBLY=0 when running resolvent in MPI."
+            "Set LINSTAB2D_CASE_ROOT_ASSEMBLY=0 when running resolvent in MPI."
         )
     if use_root_operator:
         solver_cfg.setdefault("root_scatter", True)
@@ -998,4 +1028,3 @@ def main() -> None:
     need_recompute = MPI.COMM_WORLD.bcast(need_recompute, root=0)
     if need_recompute:
         compute()
-
