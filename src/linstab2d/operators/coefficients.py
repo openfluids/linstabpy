@@ -72,6 +72,76 @@ class LNSECoefficients:
     B: np.ndarray
 
 
+_SOURCE_TO_DEST = {
+    "A0": "A0",
+    "Ar": "Ay",
+    "Az": "Ax",
+    "Arr": "Ayy",
+    "Azz": "Axx",
+    "Arz": "Axy",
+    "B": "B",
+}
+
+
+def _expected_coefficient_keys() -> list[str]:
+    keys: list[str] = []
+    for source_name in _SOURCE_TO_DEST:
+        for ic in range(5):
+            for jc in range(5):
+                keys.append(f"c_{source_name}_{ic+1}{jc+1}")
+    return keys
+
+
+def _pack_coefficients_in_physical_order(
+    local_vars: dict[str, object],
+    *,
+    ngp: int,
+    c2p_idx: list[int],
+    c2p_sgn: np.ndarray,
+    source_signs: dict[str, complex] | None = None,
+) -> LNSECoefficients:
+    """Pack local ``c_<block>_<ij>`` arrays directly into physical ordering.
+
+    This avoids the intermediate ``coeff_blocks -> result`` duplication while
+    preserving the public ``LNSECoefficients`` tensor layout.
+    """
+    missing = [name for name in _expected_coefficient_keys() if name not in local_vars]
+    if missing:
+        preview = ", ".join(missing[:8])
+        if len(missing) > 8:
+            preview += ", ..."
+        raise KeyError(
+            "Missing coefficient locals for physical-order packing: "
+            f"{preview} ({len(missing)} missing)"
+        )
+
+    out = {
+        name: np.zeros((5, 5, ngp), dtype=complex)
+        for name in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
+    }
+    signs = source_signs or {}
+
+    for source_name, dest_name in _SOURCE_TO_DEST.items():
+        dst = out[dest_name]
+        source_sign = complex(signs.get(source_name, 1.0))
+        for ic in range(5):
+            ip = c2p_idx[ic]
+            row_sign = source_sign * complex(c2p_sgn[ic])
+            for jc in range(5):
+                jp = c2p_idx[jc]
+                dst[ip, jp, :] = row_sign * complex(c2p_sgn[jc]) * local_vars[f"c_{source_name}_{ic+1}{jc+1}"]
+
+    return LNSECoefficients(
+        A0=out["A0"],
+        Ax=out["Ax"],
+        Ay=out["Ay"],
+        Axx=out["Axx"],
+        Ayy=out["Ayy"],
+        Axy=out["Axy"],
+        B=out["B"],
+    )
+
+
 def compute_cartesian_coefficients(
     U: np.ndarray,
     V: np.ndarray,
@@ -569,29 +639,8 @@ def compute_cartesian_coefficients(
     c_B_55 = 1j * RHO
 
     # ------------------------------------------------------------------
-    # Step 3: Pack into (5, 5, ngp) arrays in coefficient variable
-    # ordering [rho, U_c, V_c, W_c, T].
-    # ------------------------------------------------------------------
-    names = ("A0", "Ar", "Az", "Arr", "Azz", "Arz", "B")
-    coeff_blocks = {}
-    for name in names:
-        arr = np.zeros((5, 5, ngp), dtype=complex)
-        for i in range(5):
-            for j in range(5):
-                arr[i, j, :] = locals()[f"c_{name}_{i+1}{j+1}"]
-        coeff_blocks[name] = arr
-
-    # ------------------------------------------------------------------
-    # Step 4: Apply the -LHS sign flip (GetLinProblem.m line 228).
-    #
-    # In the MATLAB code: LHS = -LHS for the '2D' model.  This negates
-    # all coefficient matrices except B (the RHS).
-    # ------------------------------------------------------------------
-    for name in ("A0", "Ar", "Az", "Arr", "Azz", "Arz"):
-        coeff_blocks[name] = -coeff_blocks[name]
-
-    # ------------------------------------------------------------------
-    # Step 5: Apply variable permutation to physical ordering.
+    # Pack directly into the final physical-order tensors, folding
+    # the MATLAB sign flip and variable permutation into one pass.
     #
     # Permutation matrix T from GetLinProblem.m lines 273-277:
     #   T = [I   0   0   0   0 ;   row 0: rho -> rho
@@ -614,34 +663,19 @@ def compute_cartesian_coefficients(
     # ------------------------------------------------------------------
     c2p_idx = [0, 3, 2, 1, 4]
     c2p_sgn = np.array([1.0, -1.0, 1.0, 1.0, 1.0])
-
-    result = {}
-    for name in names:
-        src = coeff_blocks[name]
-        dst = np.zeros_like(src)
-        for ic in range(5):
-            ip = c2p_idx[ic]
-            for jc in range(5):
-                jp = c2p_idx[jc]
-                dst[ip, jp, :] = c2p_sgn[ic] * c2p_sgn[jc] * src[ic, jc, :]
-        result[name] = dst
-
-    # ------------------------------------------------------------------
-    # Step 6: Map derivative naming from coefficient system to physical.
-    #
-    # Coefficient r = physical y,  coefficient z = physical x.
-    #   Ar  -> Ay,   Az  -> Ax
-    #   Arr -> Ayy,  Azz -> Axx
-    #   Arz -> Axy
-    # ------------------------------------------------------------------
-    return LNSECoefficients(
-        A0=result["A0"],
-        Ax=result["Az"],       # coeff z = physical x
-        Ay=result["Ar"],       # coeff r = physical y
-        Axx=result["Azz"],     # coeff zz = physical xx
-        Ayy=result["Arr"],     # coeff rr = physical yy
-        Axy=result["Arz"],     # coeff rz = physical xy
-        B=result["B"],
+    return _pack_coefficients_in_physical_order(
+        locals(),
+        ngp=ngp,
+        c2p_idx=c2p_idx,
+        c2p_sgn=c2p_sgn,
+        source_signs={
+            "A0": -1.0,
+            "Ar": -1.0,
+            "Az": -1.0,
+            "Arr": -1.0,
+            "Azz": -1.0,
+            "Arz": -1.0,
+        },
     )
 
 
@@ -1062,20 +1096,7 @@ def compute_cylindrical_coefficients(
     c_B_55 = 1j * RHO * cv
 
     # ------------------------------------------------------------------
-    # Step 3: Pack into (5, 5, ngp) arrays in coefficient variable
-    # ordering [rho, U_c, V_c, W_c, T].
-    # ------------------------------------------------------------------
-    names = ("A0", "Ar", "Az", "Arr", "Azz", "Arz", "B")
-    coeff_blocks = {}
-    for name in names:
-        arr = np.zeros((5, 5, ngp), dtype=complex)
-        for i in range(5):
-            for j in range(5):
-                arr[i, j, :] = locals()[f"c_{name}_{i+1}{j+1}"]
-        coeff_blocks[name] = arr
-
-    # ------------------------------------------------------------------
-    # Step 4: Apply physical variable permutation to [rho, u, v, w, T].
+    # Step 3: Pack directly into the final physical-order tensors.
     #
     # Mapping from coefficient ordering [rho, v_r, v_theta, v_z, T] to
     # physical ordering [rho, u, v, w, T] where u=axial(v_z), v=radial(v_r),
@@ -1086,32 +1107,9 @@ def compute_cylindrical_coefficients(
     # ------------------------------------------------------------------
     c2p_idx = [0, 2, 3, 1, 4]
     c2p_sgn = np.array([1.0, 1.0, 1.0, 1.0, 1.0])
-
-    result = {}
-    for name in names:
-        src = coeff_blocks[name]
-        dst = np.zeros_like(src)
-        for ic in range(5):
-            ip = c2p_idx[ic]
-            for jc in range(5):
-                jp = c2p_idx[jc]
-                dst[ip, jp, :] = c2p_sgn[ic] * c2p_sgn[jc] * src[ic, jc, :]
-        result[name] = dst
-
-    # ------------------------------------------------------------------
-    # Step 5: Map derivative naming from coefficient system to physical.
-    #
-    # Coefficient r = physical y, coefficient z = physical x.
-    #   Ar  -> Ay,   Az  -> Ax
-    #   Arr -> Ayy,  Azz -> Axx
-    #   Arz -> Axy
-    # ------------------------------------------------------------------
-    return LNSECoefficients(
-        A0=result["A0"],
-        Ax=result["Az"],
-        Ay=result["Ar"],
-        Axx=result["Azz"],
-        Ayy=result["Arr"],
-        Axy=result["Arz"],
-        B=result["B"],
+    return _pack_coefficients_in_physical_order(
+        locals(),
+        ngp=ngp,
+        c2p_idx=c2p_idx,
+        c2p_sgn=c2p_sgn,
     )

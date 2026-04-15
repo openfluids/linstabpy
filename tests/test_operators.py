@@ -30,8 +30,15 @@ from linstab2d.operators import (
     build_spatial_operator,
     build_spatial_operator_petsc,
 )
-from linstab2d.operators.assembly import _create_axy_diff_matrices, _apply_inv_B, _prepare_coefficients
+from linstab2d.operators.assembly import (
+    _apply_inv_B,
+    _build_block_csr,
+    _create_axy_diff_matrices,
+    _make_csr_derivative_cache,
+    _prepare_coefficients,
+)
 from linstab2d.operators.coefficients import (
+    _pack_coefficients_in_physical_order,
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
@@ -256,6 +263,16 @@ class TestCartesianCoefficients:
                     f"min = {real_part.min()}"
                 )
 
+    def test_pack_coefficients_in_physical_order_reports_missing_keys(self):
+        """Missing local coefficient keys raise a contextual KeyError."""
+        with pytest.raises(KeyError, match="Missing coefficient locals"):
+            _pack_coefficients_in_physical_order(
+                {"c_A0_11": np.ones(2, dtype=complex)},
+                ngp=2,
+                c2p_idx=[0, 1, 2, 3, 4],
+                c2p_sgn=np.ones(5),
+            )
+
     def test_zero_baseflow_A0(self):
         """With U=V=W=0, A0 should simplify (no advection contributions)."""
         ngp = self.NGP
@@ -408,6 +425,90 @@ class TestOperatorAssembly:
         with pytest.raises(ValueError):
             build_lnse_operator(small_mesh_2d, uniform_baseflow, model="invalid")
 
+    def test_build_block_csr_matches_explicit_row_scaled_sum(self, small_mesh_2d):
+        """Optimized block assembly matches the explicit sparse-sum formula."""
+        mesh = small_mesh_2d
+        ngp = mesh.ngp
+        rng = np.random.default_rng(123)
+
+        a0 = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+        ax = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+        ay = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+        axx = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+        ayy = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+        axy = rng.standard_normal(ngp) + 1j * rng.standard_normal(ngp)
+
+        candidate = _build_block_csr(
+            ngp,
+            a0,
+            ax,
+            ay,
+            axx,
+            ayy,
+            axy,
+            mesh.Dy,
+            mesh.D2y,
+            mesh.Dx,
+            mesh.D2x,
+            mesh.Dyx,
+        )
+
+        expected = sp.csr_matrix((ngp, ngp), dtype=complex)
+        expected = expected + sp.diags(a0, format="csr")
+        expected = expected + sp.diags(ay, format="csr") @ sp.csr_matrix(mesh.Dy, dtype=complex)
+        expected = expected + sp.diags(ax, format="csr") @ sp.csr_matrix(mesh.Dx, dtype=complex)
+        expected = expected + sp.diags(ayy, format="csr") @ sp.csr_matrix(mesh.D2y, dtype=complex)
+        expected = expected + sp.diags(axx, format="csr") @ sp.csr_matrix(mesh.D2x, dtype=complex)
+        expected = expected + sp.diags(axy, format="csr") @ sp.csr_matrix(mesh.Dyx, dtype=complex)
+        expected.sum_duplicates()
+        expected.eliminate_zeros()
+        expected.sort_indices()
+
+        np.testing.assert_array_equal(candidate.indptr, expected.indptr)
+        np.testing.assert_array_equal(candidate.indices, expected.indices)
+        np.testing.assert_allclose(candidate.data, expected.data, atol=1e-12, rtol=1e-12)
+
+    def test_make_csr_derivative_cache_canonicalizes_duplicate_rows(self):
+        """CSR derivative cache canonicalizes duplicate entries before row expansion."""
+        op = sp.csr_matrix(
+            (
+                np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float),
+                np.array([1, 0, 1, 1, 0], dtype=np.int32),
+                np.array([0, 3, 5], dtype=np.int32),
+            ),
+            shape=(2, 2),
+        )
+        cache = _make_csr_derivative_cache(op)
+
+        assert cache.csr.has_canonical_format
+        np.testing.assert_array_equal(cache.row_nnz, np.array([2, 2], dtype=np.int64))
+        np.testing.assert_array_equal(cache.row_indices, np.array([0, 0, 1, 1], dtype=np.int64))
+
+        zeros = np.zeros(2, dtype=complex)
+        ay = np.array([2.0, 3.0], dtype=complex)
+        candidate = _build_block_csr(
+            2,
+            zeros,
+            zeros,
+            ay,
+            zeros,
+            zeros,
+            zeros,
+            cache,
+            sp.csr_matrix((2, 2), dtype=complex),
+            sp.csr_matrix((2, 2), dtype=complex),
+            sp.csr_matrix((2, 2), dtype=complex),
+            sp.csr_matrix((2, 2), dtype=complex),
+        )
+        expected = sp.diags(ay, format="csr") @ cache.csr
+        expected.sum_duplicates()
+        expected.eliminate_zeros()
+        expected.sort_indices()
+
+        np.testing.assert_array_equal(candidate.indptr, expected.indptr)
+        np.testing.assert_array_equal(candidate.indices, expected.indices)
+        np.testing.assert_allclose(candidate.data, expected.data, atol=1e-12, rtol=1e-12)
+
     def test_cartesian_prep_uses_dyx_for_mixed_derivative(self, small_mesh_2d, uniform_baseflow):
         """MATLAB 2D path uses Dzr = Dy @ Dx in the mixed-derivative block."""
         mesh = small_mesh_2d.deform(
@@ -418,6 +519,92 @@ class TestOperatorAssembly:
 
         prepared = _prepare_coefficients(mesh, uniform_baseflow, kx=0.0, model="2D", m=0.0)
         assert (prepared["D2RZ"] != mesh.Dyx).nnz == 0
+
+    def test_build_lnse_system_emits_assembly_metrics_sidecar(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+        tmp_path,
+    ):
+        """Assembly metrics sidecar records stage timings and core shape stats."""
+        output = tmp_path / "assembly_metrics.json"
+        L0, _, bc_indices = build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.0,
+            model="2D",
+            solver_cfg={
+                "assembly_metrics": True,
+                "assembly_metrics_log": False,
+                "assembly_metrics_output": str(output),
+            },
+        )
+
+        assert bc_indices.size == 0
+        assert output.exists()
+
+        report = json.loads(output.read_text(encoding="utf-8"))
+        assert report["status"] == "ok"
+        assert report["requested_backend"] == "scipy"
+        assert report["resolved_backend"] == "scipy"
+        assert report["ngp"] == small_mesh_2d.ngp
+        assert report["ndof"] == 5 * small_mesh_2d.ngp
+        assert report["nnz"] == L0.nnz
+        assert report["coeff_tensor_bytes_total"] > 0
+        assert report["matrix_type"] == "scipy"
+
+        stages = report["stages"]
+        for name in (
+            "prepare_coefficients",
+            "assemble_raw_blocks",
+            "apply_invB",
+            "apply_sponge",
+            "apply_bc",
+            "scipy_to_petsc",
+            "petsc_compaction",
+        ):
+            assert name in stages
+
+        assert stages["prepare_coefficients"]["ngp"] == small_mesh_2d.ngp
+        assert stages["assemble_raw_blocks"]["nnz"] > 0
+        assert stages["apply_bc"]["skipped"] is True
+        assert stages["scipy_to_petsc"]["skipped"] is True
+        assert stages["petsc_compaction"]["skipped"] is True
+        assert {"seconds", "rss_peak_before_bytes", "rss_peak_after_bytes", "rss_peak_delta_bytes"} <= set(
+            stages["assemble_raw_blocks"]
+        )
+
+    def test_build_lnse_system_petsc_metrics_records_local_full_csr_mode(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+        tmp_path,
+    ):
+        """Local PETSc assembly reports the CSR-based raw assembly mode."""
+        output = tmp_path / "assembly_metrics_petsc.json"
+        L0, _, _ = build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.0,
+            model="2D",
+            backend="petsc",
+            solver_cfg={
+                "petsc_matrix_mode": "local",
+                "assembly_metrics": True,
+                "assembly_metrics_log": False,
+                "assembly_metrics_output": str(output),
+            },
+        )
+        try:
+            report = json.loads(output.read_text(encoding="utf-8"))
+            assert report["status"] == "ok"
+            assert report["requested_backend"] == "petsc"
+            assert report["resolved_backend"] == "petsc"
+            assert report["matrix_type"] == "petsc"
+            assert report["raw_block_assembly_mode"] == "petsc_local_full_csr"
+            assert report["nnz"] == int(L0.getInfo()["nz_used"])
+        finally:
+            L0.destroy()
 
     def test_scipy_to_petsc_pre_bc_l0_has_sparse_parity(self):
         """Pre-BC L0 survives SciPy->PETSc conversion with entrywise parity."""

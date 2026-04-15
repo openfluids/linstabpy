@@ -170,7 +170,17 @@ def continuity_operator_coefficients(symbols: dict[str, sp.Symbol]) -> dict[str,
 
 
 def _coeff_source_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "linstab2d" / "operators" / "coefficients.py"
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "src" / "linstab2d" / "operators" / "coefficients.py",
+        repo_root / "linstab2d" / "operators" / "coefficients.py",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        "Could not locate coefficients.py under either src/linstab2d/operators or linstab2d/operators"
+    )
 
 
 @lru_cache(maxsize=4)
