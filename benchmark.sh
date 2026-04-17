@@ -22,8 +22,23 @@ PY_BIN="${VENV_DIR}/bin/python"
 MACHINE_LABEL="${1:-$(hostname 2>/dev/null || echo unknown-host)}"
 BENCH_ID="$(date -u +"%Y%m%dT%H%M%SZ")_${MACHINE_LABEL}"
 RESULTS_DIR="${SCRIPT_DIR}/benchmark_runs/${BENCH_ID}"
+export LC_NUMERIC=C
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+normalize_float_for_output() {
+    local raw="${1:-0}"
+    raw="${raw//,/.}"
+    case "${raw}" in
+        .*) raw="0${raw}" ;;
+        -.*) raw="-0${raw#-}" ;;
+    esac
+    if printf '%s\n' "${raw}" | grep -Eq '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'; then
+        printf '%s' "${raw}"
+    else
+        printf '0'
+    fi
+}
 
 COL_OK='\033[1;32m'
 COL_WARN='\033[1;33m'
@@ -98,6 +113,8 @@ if [ -z "${MPIEXEC}" ]; then
     exit 1
 fi
 printf "  mpiexec:         %s\n\n" "${MPIEXEC}"
+export LINSTAB2D_MPIEXEC="${MPIEXEC}"
+export LINSTAB2D_PYTHON_BIN="${PY_BIN}"
 
 # ── Thread pinning (single thread per rank) ─────────────────────────────────
 export OMP_NUM_THREADS=1
@@ -142,7 +159,7 @@ append_result() {
   }
 JSONEOF
 
-    printf '%s,%s,%d,%.2f,%d,%d\n' \
+    printf '%s,%s,%d,%s,%d,%d\n' \
         "${example}" "${variant}" "${ranks}" "${wall}" "${peak_rss}" "${exit_code}" \
         >> "${RESULTS_CSV}"
 }
@@ -162,21 +179,21 @@ run_case() {
         [ -f "${f}" ] && rm -f "${f}" && printf "  cleared cache: %s\n" "$(basename "${f}")"
     done
 
-    local cmd
+    local -a cmd
     if [ "${n_ranks}" -eq 1 ]; then
-        cmd="${PY_BIN} -m ${module}"
+        cmd=( "${PY_BIN}" -m "${module}" )
     else
-        cmd="${MPIEXEC} -n ${n_ranks} ${PY_BIN} -m ${module}"
+        cmd=( bash "${SCRIPT_DIR}/run_mpi_example.sh" -n "${n_ranks}" -m "${module}" )
     fi
 
     local wall_start wall_end wall_sec exit_code peak_rss
     wall_start="$(date +%s%N 2>/dev/null || date +%s)"
 
     if has_cmd /usr/bin/time; then
-        /usr/bin/time -v -o "${time_file}" bash -c "${cmd}" > "${log_file}" 2>&1
+        /usr/bin/time -v -o "${time_file}" "${cmd[@]}" > "${log_file}" 2>&1
         exit_code=$?
     else
-        bash -c "${cmd}" > "${log_file}" 2>&1
+        "${cmd[@]}" > "${log_file}" 2>&1
         exit_code=$?
         printf "time_command_not_available\n" > "${time_file}"
     fi
@@ -189,6 +206,7 @@ run_case() {
     else
         wall_sec="$((wall_end - wall_start))"
     fi
+    wall_sec="$(normalize_float_for_output "${wall_sec}")"
 
     # Peak RSS from /usr/bin/time -v output
     peak_rss=0
@@ -197,9 +215,9 @@ run_case() {
     fi
 
     if [ "${exit_code}" -eq 0 ]; then
-        printf "  ${COL_OK}OK${COL_RST}  wall=%.2fs  peak_rss=%d KB\n" "${wall_sec}" "${peak_rss}"
+        printf "  ${COL_OK}OK${COL_RST}  wall=%ss  peak_rss=%d KB\n" "${wall_sec}" "${peak_rss}"
     else
-        printf "  ${COL_ERR}FAIL${COL_RST} (exit=%d)  wall=%.2fs  — see %s\n" "${exit_code}" "${wall_sec}" "${log_file}"
+        printf "  ${COL_ERR}FAIL${COL_RST} (exit=%d)  wall=%ss  — see %s\n" "${exit_code}" "${wall_sec}" "${log_file}"
     fi
 
     append_result "${label}" "${variant}" "${n_ranks}" "${wall_sec}" "${peak_rss}" "${exit_code}"

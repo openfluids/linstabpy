@@ -128,11 +128,15 @@ linstab2d_resolve_mpi_libdir() {
 #
 # Usage: linstab2d_run_verify <py_bin> <heredoc_path>
 linstab2d_run_verify() {
+    linstab2d_run_verify_wrapped "$1" "$2" "${LINSTAB_VERIFY_MPIWRAP[@]}"
+}
+
+linstab2d_run_verify_wrapped() {
     local py_bin="$1"; shift
     local snippet_file="$1"; shift
     local _err _rc
     _err="$(mktemp)"
-    "${LINSTAB_VERIFY_MPIWRAP[@]}" "${py_bin}" "${snippet_file}" 2>"${_err}"
+    "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
     _rc=$?
     grep -v -E '^\[cli_[0-9]+\]: write_line error|^system msg for write_line failure|^:cmd=finalize$|^:$' "${_err}" >&2 || true
     rm -f "${_err}"
@@ -377,6 +381,14 @@ linstab2d_find_mpiexec_for_n1() {
     return 1
 }
 
+linstab2d_probe_mpi_launch() {
+    if has_cmd timeout; then
+        timeout 25 "$@" >/dev/null 2>&1
+    else
+        "$@" >/dev/null 2>&1
+    fi
+}
+
 configure_petsc_build_mpiexec() {
     # The PyPI ``petsc`` / ``slepc`` sdists run ``mpiexec -n 1`` during configure.
     # On Debian/Ubuntu, ``/usr/bin/mpiexec`` (alternatives default) often points at a
@@ -415,6 +427,47 @@ linstab2d_prepare_verify_mpiwrap() {
     else
         warn "No mpiexec found for verification. If the verify step hangs at mpi4py, set LINSTAB2D_VERIFY_MPIEXEC=/usr/bin/mpiexec.mpich"
     fi
+}
+
+linstab2d_prepare_multirank_verify_mpiwrap() {
+    local ranks="$1"
+    LINSTAB_VERIFY_MULTIWRAP=()
+    LINSTAB_VERIFY_MULTIENV=()
+    [ "${OS_NAME}" = "Linux" ] || return 1
+    unset HYDRA_BOOTSTRAP 2>/dev/null || true
+    local mx="${LINSTAB2D_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
+    if [ -z "${mx}" ]; then
+        mx="$(linstab2d_find_mpiexec_for_n1 || true)"
+    fi
+    [ -n "${mx}" ] || return 1
+
+    if linstab2d_probe_mpi_launch "${mx}" -n "${ranks}" /bin/true; then
+        LINSTAB_VERIFY_MULTIWRAP=( "${mx}" -n "${ranks}" )
+        log "Multi-rank verification will use: ${mx} -n ${ranks}"
+        return 0
+    fi
+
+    case "$(basename "${mx}")" in
+        mpiexec.mpich|mpiexec.hydra|mpirun.mpich)
+            if linstab2d_probe_mpi_launch env HYDRA_BOOTSTRAP=fork "${mx}" -n "${ranks}" /bin/true; then
+                LINSTAB_VERIFY_MULTIENV=( HYDRA_BOOTSTRAP=fork )
+                LINSTAB_VERIFY_MULTIWRAP=( "${mx}" -n "${ranks}" )
+                log "Multi-rank verification will use: HYDRA_BOOTSTRAP=fork ${mx} -n ${ranks}"
+                return 0
+            fi
+            ;;
+    esac
+    return 1
+}
+
+linstab2d_cpu_count() {
+    if has_cmd getconf; then
+        getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
+    fi
+    if has_cmd nproc; then
+        nproc 2>/dev/null && return 0
+    fi
+    printf '1\n'
 }
 
 install_mpi4py_compat() {
@@ -583,7 +636,48 @@ PY
     linstab2d_run_verify "${VENV_DIR}/bin/python" "${_check_snippet}"
     _check_rc=$?
     rm -f "${_check_snippet}"
-    exit "${_check_rc}"
+    if [ "${_check_rc}" -ne 0 ]; then
+        exit "${_check_rc}"
+    fi
+
+    _cpu_count="$(linstab2d_cpu_count)"
+    if [ "${OS_NAME}" = "Linux" ] && [ "${_cpu_count}" -gt 1 ]; then
+        if ! linstab2d_prepare_multirank_verify_mpiwrap 2; then
+            err "Quick check failed: no working 2-rank mpiexec launcher was found."
+            err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
+            exit 1
+        fi
+        _check_multirank_snippet="$(mktemp --suffix=.py)"
+        cat >"${_check_multirank_snippet}" <<'PY'
+import mpi4py.MPI as MPI
+from petsc4py import PETSc
+
+rank = MPI.COMM_WORLD.Get_rank()
+size = MPI.COMM_WORLD.Get_size()
+petsc_size = PETSc.COMM_WORLD.getSize()
+
+assert size == 2, f"expected mpi4py COMM_WORLD size 2, got {size}"
+assert petsc_size == 2, f"expected PETSc COMM_WORLD size 2, got {petsc_size}"
+
+if rank == 0:
+    print(f"mpi4py_multirank=size={size}")
+    print(f"petsc4py_multirank=size={petsc_size}")
+PY
+        linstab2d_run_verify_wrapped \
+            "${VENV_DIR}/bin/python" \
+            "${_check_multirank_snippet}" \
+            "${LINSTAB_VERIFY_MULTIENV[@]}" \
+            "${LINSTAB_VERIFY_MULTIWRAP[@]}"
+        _check_multirank_rc=$?
+        rm -f "${_check_multirank_snippet}"
+        if [ "${_check_multirank_rc}" -ne 0 ]; then
+            err "Quick check failed during 2-rank MPI verification (exit ${_check_multirank_rc})."
+            err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 ${VENV_DIR}/bin/python -c 'import mpi4py.MPI; from petsc4py import PETSc'"
+            exit "${_check_multirank_rc}"
+        fi
+    fi
+
+    exit 0
 fi
 
 log "Detected OS: ${OS_NAME}"
@@ -957,6 +1051,43 @@ rm -f "${_verify_snippet}"
 if [ "${_verify_rc}" -ne 0 ]; then
     err "Verification failed (exit ${_verify_rc})."
     exit "${_verify_rc}"
+fi
+
+_cpu_count="$(linstab2d_cpu_count)"
+if [ "${OS_NAME}" = "Linux" ] && [ "${_cpu_count}" -gt 1 ]; then
+    if ! linstab2d_prepare_multirank_verify_mpiwrap 2; then
+        err "Verification failed: no working 2-rank mpiexec launcher was found."
+        err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
+        exit 1
+    fi
+    _verify_multirank_snippet="$(mktemp --suffix=.py)"
+    cat >"${_verify_multirank_snippet}" <<'PY'
+import mpi4py.MPI as MPI
+from petsc4py import PETSc
+
+rank = MPI.COMM_WORLD.Get_rank()
+size = MPI.COMM_WORLD.Get_size()
+petsc_size = PETSc.COMM_WORLD.getSize()
+
+assert size == 2, f"expected mpi4py COMM_WORLD size 2, got {size}"
+assert petsc_size == 2, f"expected PETSc COMM_WORLD size 2, got {petsc_size}"
+
+if rank == 0:
+    print(f"  mpi4py multirank = OK  (size={size})", flush=True)
+    print(f"  petsc4py multirank = OK  (size={petsc_size})", flush=True)
+PY
+    linstab2d_run_verify_wrapped \
+        "${PY_BIN}" \
+        "${_verify_multirank_snippet}" \
+        "${LINSTAB_VERIFY_MULTIENV[@]}" \
+        "${LINSTAB_VERIFY_MULTIWRAP[@]}"
+    _verify_multirank_rc=$?
+    rm -f "${_verify_multirank_snippet}"
+    if [ "${_verify_multirank_rc}" -ne 0 ]; then
+        err "Multi-rank verification failed (exit ${_verify_multirank_rc})."
+        err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 ${PY_BIN} -c 'import mpi4py.MPI; from petsc4py import PETSc'"
+        exit "${_verify_multirank_rc}"
+    fi
 fi
 fi
 
