@@ -11,6 +11,14 @@ RANKS="${LINSTAB2D_MPI_RANKS:-}"
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
+probe_mpi_launch() {
+    if has_cmd timeout; then
+        timeout -k 2 8 "$@" >/dev/null 2>&1
+    else
+        "$@" >/dev/null 2>&1
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -134,6 +142,25 @@ export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-1}"
 
+MPIEXEC_ENV=()
+if [ "${RANKS}" -gt 1 ] && ! probe_mpi_launch "${MPIEXEC}" -n "${RANKS}" /bin/true; then
+    case "$(basename "${MPIEXEC}")" in
+        mpiexec.mpich|mpiexec.hydra|mpirun.mpich)
+            if probe_mpi_launch env HYDRA_BOOTSTRAP=fork "${MPIEXEC}" -n "${RANKS}" /bin/true; then
+                MPIEXEC_ENV=(HYDRA_BOOTSTRAP=fork)
+            else
+                echo "[run_mpi_example] ${MPIEXEC} failed the -n ${RANKS} local probe" >&2
+                echo "[run_mpi_example] Tried HYDRA_BOOTSTRAP=fork as well; see local MPI launcher configuration." >&2
+                exit 1
+            fi
+            ;;
+        *)
+            echo "[run_mpi_example] ${MPIEXEC} failed the -n ${RANKS} local probe" >&2
+            exit 1
+            ;;
+    esac
+fi
+
 echo "[run_mpi_example] mpiexec=${MPIEXEC}"
 echo "[run_mpi_example] ranks=${RANKS}"
 echo "[run_mpi_example] python=${PY_BIN}"
@@ -141,5 +168,12 @@ echo "[run_mpi_example] module=${MODULE}"
 echo "[run_mpi_example] OMP_NUM_THREADS=${OMP_NUM_THREADS}"
 echo "[run_mpi_example] MKL_NUM_THREADS=${MKL_NUM_THREADS}"
 echo "[run_mpi_example] OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS}"
+if [ "${#MPIEXEC_ENV[@]}" -gt 0 ]; then
+    echo "[run_mpi_example] launcher_env=${MPIEXEC_ENV[*]}"
+fi
+
+if [ "${#MPIEXEC_ENV[@]}" -gt 0 ]; then
+    exec env "${MPIEXEC_ENV[@]}" "${MPIEXEC}" -n "${RANKS}" "${PY_BIN}" -m "${MODULE}" "${EXTRA_ARGS[@]}"
+fi
 
 exec "${MPIEXEC}" -n "${RANKS}" "${PY_BIN}" -m "${MODULE}" "${EXTRA_ARGS[@]}"
