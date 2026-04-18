@@ -14,6 +14,31 @@ import numpy as np
 # Re-export from canonical location for callers that import from here.
 from linstab2d.utils.jsonc import load_jsonc  # noqa: F401
 
+
+def load_or_compute(
+    npz_path,
+    compute_fn,
+    *,
+    required_keys=None,
+    verbose=True,
+    **np_load_kwargs,
+):
+    """Return ``np.load(npz_path)``; on miss (absent/truncated/unreadable/schema) call ``compute_fn`` and retry."""
+    def _load():
+        return np.load(npz_path, **np_load_kwargs)
+
+    try:
+        data = _load()
+        if required_keys is not None and not required_keys.issubset(set(data.files)):
+            data.close()
+            raise KeyError("stale cache schema")
+    except (FileNotFoundError, EOFError, OSError, ValueError, KeyError) as exc:
+        if verbose:
+            print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+        compute_fn()
+        data = _load()
+    return data
+
 FIGURE_DPI = 600
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"

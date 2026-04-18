@@ -30,6 +30,7 @@ from linstab2d.utils.jsonc import load_jsonc
 from ._helpers import (
     format_scientific_ticks,
     label_axes,
+    load_or_compute,
     plot_scalar_panel,
     plot_signed_panel,
     save_figure,
@@ -269,18 +270,13 @@ def ensure_artifact(data: dict[str, np.ndarray]) -> None:
 
 def main() -> None:
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
-    try:
-        raw = np.load(OUTPUT_NPZ, allow_pickle=False)
-        required = {"x", "y", "f", "df", "df_an", "overall_pass"}
-        if not required.issubset(set(raw.files)):
-            raise KeyError("stale cache schema")
-    except (FileNotFoundError, EOFError, OSError, ValueError):
-        compute(cfg)
-        raw = np.load(OUTPUT_NPZ, allow_pickle=False)
-    except KeyError:
-        compute(cfg)
-        raw = np.load(OUTPUT_NPZ, allow_pickle=False)
-
+    raw = load_or_compute(
+        OUTPUT_NPZ,
+        lambda: compute(cfg),
+        required_keys={"x", "y", "f", "df", "df_an", "overall_pass"},
+        allow_pickle=False,
+        verbose=False,
+    )
     data = {key: raw[key] for key in raw.files}
     ensure_artifact(data)
     plot(data)

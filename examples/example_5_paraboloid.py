@@ -21,6 +21,7 @@ from linstab2d.utils.jsonc import load_jsonc
 
 from ._helpers import (
     label_axes,
+    load_or_compute,
     load_parity_npz,
     mesh_view,
     parity_npz_get,
@@ -441,12 +442,7 @@ def plot(data):
 
 def main():
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
-    try:
-        data = np.load(OUTPUT_NPZ)
-    except (FileNotFoundError, EOFError, OSError, ValueError):
-        compute(cfg)
-        data = np.load(OUTPUT_NPZ)
-
+    data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg), verbose=False)
     plot(data)
 
 

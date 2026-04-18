@@ -7,6 +7,7 @@ import json
 import shutil
 import textwrap
 
+from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ownership
 
 import numpy as np
@@ -264,7 +265,12 @@ class TestResolventAnalysis:
     def test_forcing_orthonormality(self, blasius_problem):
         """Forcing modes must be W-orthonormal."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
-        gains, _, forcings = resolvent_analysis(L0, omega=60.0, n_modes=3, W_diag=W_diag)
+        # atol=1e-8 requires the resolvent EPS run at 1e-12; the module default
+        # 1e-8 only delivers orthonormality to ~1e-7.
+        solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+        gains, _, forcings = resolvent_analysis(
+            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+        )
         n = forcings.shape[1]
         gram = np.empty((n, n), dtype=complex)
         for i in range(n):
@@ -275,7 +281,10 @@ class TestResolventAnalysis:
     def test_response_orthonormality(self, blasius_problem):
         """Response modes must be W-orthonormal."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
-        gains, responses, _ = resolvent_analysis(L0, omega=60.0, n_modes=3, W_diag=W_diag)
+        solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+        gains, responses, _ = resolvent_analysis(
+            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+        )
         n = responses.shape[1]
         gram = np.empty((n, n), dtype=complex)
         for i in range(n):
@@ -788,36 +797,13 @@ class TestSpatialEigenvalues:
 # ---------------------------------------------------------------------------
 
 
-def _build_synthetic_jet(nx=15, ny=10, m=0):
-    """Build a small synthetic axisymmetric sech² jet.
-
-    Returns (mesh, bf, L0, idx, ngp).
-    """
-    mesh = Mesh.create(
-        xrange=(0.0, 10.0), yrange=(0.0, 3.0),
-        nx=nx, ny=ny, fd_order=4, y_symmetry=True,
-    )
-    R = mesh.Y
-    U_axial = 0.9 / np.cosh(R)**2
-    bf = BaseFlow(
-        Re=1e4, Ma=0.9, Pr=0.7, kappa=1.4, T_0=288.15,
-        RHO=np.ones_like(R), U=U_axial,
-        V=np.zeros_like(R), W=np.zeros_like(R), T=np.ones_like(R),
-    )
-    sutherland_air(bf)
-    L0, idx = build_lnse_operator(mesh, bf, model="axy", m=m)
-    ngp = mesh.ngp
-    L0, bc_indices = apply_dirichlet(L0, idx, "ltr", "uvwT", ngp)
-    return mesh, bf, L0, idx, ngp
-
-
 @pytest.mark.slow
 class TestCylindricalTemporalEigenvalues:
     """Temporal eigenvalue tests for the cylindrical (axy) model."""
 
     def test_axy_eigenpair_residual_m0(self):
         """Eigenvalues of axy model at m=0 satisfy eigenpair equation."""
-        _, _, L0, _, _ = _build_synthetic_jet(m=0)
+        L0 = build_synthetic_jet(m=0)["L0"]
         omega, modes = temporal_eigenvalues(L0, n_modes=5, target=-0.1j)
         iL0 = 1j * L0
         for i in range(len(omega)):
@@ -992,7 +978,8 @@ class TestCylindricalSpatialEigenvalues:
     @pytest.fixture
     def spatial_axy_problem(self):
         """Build a small cylindrical spatial operator."""
-        mesh, bf, _, _, _ = _build_synthetic_jet()
+        problem = build_synthetic_jet()
+        mesh, bf = problem["mesh"], problem["bf"]
         Lc, R_mat, Lw, idx = build_spatial_operator(mesh, bf, model="axy", m=0)
         ngp = mesh.ngp
         Lc, R_mat, bc_indices = apply_dirichlet_spatial(

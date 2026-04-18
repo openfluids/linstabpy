@@ -19,17 +19,11 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, scipy_to_petsc, vec_to_numpy
+from .petsc_utils import _is_petsc_matrix, _matrix_nnz, _operator_shape, require_complex, scipy_to_petsc, vec_to_numpy
+from ._eps_helpers import _resolve_solver_cfg_subsection
 from ..utils._solver_cfg import _scfg, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
-
-
-def _matrix_nnz(operator: sp.spmatrix | PETSc.Mat) -> int:
-    """Return the stored nonzero count for SciPy or PETSc matrices."""
-    if _is_petsc_matrix(operator):
-        return int(operator.getInfo().get("nz_used", 0.0))
-    return int(operator.nnz)
 
 
 @dataclass
@@ -88,13 +82,7 @@ def make_linear_solver(
     else:
         A = scipy_to_petsc(operator, solver_cfg)
 
-    # Resolve the config subsection for this linear-solver instance.
-    _sub: dict | None = None
-    if solver_cfg is not None:
-        if env_prefix == "LINSTAB2D_RESOLVENT":
-            _sub = solver_cfg.get("resolvent", solver_cfg.get("linsolve", {}))
-        else:
-            _sub = solver_cfg.get("linsolve", {})
+    _sub = _resolve_solver_cfg_subsection(solver_cfg, env_prefix)
 
     solver_type = _scfg(_sub, "type", f"{env_prefix}_TYPE", "mumps")
 
@@ -195,8 +183,14 @@ def make_linear_solver(
                     sub_ksp.setErrorIfNotConverged(True)
                     sub_pc = sub_ksp.getPC()
                     sub_pc.setType(sub_pc_type)
-            except PETSc.Error:
-                pass
+            except PETSc.Error as exc:
+                logger.debug(
+                    "Could not configure %s subblock KSP/PC (sub_ksp=%s, sub_pc=%s): %s",
+                    pc_type,
+                    sub_ksp_type,
+                    sub_pc_type,
+                    exc,
+                )
 
         # Allow runtime override via PETSc options DB.
         ksp.setFromOptions()

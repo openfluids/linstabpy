@@ -24,6 +24,7 @@ from ._helpers import (
     format_complex,
     format_scientific_ticks,
     label_axes,
+    load_or_compute,
     load_parity_npz,
     mesh_view,
     parity_npz_get,
@@ -541,14 +542,7 @@ def plot(data):
 
 def main():
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
-
-    try:
-        data = np.load(OUTPUT_NPZ)
-    except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
-        print(f"Cached results unavailable or invalid ({exc}), recomputing.")
-        compute(cfg)
-        data = np.load(OUTPUT_NPZ)
-
+    data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
     plot(data)
 
 

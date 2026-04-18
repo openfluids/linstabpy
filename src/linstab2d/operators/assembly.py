@@ -24,6 +24,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ..utils._solver_cfg import _scfg, _scfg_bool
+from ..utils.petsc_core import _matrix_nnz
 from ..mesh.mesh import Mesh
 from ..baseflow.baseflow import BaseFlow
 from .coefficients import (
@@ -88,22 +89,9 @@ def _detect_rank_size() -> tuple[int, int]:
 
         comm = PETSc.COMM_WORLD
         return int(comm.getRank()), int(comm.getSize())
-    except Exception:
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("PETSc rank/size probe failed; falling back to (0, 1): %s", exc)
         return 0, 1
-
-
-def _matrix_nnz(operator: sp.spmatrix | "PETSc.Mat") -> int | None:
-    if hasattr(operator, "nnz"):
-        return int(operator.nnz)
-    get_info = getattr(operator, "getInfo", None)
-    if callable(get_info):
-        try:
-            info = get_info()
-            if "nz_used" in info:
-                return int(info["nz_used"])
-        except Exception:
-            return None
-    return None
 
 
 @dataclass(frozen=True)
@@ -1313,8 +1301,8 @@ def _apply_floquet_shift(
     DZ  -> DZ + iα I
     D2Z -> D2Z + 2 iα DZ + (iα)² I
     """
-    dz_blocks = _ensure_5_block_derivatives(DZ, ngp)
-    d2z_blocks = _ensure_5_block_derivatives(D2Z, ngp)
+    dz_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(DZ, ngp)]
+    d2z_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(D2Z, ngp)]
     I = sp.eye(ngp, format="csc")
     shifted_dz = [mat + i_alpha * I for mat in dz_blocks]
     shifted_d2z = [d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)]

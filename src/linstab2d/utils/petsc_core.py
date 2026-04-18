@@ -33,6 +33,13 @@ def _operator_shape(operator) -> tuple[int, int]:
     return int(operator.shape[0]), int(operator.shape[1])
 
 
+def _matrix_nnz(operator) -> int:
+    """Return the stored nonzero count for SciPy or PETSc matrices."""
+    if _is_petsc_matrix(operator):
+        return int(operator.getInfo().get("nz_used", 0))
+    return int(operator.nnz)
+
+
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
     """Resolve PETSc matrix conversion mode."""
     raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTAB2D_PETSC_MATRIX_MODE", "auto")
