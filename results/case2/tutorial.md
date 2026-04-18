@@ -46,7 +46,7 @@ Arquivos principais:
 
 - [perf_memory.py](perf_memory.py)
 - [run_perf_queue_once.sh](run_perf_queue_once.sh)
-- um JSONC de campanha, por exemplo [evp_stride2_spectra.jsonc](evp_stride2_spectra.jsonc)
+- um JSONC de campanha, por exemplo [evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc](evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc)
 
 Esse é o caminho certo quando você quer:
 
@@ -360,13 +360,8 @@ Uma campanha é um JSONC com três blocos:
 
 Exemplos ativos:
 
-- [evp_stride2_spectra.jsonc](evp_stride2_spectra.jsonc)
-
-Exemplos históricos:
-
-- [evp_stride2_stationary_probe.jsonc](legacy/evp_stride2_stationary_probe.jsonc)
-- [evp_stride2_stationary_probe_nev6.jsonc](legacy/evp_stride2_stationary_probe_nev6.jsonc)
-- [evp_stride4_localize.jsonc](legacy/evp_stride4_localize.jsonc)
+- [evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc](evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc)
+- [evp_stride2_oscillatory_branch_target_scan.jsonc](evp_stride2_oscillatory_branch_target_scan.jsonc)
 
 Estrutura mínima de um JSONC de campanha:
 
@@ -411,7 +406,7 @@ Estrutura mínima de um JSONC de campanha:
 Para rodar a campanha:
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2_spectra.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python results/case2/perf_memory.py
 ```
 
@@ -452,14 +447,14 @@ Espectro salvo de uma campanha:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_spectra.py \
-  --run-dir results/case2/output/evp_stride2_spectra/runs
+  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Modos salvos:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_modes.py \
-  --run-dir results/case2/output/evp_stride2_spectra/runs
+  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 ## 12. Solução de problemas

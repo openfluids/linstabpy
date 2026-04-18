@@ -110,9 +110,8 @@ not a passive parameter path when `β` is swept.
 ### Related reference configurations
 
 - `validation/song_2023/` — Ziming Song's oblique SWBLI at `M=2.15`, `Re=1e5`
-  (Song & Hao, *Phys. Fluids* 35, 084121, 2023). The "Ziming" naming in
-  `results/case2/legacy/eigs_branch_localize_ziming_*` refers to this
-  reference case, **not** to Case 2 itself.
+  (Song & Hao, *Phys. Fluids* 35, 084121, 2023). Used as a validation
+  reference, **not** to be confused with Case 2 itself.
 - `docs/robinet2007.md` — Robinet's original global-stability SWBLI study.
 - `docs/martini2024.md` — the code paper.
 - `docs/song2023.md` — full text of the Song & Hao reference study.

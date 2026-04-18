@@ -12,9 +12,6 @@ Este README é **operacional** — como rodar. Para o resto:
   parameter map, referências.
 - **`tutorial.md`** — passo-a-passo prático (rodar um caso, rodar uma
   campanha, MPI sem pegadinha).
-- **`tutorial_ducros.md`** — variante com sensor Ducros (histórico; ver
-  `REFERENCE.md` Framing §3 sobre por que Ducros não é cleanup de
-  mean-flow).
 - **`/CLAUDE.md`** — motto e regras globais do projeto.
 
 Se você é um agente entrando nesta campanha agora, leia `CLAUDE.md`,
@@ -38,32 +35,31 @@ Cada campanha grava em `output/<campanha>/`:
 - `evp_stride*.jsonc` — configs por experimento (malha × target × solver)
 - `plot_saved_spectra.py`, `plot_saved_modes.py` — pós-processamento
 
-Configs retirados do caminho ativo vivem em `legacy/`.
-
 ## Commands
 
-Rodar a campanha ativa:
+Rodar a campanha ativa (exemplo: M21 com target oscilatório):
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2_spectra.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python results/case2/perf_memory.py
 ```
 
-Plotar o espectro salvo da campanha ativa:
+Plotar o espectro salvo:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_spectra.py \
-  --run-dir results/case2/output/evp_stride2_spectra/runs
+  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
-Plotar os modos salvos da campanha ativa:
+Plotar os modos salvos:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_modes.py \
-  --run-dir results/case2/output/evp_stride2_spectra/runs
+  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 ## Delete Policy
 
-O topo de `results/case2` deve continuar pequeno. Se um arquivo não pertence à
-campanha ativa em `stride 2`, ele deve ir para `results/case2/legacy/`.
+O topo de `results/case2` deve continuar pequeno. Configs ou saídas que
+saírem do caminho ativo devem ser apagados, não movidos para um `legacy/`
+permanente. Histórico fica no git.

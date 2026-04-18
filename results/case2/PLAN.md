@@ -27,7 +27,7 @@ An agent joining this campaign should load context from:
    question touches background.
 4. **`README.md`** (same directory, Portuguese) — operational: how to run
    one case, how to run a campaign, MPI presets, artifact layout.
-5. **`tutorial.md`** and **`tutorial_ducros.md`** — step-by-step walk-throughs.
+5. **`tutorial.md`** — step-by-step walk-through.
 
 Supporting files in this directory:
 
@@ -39,8 +39,6 @@ Supporting files in this directory:
 - `evp_stride*.jsonc` — per-experiment configs (mesh × target × solver).
 - `output/<campaign>/runs/*.npz`, `logs/*.log` — artifacts.
 - `baseflow/` — active mean-flow dataset (`Qraw`).
-- `legacy/` — retired configs. Naming `eigs_branch_localize_ziming_*`
-  references the Song 2023 validation case, not Case 2.
 
 External references in `/docs/`:
 
@@ -249,7 +247,7 @@ tracking (Phase 8) runs in parallel rather than in series.
 | you (optional) | **Physics-based Strouhal seed.** If Lui 2022 or separation-bubble breathing literature gives an expected `St` for the oscillatory family, record it in `REFERENCE.md` "Expected qualitative mode structure". Would replace the M2-empirical target seed. | Phase 3 seeding |
 | me | **Baseflow spectrum diagnostic** (Phase 1.5). Wall-normal `u` spectra at 3–4 streamwise stations on `Qraw` and `Qfilt`. Mostly a sanity check now that we know `Qraw` is contaminated — confirm `Qfilt` looks clean. | Confidence in Phase 2 |
 | me | **Branch-identity diagnostic.** A clustering or mode-overlap metric on eigenvectors to operationalise "same spatial pocket" in Acceptance Criteria. | Phases 4–8 |
-| me | **Recompute / archive `γ=1.4` artefacts.** Past `output/` runs used the wrong `γ`. Mark them in a `legacy/` note and do not overlay on new `γ=1.31` results. | Comparability hygiene |
+| — | **Recompute `γ=1.4` artefacts.** All prior `output/` runs (wrong `γ`) have been deleted as part of the 2026-04-18 cleanup. New runs start from `γ=1.31`. | — (resolved) |
 
 ---
 

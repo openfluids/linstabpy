@@ -12,7 +12,7 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_RUN_DIR = ROOT / "output" / "evp_stride2_spectra" / "runs"
+DEFAULT_RUN_DIR = ROOT / "output" / "evp_stride2x1_oscillatory_target_ncv500_tol1e4" / "runs"
 COMPONENT_NAMES = ("rho", "u", "v", "w", "T")
 
 
