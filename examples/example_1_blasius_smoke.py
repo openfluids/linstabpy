@@ -20,7 +20,47 @@ import examples.example_1_blasius as bl
 _SMOKE = Path(__file__).resolve()
 
 
+def _rank_size_from_env() -> tuple[int, int] | None:
+    """Return MPI rank/size from launcher env vars without importing mpi4py.
+
+    Plain serial runs should not touch ``mpi4py`` here because MPICH/Hydra can
+    hang in singleton ``MPI_Init`` unless the process was launched under
+    ``mpiexec``.
+    """
+    size_vars = ("OMPI_COMM_WORLD_SIZE", "PMI_SIZE", "PMIX_SIZE", "MPI_LOCALNRANKS")
+    rank_vars = ("OMPI_COMM_WORLD_RANK", "PMI_RANK", "PMIX_RANK")
+
+    size = None
+    for name in size_vars:
+        raw = os.getenv(name)
+        if raw is None or raw.strip() == "":
+            continue
+        try:
+            size = int(raw)
+            break
+        except ValueError:
+            continue
+
+    if size is None:
+        return None
+
+    rank = 0
+    for name in rank_vars:
+        raw = os.getenv(name)
+        if raw is None or raw.strip() == "":
+            continue
+        try:
+            rank = int(raw)
+            break
+        except ValueError:
+            continue
+    return rank, size
+
+
 def _comm():
+    rank_size = _rank_size_from_env()
+    if rank_size is None:
+        return None
     try:
         from mpi4py import MPI
 
@@ -30,9 +70,12 @@ def _comm():
 
 
 def _rank_size() -> tuple[int, int]:
+    rank_size = _rank_size_from_env()
+    if rank_size is None:
+        return 0, 1
     comm = _comm()
     if comm is None:
-        return 0, 1
+        return rank_size
     return int(comm.Get_rank()), int(comm.Get_size())
 
 
