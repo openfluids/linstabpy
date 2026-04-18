@@ -21,7 +21,6 @@ import time
 import numpy as np
 
 from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.operators.assembly import build_lnse_system
 
 from ._helpers import (
     label_axes,
@@ -59,6 +58,7 @@ def compute(cfg: dict):
 
     from linstab2d.baseflow import load_blasius, sutherland_air
     from linstab2d.mesh import Mesh
+    from linstab2d.operators.assembly import build_lnse_system
     from linstab2d.operators.energy_norm import compute_chu_norm
     from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 

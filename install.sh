@@ -136,7 +136,11 @@ linstab2d_run_verify_wrapped() {
     local snippet_file="$1"; shift
     local _err _rc
     _err="$(mktemp)"
-    "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
+    if [ "$#" -gt 0 ] && [[ "$1" == *=* ]]; then
+        env "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
+    else
+        "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
+    fi
     _rc=$?
     grep -v -E '^\[cli_[0-9]+\]: write_line error|^system msg for write_line failure|^:cmd=finalize$|^:$' "${_err}" >&2 || true
     rm -f "${_err}"
