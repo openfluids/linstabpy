@@ -422,7 +422,7 @@ def compute() -> None:
     sponge_cfg_raw = cfg("physics.sponge", None)
     sponge_cfg = sponge_cfg_raw if isinstance(sponge_cfg_raw, dict) else None
     native_sponge_enabled = bool((sponge_cfg or {}).get("enabled", False))
-    use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", True))
+    use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", False))
     alpha_filter_raw = cfg("numerics.alpha_filter", "none")
     alpha_filter = _effective_alpha_filter(
         alpha_filter_raw,

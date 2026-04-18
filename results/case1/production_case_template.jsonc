@@ -8,6 +8,7 @@
     "matlab_exports_stability_dir": "/absolute/path/to/MATLAB_exports_stability",
     "matlab_exports_resolvent_dir": "/absolute/path/to/MATLAB_exports_resolvent",
     "matlab_exports_operator_stage_dir": "/absolute/path/to/MATLAB_exports_resolvent",
+    // Optional: only needed for MATLAB v7.3 / HDF5 parity tooling.
     "case_inputs_mat": "/absolute/path/to/MATLAB_exports_resolvent/case_inputs_used.mat"
   },
 
@@ -18,7 +19,11 @@
     "kappa": 1.4,
     "T_0": 1540.0,
     "zero_spanwise": false,
-    "use_matlab_sponge_aux": true,
+    "use_matlab_sponge_aux": false,
+    "sponge": {
+      "enabled": true,
+      "preset": "case1_resolvent"
+    },
     "zero_mu_t_derivs": true
   },
 

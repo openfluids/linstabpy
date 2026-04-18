@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pytest
 
@@ -24,6 +23,7 @@ def _load_legacy_module():
 
 
 def _mat_sponge(path: Path) -> np.ndarray:
+    h5py = pytest.importorskip("h5py")
     with h5py.File(path, "r") as handle:
         sponge = np.asarray(handle["sponge_aux"], dtype=float)
     return sponge

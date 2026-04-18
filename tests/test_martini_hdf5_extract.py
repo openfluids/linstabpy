@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("h5py")
+
 from tools.parity.matlab_hdf5 import extract_file
 
 

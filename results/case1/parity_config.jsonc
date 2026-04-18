@@ -13,7 +13,7 @@
     "matlab_exports_resolvent_dir": "MATLAB_exports_resolvent",
     "matlab_exports_operator_stage_dir": "MATLAB_exports_resolvent",
 
-    // MATLAB case-input dump containing sponge_aux used during export.
+    // Optional MATLAB case-input dump used only by parity/HDF5 tooling.
     "case_inputs_mat": "MATLAB_exports_resolvent/case_inputs_used.mat"
   },
 
@@ -32,9 +32,13 @@
     // Keep off for strict parity with this dataset.
     "zero_spanwise": false,
 
-    // Use MATLAB-exported sponge_aux instead of local sponge.npy (which is zero
-    // in this repository snapshot).
-    "use_matlab_sponge_aux": true,
+    // Default to the native resolvent preset so normal Case 1 runs do not
+    // depend on HDF5 / h5py.
+    "use_matlab_sponge_aux": false,
+    "sponge": {
+      "enabled": true,
+      "preset": "case1_resolvent"
+    },
 
     // MATLAB exported fields consumed by GetLinProblem use zero dMUdT terms.
     "zero_mu_t_derivs": true

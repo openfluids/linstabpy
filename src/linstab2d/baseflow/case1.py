@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import h5py
 import numpy as np
 
 from .baseflow import BaseFlow
@@ -30,6 +29,14 @@ def _validate_stride(value: int, name: str) -> int:
 
 def _load_sponge_aux(case_inputs_mat: Path) -> np.ndarray:
     """Load MATLAB ``sponge_aux`` field from a case-inputs .mat file."""
+    try:
+        import h5py
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "MATLAB sponge_aux loading requires optional dependency 'h5py'. "
+            "Install the 'linstabpy[hdf5]' extra or rerun install.sh with "
+            "LINSTAB2D_WITH_H5PY=1."
+        ) from exc
     with h5py.File(case_inputs_mat, "r") as handle:
         if "sponge_aux" not in handle:
             raise KeyError(f"'sponge_aux' not found in {case_inputs_mat}")

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import h5py
 import numpy as np
+
+if TYPE_CHECKING:
+    import h5py
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,18 @@ class ExtractedField:
     path: str
     shape: tuple[int, ...]
     dtype: str
+
+
+def _require_h5py():
+    try:
+        import h5py
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "MATLAB HDF5 parity tooling requires optional dependency 'h5py'. "
+            "Install the 'linstabpy[hdf5]' extra or rerun install.sh with "
+            "LINSTAB2D_WITH_H5PY=1."
+        ) from exc
+    return h5py
 
 
 def sanitize_key(path: str) -> str:
@@ -61,6 +75,7 @@ def _scalarize(value: Any) -> Any:
 
 
 def _decode_reference(ref: h5py.Reference, handle: h5py.File) -> Any:
+    h5py = _require_h5py()
     if not ref:
         return None
     node = handle[ref]
@@ -94,6 +109,7 @@ def _decode_object_dataset(ds: h5py.Dataset, handle: h5py.File) -> Any:
 
 
 def _decode_node(node: h5py.Group | h5py.Dataset, handle: h5py.File) -> Any:
+    h5py = _require_h5py()
     if isinstance(node, h5py.Group):
         return {key: _decode_node(node[key], handle) for key in node.keys()}
 
@@ -113,6 +129,7 @@ def _decode_node(node: h5py.Group | h5py.Dataset, handle: h5py.File) -> Any:
 def load_hdf5_tree(path: Path) -> dict[str, Any]:
     """Load public top-level MATLAB HDF5 nodes into a nested Python dict."""
     path = Path(path)
+    h5py = _require_h5py()
     with h5py.File(path, "r") as handle:
         return {
             key: _decode_node(handle[key], handle)
