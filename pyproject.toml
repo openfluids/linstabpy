@@ -24,10 +24,12 @@ dependencies = [
     "numpy >= 1.23",
     "scipy >= 1.10",
     "matplotlib >= 3.7",
-    "h5py",
 ]
 
 [project.optional-dependencies]
+hdf5 = [
+    "h5py",
+]
 petsc = [
     "mpi4py >= 3.1",
     "petsc4py >= 3.18",
@@ -36,7 +38,8 @@ petsc = [
 
 [dependency-groups]
 test = ["pytest", "pytest-cov", "sympy>=1.13"]
-dev = [{include-group = "test"}, "h5py"]
+dev = [{include-group = "test"}]
+parity = ["h5py"]
 
 [project.urls]
 Repository = "https://github.com/ricardofrantz/linstabpy"

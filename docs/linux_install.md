@@ -101,6 +101,12 @@ Useful overrides:
 - `LINSTAB2D_SKIP_SYS_DEPS=1`
 - `LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1`
 
+HDF5 policy:
+
+- The default install and verification path does not require HDF5 or `h5py`.
+- Enable `LINSTAB2D_WITH_H5PY=1` only if you explicitly need MATLAB v7.3 / HDF5
+  parity tooling or the related optional tests/scripts.
+
 ## Known-good reference stack
 
 This repository now carries one tested Linux reference stack from a machine
