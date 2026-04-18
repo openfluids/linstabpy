@@ -25,6 +25,13 @@ from .petsc_utils import (
     scipy_to_petsc_distributed_from_root,
     vec_to_numpy,
 )
+from ._eps_helpers import (
+    _install_eps_monitor,
+    _monitor_state_details,
+    _resolve_eps_convergence_test,
+    _resolve_eps_error_type,
+    _resolve_solver_cfg_subsection,
+)
 from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
@@ -157,7 +164,7 @@ def _warn_if_shifted_operator_is_ill_conditioned(
     The exact dense condition number can be expensive for large sparse systems, so
     this check is limited to moderate sizes by ``cond_warn_max_n``.
     """
-    _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
+    _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTAB2D_EIGEN")
     if not _scfg_bool(_ecfg, "cond_warn", "LINSTAB2D_EIGEN_COND_WARN", True):
         return
 
@@ -207,43 +214,6 @@ def _resolve_ncv(
     return min(max(ncv, n_modes + 1), max_ncv)
 
 
-def _resolve_eps_convergence_test(name: str) -> SLEPc.EPS.Conv:
-    """Map config strings to SLEPc EPS convergence tests."""
-    key = str(name).strip().lower()
-    mapping = {
-        "abs": SLEPc.EPS.Conv.ABS,
-        "absolute": SLEPc.EPS.Conv.ABS,
-        "rel": SLEPc.EPS.Conv.REL,
-        "relative": SLEPc.EPS.Conv.REL,
-        "norm": SLEPc.EPS.Conv.NORM,
-    }
-    try:
-        return mapping[key]
-    except KeyError as exc:
-        raise ValueError(
-            f"Invalid EPS convergence test {name!r}; expected abs|rel|norm"
-        ) from exc
-
-
-def _resolve_eps_error_type(name: str) -> SLEPc.EPS.ErrorType:
-    """Map config strings to SLEPc EPS residual/error types."""
-    key = str(name).strip().lower()
-    mapping = {
-        "abs": SLEPc.EPS.ErrorType.ABSOLUTE,
-        "absolute": SLEPc.EPS.ErrorType.ABSOLUTE,
-        "rel": SLEPc.EPS.ErrorType.RELATIVE,
-        "relative": SLEPc.EPS.ErrorType.RELATIVE,
-        "bwd": SLEPc.EPS.ErrorType.BACKWARD,
-        "backward": SLEPc.EPS.ErrorType.BACKWARD,
-    }
-    try:
-        return mapping[key]
-    except KeyError as exc:
-        raise ValueError(
-            f"Invalid EPS error type {name!r}; expected absolute|relative|backward"
-        ) from exc
-
-
 def _scaled_operator(
     operator: sp.csc_matrix | PETSc.Mat,
     scale: complex,
@@ -254,63 +224,6 @@ def _scaled_operator(
         scaled.scale(scale)
         return scaled
     return scale * operator
-
-
-def _install_eps_monitor(eps: SLEPc.EPS, every: int) -> dict[str, float | int]:
-    """Log sparse progress updates from SLEPc EPS iterations."""
-    interval = max(int(every), 1)
-    state: dict[str, float | int] = {
-        "last_nconv": -1,
-        "last_iteration": 0,
-        "last_min_err": float("nan"),
-        "last_max_err": float("nan"),
-    }
-
-    def _monitor(
-        eps_obj: SLEPc.EPS,
-        iteration: int,
-        nconv: int,
-        eigs: list[complex],
-        errs: list[float],
-    ) -> None:
-        should_log = iteration == 1 or iteration % interval == 0 or nconv != state["last_nconv"]
-        if not should_log:
-            return
-        finite_errs = [float(val) for val in errs if np.isfinite(val)]
-        max_err = max(finite_errs) if finite_errs else float("nan")
-        min_err = min(finite_errs) if finite_errs else float("nan")
-        state["last_iteration"] = int(iteration)
-        state["last_nconv"] = int(nconv)
-        state["last_min_err"] = float(min_err)
-        state["last_max_err"] = float(max_err)
-        PETSc.Sys.Print(
-            f"[eigs] EPS iter={int(iteration)} nconv={int(nconv)} "
-            f"err_range=[{min_err:.3e}, {max_err:.3e}]"
-        )
-
-    eps.setTrackAll(True)
-    eps.setMonitor(_monitor)
-    return state
-
-
-def _monitor_state_details(state: dict[str, float | int] | None) -> list[str]:
-    """Format the latest EPS monitor state for logs and errors."""
-    if not state:
-        return []
-    details: list[str] = []
-    last_iteration = int(state.get("last_iteration", 0))
-    if last_iteration > 0:
-        details.append(f"monitor_iter={last_iteration}")
-    last_nconv = int(state.get("last_nconv", -1))
-    if last_nconv >= 0:
-        details.append(f"monitor_nconv={last_nconv}")
-    last_min_err = float(state.get("last_min_err", np.nan))
-    if np.isfinite(last_min_err):
-        details.append(f"monitor_min_err={last_min_err:.3e}")
-    last_max_err = float(state.get("last_max_err", np.nan))
-    if np.isfinite(last_max_err):
-        details.append(f"monitor_max_err={last_max_err:.3e}")
-    return details
 
 
 def _safe_petsc_info(callable_obj, default: object = "?") -> object:
@@ -448,7 +361,7 @@ def _eigs_near_target(
         }
         return eigenvalues, eigenvectors, dense_info
 
-    _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
+    _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTAB2D_EIGEN")
     st_solver = _scfg(_ecfg, "st_solver", "LINSTAB2D_EIGEN_ST_SOLVER", "mumps")
     use_root_scatter = (
         not _is_petsc_matrix(operator)
@@ -880,7 +793,7 @@ def temporal_eigenvalues(
     if W_diag is not None:
         eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
         if eigenvectors.shape[1] > 0:
-            _ecfg = solver_cfg.get("eigen", {}) if solver_cfg is not None else None
+            _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTAB2D_EIGEN")
             v0 = eigenvectors[:, 0]
             weighted_norm_error = np.abs(np.vdot(v0, np.asarray(W_diag) * v0) - 1.0)
             weighted_norm_tol = _scfg_float(

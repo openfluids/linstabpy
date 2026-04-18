@@ -2,17 +2,22 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
 
 def run_mpi_python(n_ranks: int, script: str) -> subprocess.CompletedProcess[str]:
     """Launch a Python script under mpiexec and return the completed process."""
+    # Pass env explicitly: when petsc4py is already imported in the parent,
+    # inheriting os.environ implicitly via subprocess causes mpiexec to exit
+    # with code 1 and no output. An explicit dict copy avoids this.
     return subprocess.run(
         ["mpiexec", "-n", str(n_ranks), sys.executable, "-c", script],
         check=False,
         capture_output=True,
         text=True,
+        env=dict(os.environ),
     )
 
 
