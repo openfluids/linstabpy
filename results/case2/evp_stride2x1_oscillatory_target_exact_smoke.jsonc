@@ -1,0 +1,50 @@
+{
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride2x1_oscillatory_target_exact_smoke/case2_evp_stride2x1_oscillatory_target_exact_smoke_latest.json",
+    "report_csv": "output/evp_stride2x1_oscillatory_target_exact_smoke/case2_evp_stride2x1_oscillatory_target_exact_smoke_table.csv",
+    "log_dir": "output/evp_stride2x1_oscillatory_target_exact_smoke/logs",
+    "run_dir": "output/evp_stride2x1_oscillatory_target_exact_smoke/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 2,
+          "stride_eta": 1
+        },
+        "analysis": {
+          "n_modes_stability": 2,
+          "stability_acceptance": {
+            "postcheck_rel_max": 5e-05,
+            "target_distance_max": 0.15,
+            "omega_real_abs_max": 1.5,
+            "omega_imag_abs_max": 2.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 1e-05,
+            "eps_max_it": 300,
+            "ncv": 80
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "target_branch_stride2x1_0p561107_m1p112186_exact_smoke",
+      "label": "stride2x1 exact branch target 0.561107-1.112186i",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          }
+        }
+      }
+    }
+  ]
+}

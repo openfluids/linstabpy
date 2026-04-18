@@ -1,76 +1,108 @@
-# linstab2d — Claude Code Instructions
+# linstabpy — Agent Instructions
 
-## CRITICAL: How to Run Python
+# Motto
 
-**DO NOT use `uv run` to execute examples or tests in this project.**
+Honesty in numerics.
+Honesty in physical interpretation.
+Precision in mathematics.
+Preference for organic solutions over patched fixes.
+No absolute claims without proof.
 
-`uv run` attempts to resolve and build all dependencies (including `petsc4py` and
-`slepc4py`) from source on every invocation. This fails on macOS because:
+## Rules
 
-1. `petsc4py` requires special macOS rpath patching and `--no-build-isolation` build
-   flags not handled by a plain `uv run`.
-2. Compiling `petsc4py` from source takes many minutes and requires PETSc headers
-   that `uv` does not locate automatically.
-3. Concurrent `uv run` calls compete for the same distribution cache lock
-   (`~/.cache/uv/sdists-v9/pypi/petsc/.../.lock`) and time out after 300 s.
+- State uncertainty directly.
+- Separate proof, numerical evidence, and intuition.
+- Do not hide non-convergence, sensitivity, or numerical fragility.
+- Do not assign physical meaning to numerical artifacts.
+- Do not force agreement with ad hoc corrections.
+- Match the strength of every claim to the strength of the evidence.
+- `nconv > 0` is not success. Always check postcheck residual, target distance,
+  and the returned family together.
 
-**Always use the pre-built venv:**
+## Generality
+
+The code must work for **all cases**. No artisanal, case-specific fixes; no
+hardcoded settings tuned to a single configuration. Fixes belong in the general
+solver, not in per-case branches.
+
+`results/case2/` is the hardest configuration we run and serves as a stress
+test — if something breaks there, treat it as a signal about the general code,
+not a reason to special-case Case 2.
+
+`numerics.alpha_filter` is an operator-level mesh filter, not a mean-flow
+cleanup mechanism. Filtered mean flows are separate baseflow datasets
+(`Qraw` vs `Qfilt`), selected via `paths.case_dir`.
+
+## Repo layout
+
+- `src/`            — library code
+- `examples/`       — runnable `example_*.py` + `.jsonc` configs; `.npz` caches results
+- `tests/`          — pytest suite (incl. MPI helpers in `mpi_helpers.py`)
+- `tools/parity/`   — parity checks vs Martini reference
+- `results/case2/`  — active Case 2 EVP sweeps (`.jsonc` configs, `PLAN.md`, `tutorial.md`)
+- `docs/`, `paper/`, `validation/` — write-ups and validation artifacts
+- `install.sh`      — builds and patches `.venv` (run once, or after PETSc/SLEPc upgrade)
+- Sibling docs: `README.md`, `LINUX_QUICKSTART.md`, `PETSC.md`
+
+## How to run Python
+
+**Always use `.venv/bin/python`. Never `uv run`.**
 
 ```bash
-# Correct — uses the patched venv created by install.sh
-.venv/bin/python -m examples.example_1_blasius
-
-# Correct — for tests
-.venv/bin/python -m pytest tests/
-
-# WRONG — will try to rebuild petsc4py and fail
-uv run python -m examples.example_1_blasius
+.venv/bin/python -m examples.example_1_blasius_smoke   # run example
+.venv/bin/python -m pytest tests/ -v                   # full test suite
+.venv/bin/python -m pytest tests/test_solvers.py -v    # single file
+.venv/bin/python -m pytest -k blasius                  # by keyword
+mpirun -n 4 .venv/bin/python -m examples.example_2_jet # MPI run
 ```
 
-The venv is created and patched once by `install.sh`. On Linux HPC nodes a
-different environment is used; adjust the python path accordingly (e.g.
-`mpirun -n 1 /path/to/venv/bin/python`).
+`uv run` rebuilds `petsc4py`/`slepc4py` from source on every call and (a) contends
+for the same cache lock across concurrent invocations, (b) on macOS additionally
+fails because of rpath patching not handled without `--no-build-isolation`. The
+venv produced by `install.sh` already has these wheels patched.
 
-## Killing stale uv locks
+## Examples
 
-If previous `uv run` calls left lock files behind:
-
-```bash
-pkill -9 -f uv
-rm -f ~/.cache/uv/sdists-v9/pypi/petsc/3.24.5/.lock \
-      ~/.cache/uv/sdists-v9/pypi/petsc4py/3.24.5/.lock \
-      ~/.cache/uv/sdists-v9/pypi/slepc4py/3.24.2/.lock \
-      ~/.cache/uv/.lock
-```
-
-## Running examples
-
-Examples follow the pattern: `.npz` exists → plot only; delete `.npz` → recompute.
+Convention: if `<example>.npz` exists, the script plots from cache; delete it to
+recompute.
 
 ```bash
-# Run (uses cache if present)
-.venv/bin/python -m examples.example_1_blasius
-
-# Force recompute
-rm examples/example_1_blasius.npz
-.venv/bin/python -m examples.example_1_blasius
-```
-
-## Running tests
-
-```bash
-.venv/bin/python -m pytest tests/ -v
+rm examples/example_1_blasius_smoke.npz
+.venv/bin/python -m examples.example_1_blasius_smoke
 ```
 
 ## Parity comparison
+
+Compares current assembly against the Martini reference implementation — run
+after any change to operators, mesh, or boundary conditions.
 
 ```bash
 .venv/bin/python tools/parity/compare_martini_examples.py
 ```
 
-## Linux / HPC notes
+## Case 2
 
-On Linux (Pop!_OS, RHEL, cluster nodes) `petsc4py` and `slepc4py` are installed
-via the system package manager or a module environment. The `install.sh` script
-handles Linux-specific paths automatically. The `uv run` restriction above is
-macOS-specific; on Linux the environment is already set up without rpath patching.
+Case 2 is the hardest configuration we run and drives much of the active
+work. Context is split across three files in `results/case2/`:
+
+- `PLAN.md` — active campaign state, phase plan with status, acceptance
+  criteria, open TODOs, "do not" list. **Load this first.**
+- `REFERENCE.md` — stable technical background: code lineage, governing
+  equations, Chu norm, parameter map, flow configuration, Physical and
+  Numerical Framing, references. Load when a question touches background.
+- `README.md` — operational (Portuguese): how to run a case or campaign.
+
+Do not duplicate their contents here — this file is general guidelines only.
+
+## Troubleshooting
+
+Stale `uv` locks (rare):
+
+```bash
+rm -f ~/.cache/uv/sdists-v9/pypi/{petsc,petsc4py,slepc,slepc4py}/*/.lock \
+      ~/.cache/uv/.lock
+```
+
+On Linux HPC nodes, `petsc4py`/`slepc4py` come from the module environment;
+`install.sh` handles paths automatically. The macOS rpath issue above does not
+apply.

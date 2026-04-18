@@ -6,12 +6,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_RUN_DIR = ROOT / "output" / "evp_stride4_localize" / "runs"
+DEFAULT_RUN_DIR = ROOT / "output" / "evp_stride2_spectra" / "runs"
 COMPONENT_NAMES = ("rho", "u", "v", "w", "T")
 
 
@@ -46,6 +47,18 @@ def _mode_indices(requested: list[int] | None, n_modes: int) -> list[int]:
     return list(range(n_modes))
 
 
+def _log_residual_norm(values: np.ndarray) -> mpl.colors.Normalize | None:
+    valid = values[np.isfinite(values) & (values > 0.0)]
+    if valid.size == 0:
+        return None
+    log_values = np.log10(valid)
+    vmin = float(np.min(log_values))
+    vmax = float(np.max(log_values))
+    if np.isclose(vmin, vmax):
+        vmax = vmin + 1.0
+    return mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("npz_paths", nargs="*", type=Path)
@@ -60,6 +73,11 @@ def main() -> int:
     )
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--title-prefix", default="Case 2 EVP Mode")
+    parser.add_argument(
+        "--show-target",
+        action="store_true",
+        help="Plot omega_target in the spectrum panel. Default is hidden.",
+    )
     args = parser.parse_args()
 
     npz_paths = _collect_npz_paths(args.npz_paths, args.run_dir.resolve(), args.pattern)
@@ -84,6 +102,8 @@ def main() -> int:
             target = complex(np.asarray(data["omega_target"]).reshape(-1)[0])
             post_dist = np.asarray(data.get("stability_postcheck_target_distance", np.array([])), dtype=float).reshape(-1)
             post_rel = np.asarray(data.get("stability_postcheck_residual_rel", np.array([])), dtype=float).reshape(-1)
+            post_rel_norm = _log_residual_norm(post_rel)
+            residual_cmap = plt.get_cmap("gray")
             label = _case_label(path)
             case_output_dir = output_dir / path.stem
             case_output_dir.mkdir(parents=True, exist_ok=True)
@@ -106,29 +126,50 @@ def main() -> int:
                     ax.set_ylabel("y")
 
                 spectrum_ax = axes_flat[5]
-                spectrum_ax.scatter(np.real(omega), np.imag(omega), color="#1f77b4", s=70, alpha=0.85)
+                facecolors: str | np.ndarray = "#ffffff"
+                if post_rel_norm is not None and post_rel.size == omega.size:
+                    log_residual = np.full(omega.size, post_rel_norm.vmax, dtype=float)
+                    valid = np.isfinite(post_rel) & (post_rel > 0.0)
+                    log_residual[valid] = np.log10(post_rel[valid])
+                    facecolors = residual_cmap(post_rel_norm(log_residual))
+                spectrum_ax.scatter(
+                    np.real(omega),
+                    np.imag(omega),
+                    facecolors=facecolors,
+                    edgecolors="#1f77b4",
+                    s=70,
+                    linewidths=1.0,
+                    alpha=0.95,
+                )
                 spectrum_ax.scatter(
                     [np.real(omega[mode_index])],
                     [np.imag(omega[mode_index])],
                     facecolors="none",
-                    edgecolors="black",
+                    edgecolors="red",
                     s=180,
                     linewidths=1.5,
                 )
-                spectrum_ax.scatter(
-                    [np.real(target)],
-                    [np.imag(target)],
-                    color="#d62728",
-                    marker="x",
-                    s=120,
-                    linewidths=2.0,
-                )
+                if args.show_target:
+                    spectrum_ax.scatter(
+                        [np.real(target)],
+                        [np.imag(target)],
+                        color="#d62728",
+                        marker="x",
+                        s=120,
+                        linewidths=2.0,
+                    )
                 spectrum_ax.set_title("Spectrum")
                 spectrum_ax.set_xlabel("omega_r = Re(omega)")
                 spectrum_ax.set_ylabel("omega_i = Im(omega) [growth/decay]")
                 spectrum_ax.grid(True, alpha=0.25)
                 spectrum_ax.axhline(0.0, color="black", linewidth=0.8, alpha=0.35)
                 spectrum_ax.axvline(0.0, color="black", linewidth=0.8, alpha=0.35)
+                if post_rel_norm is not None:
+                    fig.colorbar(
+                        mpl.cm.ScalarMappable(norm=post_rel_norm, cmap=residual_cmap),
+                        ax=spectrum_ax,
+                        label="log10(postcheck residual rel)",
+                    )
 
                 dist_text = f"{post_dist[mode_index]:.3e}" if mode_index < post_dist.size else "n/a"
                 rel_text = f"{post_rel[mode_index]:.3e}" if mode_index < post_rel.size else "n/a"

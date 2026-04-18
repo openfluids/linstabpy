@@ -46,7 +46,7 @@ Arquivos principais:
 
 - [perf_memory.py](perf_memory.py)
 - [run_perf_queue_once.sh](run_perf_queue_once.sh)
-- um JSONC de campanha, por exemplo [evp_stride4_localize.jsonc](evp_stride4_localize.jsonc)
+- um JSONC de campanha, por exemplo [evp_stride2_spectra.jsonc](evp_stride2_spectra.jsonc)
 
 Esse é o caminho certo quando você quer:
 
@@ -128,7 +128,7 @@ Isso lança **10 execuções seriais independentes**.
 ### Passo 1. Copie a configuração-base
 
 ```bash
-cp results/case2/parity_config.jsonc results/case2/meu_caso_stride4.jsonc
+cp results/case2/parity_config.jsonc results/case2/meu_caso_stride2.jsonc
 ```
 
 ### Passo 2. Edite o novo JSONC
@@ -139,7 +139,7 @@ Os grupos de parâmetros mais importantes são:
   Diretório do baseflow. No caso ativo, normalmente é `baseflow`.
 - `numerics.stride_ksi`, `numerics.stride_eta`
   Coarsening da malha.
-  `1` = resolução cheia, `2` = intermediária, `4` = exploração barata.
+  `1` = resolução cheia, `2` = campanha ativa, `4` = legado exploratório.
 - `numerics.fd_order`
   Ordem das diferenças finitas.
 - `numerics.beta`
@@ -183,8 +183,8 @@ Teste rápido serial:
 ```bash
 LINSTAB2D_MPI_PROCS=1 \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 Execução paralela portátil numa máquina com 1 socket:
@@ -193,8 +193,8 @@ Execução paralela portátil numa máquina com 1 socket:
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 Com heartbeat:
@@ -204,8 +204,8 @@ LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 ### Passo 4. Veja onde saiu
@@ -213,7 +213,7 @@ results/case2/run_case_once.sh \
 No modo “um caso só”, o principal artefato é o `.npz` que você passou:
 
 ```text
-results/case2/output/runs/meu_caso_stride4.npz
+results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 ## 6. Como escolher o MPI no wrapper
@@ -246,8 +246,8 @@ Teste rápido serial:
 ```bash
 LINSTAB2D_MPI_PROCS=1 \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 4 ranks numa máquina simples com 1 socket:
@@ -256,8 +256,8 @@ results/case2/run_case_once.sh \
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 10 ranks no `socket0` desta máquina:
@@ -266,8 +266,8 @@ results/case2/run_case_once.sh \
 LINSTAB2D_MPI_PROCS=10 \
 LINSTAB2D_MPI_PRESET=socket0 \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 Comando MPI customizado:
@@ -277,8 +277,8 @@ LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=custom \
 LINSTAB2D_MPI_LAUNCHER="mpiexec --bind-to core" \
 results/case2/run_case_once.sh \
-  results/case2/meu_caso_stride4.jsonc \
-  results/case2/output/runs/meu_caso_stride4.npz
+  results/case2/meu_caso_stride2.jsonc \
+  results/case2/output/runs/meu_caso_stride2.npz
 ```
 
 Observação importante:
@@ -360,9 +360,13 @@ Uma campanha é um JSONC com três blocos:
 
 Exemplos ativos:
 
-- [evp_stride4_localize.jsonc](evp_stride4_localize.jsonc)
-- [evp_stride2_stationary_probe.jsonc](evp_stride2_stationary_probe.jsonc)
-- [evp_stride2_stationary_probe_nev6.jsonc](evp_stride2_stationary_probe_nev6.jsonc)
+- [evp_stride2_spectra.jsonc](evp_stride2_spectra.jsonc)
+
+Exemplos históricos:
+
+- [evp_stride2_stationary_probe.jsonc](legacy/evp_stride2_stationary_probe.jsonc)
+- [evp_stride2_stationary_probe_nev6.jsonc](legacy/evp_stride2_stationary_probe_nev6.jsonc)
+- [evp_stride4_localize.jsonc](legacy/evp_stride4_localize.jsonc)
 
 Estrutura mínima de um JSONC de campanha:
 
@@ -407,7 +411,7 @@ Estrutura mínima de um JSONC de campanha:
 Para rodar a campanha:
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride4_localize.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2_spectra.jsonc \
 ./.venv/bin/python results/case2/perf_memory.py
 ```
 
@@ -448,14 +452,14 @@ Espectro salvo de uma campanha:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_spectra.py \
-  --run-dir results/case2/output/evp_stride4_localize/runs
+  --run-dir results/case2/output/evp_stride2_spectra/runs
 ```
 
 Modos salvos:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_modes.py \
-  --run-dir results/case2/output/evp_stride4_localize/runs
+  --run-dir results/case2/output/evp_stride2_spectra/runs
 ```
 
 ## 12. Solução de problemas

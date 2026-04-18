@@ -108,6 +108,25 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+def _load_jsonc_with_includes(
+    path: Path,
+    _seen: frozenset[Path] = frozenset(),
+) -> dict[str, Any]:
+    """Load JSONC; if it has a top-level ``$include``, deep-merge with current winning (chainable, cycle-guarded)."""
+    resolved = path.resolve()
+    if resolved in _seen:
+        raise RecursionError(f"Cyclic $include chain at {resolved}")
+    cfg = load_jsonc(resolved)
+    include_raw = cfg.pop("$include", None)
+    if include_raw is None:
+        return cfg
+    include_path = Path(include_raw)
+    if not include_path.is_absolute():
+        include_path = (resolved.parent / include_path).resolve()
+    base = _load_jsonc_with_includes(include_path, _seen | {resolved})
+    return _deep_merge(base, cfg)
+
+
 def _resolve_path(base_dir: Path, raw: str | Path) -> Path:
     path = Path(raw)
     if path.is_absolute():
@@ -779,7 +798,7 @@ def _flush_reports(
 
 def main() -> int:
     config_path = Path(os.getenv("LINSTAB2D_CASE2_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
-    cfg = load_jsonc(config_path)
+    cfg = _load_jsonc_with_includes(config_path)
     config_dir = config_path.parent
 
     outputs = dict(cfg.get("outputs", {}))

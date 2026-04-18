@@ -1,256 +1,69 @@
-# Case 2 EVP-First Campaign
+# Case 2 EVP Campaign
 
 ## Comece Aqui
 
-Se a sua dúvida é operacional, e não científica, comece por:
+Este README é **operacional** — como rodar. Para o resto:
 
-- [tutorial.md](tutorial.md)
+- **`PLAN.md`** (inglês) — estado atual da campanha, critérios de aceitação,
+  plano por fases com status, TODOs abertos, lista de "não faça".
+- **`REFERENCE.md`** (inglês) — pano de fundo estável: linhagem do código
+  (porte do Martini & Schmidt 2024), equações, normas, *Physical and
+  Numerical Framing* (resolvent, mean-flow vs base-flow, gap LES/DNS),
+  parameter map, referências.
+- **`tutorial.md`** — passo-a-passo prático (rodar um caso, rodar uma
+  campanha, MPI sem pegadinha).
+- **`tutorial_ducros.md`** — variante com sensor Ducros (histórico; ver
+  `REFERENCE.md` Framing §3 sobre por que Ducros não é cleanup de
+  mean-flow).
+- **`/CLAUDE.md`** — motto e regras globais do projeto.
 
-Ele explica:
-
-- como rodar **um caso só**
-- como rodar **uma campanha**
-- como usar MPI corretamente
-- quais arquivos criar e editar
-
-## Objective
-
-Reset `results/case2` around one clear goal:
-
-- obtain a stable and explainable temporal EVP spectrum for Case 2
-- understand how that spectrum changes with `stride`
-- understand how the EVP changes with SLEPc/PETSc solver settings
-- postpone resolvent until the EVP path is under control
-
-The final target is still to support both EVP and resolvent. For now, the
-active campaign is EVP only.
-
-## Working Decision
-
-From now on, new Case 2 runs should follow these rules:
-
-- `run_stability = true`
-- `run_resolvent = false`
-- start with `stride = 4`
-- then promote to `stride = 2`
-- then promote to `stride = 1`
-- keep shock cleanup disabled until the baseline EVP is trusted
-- keep resolvent studies frozen until the EVP setup is defensible
-
-Do not schedule new mixed stability+resolvent runs while the EVP baseline is
-still unclear.
-
-## Active Questions
-
-We do not yet have firm answers for:
-
-- which spectral pocket should be targeted first at each `stride`
-- how large `ncv` must be for a stable accepted spectrum
-- how much tighter `eps_tol` actually improves explicit postchecked residuals
-- how `nev` should grow once the solver setup is stable
-- whether `conv_test` and `true_residual` materially change the accepted modes
-- what `beta` means operationally in the current Python interface
-- whether EVP should ever use the mesh filter, or always use `"none"`
-- whether shock cleanup changes physics or only repairs numerical pathologies
-
-These are study questions, not fixed truths.
-
-## Baseline
-
-The baseline to hold fixed while calibrating the EVP is:
-
-- Case 2 baseflow from `results/case2/baseflow`
-- `fd_order = 4`
-- `beta = 0.0`
-- `run_stability = true`
-- `run_resolvent = false`
-- 10 MPI ranks pinned to one physical socket
-- `petsc_matrix_mode = distributed`
-- shift-invert EVP with direct LU through MUMPS
-- no shock cleanup
-- explicit stage heartbeat enabled for long runs
-
-For future EVP-only configs, prefer setting:
-
-- `numerics.alpha_filter = "none"`
-
-instead of relying on the runtime override from `0.0 -> "none"`.
-
-## What Is Active Now
-
-These files are part of the active EVP path:
-
-- `results/case2/parity_config.jsonc`
-  - canonical full-resolution Case 2 config
-- `results/case2/case2.py`
-  - direct Case 2 runtime entrypoint
-- `results/case2/perf_memory.py`
-  - Case 2 timing and memory campaign harness
-- `results/case2/run_perf_queue_once.sh`
-  - queue wrapper for Case 2 campaign matrices
-- `results/case2/evp_stride4_localize.jsonc`
-  - active stride-4 branch-localization matrix
-
-Historical configs, scripts, and plots live under:
-
-- `results/case2/legacy/`
-
-They are kept for evidence, but they are intentionally out of the active path.
+Se você é um agente entrando nesta campanha agora, leia `CLAUDE.md`,
+`PLAN.md`, depois `REFERENCE.md`. Volte aqui para comandos.
 
 ## Artifact Layout
 
-Each active campaign should save into one directory under:
+Cada campanha grava em `output/<campanha>/`:
 
-- `results/case2/output/<campaign_name>/`
+- `runs/` — um `.npz` e um `.config.json` por run
+- `logs/` — um log por run
+- `plots/spectra/`, `plots/modes/` — figuras
+- arquivos-resumo no topo (JSON latest, CSV table)
 
-Within that campaign directory, keep the layout stable:
+## Arquivos ativos nesta pasta
 
-- `runs/`
-  - one `.npz` per completed run
-  - one `.config.json` snapshot beside each `.npz`
-- `logs/`
-  - one text log per run
-- `plots/spectra/`
-  - campaign-level spectral overlays
-- `plots/modes/<run_name>/`
-  - per-run mode figures, one PNG per saved eigenmode
-- top-level campaign summaries
-  - latest JSON table
-  - CSV summary table
-  - queue log and queue exit code when the harness is used
+- `parity_config.jsonc` — configuração canônica do caso
+- `case2.py` — entrada de um caso só
+- `perf_memory.py` — orquestrador de campanha
+- `run_case_once.sh`, `run_perf_queue_once.sh` — wrappers
+- `evp_stride*.jsonc` — configs por experimento (malha × target × solver)
+- `plot_saved_spectra.py`, `plot_saved_modes.py` — pós-processamento
 
-This separation matters once we start comparing stride 4, 2, and 1, because
-flat plot directories become unreadable very quickly.
-
-## First Execution Order
-
-This order is strict. Do not advance to the next block before the current one
-is defensible.
-
-### Phase 1: Stride 4 branch localization
-
-Goal:
-
-- get one trustworthy spectral pocket on the cheap mesh first
-
-Use:
-
-- `evp_stride4_localize.jsonc`
-
-Expected output:
-
-- at least one accepted mode with explicit postcheck and target distance that
-  make physical sense
-
-### Phase 2: Stride 4 PETSc/SLEPc convergence
-
-Goal:
-
-- hold physics fixed and show that the accepted EVP spectrum is not sensitive
-  to the main solver knobs
-
-Study order:
-
-1. `ncv` sweep at fixed `nev`
-2. `eps_tol` sweep at the useful `ncv` values
-3. `nev` growth after the low-`nev` setup is stable
-4. optional `conv_test` and `true_residual` checks only if residual quality is
-   still ambiguous
-
-Publication rule for this phase:
-
-- stride 4 is only considered converged when the leading accepted spectrum is
-  stable under these solver changes
-
-### Phase 3: Stride 4 physical and numerical sensitivity
-
-Only after the stride-4 EVP is solver-insensitive:
-
-- interpret and sweep `beta`
-- compare `alpha_filter = "none"` against filtered alternatives
-- test shock cleanup or Ducros-style cleanup as a controlled perturbation, not
-  as a default
-
-### Phase 4: Promote to stride 2
-
-Repeat the stride-4 workflow with the smallest matrix that answers:
-
-- does the spectral pocket stay in the same place
-- do the accepted modes stay consistent
-- what is the runtime and memory increase
-- is the stride-2 spectrum again insensitive to the solver knobs
-
-### Phase 5: Promote to stride 1
-
-Repeat only the calibrated subset:
-
-- chosen target pocket
-- chosen `ncv`
-- chosen `eps_tol`
-- chosen `nev`
-
-Stride 1 should be a confirmation run, not the place where solver choices are
-still drifting.
-
-### Phase 6: Resolvent
-
-Only after the EVP path is stable:
-
-- restore `run_resolvent = true`
-- revisit filter choices
-- revisit shock cleanup if it still seems useful
-
-## Metrics That Matter
-
-Every EVP run should be judged with:
-
-- wall time
-- peak RSS
-- stage timings
-- requested `nev`
-- actual `nconv`
-- explicit postcheck residuals
-- target-distance diagnostics
-- accepted-mode counts
-- a saved spectrum artifact
-
-Do not trust `nconv` alone.
+Configs retirados do caminho ativo vivem em `legacy/`.
 
 ## Commands
 
-Direct single-case run:
+Rodar a campanha ativa:
 
 ```bash
-LINSTAB2D_CASE2_CONFIG=results/case2/parity_config.jsonc \
-LINSTAB2D_CASE2_OUTPUT_NPZ=results/case2/output/runs/case2_manual.npz \
-LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
-./.venv/bin/python results/case2/case2.py
-```
-
-Queued matrix run through the shared campaign harness:
-
-```bash
-LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride4_localize.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2_spectra.jsonc \
 ./.venv/bin/python results/case2/perf_memory.py
 ```
 
-Plot the saved spectrum overlay for one campaign:
+Plotar o espectro salvo da campanha ativa:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_spectra.py \
-  --run-dir results/case2/output/evp_stride4_localize/runs
+  --run-dir results/case2/output/evp_stride2_spectra/runs
 ```
 
-Plot all saved modes for one campaign:
+Plotar os modos salvos da campanha ativa:
 
 ```bash
 ./.venv/bin/python results/case2/plot_saved_modes.py \
-  --run-dir results/case2/output/evp_stride4_localize/runs
+  --run-dir results/case2/output/evp_stride2_spectra/runs
 ```
 
 ## Delete Policy
 
-The top level of `results/case2` should stay small.
-
-If a file is not part of the current EVP-first campaign, move it to
-`results/case2/legacy/` instead of leaving it in the active path.
+O topo de `results/case2` deve continuar pequeno. Se um arquivo não pertence à
+campanha ativa em `stride 2`, ele deve ir para `results/case2/legacy/`.

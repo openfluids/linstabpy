@@ -1,0 +1,50 @@
+{
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride2_target_zero_nev50_ncv600_tol1e5/case2_evp_stride2_target_zero_nev50_ncv600_tol1e5_latest.json",
+    "report_csv": "output/evp_stride2_target_zero_nev50_ncv600_tol1e5/case2_evp_stride2_target_zero_nev50_ncv600_tol1e5_table.csv",
+    "log_dir": "output/evp_stride2_target_zero_nev50_ncv600_tol1e5/logs",
+    "run_dir": "output/evp_stride2_target_zero_nev50_ncv600_tol1e5/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 2,
+          "stride_eta": 2
+        },
+        "analysis": {
+          "n_modes_stability": 50,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-05,
+            "target_distance_max": 0.5,
+            "omega_real_abs_max": 6.283185307179586,
+            "omega_imag_abs_max": 1.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 1e-05,
+            "eps_max_it": 800,
+            "ncv": 600
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "target_zero_nev50_ncv600_tol1e5",
+      "label": "stride2 target 0+0i nev50 ncv600 tol1e-5",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": 0.0
+          }
+        }
+      }
+    }
+  ]
+}

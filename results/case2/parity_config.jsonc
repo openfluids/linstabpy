@@ -10,7 +10,7 @@
     "Re": 395000.0,
     "Ma": 2.0,
     "Pr": 0.747,
-    "kappa": 1.4,
+    "kappa": 1.31,
     "T_0": 1540.0,
     "zero_spanwise": false,
     "use_matlab_sponge_aux": false,
