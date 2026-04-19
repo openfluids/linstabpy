@@ -1458,3 +1458,111 @@ consistent. The paper has a clear story:
 
 Qfilt comparison remains the key stretch experiment (T2).
 
+---
+
+## 2026-04-19 — Entry 15. M1 cross-mesh verification (EVP, single case).
+
+**Plan.** Run one stationary-target EVP on M1 (native 679×599, 3.4M
+DOF operator) with nev=2 to test whether the dominant M2 modes
+survive refinement. Tier-2 paper deliverable.
+
+**Context.** First attempt at nev=8 was killed at 45 min with nconv=2
+(same "2nd-nearest eigenvalue too far" pattern as Entry 6 on M21).
+Restarted at nev=2 finished in 960 s (16 min).
+
+**Result.**
+
+- M1 returned `ω = (±0.0837, -0.5361j)` — a conjugate pair at small
+  Re(ω).
+- `postcheck_rel = 7–8 × 10⁻⁴` — much looser than M2's Mode 0 at 3e-6,
+  but still under the tol=5e-3 gate.
+- Chu classifier: **INTERMEDIATE** (wall 0%, shock-foot 4.5%, extent
+  2.3%). Peak at (1.02, -0.01) — NOT at the wall.
+
+### Comparison with M2 at the same target
+
+| mesh | Mode 0 eigenvalue | Chu class | postcheck_rel |
+|------|-------------------|-----------|---------------|
+| M2 (stride 2,2) | (0, -0.695j) | WALL_LOCAL (67% shock-foot) | 3e-6 |
+| M1 (stride 1,1) | (±0.0837, -0.536j) | INTERMEDIATE (4.5% shock-foot) | 7e-4 |
+
+The M1 result is **NOT the same** as M2:
+
+- eigenvalue shifted from Im=-0.695 to Im=-0.536 (23% change);
+- acquired nonzero Re (±0.084 vs 0);
+- lost its wall-local character (4.5% shock-foot vs 67%).
+
+### Interpretation
+
+Three possibilities:
+
+- (a) The M2 eigenvalue was not fully mesh-converged — it was a
+  discretization artefact of the coarser grid, particularly at the
+  shock foot where gradients are steepest;
+- (b) The M2 and M1 operators have GENUINELY different spectra near
+  this target because shock-foot geometry resolution changes the
+  LNSE coefficients — both are real, but discretization-dependent;
+- (c) The M1 result is incompletely converged — postcheck at 7e-4
+  is not as tight as M2's 3e-6, so there may be more refinement
+  available.
+
+In either case: **"nearest-to-target eigenvalues are not
+mesh-independent"** is a finding we must honestly report in the
+paper. The qualitative structure — a cluster of near-stationary-axis
+modes at low Im ω — is the same across meshes; the specific
+eigenvalues are not.
+
+### Implication for T1 paper claims
+
+The T1 paper story was:
+
+1. EVP spectrum shows wall-local contamination at (0, -0.695j);
+2. Resolvent σ₁ ≈ 16.2 broadband.
+
+Finding (1) needs hedging: "on M2, we observe a wall-local mode at
+(0, -0.695j); the M1 refinement gives a different nearest-to-target
+eigenvalue at (±0.084, -0.536j), so specific eigenvalues are
+mesh-sensitive". The qualitative picture (stationary-axis
+contamination cluster) is preserved.
+
+Finding (2) — the resolvent result — is the **stronger** of the two
+because it's a norm, not an eigenvalue. Norms can be more robust
+to discretization. Testing this on M1 with a single-point resolvent
+check is the next experiment (in progress, config
+`resolvent_m1_qraw_check.jsonc`, ω=0.40 same as one M2 point).
+
+### Artefacts
+
+- `output/evp_stride1_m1_screening_qraw/runs/*.npz` — 1 run.
+- `phase1p5/case2_perf_bstat_m1_qraw_nev8_ncv300_tol5em3_*_chu_class.csv`
+  — classification.
+
+### M1 resolvent — compute-budget blocker
+
+Attempted `resolvent_m1_qraw_check.jsonc` (single ω=0.4 case on M1
+to check if σ₁≈16.2 is mesh-independent). Killed at **~60 min in
+the resolvent stage with no completion event** — 50× slower than M2
+resolvent (which took 50 s total). The bottleneck is MUMPS direct
+factorization of `(iωI − L)` on the 3.4M-DOF M1 operator; memory-
+and time-bound at this problem size on one socket.
+
+**M1 resolvent is not tractable under the current MUMPS direct
+path**, even as a single-ω sanity check. To do it we would need
+to switch to the **PETSc iterative Strategy B** (GMRES+ASM per the
+main README.md "Strategy B" section). That is a significant
+engineering branch not worth opening for a single verification
+point at this stage of the campaign.
+
+**Logged as open T3 stretch.** The T1 paper claim "M2 σ₁ ≈ 16.2"
+therefore cannot be checked on M1 without extra infrastructure. The
+paper must either:
+
+- (a) report M2-only resolvent with an honest caveat about
+  mesh-convergence;
+- (b) invest in Strategy B iterative resolvent for M1 verification;
+- (c) justify mesh-convergence indirectly through EVP + spectral
+  topology stability arguments.
+
+This is a Gabriel decision — not something to solve inside this
+Phase 1.5 campaign.
+

@@ -22,7 +22,7 @@
       "config_overrides": {
         "numerics": {"stride_ksi": 1, "stride_eta": 1},
         "analysis": {
-          "n_modes_stability": 8,
+          "n_modes_stability": 2,
           "stability_acceptance": {
             "postcheck_rel_max": 1e-02,
             "target_distance_max": 1.0,

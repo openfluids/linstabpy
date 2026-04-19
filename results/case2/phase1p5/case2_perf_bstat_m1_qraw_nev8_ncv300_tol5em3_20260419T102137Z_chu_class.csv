@@ -1,0 +1,3 @@
+j,omega_re,omega_im,wall_frac,shock_foot_frac,global_extent,peak_x,peak_y,class
+0,-0.083668,-0.536105,0.000130,0.044551,0.022689,1.022331,-0.013933,INTERMEDIATE
+1,0.083668,-0.536105,0.000130,0.044551,0.022689,1.022331,-0.013933,INTERMEDIATE
