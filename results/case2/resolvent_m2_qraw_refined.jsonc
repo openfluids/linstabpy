@@ -1,0 +1,60 @@
+{
+  // Refined resolvent scan targeting newly-found GLOBAL eigenvalues
+  // (Entry 13). Key question: does σ₁(ω) have a peak near the
+  // Dussauge-range GLOBAL modes at ω≈0.235, 0.333, or is σ₁ really
+  // flat at ~16.2 as the coarse scan suggested?
+  //
+  // If σ₁ peaks near the GLOBAL eigenvalues → they dominate the
+  // resolvent gain (physical, paper-ready).
+  // If σ₁ stays flat → the broadband shock-foot amplifier dominates
+  // regardless of proximity to GLOBAL modes (expected from the
+  // Entry-12 analysis).
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/resolvent_m2_qraw_refined/case2_resolvent_m2_qraw_refined_latest.json",
+    "report_csv": "output/resolvent_m2_qraw_refined/case2_resolvent_m2_qraw_refined_table.csv",
+    "log_dir": "output/resolvent_m2_qraw_refined/logs",
+    "run_dir": "output/resolvent_m2_qraw_refined/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {"stride_ksi": 2, "stride_eta": 2},
+        "analysis": {
+          "run_stability": false, "run_resolvent": true,
+          "n_modes_resolvent": 3
+        },
+        "solver": {
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-6, "ncv": 20, "conv_test": "rel",
+              "true_residual": true, "eps_max_it": 500
+            }
+          },
+          "linsolve": {"type": "mumps"}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "omega_0p10", "label": "ω=0.10", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.10, "imag": 0.0}}}},
+    {"case_id": "omega_0p18", "label": "ω=0.18", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.18, "imag": 0.0}}}},
+    {"case_id": "omega_0p235", "label": "ω=0.235 at GLOBAL St≈0.037", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.235, "imag": 0.0}}}},
+    {"case_id": "omega_0p28", "label": "ω=0.28", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.28, "imag": 0.0}}}},
+    {"case_id": "omega_0p333", "label": "ω=0.333 at GLOBAL St≈0.053", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.333, "imag": 0.0}}}},
+    {"case_id": "omega_0p50", "label": "ω=0.50", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.50, "imag": 0.0}}}},
+    {"case_id": "omega_1p48", "label": "ω=1.48 at GLOBAL", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 1.48, "imag": 0.0}}}},
+    {"case_id": "omega_1p597", "label": "ω=1.597 at GLOBAL", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 1.597, "imag": 0.0}}}},
+    {"case_id": "omega_1p742", "label": "ω=1.742 at GLOBAL (St≈0.277)", "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 1.742, "imag": 0.0}}}}
+  ]
+}

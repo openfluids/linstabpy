@@ -1348,3 +1348,113 @@ show that filter cleanup shifts σ₁ from broadband toward
 frequency-selective, confirming the DNS-on-LES-mean consistency gap
 interpretation.
 
+---
+
+## 2026-04-19 — Entry 14. Refined resolvent scan at GLOBAL eigenvalue positions.
+
+**Plan.** Test whether σ₁(ω) peaks at the GLOBAL eigenvalue positions
+found in Entry 13 (I6 topology probe), or remains flat at ~16.2 as the
+Entry-12 coarse scan suggested. If σ₁ peaks at GLOBAL positions, the
+physical modes dominate the resolvent → paper can cite specific
+amplification frequencies. If σ₁ stays flat, the broadband shock-foot
+amplifier dominates regardless → paper framing needs adjustment.
+
+**Config.** `resolvent_m2_qraw_refined.jsonc`, 9 ω values:
+`{0.100, 0.180, 0.235*, 0.280, 0.333*, 0.500, 1.480*, 1.597*, 1.742*}`
+where `*` marks positions at GLOBAL eigenvalue real parts. Same
+resolvent settings as Entry 12 coarse scan.
+
+**Result.** σ₁ table:
+
+| ω | GLOBAL nearby? | St | σ₁ | σ₂ | σ₃ |
+|---|---|---|---|---|---|
+| 0.100 | no | 0.016 | 16.270 | 6.402 | 3.216 |
+| 0.180 | no | 0.029 | 16.270 | 6.272 | 3.212 |
+| **0.235** | **yes (St=0.037)** | 0.037 | **16.270** | 6.149 | 3.207 |
+| 0.280 | no | 0.045 | 16.270 | 6.031 | 3.202 |
+| **0.333** | **yes (St=0.053)** | 0.053 | **16.260** | 5.879 | 3.195 |
+| 0.500 | no | 0.080 | 16.250 | 5.356 | 3.162 |
+| **1.480** | **yes** | 0.236 | **16.170** | 3.733 | 2.448 |
+| **1.597** | **yes** | 0.254 | **16.160** | 3.693 | 2.344 |
+| **1.742** | **yes** | 0.277 | **16.150** | 3.658 | 2.235 |
+
+- **σ₁ variation across the whole 17× ω range**: 0.12 (16.15 →
+  16.27), **less than 0.8%**.
+- **Δσ₁ at GLOBAL vs non-GLOBAL neighbors**: < 0.01, at or below
+  solver noise.
+- σ₂ drops 43% (6.40 → 3.66) smoothly, no GLOBAL-specific peaks.
+- σ₃ drops 30% smoothly.
+
+### Interpretation (strong paper finding)
+
+**Having a GLOBAL eigenvalue at the chosen ω does not produce a
+peak in σ₁.** The primary resolvent amplification of Case 2 Qraw M2
+is NOT a modal resonance on any specific eigenvalue — it is the
+**broadband pseudo-spectral gain** driven by the shock-foot mean-flow
+gradient inflation. The operator is so strongly non-normal that the
+pseudospectrum dominates over any individual eigenvalue's
+contribution.
+
+This is the canonical Trefethen-Embree 2005 scenario for
+strongly-non-normal operators: the ε-pseudospectrum extends far
+from the actual spectrum, and the resolvent norm is controlled by
+the pseudo-spectral boundary, not by proximity to eigenvalues.
+Standard examples: BL transition, jets, SWBLI.
+
+### What the paper's T1 gain-curve panel should show
+
+Two curves on the same plot:
+
+- σ₁(ω) ≈ 16.27 across the range, labelled "broadband shock-foot
+  amplifier";
+- σ₂(ω) decreasing 6.4 → 3.7, labelled "subleading response, weakly
+  frequency-selective".
+
+Shaded vertical band for Dussauge SWBLI range (St 0.02–0.05,
+ω ≈ 0.13–0.31).
+
+Vertical ticks for GLOBAL eigenvalue positions (0.235, 0.333, ...)
+annotated: "no resonant peak even at exact GLOBAL eigenvalue
+positions — operator non-normality dominates".
+
+### What Qfilt comparison will test
+
+Hypothesis: Qfilt reduces the shock-foot gradient inflation, which
+should:
+
+- lower σ₁ (broadband amplifier weakens);
+- potentially reveal resonant peaks at GLOBAL eigenvalue positions
+  previously hidden under the flat σ₁;
+- preserve or shift the σ₂(ω) shape.
+
+The current Qraw result is **the reference** for that comparison.
+
+### Artefacts
+
+- `output/resolvent_m2_qraw_refined/runs/*.npz` — 9 runs.
+- `phase1p5/resolvent_resolvent_m2_qraw_refined_gain_curve.png` —
+  gain curve.
+- `phase1p5/resolvent_resolvent_m2_qraw_refined_gain_table.txt` —
+  tabular data.
+- `phase1p5/global_oscillatory_candidates.png` — |u| and Chu energy
+  of the three candidate GLOBAL modes at St = 0.037, 0.053, 0.277
+  (from EVP runs, not resolvent). Top row: |u| shows diffuse
+  diagonal-band structure across the whole domain. Bottom row:
+  Chu energy on log scale extends across the entire mesh. These
+  look **genuinely global**, not wall-local.
+
+### Status
+
+All tier-1 Qraw M2 results are now definitive and internally
+consistent. The paper has a clear story:
+
+1. **EVP spectrum** (Entry 13): wall-local contamination modes
+   coexist with globally-extended oscillatory modes, including a
+   pair inside the Dussauge SWBLI range at St = 0.037.
+2. **Resolvent gain** (Entry 14): primary amplification is
+   broadband and pseudo-spectral — NOT a modal resonance. Expected
+   for a strongly non-normal compressible SWBLI operator.
+3. **F/R modes**: shock-foot-driven forcing, shock-band response.
+
+Qfilt comparison remains the key stretch experiment (T2).
+
