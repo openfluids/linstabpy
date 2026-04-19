@@ -94,6 +94,25 @@ def load_hamada_case(
 
     sx = _validate_stride(stride_ksi, "stride_ksi")
     sy = _validate_stride(stride_eta, "stride_eta")
+    # Naming caveat: after transpose_input=True the post-load arrays are
+    # (ny, nx) in Mesh convention, i.e. (η, ξ). The stride application
+    # below therefore decimates axis 0 (η, wall-normal) by stride_ksi and
+    # axis 1 (ξ, streamwise) by stride_eta — the opposite of what the
+    # parameter names literally suggest. For the Case 2 curved turbine
+    # suction-side mesh we only use symmetric strides (sx == sy), so the
+    # naming mismatch is observationally invisible. This assertion guards
+    # against future asymmetric use on this loader, where the result
+    # would be a location-dependent physical cell aspect ratio (not a
+    # natural coarsening of a body-fitted domain); see
+    # `results/case2/PLAN.md` (F2, I1) and `worklog.md` for the record.
+    if sx != sy:
+        raise ValueError(
+            f"Asymmetric strides are not supported by load_hamada_case "
+            f"(stride_ksi={sx}, stride_eta={sy}). In the curved body-fitted "
+            "mesh this produces a location-dependent cell aspect ratio, "
+            "which is not a natural coarsening of the physical problem. "
+            "Use symmetric strides only (e.g. stride_ksi == stride_eta)."
+        )
     if sx > 1 or sy > 1:
         fields = {name: arr[::sx, ::sy] for name, arr in fields.items()}
 
