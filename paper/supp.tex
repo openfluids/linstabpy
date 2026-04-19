@@ -858,6 +858,195 @@ pending completion of the reproducible artifact pipeline.}
 \label{tab:case1}
 \end{table}
 
+\subsection{Application-facing Case 2 status: suction-side SWBLI}
+\label{sec:case2}
+
+The Case~2 configuration is the oblique shock-wave/boundary-layer
+interaction on the suction side of the supersonic turbine cascade of
+\citet{lui2022unsteadiness}: a real-gas ($\gamma = 1.31$,
+$T_0 = 1540\,\text{K}$) flow at $\mathrm{Re}=3.95\times 10^5$,
+$\mathrm{Ma}=2.0$, $\mathrm{Pr}=0.747$. The reference state is the
+time and spanwise average of Lui's LES. Unlike Case~1, Case~2 has
+two compounding non-idealities (Sec.~\ref{sec:lnse}): it is a mean
+flow rather than a fixed point, and the $\gamma$ used in the
+linearized operator differs from the $\gamma=1.4$ of the upstream
+LES. Both are accepted as deliberate trade-offs for physical realism
+of the linear analysis; their consequences are made visible in the
+results below rather than hidden.
+
+\paragraph{Mesh and operator.} The native mesh is curvilinear
+body-fitted, $679$ wall-normal $\times$ $599$ streamwise cells. We
+denote by \texttt{M1} the native mesh and by \texttt{M2} its
+symmetric $(2,2)$-stride coarsening ($340 \times 300$, operator size
+$n = 5.10\times 10^5$). Asymmetric stride coarsenings are not used:
+in a body-fitted mesh around a curved wall they produce cells with a
+location-dependent physical aspect ratio, which is not a natural
+coarsening of the physical problem. Only uniform decimation
+preserves the body-fitted interpretation.
+
+\paragraph{Mean-flow characterisation.} The raw Lui mean flow
+$\bar{Q}_{\text{raw}}$ carries a sharp oblique-shock system. The
+two-dimensional spatial FFT of the streamwise velocity component
+shows energy along two diagonal ridges in $(k_\xi, k_\eta)$ space
+extending past the \texttt{M2} Nyquist box to the native Nyquist
+boundary (Fig.~\ref{fig:case2_baseflow_fft}). The wall-normal gradient
+$|\partial \bar{u}/\partial \eta|$ attains its maximum at the first
+interior cell next to the Dirichlet wall, and the streamwise
+gradient $|\partial \bar{u}/\partial \xi|$ attains its maximum at
+the shock foot on the wall, $(x, y) \approx (0.815, -0.092)$.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/case2/phase1p5/qraw_u_2d_fft.png}
+\caption{Two-dimensional FFT of the Case~2 streamwise mean velocity
+$\bar{u}(\xi, \eta)$ on \texttt{M2}. Diagonal shock ridges extend
+past the cyan \texttt{M2} Nyquist box to the native \texttt{M1}
+boundary.}
+\label{fig:case2_baseflow_fft}
+\end{figure}
+
+\paragraph{Temporal EVP spectrum on \texttt{M2}.} Using SLEPc
+Krylov--Schur with shift-invert and MUMPS direct inner solves at
+target $\omega_\sigma = -0.83\mathrm{i}$, we obtain $>60$ converged
+Ritz values at $\text{eps\_tol}=5\times 10^{-3}$ (baseline screening).
+A focused topology probe around candidate shock-breathing
+frequencies enriches the set to $\sim 120$ classified eigenvalues
+(Fig.~\ref{fig:case2_spectrum}). Each eigenmode is classified by its
+compressible (Chu 1965) energy localisation: \textsc{wall-local} if
+more than $30\%$ of the $E_{\text{Chu}}$ sits in the near-wall strip
+or within a disk of radius $0.08$ around the shock foot;
+\textsc{global} if the spatial extent (fraction of grid cells with
+$E_{\text{Chu}} > 1\% \cdot \max$) exceeds $20\%$ and the wall
+fraction is below $30\%$; \textsc{intermediate} otherwise.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{../results/case2/phase1p5/combined_classified_spectrum.png}
+\caption{Case~2 \texttt{M2} classified temporal EVP spectrum of
+$\bar{Q}_{\text{raw}}$, combining a $\texttt{nev}=20$ screening at
+two targets with a four-target focused topology probe
+(120~eigenvalues total). Red crosses mark \textsc{wall-local}
+contamination modes (shock-foot / near-wall Chu energy dominated).
+Green disks mark \textsc{global} oscillatory modes. Grey squares
+are \textsc{intermediate}. The shaded vertical bands indicate the
+SWBLI low-frequency Strouhal range typical of the experimental
+and high-fidelity simulation literature on unsteady shock--boundary
+layer interaction \citep{lui2022unsteadiness}.}
+\label{fig:case2_spectrum}
+\end{figure}
+
+Key qualitative features of Fig.~\ref{fig:case2_spectrum}:
+
+\begin{itemize}
+\item \textbf{Wall-local cluster on the imaginary axis.} The modes
+  closest to $\omega = 0$ (e.g.\ $\omega = -0.695\mathrm{i}$ and
+  $\omega = -1.578\mathrm{i}$) are wall-local, with peak spatial
+  structure coincident within one cell of the $|\partial
+  \bar{u}/\partial x|$ or $|\partial \bar{u}/\partial y|$ maxima.
+  They are the direct expression of the mean-flow-gradient
+  inflation at the shock foot and recovery wall.
+\item \textbf{Damped oscillatory branch.} At $\mathrm{Im}(\omega)
+  \approx -6$ to $-7$ we recover a band of oscillatory conjugate
+  pairs at $|\mathrm{Re}(\omega)| \in [0.23, 1.74]$. The
+  \textsc{global}-classified pair at
+  $\omega \approx (\pm 0.235, -7.129\mathrm{i})$ corresponds to
+  $\mathrm{St} \approx 0.037$, which sits inside the Dussauge
+  SWBLI low-frequency range; its peak is in the recovery-zone
+  freestream at $(x,y)\approx(1.08, 0.17)$, consistent with a
+  globally extended cavity response rather than wall-trapped
+  contamination.
+\item \textbf{No resonantly unstable mode on M2.} All $120$ classified
+  eigenvalues have $\mathrm{Im}(\omega) < 0$. An apparent unstable
+  eigenvalue at $\omega = +3.17\mathrm{i}$ that we observed
+  transiently on an earlier asymmetric-stride mesh did not survive
+  the transition to symmetric \texttt{M2}; it was a discretisation
+  artefact of the non-uniform coarsening.
+\end{itemize}
+
+\paragraph{Resolvent gain on \texttt{M2}.} At $\beta=0$ we compute
+the leading three singular values of $(\mathrm{i}\omega I -
+L_{\bar{Q}})^{-1}$ in the Chu inner product for
+$\omega \in [0.10, 3.00]$, spanning the Dussauge SWBLI range and
+the three $|\mathrm{Re}(\omega)|$ locations of the
+\textsc{global}-classified EVP modes
+(Fig.~\ref{fig:case2_gain_curve}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.88\textwidth]{../results/case2/phase1p5/resolvent_resolvent_m2_qraw_refined_gain_curve.png}
+\caption{Case~2 \texttt{M2} resolvent gain $\sigma_k(\omega)$ for
+$k=1,2,3$ on $\bar{Q}_{\text{raw}}$. The primary gain $\sigma_1$
+is nearly independent of $\omega$; the subdominant gains
+$\sigma_2, \sigma_3$ decay monotonically over the range.}
+\label{fig:case2_gain_curve}
+\end{figure}
+
+Two observations frame the interpretation:
+
+\begin{enumerate}
+\item $\sigma_1(\omega) \simeq 16.27$ to within $0.8\%$ across a
+  seventeen-fold frequency range, and is unchanged at the
+  \textsc{global}-mode positions $\omega \in \{0.235, 0.333, 1.742\}$
+  relative to adjacent non-resonant $\omega$. This is not a modal
+  resonance on any individual eigenvalue; it is the ${\varepsilon}$-
+  pseudospectral gain of a strongly non-normal operator in the
+  Trefethen--Embree sense \citep{trefethen2005spectra}.
+\item The leading optimal forcing is a narrow structure localised at
+  the shock foot; the leading optimal response is a diagonal
+  shock-band pattern across the domain, and both are $\omega$-
+  invariant in shape (Fig.~\ref{fig:case2_fr_modes}). The
+  subdominant $\sigma_2(\omega)$ drops from $6.40$ at $\omega=0.10$
+  to $3.66$ at $\omega=1.74$; its response has a more distributed
+  character that does depend on $\omega$.
+\end{enumerate}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{../results/case2/phase1p5/case2_perf_omega_0p40_20260418T231906Z_fr_modes.png}
+\caption{Optimal forcing (left column) and optimal response (right
+column) structures of the three leading resolvent modes at
+$\omega=0.40$ on Case~2 \texttt{M2}. The primary pair is localised
+at the shock foot (forcing) and in the diagonal shock band
+(response).}
+\label{fig:case2_fr_modes}
+\end{figure}
+
+\paragraph{Interpretation: two amplification regimes.} Together
+Figs.~\ref{fig:case2_spectrum}--\ref{fig:case2_fr_modes} split the
+Case~2 amplification into:
+
+\begin{itemize}
+\item A \textbf{broadband pseudospectral regime} controlled by the
+  mean-flow-gradient inflation at the shock foot and the
+  recovery-zone wall, visible as the flat $\sigma_1(\omega)$ and
+  the wall-local EVP cluster. This regime is a direct signature of
+  the DNS-operator on LES-mean consistency gap discussed in
+  Sec.~\ref{sec:lnse}.
+\item A \textbf{frequency-selective modal regime} with damped
+  oscillatory conjugate pairs spread over $\omega \in [0.2, 1.8]$
+  and $\mathrm{Im}(\omega) \in [-7, -5]$, some of which sit inside
+  the Dussauge SWBLI low-frequency range and project on globally
+  extended cavity-shaped responses.
+\end{itemize}
+
+Route-3 mean-flow filtering (see Sec.~\ref{sec:lnse}) is expected to
+reduce the broadband-regime contribution; the comparison on a
+filtered mean-flow variant $\bar{Q}_{\text{filt}}$ from the upstream
+LES pipeline is an active companion study, outside the scope of this
+manuscript.
+
+\paragraph{Cross-mesh verification.} A single \texttt{M1} stationary-
+target EVP case ($n = 2.03\times 10^6$) returns
+$\omega \approx \pm 0.084 - 0.536\mathrm{i}$, differing from
+\texttt{M2} at the same target (Mode~0 at $\omega = -0.695\mathrm{i}$)
+by $23\%$ in $|\omega|$. The qualitative near-stationary-axis cluster
+survives refinement, but specific eigenvalues do not. A \texttt{M1}
+resolvent check at $\omega = 0.4$ required more than an hour of
+MUMPS direct factorisation and was not completed within the
+present compute budget; verifying mesh-independence of $\sigma_1
+\simeq 16.27$ on \texttt{M1} is left to the PETSc-iterative Strategy~B
+workflow (Sec.~\ref{sec:solvers}).
+
 \section{Harmonic-resolvent formulation and extension}
 \label{sec:harmonic_extension}
 
