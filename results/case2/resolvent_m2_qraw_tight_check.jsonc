@@ -1,0 +1,42 @@
+{
+  // Sanity check: does σ₁ really sit at ~16 regardless of ω, or was
+  // that an ncv/tol effect? Run one ω with parity-level tight settings
+  // (ncv=40, eps_tol=1e-8) and more modes.
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/resolvent_m2_qraw_tight_check/case2_resolvent_m2_qraw_tight_check_latest.json",
+    "report_csv": "output/resolvent_m2_qraw_tight_check/case2_resolvent_m2_qraw_tight_check_table.csv",
+    "log_dir": "output/resolvent_m2_qraw_tight_check/logs",
+    "run_dir": "output/resolvent_m2_qraw_tight_check/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {"stride_ksi": 2, "stride_eta": 2},
+        "analysis": {
+          "run_stability": false,
+          "run_resolvent": true,
+          "n_modes_resolvent": 6
+        },
+        "solver": {
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
+          },
+          "linsolve": {"type": "mumps"}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "tight_omega_0p40", "label": "ω=0.40 tight settings",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.40, "imag": 0.0}}}}
+  ]
+}
