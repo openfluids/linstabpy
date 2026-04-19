@@ -6,6 +6,8 @@ dist/
 build/
 *.npz
 *.png
+# Exception: track Case 2 Phase 1.5 figures (paper artefacts).
+!results/case2/phase1p5/*.png
 *.log
 *.aux
 *.bbl
