@@ -1,0 +1,54 @@
+{
+  // I6 focused spectral topology probe on M2 Qraw. The screening run
+  // (Entry 10) returned 20 modes tightly clustered at Im ω ∈ [-7, -0.7];
+  // this config probes intermediate and candidate-pair neighbourhoods
+  // that the screening did not reach.
+  //
+  // Targets:
+  //   (0.0, -2.5)  — intermediate stationary (no mode in screening there)
+  //   (0.0, -3.5)  — closer to the main Im-ω cluster
+  //   (0.4, -6.2)  — tight around candidate pair 8/9 (St≈0.06)
+  //   (1.0, -6.4)  — near candidate pair 14/15
+  //
+  // Each case nev=20, ncv=500, tol=5e-3 (same as screening).
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride2_m2_topology_probe_qraw/case2_evp_stride2_m2_topology_probe_qraw_latest.json",
+    "report_csv": "output/evp_stride2_m2_topology_probe_qraw/case2_evp_stride2_m2_topology_probe_qraw_table.csv",
+    "log_dir": "output/evp_stride2_m2_topology_probe_qraw/logs",
+    "run_dir": "output/evp_stride2_m2_topology_probe_qraw/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {"stride_ksi": 2, "stride_eta": 2},
+        "analysis": {
+          "n_modes_stability": 20,
+          "stability_acceptance": {
+            "postcheck_rel_max": 5e-03,
+            "target_distance_max": 0.5,
+            "omega_real_abs_max": 5.0,
+            "omega_imag_abs_max": 10.0
+          }
+        },
+        "solver": {
+          "eigen": {"eps_tol": 5e-03, "eps_max_it": 300, "ncv": 500}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "probe_m2_0_m2p5", "enabled": true,
+     "label": "probe target (0, -2.5)",
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.0, "imag": -2.5}}}},
+    {"case_id": "probe_m2_0_m3p5", "enabled": true,
+     "label": "probe target (0, -3.5)",
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.0, "imag": -3.5}}}},
+    {"case_id": "probe_m2_0p4_m6p2", "enabled": true,
+     "label": "probe target (0.4, -6.2) — near candidate 8/9",
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.4, "imag": -6.2}}}},
+    {"case_id": "probe_m2_1p0_m6p4", "enabled": true,
+     "label": "probe target (1.0, -6.4) — near candidate 14/15",
+     "config_overrides": {"analysis": {"omega_target": {"real": 1.0, "imag": -6.4}}}}
+  ]
+}

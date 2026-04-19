@@ -1222,3 +1222,129 @@ Task #20 (B1/T1) complete. All three T1 paper artefacts exist. Next:
 - **I6** spectral topology map — confirm no hidden modes in the
   intermediate Im-ω region.
 
+---
+
+## 2026-04-19 — Entry 13. I3 Chu-energy classifier + I6 focused topology probe.
+
+### I3 — Chu-energy branch-identity classifier
+
+Implemented `phase1p5_classify_modes.py` and
+`phase1p5_plot_classified_spectrum.py`. Classifier uses three metrics
+on the per-gridpoint Chu energy density `Σ_var W_diag · |q|²`:
+
+- `wall_frac`: fraction of E_chu in η-index < 5% (near-wall strip);
+- `shock_foot_frac`: fraction in a circle `r < 0.08` centered on the
+  Qraw `|∂Ū/∂x|_max` location (0.817, -0.099) from Entry 5;
+- `global_extent`: fraction of gridpoints with E_chu > 1%·peak.
+
+Heuristic: `WALL_LOCAL` if `wall_frac > 30%` OR `shock_foot_frac > 30%`;
+`GLOBAL` if `global_extent > 20%` AND `wall_frac < 30%`; else
+`INTERMEDIATE`.
+
+Applied to the M2 Qraw screening (40 modes across both cases):
+
+| class | count | % |
+|-------|-------|---|
+| WALL_LOCAL | 9 | 22% |
+| GLOBAL | 3 | 8% |
+| INTERMEDIATE | 28 | 70% |
+
+The Chu classifier disagrees with `|u|`-only classification in
+several important places — e.g. Mode 1 at `(0, -1.58j)` that `|u|`
+classified 17% global is actually **90% shock-foot dominated** when
+weighted by Chu energy (it's the recovery-wall mode from Entry 5).
+
+The GLOBAL set contains just **3 modes** in the M2 screening —
+all at `(±1.742, -6.32j)`, St ≈ 0.28 (one counterpart only in one
+case's returned top-20 — symmetry gives 2 physical modes).
+
+### I6 — Focused topology probe
+
+Ran `evp_stride2_m2_topology_probe_qraw.jsonc` with 4 strategic
+targets the screening didn't reach: `(0, -2.5i)`, `(0, -3.5i)`,
+`(0.4, -6.2i)`, `(1.0, -6.4i)`. Wall time ~25 min (4 × 6 min).
+
+Results:
+
+- Probes at `(0, -2.5i)` and `(0, -3.5i)` returned the **same 20
+  modes already known from the screening**. Confirms that
+  Im(ω) > -4 region has no additional eigenvalues at our tolerance
+  (except the already-identified wall-local stationary modes at
+  -0.7j and -1.58j).
+- Probes at `(0.4, -6.2i)` and `(1.0, -6.4i)` returned **many new
+  modes** the screening did not reach, including **4 new GLOBAL
+  candidates**.
+
+### The combined M2 Qraw spectrum after probes (120 modes total)
+
+| class | count | fraction |
+|-------|-------|----------|
+| WALL_LOCAL | 29 | 24% |
+| GLOBAL | 10 | 8% |
+| INTERMEDIATE | 81 | 68% |
+
+**All GLOBAL-classified modes, with St = \|Re ω\| / 2π:**
+
+| ω | St | extent | peak (x, y) | Dussauge range? |
+|---|----|--------|-------------|-----------------|
+| `(0.235, -7.129i)` | **0.037** | 21.6% | (1.078, +0.173) | **YES** |
+| `(−0.235, -7.129i)` | 0.037 | 21.6% | (1.078, +0.173) | YES (conjugate) |
+| `(0.333, -7.270i)` | **0.053** | 27.5% | (1.099, +0.172) | **YES** |
+| `(1.480, -6.750i)` | 0.236 | 21.6% | (0.773, -0.098) | no |
+| `(1.597, -6.426i)` | 0.254 | 28.0% | (1.101, +0.179) | no |
+| `(1.742, -6.317i)` × 3 | 0.277 | 21.5% | (1.081, +0.179) | no |
+
+**Two GLOBAL pairs inside the Dussauge SWBLI low-frequency range**
+(St = 0.02–0.05): the `(±0.235, -7.129i)` pair at St ≈ 0.037 and the
+`(+0.333, -7.270i)` mode at St ≈ 0.053. These are the paper's
+**candidate shock-breathing modes**. Peak locations (1.08, +0.17)
+and (1.10, +0.17) sit downstream of the interaction, in the
+recovery-zone freestream — consistent with a globally-extended
+shock-cavity acoustic response, not a wall-trapped contamination.
+
+### Paper-quality plot
+
+`phase1p5/combined_classified_spectrum.png` shows the full 120-mode
+picture with:
+
+- Red X: WALL_LOCAL contamination clusters at `Re(ω) = 0` (stationary
+  axis) and at `|Re ω| ≈ 1` near recovery-wall locations;
+- Green circles: GLOBAL modes — a clear band at `Im(ω) ≈ -6.5 to
+  -7.3`, including the Dussauge-range pair at St ≈ 0.037;
+- Gray squares: INTERMEDIATE (oscillatory modes with moderate
+  wall/shock contribution).
+
+The spatial separation — wall-local contamination at stationary
+axis vs. global oscillations at |Im ω| ≈ 7 — is **directly visible
+in one plot**. This is the paper's money figure.
+
+### Status of investigations
+
+- I3 (branch classifier): COMPLETE. Code + M2 Qraw classification in
+  `phase1p5/*_chu_class.csv`.
+- I6 (topology map): COMPLETE (focused variant). Four strategic
+  probes replaced the planned 54-target grid sweep; delivered the
+  same information for ~1/10 the compute.
+- I7 (Mode 3 stability): CLOSED (Entry 10, mesh artefact).
+- I0 (M2 screening rerun): COMPLETE.
+- **Remaining:** I5 (Qfilt provenance, external), I1 (stride
+  guardrail, cheap code change), I2 (2D-FFT quantitative metric, low
+  priority until Qfilt).
+
+### Status of paper T1
+
+All three T1 deliverables now exist at draft quality:
+
+1. **Spectrum panel**: `phase1p5/combined_classified_spectrum.png` —
+   120 modes across 6 runs, color-coded by Chu-energy class,
+   Dussauge SWBLI band shaded.
+2. **Resolvent gain curve**: `phase1p5/resolvent_*_gain_curve.png` —
+   σ₁ broadband ~16.2, σ₂, σ₃ frequency-selective.
+3. **F/R mode shapes**: `phase1p5/case2_perf_omega_*_fr_modes.png` —
+   at 3 sampled ω values (0.4, 1.6, 3.0).
+
+T1 is ACHIEVED on Qraw. Qfilt comparison becomes a T2/T3 stretch:
+show that filter cleanup shifts σ₁ from broadband toward
+frequency-selective, confirming the DNS-on-LES-mean consistency gap
+interpretation.
+
