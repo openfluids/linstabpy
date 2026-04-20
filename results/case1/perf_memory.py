@@ -224,6 +224,18 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
             if gains.size:
                 result["max_gain"] = float(np.max(gains))
                 result["leading_gain"] = float(gains[0])
+        for key_in, prefix in (
+            ("resolvent_rho_fwd", "resolvent_rho_fwd"),
+            ("resolvent_rho_adj", "resolvent_rho_adj"),
+        ):
+            if key_in in data:
+                arr = np.asarray(data[key_in], dtype=float).reshape(-1)
+                finite = arr[np.isfinite(arr)]
+                result[f"{prefix}_count"] = int(arr.size)
+                if finite.size:
+                    result[f"{prefix}_max"] = float(np.max(finite))
+                    result[f"{prefix}_median"] = float(np.median(finite))
+                    result[f"{prefix}_leading"] = float(arr[0])
         if "omega_target" in data:
             omega_target = complex(np.asarray(data["omega_target"]).reshape(-1)[0])
             result["omega_target_real"] = float(np.real(omega_target))
@@ -435,7 +447,12 @@ def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
         elif "running resolvent:" in line:
             match = _RE_RES.search(line)
             if match:
-                metrics["omega_target_from_log"] = float(match.group(1))
+                try:
+                    _omega_target = complex(match.group(1))
+                    metrics["omega_target_from_log_real"] = float(_omega_target.real)
+                    metrics["omega_target_from_log_imag"] = float(_omega_target.imag)
+                except ValueError:
+                    pass
                 metrics["requested_resolvent_modes"] = int(match.group(2))
         elif "solver setup:" in line:
             match = _RE_SOLVER.search(line)
@@ -639,6 +656,12 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "leading_omega_imag": output.get("leading_omega_imag"),
         "leading_gain": output.get("leading_gain"),
         "max_gain": output.get("max_gain"),
+        "resolvent_rho_fwd_max": output.get("resolvent_rho_fwd_max"),
+        "resolvent_rho_fwd_median": output.get("resolvent_rho_fwd_median"),
+        "resolvent_rho_fwd_leading": output.get("resolvent_rho_fwd_leading"),
+        "resolvent_rho_adj_max": output.get("resolvent_rho_adj_max"),
+        "resolvent_rho_adj_median": output.get("resolvent_rho_adj_median"),
+        "resolvent_rho_adj_leading": output.get("resolvent_rho_adj_leading"),
         "case_config_path": case.get("case_config_path"),
         "log_path": case.get("log_path"),
         "artifact_npz": case.get("artifact_npz"),
@@ -736,6 +759,12 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "leading_omega_imag",
         "leading_gain",
         "max_gain",
+        "resolvent_rho_fwd_max",
+        "resolvent_rho_fwd_median",
+        "resolvent_rho_fwd_leading",
+        "resolvent_rho_adj_max",
+        "resolvent_rho_adj_median",
+        "resolvent_rho_adj_leading",
         "case_config_path",
         "log_path",
         "artifact_npz",
