@@ -28,7 +28,10 @@ from linstab2d.operators.assembly import build_lnse_system
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstab2d.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
-from linstab2d.solvers.resolvent import resolvent_analysis
+from linstab2d.solvers.resolvent import (
+    compute_resolvent_svd_residuals,
+    resolvent_analysis,
+)
 from linstab2d.utils.jsonc import load_jsonc
 from linstab2d.utils.stability_acceptance import evaluate_stability_acceptance
 
@@ -656,6 +659,8 @@ def compute() -> None:
     gains = np.array([], dtype=float)
     responses = np.empty((mesh.ngp * 5, 0), dtype=complex)
     forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
+    resolvent_rho_fwd = np.array([], dtype=float)
+    resolvent_rho_adj = np.array([], dtype=float)
 
     # ------------------------------------------------------------------
     # 6) Optional resolvent analysis at omega_target.
@@ -682,6 +687,31 @@ def compute() -> None:
             )
         _log("resolvent analysis finished")
         _log_stage("resolvent", stage_start)
+
+        if gains.size > 0:
+            stage_start = time.perf_counter()
+            with _stage_heartbeat(
+                "resolvent_postcheck", interval_seconds=heartbeat_seconds
+            ):
+                resolvent_rho_fwd, resolvent_rho_adj = compute_resolvent_svd_residuals(
+                    L0,
+                    omega_target,
+                    B_mat,
+                    C_mat,
+                    gains,
+                    forcings,
+                    responses,
+                    W_diag,
+                    filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+                    filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+                    solver_cfg=solver_cfg,
+                )
+            _log(
+                "resolvent postcheck: "
+                f"rho_fwd_max={float(np.max(resolvent_rho_fwd)):.3e} "
+                f"rho_adj_max={float(np.max(resolvent_rho_adj)):.3e}"
+            )
+            _log_stage("resolvent_postcheck", stage_start)
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
@@ -900,6 +930,8 @@ def compute() -> None:
                 gains=gains,
                 responses=responses,
                 forcings=forcings,
+                resolvent_rho_fwd=resolvent_rho_fwd,
+                resolvent_rho_adj=resolvent_rho_adj,
                 omega_target=omega_target,
                 use_raw_eigs=use_raw_eigs,
                 St=St,
