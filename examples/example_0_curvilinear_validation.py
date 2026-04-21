@@ -28,6 +28,7 @@ from linstab2d.mesh import Mesh
 from linstab2d.utils.jsonc import load_jsonc
 
 from ._helpers import (
+    apply_figure_layout,
     format_scientific_ticks,
     label_axes,
     load_or_compute,
@@ -204,7 +205,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
         fontsize=14,
         linespacing=1.35,
     )
-    fig.tight_layout(rect=(0.0, 0.08, 1.0, 0.93), pad=0.8)
+    apply_figure_layout(fig, rect=(0.0, 0.08, 1.0, 0.93), pad=0.8)
     save_figure(fig, OUTPUT_PNG)
 
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
@@ -230,7 +231,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
         ax.set_title(title, pad=4.0)
         ax.set_aspect("equal", adjustable="box")
         label_axes(ax)
-    fig_mesh.tight_layout(pad=0.6)
+    apply_figure_layout(fig_mesh, pad=0.6)
     save_figure(fig_mesh, OUTPUT_BASEFLOW)
 
     centerline = y.shape[0] // 2
@@ -251,7 +252,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
     axes_support[1].set_yscale("log")
     format_scientific_ticks(axes_support[1], axes=("x",))
     axes_support[1].grid(True, alpha=0.25)
-    fig_support.tight_layout(pad=0.7)
+    apply_figure_layout(fig_support, pad=0.7)
     save_figure(fig_support, OUTPUT_SUPPORT)
 
 

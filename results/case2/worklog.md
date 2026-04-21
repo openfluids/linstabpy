@@ -1566,3 +1566,118 @@ paper must either:
 This is a Gabriel decision — not something to solve inside this
 Phase 1.5 campaign.
 
+
+## 2026-04-20 — Entry 16. Tight-EVP certification on M2 Qraw — stagnation result.
+
+### Context
+
+After the resolvent ω=0.40 convergence certificate landed
+(Entry 25 task; σ₁=16.25870434, ρ_adj_max=2.4e-10 at eps_tol=1e-8),
+the parallel question was: do the M2 Qraw EVP modes the supp.tex
+draft cites survive tight tolerance?
+
+Targets (`evp_m2_qraw_tight_certify.jsonc`):
+
+- Stationary:  `ω = (0,      −0.6948i)`
+- Oscillatory 1: `ω = (+0.235, −7.13i)`, "St=0.037"
+- Oscillatory 2: `ω = (+0.333, −7.27i)`, "St=0.053"
+
+Tight settings:
+
+- `eps_tol = 1e-8`, `nev = 4`, `ncv = 80`
+- acceptance: `postcheck_rel_max = 1e-6`, `target_distance_max = 0.3`
+
+Previous screening (loose, `eps_tol = 5e-3`) had returned all three
+with `accepted_count > 0` into the draft.
+
+### What happened
+
+Launched 2026-04-20 11:00. First case (stationary) entered SLEPc
+iteration. Residual trajectory:
+
+| iter | err_range max |
+|-----:|---------------:|
+|   0  |  1.6e+07  (initial) |
+|  15  |  1.6e+07 |
+|  25  |  5.2e+06 |
+|  40  |  7.2e+04 |
+|  60  |  2.3e+03 |
+|  80  |  3.8e+01 |
+| 100  |  9.2e+00 |
+| 200  |  8.4e+00 |
+| 300  |  5.0e+00 |
+| 400  |  1.0e+01 |
+| 500  |  6.6e+00 |
+| 580  |  7.3e+00 |
+
+First 100 iters: 7 orders of residual reduction. Then the descent
+**stalled**. Iters 100–580 (41 sampled points, stride 5): all inside
+`err_range ~ 2.7–14.9`, no downward trend. Killed at iter 580 at
+user request after 161 minutes of elapsed wall time. Two oscillatory
+cases never ran.
+
+`nconv=0` throughout. Acceptance threshold 1e-6 never reached.
+
+### Interpretation
+
+This is not slow convergence. Slow convergence means a decreasing
+residual that hasn't yet crossed tolerance; progress per iteration
+is real but small. What we observed is **stagnation**: the leading
+Ritz residual oscillates inside a fixed band with no trend. Each
+iteration buys nothing toward the target.
+
+The physical reading lines up with the wall-local analysis in
+Entry 13 and the PLAN §"Wall-trapped modes — mitigation roadmap":
+the loose-tolerance screening at `eps_tol = 5e-3` picked up the
+densely-packed wall-local cluster that accumulates along the
+`Re(ω) = 0` axis. Any member of that cluster is "close enough" at
+5e-3 to be reported. Tight tolerance `1e-8` requires a genuinely
+isolated eigenvalue near the target to converge — and the stationary
+target does not have one. The cluster has no separable mode there;
+Krylov–Schur thrashes between cluster members and never achieves
+six-digit certification.
+
+The oscillatory targets were not run, but their basis is even
+weaker: `(±0.235, -7.13i)` and `(±0.333, -7.27i)` are resolvent-scan
+ω-positions (input), not eigenvalue positions (output). They were
+transcribed into the draft by error. See Entry 14 for the classifier
+evidence.
+
+### What this means for the paper
+
+1. **Retract the three affected eigenvalue labels from supp.tex**:
+   - `ω = (0, -0.6948i)` stationary mode — no tight-tolerance
+     certificate; reframe as "loose-tolerance artifact from the
+     wall-local cluster."
+   - `ω ≈ (±0.235, -7.13i)` St=0.037 — not an eigenvalue.
+   - `ω ≈ (±0.333, -7.27i)` St=0.053 — not an eigenvalue.
+
+2. **The only surviving EVP claim** on M2 Qraw is
+   `ω = (±1.7416, -6.317i)`, St=0.277 (classifier `GLOBAL`,
+   `global_extent = 21.5%`, `wall_frac = 2%`). This still needs its
+   own tight-tolerance certificate
+   (`evp_m2_qraw_tight_certify_globalmode.jsonc`, queued).
+
+3. **The resolvent narrative is unaffected**. σ₁(ω) has an
+   independent convergence certificate (Entry 14 + ω=0.40
+   certificate run) and does not depend on EVP mode certification.
+
+### What this means for the PLAN
+
+This entry is the live evidence that closes the loop on the
+wall-trapped mode roadmap in PLAN §"Wall-trapped modes — mitigation
+roadmap" (added 2026-04-20). The stagnation result strengthens the
+priority of:
+
+- M3 (FEAST contour EVP) — because contour integration does not
+  need an isolated eigenvalue near a single target; it extracts
+  everything inside a region. A rectangle around
+  `(1.7416, -6.317i)` that excludes the `Re(ω) = 0` axis would
+  bypass the entire stagnation failure mode we just demonstrated.
+- M1 (true Qfilt baseflow from upstream) — root cause.
+
+### Artefacts
+
+- Log: `results/case2/output/evp_m2_qraw_tight_certify/logs/case2_perf_stationary_m0p6948_20260420T090005Z.log`
+- No NPZ (killed before solve output).
+- Config: `results/case2/evp_m2_qraw_tight_certify.jsonc` (kept as-is).

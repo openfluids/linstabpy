@@ -16,6 +16,7 @@ import os
 import numpy as np
 
 import examples.example_1_blasius as bl
+from examples._helpers import format_cache_recompute_message
 
 _SMOKE = Path(__file__).resolve()
 
@@ -117,7 +118,7 @@ def main() -> None:
         try:
             data = np.load(_SMOKE.with_suffix(".npz"))
         except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
-            print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+            print(format_cache_recompute_message(_SMOKE.with_suffix(".npz"), exc))
             need_recompute = True
     need_recompute = _broadcast_flag(need_recompute)
     if need_recompute:

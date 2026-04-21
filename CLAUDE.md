@@ -93,6 +93,9 @@ work. Context is split across three files in `results/case2/`:
 - `README.md` — operational (Portuguese): how to run a case or campaign.
 
 Do not duplicate their contents here — this file is general guidelines only.
+Do not create new files unless discussed with the user.
+Remember our primary interest is to find the issues and find a set of parameters that work as expected, logging and writing are secondary untill the numerics sweet spot is found.
+ 
 
 ## Troubleshooting
 

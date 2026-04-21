@@ -768,6 +768,65 @@ hand.
 
 ---
 
+## Wall-trapped modes — mitigation roadmap (added 2026-04-20)
+
+**Empirical finding** (consolidated 2026-04-20). 20–35 % of every M2
+screening batch classifies as `WALL_LOCAL` (Chu-energy localisation,
+`phase1p5_classify_modes.py`). Only one genuine `GLOBAL` oscillatory
+mode survives on M2 Qraw: `ω = (±1.7416, −6.317i)`, `St = 0.277`. The
+loose-tolerance "stationary mode" at `ω = (0, −0.6948i)` is *not*
+converging under tight EVP (`eps_tol = 1e-8`, `postcheck_rel_max = 1e-6`):
+the iteration plateaus around `err_range ~ 5–10` from SLEPc iter 100
+onward (tight-certify run 2026-04-20). This is exactly the signature
+of a wall-local cluster: loose tolerance rounds a non-isolated near-axis
+eigenvalue into the "accepted" bucket; tight tolerance unmasks it.
+
+The resolvent σ₁(ω) curve is **not** affected — resolvent SVD integrates
+over the whole domain in the Chu norm, and the certificate at ω = 0.40
+gives `ρ_adj = 2.4e-10` at `eps_tol = 1e-8`. So the pollution is
+**EVP-only**.
+
+### Mitigations — tiered by effort × impact
+
+| # | Approach | Status | Effort | Expected impact | Priority |
+|---|---|---|---|---|---|
+| M1 | Baseflow filtering (real Qfilt, upstream delivery) | blocked on I5 | external | **Root cause.** Smoothing `∂Ū/∂y` peaks removes the coefficient inflation that breeds wall-local clusters. Lele F2/F4 stand-in barely moved the spectrum (F5); real Qfilt is the live experiment. | HIGH |
+| M2 | Chu-localisation classifier + reject | ✅ done (I3) | — | Gatekeeper, not a fix — the modes still exist, we just don't publish them. | — |
+| M3 | **Contour-integration eigensolver (FEAST / Beyn)** in place of shift-invert Krylov–Schur | not started | MEDIUM–HIGH | Extracts *all* eigenvalues inside a user-drawn contour. Draw a contour that excludes the dense wall-local axis. No "closest-to-target" attractor. SLEPc has a FEAST wrapper (`EPS_FEAST`) — can prototype without rewriting the operator. | HIGH (user priority, 2026-04-20) |
+| M4 | Energy-weighted generalized EVP: solve `L q = ω M q` with `M` = Chu-energy weight | not started | MEDIUM (operator refactor) | Residuals and convergence criteria measured in Chu-energy norm → de-emphasises modes whose energy is concentrated in few cells. Cleanest theoretical answer. | MEDIUM |
+| M5 | Sponge / absorbing strip adjacent to wall + shock foot | not started | SMALL | Classical global-stability trick. Wall-local modes acquire large `\|Im ω\|` and fall out of any reasonable target window. Risk: introduces non-physical behaviour if the strip is too thick — must be validated against a known-clean case. | MEDIUM |
+| M6 | Mesh refinement in wall/shock regions | — | — | **Won't help.** Wall-local modes are a property of the continuous operator, not discretisation error. Finer mesh often produces *more* of them. | avoid |
+| M7 | Different physical BC (e.g. stress-free wall) | — | — | **Don't.** Changes the physics. Not an option for SWBLI. | avoid |
+
+### What we recommend for the paper (Case 2 scope)
+
+1. Report the classifier as a mandatory post-filter: EVP results are
+   framed as "only `GLOBAL`-class modes enter physics discussion."
+2. Frame the wall-local axis as a **physics finding**, not a failure:
+   "sharp mean-flow gradients at the shock foot and recovery wall
+   generate a dense axis of wall-trapped damping modes that dominate
+   shift-invert searches; this motivates (i) Chu-localisation
+   classification as post-filter and (ii) baseflow filtering (Qfilt,
+   ongoing) as a physical mitigation."
+3. List M3 (FEAST) and M4 (energy-weighted EVP) as **future work** —
+   beyond the framework-paper scope, target of the Case 2 follow-up.
+
+### Probe experiment (scoped, paper-adjacent)
+
+Before scheduling a full FEAST campaign, run a single proof-of-concept:
+
+- Target: the one genuine `GLOBAL` mode `ω = (1.7416, −6.317i)`.
+- Contour: small rectangle around this eigenvalue that **excludes** the
+  `Re(ω) = 0` axis where wall-local modes accumulate.
+- Deliverable: "FEAST finds the mode cleanly; Krylov–Schur on the same
+  target has to fight a wall-local cluster." Single plot, single
+  certificate. Paper-appendix material.
+
+*Owner: me. Priority: MEDIUM — runs after tight-EVP certification
+results land (task #26) and after the paper correction to `supp.tex`.*
+
+---
+
 ## What we should not do next
 
 - do not keep pushing `M1` with the old oscillatory target without

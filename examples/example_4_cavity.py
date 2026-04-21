@@ -21,6 +21,7 @@ import numpy as np
 from linstab2d.utils.jsonc import load_jsonc, parse_complex
 
 from ._helpers import (
+    apply_figure_layout,
     format_complex,
     format_scientific_ticks,
     label_axes,
@@ -454,7 +455,7 @@ def plot(data):
             y=0.985,
             fontsize=15,
         )
-        fig_mode.tight_layout(rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
+        apply_figure_layout(fig_mode, rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
         if i == 0:
             save_figure(fig_mode, output_direct)
         else:
@@ -499,7 +500,7 @@ def plot(data):
             y=0.985,
             fontsize=15,
         )
-        fig_mode.tight_layout(rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
+        apply_figure_layout(fig_mode, rect=(0.0, 0.0, 1.0, 0.965), pad=0.7)
         if i == 0:
             save_figure(fig_mode, output_adjoint)
         else:
@@ -536,7 +537,7 @@ def plot(data):
                 ax_mode.set_xticklabels([])
 
     set_suptitle(fig, "Cavity direct and adjoint mode support", y=0.972)
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig, output_spectrum)
 
 

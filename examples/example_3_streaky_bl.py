@@ -23,7 +23,9 @@ import numpy as np
 from linstab2d.utils.jsonc import load_jsonc, parse_complex_list, parse_int_list
 
 from ._helpers import (
+    apply_figure_layout,
     format_complex,
+    format_cache_recompute_message,
     format_scientific_ticks,
     label_axes,
     leading_mode_real_frequency,
@@ -678,7 +680,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
             else:
                 ax_mode.set_xticklabels([])
         set_suptitle(fig_temporal, r"Temporal streaky-boundary-layer summary at $\beta = 0.6283$", y=0.972)
-        fig_temporal.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+        apply_figure_layout(fig_temporal, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
         save_figure(fig_temporal, OUTPUT_PNG)
 
     if has_spatial:
@@ -766,7 +768,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         )
         label_axes(ax_mode)
         set_suptitle(fig_spatial, "Spatial streaky-boundary-layer summary", y=0.972)
-        fig_spatial.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+        apply_figure_layout(fig_spatial, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
         save_figure(fig_spatial, OUTPUT_SPATIAL)
 
     fig_support, axes_support = plt.subplots(1, 2, figsize=(12, 4.8))
@@ -836,7 +838,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
     else:
         axes_support[1].set_visible(False)
     set_suptitle(fig_support, "Streaky boundary-layer diagnostics", y=0.972)
-    fig_support.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig_support, OUTPUT_SPECTRA)
 
 
@@ -844,7 +846,7 @@ def main() -> None:
     cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
     data = _load_existing_npz()
     if not data:
-        print("Cached results unavailable or invalid, recomputing.")
+        print(format_cache_recompute_message(OUTPUT_NPZ, None))
         _compute(cfg)
         data = _load_existing_npz()
     if not data:

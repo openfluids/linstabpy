@@ -23,6 +23,7 @@ import numpy as np
 from linstab2d.utils.jsonc import load_jsonc
 
 from ._helpers import (
+    apply_figure_layout,
     label_axes,
     load_or_compute,
     load_parity_npz,
@@ -353,7 +354,7 @@ def plot(data):
             ax_f.set_xlabel(r"$x$")
             ax_r.set_xlabel(r"$x$")
     set_suptitle(fig, r"Blasius resolvent summary at $\omega = 60$", y=0.972)
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig, OUTPUT_PNG)
 
     fig_support, axes_support = plt.subplots(
@@ -382,7 +383,7 @@ def plot(data):
         )
         label_axes(ax)
     set_suptitle(fig_support, "Blasius support panels for the leading mode", y=0.97)
-    fig_support.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig_support, OUTPUT_SUPPORT)
 
     support_limit = max(
@@ -415,7 +416,7 @@ def plot(data):
         "Blasius support panels with shared color limits",
         y=0.97,
     )
-    fig_support_shared.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig_support_shared, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig_support_shared, OUTPUT_SUPPORT_SHARED)
 
 

@@ -34,7 +34,7 @@ def load_or_compute(
             raise KeyError("stale cache schema")
     except (FileNotFoundError, EOFError, OSError, ValueError, KeyError) as exc:
         if verbose:
-            print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+            print(format_cache_recompute_message(npz_path, exc))
         compute_fn()
         data = _load()
     return data
@@ -43,6 +43,34 @@ FIGURE_DPI = 600
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
 _STYLE_CONFIGURED = False
+
+
+def repo_relative_path(path: str | Path) -> str:
+    """Return a repo-relative display path when possible."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
+def format_cache_recompute_message(
+    npz_path: str | Path,
+    exc: Exception | None,
+) -> str:
+    """Describe a cache miss or stale cache in user-facing terms."""
+    cache_path = repo_relative_path(npz_path)
+    if exc is None:
+        return f"Cache miss or stale cache for {cache_path}; recomputing local results."
+    if isinstance(exc, FileNotFoundError):
+        return f"Cache miss for {cache_path}; recomputing local results."
+    if isinstance(exc, EOFError):
+        return f"Truncated cache for {cache_path}; recomputing local results."
+    if isinstance(exc, KeyError) and exc.args == ("stale cache schema",):
+        return f"Stale cache schema for {cache_path}; recomputing local results."
+
+    reason = "Unreadable cache" if isinstance(exc, OSError) else "Invalid cache contents"
+    return f"{reason} for {cache_path} ({exc}); recomputing local results."
 
 
 def to_grid(
@@ -76,7 +104,30 @@ def save_figure(fig, path: str | Path) -> None:
     output = Path(path)
     fig.savefig(output, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
-    print(f"Figure saved to {output}")
+    print(f"Figure saved to {repo_relative_path(output)}")
+
+
+def apply_figure_layout(
+    fig,
+    *,
+    rect: tuple[float, float, float, float] | None = None,
+    pad: float = 1.08,
+    h_pad: float | None = None,
+    w_pad: float | None = None,
+) -> None:
+    """Apply tight layout while suppressing Matplotlib's mixed-axes warning."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                "This figure includes Axes that are not compatible with tight_layout, "
+                "so results might be incorrect."
+            ),
+            category=UserWarning,
+        )
+        fig.tight_layout(rect=rect, pad=pad, h_pad=h_pad, w_pad=w_pad)
 
 
 def configure_example_style() -> None:

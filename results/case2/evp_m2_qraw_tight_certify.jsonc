@@ -1,0 +1,64 @@
+{
+  // Tight EVP convergence certificate (2026-04-20). Three M2 Qraw
+  // targets that the supp.tex narrative relies on:
+  //   - Stationary accepted mode from screening: ω=(0, -0.6948i)
+  //   - First oscillatory global candidate: ω=(+0.235, -7.13i)  (St=0.037)
+  //   - Second oscillatory global candidate: ω=(+0.333, -7.27i) (St=0.053)
+  //
+  // Settings are paper-grade (not screening):
+  //   - eps_tol = 1e-8
+  //   - nev = 4 (we are refining known positions, not searching)
+  //   - ncv = 80 (10× nev, plenty of subspace headroom)
+  //   - acceptance postcheck_rel_max = 1e-6 (six-digit eigenvalue trust)
+  //   - acceptance target_distance_max = 0.3 (tight local window)
+  //
+  // "accepted_count" will tell us per target whether the mode survives
+  // tight tolerance. If accepted_count == 0, the "mode" was a
+  // loose-tolerance artifact and supp.tex needs to drop it.
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_m2_qraw_tight_certify/case2_evp_m2_qraw_tight_certify_latest.json",
+    "report_csv": "output/evp_m2_qraw_tight_certify/case2_evp_m2_qraw_tight_certify_table.csv",
+    "log_dir": "output/evp_m2_qraw_tight_certify/logs",
+    "run_dir": "output/evp_m2_qraw_tight_certify/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {"stride_ksi": 2, "stride_eta": 2},
+        "analysis": {
+          "n_modes_stability": 4,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-6,
+            "target_distance_max": 0.3,
+            "omega_real_abs_max": 5.0,
+            "omega_imag_abs_max": 10.0
+          }
+        },
+        "solver": {
+          "eigen": {"eps_tol": 1e-8, "eps_max_it": 1000, "ncv": 80}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "stationary_m0p6948",
+     "label": "Stationary accepted mode: ω=(0, -0.6948i)",
+     "enabled": true,
+     "config_overrides": {
+       "analysis": {"omega_target": {"real": 0.0, "imag": -0.6948}}
+     }},
+    {"case_id": "osc_0p235_m7p13",
+     "label": "Osc candidate 1: ω=(+0.235, -7.13i), St=0.037",
+     "enabled": true,
+     "config_overrides": {
+       "analysis": {"omega_target": {"real": 0.235, "imag": -7.13}}
+     }},
+    {"case_id": "osc_0p333_m7p27",
+     "label": "Osc candidate 2: ω=(+0.333, -7.27i), St=0.053",
+     "enabled": true,
+     "config_overrides": {
+       "analysis": {"omega_target": {"real": 0.333, "imag": -7.27}}
+     }}
+  ]
+}
