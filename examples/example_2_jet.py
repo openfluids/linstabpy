@@ -22,6 +22,7 @@ import numpy as np
 from linstab2d.utils.jsonc import load_jsonc
 
 from ._helpers import (
+    apply_figure_layout,
     label_axes,
     load_or_compute,
     load_parity_npz,
@@ -440,7 +441,7 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
             ax_f.set_xlabel(r"$x$")
             ax_r.set_xlabel(r"$x$")
     set_suptitle(fig, r"Jet resolvent summary at $St = 0.39$", y=0.972)
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
+    apply_figure_layout(fig, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig, OUTPUT_PNG)
 
     fig_support, axes_support = plt.subplots(
@@ -487,7 +488,7 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
         "Jet support panels with full-domain component selection",
         y=0.975,
     )
-    fig_support.tight_layout(rect=(0.0, 0.0, 1.0, 0.945), pad=0.7)
+    apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.945), pad=0.7)
     save_figure(fig_support, OUTPUT_SUPPORT)
 
 

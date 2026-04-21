@@ -1,76 +1,289 @@
 #!/usr/bin/env bash
-# run_all_examples.sh — recompute all linstab2d examples and run the parity check.
+# run_all_examples.sh — recompute linstab2d examples and run the parity check.
 #
 # USAGE
-#   ./run_all_examples.sh           # use cached NPZs when present
-#   ./run_all_examples.sh --fresh   # delete all NPZs first, force full recompute
+#   ./run_all_examples.sh                                # use cached NPZs when present
+#   ./run_all_examples.sh --fresh                        # delete cached NPZs first
+#   ./run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
+#   ./run_all_examples.sh --example 0 --skip-parity      # run one example only
+#   ./run_all_examples.sh --continue-on-error            # keep going after failures
 #
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
 #   petsc4py/slepc4py require a one-time patched install performed by install.sh.
 #   uv run attempts to rebuild petsc4py from source on every call and fails on macOS.
 #   See CLAUDE.md for details.
 #
-# On Linux HPC nodes, replace .venv/bin/python with the appropriate interpreter
-# (e.g. the venv created by install.sh on the target system).
+# On Linux HPC nodes, point LINSTABPY_PYTHON at the target interpreter created
+# by install.sh instead of editing this script.
 
-set -euo pipefail
+set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-PYTHON="$REPO/.venv/bin/python"
-EXAMPLES_DIR="$REPO/examples"
-export PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
+DEFAULT_PYTHON="$REPO/.venv/bin/python"
+if [[ -n "${LINSTABPY_PYTHON:-}" ]]; then
+  PYTHON="$LINSTABPY_PYTHON"
+elif [[ -x "$DEFAULT_PYTHON" ]]; then
+  PYTHON="$DEFAULT_PYTHON"
+elif [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python" ]]; then
+  PYTHON="$VIRTUAL_ENV/bin/python"
+else
+  PYTHON="$DEFAULT_PYTHON"
+fi
 
-# ── Argument handling ──────────────────────────────────────────────────────────
+EXAMPLES_DIR="$REPO/examples"
+PARITY_SCRIPT="$REPO/tools/parity/compare_martini_examples.py"
+export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
+
+EXAMPLE_SPECS=(
+  "0|example_0_curvilinear_validation|examples.example_0_curvilinear_validation|Example 0: curvilinear derivative validation"
+  "1|example_1_blasius|examples.example_1_blasius|Example 1: Blasius boundary layer resolvent"
+  "2|example_2_jet|examples.example_2_jet|Example 2: turbulent jet resolvent"
+  "3|example_3_streaky_bl|examples.example_3_streaky_bl|Example 3: streaky boundary layer (temporal + spatial)"
+  "4|example_4_cavity|examples.example_4_cavity|Example 4: cavity direct and adjoint eigenvalues"
+  "5|example_5_paraboloid|examples.example_5_paraboloid|Example 5: paraboloid resolvent"
+)
+
+usage() {
+  cat <<EOF
+Usage: ./run_all_examples.sh [options]
+
+Options:
+  --fresh               Delete cached example NPZ artifacts before running
+  --clean               Delete cached example NPZ and PNG artifacts before running
+  --example <selector>  Run only one example. Repeatable. Select by index,
+                        stem, or module name (for example: 0, example_1_blasius)
+  --skip-parity         Skip the Python vs MATLAB parity comparison
+  --continue-on-error   Run remaining examples even if one fails
+  --list                Print available examples and exit
+  -h, --help            Show this help
+
+Environment:
+  LINSTABPY_PYTHON      Override the Python interpreter path
+EOF
+}
+
+list_examples() {
+  echo "Available examples:"
+  local spec idx stem module label
+  for spec in "${EXAMPLE_SPECS[@]}"; do
+    IFS='|' read -r idx stem module label <<<"$spec"
+    printf '  %s  %-32s %s\n' "$idx" "$stem" "$label"
+  done
+}
+
+format_seconds() {
+  local total="$1"
+  local minutes=$((total / 60))
+  local seconds=$((total % 60))
+  printf "%02dm%02ds" "$minutes" "$seconds"
+}
+
+contains_module() {
+  local needle="$1"
+  local item
+  for item in "${SELECTED_MODULES[@]:-}"; do
+    if [[ "$item" == "$needle" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+select_example() {
+  local selector="$1"
+  local spec idx stem module label matched=0
+  for spec in "${EXAMPLE_SPECS[@]}"; do
+    IFS='|' read -r idx stem module label <<<"$spec"
+    if [[ "$selector" == "$idx" || "$selector" == "$stem" || "$selector" == "$module" ]]; then
+      matched=1
+      if ! contains_module "$module"; then
+        SELECTED_MODULES+=("$module")
+        SELECTED_LABELS+=("$label")
+        SELECTED_STEMS+=("$stem")
+      fi
+      break
+    fi
+  done
+
+  if [[ $matched -eq 0 ]]; then
+    echo "ERROR: unknown example selector '$selector'." >&2
+    echo "Run ./run_all_examples.sh --list to see valid selectors." >&2
+    exit 1
+  fi
+}
+
+require_readable_file() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -r "$path" ]]; then
+    echo "ERROR: missing $label: $path" >&2
+    exit 1
+  fi
+}
+
+delete_example_artifacts() {
+  local stem="$1"
+  find "$EXAMPLES_DIR" -maxdepth 1 -type f \
+    \( -name "${stem}.npz" -o -name "${stem}.png" -o -name "${stem}_*.png" \) \
+    -print -delete
+}
+
 FRESH=0
-for arg in "$@"; do
-  case "$arg" in
-    --fresh) FRESH=1 ;;
-    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+CLEAN=0
+SKIP_PARITY=0
+CONTINUE_ON_ERROR=0
+SELECTED_MODULES=()
+SELECTED_LABELS=()
+SELECTED_STEMS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fresh)
+      FRESH=1
+      shift
+      ;;
+    --clean)
+      CLEAN=1
+      shift
+      ;;
+    --skip-parity)
+      SKIP_PARITY=1
+      shift
+      ;;
+    --continue-on-error)
+      CONTINUE_ON_ERROR=1
+      shift
+      ;;
+    --example)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --example requires a selector." >&2
+        exit 1
+      fi
+      select_example "$2"
+      shift 2
+      ;;
+    --list)
+      list_examples
+      exit 0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
   esac
 done
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "ERROR: $PYTHON not found or not executable." >&2
-  echo "Run install.sh first to set up the virtual environment." >&2
+  echo "Run install.sh first, activate the target virtual environment, or set LINSTABPY_PYTHON." >&2
   exit 1
 fi
 
-# ── Optionally wipe cached NPZs ───────────────────────────────────────────────
-if [[ $FRESH -eq 1 ]]; then
-  echo "==> --fresh: deleting cached NPZ artifacts"
-  rm -f \
-    "$EXAMPLES_DIR/example_0_curvilinear_validation.npz" \
-    "$EXAMPLES_DIR/example_1_blasius.npz" \
-    "$EXAMPLES_DIR/example_2_jet.npz" \
-    "$EXAMPLES_DIR/example_3_streaky_bl.npz" \
-    "$EXAMPLES_DIR/example_4_cavity.npz" \
-    "$EXAMPLES_DIR/example_5_paraboloid.npz"
+require_readable_file "$PARITY_SCRIPT" "parity driver"
+
+if [[ ${#SELECTED_MODULES[@]} -eq 0 ]]; then
+  for spec in "${EXAMPLE_SPECS[@]}"; do
+    IFS='|' read -r _ stem module label <<<"$spec"
+    SELECTED_MODULES+=("$module")
+    SELECTED_LABELS+=("$label")
+    SELECTED_STEMS+=("$stem")
+  done
 fi
 
-# ── Run examples ──────────────────────────────────────────────────────────────
+echo "Repo root: $REPO"
+echo "Python:    $PYTHON"
+echo "Examples:  ${#SELECTED_MODULES[@]} selected"
+if [[ $SKIP_PARITY -eq 1 ]]; then
+  echo "Parity:    skipped"
+fi
+
+if [[ $FRESH -eq 1 ]]; then
+  echo "==> --fresh: deleting cached NPZ artifacts"
+  for stem in "${SELECTED_STEMS[@]}"; do
+    rm -f "$EXAMPLES_DIR/${stem}.npz"
+  done
+fi
+
+if [[ $CLEAN -eq 1 ]]; then
+  echo "==> --clean: deleting cached NPZ and PNG artifacts"
+  for stem in "${SELECTED_STEMS[@]}"; do
+    delete_example_artifacts "$stem"
+  done
+fi
+
+cd "$REPO"
+
 run_example() {
   local module="$1"
   local label="$2"
+  local start_time elapsed rc
+
   echo ""
   echo "══════════════════════════════════════════════════════"
   echo "  $label"
   echo "══════════════════════════════════════════════════════"
-  "$PYTHON" -m "$module"
+
+  start_time=$SECONDS
+  if "$PYTHON" -m "$module"; then
+    elapsed=$((SECONDS - start_time))
+    echo "Status: PASS ($(format_seconds "$elapsed"))"
+    PASSED_LABELS+=("$label")
+    return 0
+  fi
+
+  rc=$?
+  elapsed=$((SECONDS - start_time))
+  echo "Status: FAIL ($(format_seconds "$elapsed"), exit $rc)" >&2
+  FAILED_LABELS+=("$label (exit $rc)")
+  return "$rc"
 }
 
-run_example examples.example_0_curvilinear_validation "Example 0: curvilinear derivative validation"
-run_example examples.example_1_blasius                "Example 1: Blasius boundary layer resolvent"
-run_example examples.example_2_jet                    "Example 2: turbulent jet resolvent"
-run_example examples.example_3_streaky_bl             "Example 3: streaky boundary layer (temporal + spatial)"
-run_example examples.example_4_cavity                 "Example 4: cavity direct and adjoint eigenvalues"
-run_example examples.example_5_paraboloid             "Example 5: paraboloid resolvent"
+PASSED_LABELS=()
+FAILED_LABELS=()
+RUNNER_STATUS=0
 
-# ── Parity comparison ─────────────────────────────────────────────────────────
-echo ""
-echo "══════════════════════════════════════════════════════"
-echo "  Parity comparison (Python vs MATLAB)"
-echo "══════════════════════════════════════════════════════"
-"$PYTHON" tools/parity/compare_martini_examples.py
+for i in "${!SELECTED_MODULES[@]}"; do
+  if ! run_example "${SELECTED_MODULES[$i]}" "${SELECTED_LABELS[$i]}"; then
+    RUNNER_STATUS=1
+    if [[ $CONTINUE_ON_ERROR -eq 0 ]]; then
+      break
+    fi
+  fi
+done
+
+if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 ]]; then
+  echo ""
+  echo "══════════════════════════════════════════════════════"
+  echo "  Parity comparison (Python vs MATLAB)"
+  echo "══════════════════════════════════════════════════════"
+  if "$PYTHON" "$PARITY_SCRIPT"; then
+    echo "Status: PASS"
+  else
+    rc=$?
+    echo "Status: FAIL (exit $rc)" >&2
+    RUNNER_STATUS=1
+  fi
+fi
 
 echo ""
-echo "Done."
+echo "Summary:"
+echo "  Passed examples: ${#PASSED_LABELS[@]}/${#SELECTED_MODULES[@]}"
+if [[ ${#FAILED_LABELS[@]} -gt 0 ]]; then
+  printf '  Failed examples: %s\n' "${FAILED_LABELS[*]}"
+else
+  echo "  Failed examples: none"
+fi
+
+echo ""
+if [[ $RUNNER_STATUS -eq 0 ]]; then
+  echo "Done."
+else
+  echo "Completed with failures." >&2
+fi
+
+exit "$RUNNER_STATUS"
