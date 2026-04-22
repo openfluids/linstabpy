@@ -393,9 +393,10 @@ run_example() {
     echo "Status: PASS ($(format_seconds "$elapsed"))"
     PASSED_LABELS+=("$label")
     return 0
+  else
+    rc=$?
   fi
 
-  rc=$?
   elapsed=$((SECONDS - start_time))
   echo "Status: FAIL ($(format_seconds "$elapsed"), exit $rc)" >&2
   FAILED_LABELS+=("$label (exit $rc)")
