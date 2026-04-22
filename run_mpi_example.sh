@@ -19,6 +19,27 @@ probe_mpi_launch() {
     fi
 }
 
+intel_mpi_root() {
+    if [ -n "${I_MPI_ROOT:-}" ] && [ -d "${I_MPI_ROOT}" ]; then
+        printf '%s\n' "${I_MPI_ROOT%/}"
+        return 0
+    fi
+    return 1
+}
+
+resolve_launcher_candidate() {
+    local candidate="$1"
+    if [ -x "${candidate}" ]; then
+        printf '%s\n' "${candidate}"
+        return 0
+    fi
+    if has_cmd "${candidate}"; then
+        command -v "${candidate}"
+        return 0
+    fi
+    return 1
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -54,10 +75,15 @@ detect_physical_cores() {
 }
 
 find_mpiexec() {
-    local candidate resolved
-    for candidate in mpiexec.mpich mpiexec.hydra mpiexec.openmpi mpiexec; do
-        has_cmd "${candidate}" || continue
-        resolved="$(command -v "${candidate}")"
+    local candidate resolved root
+    local candidates=()
+    if root="$(intel_mpi_root)"; then
+        candidates+=("${root}/bin/mpiexec" "${root}/bin/mpirun")
+    fi
+    candidates+=(mpiexec.mpich mpiexec.hydra mpiexec.openmpi mpirun.openmpi mpiexec mpirun)
+    for candidate in "${candidates[@]}"; do
+        resolved="$(resolve_launcher_candidate "${candidate}" || true)"
+        [ -n "${resolved}" ] || continue
         if has_cmd timeout; then
             if timeout -k 2 5 "${resolved}" -n 1 /bin/true >/dev/null 2>&1; then
                 printf '%s\n' "${resolved}"
