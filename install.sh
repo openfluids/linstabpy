@@ -52,6 +52,7 @@ warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
 err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
 ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
+mktemp_py() { mktemp "${TMPDIR:-/tmp}/linstab2d.XXXXXX"; }
 
 # Print a directory containing libmpi.so* / libmpich.so* (Open MPI, MPICH, Intel MPI)
 # or return non-zero.
@@ -140,7 +141,11 @@ linstab2d_resolve_mpi_libdir() {
 #
 # Usage: linstab2d_run_verify <py_bin> <heredoc_path>
 linstab2d_run_verify() {
-    linstab2d_run_verify_wrapped "$1" "$2" "${LINSTAB_VERIFY_MPIWRAP[@]}"
+    if declare -p LINSTAB_VERIFY_MPIWRAP >/dev/null 2>&1 && [ "${#LINSTAB_VERIFY_MPIWRAP[@]}" -gt 0 ]; then
+        linstab2d_run_verify_wrapped "$1" "$2" "${LINSTAB_VERIFY_MPIWRAP[@]}"
+    else
+        linstab2d_run_verify_wrapped "$1" "$2"
+    fi
 }
 
 linstab2d_run_verify_wrapped() {
@@ -148,12 +153,14 @@ linstab2d_run_verify_wrapped() {
     local snippet_file="$1"; shift
     local _err _rc
     _err="$(mktemp)"
+    set +e
     if [ "$#" -gt 0 ] && [[ "$1" == *=* ]]; then
         env "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
     else
         "$@" "${py_bin}" "${snippet_file}" 2>"${_err}"
     fi
     _rc=$?
+    set -e
     grep -v -E '^\[cli_[0-9]+\]: write_line error|^system msg for write_line failure|^:cmd=finalize$|^:$' "${_err}" >&2 || true
     rm -f "${_err}"
     return "${_rc}"
@@ -289,6 +296,144 @@ EOF
     done
 
     ok "Installed Linux runtime wrapper for .venv/bin/python"
+}
+
+darwin_openblas_dylib() {
+    [ "${OS_NAME}" = "Darwin" ] || return 1
+
+    local prefix=""
+    if has_cmd brew; then
+        prefix="$(brew --prefix openblas 2>/dev/null || true)"
+        if [ -n "${prefix}" ] && [ -r "${prefix}/lib/libopenblas.0.dylib" ]; then
+            printf '%s\n' "${prefix}/lib/libopenblas.0.dylib"
+            return 0
+        fi
+    fi
+
+    for prefix in /opt/homebrew/opt/openblas /usr/local/opt/openblas; do
+        if [ -r "${prefix}/lib/libopenblas.0.dylib" ]; then
+            printf '%s\n' "${prefix}/lib/libopenblas.0.dylib"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+darwin_brew_prefix() {
+    [ "${OS_NAME}" = "Darwin" ] || return 1
+
+    local formula="$1"
+    local prefix=""
+    if has_cmd brew; then
+        prefix="$(brew --prefix "${formula}" 2>/dev/null || true)"
+        if [ -n "${prefix}" ] && [ -d "${prefix}" ]; then
+            printf '%s\n' "${prefix}"
+            return 0
+        fi
+    fi
+
+    for prefix in "/opt/homebrew/opt/${formula}" "/usr/local/opt/${formula}"; do
+        if [ -d "${prefix}" ]; then
+            printf '%s\n' "${prefix}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+darwin_append_petsc_linalg_options() {
+    [ "${OS_NAME}" = "Darwin" ] || return 1
+
+    local openblas_prefix=""
+    local scalapack_prefix=""
+    openblas_prefix="$(darwin_brew_prefix openblas || true)"
+    scalapack_prefix="$(darwin_brew_prefix scalapack || true)"
+
+    if [ -z "${openblas_prefix}" ] || [ -z "${scalapack_prefix}" ]; then
+        warn "Homebrew OpenBLAS/ScaLAPACK not found; falling back to PETSc downloaded BLAS/LAPACK/ScaLAPACK."
+        warn "For the robust macOS path, install them with: brew install openblas scalapack"
+        return 1
+    fi
+
+    _PETSC_CONF_OPTS+=(
+        "--with-blaslapack-lib=${openblas_prefix}/lib/libopenblas.dylib"
+        "--with-blaslapack-include=${openblas_prefix}/include"
+        "--with-scalapack-lib=${scalapack_prefix}/lib/libscalapack.dylib"
+    )
+    log "PETSc configure: using Homebrew OpenBLAS and ScaLAPACK."
+    return 0
+}
+
+darwin_wrap_venv_python() {
+    [ "${OS_NAME}" = "Darwin" ] || return 0
+    [ "${LINSTAB2D_DARWIN_INSERT_OPENBLAS:-1}" = "1" ] || return 0
+
+    local py_bin="${VENV_DIR}/bin/python"
+    local py_real="${VENV_DIR}/bin/python-real"
+    local openblas=""
+    local real_target=""
+
+    [ -e "${py_bin}" ] || return 0
+    openblas="$(darwin_openblas_dylib || true)"
+    if [ -z "${openblas}" ]; then
+        warn "OpenBLAS dylib not found; skipping macOS runtime wrapper."
+        return 0
+    fi
+
+    if [ -f "${py_bin}" ] && grep -q 'LINSTAB2D Darwin runtime wrapper' "${py_bin}" 2>/dev/null; then
+        if [ -L "${py_real}" ]; then
+            real_target="$(readlink "${py_real}")"
+        elif [ -x "${py_real}" ]; then
+            real_target="${py_real}"
+        fi
+    elif [ -L "${py_bin}" ]; then
+        real_target="$(readlink "${py_bin}")"
+        case "${real_target}" in
+            /*) ;;
+            *) real_target="$(cd "$(dirname "${py_bin}")" && cd "$(dirname "${real_target}")" && pwd)/$(basename "${real_target}")" ;;
+        esac
+    elif [ -L "${py_real}" ]; then
+        real_target="$(readlink "${py_real}")"
+    else
+        warn "Skipping macOS runtime wrapper; ${py_bin} is not a venv symlink."
+        return 0
+    fi
+    if [ -z "${real_target}" ] || [ ! -x "${real_target}" ]; then
+        warn "Could not resolve the base Python interpreter for macOS runtime wrapper."
+        return 0
+    fi
+
+    rm -f "${py_real}"
+    ln -s "${real_target}" "${py_real}"
+    rm -f "${py_bin}"
+    cat > "${py_bin}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+# LINSTAB2D Darwin runtime wrapper:
+# Python imports NumPy/Accelerate before PETSc/SLEPc. PETSc's downloaded
+# ScaLAPACK can then bind LAPACK calls to Apple's Accelerate LAPACK, which
+# crashes in iterative non-Hermitian EPS solves. Insert Homebrew OpenBLAS
+# before Python starts so ScaLAPACK resolves LAPACK symbols consistently.
+_script_dir="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+_openblas="${openblas}"
+if [ -r "\${_openblas}" ]; then
+    case ":\${DYLD_INSERT_LIBRARIES:-}:" in
+        *:"\${_openblas}":*) ;;
+        *) export DYLD_INSERT_LIBRARIES="\${_openblas}\${DYLD_INSERT_LIBRARIES:+:\${DYLD_INSERT_LIBRARIES}}" ;;
+    esac
+fi
+exec -a "\${_script_dir}/python" "\${_script_dir}/python-real" "\$@"
+EOF
+    chmod +x "${py_bin}"
+
+    for link_name in python3 "python${PYTHON_VERSION}"; do
+        ln -sfn python "${VENV_DIR}/bin/${link_name}"
+    done
+
+    ok "Installed macOS runtime wrapper for .venv/bin/python"
 }
 
 linux_hdf5_available() {
@@ -931,7 +1076,7 @@ if [[ "${1:-}" == "--check" ]]; then
         exit 1
     fi
     linstab2d_prepare_verify_mpiwrap
-    _check_snippet="$(mktemp --suffix=.py)"
+    _check_snippet="$(mktemp_py)"
     cat >"${_check_snippet}" <<'PY'
 import sys, numpy as np
 # mpi4py must bind MPI before petsc4py (same rule as linstab2d.utils.petsc_init).
@@ -945,6 +1090,23 @@ if scalar != "complex":
 print(f"python={sys.version.split()[0]}")
 print(f"petsc4py={'.'.join(map(str,PETSc.Sys.getVersion()))}, scalar={scalar}")
 print(f"slepc4py={'.'.join(map(str,SLEPc.Sys.getVersion()))}")
+mat = PETSc.Mat().createAIJ([2, 2], nnz=2, comm=PETSc.COMM_SELF)
+mat.setUp()
+mat[0, 0] = 1.0
+mat[0, 1] = 2.0
+mat[1, 1] = 3.0
+mat.assemble()
+eps = SLEPc.EPS().create(comm=PETSc.COMM_SELF)
+eps.setOperators(mat)
+eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
+eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
+eps.setDimensions(1)
+eps.solve()
+if eps.getConverged() < 1:
+    print("FAIL: SLEPc NHEP check converged no eigenpairs", file=sys.stderr)
+    sys.exit(1)
+eps.destroy()
+mat.destroy()
 print("All checks passed.")
 PY
     linstab2d_run_verify "${VENV_DIR}/bin/python" "${_check_snippet}"
@@ -961,7 +1123,7 @@ PY
             err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
             exit 1
         fi
-        _check_multirank_snippet="$(mktemp --suffix=.py)"
+        _check_multirank_snippet="$(mktemp_py)"
         cat >"${_check_multirank_snippet}" <<'PY'
 import mpi4py.MPI as MPI
 from petsc4py import PETSc
@@ -1023,6 +1185,7 @@ else
 fi
 
 linux_wrap_venv_python
+darwin_wrap_venv_python
 
 PY_BIN="${VENV_DIR}/bin/python"
 PIP_INSTALL="${UV_BIN} pip install --python ${PY_BIN}"
@@ -1045,12 +1208,16 @@ fi
 _PETSC_CONF_OPTS=(
     "--with-scalar-type=complex"
     "--download-cmake"
-    "--download-fblaslapack"
     "--download-mumps"
-    "--download-scalapack"
     "--download-metis"
     "--download-parmetis"
 )
+if ! darwin_append_petsc_linalg_options; then
+    _PETSC_CONF_OPTS+=(
+        "--download-fblaslapack"
+        "--download-scalapack"
+    )
+fi
 # PyPI petsc's configure ignores MPIEXEC for the probe and defaults to /usr/bin/mpiexec
 # (broken under Ubuntu alternatives). --with-mpiexec forces the working launcher.
 if [[ -n "${MPIEXEC:-}" ]]; then
@@ -1122,6 +1289,24 @@ if [ -f "${PETSC_CONF_DIR}/petscvariables" ]; then
 else
     warn "PETSc config directory not found at ${PETSC_CONF_DIR}"
 fi
+PETSC_PKGCONFIG_DIR="${PETSC_DIR}/lib/pkgconfig"
+PETSC_PC="${PETSC_PKGCONFIG_DIR}/PETSc.pc"
+if [ -f "${PETSC_PC}" ]; then
+    STALE_PETSC_PC_PATH=$(sed -n -E 's|^prefix=(.*)|\1|p' "${PETSC_PC}" | head -n1)
+    if [ -n "${STALE_PETSC_PC_PATH}" ] && [ "${STALE_PETSC_PC_PATH}" != "${PETSC_DIR}" ]; then
+        log "  Replacing stale PETSc pkg-config path: ${STALE_PETSC_PC_PATH}"
+        while IFS= read -r -d '' f; do
+            if file "$f" | grep -q text; then
+                if grep -q "${STALE_PETSC_PC_PATH}" "$f" 2>/dev/null; then
+                    sed -i.bak "s|${STALE_PETSC_PC_PATH}|${PETSC_DIR}|g" "$f"
+                    rm -f "${f}.bak"
+                fi
+            fi
+        done < <(find "${PETSC_PKGCONFIG_DIR}" -type f -print0)
+    fi
+    sed -i.bak "s|^prefix=.*|prefix=${PETSC_DIR}|" "${PETSC_PC}"
+    rm -f "${PETSC_PC}.bak"
+fi
 
 # Install SLEPc after PETSc path patching so configure can link PETSc properly.
 log "Installing SLEPc wheel..."
@@ -1135,6 +1320,41 @@ unset HYDRA_BOOTSTRAP 2>/dev/null || true
 SLEPC_DIR=$("${PY_BIN}" -c "import slepc; print(slepc.get_slepc_dir())")
 export SLEPC_DIR
 log "SLEPC_DIR = ${SLEPC_DIR}"
+
+# PyPI SLEPc installs can retain build-cache paths in make/pkg-config
+# metadata. Patch them before building slepc4py or user examples.
+log "Patching SLEPc configuration files..."
+SLEPC_CONF_DIR="${SLEPC_DIR}/lib/slepc/conf"
+if [ -f "${SLEPC_CONF_DIR}/slepc_variables" ]; then
+    STALE_SLEPC_PATH=$(grep -m1 '^SLEPC_LIB_DIR[[:space:]]*=' "${SLEPC_CONF_DIR}/slepc_variables" | sed -E 's|.*=[[:space:]]*||; s|/lib$||' || true)
+    if [ -n "${STALE_SLEPC_PATH}" ] && [ "${STALE_SLEPC_PATH}" != "${SLEPC_DIR}" ]; then
+        log "  Replacing stale path: ${STALE_SLEPC_PATH}"
+        log "  With actual path:     ${SLEPC_DIR}"
+
+        while IFS= read -r -d '' f; do
+            if file "$f" | grep -q text; then
+                if grep -q "${STALE_SLEPC_PATH}" "$f" 2>/dev/null; then
+                    sed -i.bak "s|${STALE_SLEPC_PATH}|${SLEPC_DIR}|g" "$f"
+                    rm -f "${f}.bak"
+                fi
+            fi
+        done < <(find "${SLEPC_DIR}" -type f -print0)
+    else
+        ok "SLEPc config paths already correct."
+    fi
+
+    if [ -f "${SLEPC_CONF_DIR}/slepcvariables" ]; then
+        sed -i.bak "s|^SLEPC_INSTALLDIR = .*|SLEPC_INSTALLDIR = ${SLEPC_DIR}|" "${SLEPC_CONF_DIR}/slepcvariables"
+        rm -f "${SLEPC_CONF_DIR}/slepcvariables.bak"
+    fi
+else
+    warn "SLEPc config directory not found at ${SLEPC_CONF_DIR}"
+fi
+SLEPC_PC="${SLEPC_DIR}/lib/pkgconfig/SLEPc.pc"
+if [ -f "${SLEPC_PC}" ]; then
+    sed -i.bak "s|^prefix=.*|prefix=${SLEPC_DIR}|" "${SLEPC_PC}"
+    rm -f "${SLEPC_PC}.bak"
+fi
 
 # ── Step 4: Fix dylib rpaths (macOS only) ────────────────────────────────────
 if [ "${OS_NAME}" = "Darwin" ]; then
@@ -1155,8 +1375,12 @@ if [ "${OS_NAME}" = "Darwin" ]; then
         # Fix references to other dylibs in this directory
         otool -L "$dylib" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
             dep_base=$(basename "$dep")
-            if [ -f "${PETSC_LIB}/${dep_base}" ] && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
-                install_name_tool -change "$dep" "@rpath/${dep_base}" "$dylib" 2>/dev/null || true
+            if [ -f "${PETSC_LIB}/${dep_base}" ] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
+                new_dep="@rpath/${dep_base}"
+                [[ "${dep_base}" == libpetsc*.dylib ]] && new_dep="@rpath/libpetsc.dylib"
+                if [[ "${dep}" != "${new_dep}" ]]; then
+                    install_name_tool -change "$dep" "${new_dep}" "$dylib" 2>/dev/null || true
+                fi
             fi
         done
     done
@@ -1197,8 +1421,16 @@ if [ "${OS_NAME}" = "Darwin" ]; then
         # Fix references to PETSc/SLEPc dylibs
         otool -L "$so_file" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
             dep_base=$(basename "$dep")
-            if { [ -f "${PETSC_LIB}/${dep_base}" ] || [ -f "${SLEPC_LIB}/${dep_base}" ]; } && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
-                install_name_tool -change "$dep" "@rpath/${dep_base}" "$so_file" 2>/dev/null || true
+            new_dep=""
+            if [ -f "${PETSC_LIB}/${dep_base}" ]; then
+                new_dep="@rpath/${dep_base}"
+                [[ "${dep_base}" == libpetsc*.dylib ]] && new_dep="@rpath/libpetsc.dylib"
+            elif [ -f "${SLEPC_LIB}/${dep_base}" ]; then
+                new_dep="@rpath/${dep_base}"
+                [[ "${dep_base}" == libslepc*.dylib ]] && new_dep="@rpath/libslepc.dylib"
+            fi
+            if [ -n "${new_dep}" ] && [[ "${dep}" != "${new_dep}" ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
+                install_name_tool -change "$dep" "${new_dep}" "$so_file" 2>/dev/null || true
             fi
         done
     done < <(find "${SITE_PACKAGES}" \( -path "*/petsc4py/*" -o -path "*/slepc4py/*" \) -name "*.so" -print0)
@@ -1212,8 +1444,16 @@ if [ "${OS_NAME}" = "Darwin" ]; then
         otool -l "$dylib" 2>/dev/null | grep -q "${SLEPC_LIB}" || install_name_tool -add_rpath "${SLEPC_LIB}" "$dylib" 2>/dev/null || true
         otool -L "$dylib" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
             dep_base=$(basename "$dep")
-            if { [ -f "${PETSC_LIB}/${dep_base}" ] || [ -f "${SLEPC_LIB}/${dep_base}" ]; } && [[ "${dep}" != *"@rpath"* ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
-                install_name_tool -change "$dep" "@rpath/${dep_base}" "$dylib" 2>/dev/null || true
+            new_dep=""
+            if [ -f "${PETSC_LIB}/${dep_base}" ]; then
+                new_dep="@rpath/${dep_base}"
+                [[ "${dep_base}" == libpetsc*.dylib ]] && new_dep="@rpath/libpetsc.dylib"
+            elif [ -f "${SLEPC_LIB}/${dep_base}" ]; then
+                new_dep="@rpath/${dep_base}"
+                [[ "${dep_base}" == libslepc*.dylib ]] && new_dep="@rpath/libslepc.dylib"
+            fi
+            if [ -n "${new_dep}" ] && [[ "${dep}" != "${new_dep}" ]] && [[ "${dep}" != "/usr/"* ]] && [[ "${dep}" != "/System/"* ]]; then
+                install_name_tool -change "$dep" "${new_dep}" "$dylib" 2>/dev/null || true
             fi
         done
     done
@@ -1321,7 +1561,7 @@ if [[ "${LINSTAB2D_INSTALL_SKIP_VERIFY:-0}" = "1" ]]; then
 else
 log "Verifying installation..."
 linstab2d_prepare_verify_mpiwrap
-_verify_snippet="$(mktemp --suffix=.py)"
+_verify_snippet="$(mktemp_py)"
 cat >"${_verify_snippet}" <<'PY'
 import sys
 import numpy as np
@@ -1349,6 +1589,25 @@ from slepc4py import SLEPc
 v = SLEPc.Sys.getVersion()
 print(f"  slepc4py     = {v[0]}.{v[1]}.{v[2]}", flush=True)
 
+print("  SLEPc NHEP   …", flush=True)
+mat = PETSc.Mat().createAIJ([2, 2], nnz=2, comm=PETSc.COMM_SELF)
+mat.setUp()
+mat[0, 0] = 1.0
+mat[0, 1] = 2.0
+mat[1, 1] = 3.0
+mat.assemble()
+eps = SLEPc.EPS().create(comm=PETSc.COMM_SELF)
+eps.setOperators(mat)
+eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
+eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
+eps.setDimensions(1)
+eps.solve()
+if eps.getConverged() < 1:
+    print("FATAL: SLEPc NHEP check converged no eigenpairs", file=sys.stderr)
+    sys.exit(1)
+eps.destroy()
+mat.destroy()
+
 import mpi4py
 print(f"  mpi4py       = {mpi4py.__version__}", flush=True)
 
@@ -1374,7 +1633,7 @@ if [ "${OS_NAME}" = "Linux" ] && [ "${_cpu_count}" -gt 1 ]; then
         err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
         exit 1
     fi
-    _verify_multirank_snippet="$(mktemp --suffix=.py)"
+    _verify_multirank_snippet="$(mktemp_py)"
     cat >"${_verify_multirank_snippet}" <<'PY'
 import mpi4py.MPI as MPI
 from petsc4py import PETSc

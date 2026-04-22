@@ -370,10 +370,14 @@ if [ "${MPI_STACK_COUNT}" -gt 1 ]; then
     fi
 fi
 
-# Probe which mpiexec can run -n 1 /bin/true
+# Probe which mpiexec can run -n 1 true
 # Short timeout + forced kill to avoid hanging on broken MPI daemons.
 echo ""
-printf "  Probing mpiexec -n 1 /bin/true (5s timeout each):\n"
+MPI_TRUE_PROBE="/bin/true"
+if [ "${OS_NAME}" = "Darwin" ] && [ -x /usr/bin/true ]; then
+    MPI_TRUE_PROBE="/usr/bin/true"
+fi
+printf "  Probing mpiexec -n 1 %s (5s timeout each):\n" "${MPI_TRUE_PROBE}"
 WORKING_MPIEXEC=""
 MPI_PROBE_CANDIDATES=()
 if [ -n "${I_MPI_ROOT:-}" ] && [ -d "${I_MPI_ROOT}/bin" ]; then
@@ -384,7 +388,7 @@ for candidate in "${MPI_PROBE_CANDIDATES[@]}"; do
     resolved="$(resolve_launcher_candidate "${candidate}" || true)"
     [ -n "${resolved}" ] || continue
     if has_cmd timeout; then
-        if timeout -k 2 5 "${resolved}" -n 1 /bin/true >/dev/null 2>&1; then
+        if timeout -k 2 5 "${resolved}" -n 1 "${MPI_TRUE_PROBE}" >/dev/null 2>&1; then
             printf "    %-22s ${COL_OK}OK${COL_RST}\n" "${candidate}"
             [ -z "${WORKING_MPIEXEC}" ] && WORKING_MPIEXEC="${resolved}"
         else
@@ -398,7 +402,7 @@ if [ -n "${WORKING_MPIEXEC}" ]; then
     printf "  Best candidate: %s\n" "${WORKING_MPIEXEC}"
 else
     if [ "${OPENMPI_FOUND}" -eq 1 ] || [ "${MPICH_FOUND}" -eq 1 ] || [ "${INTELMPI_FOUND}" -eq 1 ]; then
-        printf "  ${COL_MISS}No mpiexec passed the -n 1 /bin/true probe.${COL_RST}\n"
+        printf "  ${COL_MISS}No mpiexec passed the -n 1 %s probe.${COL_RST}\n" "${MPI_TRUE_PROBE}"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
 fi
@@ -442,13 +446,17 @@ fi
 echo ""
 
 # ── Remediation ─────────────────────────────────────────────────────────────
-if [ "${FAIL_COUNT}" -gt 0 ] || [ "${#WARNINGS[@]}" -gt 0 ]; then
+set +u
+WARN_COUNT=${#WARNINGS[@]}
+set -u
+if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
     printf "=== ${COL_WARN}ACTION REQUIRED${COL_RST} ===\n"
     echo ""
 
     # Dual-MPI warning
-    for w in "${WARNINGS[@]}"; do
-        if [ "${w}" = "dual-mpi" ]; then
+    if [ "${WARN_COUNT}" -gt 0 ]; then
+        for w in "${WARNINGS[@]}"; do
+            if [ "${w}" = "dual-mpi" ]; then
             printf "  ${COL_WARN}Resolve MPI conflict (pick one):${COL_RST}\n"
             case "${PM}" in
                 apt)
@@ -476,8 +484,9 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${#WARNINGS[@]}" -gt 0 ]; then
                     ;;
             esac
             echo ""
-        fi
-    done
+            fi
+        done
+    fi
 
     # Missing tools
     if [ "${FAIL_COUNT}" -gt 0 ]; then
@@ -564,6 +573,6 @@ else
 fi
 
 # Exit non-zero if there are critical failures or warnings so callers can gate on it.
-if [ "${FAIL_COUNT}" -gt 0 ] || [ "${#WARNINGS[@]}" -gt 0 ]; then
+if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
     exit 1
 fi
