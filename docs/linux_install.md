@@ -17,8 +17,9 @@ consistent across workstations and cluster nodes.
 1. Use exactly one MPI stack per environment.
    PETSc, `mpi4py`, and `mpiexec` must agree on the same ABI.
 2. Run `bash diagnose.sh` before installing.
-   The script checks compilers, MPI launchers, dual-MPI conflicts, and probes
-   which `mpiexec` can actually run `-n 1 /bin/true`.
+   The script checks compilers, MPI launchers, dual-MPI conflicts, verifies
+   that `mpicc` can compile a program including `mpi.h`, and probes which
+   `mpiexec` can actually run `-n 1 /bin/true`.
 3. Install with `bash install.sh`.
    The main installer now prefers a verified `mpiexec`, rebuilds `mpi4py` from
    source when the wheel ABI does not match the system MPI, and verifies the
@@ -88,12 +89,32 @@ Cluster-friendly flow:
 
 ```bash
 bash diagnose.sh
-module load <compiler> <mpi> <hdf5>
+module load <compiler> <mpi>
 bash install.sh
 ```
 
+Intel MPI / oneAPI flow:
+
+```bash
+source /opt/intel/oneapi/setvars.sh --force
+# or: module load <intel-oneapi> <intel-mpi>
+export LINSTAB2D_MPI_STACK=intelmpi
+export I_MPI_CC=gcc I_MPI_CXX=g++ I_MPI_F90=gfortran I_MPI_FC=gfortran
+bash diagnose.sh
+bash install.sh
+```
+
+Use Intel MPI only if `bash diagnose.sh` shows the active `mpicc`, `mpicxx`,
+`mpifort`, and `mpiexec` coming from oneAPI/Intel MPI and the `MPI compile`
+probe passes. Do not mix an Intel MPI `mpiexec` with Open MPI/MPICH-built
+`mpi4py`, PETSc, or SLEPc.
+
+Load an HDF5 module only when you intentionally enable
+`LINSTAB2D_WITH_H5PY=1` for optional MATLAB v7.3 / HDF5 tooling.
+
 Useful overrides:
 
+- `LINSTAB2D_MPI_STACK=intelmpi`
 - `LINSTAB2D_PETSC_MPIEXEC=/path/to/mpiexec`
 - `LINSTAB2D_VERIFY_MPIEXEC=/path/to/mpiexec`
 - `LINSTAB2D_MPI4PY_NO_BINARY=1`
@@ -173,6 +194,12 @@ It probes a working `mpiexec` and exports `OMP_NUM_THREADS=1`,
 
 ## Install-time troubleshooting
 
+- If `diagnose.sh` reports `MPI compile: FAIL` with `mpi.h` missing, install
+  the MPI development package for the active MPI stack, e.g.
+  `sudo apt install -y libopenmpi-dev openmpi-bin` on Ubuntu/Open MPI.
+- For Intel MPI, fix this by loading a complete oneAPI/Intel MPI environment,
+  not by installing Open MPI packages. After loading it, `command -v mpicc`
+  should point inside `$I_MPI_ROOT/bin` or the oneAPI MPI installation.
 - If PETSc configure hangs or fails on `/usr/bin/mpiexec`, rerun with
   `LINSTAB2D_PETSC_MPIEXEC=/path/to/working/mpiexec`.
 - If `mpi4py` imports fail after switching MPI stacks, remove `.venv`, run

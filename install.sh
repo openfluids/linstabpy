@@ -11,6 +11,7 @@ set -euo pipefail
 # Usage:
 #   bash install.sh                    # full install (no h5py by default)
 #   LINSTAB2D_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
+#   LINSTAB2D_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
 #   LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
 #
@@ -58,13 +59,24 @@ linstab2d_resolve_mpi_libdir() {
     local mpicc_bin=""
     local d=""
     local so=""
+    local mpi_root=""
     # libmpi.so* covers Open MPI and Intel MPI; libmpich.so* covers MPICH on Debian/Ubuntu.
     local _has_mpi_so='ls "${1}"/libmpi.so* >/dev/null 2>&1 || ls "${1}"/libmpich.so* >/dev/null 2>&1'
     _dir_has_mpi_so() { ls "${1}"/libmpi.so* >/dev/null 2>&1 || ls "${1}"/libmpich.so* >/dev/null 2>&1; }
-    if [ -x /usr/bin/mpicc ]; then
-        mpicc_bin="/usr/bin/mpicc"
+    if mpi_root="$(linux_intel_mpi_root 2>/dev/null || true)" && [ -n "${mpi_root}" ]; then
+        for d in "${mpi_root}/lib/release" "${mpi_root}/lib"; do
+            if [ -d "${d}" ] && _dir_has_mpi_so "${d}"; then
+                printf '%s\n' "${d}"
+                return 0
+            fi
+        done
+    fi
+    if mpicc_bin="$(linux_resolve_mpi_tool mpicc mpiicc mpiicx 2>/dev/null || true)" && [ -n "${mpicc_bin}" ]; then
+        :
     elif has_cmd mpicc; then
         mpicc_bin="$(command -v mpicc)"
+    elif [ -x /usr/bin/mpicc ]; then
+        mpicc_bin="/usr/bin/mpicc"
     fi
     if [ -n "${mpicc_bin}" ]; then
         # Open MPI: --showme:libdir / --showme:link
@@ -80,7 +92,7 @@ linstab2d_resolve_mpi_libdir() {
         if [ -z "${d}" ] || [ ! -d "${d}" ]; then
             d="$("${mpicc_bin}" -link-info 2>/dev/null | tr ' ' '\n' | awk '/^-L/{print substr($0,3); exit}')"
         fi
-        d="$(printf '%s\n' "${d}" | sed -e 's|///*|/|g' -e 's|/$||')"
+        d="$(printf '%s\n' "${d}" | sed -e 's|^"||' -e 's|"$||' -e "s|^'||" -e "s|'$||" -e 's|///*|/|g' -e 's|/$||')"
         if [ -n "${d}" ] && [ -d "${d}" ] && _dir_has_mpi_so "${d}"; then
             printf '%s\n' "${d}"
             return 0
@@ -178,9 +190,6 @@ linux_wrap_venv_python() {
     local real_target=""
 
     [ -e "${py_bin}" ] || return 0
-    if [ -f "${py_bin}" ] && grep -q 'LINSTAB2D Linux runtime wrapper' "${py_bin}" 2>/dev/null; then
-        return 0
-    fi
 
     if [ -L "${py_bin}" ]; then
         real_target="$(readlink -f "${py_bin}")"
@@ -210,14 +219,30 @@ _venv_dir="$(cd "${_script_dir}/.." && pwd)"
 _site_packages="$(printf '%s\n' "${_venv_dir}"/lib/python*/site-packages | head -n 1)"
 _petsc_lib="${_site_packages}/petsc/lib"
 _slepc_lib="${_site_packages}/slepc/lib"
+_ld_file="${_venv_dir}/linstab2d_ld_library_path"
 
-# mpi4py links against the system MPI runtime (e.g. Open MPI libmpi.so.*).
-# Prefer /usr/bin/mpicc, then PATH; verify with ldconfig if needed.
+# Prefer the install-time runtime manifest. This preserves an Intel MPI install
+# even when /usr/bin/mpicc from Open MPI is also present on the host.
+_ld_paths=()
+if [ -f "${_ld_file}" ]; then
+    while IFS= read -r _d; do
+        [ -n "${_d}" ] && [ -d "${_d}" ] && _ld_paths+=("${_d}")
+    done < "${_ld_file}"
+fi
+
+# Fallback for older installs without the manifest.
 _mpicc=""
-[ -x /usr/bin/mpicc ] && _mpicc="/usr/bin/mpicc"
-[ -z "${_mpicc}" ] && command -v mpicc >/dev/null 2>&1 && _mpicc="$(command -v mpicc)"
 _mpi_ld=""
-if [ -n "${_mpicc}" ]; then
+if [ "${#_ld_paths[@]}" -eq 0 ]; then
+    if [ -n "${I_MPI_ROOT:-}" ] && [ -d "${I_MPI_ROOT}/lib/release" ] && ls "${I_MPI_ROOT}/lib/release"/libmpi.so* >/dev/null 2>&1; then
+        _mpi_ld="${I_MPI_ROOT}/lib/release"
+    elif command -v mpicc >/dev/null 2>&1; then
+        _mpicc="$(command -v mpicc)"
+    elif [ -x /usr/bin/mpicc ]; then
+        _mpicc="/usr/bin/mpicc"
+    fi
+fi
+if [ "${#_ld_paths[@]}" -eq 0 ] && [ -n "${_mpicc}" ]; then
     _d="$("${_mpicc}" --showme:libdir 2>/dev/null || true)"
     if [ -n "${_d}" ] && [ -d "${_d}" ] && ls "${_d}"/libmpi.so* >/dev/null 2>&1; then
         _mpi_ld="${_d}"
@@ -229,7 +254,7 @@ if [ -n "${_mpicc}" ]; then
         fi
     fi
 fi
-if [ -z "${_mpi_ld}" ]; then
+if [ "${#_ld_paths[@]}" -eq 0 ] && [ -z "${_mpi_ld}" ]; then
     for _cand in \
         /usr/lib/x86_64-linux-gnu/openmpi/lib \
         /usr/lib/x86_64-linux-gnu \
@@ -242,14 +267,19 @@ if [ -z "${_mpi_ld}" ]; then
         fi
     done
 fi
-if [ -z "${_mpi_ld}" ] && command -v ldconfig >/dev/null 2>&1; then
+if [ "${#_ld_paths[@]}" -eq 0 ] && [ -z "${_mpi_ld}" ] && command -v ldconfig >/dev/null 2>&1; then
     _so="$(ldconfig -p 2>/dev/null | awk '/libmpi\.so\.[0-9]/{print $NF; exit}')"
     if [ -n "${_so}" ] && [ -f "${_so}" ]; then
         _mpi_ld="$(dirname "${_so}")"
     fi
 fi
 
-export LD_LIBRARY_PATH="${_mpi_ld:+${_mpi_ld}:}${_petsc_lib}:${_slepc_lib}:${LD_LIBRARY_PATH:-}"
+if [ "${#_ld_paths[@]}" -gt 0 ]; then
+    _joined="$(IFS=:; printf '%s' "${_ld_paths[*]}")"
+    export LD_LIBRARY_PATH="${_joined}:${LD_LIBRARY_PATH:-}"
+else
+    export LD_LIBRARY_PATH="${_mpi_ld:+${_mpi_ld}:}${_petsc_lib}:${_slepc_lib}:${LD_LIBRARY_PATH:-}"
+fi
 exec -a "${_script_dir}/python" "${_script_dir}/python-real" "$@"
 EOF
     chmod +x "${py_bin}"
@@ -261,6 +291,165 @@ EOF
     ok "Installed Linux runtime wrapper for .venv/bin/python"
 }
 
+linux_hdf5_available() {
+    has_cmd h5cc && return 0
+    has_cmd pkg-config && pkg-config --exists hdf5 2>/dev/null && return 0
+    has_cmd pkg-config && pkg-config --exists hdf5-serial 2>/dev/null && return 0
+    return 1
+}
+
+linux_intel_mpi_root() {
+    if [ -n "${I_MPI_ROOT:-}" ] && [ -d "${I_MPI_ROOT}" ]; then
+        printf '%s\n' "${I_MPI_ROOT%/}"
+        return 0
+    fi
+    return 1
+}
+
+linux_intel_mpi_available() {
+    linux_intel_mpi_root >/dev/null && return 0
+    [ -x /opt/intel/oneapi/setvars.sh ] && return 0
+    [ -x /opt/intel/oneapi/mpi/latest/bin/mpicc ] && return 0
+    for _cand in /opt/intel/oneapi/mpi/*/bin/mpicc; do
+        [ -x "${_cand}" ] && return 0
+    done
+    return 1
+}
+
+linux_cmd_looks_intel_mpi() {
+    local cmd="$1"
+    local resolved=""
+    if [ -x "${cmd}" ]; then
+        resolved="${cmd}"
+    elif has_cmd "${cmd}"; then
+        resolved="$(command -v "${cmd}")"
+    else
+        return 1
+    fi
+
+    case "${resolved}" in
+        *intel*oneapi*mpi*|*oneapi*/mpi/*|*impi*)
+            return 0
+            ;;
+    esac
+    "${resolved}" -V 2>&1 | head -n5 | grep -qi 'Intel.*MPI\|Intel(R).*MPI' && return 0
+    "${resolved}" --version 2>&1 | head -n5 | grep -qi 'Intel.*MPI\|Intel(R).*MPI' && return 0
+    return 1
+}
+
+linux_mpi_stack_preference() {
+    case "${LINSTAB2D_MPI_STACK:-}" in
+        intel|intelmpi|impi)
+            printf 'intelmpi\n'
+            return 0
+            ;;
+        openmpi|mpich)
+            printf '%s\n' "${LINSTAB2D_MPI_STACK}"
+            return 0
+            ;;
+    esac
+    if [ -n "${I_MPI_ROOT:-}" ] || has_cmd impi_info || linux_cmd_looks_intel_mpi mpiexec || linux_cmd_looks_intel_mpi mpirun; then
+        printf 'intelmpi\n'
+        return 0
+    fi
+    if has_cmd mpiexec.openmpi || has_cmd mpirun.openmpi || has_cmd ompi_info; then
+        printf 'openmpi\n'
+        return 0
+    fi
+    if has_cmd mpiexec; then
+        local mpiexec_id
+        mpiexec_id="$(mpiexec --version 2>&1 | head -n3 || true)"
+        if printf '%s\n' "${mpiexec_id}" | grep -qi 'open.mpi\|OpenRTE\|ORTE'; then
+            printf 'openmpi\n'
+            return 0
+        fi
+        if printf '%s\n' "${mpiexec_id}" | grep -qi 'mpich\|hydra\|HYDRA'; then
+            printf 'mpich\n'
+            return 0
+        fi
+    fi
+    if has_cmd mpiexec.mpich || has_cmd mpiexec.hydra || has_cmd mpirun.mpich; then
+        printf 'mpich\n'
+        return 0
+    fi
+    printf 'openmpi\n'
+}
+
+linux_resolve_mpi_tool() {
+    local name root candidate resolved
+    root="$(linux_intel_mpi_root || true)"
+    if [ -n "${root}" ]; then
+        for candidate in "$@"; do
+            if [ -x "${root}/bin/${candidate}" ]; then
+                printf '%s\n' "${root}/bin/${candidate}"
+                return 0
+            fi
+        done
+    fi
+    for candidate in "$@"; do
+        if has_cmd "${candidate}"; then
+            resolved="$(command -v "${candidate}")"
+            case "${resolved}" in
+                *conda*|*miniconda*|*anaconda*)
+                    ;;
+                *)
+                    printf '%s\n' "${resolved}"
+                    return 0
+                    ;;
+            esac
+        fi
+    done
+    for candidate in "$@"; do
+        if [ -x "/usr/bin/${candidate}" ]; then
+            printf '%s\n' "/usr/bin/${candidate}"
+            return 0
+        fi
+    done
+    for candidate in "$@"; do
+        if has_cmd "${candidate}"; then
+            command -v "${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+linux_mpi_compile_available() {
+    LINSTAB2D_MPI_COMPILE_ERROR=""
+    local mpicc_bin
+    mpicc_bin="$(linux_resolve_mpi_tool mpicc mpiicc mpiicx || true)"
+    [ -n "${mpicc_bin}" ] || {
+        LINSTAB2D_MPI_COMPILE_ERROR="mpicc not found"
+        return 1
+    }
+
+    local tmpdir src bin err rc
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/linstabpy-mpi-compile.XXXXXX")" || {
+        LINSTAB2D_MPI_COMPILE_ERROR="could not create temporary compile directory"
+        return 1
+    }
+    src="${tmpdir}/mpi_probe.c"
+    bin="${tmpdir}/mpi_probe"
+    err="${tmpdir}/mpicc.err"
+    cat > "${src}" <<'EOF'
+#include <mpi.h>
+int main(int argc, char **argv) {
+    MPI_Init(&argc, &argv);
+    MPI_Finalize();
+    return 0;
+}
+EOF
+    if "${mpicc_bin}" "${src}" -o "${bin}" >"${err}" 2>&1; then
+        rc=0
+    else
+        LINSTAB2D_MPI_COMPILE_ERROR="$(sed -n '1,3p' "${err}" | tr '\n' ' ' | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //g' -e 's/ $//g')"
+        [ -n "${LINSTAB2D_MPI_COMPILE_ERROR}" ] || LINSTAB2D_MPI_COMPILE_ERROR="${mpicc_bin} failed to compile a program including mpi.h"
+        rc=1
+    fi
+    rm -rf "${tmpdir}"
+    return "${rc}"
+}
+
 linux_install_system_deps() {
     [ "${OS_NAME}" = "Linux" ] || return 0
     [ "${LINSTAB2D_SKIP_SYS_DEPS:-0}" = "1" ] && {
@@ -268,11 +457,22 @@ linux_install_system_deps() {
         return 0
     }
 
-    local required=(curl make cmake gcc g++ gfortran pkg-config h5cc mpicc mpicxx mpifort)
+    local required=(curl make cmake gcc g++ gfortran pkg-config)
     local missing=()
+    local mpi_compile_error=""
     for c in "${required[@]}"; do
         has_cmd "$c" || missing+=("$c")
     done
+    linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null || missing+=("mpicc")
+    linux_resolve_mpi_tool mpicxx mpiicpc mpiicpx >/dev/null || missing+=("mpicxx")
+    linux_resolve_mpi_tool mpifort mpif90 mpiifort mpiifx >/dev/null || missing+=("mpifort")
+    if linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null && ! linux_mpi_compile_available; then
+        missing+=("mpi-dev")
+        mpi_compile_error="${LINSTAB2D_MPI_COMPILE_ERROR}"
+    fi
+    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
+        missing+=("hdf5-dev")
+    fi
 
     if [ ${#missing[@]} -eq 0 ]; then
         ok "Linux build prerequisites already installed."
@@ -280,30 +480,85 @@ linux_install_system_deps() {
     fi
 
     warn "Missing Linux build tools: ${missing[*]}"
+    [ -n "${mpi_compile_error}" ] && warn "MPI compile probe failed: ${mpi_compile_error}"
 
     local pm=""
     local update_cmd=""
     local install_cmd=""
+    local hdf5_pkg=""
+    local mpi_stack=""
+    mpi_stack="$(linux_mpi_stack_preference)"
     if has_cmd apt-get; then
         pm="apt"
         update_cmd="apt-get update"
-        install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates mpich libmpich-dev libx11-dev libhdf5-dev"
+        if [ "${mpi_stack}" = "openmpi" ]; then
+            install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates openmpi-bin libopenmpi-dev libx11-dev"
+        else
+            install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates mpich libmpich-dev libx11-dev"
+        fi
+        hdf5_pkg="libhdf5-dev"
     elif has_cmd dnf; then
         pm="dnf"
-        install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates mpich mpich-devel libX11-devel hdf5-devel"
+        if [ "${mpi_stack}" = "openmpi" ]; then
+            install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        hdf5_pkg="hdf5-devel"
     elif has_cmd yum; then
         pm="yum"
-        install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates mpich mpich-devel libX11-devel hdf5-devel"
+        if [ "${mpi_stack}" = "openmpi" ]; then
+            install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        hdf5_pkg="hdf5-devel"
     elif has_cmd pacman; then
         pm="pacman"
         update_cmd="pacman -Sy --noconfirm"
-        install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates mpich libx11 hdf5"
+        if [ "${mpi_stack}" = "openmpi" ]; then
+            install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates openmpi libx11"
+        else
+            install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates mpich libx11"
+        fi
+        hdf5_pkg="hdf5"
     elif has_cmd zypper; then
         pm="zypper"
-        install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates mpich mpich-devel libX11-devel hdf5-devel"
+        if [ "${mpi_stack}" = "openmpi" ]; then
+            install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        hdf5_pkg="hdf5-devel"
     else
-        err "Unsupported Linux distro/package manager. Install manually: curl make cmake gcc g++ gfortran pkg-config HDF5 dev (h5cc/libhdf5) MPI dev tools (mpicc/mpicxx/mpifort) and X11 headers."
+        err "Unsupported Linux distro/package manager. Install manually: curl make cmake gcc g++ gfortran pkg-config MPI dev tools (mpicc/mpicxx/mpifort) and X11 headers."
+        warn "HDF5 dev tools are optional and needed only when LINSTAB2D_WITH_H5PY=1."
         exit 1
+    fi
+    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
+        install_cmd="${install_cmd} ${hdf5_pkg}"
+    fi
+    if [ "${mpi_stack}" = "intelmpi" ]; then
+        case "${pm}" in
+            apt)
+                install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates libx11-dev"
+                ;;
+            dnf)
+                install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates libX11-devel"
+                ;;
+            yum)
+                install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates libX11-devel"
+                ;;
+            pacman)
+                install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates libx11"
+                ;;
+            zypper)
+                install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates libX11-devel"
+                ;;
+        esac
+        if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
+            install_cmd="${install_cmd} ${hdf5_pkg}"
+        fi
     fi
 
     if [ "${LINSTAB2D_AUTO_INSTALL_SYS_DEPS:-0}" != "1" ]; then
@@ -311,9 +566,23 @@ linux_install_system_deps() {
         err "This is intentional so cluster/module environments do not trigger unexpected sudo/package-manager calls."
         warn "Run 'bash diagnose.sh' first, load the required modules or install the packages manually, then re-run install.sh."
         warn "If you really want the installer to call the package manager, re-run with LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1."
+        if [ "${LINSTAB2D_WITH_H5PY:-0}" != "1" ]; then
+            warn "HDF5/h5cc is optional and is not required for the default install path."
+        fi
         warn "Suggested commands:"
         [ -n "${update_cmd}" ] && printf '  %s\n' "${update_cmd}"
         printf '  %s\n' "${install_cmd}"
+        if [ "${mpi_stack}" != "intelmpi" ] && linux_intel_mpi_available; then
+            warn "Alternative: Intel MPI appears to be available but is not active."
+            warn "  source /opt/intel/oneapi/setvars.sh --force"
+            warn "  LINSTAB2D_MPI_STACK=intelmpi bash diagnose.sh"
+            warn "  LINSTAB2D_MPI_STACK=intelmpi bash install.sh"
+        fi
+        if [ "${mpi_stack}" = "intelmpi" ]; then
+            warn "Intel MPI is not installed by this script. Load oneAPI first, for example:"
+            warn "  source /opt/intel/oneapi/setvars.sh --force"
+            warn "or load your cluster Intel MPI module, then re-run diagnose/install."
+        fi
         exit 1
     fi
     log "Installing Linux system dependencies via ${pm} (LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1)..."
@@ -332,6 +601,15 @@ linux_install_system_deps() {
     for c in "${required[@]}"; do
         has_cmd "$c" || missing+=("$c")
     done
+    linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null || missing+=("mpicc")
+    linux_resolve_mpi_tool mpicxx mpiicpc mpiicpx >/dev/null || missing+=("mpicxx")
+    linux_resolve_mpi_tool mpifort mpif90 mpiifort mpiifx >/dev/null || missing+=("mpifort")
+    if linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null && ! linux_mpi_compile_available; then
+        missing+=("mpi-dev")
+    fi
+    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
+        missing+=("hdf5-dev")
+    fi
     if [ ${#missing[@]} -gt 0 ]; then
         err "System dependency install incomplete; still missing: ${missing[*]}"
         exit 1
@@ -342,34 +620,66 @@ linux_install_system_deps() {
 configure_linux_petsc_toolchain() {
     [ "${OS_NAME}" = "Linux" ] || return 0
 
-    # Force GNU toolchain so PETSc does not accidentally pick Intel/Conda MPI wrappers.
+    # Force GNU toolchain so PETSc does not accidentally pick Conda compilers.
     export CC="${CC:-gcc}"
     export CXX="${CXX:-g++}"
     export FC="${FC:-gfortran}"
     export F77="${F77:-gfortran}"
     export F90="${F90:-gfortran}"
 
-    # Prefer system MPI wrappers when present.
-    if [ -x /usr/bin/mpicc ] && [ -x /usr/bin/mpicxx ] && [ -x /usr/bin/mpifort ]; then
-        export MPICC=/usr/bin/mpicc
-        export MPICXX=/usr/bin/mpicxx
-        export MPIFORT=/usr/bin/mpifort
-        export MPI_DIR=/usr
+    # Intel MPI generic wrappers honor these and keep PETSc on GNU compilers.
+    export I_MPI_CC="${I_MPI_CC:-gcc}"
+    export I_MPI_CXX="${I_MPI_CXX:-g++}"
+    export I_MPI_F90="${I_MPI_F90:-gfortran}"
+    export I_MPI_FC="${I_MPI_FC:-gfortran}"
+
+    # Prefer the active MPI wrappers from PATH/I_MPI_ROOT; do not hard-code
+    # /usr/bin, because that masks a loaded Intel oneAPI MPI module.
+    local mpicc_bin mpicxx_bin mpifort_bin mpi_root
+    mpicc_bin="$(linux_resolve_mpi_tool mpicc mpiicc mpiicx || true)"
+    mpicxx_bin="$(linux_resolve_mpi_tool mpicxx mpiicpc mpiicpx || true)"
+    mpifort_bin="$(linux_resolve_mpi_tool mpifort mpif90 mpiifort mpiifx || true)"
+    if [ -n "${mpicc_bin}" ] && [ -n "${mpicxx_bin}" ] && [ -n "${mpifort_bin}" ]; then
+        export MPICC="${MPICC:-${mpicc_bin}}"
+        export MPICXX="${MPICXX:-${mpicxx_bin}}"
+        export MPIFORT="${MPIFORT:-${mpifort_bin}}"
+        if mpi_root="$(linux_intel_mpi_root)"; then
+            export MPI_DIR="${MPI_DIR:-${mpi_root}}"
+        elif [[ "${mpicc_bin}" = /usr/bin/* ]]; then
+            export MPI_DIR="${MPI_DIR:-/usr}"
+        fi
     fi
 
     # Hint common MPI stacks to use GNU Fortran under the hood.
     export OMPI_FC="${OMPI_FC:-gfortran}"
-    export I_MPI_F90="${I_MPI_F90:-gfortran}"
 
     ok "Configured Linux PETSc toolchain (GNU Fortran)."
 }
 
+linstab2d_resolve_launcher_candidate() {
+    local candidate="$1"
+    if [ -x "${candidate}" ]; then
+        printf '%s\n' "${candidate}"
+        return 0
+    fi
+    if has_cmd "${candidate}"; then
+        command -v "${candidate}"
+        return 0
+    fi
+    return 1
+}
+
 # Echo absolute path to an mpiexec that successfully runs -n 1 /bin/true, or return 1.
 linstab2d_find_mpiexec_for_n1() {
-    local candidate resolved
-    for candidate in mpiexec.mpich mpiexec.hydra mpirun.mpich mpirun.openmpi mpiexec.openmpi mpiexec; do
-        has_cmd "$candidate" || continue
-        resolved="$(command -v "$candidate")"
+    local candidate resolved mpi_root
+    local candidates=()
+    if mpi_root="$(linux_intel_mpi_root)"; then
+        candidates+=("${mpi_root}/bin/mpiexec" "${mpi_root}/bin/mpirun")
+    fi
+    candidates+=(mpiexec.mpich mpiexec.hydra mpirun.mpich mpirun.openmpi mpiexec.openmpi mpiexec mpirun)
+    for candidate in "${candidates[@]}"; do
+        resolved="$(linstab2d_resolve_launcher_candidate "${candidate}" || true)"
+        [ -n "${resolved}" ] || continue
         if has_cmd timeout; then
             if timeout 25 "$resolved" -n 1 /bin/true 2>/dev/null; then
                 printf '%s\n' "${resolved}"
@@ -964,7 +1274,8 @@ from __future__ import annotations
 import os
 import sys
 
-_vroot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_sp = os.path.dirname(os.path.abspath(__file__))
+_vroot = os.path.abspath(os.path.join(_sp, os.pardir, os.pardir, os.pardir))
 _ldfile = os.path.join(_vroot, "linstab2d_ld_library_path")
 if os.path.isfile(_ldfile):
     _extra: list[str] = []
@@ -978,7 +1289,6 @@ if os.path.isfile(_ldfile):
             "LD_LIBRARY_PATH", ""
         )
 
-_sp = os.path.dirname(os.path.abspath(__file__))
 for _f in os.listdir(_sp):
     if _f.endswith(".pth") and "linstab2d" in _f:
         _path = open(os.path.join(_sp, _f), encoding="utf-8").read().strip()
