@@ -128,6 +128,164 @@ delete_example_artifacts() {
     -print -delete
 }
 
+env_or_unset() {
+  local name="$1"
+  local value="${!name-}"
+  if [[ -n "$value" ]]; then
+    printf '%s=%s\n' "$name" "$value"
+  else
+    printf '%s=<unset>\n' "$name"
+  fi
+}
+
+print_lscpu_summary() {
+  if ! command -v lscpu >/dev/null 2>&1; then
+    echo "  lscpu: unavailable"
+    return
+  fi
+
+  LC_ALL=C lscpu | awk -F: '
+    BEGIN {
+      keys["Model name"] = 1
+      keys["CPU(s)"] = 1
+      keys["On-line CPU(s) list"] = 1
+      keys["Thread(s) per core"] = 1
+      keys["Core(s) per socket"] = 1
+      keys["Socket(s)"] = 1
+      keys["NUMA node(s)"] = 1
+    }
+    $1 in keys {
+      key = $1
+      value = $2
+      sub(/^[ \t]+/, "", value)
+      printf "  %-24s %s\n", key ":", value
+    }
+  '
+}
+
+print_thread_environment() {
+  echo "Thread/process environment:"
+  local name
+  for name in \
+    OMP_NUM_THREADS \
+    OMP_DYNAMIC \
+    OMP_PROC_BIND \
+    OMP_PLACES \
+    MKL_NUM_THREADS \
+    MKL_DYNAMIC \
+    OPENBLAS_NUM_THREADS \
+    BLIS_NUM_THREADS \
+    NUMEXPR_NUM_THREADS \
+    VECLIB_MAXIMUM_THREADS \
+    PETSC_DIR \
+    PETSC_ARCH; do
+    printf '  %s\n' "$(env_or_unset "$name")"
+  done
+}
+
+print_python_runtime_summary() {
+  "$PYTHON" - <<'PY'
+import importlib
+import os
+import platform
+import sys
+
+print("Python numeric runtime:")
+print(f"  executable: {sys.executable}")
+print(f"  version:    {platform.python_version()}")
+
+def version_line(module_name: str) -> str:
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:
+        return f"{module_name}: unavailable ({exc.__class__.__name__})"
+    return f"{module_name}: {getattr(module, '__version__', 'unknown')}"
+
+for name in ("numpy", "scipy", "petsc4py", "slepc4py"):
+    print(f"  {version_line(name)}")
+
+try:
+    import numpy as np
+
+    # Force BLAS to initialize before asking threadpoolctl for loaded pools.
+    np.ones((1, 1)) @ np.ones((1, 1))
+except Exception:
+    np = None
+
+if np is not None:
+    print("  NumPy BLAS/LAPACK build:")
+    try:
+        numpy_config = np.__config__.show(mode="dicts")
+    except TypeError:
+        numpy_config = {}
+    except Exception as exc:
+        print(f"    unavailable ({exc.__class__.__name__})")
+        numpy_config = {}
+
+    build_deps = numpy_config.get("Build Dependencies", {}) if isinstance(numpy_config, dict) else {}
+    for libname in ("blas", "lapack"):
+        details = build_deps.get(libname)
+        if not isinstance(details, dict):
+            print(f"    {libname}: unavailable")
+            continue
+        name = details.get("name", "unknown")
+        version = details.get("version", "unknown")
+        found = details.get("found", "unknown")
+        print(f"    {libname}: name={name}, version={version}, found={found}")
+        openblas_config = details.get("openblas configuration")
+        if openblas_config:
+            print(f"      openblas configuration: {openblas_config}")
+
+try:
+    from threadpoolctl import threadpool_info
+except Exception as exc:
+    print(f"  threadpoolctl: unavailable ({exc.__class__.__name__})")
+else:
+    pools = threadpool_info()
+    if not pools:
+        print("  threadpools: none detected")
+    else:
+        print("  threadpools:")
+        for pool in pools:
+            user_api = pool.get("user_api", "unknown")
+            internal_api = pool.get("internal_api", "unknown")
+            num_threads = pool.get("num_threads", "unknown")
+            prefix = pool.get("prefix", "unknown")
+            version = pool.get("version", "unknown")
+            filepath = os.path.basename(pool.get("filepath", "") or "unknown")
+            print(
+                "    "
+                f"user_api={user_api}, internal_api={internal_api}, "
+                f"threads={num_threads}, prefix={prefix}, version={version}, lib={filepath}"
+            )
+PY
+}
+
+print_system_settings() {
+  echo ""
+  echo "System settings:"
+  echo "  host:                    $(hostname 2>/dev/null || echo unknown)"
+  echo "  kernel:                  $(uname -srvmo 2>/dev/null || uname -a)"
+  echo "  timestamp:               $(date -Iseconds)"
+  echo "  runner process model:    serial; one Python process per example"
+  echo "  selected example jobs:   ${#SELECTED_MODULES[@]}"
+  if command -v nproc >/dev/null 2>&1; then
+    echo "  available CPUs (nproc):  $(nproc)"
+    if nproc --all >/dev/null 2>&1; then
+      echo "  total CPUs (nproc all):  $(nproc --all)"
+    fi
+  else
+    echo "  available CPUs (nproc):  unavailable"
+  fi
+  if command -v taskset >/dev/null 2>&1; then
+    taskset -pc "$$" 2>/dev/null | sed 's/^/  CPU affinity:           /' || true
+  fi
+  echo "CPU topology:"
+  print_lscpu_summary
+  print_thread_environment
+  print_python_runtime_summary
+}
+
 FRESH=0
 CLEAN=0
 SKIP_PARITY=0
@@ -201,6 +359,7 @@ echo "Examples:  ${#SELECTED_MODULES[@]} selected"
 if [[ $SKIP_PARITY -eq 1 ]]; then
   echo "Parity:    skipped"
 fi
+print_system_settings
 
 if [[ $FRESH -eq 1 ]]; then
   echo "==> --fresh: deleting cached NPZ artifacts"
