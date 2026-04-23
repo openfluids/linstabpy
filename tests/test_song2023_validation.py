@@ -16,6 +16,7 @@ from validation.song_2023.song_2023 import (
     _resolve_baseflow_input_options,
     _resolve_stability_request_count,
     _select_reference_mode_indices,
+    _stability_archive_fields,
     _summarize_rank_metrics,
 )
 
@@ -182,3 +183,46 @@ def test_song2023_rank_metric_summary_uses_max_rank_wall_time() -> None:
     assert summary["step_summary"]["assemble"]["time_max"] == 12.0
     assert summary["step_summary"]["solve"]["memory_max"] == 200.0
     assert summary["step_summary"]["save"]["count"] == 1
+
+
+def test_song2023_stability_archive_fields_trim_to_saved_modes() -> None:
+    archive = _stability_archive_fields(
+        {
+            "method": "slepc",
+            "nev_requested": 24,
+            "ncv_used": 48,
+            "nconv": 22,
+            "nextract_total": 22,
+            "extract_all_converged": False,
+            "eps_iterations": 37,
+            "eps_reason": "CONVERGED_TOL",
+            "ksp_reason": "CONVERGED_RTOL",
+            "conv_test": "relative",
+            "eps_tol": 1e-10,
+            "eps_max_it": 500,
+            "eps_setup_seconds": 3.5,
+            "eps_solve_seconds": 12.25,
+            "st_solver": "mumps",
+            "true_residual": True,
+            "residual_error_type": "relative",
+            "residual_estimates": np.array([1.0, 2.0, 3.0, 4.0]),
+            "residual_absolute": np.array([5.0, 6.0, 7.0, 8.0]),
+            "residual_relative": np.array([9.0, 10.0, 11.0, 12.0]),
+            "residual_backward": np.array([13.0, 14.0, 15.0, 16.0]),
+            "leading_weighted_norm_error": 1.0e-12,
+            "weighted_norm_tol": 1.0e-10,
+        },
+        n_keep=2,
+    )
+
+    assert archive["stability_eps_nev"] == 24
+    assert archive["stability_eps_nconv"] == 22
+    assert archive["stability_eps_iterations"] == 37
+    assert archive["stability_true_residual"] is True
+    assert str(archive["stability_method"]) == "slepc"
+    assert str(archive["stability_eps_reason"]) == "CONVERGED_TOL"
+    assert str(archive["stability_st_solver"]) == "mumps"
+    assert np.allclose(archive["stability_residual_estimates"], [1.0, 2.0])
+    assert np.allclose(archive["stability_residual_absolute"], [5.0, 6.0])
+    assert np.allclose(archive["stability_residual_relative"], [9.0, 10.0])
+    assert np.allclose(archive["stability_residual_backward"], [13.0, 14.0])
