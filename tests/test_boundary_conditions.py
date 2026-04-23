@@ -426,6 +426,173 @@ class TestNeumannBC:
         with pytest.raises(ValueError, match="Ambiguous Neumann BC"):
             apply_neumann(L0.copy(), mesh, idx, "lt", "u", penalty=2.5)
 
+    def test_neumann_cartesian_parity_curvilinear_flag_off_vs_on(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        """On a Cartesian mesh J11=J22=1 J12=J21=0 so both paths must agree to 1e-12."""
+        from linstab2d.boundary_conditions.neumann import (
+            _build_neumann_rows,
+            _collect_neumann_indices,
+        )
+
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        _, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 5.0
+        index_set, index_mesh, border_tags = _collect_neumann_indices(
+            idx, "b", "u", ngp
+        )
+        rows_off = _build_neumann_rows(
+            mesh,
+            index_set,
+            index_mesh,
+            border_tags,
+            ngp,
+            penalty,
+            curvilinear_normals=False,
+        )
+        rows_on = _build_neumann_rows(
+            mesh,
+            index_set,
+            index_mesh,
+            border_tags,
+            ngp,
+            penalty,
+            curvilinear_normals=True,
+        )
+        assert len(rows_off) == len(rows_on)
+        for (dof_off, cols_off, vals_off), (dof_on, cols_on, vals_on) in zip(
+            rows_off, rows_on
+        ):
+            assert dof_off == dof_on
+            off = dict(zip(cols_off.astype(int), vals_off))
+            on = dict(zip(cols_on.astype(int), vals_on))
+            cols = np.array(sorted(set(off) | set(on)), dtype=int)
+            np.testing.assert_allclose(
+                np.array([off.get(int(col), 0.0) for col in cols]),
+                np.array([on.get(int(col), 0.0) for col in cols]),
+                atol=1e-12,
+                err_msg=f"Cartesian: paths must agree at dof {dof_off}",
+            )
+
+    def test_neumann_sheared_mesh_correct_normal(self):
+        """Sheared mesh X=xi+0.3*eta Y=eta. Right boundary curvilinear normal differs from axis-aligned by J21=0.3."""
+        from linstab2d.mesh.mesh import Mesh
+        from linstab2d.boundary_conditions.neumann import (
+            _build_neumann_rows,
+            _collect_neumann_indices,
+        )
+
+        n = 20
+        mesh = Mesh.create((0.0, 1.0), (0.0, 1.0), n, n, fd_order=2)
+        xi = mesh.X.copy()
+        eta = mesh.Y.copy()
+        X_new = xi + 0.3 * eta
+        Y_new = eta.copy()
+        mesh_def = mesh.deform(X_new=X_new, Y_new=Y_new)
+        ngp = mesh_def.ngp
+        idx = mesh_def.idx
+        penalty = 1.0
+        # Right boundary (constant-xi): curvilinear uses J22=1 J21=0.3 -> scale_y=-0.3
+        # Axis-aligned uses gradY_y=1 gradY_x=0 -> scale_y=0
+        # They differ by the J21=0.3 shear component
+        index_set_r, index_mesh_r, border_tags_r = _collect_neumann_indices(
+            idx, "r", "u", ngp
+        )
+        rows_curv_r = _build_neumann_rows(
+            mesh_def,
+            index_set_r,
+            index_mesh_r,
+            border_tags_r,
+            ngp,
+            penalty,
+            curvilinear_normals=True,
+        )
+        rows_axis_r = _build_neumann_rows(
+            mesh_def,
+            index_set_r,
+            index_mesh_r,
+            border_tags_r,
+            ngp,
+            penalty,
+            curvilinear_normals=False,
+        )
+        assert len(rows_curv_r) > 0, "No right-boundary rows found"
+        diffs = []
+        for (dof_c, cols_c, vals_c), (dof_a, cols_a, vals_a) in zip(
+            rows_curv_r, rows_axis_r
+        ):
+            assert dof_c == dof_a
+            curv = dict(zip(cols_c.astype(int), vals_c))
+            axis = dict(zip(cols_a.astype(int), vals_a))
+            cols = sorted(set(curv) | set(axis))
+            diffs.append(
+                float(
+                    max(
+                        abs(curv.get(int(col), 0.0) - axis.get(int(col), 0.0))
+                        for col in cols
+                    )
+                )
+            )
+        assert max(diffs) > 0.1, (
+            f"Curvilinear and axis-aligned must differ on sheared mesh (J21=0.3), "
+            f"but max diff={max(diffs):.6f}"
+        )
+
+    def test_neumann_petsc_matches_scipy_under_curvilinear_flag(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        """scipy and PETSc paths must produce identical rows with curvilinear_normals=True."""
+        pytest.importorskip("petsc4py")
+        from petsc4py import PETSc
+        from linstab2d.boundary_conditions import apply_neumann
+        from linstab2d.boundary_conditions.neumann import apply_neumann_petsc
+
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        penalty = 3.0
+        L0_scipy, bc_idx_scipy = apply_neumann(
+            L0.copy(), mesh, idx, "b", "u", penalty=penalty, curvilinear_normals=True
+        )
+        csr = L0.tocsr()
+        A = PETSc.Mat().createAIJ(
+            size=csr.shape,
+            csr=(csr.indptr, csr.indices, csr.data.astype(complex)),
+        )
+        A.setUp()
+        A.assemble()
+        A_petsc, bc_idx_petsc = apply_neumann_petsc(
+            A, mesh, idx, "b", "u", penalty=penalty, curvilinear_normals=True
+        )
+        np.testing.assert_array_equal(
+            np.sort(bc_idx_scipy),
+            np.sort(bc_idx_petsc),
+            err_msg="BC index sets must match between scipy and PETSc paths",
+        )
+        L0_scipy_csr = L0_scipy.tocsr()
+        for dof in bc_idx_scipy:
+            row_scipy = L0_scipy_csr.getrow(int(dof))
+            cols_scipy = row_scipy.indices
+            vals_scipy = row_scipy.data
+            cols_petsc_raw, vals_petsc_raw = A_petsc.getRow(int(dof))
+            cols_p = np.array(cols_petsc_raw, dtype=int)
+            vals_p = np.array(vals_petsc_raw)
+            for col, val_s in zip(cols_scipy, vals_scipy):
+                mask = cols_p == col
+                if mask.any():
+                    np.testing.assert_allclose(
+                        val_s,
+                        vals_p[mask][0],
+                        atol=1e-12,
+                        err_msg=f"scipy/PETSc mismatch at dof={dof} col={col}",
+                    )
+
 
 class TestRecipeAnalysis:
     """Tests for sequential mixed BC recipe analysis."""

@@ -42,6 +42,7 @@ def _apply_bc_recipe_impl(
         borders = rule["borders"]
         variables = rule["variables"]
         exclude_corners = bool(rule.get("exclude_corners", False))
+        curvilinear_normals = bool(rule.get("curvilinear_normals", False))
 
         if bc_type == "dirichlet":
             L0, bc_idx = dirichlet_fn(
@@ -49,7 +50,10 @@ def _apply_bc_recipe_impl(
             )
         elif bc_type == "neumann":
             L0, bc_idx = neumann_fn(
-                L0, mesh, idx, borders, variables, penalty=penalty, exclude_corners=exclude_corners,
+                L0, mesh, idx, borders, variables,
+                penalty=penalty,
+                exclude_corners=exclude_corners,
+                curvilinear_normals=curvilinear_normals,
             )
         else:
             raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")

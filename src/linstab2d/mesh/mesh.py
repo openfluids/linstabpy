@@ -82,6 +82,8 @@ class Mesh:
         Spatial filter strength used to build ``filters``.
     filters : MeshFilters | None
         Direct and adjoint filter operators.
+    J11, J12, J21, J22 : np.ndarray | None
+        Computational-to-physical Jacobian entries on the used grid points.
     """
 
     X: np.ndarray
@@ -112,6 +114,10 @@ class Mesh:
     sponge: np.ndarray | None = None
     alpha_filter: float | str = "none"
     filters: MeshFilters | None = None
+    J11: np.ndarray | None = None  # dX_phys/dxi_comp, shape (ngp,)
+    J12: np.ndarray | None = None  # dY_phys/dxi_comp, shape (ngp,)
+    J21: np.ndarray | None = None  # dX_phys/deta_comp, shape (ngp,)
+    J22: np.ndarray | None = None  # dY_phys/deta_comp, shape (ngp,)
 
     # ------------------------------------------------------------------
     # Construction
@@ -259,6 +265,10 @@ class Mesh:
             idx=idx,
             alpha_filter=alpha_filter,
             filters=filters,
+            J11=np.ones(used_ind.size),
+            J12=np.zeros(used_ind.size),
+            J21=np.zeros(used_ind.size),
+            J22=np.ones(used_ind.size),
         )
 
     # ------------------------------------------------------------------
@@ -316,23 +326,27 @@ class Mesh:
         if x_only:
             Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
+                J11_new, J12_new, J21_new, J22_new = \
                 self._deform_x_only(X_new, p)
         elif y_only:
             Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
+                J11_new, J12_new, J21_new, J22_new = \
                 self._deform_y_only(Y_new, p)
         else:
             Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new = \
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
+                J11_new, J12_new, J21_new, J22_new = \
                 self._deform_full_2d(X_new, Y_new, p)
             if self.y_symmetry and _is_separable_axis_deformation(X_new, Y_new):
                 x_mesh = self.deform(X_new=X_new)
                 _, _, _, _, _, _, _, \
                     Dy_symm_seq, D2y_symm_seq, Dy_asymm_seq, D2y_asymm_seq, \
-                    Dxy_symm_seq, Dyx_symm_seq, Dxy_asymm_seq, Dyx_asymm_seq = x_mesh._deform_y_only(Y_new, p)
+                    Dxy_symm_seq, Dyx_symm_seq, Dxy_asymm_seq, Dyx_asymm_seq, \
+                    _, _, _, _ = x_mesh._deform_y_only(Y_new, p)
                 Dy_symm_new = Dy_symm_seq
                 D2y_symm_new = D2y_symm_seq
                 Dxy_symm_new = Dxy_symm_seq
@@ -413,6 +427,10 @@ class Mesh:
             idx=idx_new,
             alpha_filter=self.alpha_filter,
             filters=filters_new,
+            J11=J11_new,
+            J12=J12_new,
+            J21=J21_new,
+            J22=J22_new,
         )
 
     def _deform_x_only(self, X_new, p):
@@ -452,7 +470,8 @@ class Mesh:
 
         return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
+                x2p, np.zeros_like(x2p), np.zeros_like(x2p), np.ones_like(x2p))
 
     def _deform_y_only(self, Y_new, p):
         """1-D chain-rule deformation in y (MATLAB DeformMesh branch 2)."""
@@ -497,7 +516,8 @@ class Mesh:
 
         return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
+                np.ones_like(y2p), np.zeros_like(y2p), np.zeros_like(y2p), y2p)
 
     def _deform_full_2d(self, X_new, Y_new, p):
         """Full 2-D Jacobian deformation (MATLAB DeformMesh branch 3)."""
@@ -561,7 +581,8 @@ class Mesh:
 
         return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
                 Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new)
+                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
+                J11, J12, J21, J22)
 
     def mask(self, mask_array: np.ndarray) -> Mesh:
         """Return a new mesh masked by a boolean keep-mask.
@@ -665,6 +686,10 @@ class Mesh:
             idx=idx,
             alpha_filter=self.alpha_filter,
             filters=filters,
+            J11=np.ones(used_ind.size),
+            J12=np.zeros(used_ind.size),
+            J21=np.zeros(used_ind.size),
+            J22=np.ones(used_ind.size),
         )
 
 
