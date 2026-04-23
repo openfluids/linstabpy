@@ -606,6 +606,31 @@ class TestOperatorAssembly:
         finally:
             L0.destroy()
 
+    def test_build_lnse_system_petsc_local_sponge_update_allows_missing_diagonal_slots(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        """Local PETSc Song-style sponge updates should not abort on diagonal insertion."""
+        small_mesh_2d.sponge = np.full_like(small_mesh_2d.X, 1.0e-3)
+        L0, _, _ = build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.0,
+            model="2D",
+            backend="petsc",
+            solver_cfg={"petsc_matrix_mode": "local"},
+        )
+        try:
+            diag = L0.getDiagonal()
+            try:
+                assert diag.getSize() == 5 * small_mesh_2d.ngp
+                assert np.isfinite(np.asarray(diag.getArray(), dtype=complex)).all()
+            finally:
+                diag.destroy()
+        finally:
+            L0.destroy()
+
     def test_scipy_to_petsc_pre_bc_l0_has_sparse_parity(self):
         """Pre-BC L0 survives SciPy->PETSc conversion with entrywise parity."""
         mesh = Mesh.create(
