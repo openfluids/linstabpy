@@ -961,6 +961,10 @@ def _assemble_from_prepared_petsc(
                 try:
                     diag_arr = diag.getArray()
                     diag_arr -= sponge_diag
+                    # PETSc 3.24 can abort here on matrices that were built
+                    # without an explicit diagonal slot in every row, even when
+                    # the diagonal update is logically benign.
+                    L0_petsc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
                     L0_petsc.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
                 finally:
                     diag.destroy()
@@ -1085,6 +1089,11 @@ def _assemble_block_operator_petsc(
             size=csr.shape,
             csr=(csr.indptr, csr.indices, csr.data),
         )
+        # Some PETSc builds keep the CSR pattern exact and reject later
+        # diagonal updates when a row has no explicit diagonal slot yet.
+        # Song's sponge update uses ``MatDiagonalSet`` after assembly, so allow
+        # PETSc to insert those missing diagonal entries instead of aborting.
+        mat.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         mat.assemble()
         return mat
 
