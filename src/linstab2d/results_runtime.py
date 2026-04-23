@@ -191,6 +191,27 @@ def _build_distributed_vec_from_global_array(mat: PETSc.Mat, values: np.ndarray)
     return vec
 
 
+def _postcheck_target_distance(
+    omega: np.ndarray,
+    target: complex,
+    *,
+    conjugate_aware: bool,
+) -> np.ndarray:
+    """Compute per-mode target distance, optionally min'ing against conjugate target.
+
+    When ``conjugate_aware=False`` (the default), returns ``|omega - target|``
+    exactly as before — no change in output for existing configs.
+    When ``conjugate_aware=True``, returns ``min(|omega - target|, |omega - conj(target)|)``
+    so that the physical conjugate of a target eigenvalue is treated as equally close.
+    """
+    direct = np.abs(omega - target)
+    if not conjugate_aware:
+        return direct
+    conj_target = np.conjugate(target)
+    conj_dist = np.abs(omega - conj_target)
+    return np.minimum(direct, conj_dist)
+
+
 def _postcheck_stability_modes(
     L0: sp.spmatrix | PETSc.Mat,
     omega: np.ndarray,
@@ -199,6 +220,7 @@ def _postcheck_stability_modes(
     target: complex,
     bc_indices: np.ndarray,
     constrained_dirichlet_indices: np.ndarray,
+    conjugate_aware: bool = False,
 ) -> dict[str, object]:
     """Compute explicit residual and BC-leakage diagnostics for returned modes."""
     n_modes = int(np.asarray(omega).size)
@@ -230,7 +252,9 @@ def _postcheck_stability_modes(
     bc_leak_p99 = np.full(n_modes, np.nan, dtype=float)
     dir_leak_max = np.full(n_modes, np.nan, dtype=float)
     dir_leak_p99 = np.full(n_modes, np.nan, dtype=float)
-    target_distance = np.abs(np.asarray(omega, dtype=complex) - complex(target))
+    target_distance = _postcheck_target_distance(
+        np.asarray(omega, dtype=complex), complex(target), conjugate_aware=conjugate_aware
+    )
 
     for i in range(n_modes):
         mode = np.asarray(modes[:, i], dtype=complex)
@@ -415,6 +439,10 @@ def compute() -> None:
             "analysis.stability_acceptance.growth_abs_max",
             "analysis.stability_acceptance.sigma_abs_max",
         )
+    )
+    # Default False: existing configs produce bit-identical output.
+    stability_acceptance_conjugate_aware: bool = bool(
+        cfg("analysis.stability_acceptance.conjugate_aware", False)
     )
 
     n_modes = int(cfg("analysis.n_modes_stability", 100))
@@ -815,6 +843,7 @@ def compute() -> None:
                     target=omega_target,
                     bc_indices=total_bc_indices,
                     constrained_dirichlet_indices=constrained_dirichlet_indices,
+                    conjugate_aware=stability_acceptance_conjugate_aware,
                 )
             )
         stability_info.update(stability_meta)
@@ -911,6 +940,7 @@ def compute() -> None:
             target_distance_max=stability_acceptance_target_distance_max,
             omega_real_abs_max=stability_acceptance_omega_real_abs_max,
             omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
+            conjugate_aware=stability_acceptance_conjugate_aware,
         )
         if stability_acceptance:
             accepted_count = int(stability_acceptance.get("accepted_count", 0))
@@ -1000,13 +1030,29 @@ def compute() -> None:
                 stability_postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
                 stability_postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
                 stability_postcheck_target_distance=stability_postcheck_target_distance,
+                # Full pre-acceptance dump for every ARPACK-converged mode (Front A).
+                # These arrays cover ALL converged modes, not just accepted ones.
+                stability_all_omega=np.asarray(omega, dtype=complex),
+                stability_all_postcheck_rel=stability_postcheck_residual_rel,
+                stability_all_target_distance=stability_postcheck_target_distance,
+                stability_all_reject_reason_code=np.asarray(
+                    stability_acceptance.get("reject_reason_code", np.array([], dtype=np.int32)),
+                    dtype=np.int32,
+                ),
                 stability_acceptance_postcheck_rel_max=float(stability_acceptance_postcheck_rel_max),
                 stability_acceptance_target_distance_max=float(stability_acceptance_target_distance_max),
                 stability_acceptance_omega_real_abs_max=float(stability_acceptance_omega_real_abs_max),
                 stability_acceptance_omega_imag_abs_max=float(stability_acceptance_omega_imag_abs_max),
+                stability_acceptance_conjugate_aware=bool(
+                    stability_acceptance.get("acceptance_conjugate_aware", False)
+                ),
                 stability_accepted_count=int(stability_acceptance.get("accepted_count", -1)),
                 stability_accepted_indices=np.asarray(
                     stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+                    dtype=np.int32,
+                ),
+                stability_rejected_indices=np.asarray(
+                    stability_acceptance.get("rejected_indices", np.array([], dtype=np.int32)),
                     dtype=np.int32,
                 ),
                 stability_accepted_postcheck_rel_min=float(

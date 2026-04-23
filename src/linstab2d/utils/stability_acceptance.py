@@ -12,6 +12,7 @@ def evaluate_stability_acceptance(
     target_distance_max: float,
     omega_real_abs_max: float = float("nan"),
     omega_imag_abs_max: float = float("nan"),
+    conjugate_aware: bool = False,
 ) -> dict[str, object]:
     """Apply optional acceptance gates to returned stability modes.
 
@@ -22,6 +23,17 @@ def evaluate_stability_acceptance(
 
     All thresholds are optional. When every threshold is disabled (NaN), the
     function returns an empty dictionary so older workflows remain unchanged.
+
+    New additive return keys (always present when any gate is active):
+    - ``rejected_indices``: int32 array of mode indices where ``accepted`` is False.
+    - ``reject_reason_code``: int32 array of length ``n_modes`` with a bitmask per
+      mode encoding which gates failed (0 = accepted):
+        bit 0 (=1): postcheck_rel gate failed
+        bit 1 (=2): target_distance gate failed
+        bit 2 (=4): omega_real gate failed
+        bit 3 (=8): omega_imag gate failed
+    - ``acceptance_conjugate_aware``: bool recording whether conjugate-aware
+      target distance was used.
     """
 
     use_postcheck_gate = np.isfinite(postcheck_rel_max)
@@ -34,6 +46,7 @@ def evaluate_stability_acceptance(
     omega_arr = np.asarray(omega, dtype=complex).reshape(-1)
     n_modes = int(omega_arr.size)
     accepted = np.ones(n_modes, dtype=bool)
+    reject_reason_code = np.zeros(n_modes, dtype=np.int32)
 
     post_rel = np.asarray(postcheck_residual_rel, dtype=float).reshape(-1)
     if use_postcheck_gate:
@@ -42,6 +55,8 @@ def evaluate_stability_acceptance(
         if n_rel > 0:
             vals = post_rel[:n_rel]
             post_rel_mask[:n_rel] = np.isfinite(vals) & (vals <= postcheck_rel_max)
+        failed = ~post_rel_mask
+        reject_reason_code[failed] |= np.int32(1)
         accepted &= post_rel_mask
 
     target_dist = np.asarray(postcheck_target_distance, dtype=float).reshape(-1)
@@ -51,26 +66,36 @@ def evaluate_stability_acceptance(
         if n_dist > 0:
             vals = target_dist[:n_dist]
             target_mask[:n_dist] = np.isfinite(vals) & (vals <= target_distance_max)
+        failed = ~target_mask
+        reject_reason_code[failed] |= np.int32(2)
         accepted &= target_mask
 
     omega_real = np.real(omega_arr)
     if use_omega_real_gate:
         real_mask = np.isfinite(omega_real) & (np.abs(omega_real) <= omega_real_abs_max)
+        failed = ~real_mask
+        reject_reason_code[failed] |= np.int32(4)
         accepted &= real_mask
 
     omega_imag = np.imag(omega_arr)
     if use_omega_imag_gate:
         imag_mask = np.isfinite(omega_imag) & (np.abs(omega_imag) <= omega_imag_abs_max)
+        failed = ~imag_mask
+        reject_reason_code[failed] |= np.int32(8)
         accepted &= imag_mask
 
     accepted_indices = np.flatnonzero(accepted).astype(np.int32)
+    rejected_indices = np.flatnonzero(~accepted).astype(np.int32)
     result: dict[str, object] = {
         "acceptance_postcheck_rel_max": float(postcheck_rel_max),
         "acceptance_target_distance_max": float(target_distance_max),
         "acceptance_omega_real_abs_max": float(omega_real_abs_max),
         "acceptance_omega_imag_abs_max": float(omega_imag_abs_max),
+        "acceptance_conjugate_aware": bool(conjugate_aware),
         "accepted_count": int(accepted_indices.size),
         "accepted_indices": accepted_indices,
+        "rejected_indices": rejected_indices,
+        "reject_reason_code": reject_reason_code,
     }
 
     if accepted_indices.size and post_rel.size:
