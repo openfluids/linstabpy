@@ -143,6 +143,48 @@ def _safe_float(value: float) -> float:
     return out if math.isfinite(out) else float("nan")
 
 
+def _stability_archive_fields(
+    stability_info: dict[str, object] | None,
+    *,
+    n_keep: int,
+) -> dict[str, object]:
+    """Return Song EVP convergence metadata in NPZ-safe scalar/array fields."""
+    info = stability_info or {}
+    n_keep = max(int(n_keep), 0)
+
+    def _array(name: str, dtype: type = float) -> np.ndarray:
+        arr = np.asarray(info.get(name, np.array([], dtype=dtype)), dtype=dtype).reshape(-1)
+        return arr[:n_keep]
+
+    return {
+        "stability_method": np.asarray(str(info.get("method", ""))),
+        "stability_eps_nev": int(info.get("nev_requested", -1)),
+        "stability_eps_ncv": int(info.get("ncv_used", -1)),
+        "stability_eps_nconv": int(info.get("nconv", -1)),
+        "stability_eps_nextract_total": int(info.get("nextract_total", -1)),
+        "stability_extract_all_converged": bool(info.get("extract_all_converged", False)),
+        "stability_eps_iterations": int(info.get("eps_iterations", -1)),
+        "stability_eps_reason": np.asarray(str(info.get("eps_reason", ""))),
+        "stability_ksp_reason": np.asarray(str(info.get("ksp_reason", ""))),
+        "stability_eps_conv_test": np.asarray(str(info.get("conv_test", ""))),
+        "stability_eps_tol": float(info.get("eps_tol", np.nan)),
+        "stability_eps_max_it": int(info.get("eps_max_it", -1)),
+        "stability_eps_setup_seconds": float(info.get("eps_setup_seconds", np.nan)),
+        "stability_eps_solve_seconds": float(info.get("eps_solve_seconds", np.nan)),
+        "stability_st_solver": np.asarray(str(info.get("st_solver", ""))),
+        "stability_true_residual": bool(info.get("true_residual", False)),
+        "stability_residual_error_type": np.asarray(str(info.get("residual_error_type", ""))),
+        "stability_residual_estimates": _array("residual_estimates", float),
+        "stability_residual_absolute": _array("residual_absolute", float),
+        "stability_residual_relative": _array("residual_relative", float),
+        "stability_residual_backward": _array("residual_backward", float),
+        "stability_leading_weighted_norm_error": float(
+            info.get("leading_weighted_norm_error", np.nan)
+        ),
+        "stability_weighted_norm_tol": float(info.get("weighted_norm_tol", np.nan)),
+    }
+
+
 def _summarize_rank_metrics(
     step_stats_by_rank: list[list[tuple[str, float, float]]],
     elapsed_by_rank: list[float],
@@ -380,22 +422,24 @@ def run_case(
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
+    stability_info: dict[str, object] = {}
+    requested_modes = (
+        n_modes_stability
+        if n_modes_stability_request is None
+        else max(int(n_modes_stability_request), int(n_modes_stability))
+    )
 
     if run_stability:
         _status(f"starting stability eigensolve for {n_modes_stability} modes at omega_target={omega_target:.6g}")
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
-        requested_modes = (
-            n_modes_stability
-            if n_modes_stability_request is None
-            else max(int(n_modes_stability_request), int(n_modes_stability))
-        )
-        omega, direct_modes = temporal_eigenvalues(
+        omega, direct_modes, stability_info = temporal_eigenvalues(
             L0,
             n_modes=requested_modes,
             target=omega_target,
             W_diag=W_diag,
             solver_cfg=solver_cfg,
+            return_info=True,
         )
         if requested_modes > n_modes_stability:
             omega = omega[:n_modes_stability]
@@ -408,6 +452,8 @@ def run_case(
             _status(f"finished stability eigensolve; nearest eigenvalue to target is {lead.real:+.6e}{lead.imag:+.6e}j")
         else:
             _status("finished stability eigensolve")
+
+    stability_archive = _stability_archive_fields(stability_info, n_keep=int(omega.size))
 
     # 5) Save results on rank 0
     if rank == 0:
@@ -440,15 +486,12 @@ def run_case(
             preprocess_summary=np.asarray(preprocess_info.get("summary", "")),
             transpose_input=bool(transpose_input),
             zero_spanwise=bool(zero_spanwise),
-            n_modes_stability_requested=(
-                int(n_modes_stability)
-                if n_modes_stability_request is None
-                else max(int(n_modes_stability_request), int(n_modes_stability))
-            ),
+            n_modes_stability_requested=int(requested_modes),
             mpi_ranks=np.int32(size),
             petsc_matrix_mode=np.asarray(matrix_mode),
             distributed_matrix=bool(distributed_matrix),
             matrix_type=np.asarray(matrix_type),
+            **stability_archive,
         )
         t_end = time.perf_counter()
         mem_end = _get_memory_mb()
@@ -521,11 +564,54 @@ def run_case(
             f.write(f"nx={nx} ny={ny} ngp={mesh.ngp}\n")
             f.write(
                 f"n_modes_stability={n_modes_stability} "
-                f"n_modes_stability_requested="
-                f"{(int(n_modes_stability) if n_modes_stability_request is None else max(int(n_modes_stability_request), int(n_modes_stability)))} "
+                f"n_modes_stability_requested={int(requested_modes)} "
                 f"n_modes_resolvent={n_modes_resolvent}\n"
             )
             f.write(f"run_stability={run_stability} run_resolvent={run_resolvent}\n")
+            if run_stability:
+                f.write(
+                    f"stability_method={str(stability_archive['stability_method'])} "
+                    f"stability_eps_nev={int(stability_archive['stability_eps_nev'])} "
+                    f"stability_eps_ncv={int(stability_archive['stability_eps_ncv'])} "
+                    f"stability_eps_nconv={int(stability_archive['stability_eps_nconv'])} "
+                    f"stability_eps_nextract_total={int(stability_archive['stability_eps_nextract_total'])}\n"
+                )
+                f.write(
+                    f"stability_extract_all_converged={bool(stability_archive['stability_extract_all_converged'])} "
+                    f"stability_eps_iterations={int(stability_archive['stability_eps_iterations'])} "
+                    f"stability_eps_reason={str(stability_archive['stability_eps_reason'])} "
+                    f"stability_ksp_reason={str(stability_archive['stability_ksp_reason'])}\n"
+                )
+                f.write(
+                    f"stability_eps_conv_test={str(stability_archive['stability_eps_conv_test'])} "
+                    f"stability_eps_tol={float(stability_archive['stability_eps_tol']):.6e} "
+                    f"stability_eps_max_it={int(stability_archive['stability_eps_max_it'])} "
+                    f"stability_st_solver={str(stability_archive['stability_st_solver'])} "
+                    f"stability_true_residual={bool(stability_archive['stability_true_residual'])}\n"
+                )
+                f.write(
+                    f"stability_eps_setup_seconds={float(stability_archive['stability_eps_setup_seconds']):.6f} "
+                    f"stability_eps_solve_seconds={float(stability_archive['stability_eps_solve_seconds']):.6f} "
+                    f"stability_residual_error_type={str(stability_archive['stability_residual_error_type'])}\n"
+                )
+                for name, values in (
+                    ("stability_residual_estimates", np.asarray(stability_archive["stability_residual_estimates"], dtype=float)),
+                    ("stability_residual_absolute", np.asarray(stability_archive["stability_residual_absolute"], dtype=float)),
+                    ("stability_residual_relative", np.asarray(stability_archive["stability_residual_relative"], dtype=float)),
+                    ("stability_residual_backward", np.asarray(stability_archive["stability_residual_backward"], dtype=float)),
+                ):
+                    if values.size:
+                        f.write(
+                            f"{name}_min={float(np.nanmin(values)):.6e} "
+                            f"{name}_median={float(np.nanmedian(values)):.6e} "
+                            f"{name}_max={float(np.nanmax(values)):.6e}\n"
+                        )
+                    else:
+                        f.write(f"{name}_min=nan {name}_median=nan {name}_max=nan\n")
+                f.write(
+                    f"stability_leading_weighted_norm_error={float(stability_archive['stability_leading_weighted_norm_error']):.6e} "
+                    f"stability_weighted_norm_tol={float(stability_archive['stability_weighted_norm_tol']):.6e}\n"
+                )
             f.write(f"total_time_s={total_time_s:.6f}\n")
             f.write(f"total_time_s_min_rank={float(summary['total_time_min']):.6f}\n")
             f.write(f"total_time_s_mean_rank={float(summary['total_time_mean']):.6f}\n")
