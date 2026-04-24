@@ -330,14 +330,24 @@ machine needs explicit paths.
 |   `-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
 |-- examples/                      Runnable Martini examples; generated .npz/.png ignored
 |-- studies/                       Active research workflows, not importable library code
+|   |-- common/                    Shared case-runtime orchestration helpers
 |   |-- case1/                     SWBLI parity/performance study
+|   |   |-- configs/
+|   |   |-- data/baseflow/
+|   |   |-- reference/matlab/
+|   |   `-- scripts/
 |   `-- case2/                     TCFD campaign configs, logs, figures, notes
+|       |-- configs/               Base, EVP, resolvent, and perf JSONC configs
+|       |-- data/baseflow/         Active mean-flow arrays
+|       |-- scripts/               Plotting and campaign helper scripts
+|       |-- artifacts/phase1p5/    Curated phase artifacts
+|       `-- docs/                  Case-local plan, reference, and tutorial docs
 |-- validation/                    Reproducibility harnesses and compact fixtures
-|   |-- martini2024/fixtures/      Martini parity bundles
+|   |-- martini2024/               Martini parity fixtures, tools, and reports
 |   |-- operator_fixtures/         Compact operator-parity fixtures and schema
-|   `-- song_2023/                 Song 2023 validation workflow and reference data
+|   `-- song_2023/                 Song 2023 configs, data, reference, and scripts
 |-- tools/                         Developer tools
-|   `-- parity/                    MATLAB-to-Python conversion and comparison tooling
+|   `-- debug/                     Platform/debug probes
 |-- scripts/                       Repository guardrails and maintenance utilities
 |-- tests/                         Pytest suite and shared path helpers
 |-- install_tester/                Thin install/diagnose/benchmark harness
@@ -766,9 +776,9 @@ Environment overrides:
 Spectrum comparison from the repository root:
 
 ```bash
-.venv/bin/python studies/case1/check_spectrum.py \
+.venv/bin/python studies/case1/scripts/check_spectrum.py \
   --python-npz studies/case1/case1.npz \
-  --matlab-spectrum studies/case1/MATLAB_results/spectrum.mat
+  --matlab-spectrum studies/case1/reference/matlab/MATLAB_results/spectrum.mat
 ```
 
 Solver strategy A, the robust baseline:
@@ -798,11 +808,11 @@ for cases that do not fit direct factorization.
 Case 2 has its own active campaign files. Do not duplicate their content in the
 top-level README.
 
-- `studies/case2/PLAN.md`: current phase plan, acceptance criteria, open
+- `studies/case2/docs/PLAN.md`: current phase plan, acceptance criteria, open
   blockers, and campaign state.
-- `studies/case2/REFERENCE.md`: stable technical background, governing
+- `studies/case2/docs/REFERENCE.md`: stable technical background, governing
   equations, parameter map, physical framing, and references.
-- `studies/case2/README.md`: operational commands and artifact layout.
+- `studies/case2/docs/README.md`: operational commands and artifact layout.
 
 Read them in that order before changing Case 2 numerics.
 

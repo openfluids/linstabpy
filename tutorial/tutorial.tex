@@ -249,10 +249,12 @@ The top-level directories have distinct roles. Keep reusable package code, runna
 \begin{outputbox}
 src/linstab2d/      importable Python package
 examples/           runnable Martini examples; generated .npz/.png ignored
-studies/case1/      SWBLI parity and performance study
-studies/case2/      TCFD campaign configs, logs, figures, and notes
-validation/         reproducibility harnesses and compact fixtures
-tools/parity/       MATLAB-to-Python conversion and comparison tooling
+studies/common/     shared runtime helpers for case-style workflows
+studies/case1/      SWBLI study: configs, data/baseflow, reference, scripts
+studies/case2/      TCFD campaign: configs, data/baseflow, scripts, docs
+validation/         reproducibility harnesses, fixtures, reports, references
+validation/martini2024/tools/
+                    MATLAB-to-Python conversion and parity tooling
 scripts/            repository guardrails and maintenance utilities
 install_tester/     thin install/diagnose/benchmark harness
 tutorial/           tutorial source and generated PDF
@@ -467,20 +469,20 @@ Main knobs:
 After the example artifacts exist, compare Python outputs with extracted MATLAB bundles:
 
 \begin{commandbox}
-.venv/bin/python tools/parity/compare_martini_examples.py
+.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
 \end{commandbox}
 
 The machine-readable registry is:
 
 \begin{outputbox}
-tools/parity/martini_cases.jsonc
+validation/martini2024/tools/martini_cases.jsonc
 \end{outputbox}
 
 The current reports are written under:
 
 \begin{outputbox}
-tools/parity/reports/martini_parity_latest.json
-tools/parity/reports/martini_parity_table.csv
+validation/martini2024/reports/martini_parity_latest.json
+validation/martini2024/reports/martini_parity_table.csv
 \end{outputbox}
 
 \begin{warningbox}
@@ -501,7 +503,7 @@ The main files are:
 
 \begin{outputbox}
 validation/song_2023/song_2023.py
-validation/song_2023/song_2023.jsonc
+validation/song_2023/configs/song_2023.jsonc
 validation/song_2023/song_2023.sh
 \end{outputbox}
 
@@ -548,36 +550,36 @@ validation/song_2023/song_2023_support_direct_modes.png
 Use JSONC matrix files when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
 
 \begin{outputbox}
-validation/song_2023/song_2023_matrix.jsonc
-validation/song_2023/order_convergence.jsonc
-validation/song_2023/song_2023_order_preflight.jsonc
-validation/song_2023/song_2023_scaling.jsonc
-validation/song_2023/fd4_sensitivity.jsonc
-validation/song_2023/shift_scan.jsonc
-validation/song_2023/shifted_ksp_matrix.jsonc
+validation/song_2023/configs/song_2023_matrix.jsonc
+validation/song_2023/configs/order_convergence.jsonc
+validation/song_2023/configs/song_2023_order_preflight.jsonc
+validation/song_2023/configs/song_2023_scaling.jsonc
+validation/song_2023/configs/fd4_sensitivity.jsonc
+validation/song_2023/configs/shift_scan.jsonc
+validation/song_2023/configs/shifted_ksp_matrix.jsonc
 \end{outputbox}
 
 Run the solver/preprocessing matrix:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.run_song_2023_matrix
+.venv/bin/python -m validation.song_2023.scripts.run_song_2023_matrix
 \end{commandbox}
 
 Run the finite-difference order preflight before the full order convergence study:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.run_song_2023_order_preflight
+.venv/bin/python -m validation.song_2023.scripts.run_song_2023_order_preflight
 \end{commandbox}
 
 Run the order convergence study only on a machine with enough memory for the configured guard:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.run_song_2023_order_convergence
-.venv/bin/python validation/song_2023/plot_order_convergence.py
+.venv/bin/python -m validation.song_2023.scripts.run_song_2023_order_convergence
+.venv/bin/python validation/song_2023/scripts/plot_order_convergence.py
 \end{commandbox}
 
 \begin{warningbox}
-The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{validation/song_2023/order_convergence.jsonc} before running it.
+The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{validation/song_2023/configs/order_convergence.jsonc} before running it.
 \end{warningbox}
 
 \section*{9. How to adjust a shipped case}
@@ -629,7 +631,7 @@ Use this checklist before writing new package code:
 For MATLAB-backed parity, add a registry entry only after the reference bundle location is known:
 
 \begin{outputbox}
-tools/parity/martini_cases.jsonc
+validation/martini2024/tools/martini_cases.jsonc
 \end{outputbox}
 
 \section*{11. Common first-run problems}
