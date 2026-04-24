@@ -291,6 +291,29 @@ The current expected collection size is `535` tests. Run the suite with:
 .venv/bin/python -m pytest tests/
 ```
 
+### 3.1 Canonical example runner
+
+Use `run_all_examples.sh` as the single example runner for serial acceptance,
+cache cleanup, parity checks, and MPI launches. Direct module execution with
+`.venv/bin/python -m ...` is still useful for focused debugging, but the runner
+is the documented path for full example validation and MPI-safe launches.
+
+| Task | Command |
+|---|---|
+| List available examples | `bash run_all_examples.sh --list` |
+| Run all examples and Martini parity | `bash run_all_examples.sh` |
+| Recompute selected examples from cached PNGs/NPZs | `bash run_all_examples.sh --fresh --example 1 --skip-parity` |
+| Remove selected generated NPZ/PNG outputs first | `bash run_all_examples.sh --clean --example 1 --skip-parity` |
+| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl` |
+| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor` |
+
+`--mpi` folds the old one-module MPI wrapper behavior into the same script:
+the runner probes a working MPI launcher, defaults to half of the detected
+physical cores when `-n/--ranks` is omitted, and caps OpenMP/BLAS thread counts
+to one thread per rank unless the caller already set them. Override the runtime
+with `LINSTABPY_MPIEXEC`, `LINSTABPY_MPI_RANKS`, or `LINSTABPY_PYTHON` when a
+machine needs explicit paths.
+
 ## 4. Repository layout
 
 ```text
