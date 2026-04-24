@@ -23,7 +23,7 @@ choices, which determine what every residual and every eigenvalue means:
   **primitive variables** (Martini & Schmidt 2024, §2). Linearizing in
   conservative variables yields a numerically different operator — we do not
   mix conventions. The parity tool
-  `tools/parity/compare_martini_examples.py` checks we match the MATLAB
+  `validation/martini2024/tools/compare_martini_examples.py` checks we match the MATLAB
   reference under the primitive choice.
 - **Generalized eigenproblem** `M ∂q'/∂t = L q' + f'`, with `M = M(q̄)`
   accounting for the primitive→conservative time-derivative mapping. Defining

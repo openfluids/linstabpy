@@ -23,7 +23,6 @@ from validation.martini2024.tools.matlab_hdf5 import compound_to_complex, saniti
 
 DEFAULT_CONFIG = ROOT / "validation" / "martini2024" / "tools" / "martini_cases.jsonc"
 DEFAULT_NPZ_DIR = ROOT / "validation" / "martini2024" / "fixtures"
-LEGACY_NPZ_DIR = ROOT / "tools" / "parity" / "npz"
 DEFAULT_REPORT = ROOT / "validation" / "martini2024" / "reports" / "martini_parity_latest.json"
 DEFAULT_TABLE = ROOT / "validation" / "martini2024" / "reports" / "martini_parity_table.csv"
 
@@ -37,15 +36,6 @@ def _display_path(path: Path) -> str:
         return path.resolve().relative_to(ROOT).as_posix()
     except ValueError:
         return str(path)
-
-
-def _resolve_npz_dir(npz_dir: Path) -> Path:
-    default_dir = DEFAULT_NPZ_DIR.resolve()
-    legacy_dir = LEGACY_NPZ_DIR.resolve()
-    resolved = npz_dir.resolve()
-    if resolved == default_dir and not resolved.exists() and legacy_dir.exists():
-        return legacy_dir
-    return resolved
 
 
 def _load_npz_dict(path: Path) -> dict[str, np.ndarray]:
@@ -734,7 +724,7 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = load_jsonc(args.config)
-    npz_dir = _resolve_npz_dir(args.npz_dir)
+    npz_dir = args.npz_dir.resolve()
     report_path = args.report.resolve()
     table_path = args.table.resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)

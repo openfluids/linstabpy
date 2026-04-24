@@ -616,7 +616,7 @@ Python counterparts:
 
 | MATLAB example | Python example | Status | Required artifacts |
 |---|---|---|---|
-| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `tools/parity/output/curvilinear_derivative_parity.json` |
+| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `artifacts/curvilinear_derivative_parity.json` |
 | `example_1_Blasius.m` | `example_1_blasius.py` | `implemented` | `example_1_blasius.npz`, `example_1_blasius.png` |
 | `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz`, `example_2_jet.png` |
 | `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_streaky_bl.npz`, `example_3_streaky_bl.png` |
@@ -625,7 +625,7 @@ Python counterparts:
 
 ### 7.2 Operator parity matrix
 
-Canonical machine-readable source: `tools/parity/operator_matrix.json`.
+Canonical machine-readable source: `validation/martini2024/tools/operator_matrix.json`.
 
 Status semantics:
 
@@ -656,7 +656,7 @@ status is `pass` with `missing_required = 0`.
 
 ### 7.3 Branch coverage matrix
 
-Canonical machine-readable source: `tools/parity/branch_matrix.json`.
+Canonical machine-readable source: `validation/martini2024/tools/branch_matrix.json`.
 
 Target dimensions:
 
@@ -674,7 +674,7 @@ Total combinations:
 
 All required combinations must be `validated`. Combinations omitted from
 `records` default to `pending`. Scope is controlled by `required_exclusions` in
-`tools/parity/branch_matrix.json`. Current scoped gate status is `pass`
+`validation/martini2024/tools/branch_matrix.json`. Current scoped gate status is `pass`
 with `5` required validated combinations and `91` required exclusions.
 
 | model | solver | bc | deformation | backend | status |
@@ -690,19 +690,19 @@ with `5` required validated combinations and `91` required exclusions.
 Example-level parity:
 
 ```bash
-.venv/bin/python tools/parity/compare_martini_examples.py
+.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
 ```
 
 Allow incomplete optional matrix entries while enforcing required scoped gates:
 
 ```bash
-python tools/parity/check_parity_matrices.py --allow-incomplete
+python validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
 ```
 
 Strict CI gate:
 
 ```bash
-python tools/parity/check_parity_matrices.py
+python validation/martini2024/tools/check_parity_matrices.py
 ```
 
 ## 8. Case studies
@@ -748,15 +748,13 @@ Primary outputs:
 - `studies/case1/output/case1_resolvent_parity.json`;
 - parity figures under `studies/case1/output/`.
 
-`studies/case1/` is the canonical Case 1 study path. Tests resolve Case 1
-through a shared helper so older local checkouts can still be handled during
-transition.
+`studies/case1/` is the canonical Case 1 study path.
 
 Environment overrides:
 
 | Variable | Default | Use |
 |---|---:|---|
-| `LINSTAB2D_CASE1_CASE_DIR` | `case1` | Case data directory used by the legacy root-level path. |
+| `LINSTAB2D_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `studies/case1/` unless absolute. |
 | `LINSTAB2D_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
 | `LINSTAB2D_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
 | `LINSTAB2D_CASE1_N_MODES` | `100` | Number of stability modes requested. |
@@ -934,9 +932,9 @@ Current expected result: `535` collected tests.
 Run MATLAB parity checks with:
 
 ```bash
-.venv/bin/python tools/parity/compare_martini_examples.py
-python tools/parity/check_parity_matrices.py --allow-incomplete
-python tools/parity/check_parity_matrices.py
+.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
+python validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
+python validation/martini2024/tools/check_parity_matrices.py
 ```
 
 Packaging:
