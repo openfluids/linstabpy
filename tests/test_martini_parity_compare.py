@@ -2,18 +2,51 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
-from examples.example_0_curvilinear_validation import _compute_reference_fields
 from linstab2d.utils.jsonc import load_jsonc
+from tools.parity import compare_martini_examples
 from tools.parity.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
     compare_curvilinear_protocol_case,
     compare_resolvent_case,
 )
-from tests._paths import martini_fixture
+from tests._paths import MARTINI_FIXTURE_ROOT, REPO_ROOT as repo, martini_fixture
+
+
+def test_martini_manifest_paths_are_repo_relative() -> None:
+    manifest = json.loads((repo / "tools/parity/martini_manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["input_dir"] == "martini_examples"
+    assert manifest["output_dir"] == "validation/martini2024/fixtures"
+    assert not manifest["input_dir"].startswith("/")
+    assert not manifest["output_dir"].startswith("/")
+    assert all(
+        entry["npz_file"].startswith("validation/martini2024/fixtures/")
+        for entry in manifest["files"]
+    )
+
+
+def test_martini_npz_default_uses_validation_fixture_root() -> None:
+    assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
+
+
+def test_martini_npz_dir_falls_back_to_legacy_local_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    default_dir = tmp_path / "validation" / "martini2024" / "fixtures"
+    legacy_dir = tmp_path / "tools" / "parity" / "npz"
+    legacy_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(compare_martini_examples, "DEFAULT_NPZ_DIR", default_dir)
+    monkeypatch.setattr(compare_martini_examples, "LEGACY_NPZ_DIR", legacy_dir)
+
+    assert compare_martini_examples._resolve_npz_dir(default_dir) == legacy_dir.resolve()
 
 
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
@@ -92,6 +125,8 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
     bundle_path = martini_fixture("example_0_TestCurvilinearDerivative_results.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
+    from examples.example_0_curvilinear_validation import _compute_reference_fields
+
     matlab = np.load(bundle_path, allow_pickle=False)
     cfg = load_jsonc(repo / "examples/example_0_curvilinear_validation.jsonc")
     fields = _compute_reference_fields(cfg)

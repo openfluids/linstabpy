@@ -2,7 +2,7 @@
 
 Date: 2026-04-24
 Branch: `main`
-Status: active plan before using `GEMINI.md`
+Status: active cleanup plan; safe `GEMINI.md` hygiene items are being folded in
 
 ## Purpose
 
@@ -52,20 +52,25 @@ Completed on `main`:
   - `tests/_paths.py`
 - Operator fixture schema added:
   - `validation/operator_fixtures/SCHEMA.md`
+- Safe GEMINI hygiene items implemented in the current pass:
+  - duplicate `install_tester/src` and `install_tester/examples` removed
+  - `install_tester` scripts now wrap the canonical repository scripts
+  - Martini parity defaults moved to `validation/martini2024/fixtures`
+  - `tools/parity/martini_manifest.json` local absolute paths removed
 
 Still open:
 
 - `results/case1` and `results/case2` are still active tracked study
   directories.
-- `install_tester/src/linstab2d` and `install_tester/examples` still duplicate
-  source/examples.
-- `tools/parity/martini_manifest.json` still contains absolute local paths.
-- `tools/parity/npz` is still the documented parity bundle location, but the
-  directory is absent.
 - `src/linstab2d/results_runtime.py` still contains study orchestration in
   package code.
 - `src/linstab2d/baseflow/case1.py` still contains study-specific Hamada/Case 1
   loading inside the library.
+- Numerical GEMINI findings remain unaccepted until reviewed with tests:
+  - Sutherland non-dimensionalization
+  - MUMPS defaults and solver doctor behavior
+  - energy-equation row audit
+  - axis singularity regularization
 
 ## Target Layout
 
@@ -152,6 +157,8 @@ Validation:
 
 ## Phase 2 - Remove Install Tester Duplication
 
+Status: implemented in the current pass.
+
 Goal: make `src/linstab2d` the only library source tree.
 
 Actions:
@@ -161,7 +168,7 @@ Actions:
 2. Remove duplicated examples:
    - `install_tester/examples`
 3. Update `install_tester/run_install_tester.sh` so it installs/tests the real
-   package from the repository checkout or a generated bundle.
+   package from the repository checkout.
 4. Keep install-tester-specific files:
    - `install_tester/README.md`
    - `install_tester/install.sh`
@@ -180,6 +187,8 @@ Validation:
 
 ## Phase 3 - Sanitize Martini Parity Metadata
 
+Status: implemented in the current pass.
+
 Goal: remove local-machine paths and define the future parity fixture home.
 
 Actions:
@@ -191,8 +200,8 @@ Actions:
 3. Update parity tools so the default bundle directory is
    `validation/martini2024/fixtures`, with compatibility for old local
    `tools/parity/npz` if needed.
-4. Move existing tracked parity reports only if their path references are
-   regenerated or clearly marked historical.
+4. Refresh existing tracked parity reports so their path references point to
+   `validation/martini2024/fixtures`.
 
 Validation:
 

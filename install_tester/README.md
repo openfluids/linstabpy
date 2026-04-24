@@ -1,17 +1,23 @@
 # install_tester
 
-Minimal, self-contained installer evaluation for `linstabpy`.
-Copy this entire folder to a target machine and run the installer to capture diagnostics.
+Installer harness for testing the canonical LinStabPy checkout on another
+machine.
+
+`install_tester/` no longer contains a duplicate `src/` or `examples/` tree.
+By default the harness treats the parent directory as the repository root. If
+you copy the harness elsewhere, set:
+
+```bash
+export LINSTAB2D_REPO_ROOT=/path/to/linstabpy
+```
 
 ## Layout
 
 ```text
 install_tester/
   diagnose.sh             # read-only system check (recommended first step)
-  install.sh              # instrumented installer (logs, version snapshot, error trapping)
-  benchmark.sh            # benchmark runner (cold runs, wall time, peak memory)
-  src/                    # linstab2d source (minimal copy)
-  examples/               # example scripts
+  install.sh              # wrapper around ../install.sh with preflight snapshot
+  benchmark.sh            # wrapper around ../benchmark.sh
   run_install_tester.sh   # orchestrator: diagnose -> preflight -> install -> check
   README.md
   lovelace_requirements.md   # Cenapad Lovelace cluster: module load recipe
@@ -26,16 +32,17 @@ On **lovelace** (no `sudo`), load compiler, CMake, MVAPICH2, and **HDF5 for MVAP
 Only examples that are fully analytical (no external `.mat` baseflow data) are used:
 
 - `example_0_curvilinear_validation.py` — curvilinear coordinate validation
-- `example_1_blasius.py` — Blasius boundary layer
+- `example_1_blasius_smoke.py` — reduced Blasius boundary layer check
 
-Other examples (2–5) require the `data/baseflows` submodule and are excluded from the minimal bundle.
+Other examples (2-5) require the `data/baseflows` submodule and are excluded
+from the benchmark harness by default.
 
 ## Usage
 
 ### Step 1: Diagnose (recommended)
 
 ```bash
-cd /path/to/install_tester
+cd /path/to/linstabpy/install_tester
 bash diagnose.sh
 ```
 
@@ -55,8 +62,8 @@ If `<machine_label>` is omitted, the hostname is used.
 
 The orchestrator runs these steps in sequence:
 1. **Diagnose** — runs `diagnose.sh` (aborts if critical gaps found).
-2. **Preflight** — writes machine/tool version snapshot only.
-3. **Install** — full installation (venv, PETSc, SLEPc, mpi4py, linstab2d).
+2. **Preflight** — writes a machine/tool version snapshot only.
+3. **Install** — runs the repository-root installer.
 4. **Check** — post-install verification.
 
 ### Run steps individually
@@ -74,9 +81,8 @@ Each run writes artifacts to:
 
 ```text
 install_runs/<run_id>/
-  install.log             # full installer output with error markers
+  install_tester.log      # orchestrator, diagnose, install, and check output
   machine_versions.txt    # system/tool/Python package versions
-  status.txt              # pass/fail, elapsed time, paths
 ```
 
 ## Step 3: Benchmark
@@ -87,9 +93,9 @@ After a successful install, run the benchmark suite:
 bash benchmark.sh [machine_label]
 ```
 
-This runs:
+This delegates to the repository-root benchmark runner. By default it runs:
 - **Example 0** (curvilinear validation) — single process, cold run.
-- **Example 1** (Blasius resolvent) — two MPI variants:
+- **Example 1 smoke** (Blasius resolvent) — two MPI variants:
   - `all_cores`: 1 thread per rank, ranks = all physical cores.
   - `half_cores`: 1 thread per rank, ranks = half physical cores.
 
@@ -113,9 +119,9 @@ benchmark_runs/<bench_id>/
 1. Run `run_install_tester.sh` on each target machine.
 2. Collect all `install_runs/*/` folders.
 3. Compare:
-   - `status.txt` for pass/fail and elapsed time.
+   - `install_tester.log` for pass/fail and elapsed time.
    - `machine_versions.txt` for version deltas across machines.
-   - `install.log` around `INSTALL ERROR` markers for failure details.
+   - `install_tester.log` around installer error markers for failure details.
 
 **Benchmarks:**
 1. Run `benchmark.sh` on each target machine.
@@ -124,10 +130,13 @@ benchmark_runs/<bench_id>/
 
 ## Fast Blasius smoke (slow nodes, e.g. stab1)
 
-After a successful install, the full Example 1 grid (`examples/example_1_blasius.py` / `example_1_blasius.jsonc`) can take a very long time on some machines. For a quick PETSc / MPI / assembly check **without** overwriting full Example 1 outputs, copy the usual `install_tester/` tree to the host, activate the same environment you use for benchmarks, then run:
+After a successful install, the full Example 1 grid
+(`examples/example_1_blasius.py` / `example_1_blasius.jsonc`) can take a very
+long time on some machines. For a quick PETSc / MPI / assembly check without
+overwriting full Example 1 outputs, run from the repository root:
 
 ```bash
-cd /path/to/install_tester
+cd /path/to/linstabpy
 python -m examples.example_1_blasius_smoke
 # optional MPI, adjust rank count as needed:
 mpiexec.mpich -n 1 python -m examples.example_1_blasius_smoke
@@ -141,5 +150,6 @@ This uses `examples/example_1_blasius_smoke.jsonc` (small `nx` / `ny`) and write
 
 - `LINSTAB2D_INSTALL_RUN_ID` can be set to override the auto-generated run id.
 - `LINSTAB2D_INSTALL_LOG_DIR` overrides the default log directory (`install_runs/`).
+- `LINSTAB2D_REPO_ROOT` points the harness at a checkout outside the parent directory.
 - `LINSTAB2D_SKIP_SYS_DEPS=1` skips system dependency checks (pre-provisioned machines only).
 - Progress tracking is at the repository root in `PROGRESS.md`.

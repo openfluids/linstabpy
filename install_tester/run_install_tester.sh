@@ -2,18 +2,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${LINSTAB2D_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 RUN_LABEL="${1:-$(hostname 2>/dev/null || echo unknown-host)}"
 RUN_ID="$(date -u +"%Y%m%dT%H%M%SZ")_${RUN_LABEL}"
 
 export LINSTAB2D_INSTALL_RUN_ID="${RUN_ID}"
 export LINSTAB2D_INSTALL_LOG_DIR="${SCRIPT_DIR}/install_runs"
+export LINSTAB2D_REPO_ROOT="${REPO_ROOT}"
+
+mkdir -p "${LINSTAB2D_INSTALL_LOG_DIR}/${RUN_ID}"
+exec > >(tee -a "${LINSTAB2D_INSTALL_LOG_DIR}/${RUN_ID}/install_tester.log") 2>&1
 
 echo "[install_tester] run_id=${RUN_ID}"
 echo "[install_tester] logs_dir=${LINSTAB2D_INSTALL_LOG_DIR}/${RUN_ID}"
+echo "[install_tester] repo_root=${REPO_ROOT}"
 
-if [ ! -f "${SCRIPT_DIR}/install.sh" ] || [ ! -d "${SCRIPT_DIR}/src" ] || [ ! -d "${SCRIPT_DIR}/examples" ]; then
-    echo "[install_tester] ERROR: bundle incomplete at ${SCRIPT_DIR}"
-    echo "[install_tester] Required: install.sh + src/ + examples/"
+if [ ! -f "${REPO_ROOT}/pyproject.toml" ] || [ ! -d "${REPO_ROOT}/src/linstab2d" ] || [ ! -d "${REPO_ROOT}/examples" ]; then
+    echo "[install_tester] ERROR: repository checkout incomplete at ${REPO_ROOT}"
+    echo "[install_tester] Required: pyproject.toml + src/linstab2d/ + examples/"
+    echo "[install_tester] Export LINSTAB2D_REPO_ROOT=/path/to/linstabpy if the harness was copied elsewhere."
     exit 1
 fi
 

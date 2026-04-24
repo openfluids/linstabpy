@@ -1,6 +1,9 @@
 # Installation learnings (multi-machine)
 
-Notes from exercising the portable `install_tester` workflow (diagnose, instrumented install, benchmarks) on different hosts. They are **observations and troubleshooting patterns**, not a substitute for upstream `install.sh` headers or MPI vendor documentation.
+Notes from exercising the `install_tester` workflow (diagnose, install,
+benchmarks) on different hosts. They are **observations and troubleshooting
+patterns**, not a substitute for upstream `install.sh` headers or MPI vendor
+documentation.
 
 ## Related paths in this repo
 
@@ -39,11 +42,16 @@ If Intel oneAPI MPI appears first on `PATH`, `mpicc` / `mpiexec` may be Intel’
 
 `install.sh` already biases Linux PETSc configuration toward GNU compilers when its Linux helper runs; the remaining pitfall is **which MPI** the wrappers wrap.
 
-## Portable bundle without `pyproject.toml`
+## Source-of-truth checkout
 
-The self-contained `install_tester` layout has `src/` and `examples/` but no `pyproject.toml`. A normal `uv pip install -e .` therefore fails.
+`install_tester` now runs against the real repository checkout instead of a
+copied `src/` and `examples/` bundle. The harness defaults to the parent
+directory as the checkout root; set `LINSTAB2D_REPO_ROOT=/path/to/linstabpy`
+when the harness is copied elsewhere.
 
-**Mitigation in bundle:** Step 7 drops a `.pth` file under the venv so `linstab2d` imports from `src/`. Full-repo installs still use editable install from the repository root.
+This keeps `src/linstab2d/` as the only importable library source tree. The
+repository-root `install.sh` still performs the editable install from the real
+checkout.
 
 ## Running examples
 
@@ -66,12 +74,14 @@ After checks under `mpiexec -n 1`, lines such as `write_line error` / `Bad file 
 
 ## Benchmarks: what is being measured
 
-The `install_tester/benchmark.sh` harness:
+The `install_tester/benchmark.sh` wrapper delegates to the repository-root
+`benchmark.sh` harness:
 
 - **Example 0** (curvilinear validation): mostly **NumPy**; it is run **single-process**. MPI rank sweeps do not accelerate that path.
 - **Example 1** (Blasius resolvent): uses **PETSc/SLEPc**; it is run with **`mpiexec -n N`** for `N` equal to all physical cores and again for half, with `OMP_NUM_THREADS=1` (and related BLAS thread env vars pinned to 1).
 
-**Cold runs:** the harness deletes matching `examples/*.npz` caches before each timed run so timings are not dominated by “plot only” reuse.
+**Cold runs:** the harness deletes matching `examples/*.npz` caches before
+each timed run so timings are not dominated by "plot only" reuse.
 
 ### Example: one 20-core Ubuntu 18.04 host
 
@@ -90,8 +100,8 @@ Always treat machine-specific numbers as **samples**; compare using your own `be
 
 ## Artifact locations
 
-- Install logs and snapshots: `install_tester/install_runs/<run_id>/` (`install.log`, `machine_versions.txt`, `status.txt`)
-- Benchmark outputs: `install_tester/benchmark_runs/<bench_id>/` (`benchmark_results.json`, per-case `.log` and `/usr/bin/time -v` files where available)
+- Install logs and snapshots: `install_tester/install_runs/<run_id>/` (`install_tester.log`, `machine_versions.txt`)
+- Benchmark outputs: `benchmark_runs/<bench_id>/` at the repository root (`benchmark_results.json`, per-case `.log` and `/usr/bin/time -v` files where available)
 
 ## Multi-machine workflow (higher level)
 
