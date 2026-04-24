@@ -142,32 +142,39 @@ def analyze_run(tag, npz_name):
         print(f"  BG-S: not captured (nearest mode {bgs_idx} at "
               f"dist={bgs_dist:.3f} > {BGS_MAX_DIST})")
 
-    # Saw-tooth-window + rho-active candidates
-    candidates = []
+    # All modes in saw-tooth omega-window — compute tang_adj_step for every
+    # one regardless of rho-active filter. The rho-active flag is used for
+    # the verdict but we want the full picture.
+    window_modes = []
     for j in range(len(omega)):
         if not in_sawtooth_window(omega[j]):
             continue
         rho_frac = rho_active_fraction(modes, j, ngp)
-        if rho_frac <= RHO_ACTIVE_THRESHOLD:
-            continue
         rho2d = reshape_rho(modes, j, ngp, Ny, Nx)
         step_bot, step_top = tang_adj_step(rho2d)
-        candidates.append({
+        window_modes.append({
             "mode_idx": j,
             "omega": complex(omega[j]),
             "rho_frac": rho_frac,
+            "rho_active": rho_frac > RHO_ACTIVE_THRESHOLD,
             "postcheck_rel": float(postcheck[j]),
             "step_bot": step_bot,
             "step_top": step_top,
             "step_max": max(step_bot, step_top),
         })
-    candidates.sort(key=lambda r: r["step_max"], reverse=True)
-    print(f"  Candidates: {len(candidates)}")
-    for c in candidates:
-        print(f"    mode {c['mode_idx']}: w={c['omega']:.4f}, "
-              f"rho_frac={c['rho_frac']:.3f}, step_max={c['step_max']:.4f}")
+    window_modes.sort(key=lambda r: r["step_max"], reverse=True)
+    candidates = [m for m in window_modes if m["rho_active"]]
 
-    result = {"Ny": Ny, "Nx": Nx, "bgs": bgs, "candidates": candidates}
+    print(f"  Window modes: {len(window_modes)} "
+          f"({len(candidates)} rho-active)")
+    for m in window_modes:
+        flag = "[rho-active]" if m["rho_active"] else "[rho-weak]"
+        print(f"    mode {m['mode_idx']}: w={m['omega']:.4f}, "
+              f"rho_frac={m['rho_frac']:.3f}, "
+              f"step_max={m['step_max']:.4f} {flag}")
+
+    result = {"Ny": Ny, "Nx": Nx, "bgs": bgs,
+              "window_modes": window_modes, "candidates": candidates}
     d.close()
     return result
 
@@ -276,23 +283,26 @@ def main():
     lines.append("")
     for tag, r in results.items():
         lines.append(
-            f"## {tag} - sawtooth-window candidates ({len(r['candidates'])})")
+            f"## {tag} - sawtooth-window modes "
+            f"({len(r['window_modes'])} total, "
+            f"{len(r['candidates'])} rho-active)")
         lines.append("")
-        if not r["candidates"]:
-            lines.append(
-                "_No modes satisfy sawtooth-window AND rho-active._")
+        if not r["window_modes"]:
+            lines.append("_No modes in sawtooth omega-window._")
             lines.append("")
             continue
         lines.append(
-            "| mode | w | rho-frac | postcheck | step_bot | step_top | step_max |")
+            "| mode | w | rho-frac | rho-active | postcheck | step_bot | step_top | step_max |")
         lines.append(
-            "|---|---|---|---|---|---|---|")
-        for c in r["candidates"]:
+            "|---|---|---|---|---|---|---|---|")
+        for m in r["window_modes"]:
+            active = "yes" if m["rho_active"] else "no"
             lines.append(
-                f"| {c['mode_idx']} | `{c['omega']:.4f}` | "
-                f"{c['rho_frac']:.3f} | {c['postcheck_rel']:.3e} | "
-                f"{c['step_bot']:.4f} | {c['step_top']:.4f} | "
-                f"**{c['step_max']:.4f}** |")
+                f"| {m['mode_idx']} | `{m['omega']:.4f}` | "
+                f"{m['rho_frac']:.3f} | {active} | "
+                f"{m['postcheck_rel']:.3e} | "
+                f"{m['step_bot']:.4f} | {m['step_top']:.4f} | "
+                f"**{m['step_max']:.4f}** |")
         lines.append("")
     md_path.write_text("\n".join(lines))
     print(f"\nWrote {md_path}")
@@ -300,15 +310,16 @@ def main():
     # --- Figure: 2x2, worst-mode near-wall rho line-cut per run ---
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
     for ax, (tag, r) in zip(axes.flatten(), results.items()):
-        if not r["candidates"]:
+        if not r["window_modes"]:
             ax.text(0.5, 0.5,
-                    f"{tag}\nno candidates in sawtooth window",
+                    f"{tag}\nno modes in sawtooth omega-window",
                     ha="center", va="center",
                     transform=ax.transAxes, fontsize=12)
             ax.set_xticks([])
             ax.set_yticks([])
             continue
-        worst = r["candidates"][0]
+        # Show worst window mode (sorted by step_max); annotate rho-active status
+        worst = r["window_modes"][0]
         npz_name = next(n for t, n, _, _ in RUNS if t == tag)
         d = np.load(NPZ_DIR / npz_name)
         modes = d["direct_modes"]
@@ -321,8 +332,9 @@ def main():
         ax.plot(np.real(row), label="Re(rho)", linewidth=0.8)
         ax.plot(np.imag(row), label="Im(rho)", linewidth=0.8, alpha=0.7)
         label_row = "y=1 (above bot wall)" if row_idx == 1 else "y=Ny-2 (below top wall)"
+        rho_flag = "rho-active" if worst["rho_active"] else f"rho-weak ({worst['rho_frac']:.2f})"
         ax.set_title(
-            f"{tag}: mode {worst['mode_idx']}, w={worst['omega']:.3f}\n"
+            f"{tag}: mode {worst['mode_idx']}, w={worst['omega']:.3f} [{rho_flag}]\n"
             f"{label_row}, tang_adj_step_max={worst['step_max']:.4f}",
             fontsize=10)
         ax.set_xlabel("x index")
@@ -346,17 +358,14 @@ def main():
         sidecar[f"{tag}_bgs_step_max"] = np.array(b["step_max"])
         sidecar[f"{tag}_bgs_omega"] = np.array(b["omega"])
         sidecar[f"{tag}_bgs_dist"] = np.array(b["dist_to_target"])
-        if r["candidates"]:
-            sidecar[f"{tag}_cand_omegas"] = np.array(
-                [c["omega"] for c in r["candidates"]])
-            sidecar[f"{tag}_cand_step_max"] = np.array(
-                [c["step_max"] for c in r["candidates"]])
-            sidecar[f"{tag}_cand_rho_frac"] = np.array(
-                [c["rho_frac"] for c in r["candidates"]])
-        else:
-            sidecar[f"{tag}_cand_omegas"] = np.array([], dtype=complex)
-            sidecar[f"{tag}_cand_step_max"] = np.array([])
-            sidecar[f"{tag}_cand_rho_frac"] = np.array([])
+        sidecar[f"{tag}_window_omegas"] = np.array(
+            [m["omega"] for m in r["window_modes"]], dtype=complex)
+        sidecar[f"{tag}_window_step_max"] = np.array(
+            [m["step_max"] for m in r["window_modes"]])
+        sidecar[f"{tag}_window_rho_frac"] = np.array(
+            [m["rho_frac"] for m in r["window_modes"]])
+        sidecar[f"{tag}_window_rho_active"] = np.array(
+            [m["rho_active"] for m in r["window_modes"]])
     npz_path = HERE / "phase0_analysis.npz"
     np.savez_compressed(npz_path, **sidecar)
     print(f"Wrote {npz_path}")
