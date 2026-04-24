@@ -17,6 +17,7 @@ build/
 *.blg
 *.fdb_latexmk
 *.fls
+*.listing
 *.lof
 *.lot
 *.nav

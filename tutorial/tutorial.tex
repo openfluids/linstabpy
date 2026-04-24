@@ -170,6 +170,8 @@ At the end of this tutorial you will have:
   \item installed or checked the local \texttt{linstabpy} runtime,
   \item run a fast smoke example before starting expensive examples,
   \item run each Martini example from its paired Python and JSONC files,
+  \item understand where reusable code, examples, studies, and validation assets live,
+  \item use the single example runner for serial, parity, and MPI-safe runs,
   \item run the MATLAB-parity comparison for the Martini examples,
   \item run the Song 2023 baseline and its JSONC-driven validation matrices,
   \item learned how to copy a case and adjust parameters for a new study.
@@ -239,6 +241,47 @@ rm -f examples/example_1_blasius.npz
 \begin{warningbox}
 The full examples can be memory- and time-intensive. Start with the smoke run and the cached outputs before deleting large \code{.npz} artifacts.
 \end{warningbox}
+
+\subsection*{Where files belong}
+
+The top-level directories have distinct roles. Keep reusable package code, runnable examples, study campaigns, and validation data separated:
+
+\begin{outputbox}
+src/linstab2d/      importable Python package
+examples/           runnable Martini examples; generated .npz/.png ignored
+studies/case1/      SWBLI parity and performance study
+studies/case2/      TCFD campaign configs, logs, figures, and notes
+validation/         reproducibility harnesses and compact fixtures
+tools/parity/       MATLAB-to-Python conversion and comparison tooling
+scripts/            repository guardrails and maintenance utilities
+install_tester/     thin install/diagnose/benchmark harness
+tutorial/           tutorial source and generated PDF
+\end{outputbox}
+
+Do not put reusable solver code under \path{studies/} or \path{examples/}. Put reusable code under \path{src/linstab2d/}, runnable examples under \path{examples/}, case-specific workflows under \path{studies/}, and reference/validation assets under \path{validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
+
+\subsection*{Use one example runner}
+
+\code{run_all_examples.sh} is the single documented runner. It covers serial example passes, cache cleanup, Martini parity, and MPI-safe launches. Direct module execution is still useful for local debugging, but use the runner for acceptance checks and MPI runs.
+
+\begin{commandbox}
+bash run_all_examples.sh --list
+bash run_all_examples.sh
+bash run_all_examples.sh --fresh --example 1 --skip-parity
+bash run_all_examples.sh --clean --example 1 --skip-parity
+\end{commandbox}
+
+For MPI runs, enable \code{--mpi}. If \code{-n/--ranks} is omitted, the runner starts from half of the detected physical cores. The runner also sets one OpenMP/BLAS thread per rank unless those variables were already set by the caller.
+
+\begin{commandbox}
+bash run_all_examples.sh --mpi -m examples.example_1_blasius_smoke
+bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
+\end{commandbox}
+
+\begin{notebox}
+The previous separate MPI wrapper has been folded into \code{run_all_examples.sh}. Override the MPI launcher or default rank count with \code{LINSTABPY_MPIEXEC} and \code{LINSTABPY_MPI_RANKS} when a machine needs explicit runtime paths.
+\end{notebox}
 
 \section*{4. First run: Blasius smoke test}
 
