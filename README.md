@@ -189,7 +189,7 @@ A healthy Linux install should satisfy this sequence:
 ```bash
 bash diagnose.sh
 bash install.sh --check
-bash run_mpi_example.sh -n 1 -m examples.example_1_blasius_smoke
+bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke
 bash benchmark.sh
 ```
 
@@ -228,16 +228,18 @@ export NUMEXPR_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 ```
 
-Prefer the wrapper for examples:
+Prefer the canonical example runner for MPI examples:
 
 ```bash
-bash run_mpi_example.sh -m examples.example_1_blasius_smoke
-bash run_mpi_example.sh -n 10 -m examples.example_3_streaky_bl
-bash run_mpi_example.sh -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
+bash run_all_examples.sh --mpi -m examples.example_1_blasius_smoke
+bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
 ```
 
-If `-n/--ranks` is omitted, the wrapper starts from half of the detected
-physical cores. For sparse direct factorization, more ranks are not
+If `-n/--ranks` is omitted in `--mpi` mode, the runner starts from half of the
+detected physical cores. Override the launcher with `LINSTABPY_MPIEXEC` and the
+default rank count with `LINSTABPY_MPI_RANKS` when the target machine needs an
+explicit MPI runtime. For sparse direct factorization, more ranks are not
 automatically faster; compare rank counts on the target machine.
 
 ## 3. Quick start
@@ -292,33 +294,42 @@ The current expected collection size is `535` tests. Run the suite with:
 ## 4. Repository layout
 
 ```text
-src/linstab2d/
-  mesh/                    SBP finite differences, structured grids,
-                           integration weights, filters, mesh deformation
-  baseflow/                Base-flow loaders and Sutherland viscosity
-  operators/               LNSE coefficients, assembly, spatial operators,
-                           Chu energy norm
-  boundary_conditions/     Dirichlet and Neumann row replacement, recipes
-  solvers/                 Resolvent, temporal/spatial eigenvalue solvers,
-                           PETSc/SLEPc configuration helpers
-  utils/                   Plotting, JSONC loading, Floquet reconstruction,
-                           PETSc utilities, acceptance checks
-  data/baseflows/          MATLAB reference assets as a git submodule
-
-examples/                  Five Martini flow examples plus Example 0
-                           derivative / curvilinear-grid validation
-studies/                   Active Case 1 / Case 2 study workflows and
-                           local generated outputs
-validation/                Validation harnesses and compact fixtures
-tools/parity/              MATLAB-to-Python comparison tooling
-scripts/                   Repository guardrails and maintenance utilities
-tutorial/                  Tutorial source and generated PDF
-
-install.sh                 Main installer
-diagnose.sh                Read-only environment preflight
-benchmark.sh               Smoke benchmark
-run_mpi_example.sh         MPI-safe example runner
+.
+|-- src/linstab2d/                 Importable Python package
+|   |-- baseflow/                  Base-flow loaders and viscosity helpers
+|   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
+|   |-- config/                    Runtime validation metadata
+|   |-- data/baseflows/            MATLAB reference assets as a git submodule
+|   |-- linear_operators/          Operator adapters for resolvent workflows
+|   |-- mesh/                      SBP finite differences, grids, filters, deformation
+|   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
+|   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
+|   `-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
+|-- examples/                      Runnable Martini examples; generated .npz/.png ignored
+|-- studies/                       Active research workflows, not importable library code
+|   |-- case1/                     SWBLI parity/performance study
+|   `-- case2/                     TCFD campaign configs, logs, figures, notes
+|-- validation/                    Reproducibility harnesses and compact fixtures
+|   |-- martini2024/fixtures/      Martini parity bundles
+|   |-- operator_fixtures/         Compact operator-parity fixtures and schema
+|   `-- song_2023/                 Song 2023 validation workflow and reference data
+|-- tools/                         Developer tools
+|   `-- parity/                    MATLAB-to-Python conversion and comparison tooling
+|-- scripts/                       Repository guardrails and maintenance utilities
+|-- tests/                         Pytest suite and shared path helpers
+|-- install_tester/                Thin install/diagnose/benchmark harness
+|-- tutorial/                      Tutorial source and generated PDF
+|-- install.sh                     Main installer
+|-- diagnose.sh                    Read-only environment preflight
+|-- benchmark.sh                   Smoke benchmark
+`-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
+
+Keep reusable code under `src/linstab2d/`, runnable examples under `examples/`,
+case-specific campaigns under `studies/`, and validation reference data under
+`validation/`. Generated example outputs, campaign `output/` directories,
+runtime caches, and build metadata are ignored rather than represented as
+tracked layout.
 
 The reference MATLAB code and `.mat` base-flow files live in the submodule
 `src/linstab2d/data/baseflows`. Treat that directory as reference input unless
