@@ -47,7 +47,8 @@ def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> tuple[floa
 
 def test_case1_operator_stages_match_matlab_exports() -> None:
     case_dir = case_fixture("case1")
-    exports_dir = case_dir / "MATLAB_exports"
+    baseflow_dir = case_dir / "data" / "baseflow"
+    exports_dir = case_dir / "reference" / "matlab" / "MATLAB_exports"
 
     if not exports_dir.exists():
         pytest.skip(f"Missing MATLAB exports directory: {exports_dir}")
@@ -61,7 +62,7 @@ def test_case1_operator_stages_match_matlab_exports() -> None:
     }
 
     X, Y, baseflow, sponge = load_hamada_case(
-        case_dir,
+        baseflow_dir,
         Re=395000.0,
         Ma=2.0,
         Pr=0.747,

@@ -11,7 +11,9 @@ from tests._paths import case_fixture
 
 
 CASE1_DIR = case_fixture("case1")
-LEGACY_SPONGE = CASE1_DIR / "workflow" / "sponge_generator.py"
+BASEFLOW_DIR = CASE1_DIR / "data" / "baseflow"
+MATLAB_REF_DIR = CASE1_DIR / "reference" / "matlab"
+LEGACY_SPONGE = MATLAB_REF_DIR / "workflow" / "sponge_generator.py"
 
 
 def _load_legacy_module():
@@ -47,8 +49,8 @@ def test_native_sponge_matches_legacy_workflow_generator() -> None:
 
 
 def test_case1_sponge_presets_match_matlab_exports() -> None:
-    stability = _mat_sponge(CASE1_DIR / "MATLAB_exports" / "case_inputs_used.mat")
-    resolvent = _mat_sponge(CASE1_DIR / "MATLAB_exports_resolvent" / "case_inputs_used.mat")
+    stability = _mat_sponge(MATLAB_REF_DIR / "MATLAB_exports" / "case_inputs_used.mat")
+    resolvent = _mat_sponge(MATLAB_REF_DIR / "MATLAB_exports_resolvent" / "case_inputs_used.mat")
 
     native_stability = case1_sponge_from_config(
         stability.shape,
@@ -65,11 +67,11 @@ def test_case1_sponge_presets_match_matlab_exports() -> None:
 
 def test_load_hamada_case_can_inject_native_sponge() -> None:
     X, Y, baseflow, sponge = load_hamada_case(
-        CASE1_DIR,
+        BASEFLOW_DIR,
         transpose_input=True,
         native_sponge_cfg={"enabled": True, "preset": "case1_stability"},
     )
-    expected = _mat_sponge(CASE1_DIR / "MATLAB_exports" / "case_inputs_used.mat")
+    expected = _mat_sponge(MATLAB_REF_DIR / "MATLAB_exports" / "case_inputs_used.mat")
     np.testing.assert_equal(X.shape, expected.shape)
     np.testing.assert_equal(Y.shape, expected.shape)
     np.testing.assert_equal(baseflow.RHO.shape, expected.shape)
