@@ -99,7 +99,9 @@ def test_reject_reason_code_bitmask() -> None:
     )
     np.testing.assert_array_equal(result["rejected_indices"], np.array([1, 2], dtype=np.int32))
     np.testing.assert_array_equal(result["accepted_indices"], np.array([0], dtype=np.int32))
-    assert result["acceptance_conjugate_aware"] is False
+    # Default in this project is conjugate_aware=True (real-baseflow assumption).
+    # The test passes conjugate_aware implicitly -> default True.
+    assert result["acceptance_conjugate_aware"] is True
 
 
 def test_conjugate_aware_distance_accepts_conjugate() -> None:
