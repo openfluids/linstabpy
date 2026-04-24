@@ -2,6 +2,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
+\usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{enumitem}
@@ -20,6 +21,18 @@
 \emergencystretch=1.5em
 
 \newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\examplefigure}[3]{%
+  \begin{center}
+  \IfFileExists{#1}{%
+    \includegraphics[width=#2\linewidth]{#1}\\[-0.2em]
+    {\small #3}%
+  }{%
+    \begin{notebox}
+    Figure file \path{#1} is not present. Run the matching example first, or use \code{bash run_all_examples.sh --fresh --example N --skip-parity} to regenerate it.
+    \end{notebox}
+  }%
+  \end{center}
+}
 
 \newtcblisting{commandbox}{
   breakable,
@@ -309,7 +322,7 @@ Use it to understand the basic blocks: flow parameters, grid size, sponge, forci
 
 \section*{5. Martini example family}
 
-The Martini examples are the first complete tour through the library. They exercise derivative validation, resolvent analysis, temporal eigenvalues, spatial eigenvalues, direct modes, adjoint modes, 2-D operators, and axisymmetric operators.
+The Martini examples are the first complete tour through the library. They progress from a numerical derivative check to resolvent analysis, temporal stability, spatial stability, direct and adjoint modes, quasi-structured meshes, curvilinear coordinates, and axisymmetric operators. The physical descriptions below follow the Martini and Schmidt example text, while the commands and artifacts refer to this Python port.
 
 \begin{outputbox}
 0  example_0_curvilinear_validation  derivative and curvilinear-grid check
@@ -320,12 +333,29 @@ The Martini examples are the first complete tour through the library. They exerc
 5  example_5_paraboloid              curvilinear axisymmetric resolvent
 \end{outputbox}
 
+\subsection*{5.0 Common run and figure pattern}
+
+For acceptance, use the runner. For learning a single script, direct module execution is fine.
+
+\begin{commandbox}
+bash run_all_examples.sh --list
+bash run_all_examples.sh --fresh --example 2 --skip-parity
+bash run_all_examples.sh --clean --example 2 --skip-parity
+\end{commandbox}
+
+Each example writes an \code{.npz} cache and one or more \code{.png} figures in \path{examples/}. When the \code{.npz} exists, the script usually plots from cache. Remove the matching \code{.npz}, or use \code{--clean}, when you need to recompute the numerical solve.
+
+\begin{warningbox}
+The figures shown in this tutorial are generated artifacts. They are ignored by git, so a fresh checkout may show placeholder notes until the examples are run locally.
+\end{warningbox}
+
 \subsection*{5.1 Example 0: curvilinear derivative validation}
 
-This example contains no flow physics. It checks SBP finite-difference derivatives on a conformal mapping.
+Example 0 is the numerical preflight. It has no flow physics. It builds a symmetric computational mesh, maps it to a parabolic physical domain, evaluates a known function, and checks whether the curvilinear derivative operator differentiates it correctly. Use it before interpreting physical modes, because it exercises the mapping and finite-difference machinery without solver ambiguity.
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_0_curvilinear_validation
+bash run_all_examples.sh --fresh --example 0 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -345,15 +375,25 @@ examples/example_0_curvilinear_validation.npz
 examples/example_0_curvilinear_validation.png
 examples/example_0_curvilinear_validation_baseflow.png
 examples/example_0_curvilinear_validation_support_error.png
+artifacts/curvilinear_derivative_parity.json
 \end{outputbox}
+
+What to inspect: the mapped grid should remain smooth, and the support-error figure should localize the derivative error rather than showing a domain-wide failure. This case is mostly a geometry and derivative diagnostic.
+
+\examplefigure{../examples/example_0_curvilinear_validation_baseflow.png}{0.88}{Example 0 grid and mapped-domain view.}
+\examplefigure{../examples/example_0_curvilinear_validation.png}{0.82}{Example 0 derivative comparison.}
+\examplefigure{../examples/example_0_curvilinear_validation_support_error.png}{0.96}{Example 0 derivative-support error.}
 
 \subsection*{5.2 Example 1: Blasius resolvent}
 
-This is the standard boundary-layer resolvent example. Use the smoke version first, then the full example.
+Example 1 is the first physical resolvent case. It studies planar perturbations of a spatially evolving compressible Blasius boundary layer at low Mach number. The Martini example uses this case to show Tollmien--Schlichting wave amplification in a Cartesian domain.
+
+Start with the smoke case, then run the full native-resolution case:
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_1_blasius_smoke
 .venv/bin/python -m examples.example_1_blasius
+bash run_all_examples.sh --fresh --example 1 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -379,12 +419,34 @@ The boundary condition is Dirichlet on all sides for \code{uvwT}:
 }
 \end{snippetbox}
 
+Expected outputs:
+
+\begin{outputbox}
+examples/example_1_blasius.npz
+examples/example_1_blasius.png
+examples/example_1_blasius_baseflow.png
+examples/example_1_blasius_support_components.png
+examples/example_1_blasius_support_components_shared_limits.png
+\end{outputbox}
+
+What to inspect: the leading forcing is upstream, while the response is strongest downstream. This is the expected amplifier-flow signature of a non-normal boundary-layer operator. The leading response corresponds to the most efficiently forced Tollmien--Schlichting wavepacket. Suboptimal modes use similar physics but must be orthogonal to the leading mode, so their response patterns are modulated and their gains are lower.
+
+\begin{notebox}
+The verification note records \code{Re = 6e5} in MATLAB and Python. The paper text appears to understate this value as \code{60,000}; the MATLAB source and the Python port use \code{600,000}.
+\end{notebox}
+
+\examplefigure{../examples/example_1_blasius_baseflow.png}{0.92}{Example 1 Blasius base flow and sponge.}
+\examplefigure{../examples/example_1_blasius.png}{0.86}{Example 1 leading resolvent gains, forcing modes, and response modes.}
+\examplefigure{../examples/example_1_blasius_support_components.png}{0.82}{Example 1 forcing/response support components with individual color limits.}
+\examplefigure{../examples/example_1_blasius_support_components_shared_limits.png}{0.82}{Example 1 support components with shared color limits.}
+
 \subsection*{5.3 Example 2: axisymmetric jet resolvent}
 
-This case uses the axisymmetric model branch.
+Example 2 moves from Cartesian to cylindrical coordinates. It analyzes a Mach 0.9 turbulent jet mean flow and uses the axisymmetric branch with azimuthal mode \code{m = 0}. This case highlights Kelvin--Helmholtz wavepacket amplification in a spatially evolving jet.
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_2_jet
+bash run_all_examples.sh --fresh --example 2 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -397,19 +459,39 @@ Main knobs:
 "fd_order": 4
 \end{snippetbox}
 
-Use \code{coarsen} for faster exploratory runs. Keep \code{model: "axy"} for axisymmetric cases.
+Expected outputs:
 
-\subsection*{5.4 Example 3: streaky boundary layer}
+\begin{outputbox}
+examples/example_2_jet.npz
+examples/example_2_jet.png
+examples/example_2_jet_baseflow.png
+examples/example_2_jet_support_components.png
+\end{outputbox}
 
-This example runs both temporal and spatial stability branches.
+What to inspect: the leading forcing should be concentrated near the nozzle lip and mixing layer. The response forms a downstream wavepacket. The large leading gain is consistent with convective amplification associated with the inflectional jet mean flow. Higher modes have lower gain and more distributed support.
+
+\begin{notebox}
+The jet base flow and sponge are loaded from the same \code{.mat} source used by the MATLAB example, so this case is a useful data-loading and axisymmetric-operator parity check.
+\end{notebox}
+
+\examplefigure{../examples/example_2_jet_baseflow.png}{0.92}{Example 2 jet mean flow and coordinate system.}
+\examplefigure{../examples/example_2_jet.png}{0.86}{Example 2 axisymmetric jet resolvent modes and gains.}
+\examplefigure{../examples/example_2_jet_support_components.png}{0.76}{Example 2 forcing/response support components.}
+
+\subsection*{5.4 Example 3: streaky boundary-layer stability}
+
+Example 3 is a stability example rather than a resolvent example. It uses a locally parallel Mach 6 streaky boundary layer with periodicity in the spanwise direction and homogeneity in the streamwise direction. It demonstrates temporal eigenvalues, spatial eigenvalues, and Floquet handling of harmonic and subharmonic content.
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_3_streaky_bl
+bash run_all_examples.sh --fresh --example 3 --skip-parity
 \end{commandbox}
 
 Main knobs:
 
 \begin{snippetbox}
+"nx": 125,
+"ny": 250,
 "x_periodicity": true,
 "temporal_targets": [[0.59, 0.02], [0.626, -0.005]],
 "temporal_quotas": [2, 8],
@@ -419,14 +501,38 @@ Main knobs:
 "run_spatial": true
 \end{snippetbox}
 
-If you are learning the code, keep one analysis branch enabled at a time after the first successful run.
+Expected outputs:
+
+\begin{outputbox}
+examples/example_3_streaky_bl.npz
+examples/example_3_streaky_bl.png
+examples/example_3_streaky_bl_baseflow.png
+examples/example_3_streaky_bl_spatial.png
+examples/example_3_streaky_bl_spectra.png
+\end{outputbox}
+
+What to inspect: the temporal spectrum should identify unstable streak modes. The Floquet treatment lets the smaller domain separate harmonic and subharmonic branches. The spatial analysis follows the corresponding spatial branch and is used to reason about whether the instability is convective or absolute.
+
+\begin{notebox}
+The verification note records MATLAB and Python using \code{125 x 250}. The paper text appears to report a lower grid count; the MATLAB source is the authoritative reference for the port.
+\end{notebox}
+
+\examplefigure{../examples/example_3_streaky_bl_baseflow.png}{0.92}{Example 3 streaky boundary-layer base flow.}
+\examplefigure{../examples/example_3_streaky_bl_spectra.png}{0.96}{Example 3 temporal and spatial spectra.}
+\examplefigure{../examples/example_3_streaky_bl.png}{0.84}{Example 3 temporal modes.}
+\examplefigure{../examples/example_3_streaky_bl_spatial.png}{0.90}{Example 3 spatial-stability branch.}
+
+\begin{warningbox}
+This example is the most sensitive one for interpretation. If you are changing it, first converge the temporal spectrum before trusting spatial-branch plots. Increasing \code{ncv} or saved mode counts may be needed for detailed spectrum work, but that is a numerical-study change, not a tutorial change.
+\end{warningbox}
 
 \subsection*{5.5 Example 4: cavity direct and adjoint EVP}
 
-This case uses a masked, deformed cavity geometry and computes direct and adjoint temporal modes.
+Example 4 demonstrates a non-trivial geometry. The cavity is represented by a deformed grid and a mask, then direct and adjoint temporal eigenvalue problems are solved. Physically, the unstable modes are Rossiter-type feedback modes: shear-layer Kelvin--Helmholtz waves travel downstream, scatter near the downstream lip, and acoustic feedback inside the cavity can re-excite the shear layer.
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_4_cavity
+bash run_all_examples.sh --fresh --example 4 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -441,14 +547,34 @@ Main knobs:
 "assembly_backend": "scipy"
 \end{snippetbox}
 
-The cavity currently keeps the SciPy assembly path because the adjoint workflow remains SciPy-based.
+Expected outputs:
+
+\begin{outputbox}
+examples/example_4_cavity.npz
+examples/example_4_cavity.png
+examples/example_4_cavity_baseflow.png
+examples/example_4_cavity_direct.png
+examples/example_4_cavity_adjoint.png
+\end{outputbox}
+
+What to inspect: the direct and adjoint spectra should overlay after the documented conjugation convention. The direct modes show the unstable cavity feedback structure. The adjoint support is strongest near the upstream cavity region, which marks where disturbances most efficiently excite the unstable direct modes.
+
+\begin{notebox}
+The cavity currently keeps \code{assembly_backend: "scipy"} because the adjoint workflow remains SciPy-based.
+\end{notebox}
+
+\examplefigure{../examples/example_4_cavity_baseflow.png}{0.92}{Example 4 deformed and masked cavity base flow.}
+\examplefigure{../examples/example_4_cavity.png}{0.84}{Example 4 direct/adjoint spectra and selected mode support.}
+\examplefigure{../examples/example_4_cavity_direct.png}{0.74}{Example 4 selected direct cavity modes.}
+\examplefigure{../examples/example_4_cavity_adjoint.png}{0.74}{Example 4 selected adjoint cavity modes.}
 
 \subsection*{5.6 Example 5: paraboloid resolvent}
 
-This case combines a curvilinear transformation with the axisymmetric model.
+Example 5 combines curvilinear coordinates with the axisymmetric model. It maps a Cartesian computational grid around a paraboloid body and computes resolvent modes for azimuthal mode \code{m = 5}. The example is intended to show receptivity and streak formation around a body rather than a simple rectangular flow.
 
 \begin{commandbox}
 .venv/bin/python -m examples.example_5_paraboloid
+bash run_all_examples.sh --fresh --example 5 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -462,6 +588,49 @@ Main knobs:
 "use_omega_shift_fallback": true,
 "forcing_zero_vars": ["T", "rho"]
 \end{snippetbox}
+
+Expected outputs:
+
+\begin{outputbox}
+examples/example_5_paraboloid.npz
+examples/example_5_paraboloid.png
+examples/example_5_paraboloid_baseflow.png
+examples/example_5_paraboloid_support_components.png
+\end{outputbox}
+
+What to inspect: forcing and response concentrate around the body and stagnation-region boundary layer. The mechanism is tied to streamwise vortices that enter the boundary layer and create downwash/upwash patterns; these redistribute high- and low-speed fluid and form streaks through lift-up. Suboptimal modes show additional radial or wall-normal nodes and lower gains.
+
+\begin{notebox}
+The Python port includes the physical-domain scaling before the conformal mapping. The earlier missing-scaling issue recorded in the verification note is not a current tutorial warning.
+\end{notebox}
+
+\examplefigure{../examples/example_5_paraboloid_baseflow.png}{0.92}{Example 5 curvilinear paraboloid base flow.}
+\examplefigure{../examples/example_5_paraboloid.png}{0.84}{Example 5 paraboloid resolvent modes and gains.}
+\examplefigure{../examples/example_5_paraboloid_support_components.png}{0.76}{Example 5 forcing/response support components.}
+
+\subsection*{5.7 Figure-quality notes for the next figure pass}
+
+The current figures are usable for this tutorial, but several can be improved for publication-style reporting. The most common improvements are LaTeX-rendered axis labels, closer title placement, tighter colorbar spacing, and shared color limits for support-component comparisons. Example-specific items worth addressing in the plotting code are:
+
+\begin{itemize}[leftmargin=2em]
+  \item Example 0: show the full physical grid more explicitly and use scientific notation for small derivative errors.
+  \item Examples 1, 2, and 5: reduce spacing between mode panels and move titles closer to the plotted area.
+  \item Example 3: verify the baseflow panel uses the intended streamwise component and converge the temporal spectrum before using the spatial branch for claims.
+  \item Example 4: review cavity-baseflow masking and extent against the MATLAB figure and document why the selected direct/adjoint modes are shown.
+  \item All examples: use consistent math fonts, colorbar tick spacing, and white-centered diverging colormaps for signed modes.
+\end{itemize}
+
+\subsection*{5.8 Martini parity notes}
+
+The Python examples are also parity checks against the Martini MATLAB source. The comparison script checks saved gains, spectra, and extracted artifacts where reference bundles are available. Use these notes when a result appears to disagree with the paper text:
+
+\begin{outputbox}
+Example 1  gains and mode artifacts   paper Re text appears inconsistent
+Example 2  gains, baseflow, sponge    .mat source matches MATLAB path
+Example 3  temporal/spatial spectra   MATLAB/Python grid is 125 x 250
+Example 4  direct/adjoint spectra     adjoint convention is post-processed
+Example 5  gains and mapped domain    mapping scaling is fixed in Python
+\end{outputbox}
 
 \section*{6. Run the Martini parity checks}
 

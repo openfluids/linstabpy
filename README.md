@@ -297,6 +297,8 @@ Use `run_all_examples.sh` as the single example runner for serial acceptance,
 cache cleanup, parity checks, and MPI launches. Direct module execution with
 `.venv/bin/python -m ...` is still useful for focused debugging, but the runner
 is the documented path for full example validation and MPI-safe launches.
+For a figure-by-figure walkthrough of the Martini examples, see
+`tutorial/tutorial.pdf`, Section 5.
 
 | Task | Command |
 |---|---|
