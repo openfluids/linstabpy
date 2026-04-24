@@ -28,33 +28,33 @@ Cada campanha grava em `output/<campanha>/`:
 
 ## Arquivos ativos nesta pasta
 
-- `parity_config.jsonc` — configuração canônica do caso
 - `case2.py` — entrada de um caso só
 - `perf_memory.py` — orquestrador de campanha
 - `run_case_once.sh`, `run_perf_queue_once.sh` — wrappers
-- `evp_stride*.jsonc` — configs por experimento (malha × target × solver)
-- `plot_saved_spectra.py`, `plot_saved_modes.py` — pós-processamento
+- `configs/parity_config.jsonc` — configuração canônica do caso
+- `configs/evp/evp_stride*.jsonc` — configs por experimento (malha × target × solver)
+- `scripts/plot_saved_spectra.py`, `scripts/plot_saved_modes.py` — pós-processamento
 
 ## Commands
 
 Rodar a campanha ativa (exemplo: M21 com target oscilatório):
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python studies/case2/perf_memory.py
 ```
 
 Plotar o espectro salvo:
 
 ```bash
-./.venv/bin/python studies/case2/plot_saved_spectra.py \
+./.venv/bin/python studies/case2/scripts/plot_saved_spectra.py \
   --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Plotar os modos salvos:
 
 ```bash
-./.venv/bin/python studies/case2/plot_saved_modes.py \
+./.venv/bin/python studies/case2/scripts/plot_saved_modes.py \
   --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 

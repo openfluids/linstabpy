@@ -2,7 +2,7 @@
 
 Date: 2026-04-24
 Branch: `main`
-Status: proposal; no folder moves have been started in this plan
+Status: implemented on `main`
 
 ## Purpose
 
@@ -19,6 +19,23 @@ The goal is a repository where a new reader can immediately distinguish:
 This plan replaces the older cleanup plan as the current `plan.md`. Open
 non-folder numerical/release items from that plan are preserved in the final
 section so they are not lost.
+
+## Implementation Ledger
+
+- Phase 0 preflight: completed.
+- Phase 1 study-folder cleanup: completed in `f8b1fd8`.
+- Phase 2 validation-folder consolidation: completed in `3b67ba1`.
+- Phase 3 legacy-layout fallback removal: completed in `ad341b8`.
+- Phase 4 study runtime split: completed in `d362fff`.
+- Phase 5 documentation refresh: completed in the final documentation commit.
+
+Verification notes:
+
+- Path-sensitive compile, shell-syntax, direct import/config, tracked-size, and
+  diff-whitespace checks were run during the implementation.
+- Pytest collection is blocked in this local checkout because `petsc4py` is not
+  installed; collection stops in `tests/conftest.py` before reaching the
+  changed tests.
 
 ## Current Evidence
 

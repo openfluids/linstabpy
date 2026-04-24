@@ -607,7 +607,7 @@ slightly on symmetric M2 but qualitative finding holds.*
 
 Built a Python Lele 1992 F2 / F4 filter as an independent reference
 (diagnostic script, not in linstabpy core —
-`studies/case2/phase1p5_lele_filter_reference.py`). Applied to
+`studies/case2/scripts/phase1p5_lele_filter_reference.py`). Applied to
 Qraw on M21, then compared gradient peaks:
 
 | filter | `|∂Ū/∂x|_max` | `|∂Ū/∂y|_max` |

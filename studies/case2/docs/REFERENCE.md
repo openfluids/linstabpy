@@ -59,7 +59,7 @@ Lui (2022)** — see `docs/lui2022.md` and `docs/lui2022/`. The mean flow
 we linearise around is the spanwise-and-time average of Lui's LES run
 (same simulation, not a derivative).
 
-Active physical parameters (from `studies/case2/parity_config.jsonc`):
+Active physical parameters (from `studies/case2/configs/parity_config.jsonc`):
 
 - `Re = 3.95 × 10⁵`
 - `Ma = 2.0`
@@ -231,20 +231,19 @@ Standard treatments, in order of prevalence:
 
 ## Parameter Map
 
-Parameters that matter in the active code path. Source-file pointers refer to
-`/home/ghamada/linstabpy/src/...`.
+Parameters that matter in the active code path.
 
 ### Mean-flow input
 
 - `paths.case_dir` — which baseflow dataset is loaded. Active target:
-  `studies/case2/baseflow`. Filtered-mean variants live as separate datasets
+  `studies/case2/data/baseflow`. Filtered-mean variants live as separate datasets
   (e.g. `baseflow_filt`), switched via this path — **not** via
   `alpha_filter`.
 
 ### Mesh resolution
 
 - `numerics.stride_ksi`, `numerics.stride_eta` — coarsening during case
-  loading (`results_runtime.py:379,515`). `1` = full; `2` = every other
+  loading in `studies/common/results_runtime.py`. `1` = full; `2` = every other
   point; `4` = coarse legacy.
 
 Active nomenclature:
@@ -270,18 +269,17 @@ obtained on it must be re-confirmed at `M1` before it enters the paper.
 ### Spanwise parameter
 
 - `numerics.beta` — forwarded as `kx=beta` to the LNSE assembly
-  (`results_runtime.py:592`, `assembly.py:585`). Pinned `0.0` for this
+  in `studies/common/results_runtime.py`. Pinned `0.0` for this
   sub-campaign. **Caveat:** `β=0` forecloses any 3D branch by construction;
   this is a 2D-subspace study until the baseline is stable.
 
 ### Numerical mesh filter in the operator
 
 - `numerics.alpha_filter` — mesh filter strength, builds filter operators in
-  `filters.py:293`. Numeric `0.0` ≠ `"none"` in the filter machinery
-  (`filters.py:479`). The runtime forces EVP-only runs to `"none"` when
-  `run_resolvent = false` (`results_runtime.py:103`). Therefore in the active
-  EVP-only campaign `alpha_filter` is effectively disabled. **This parameter
-  is not "mean-flow filtering"** — that lives at dataset level.
+  `filters.py`. Numeric `0.0` is not the same as `"none"` in the filter
+  machinery, and the runtime now honors the configured value for EVP-only and
+  resolvent runs alike. **This parameter is not "mean-flow filtering"** —
+  that lives at dataset level.
 
 ### Analysis switches
 
@@ -298,7 +296,7 @@ obtained on it must be re-confirmed at `M1` before it enters the paper.
 ### Spectral target
 
 - `analysis.omega_target` — complex shift-invert target. If omitted, built
-  from `St`, `ratio_uinf`, `ratio_l` (`results_runtime.py:389`). In SLEPc:
+  from `St`, `ratio_uinf`, `ratio_l` in `studies/common/results_runtime.py`. In SLEPc:
   `eps.setTarget`, `eps.setWhichEigenpairs(TARGET_MAGNITUDE)`,
   `st.setShift`. **Not a passive hint** — it defines the interior eigensolve
   centre.
@@ -344,7 +342,7 @@ Two residual concepts in saved artifacts:
 1. **SLEPc residual** `stability_residual_relative` — from
    `eps.computeError(...)` in `eigenvalue.py:738`.
 2. **Explicit postcheck residual** `stability_postcheck_residual_rel` —
-   `|| i L0 v − ω v || / ||v||` in `results_runtime.py:191`.
+   `|| i L0 v − ω v || / ||v||` in `studies/common/results_runtime.py`.
 
 Rules:
 

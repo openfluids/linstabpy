@@ -89,7 +89,7 @@ Caso portátil, sem depender de `rankfile`:
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 studies/case2/run_case_once.sh \
-  studies/case2/parity_config.jsonc \
+  studies/case2/configs/parity_config.jsonc \
   studies/case2/output/runs/case2_manual.npz
 ```
 
@@ -99,7 +99,7 @@ Caso com pinagem local desta máquina:
 LINSTAB2D_MPI_PROCS=10 \
 LINSTAB2D_MPI_PRESET=socket0 \
 studies/case2/run_case_once.sh \
-  studies/case2/parity_config.jsonc \
+  studies/case2/configs/parity_config.jsonc \
   studies/case2/output/runs/case2_manual.npz
 ```
 
@@ -128,7 +128,7 @@ Isso lança **10 execuções seriais independentes**.
 ### Passo 1. Copie a configuração-base
 
 ```bash
-cp studies/case2/parity_config.jsonc studies/case2/meu_caso_stride2.jsonc
+cp studies/case2/configs/parity_config.jsonc studies/case2/meu_caso_stride2.jsonc
 ```
 
 ### Passo 2. Edite o novo JSONC
@@ -302,7 +302,7 @@ LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
 studies/case2/run_case_once.sh \
-  studies/case2/parity_config.jsonc \
+  studies/case2/configs/parity_config.jsonc \
   studies/case2/output/runs/case2_socket_unico.npz
 ```
 
@@ -406,7 +406,7 @@ Estrutura mínima de um JSONC de campanha:
 Para rodar a campanha:
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python studies/case2/perf_memory.py
 ```
 
@@ -446,14 +446,14 @@ Na prática:
 Espectro salvo de uma campanha:
 
 ```bash
-./.venv/bin/python studies/case2/plot_saved_spectra.py \
+./.venv/bin/python studies/case2/scripts/plot_saved_spectra.py \
   --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Modos salvos:
 
 ```bash
-./.venv/bin/python studies/case2/plot_saved_modes.py \
+./.venv/bin/python studies/case2/scripts/plot_saved_modes.py \
   --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 

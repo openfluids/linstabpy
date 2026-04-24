@@ -7,10 +7,10 @@ stays honest and reproducible.
 
 ## Prerequisites
 
-1. `Qfilt` arrives as an `.npy` sibling to `baseflow/` — e.g.
-   `studies/case2/baseflow_filt/` — with identical shape `(599, 679)`
+1. `Qfilt` arrives as a dataset sibling to `data/baseflow/` — e.g.
+   `studies/case2/data/baseflow_filt/` — with identical shape `(599, 679)`
    (pre-transpose), same grid, same `sponge.npy`.
-2. Record the filter provenance inside `baseflow_filt/`:
+2. Record the filter provenance inside `data/baseflow_filt/`:
    - source (upstream pipeline, filter name, α value, number of
      passes);
    - author and date;
@@ -24,20 +24,20 @@ Run these scripts, first on `Qraw` (done), then on `Qfilt`:
 
 ```bash
 # Already done for Qraw:
-.venv/bin/python studies/case2/phase1p5_baseflow_spectrum.py
+.venv/bin/python studies/case2/scripts/phase1p5_baseflow_spectrum.py
 
 # To run for Qfilt (after copy/point paths):
-LINSTAB2D_QFILT_DIR=studies/case2/baseflow_filt \
-  .venv/bin/python studies/case2/phase1p5_baseflow_spectrum.py
+LINSTAB2D_QFILT_DIR=studies/case2/data/baseflow_filt \
+  .venv/bin/python studies/case2/scripts/phase1p5_baseflow_spectrum.py
 #  (script would need a --case-dir flag added; currently hard-coded)
 ```
 
 Artefacts to compare side-by-side:
 
-- `phase1p5/qraw_u_2d_fft.png` vs `qfilt_u_2d_fft.png` — expect
+- `artifacts/phase1p5/qraw_u_2d_fft.png` vs `qfilt_u_2d_fft.png` — expect
   the diagonal shock ridges and corners to be visibly darker under
   Qfilt.
-- `phase1p5/qraw_u_with_stations.png` vs `qfilt_u_with_stations.png`
+- `artifacts/phase1p5/qraw_u_with_stations.png` vs `qfilt_u_with_stations.png`
   — expect thicker shocks (visible spatial smoothing) and preserved
   bulk structure.
 - Gradient-peak table (values of `max|∂Ū/∂x|`, `max|∂Ū/∂y|`):
@@ -45,7 +45,7 @@ Artefacts to compare side-by-side:
 
 ### Track B — EVP contamination
 
-Exactly the same three EVP configs, pointed at `baseflow_filt/`:
+Exactly the same three EVP configs, pointed at `data/baseflow_filt/`:
 
 1. `evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc` — the
    original "row 5" reproduction. 2 modes at `eps_tol=1e-4`.
@@ -58,21 +58,21 @@ Exactly the same three EVP configs, pointed at `baseflow_filt/`:
 For each run, score with:
 
 ```bash
-.venv/bin/python studies/case2/phase1p5_score_run.py <npz>
-.venv/bin/python studies/case2/phase1p5_plot_spectrum.py \
+.venv/bin/python studies/case2/scripts/phase1p5_score_run.py <npz>
+.venv/bin/python studies/case2/scripts/phase1p5_plot_spectrum.py \
     "Qraw osc"=<qraw_osc_npz> "Qfilt osc"=<qfilt_osc_npz>
-.venv/bin/python studies/case2/phase1p5_plot_modes.py <qfilt_osc_npz>
-.venv/bin/python studies/case2/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
+.venv/bin/python studies/case2/scripts/phase1p5_plot_modes.py <qfilt_osc_npz>
+.venv/bin/python studies/case2/scripts/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
 ```
 
 ### Track C — direct comparison figure
 
 Produce one figure that tells the Qfilt story in one glance:
 
-- `phase1p5/qraw_vs_qfilt_spectrum.png` — two-panel: Qraw spectrum
+- `artifacts/phase1p5/qraw_vs_qfilt_spectrum.png` — two-panel: Qraw spectrum
   (target + wall-local cluster) | Qfilt spectrum (target + whatever
   remains).
-- `phase1p5/qraw_vs_qfilt_mode_peak_shift.png` — mode 0 and mode 1
+- `artifacts/phase1p5/qraw_vs_qfilt_mode_peak_shift.png` — mode 0 and mode 1
   peak locations on the `(x, y)` domain for both fields; expect the
   peaks to either shift away from the shock foot / wall or weaken
   substantially.
