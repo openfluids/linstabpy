@@ -318,6 +318,19 @@ to one thread per rank unless the caller already set them. Override the runtime
 with `LINSTABPY_MPIEXEC`, `LINSTABPY_MPI_RANKS`, or `LINSTABPY_PYTHON` when a
 machine needs explicit paths.
 
+### 3.2 Why JSONC configs?
+
+You may not be familiar with JSONC. It is JSON with comments, and this repo uses
+it deliberately even though plain JSON is more common. Each example is a
+numerical case definition: Reynolds number, Mach number, grid size, boundary
+conditions, sponge settings, forcing masks, solver targets, and PETSc/MPI
+choices should be visible, diffable, and explained next to the values.
+
+Plain JSON would remove those explanations. Long command-line flags would hide
+too much state in shell history or runner scripts. Python config files would mix
+data with executable code. JSONC keeps the inputs close to strict JSON while
+still letting the case file document why each parameter exists.
+
 ## 4. Repository layout
 
 ```text
