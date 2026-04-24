@@ -2,25 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 import types
-from pathlib import Path
 
 import numpy as np
 from linstab2d import results_runtime
-
-
-ROOT = Path(__file__).resolve().parent.parent
-NCV_PATH = ROOT / "results" / "case2" / "legacy" / "run_ncv_milestones.py"
-SHOCK_PATH = ROOT / "results" / "case2" / "legacy" / "run_shock_cleanup_experiment.py"
-
-
-def _load_module(path: Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_effective_alpha_filter_keeps_filter_for_resolvent():
@@ -32,96 +17,36 @@ def test_effective_alpha_filter_keeps_filter_without_resolvent():
     assert results_runtime._effective_alpha_filter(0.0, run_resolvent=False, context="unit") == 0.0
 
 
-def test_run_ncv_prepare_case_keeps_mesh_filter_without_resolvent(monkeypatch):
-    ncv_runtime = _load_module(NCV_PATH, "case2_ncv_alpha_runtime")
+def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
     mesh_create_calls: list[object] = []
 
     baseflow = types.SimpleNamespace(
         RHO=np.ones((2, 2)),
+        U=np.ones((2, 2)),
         T=np.ones((2, 2)),
         dmudT=np.zeros((2, 2)),
         d2mudT2=np.zeros((2, 2)),
         kappa=1.4,
         Ma=2.0,
     )
-
-    class FakeCmesh:
-        def deform(self, *, X_new, Y_new):
-            return types.SimpleNamespace(
-                ngp=4,
-                used_ind=np.arange(4, dtype=np.int64),
-                W=np.ones((2, 2)),
-                sponge=None,
-            )
-
-    class FakeMeshClass:
-        @staticmethod
-        def create(*args, **kwargs):
-            mesh_create_calls.append(kwargs["alpha_filter"])
-            return FakeCmesh()
-
-    class FakeMat:
-        def getInfo(self):
-            return {"nz_used": 0}
-
-    monkeypatch.setattr(ncv_runtime, "_log", lambda message: None)
-    monkeypatch.setattr(ncv_runtime, "_log_stage", lambda stage, start: None)
-    monkeypatch.setattr(
-        ncv_runtime,
-        "load_hamada_case",
-        lambda *args, **kwargs: (
-            np.zeros((2, 2)),
-            np.zeros((2, 2)),
-            baseflow,
-            np.zeros((2, 2)),
-        ),
-    )
-    monkeypatch.setattr(ncv_runtime, "sutherland_air", lambda baseflow: None)
-    monkeypatch.setattr(ncv_runtime, "Mesh", FakeMeshClass)
-    monkeypatch.setattr(
-        ncv_runtime,
-        "build_lnse_system",
-        lambda *args, **kwargs: (FakeMat(), {"u_j": np.arange(4, dtype=np.int64)}, np.array([], dtype=np.int64)),
-    )
-    monkeypatch.setattr(
-        ncv_runtime,
-        "analyze_bc_recipe",
-        lambda *args, **kwargs: {
-            "total_bc_indices": np.array([], dtype=np.int64),
-            "effective_dirichlet_indices": np.array([], dtype=np.int64),
-            "effective_neumann_indices": np.array([], dtype=np.int64),
-            "overlap_indices": np.array([], dtype=np.int64),
-        },
-    )
-    monkeypatch.setattr(
-        ncv_runtime,
-        "compute_chu_norm",
-        lambda *args, **kwargs: (np.ones(20, dtype=float), np.ones(20, dtype=float)),
-    )
-
-    ncv_runtime._prepare_case(
+    config_path = tmp_path / "case.jsonc"
+    output_path = tmp_path / "case.npz"
+    config_path.write_text(
+        """
         {
-            "analysis": {"run_resolvent": False},
-            "numerics": {"alpha_filter": 0.0},
-            "solver": {},
+          "paths": {"case_dir": "."},
+          "analysis": {
+            "run_stability": false,
+            "run_resolvent": false
+          },
+          "numerics": {
+            "alpha_filter": 0.0,
+            "fd_order": 4
+          },
+          "solver": {}
         }
-    )
-
-    assert mesh_create_calls == [0.0]
-
-
-def test_shock_cleanup_branch_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
-    shock_runtime = _load_module(SHOCK_PATH, "case2_shock_alpha_runtime")
-    mesh_create_calls: list[object] = []
-
-    baseflow = types.SimpleNamespace(
-        RHO=np.ones((2, 2)),
-        U=np.ones((2, 2)),
-        V=np.ones((2, 2)),
-        W=np.zeros((2, 2)),
-        T=np.ones((2, 2)),
-        kappa=1.4,
-        Ma=2.0,
+        """,
+        encoding="utf-8",
     )
 
     class FakeCmesh:
@@ -131,6 +56,8 @@ def test_shock_cleanup_branch_keeps_mesh_filter_without_resolvent(monkeypatch, t
                 used_ind=np.arange(4, dtype=np.int64),
                 W=np.ones((2, 2)),
                 sponge=None,
+                X=X_new,
+                Y=Y_new,
                 filters=None,
             )
 
@@ -141,49 +68,58 @@ def test_shock_cleanup_branch_keeps_mesh_filter_without_resolvent(monkeypatch, t
             return FakeCmesh()
 
     class FakeMat:
-        shape = (20, 20)
-
         def getInfo(self):
             return {"nz_used": 0}
 
-    fake_petsc = types.SimpleNamespace(COMM_WORLD=types.SimpleNamespace(getRank=lambda: 1))
-
-    monkeypatch.setattr(shock_runtime, "_log", lambda message: None)
-    monkeypatch.setattr(shock_runtime, "_log_stage", lambda stage, start: None)
-    monkeypatch.setattr(shock_runtime, "Mesh", FakeMeshClass)
+    monkeypatch.setenv("LINSTAB2D_CASE_CONFIG", str(config_path))
+    monkeypatch.setenv("LINSTAB2D_CASE_OUTPUT_NPZ", str(output_path))
+    monkeypatch.setattr(results_runtime, "_log", lambda message: None)
+    monkeypatch.setattr(results_runtime, "_log_stage", lambda stage, start: None)
     monkeypatch.setattr(
-        shock_runtime,
+        results_runtime,
+        "load_hamada_case",
+        lambda *args, **kwargs: (
+            np.zeros((2, 2)),
+            np.zeros((2, 2)),
+            baseflow,
+            np.zeros((2, 2)),
+        ),
+    )
+    monkeypatch.setattr(results_runtime, "sutherland_air", lambda baseflow: None)
+    monkeypatch.setattr(results_runtime, "Mesh", FakeMeshClass)
+    monkeypatch.setattr(
+        results_runtime,
         "build_lnse_system",
-        lambda *args, **kwargs: (FakeMat(), {"u_j": np.arange(4, dtype=np.int64)}, np.array([], dtype=np.int64)),
+        lambda *args, **kwargs: (
+            FakeMat(),
+            {
+                "rho_j": np.arange(4, dtype=np.int64),
+                "u_j": np.arange(4, 8, dtype=np.int64),
+                "v_j": np.arange(8, 12, dtype=np.int64),
+                "w_j": np.arange(12, 16, dtype=np.int64),
+                "T_j": np.arange(16, 20, dtype=np.int64),
+            },
+            np.array([], dtype=np.int64),
+        ),
     )
     monkeypatch.setattr(
-        shock_runtime,
+        results_runtime,
         "analyze_bc_recipe",
         lambda *args, **kwargs: {
+            "total_bc_indices": np.array([], dtype=np.int64),
             "effective_dirichlet_indices": np.array([], dtype=np.int64),
             "column_zeroed_dirichlet_indices": np.array([], dtype=np.int64),
-            "total_bc_indices": np.array([], dtype=np.int64),
+            "effective_neumann_indices": np.array([], dtype=np.int64),
+            "overlap_indices": np.array([], dtype=np.int64),
         },
     )
     monkeypatch.setattr(
-        shock_runtime,
+        results_runtime,
         "compute_chu_norm",
         lambda *args, **kwargs: (np.ones(20, dtype=float), np.ones(20, dtype=float)),
     )
-    monkeypatch.setattr(shock_runtime, "PETSc", fake_petsc)
 
-    shock_runtime._run_branch(
-        "baseline",
-        X=np.zeros((2, 2)),
-        Y=np.zeros((2, 2)),
-        baseflow=baseflow,
-        sponge=np.zeros((2, 2)),
-        config={"numerics": {"alpha_filter": 0.0}, "solver": {}},
-        run_stability=False,
-        run_resolvent=False,
-        save_mode_count=1,
-        output_dir=tmp_path,
-        cleanup_summary="none",
-    )
-
+    results_runtime.compute()
     assert mesh_create_calls == [0.0]
+    with np.load(output_path, allow_pickle=False) as data:
+        assert data["alpha_filter"].item() == "0.0"
