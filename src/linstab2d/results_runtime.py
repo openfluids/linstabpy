@@ -1,6 +1,6 @@
-"""Shared runtime for the case-style results drivers.
+"""Shared runtime for the case-style study drivers.
 
-Wrappers under ``results/case*/`` prepare case-specific environment defaults
+Wrappers under ``studies/case*/`` prepare case-specific environment defaults
 and then call ``compute()`` / ``main()`` from this module.
 """
 

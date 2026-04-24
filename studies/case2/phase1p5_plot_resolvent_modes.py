@@ -3,7 +3,7 @@
 resolvent run.
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_plot_resolvent_modes.py \\
+    .venv/bin/python studies/case2/phase1p5_plot_resolvent_modes.py \\
         <npz_path>
 
 Shows |u| of the leading forcing and response modes.

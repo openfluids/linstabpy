@@ -46,12 +46,16 @@ Completed on `main`:
   - `.github/workflows/guardrails.yml`
 - Two over-50 MiB raw MATLAB exports were removed from Git tracking. The paths
   remain ignored if the files are restored locally:
-  - `results/case1/MATLAB_exports/operator_convention.mat`
+  - `studies/case1/MATLAB_exports/operator_convention.mat`
   - `validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/coefficients_raw.mat`
 - Shared test path helper added:
   - `tests/_paths.py`
 - Operator fixture schema added:
   - `validation/operator_fixtures/SCHEMA.md`
+- Phase 1 layout move implemented:
+  - `results/case1` moved to `studies/case1`
+  - `results/case2` moved to `studies/case2`
+  - study references were rewritten to the new `studies/` namespace
 - Safe GEMINI hygiene items implemented in the current pass:
   - duplicate `install_tester/src` and `install_tester/examples` removed
   - `install_tester` scripts now wrap the canonical repository scripts
@@ -65,8 +69,6 @@ Completed on `main`:
 
 Still open:
 
-- `results/case1` and `results/case2` are still active tracked study
-  directories.
 - `src/linstab2d/results_runtime.py` still contains study orchestration in
   package code.
 - `src/linstab2d/baseflow/case1.py` still contains study-specific Hamada/Case 1
@@ -128,6 +130,8 @@ Directory rules:
   the code and this plan.
 
 ## Phase 1 - Finish Layout Cleanup
+
+Status: implemented in the current pass.
 
 Goal: stop using `results/` as the source namespace for active studies.
 
@@ -320,5 +324,5 @@ When ready:
 
 ## Immediate Next Step
 
-Start with Phase 1: move `results/case1` and `results/case2` to `studies/`,
-then update references and run the non-slow test suite.
+Continue with Phase 4 compact operator fixtures or Phase 5 study-runtime
+separation. Numerical GEMINI findings still require focused test-first passes.

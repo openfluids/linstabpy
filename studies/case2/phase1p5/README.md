@@ -1,6 +1,6 @@
 # Phase 1.5 artifacts
 
-Diagnostic outputs produced by the `results/case2/phase1p5_*.py` scripts.
+Diagnostic outputs produced by the `studies/case2/phase1p5_*.py` scripts.
 Each script writes into this directory directly (they call
 `(SCRIPT.parent / "phase1p5").mkdir(exist_ok=True)`), so the set is
 append-only until pruned.
@@ -88,7 +88,7 @@ Campaigns present:
 All scripts are idempotent — re-running overwrites. Example:
 
 ```bash
-.venv/bin/python results/case2/phase1p5_baseflow_spectrum.py
-.venv/bin/python results/case2/phase1p5_classify_modes.py <path/to/modes.npz>
-.venv/bin/python results/case2/phase1p5_plot_resolvent_gain.py <campaign_name>
+.venv/bin/python studies/case2/phase1p5_baseflow_spectrum.py
+.venv/bin/python studies/case2/phase1p5_classify_modes.py <path/to/modes.npz>
+.venv/bin/python studies/case2/phase1p5_plot_resolvent_gain.py <campaign_name>
 ```

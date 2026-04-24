@@ -2,8 +2,8 @@
 """Score an EVP run against PLAN.md acceptance criteria.
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_score_run.py \
-        results/case2/output/<campaign>/runs/<case>.npz
+    .venv/bin/python studies/case2/phase1p5_score_run.py \
+        studies/case2/output/<campaign>/runs/<case>.npz
 
 Reads the npz artifact and the sibling .config.json and prints:
     - eigenvalues returned

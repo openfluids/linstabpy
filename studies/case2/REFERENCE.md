@@ -59,7 +59,7 @@ Lui (2022)** — see `docs/lui2022.md` and `docs/lui2022/`. The mean flow
 we linearise around is the spanwise-and-time average of Lui's LES run
 (same simulation, not a derivative).
 
-Active physical parameters (from `results/case2/parity_config.jsonc`):
+Active physical parameters (from `studies/case2/parity_config.jsonc`):
 
 - `Re = 3.95 × 10⁵`
 - `Ma = 2.0`
@@ -237,7 +237,7 @@ Parameters that matter in the active code path. Source-file pointers refer to
 ### Mean-flow input
 
 - `paths.case_dir` — which baseflow dataset is loaded. Active target:
-  `results/case2/baseflow`. Filtered-mean variants live as separate datasets
+  `studies/case2/baseflow`. Filtered-mean variants live as separate datasets
   (e.g. `baseflow_filt`), switched via this path — **not** via
   `alpha_filter`.
 

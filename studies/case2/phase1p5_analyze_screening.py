@@ -2,7 +2,7 @@
 """Analyze a multi-case screening campaign.
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_analyze_screening.py \\
+    .venv/bin/python studies/case2/phase1p5_analyze_screening.py \\
         <campaign-runs-dir>
 
 Expects the sibling `.config.json` files for each `.npz`.

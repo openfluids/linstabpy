@@ -186,7 +186,7 @@ until the call is made.
 
 ### Phase 1.5 diagnostic — method and results
 
-**Script.** `results/case2/phase1p5_baseflow_spectrum.py`. Loads
+**Script.** `studies/case2/phase1p5_baseflow_spectrum.py`. Loads
 `baseflow/` via `load_hamada_case` (stride=1, so native `(679, 599)`),
 picks 4 streamwise stations, takes `U[:, ξ_station]` (a 679-point
 wall-normal profile at each), mean-subtracts, computes `|rfft|²` along
@@ -249,10 +249,10 @@ signature for "DNS operator on LES-filtered mean".
 
 ### Outputs
 
-- `results/case2/phase1p5/qraw_u_with_stations.png` — field with stations
-- `results/case2/phase1p5/qraw_u_wall_normal_spectrum.png` — spectra
-- `results/case2/phase1p5/summary.txt` — numbers
-- `results/case2/phase1p5_baseflow_spectrum.py` — the diagnostic
+- `studies/case2/phase1p5/qraw_u_with_stations.png` — field with stations
+- `studies/case2/phase1p5/qraw_u_wall_normal_spectrum.png` — spectra
+- `studies/case2/phase1p5/summary.txt` — numbers
+- `studies/case2/phase1p5_baseflow_spectrum.py` — the diagnostic
 
 ### Blockers and next steps
 
@@ -341,7 +341,7 @@ station.
 ## 2026-04-18 — Entry 4. Lele-filter reference built; 1D plateau metric debunked.
 
 **Plan for this entry.** Build a Python Lele compact filter in
-`results/case2/phase1p5_lele_filter_reference.py` (diagnostic only,
+`studies/case2/phase1p5_lele_filter_reference.py` (diagnostic only,
 outside linstabpy core per REFERENCE §3), apply it to `Qraw`, and show
 what `Qfilt` should look like. Use to validate the upstream delivery
 once it arrives.
@@ -1678,6 +1678,6 @@ priority of:
 
 ### Artefacts
 
-- Log: `results/case2/output/evp_m2_qraw_tight_certify/logs/case2_perf_stationary_m0p6948_20260420T090005Z.log`
+- Log: `studies/case2/output/evp_m2_qraw_tight_certify/logs/case2_perf_stationary_m0p6948_20260420T090005Z.log`
 - No NPZ (killed before solve output).
-- Config: `results/case2/evp_m2_qraw_tight_certify.jsonc` (kept as-is).
+- Config: `studies/case2/evp_m2_qraw_tight_certify.jsonc` (kept as-is).

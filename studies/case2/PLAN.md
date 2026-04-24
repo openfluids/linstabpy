@@ -446,7 +446,7 @@ tracking (Phase 8) runs in parallel rather than in series.
 
 | Owner | TODO | Blocks |
 |---|---|---|
-| you | **Deliver `Qfilt` dataset** (Lele 1992 2nd-order compact filter applied to Lui mean flow). Place under `results/case2/` with metadata recording filter provenance, including: filter order, α, number of passes, BC treatment, and whether any resampling/interpolation is applied in the upstream pipeline. See Investigation I5 below. | Phase 1, Phase 2 |
+| you | **Deliver `Qfilt` dataset** (Lele 1992 2nd-order compact filter applied to Lui mean flow). Place under `studies/case2/` with metadata recording filter provenance, including: filter order, α, number of passes, BC treatment, and whether any resampling/interpolation is applied in the upstream pipeline. See Investigation I5 below. | Phase 1, Phase 2 |
 | you (optional) | **Physics-based Strouhal seed.** If Lui 2022 or separation-bubble breathing literature gives an expected `St` for the oscillatory family, record it in `REFERENCE.md` "Expected qualitative mode structure". Would replace the M2-empirical target seed. | Phase 3 seeding |
 | me | **Baseflow spectrum diagnostic** (Phase 1.5). Wall-normal `u` spectra at 3–4 streamwise stations on `Qraw` and `Qfilt`. *Partially done on `Qraw` 2026-04-18; see `worklog.md` Entries 1–4. Lessons learned: 1D plateau metric is compromised by DFT non-periodicity. 2D FFT is the informative view.* | Confidence in Phase 2 |
 | me | **Branch-identity diagnostic.** A clustering or mode-overlap metric on eigenvectors to operationalise "same spatial pocket" in Acceptance Criteria. | Phases 4–8 |
@@ -607,7 +607,7 @@ slightly on symmetric M2 but qualitative finding holds.*
 
 Built a Python Lele 1992 F2 / F4 filter as an independent reference
 (diagnostic script, not in linstabpy core —
-`results/case2/phase1p5_lele_filter_reference.py`). Applied to
+`studies/case2/phase1p5_lele_filter_reference.py`). Applied to
 Qraw on M21, then compared gradient peaks:
 
 | filter | `|∂Ū/∂x|_max` | `|∂Ū/∂y|_max` |

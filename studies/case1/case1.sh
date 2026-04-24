@@ -10,7 +10,7 @@ set -euo pipefail
 #   3) generate summary figures.
 #
 # Design choices:
-# - Single case directory by default: `results/case1/`
+# - Single case directory by default: `studies/case1/`
 # - MPI rank count is user-configurable (`LINSTAB2D_MPI_PROCS`).
 # - Threading per rank is configurable (`LINSTAB2D_THREADS_PER_RANK`).
 # - PETSc matrix conversion mode is configurable (`LINSTAB2D_PETSC_MATRIX_MODE`).

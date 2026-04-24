@@ -27,14 +27,14 @@
     },
     {
       "name": "case1_stability_resolvent",
-      "module": "results.case1.case1",
+      "module": "studies.case1.case1",
       "artifacts": [
-        "results/case1/case1.npz"
+        "studies/case1/case1.npz"
       ]
     }
   ],
   "orthogonality_check": {
-    "artifact": "results/case1/case1.npz",
+    "artifact": "studies/case1/case1.npz",
     "mode_key": "direct_modes",
     "weights_key": "W_diag",
     "tolerance": 1e-12

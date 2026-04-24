@@ -8,7 +8,7 @@ stays honest and reproducible.
 ## Prerequisites
 
 1. `Qfilt` arrives as an `.npy` sibling to `baseflow/` — e.g.
-   `results/case2/baseflow_filt/` — with identical shape `(599, 679)`
+   `studies/case2/baseflow_filt/` — with identical shape `(599, 679)`
    (pre-transpose), same grid, same `sponge.npy`.
 2. Record the filter provenance inside `baseflow_filt/`:
    - source (upstream pipeline, filter name, α value, number of
@@ -24,11 +24,11 @@ Run these scripts, first on `Qraw` (done), then on `Qfilt`:
 
 ```bash
 # Already done for Qraw:
-.venv/bin/python results/case2/phase1p5_baseflow_spectrum.py
+.venv/bin/python studies/case2/phase1p5_baseflow_spectrum.py
 
 # To run for Qfilt (after copy/point paths):
-LINSTAB2D_QFILT_DIR=results/case2/baseflow_filt \
-  .venv/bin/python results/case2/phase1p5_baseflow_spectrum.py
+LINSTAB2D_QFILT_DIR=studies/case2/baseflow_filt \
+  .venv/bin/python studies/case2/phase1p5_baseflow_spectrum.py
 #  (script would need a --case-dir flag added; currently hard-coded)
 ```
 
@@ -58,11 +58,11 @@ Exactly the same three EVP configs, pointed at `baseflow_filt/`:
 For each run, score with:
 
 ```bash
-.venv/bin/python results/case2/phase1p5_score_run.py <npz>
-.venv/bin/python results/case2/phase1p5_plot_spectrum.py \
+.venv/bin/python studies/case2/phase1p5_score_run.py <npz>
+.venv/bin/python studies/case2/phase1p5_plot_spectrum.py \
     "Qraw osc"=<qraw_osc_npz> "Qfilt osc"=<qfilt_osc_npz>
-.venv/bin/python results/case2/phase1p5_plot_modes.py <qfilt_osc_npz>
-.venv/bin/python results/case2/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
+.venv/bin/python studies/case2/phase1p5_plot_modes.py <qfilt_osc_npz>
+.venv/bin/python studies/case2/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
 ```
 
 ### Track C — direct comparison figure

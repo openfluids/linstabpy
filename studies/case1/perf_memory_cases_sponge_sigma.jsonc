@@ -2,7 +2,7 @@
   // Case 1 sponge-magnitude sensitivity at matched fd4 settings.
   //
   // Run with:
-  //   LINSTAB2D_CASE1_PERF_CONFIG=results/case1/perf_memory_cases_sponge_sigma.jsonc ../../.venv/bin/python results/case1/perf_memory.py
+  //   LINSTAB2D_CASE1_PERF_CONFIG=studies/case1/perf_memory_cases_sponge_sigma.jsonc ../../.venv/bin/python studies/case1/perf_memory.py
   //
   // Purpose:
   // - isolate the effect of sponge magnitude alone

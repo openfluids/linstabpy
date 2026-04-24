@@ -7,34 +7,34 @@ usage: run_case_once.sh <config-jsonc> <output-npz> [case-module]
 
 Examples:
   LINSTAB2D_MPI_PROCS=1 \
-  results/case2/run_case_once.sh \
-    results/case2/parity_config.jsonc \
-    results/case2/output/runs/case2_smoke.npz
+  studies/case2/run_case_once.sh \
+    studies/case2/parity_config.jsonc \
+    studies/case2/output/runs/case2_smoke.npz
 
   LINSTAB2D_MPI_PROCS=4 \
   LINSTAB2D_MPI_PRESET=none \
-  results/case2/run_case_once.sh \
-    results/case2/parity_config.jsonc \
-    results/case2/output/runs/case2_socket_single.npz
+  studies/case2/run_case_once.sh \
+    studies/case2/parity_config.jsonc \
+    studies/case2/output/runs/case2_socket_single.npz
 
   # Otimização específica desta máquina:
-  results/case2/run_case_once.sh \
-    results/case2/parity_config.jsonc \
-    results/case2/output/runs/case2_manual.npz
+  studies/case2/run_case_once.sh \
+    studies/case2/parity_config.jsonc \
+    studies/case2/output/runs/case2_manual.npz
 
   LINSTAB2D_MPI_PROCS=10 \
   LINSTAB2D_MPI_PRESET=socket0 \
   LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
-  results/case2/run_case_once.sh \
-    results/case2/parity_config.jsonc \
-    results/case2/output/runs/case2_manual.npz
+  studies/case2/run_case_once.sh \
+    studies/case2/parity_config.jsonc \
+    studies/case2/output/runs/case2_manual.npz
 EOF
   exit 2
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-CASE_DIR="$ROOT/results/case2"
+CASE_DIR="$ROOT/studies/case2"
 PYTHON_EXE="$ROOT/.venv/bin/python"
 
 CONFIG_JSONC="$(realpath "$1")"

@@ -1,14 +1,14 @@
 {
-  // Case 1 fd-order sweep with the smooth localized sponge fixed at sigma_max=0.5.
+  // Case 1 stability study pinned to socket 0 physical cores only.
   //
   // Run with:
-  //   LINSTAB2D_CASE1_PERF_CONFIG=results/case1/perf_memory_cases_fd_sponge.jsonc ../../.venv/bin/python results/case1/perf_memory.py
+  //   LINSTAB2D_CASE1_PERF_CONFIG=studies/case1/perf_memory_cases_stability_socket0.jsonc ../../.venv/bin/python studies/case1/perf_memory.py
 
   "outputs": {
-    "report_json": "output/fd_sponge/case1_perf_memory_latest.json",
-    "report_csv": "output/fd_sponge/case1_perf_memory_table.csv",
-    "log_dir": "output/fd_sponge/logs",
-    "run_dir": "output/fd_sponge/runs"
+    "report_json": "output/stability_socket0/case1_perf_memory_latest.json",
+    "report_csv": "output/stability_socket0/case1_perf_memory_table.csv",
+    "log_dir": "output/stability_socket0/logs",
+    "run_dir": "output/stability_socket0/runs"
   },
 
   "defaults": {
@@ -23,7 +23,7 @@
     },
     "launcher": {
       "mpi_procs": 10,
-      "launcher": "mpiexec"
+      "launcher": "mpiexec --cpu-set 0-9 --bind-to core"
     },
     "case_defaults": {
       "config_overrides": {
@@ -41,13 +41,13 @@
           "use_raw_eigs": false,
           "run_stability": true,
           "run_resolvent": false,
-          "n_modes_stability": 300
+          "n_modes_stability": 200
         },
         "physics": {
           "use_matlab_sponge_aux": false,
           "sponge": {
             "enabled": true,
-            "preset": "case1_smooth_soft"
+            "preset": "case1_smooth_half"
           }
         },
         "solver": {
@@ -55,7 +55,7 @@
           "eigen": {
             "st_solver": "mumps",
             "eps_tol": 1e-6,
-            "ncv": 700,
+            "ncv": 460,
             "conv_test": "rel",
             "true_residual": true
           },
@@ -79,13 +79,13 @@
 
   "cases": [
     {
-      "case_id": "case1_fd4_sponge_sigma_0p5",
-      "label": "Case 1 fd4 smooth sponge sigma_max=0.5",
+      "case_id": "case1_stability_fd4_sponge_sigma_0p5",
+      "label": "Case 1 stability fd4, sponge sigma_max=0.5",
       "enabled": true
     },
     {
-      "case_id": "case1_fd6_sponge_sigma_0p5",
-      "label": "Case 1 fd6 smooth sponge sigma_max=0.5",
+      "case_id": "case1_stability_fd6_sponge_sigma_0p5",
+      "label": "Case 1 stability fd6, sponge sigma_max=0.5",
       "enabled": true,
       "config_overrides": {
         "numerics": {
@@ -94,8 +94,8 @@
       }
     },
     {
-      "case_id": "case1_fd8_sponge_sigma_0p5",
-      "label": "Case 1 fd8 smooth sponge sigma_max=0.5",
+      "case_id": "case1_stability_fd8_sponge_sigma_0p5",
+      "label": "Case 1 stability fd8, sponge sigma_max=0.5",
       "enabled": true,
       "config_overrides": {
         "numerics": {

@@ -40,26 +40,26 @@ Cada campanha grava em `output/<campanha>/`:
 Rodar a campanha ativa (exemplo: M21 com target oscilatório):
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=results/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
-./.venv/bin/python results/case2/perf_memory.py
+LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+./.venv/bin/python studies/case2/perf_memory.py
 ```
 
 Plotar o espectro salvo:
 
 ```bash
-./.venv/bin/python results/case2/plot_saved_spectra.py \
-  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python studies/case2/plot_saved_spectra.py \
+  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Plotar os modos salvos:
 
 ```bash
-./.venv/bin/python results/case2/plot_saved_modes.py \
-  --run-dir results/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python studies/case2/plot_saved_modes.py \
+  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 ## Delete Policy
 
-O topo de `results/case2` deve continuar pequeno. Configs ou saídas que
+O topo de `studies/case2` deve continuar pequeno. Configs ou saídas que
 saírem do caminho ativo devem ser apagados, não movidos para um `legacy/`
 permanente. Histórico fica no git.

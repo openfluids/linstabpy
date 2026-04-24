@@ -23,7 +23,7 @@ Heuristic classification:
   - INTERMEDIATE  : anything else
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_classify_modes.py \\
+    .venv/bin/python studies/case2/phase1p5_classify_modes.py \\
         <npz> [<npz> ...]
 Prints a per-mode classification table and writes one summary CSV per
 input npz to `phase1p5/<basename>_chu_class.csv`.

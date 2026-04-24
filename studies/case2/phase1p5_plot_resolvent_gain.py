@@ -2,7 +2,7 @@
 """Plot the resolvent gain curve σ(ω) from a scan campaign.
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_plot_resolvent_gain.py \\
+    .venv/bin/python studies/case2/phase1p5_plot_resolvent_gain.py \\
         <campaign-runs-dir>
 
 Outputs:

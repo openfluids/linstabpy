@@ -307,10 +307,8 @@ src/linstab2d/
 
 examples/                  Five Martini flow examples plus Example 0
                            derivative / curvilinear-grid validation
-results/                   Current Case 1 / Case 2 study workflows and
-                           local generated outputs. This namespace is being
-                           retired in favor of studies/.
-studies/                   Future home for active case-study workflows
+studies/                   Active Case 1 / Case 2 study workflows and
+                           local generated outputs
 validation/                Validation harnesses and compact fixtures
 tools/parity/              MATLAB-to-Python comparison tooling
 scripts/                   Repository guardrails and maintenance utilities
@@ -702,24 +700,23 @@ Key fixes that made parity stable:
 - use the MATLAB-equivalent `H^H W H` EVP route for resolvent extraction;
 - keep canonical parity parameters in the Case 1 fixture directory.
 
-Run from the repository root while the current layout is still `results/`:
+Run from the repository root:
 
 ```bash
-bash results/case1/case1.sh
+bash studies/case1/case1.sh
 ```
 
 Primary outputs:
 
-- `results/case1/case1.npz`;
-- `results/case1/output/case1_operator_stage_parity.json`;
-- `results/case1/output/case1_spectrum_parity.json`;
-- `results/case1/output/case1_resolvent_parity.json`;
-- parity figures under `results/case1/output/`.
+- `studies/case1/case1.npz`;
+- `studies/case1/output/case1_operator_stage_parity.json`;
+- `studies/case1/output/case1_spectrum_parity.json`;
+- `studies/case1/output/case1_resolvent_parity.json`;
+- parity figures under `studies/case1/output/`.
 
-The layout cleanup is introducing `studies/case1/` as the future canonical
-study path. Tests already resolve Case 1 through a shared helper so they can
-accept either the current `results/case1/` location or the future `studies/`
-location.
+`studies/case1/` is the canonical Case 1 study path. Tests resolve Case 1
+through a shared helper so older local checkouts can still be handled during
+transition.
 
 Environment overrides:
 
@@ -737,9 +734,9 @@ Environment overrides:
 Spectrum comparison from the repository root:
 
 ```bash
-.venv/bin/python results/case1/check_spectrum.py \
-  --python-npz results/case1/case1.npz \
-  --matlab-spectrum results/case1/MATLAB_results/spectrum.mat
+.venv/bin/python studies/case1/check_spectrum.py \
+  --python-npz studies/case1/case1.npz \
+  --matlab-spectrum studies/case1/MATLAB_results/spectrum.mat
 ```
 
 Solver strategy A, the robust baseline:
@@ -769,16 +766,15 @@ for cases that do not fit direct factorization.
 Case 2 has its own active campaign files. Do not duplicate their content in the
 top-level README.
 
-- `results/case2/PLAN.md`: current phase plan, acceptance criteria, open
+- `studies/case2/PLAN.md`: current phase plan, acceptance criteria, open
   blockers, and campaign state.
-- `results/case2/REFERENCE.md`: stable technical background, governing
+- `studies/case2/REFERENCE.md`: stable technical background, governing
   equations, parameter map, physical framing, and references.
-- `results/case2/README.md`: operational commands and artifact layout.
+- `studies/case2/README.md`: operational commands and artifact layout.
 
 Read them in that order before changing Case 2 numerics.
 
-As with Case 1, `studies/case2/` is the future study namespace. Until that move
-is complete, current Case 2 files remain under `results/case2/`.
+As with Case 1, `studies/case2/` is the canonical Case 2 study namespace.
 
 ## 9. Troubleshooting
 

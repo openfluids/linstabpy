@@ -2,10 +2,10 @@
 """Overlay EVP run spectra on the complex plane with targets.
 
 Usage:
-    .venv/bin/python results/case2/phase1p5_plot_spectrum.py \\
+    .venv/bin/python studies/case2/phase1p5_plot_spectrum.py \\
         <label>=<npz_path> [<label>=<npz_path> ...]
 
-Produces results/case2/phase1p5/evp_spectra_overview.png
+Produces studies/case2/phase1p5/evp_spectra_overview.png
 """
 
 from __future__ import annotations

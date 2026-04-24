@@ -1,4 +1,4 @@
-"""Unit tests for ``_load_jsonc_with_includes`` in results/case2/perf_memory.py."""
+"""Unit tests for ``_load_jsonc_with_includes`` in studies/case2/perf_memory.py."""
 
 from __future__ import annotations
 
