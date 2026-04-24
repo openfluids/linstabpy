@@ -1,0 +1,90 @@
+{
+  // Phase 0 stride-2 convergence study — fd4 variant.
+  // Forked from LESmesh8x_extendedY_400nx400ny_SS_stride4_fd6.jsonc.
+  //
+  // Purpose: determine whether fd6 saw-tooth modes (near omega ~= +-0.52-6.78j,
+  // +-0.78-8.28j) persist under stride refinement alone. If they disappear at
+  // stride 2 with either fd4 or fd6, no operator-level fix is needed (Phase 1
+  // of plan_2026-04-24_operator_dissipation.md is skipped).
+  //
+  // Changes vs baseline:
+  //   numerics.stride_ksi: 4 -> 2
+  //   numerics.stride_eta: 4 -> 2
+  //   numerics.fd_order:   6 -> 4
+  //   analysis.run_resolvent: true -> false   (stability-only, cost ~90 min on c8)
+  //
+  // Expected output: ~/linstabpy/run/output/runs/R3_stride2_fd4.npz
+
+  "paths": {
+    "case_dir": "$HOME/linstabpy/run/LESmesh8x_extendedY_400nx400ny_SS"
+  },
+
+  "physics": {
+    "Re": 395000.0,
+    "Ma": 2.0,
+    "Pr": 0.747,
+    "kappa": 1.31,
+    "T_0": 1540.0,
+    "zero_spanwise": false,
+    "use_matlab_sponge_aux": false,
+    "zero_mu_t_derivs": true
+  },
+
+  "numerics": {
+    "stride_ksi": 2,   // refined from 4
+    "stride_eta": 2,   // refined from 4
+    "fd_order": 4,     // fd4 (baseline was fd6)
+    "beta": 0.0,
+    "alpha_filter": 0.0
+  },
+
+  "bc": {
+    "penalty": 1000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+      {"type": "neumann",   "borders": "b",   "variables": "T",     "exclude_corners": true},
+      {"type": "neumann",   "borders": "r",   "variables": "ruvwT", "exclude_corners": true}
+    ]
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.0,
+    "n_modes_stability": 20,
+    "n_modes_resolvent": 10,
+    "run_stability": true,
+    "run_resolvent": false,  // stability-only for Phase 0
+    "use_raw_eigs": false
+  },
+
+  "solver": {
+    "petsc_matrix_mode": "auto",
+    "eigen": {
+      // Direct shift-invert: ST=SINVERT, KSP=PREONLY, PC=LU, factor=MUMPS.
+      "st_solver": "mumps",
+      // EPS convergence threshold (not the postchecked full-operator residual).
+      "eps_tol": 1e-3,
+      "ncv": 160,
+      // EPS convergence test: rel = relative to eigenvalue magnitude.
+      "conv_test": "rel",
+      "true_residual": true,
+      "residual_error_type": "relative",
+      "extract_all_converged": true
+    },
+    "linsolve": {
+      "type": "mumps"
+    },
+    "resolvent": {
+      "type": "mumps",
+      "eigen": {
+        "eps_tol": 1e-4,
+        "ncv": 40,
+        "conv_test": "rel",
+        "true_residual": true,
+        "eps_max_it": 1000
+      }
+    }
+  }
+}
