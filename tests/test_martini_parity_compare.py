@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 
 from linstab2d.utils.jsonc import load_jsonc
-from tools.parity import compare_martini_examples
-from tools.parity.compare_martini_examples import (
+from validation.martini2024.tools import compare_martini_examples
+from validation.martini2024.tools.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
     compare_curvilinear_protocol_case,
@@ -19,7 +19,7 @@ from tests._paths import MARTINI_FIXTURE_ROOT, REPO_ROOT as repo, martini_fixtur
 
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
-    manifest = json.loads((repo / "tools/parity/martini_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((repo / "validation/martini2024/tools/martini_manifest.json").read_text(encoding="utf-8"))
 
     assert manifest["input_dir"] == "martini_examples"
     assert manifest["output_dir"] == "validation/martini2024/fixtures"

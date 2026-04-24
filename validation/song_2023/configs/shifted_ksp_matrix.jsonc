@@ -1,0 +1,90 @@
+{
+  // Direct shifted-KSP experiment matrix for Song2023.
+  //
+  // Purpose:
+  // - isolate the inner shifted linear solve from the outer EPS/SLEPc eigensolver
+  // - determine whether the Song Krylov failure is GMRES-specific or broader
+  // - keep all KSP choices in JSONC
+
+  "output_root": "validation/song_2023/shifted_ksp_runs",
+
+  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+
+  "reduced_overrides": {
+    "stride_ksi": 2,
+    "stride_eta": 2
+  },
+
+  "omega_target": [0.0, 0.06218175],
+
+  "assembly_backends": [
+    "scipy",
+    "petsc"
+  ],
+
+  "trials": [
+    {
+      "name": "preonly__lu_mumps",
+      "ksp": {
+        "type": "preonly",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps"
+      }
+    },
+    {
+      "name": "gmres__lu_mumps__right",
+      "ksp": {
+        "type": "gmres",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps",
+        "pc_side": "right",
+        "rtol": 1e-8,
+        "max_it": 20000
+      }
+    },
+    {
+      "name": "bcgs__lu_mumps__right",
+      "ksp": {
+        "type": "bcgs",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps",
+        "pc_side": "right",
+        "rtol": 1e-8,
+        "max_it": 20000
+      }
+    },
+    {
+      "name": "tfqmr__lu_mumps__right",
+      "ksp": {
+        "type": "tfqmr",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps",
+        "pc_side": "right",
+        "rtol": 1e-8,
+        "max_it": 20000
+      }
+    },
+    {
+      "name": "gcr__lu_mumps__right",
+      "ksp": {
+        "type": "gcr",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps",
+        "pc_side": "right",
+        "rtol": 1e-8,
+        "max_it": 20000
+      }
+    },
+    {
+      "name": "richardson__lu_mumps__right",
+      "ksp": {
+        "type": "richardson",
+        "pc_type": "lu",
+        "pc_factor_solver_type": "mumps",
+        "pc_side": "right",
+        "rtol": 1e-8,
+        "max_it": 5
+      }
+    }
+  ]
+}

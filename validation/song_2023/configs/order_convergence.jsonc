@@ -1,0 +1,89 @@
+{
+  // Song2023 fd-order convergence study — serial full eigensolves.
+  //
+  // Purpose:
+  // - Measure how the leading eigenvalue, mean nearest-MATLAB distance,
+  //   and eigenvalue residuals converge with increasing fd_order.
+  // - Produce the timing and memory data for the paper's scaling table (tab:scaling).
+  //
+  // All runs are serial (1 rank) with PETSc local assembly and MUMPS direct
+  // factorization.
+  //
+  // Machine: adjust memory_guard for the target machine.
+  //   - 16 GB laptop: stop_on_peak_memory_mib = 13000
+  //   - 64 GB c8:     stop_on_peak_memory_mib = 56000
+
+  "output_root": "validation/song_2023/order_convergence_runs",
+
+  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+
+  // 64 GB machine (c8) — raise for larger machines
+  "memory_guard": {
+    "machine_memory_mib": 65536.0,
+    "stop_on_peak_memory_mib": 56000.0
+  },
+
+  "variants": [
+    {
+      // fd2: the coarsest operator. Baseline reference for convergence.
+      "name": "fd2_serial",
+      "overrides": {
+        "fd_order": 2,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      // fd4: standard production order.
+      "name": "fd4_serial",
+      "overrides": {
+        "fd_order": 4,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      // fd6: higher accuracy, wider stencil.
+      "name": "fd6_serial",
+      "overrides": {
+        "fd_order": 6,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    },
+    {
+      // fd8: widest stencil. Requires per-row preallocation (now fixed)
+      // and ~15+ GB for the factorization on the 599x301 grid.
+      "name": "fd8_serial",
+      "overrides": {
+        "fd_order": 8,
+        "run_stability": true,
+        "run_resolvent": false,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "linsolve": {"type": "mumps"},
+          "eigen": {"st_solver": "mumps"}
+        }
+      }
+    }
+  ]
+}

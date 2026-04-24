@@ -260,10 +260,10 @@ def load_my_case(
     Generic loader for user-supplied baseflows stored as .npy files.
 
     For the Song (2023) case, we expect all .npy fields to live in the
-    ``baseflow`` subdirectory inside ``case_dir``:
+    ``data/baseflow`` subdirectory inside ``case_dir``:
 
         case_dir/
-            baseflow/
+            data/baseflow/
                 x.npy, y.npy
                 rho.npy, u.npy, v.npy, w.npy, T.npy
                 sponge.npy
@@ -279,7 +279,7 @@ def load_my_case(
     ``transpose_input=True`` unless they explicitly want the raw storage layout
     for diagnostics.
     """
-    root = Path(case_dir) / "baseflow"
+    root = Path(case_dir) / "data" / "baseflow"
 
     def _load(name: str) -> np.ndarray:
         path = root / f"{name}.npy"

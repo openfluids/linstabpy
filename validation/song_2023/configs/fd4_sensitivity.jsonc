@@ -1,0 +1,134 @@
+{
+  // Full-grid fd4 Song2023 solver-sensitivity matrix.
+  //
+  // Purpose:
+  // - hold fd_order fixed at the practical production sweet spot (`fd4`)
+  // - probe the direct shift-invert / MUMPS recipe for robustness
+  // - keep every tested choice in JSONC so the table is reproducible
+
+  "output_root": "validation/song_2023/fd4_sensitivity_runs",
+
+  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+
+  "variants": [
+    {
+      "name": "fd4_baseline__target0",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps"
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_shift__lead_imag",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "omega_target": [0.0, 0.0565245820162],
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps"
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_shift__song_ref",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "omega_target": [0.0, 0.06218175],
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps"
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_eps_tol__1e12_true_residual",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-12,
+            "true_residual": true
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_ncv__80",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps",
+            "ncv": 80
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_conv_test__norm",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "eigen": {
+            "st_solver": "mumps",
+            "conv_test": "norm"
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    },
+    {
+      "name": "fd4_mumps_ordering__metis",
+      "overrides": {
+        "fd_order": 4,
+        "assembly_backend": "petsc",
+        "solver": {
+          "petsc_matrix_mode": "local",
+          "mumps_icntl_7": true,
+          "eigen": {
+            "st_solver": "mumps"
+          },
+          "linsolve": {
+            "type": "mumps"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -49,11 +49,11 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_direct_modes.png")
 OUTPUT_RESOLVENT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_resolvent.png")
-DEFAULT_CONFIG_PATH = SCRIPT.with_suffix(".jsonc")
-MATLAB_REF_DIR = SCRIPT.parent / "matlab_reference"
+DEFAULT_CONFIG_PATH = SCRIPT.parent / "configs" / "song_2023.jsonc"
+MATLAB_REF_DIR = SCRIPT.parent / "reference" / "matlab" / "matlab_reference"
 MATLAB_EIG_DIR = MATLAB_REF_DIR / "EigModes"
 MATLAB_SPLIT_DIR = MATLAB_REF_DIR / "ziming_split"
-SONG_REF_DIR = SCRIPT.parent / "ref_results"
+SONG_REF_DIR = SCRIPT.parent / "reference" / "matlab" / "ref_results"
 
 
 def _get_memory_mb() -> float:
