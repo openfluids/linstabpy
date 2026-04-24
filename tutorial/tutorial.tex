@@ -238,6 +238,10 @@ examples/example_1_blasius.jsonc
 
 The Python file contains the workflow. The JSONC file contains the run parameters. For first modifications, change the JSONC file or copy the pair. Avoid hardcoding study parameters inside the package code.
 
+\begin{notebox}
+You may not be familiar with JSONC. It is JSON with comments, and it is used here deliberately even though plain JSON is more common. These examples are numerical cases, so the case definition should be readable and reviewable: Reynolds number, Mach number, grid size, boundary conditions, sponge parameters, forcing masks, solver targets, and PETSc/MPI choices all belong in a visible input file. The comments explain why a parameter exists and whether it comes from the Martini reference case or from the Python port. Plain JSON would remove those explanations, command-line flags would hide too much state in long commands or shell history, and Python config files would mix data with executable code.
+\end{notebox}
+
 The examples also follow a cache pattern:
 
 \begin{commandbox}
