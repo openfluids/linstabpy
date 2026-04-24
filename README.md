@@ -298,7 +298,9 @@ cache cleanup, parity checks, and MPI launches. Direct module execution with
 `.venv/bin/python -m ...` is still useful for focused debugging, but the runner
 is the documented path for full example validation and MPI-safe launches.
 For a figure-by-figure walkthrough of the Martini examples, see
-`tutorial/tutorial.pdf`, Section 5.
+`tutorial/tutorial.pdf`, Section 5. That section also explains how to read the
+generated baseflow, gain/spectrum, and support-component figures, and records
+the plotting improvements proposed for the next figure pass.
 
 | Task | Command |
 |---|---|
