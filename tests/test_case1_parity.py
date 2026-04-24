@@ -10,12 +10,13 @@ import pytest
 from scipy.io import loadmat
 from scipy.optimize import linear_sum_assignment
 
+from tests._paths import case_fixture
 
-ROOT = Path(__file__).resolve().parent.parent
-PY_NPZ = ROOT / "results/case1/case1.npz"
-PY_STABILITY_NPZ = ROOT / "results/case1/output/runs/case1_stability.npz"
-MAT_SPEC = ROOT / "results/case1/MATLAB_results/spectrum.mat"
-MAT_MODE7 = ROOT / "results/case1/MATLAB_results/eigenvector_7.mat"
+CASE1_DIR = case_fixture("case1")
+PY_NPZ = CASE1_DIR / "case1.npz"
+PY_STABILITY_NPZ = CASE1_DIR / "output/runs/case1_stability.npz"
+MAT_SPEC = CASE1_DIR / "MATLAB_results/spectrum.mat"
+MAT_MODE7 = CASE1_DIR / "MATLAB_results/eigenvector_7.mat"
 
 
 def _load_stability_npz() -> dict[str, np.ndarray]:

@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 h5py = pytest.importorskip("h5py")
 
+from tests._paths import case_fixture
 
-ROOT = Path(__file__).resolve().parents[1]
-PY_NPZ = ROOT / "results/case1/case1.npz"
-MAT_RES = ROOT / "results/case1/MATLAB_exports_resolvent/res_svd_final.mat"
+CASE1_DIR = case_fixture("case1")
+PY_NPZ = CASE1_DIR / "case1.npz"
+MAT_RES = CASE1_DIR / "MATLAB_exports_resolvent/res_svd_final.mat"
 
 
 def _require_inputs() -> None:
@@ -58,7 +57,7 @@ def test_case1_resolvent_gains_and_modes_match_matlab() -> None:
         pytest.skip(
             f"Case 1 NPZ has no resolvent modes (gains_py={gains_py.size}, "
             f"responses_py={responses_py.shape[1]}, forcings_py={forcings_py.shape[1]}). "
-            "Re-run results/case1 with run_resolvent=true to populate."
+            "Re-run the Case 1 workflow with run_resolvent=true to populate."
         )
     assert n >= 3, "Need at least 3 resolvent modes for parity check"
 

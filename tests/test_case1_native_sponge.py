@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 from linstab2d.baseflow import case1_sponge_from_config, generate_case1_sponge, load_hamada_case
+from tests._paths import case_fixture
 
 
-ROOT = Path(__file__).resolve().parent.parent
-CASE1_DIR = ROOT / "results" / "case1"
+CASE1_DIR = case_fixture("case1")
 LEGACY_SPONGE = CASE1_DIR / "workflow" / "sponge_generator.py"
 
 

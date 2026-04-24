@@ -29,6 +29,7 @@ from linstab2d.operators.assembly import (
     _prepare_coefficients,
     build_lnse_operator,
 )
+from tests._paths import case_fixture
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,7 @@ CASES = (
 
 
 def _case_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "case1"
+    return case_fixture("case1")
 
 
 def _apply_case1_bcs(

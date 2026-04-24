@@ -35,3 +35,5 @@ gmn_*.txt
 
 # MATLAB reference exports (large .mat files, managed outside git)
 martini_examples/
+results/case1/MATLAB_exports/operator_convention.mat
+validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/coefficients_raw.mat

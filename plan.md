@@ -1,7 +1,17 @@
 # LinStabPy Simplification Plan
 
 Date: 2026-04-24
-Mode: planning only. No implementation has started from this plan.
+Mode: implementation started from the recommended first slice.
+
+## Implementation Log
+
+- 2026-04-24: tutorial commit `0e0ff7e` is preserved on `main`.
+- 2026-04-24: default branch migrated from `master` to `main` on GitHub.
+- 2026-04-24: implementation branch `cleanup/2026-04-layout` created.
+- 2026-04-24: first slice completed: file-size guardrail, path helper
+  contract, operator-fixture schema, README guardrail notes, and removal of the
+  two existing over-50 MiB raw MATLAB exports from the Git index while keeping
+  the local files ignored.
 
 ## Goal
 

@@ -13,6 +13,7 @@ from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ow
 import numpy as np
 import pytest
 import scipy.sparse as sp
+from scipy.optimize import linear_sum_assignment
 
 from linstab2d.mesh import Mesh
 from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
@@ -45,6 +46,31 @@ from linstab2d.solvers.eigenvalue import (
 from linstab2d.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from linstab2d.solvers.linsolve import make_linear_solver
 from linstab2d.solvers.petsc_utils import scipy_to_petsc
+
+
+def _assert_temporal_spectrum_allclose(
+    actual: np.ndarray,
+    expected: np.ndarray,
+    *,
+    atol: float,
+    rtol: float,
+) -> None:
+    actual = np.asarray(actual, dtype=complex).reshape(-1)
+    expected = np.asarray(expected, dtype=complex).reshape(-1)
+    assert actual.shape == expected.shape
+
+    direct_error = np.abs(actual[:, None] - expected[None, :])
+    mirror_error = np.abs(actual[:, None] + np.conjugate(expected[None, :]))
+    cost = np.minimum(direct_error, mirror_error)
+    rows, cols = linear_sum_assignment(cost)
+    errors = cost[rows, cols]
+    tolerance = atol + rtol * np.abs(expected[cols])
+
+    assert np.all(errors <= tolerance), (
+        "Temporal spectra differ beyond tolerance, allowing real-baseflow "
+        f"mirror partners. actual={actual}, expected={expected}, "
+        f"errors={errors}, tolerance={tolerance}"
+    )
 
 
 def _build_linsolve_mpi_script() -> str:
@@ -485,7 +511,7 @@ class TestDirectPetscSolverInputs:
             omega_petsc, _ = _sort_temporal_nearest(
                 omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
             )
-            np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+            _assert_temporal_spectrum_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
         finally:
             L0_petsc.destroy()
 @pytest.mark.slow

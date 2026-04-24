@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -15,6 +13,7 @@ from tools.parity.compare_martini_examples import (
     compare_curvilinear_protocol_case,
     compare_resolvent_case,
 )
+from tests._paths import martini_fixture
 
 
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
@@ -90,8 +89,7 @@ def test_compare_curvilinear_protocol_case_matches_direct_fields() -> None:
 
 
 def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
-    repo = Path(__file__).resolve().parents[1]
-    bundle_path = repo / "tools/parity/npz/example_0_TestCurvilinearDerivative_results.npz"
+    bundle_path = martini_fixture("example_0_TestCurvilinearDerivative_results.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
     matlab = np.load(bundle_path, allow_pickle=False)

@@ -19,6 +19,7 @@ from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
 from linstab2d.boundary_conditions.neumann import apply_neumann
 from linstab2d.mesh import Mesh
 from linstab2d.operators.assembly import build_lnse_operator
+from tests._paths import case_fixture
 
 
 def _load_matlab_sparse(path: Path, key: str) -> sp.csc_matrix:
@@ -45,8 +46,7 @@ def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> tuple[floa
 
 
 def test_case1_operator_stages_match_matlab_exports() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    case_dir = repo_root / "case1"
+    case_dir = case_fixture("case1")
     exports_dir = case_dir / "MATLAB_exports"
 
     if not exports_dir.exists():

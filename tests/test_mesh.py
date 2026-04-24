@@ -857,8 +857,9 @@ class TestMaskThenDeform:
 
 
 def test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
-    repo = Path(__file__).resolve().parents[1]
-    bundle_path = repo / "tools/parity/npz/example_4_Cavity_results_base.npz"
+    from tests._paths import martini_fixture
+
+    bundle_path = martini_fixture("example_4_Cavity_results_base.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
     matlab = np.load(bundle_path, allow_pickle=False)
@@ -896,8 +897,9 @@ def test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
 
 
 def test_cavity_sponge_matches_exported_matlab_bundle() -> None:
-    repo = Path(__file__).resolve().parents[1]
-    bundle_path = repo / "tools/parity/npz/example_4_Cavity_results_base.npz"
+    from tests._paths import martini_fixture
+
+    bundle_path = martini_fixture("example_4_Cavity_results_base.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
     matlab = np.load(bundle_path, allow_pickle=False)

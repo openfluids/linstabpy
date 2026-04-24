@@ -1,12 +1,11 @@
 """Tests for base flow loading and viscosity (Sutherland's law)."""
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 from linstab2d.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
 from linstab2d.mesh import Mesh
+from tests._paths import martini_fixture
 
 
 # ---------------------------------------------------------------------------
@@ -117,8 +116,7 @@ class TestBlasiusLoader:
 
 
 def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
-    repo = Path(__file__).resolve().parents[1]
-    bundle_path = repo / "tools/parity/npz/example_3_Streaky_BL_results_base.npz"
+    bundle_path = martini_fixture("example_3_Streaky_BL_results_base.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
     bundle = np.load(bundle_path, allow_pickle=False)

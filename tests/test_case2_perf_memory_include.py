@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from tests._paths import case_fixture, require_existing
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-PERF_MEMORY_PATH = REPO_ROOT / "results" / "case2" / "perf_memory.py"
+
+PERF_MEMORY_PATH = require_existing(case_fixture("case2") / "perf_memory.py", "Case 2 perf_memory module")
 
 
 def _load_perf_memory_module():
