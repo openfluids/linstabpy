@@ -6,8 +6,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from linstab2d.results_runtime import compute as _runtime_compute
-from linstab2d.results_runtime import main as _runtime_main
+from studies.common.results_runtime import compute as _runtime_compute
+from studies.common.results_runtime import main as _runtime_main
 
 
 SCRIPT = Path(__file__).resolve()
