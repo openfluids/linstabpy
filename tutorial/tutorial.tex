@@ -1,0 +1,624 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{upquote}
+\usepackage{titlesec}
+\usepackage[most]{tcolorbox}
+\geometry{left=0.65in,right=0.65in,top=0.70in,bottom=0.75in}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\setlist[itemize]{itemsep=0.15em,topsep=0.3em,parsep=0pt,partopsep=0pt}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{1.0em}{0.4em}
+\setlength{\abovedisplayskip}{0.45em}
+\setlength{\belowdisplayskip}{0.45em}
+\setlength{\abovedisplayshortskip}{0.3em}
+\setlength{\belowdisplayshortskip}{0.3em}
+\emergencystretch=1.5em
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\newtcblisting{commandbox}{
+  breakable,
+  listing only,
+  colback=blue!3,
+  colframe=blue!55!black,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=Command,
+  fonttitle=\bfseries,
+  listing options={
+    basicstyle=\ttfamily\small,
+    columns=fullflexible,
+    keepspaces=true,
+    upquote=true,
+    breaklines=true,
+  },
+}
+
+\newtcblisting{outputbox}{
+  breakable,
+  listing only,
+  colback=gray!6,
+  colframe=black!55,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=Expected output,
+  fonttitle=\bfseries,
+  listing options={
+    basicstyle=\ttfamily\small,
+    columns=fullflexible,
+    keepspaces=true,
+    upquote=true,
+    breaklines=true,
+  },
+}
+
+\newtcblisting{snippetbox}{
+  breakable,
+  listing only,
+  colback=gray!6,
+  colframe=black!55,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=File excerpt,
+  fonttitle=\bfseries,
+  listing options={
+    basicstyle=\ttfamily\small,
+    columns=fullflexible,
+    keepspaces=true,
+    upquote=true,
+    breaklines=true,
+  },
+}
+
+\newtcblisting{editbox}{
+  breakable,
+  listing only,
+  colback=gray!6,
+  colframe=black!55,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=Lines to change,
+  fonttitle=\bfseries,
+  listing options={
+    basicstyle=\ttfamily\small,
+    columns=fullflexible,
+    keepspaces=true,
+    upquote=true,
+    breaklines=true,
+  },
+}
+
+\newtcolorbox{notebox}{
+  breakable,
+  colback=green!8,
+  colframe=green!40!black,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=Note,
+  fonttitle=\bfseries,
+}
+
+\newtcolorbox{warningbox}{
+  breakable,
+  colback=yellow!12,
+  colframe=yellow!45!black,
+  boxrule=0.8pt,
+  arc=2pt,
+  boxsep=0.4mm,
+  left=0.8mm,
+  right=0.8mm,
+  top=0.7mm,
+  bottom=0.7mm,
+  before skip=0.45em,
+  after skip=0.55em,
+  title=Warning,
+  fonttitle=\bfseries,
+}
+
+\begin{document}
+
+{\Large\bfseries Practical tutorial for \texttt{linstabpy}\par}
+\vspace{0.35em}
+
+This tutorial is for new users who want to run the code before changing it. It walks through the installation check, the Martini example family, the Song 2023 validation case, and the pattern for adapting a shipped case to a new configuration.
+
+\section*{1. What you will do}
+
+At the end of this tutorial you will have:
+
+\begin{itemize}[leftmargin=2em]
+  \item installed or checked the local \texttt{linstabpy} runtime,
+  \item run a fast smoke example before starting expensive examples,
+  \item run each Martini example from its paired Python and JSONC files,
+  \item run the MATLAB-parity comparison for the Martini examples,
+  \item run the Song 2023 baseline and its JSONC-driven validation matrices,
+  \item learned how to copy a case and adjust parameters for a new study.
+\end{itemize}
+
+\begin{notebox}
+Every blue box contains terminal commands to type from the repository root unless another directory is stated.
+\end{notebox}
+
+\begin{warningbox}
+When you see \path{/path/to/linstabpy}, replace it with the real path to your local checkout. In this repository, use \code{.venv/bin/python}. Do not replace these commands with \code{uv run} for PETSc/SLEPc runs.
+\end{warningbox}
+
+\section*{2. Repository and runtime check}
+
+Move to the repository root and inspect the environment before installing anything.
+
+\begin{commandbox}
+cd /path/to/linstabpy
+bash diagnose.sh
+\end{commandbox}
+
+If the diagnostic reports missing system packages on Linux, install or load them outside this tutorial. The installer is written to avoid silent system changes by default.
+
+Install the project runtime:
+
+\begin{commandbox}
+bash install.sh
+bash install.sh --check
+\end{commandbox}
+
+The install script creates \path{.venv/} and installs PETSc/SLEPc support for the project. After installation, verify the Python used by the examples:
+
+\begin{commandbox}
+.venv/bin/python --version
+.venv/bin/python -c "import linstab2d; print(linstab2d.__file__)"
+\end{commandbox}
+
+\begin{notebox}
+The import package is \code{linstab2d}. The repository and distribution name are \code{linstabpy}. Keep this distinction in mind when reading commands and imports.
+\end{notebox}
+
+\section*{3. The code pattern}
+
+Most runnable studies in this repository follow a paired-file pattern:
+
+\begin{outputbox}
+examples/example_1_blasius.py
+examples/example_1_blasius.jsonc
+\end{outputbox}
+
+The Python file contains the workflow. The JSONC file contains the run parameters. For first modifications, change the JSONC file or copy the pair. Avoid hardcoding study parameters inside the package code.
+
+The examples also follow a cache pattern:
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_1_blasius
+\end{commandbox}
+
+If the matching \code{.npz} already exists, the script usually loads it and plots. To recompute, remove the matching \code{.npz} and rerun:
+
+\begin{commandbox}
+rm -f examples/example_1_blasius.npz
+.venv/bin/python -m examples.example_1_blasius
+\end{commandbox}
+
+\begin{warningbox}
+The full examples can be memory- and time-intensive. Start with the smoke run and the cached outputs before deleting large \code{.npz} artifacts.
+\end{warningbox}
+
+\section*{4. First run: Blasius smoke test}
+
+The fastest first test uses the same physics path as the Blasius example but on a smaller grid.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_1_blasius_smoke
+\end{commandbox}
+
+Expected outputs:
+
+\begin{outputbox}
+examples/example_1_blasius_smoke.npz
+examples/example_1_blasius_smoke.png
+\end{outputbox}
+
+The smoke JSONC file is:
+
+\begin{outputbox}
+examples/example_1_blasius_smoke.jsonc
+\end{outputbox}
+
+Use it to understand the basic blocks: flow parameters, grid size, sponge, forcing mask, boundary-condition recipe, assembly backend, and solver settings.
+
+\section*{5. Martini example family}
+
+The Martini examples are the first complete tour through the library. They exercise derivative validation, resolvent analysis, temporal eigenvalues, spatial eigenvalues, direct modes, adjoint modes, 2-D operators, and axisymmetric operators.
+
+\begin{outputbox}
+0  example_0_curvilinear_validation  derivative and curvilinear-grid check
+1  example_1_blasius                 Blasius boundary-layer resolvent
+2  example_2_jet                     axisymmetric jet resolvent
+3  example_3_streaky_bl              temporal and spatial stability
+4  example_4_cavity                  direct and adjoint cavity EVP
+5  example_5_paraboloid              curvilinear axisymmetric resolvent
+\end{outputbox}
+
+\subsection*{5.1 Example 0: curvilinear derivative validation}
+
+This example contains no flow physics. It checks SBP finite-difference derivatives on a conformal mapping.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_0_curvilinear_validation
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"nx": 50,
+"ny": 50,
+"fd_order": 4,
+"alpha_filter": 0.0,
+"conformal_scale": 0.2
+\end{snippetbox}
+
+Expected outputs:
+
+\begin{outputbox}
+examples/example_0_curvilinear_validation.npz
+examples/example_0_curvilinear_validation.png
+examples/example_0_curvilinear_validation_baseflow.png
+examples/example_0_curvilinear_validation_support_error.png
+\end{outputbox}
+
+\subsection*{5.2 Example 1: Blasius resolvent}
+
+This is the standard boundary-layer resolvent example. Use the smoke version first, then the full example.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_1_blasius_smoke
+.venv/bin/python -m examples.example_1_blasius
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"Re": 6e5,
+"Ma": 0.3,
+"nx": 300,
+"ny": 100,
+"omega": 60.0,
+"n_modes": 3,
+"forcing_zero_vars": ["T", "rho", "w"]
+\end{snippetbox}
+
+The boundary condition is Dirichlet on all sides for \code{uvwT}:
+
+\begin{snippetbox}
+"bc": {
+  "penalty": 1e4,
+  "recipe": [
+    {"type": "dirichlet", "borders": "lrbt", "variables": "uvwT"}
+  ]
+}
+\end{snippetbox}
+
+\subsection*{5.3 Example 2: axisymmetric jet resolvent}
+
+This case uses the axisymmetric model branch.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_2_jet
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"St": 0.39,
+"m": 0,
+"model": "axy",
+"coarsen": 1,
+"fd_order": 4
+\end{snippetbox}
+
+Use \code{coarsen} for faster exploratory runs. Keep \code{model: "axy"} for axisymmetric cases.
+
+\subsection*{5.4 Example 3: streaky boundary layer}
+
+This example runs both temporal and spatial stability branches.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_3_streaky_bl
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"x_periodicity": true,
+"temporal_targets": [[0.59, 0.02], [0.626, -0.005]],
+"temporal_quotas": [2, 8],
+"n_modes": 50,
+"ncv": 150,
+"run_temporal": true,
+"run_spatial": true
+\end{snippetbox}
+
+If you are learning the code, keep one analysis branch enabled at a time after the first successful run.
+
+\subsection*{5.5 Example 4: cavity direct and adjoint EVP}
+
+This case uses a masked, deformed cavity geometry and computes direct and adjoint temporal modes.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_4_cavity
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"nx": 241,
+"ny": 101,
+"omega_target": [1.5, 1.0],
+"n_modes": 50,
+"ncv": 300,
+"beta": 0.0,
+"assembly_backend": "scipy"
+\end{snippetbox}
+
+The cavity currently keeps the SciPy assembly path because the adjoint workflow remains SciPy-based.
+
+\subsection*{5.6 Example 5: paraboloid resolvent}
+
+This case combines a curvilinear transformation with the axisymmetric model.
+
+\begin{commandbox}
+.venv/bin/python -m examples.example_5_paraboloid
+\end{commandbox}
+
+Main knobs:
+
+\begin{snippetbox}
+"nx": 100,
+"ny": 100,
+"model": "axy",
+"m": 5,
+"omega": 0.0,
+"use_omega_shift_fallback": true,
+"forcing_zero_vars": ["T", "rho"]
+\end{snippetbox}
+
+\section*{6. Run the Martini parity checks}
+
+After the example artifacts exist, compare Python outputs with extracted MATLAB bundles:
+
+\begin{commandbox}
+.venv/bin/python tools/parity/compare_martini_examples.py
+\end{commandbox}
+
+The machine-readable registry is:
+
+\begin{outputbox}
+tools/parity/martini_cases.jsonc
+\end{outputbox}
+
+The current reports are written under:
+
+\begin{outputbox}
+tools/parity/reports/martini_parity_latest.json
+tools/parity/reports/martini_parity_table.csv
+\end{outputbox}
+
+\begin{warningbox}
+If the MATLAB NPZ bundles are absent, the comparison reports missing-bundle failures. That is a data-availability result, not a reason to loosen tolerances or edit tests.
+\end{warningbox}
+
+For a complete example pass, use the bundled runner:
+
+\begin{commandbox}
+bash run_all_examples.sh
+\end{commandbox}
+
+\section*{7. Song 2023 validation baseline}
+
+The Song 2023 case is a validation workflow for an oblique shock / boundary-layer interaction. It is larger than the Martini examples and should be treated as a study, not as a quick smoke test.
+
+The main files are:
+
+\begin{outputbox}
+validation/song_2023/song_2023.py
+validation/song_2023/song_2023.jsonc
+validation/song_2023/song_2023.sh
+\end{outputbox}
+
+Run the baseline through the wrapper:
+
+\begin{commandbox}
+bash validation/song_2023/song_2023.sh
+\end{commandbox}
+
+The baseline JSONC contains the physical parameters, finite-difference order, stride, preprocessing, boundary conditions, and solver settings.
+
+\begin{snippetbox}
+"Re": 1e5,
+"Ma": 2.15,
+"beta": 19.2,
+"fd_order": 2,
+"stride_ksi": 1,
+"stride_eta": 1,
+"run_stability": true,
+"run_resolvent": false
+\end{snippetbox}
+
+Boundary conditions:
+
+\begin{snippetbox}
+{"type": "dirichlet", "borders": "lt", "variables": "ruvwT"}
+{"type": "dirichlet", "borders": "b",  "variables": "ruvw"}
+{"type": "neumann",   "borders": "b",  "variables": "T"}
+{"type": "neumann",   "borders": "r",  "variables": "ruvwT"}
+\end{snippetbox}
+
+Expected canonical outputs:
+
+\begin{outputbox}
+validation/song_2023/song_2023.npz
+validation/song_2023/song_2023.log
+validation/song_2023/song_2023.png
+validation/song_2023/song_2023_baseflow.png
+validation/song_2023/song_2023_support_direct_modes.png
+\end{outputbox}
+
+\section*{8. Song validation matrices}
+
+Use JSONC matrix files when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
+
+\begin{outputbox}
+validation/song_2023/song_2023_matrix.jsonc
+validation/song_2023/order_convergence.jsonc
+validation/song_2023/song_2023_order_preflight.jsonc
+validation/song_2023/song_2023_scaling.jsonc
+validation/song_2023/fd4_sensitivity.jsonc
+validation/song_2023/shift_scan.jsonc
+validation/song_2023/shifted_ksp_matrix.jsonc
+\end{outputbox}
+
+Run the solver/preprocessing matrix:
+
+\begin{commandbox}
+.venv/bin/python -m validation.song_2023.run_song_2023_matrix
+\end{commandbox}
+
+Run the finite-difference order preflight before the full order convergence study:
+
+\begin{commandbox}
+.venv/bin/python -m validation.song_2023.run_song_2023_order_preflight
+\end{commandbox}
+
+Run the order convergence study only on a machine with enough memory for the configured guard:
+
+\begin{commandbox}
+.venv/bin/python -m validation.song_2023.run_song_2023_order_convergence
+.venv/bin/python validation/song_2023/plot_order_convergence.py
+\end{commandbox}
+
+\begin{warningbox}
+The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{validation/song_2023/order_convergence.jsonc} before running it.
+\end{warningbox}
+
+\section*{9. How to adjust a shipped case}
+
+For small experiments, copy the closest Python/JSONC pair into a working location. This keeps the shipped examples intact.
+
+\begin{commandbox}
+mkdir -p tutorial/work
+cp examples/example_1_blasius.py tutorial/work/my_blasius.py
+cp examples/example_1_blasius_smoke.jsonc tutorial/work/my_blasius.jsonc
+PYTHONPATH=src:. .venv/bin/python tutorial/work/my_blasius.py
+\end{commandbox}
+
+Then edit:
+
+\begin{outputbox}
+tutorial/work/my_blasius.jsonc
+\end{outputbox}
+
+Good first changes:
+
+\begin{itemize}[leftmargin=2em]
+  \item reduce \code{nx} and \code{ny} for fast tests,
+  \item change \code{n_modes} only after the first successful run,
+  \item change \code{fd_order} one value at a time,
+  \item keep \code{assembly_backend: "scipy"} until the case works,
+  \item keep solver settings in JSONC.
+\end{itemize}
+
+\begin{notebox}
+The copied Python file uses \code{SCRIPT.with_suffix(".jsonc")}. That is why \path{my_blasius.py} reads \path{my_blasius.jsonc} automatically when the names match.
+\end{notebox}
+
+\section*{10. How to start a new case}
+
+Use this checklist before writing new package code:
+
+\begin{itemize}[leftmargin=2em]
+  \item choose the closest existing case: Blasius for 2-D resolvent, jet/paraboloid for axisymmetric resolvent, streaky/cavity for EVP branches, Song for SWBLI validation;
+  \item copy the Python/JSONC pair into a study directory;
+  \item keep all physical and numerical parameters in the JSONC file;
+  \item load base-flow data through a small loader rather than hardcoded absolute paths;
+  \item define the boundary-condition recipe explicitly;
+  \item run a reduced grid first;
+  \item save \code{.npz} outputs every run and plot from the saved file;
+  \item add a test or parity check before changing shared operator code.
+\end{itemize}
+
+For MATLAB-backed parity, add a registry entry only after the reference bundle location is known:
+
+\begin{outputbox}
+tools/parity/martini_cases.jsonc
+\end{outputbox}
+
+\section*{11. Common first-run problems}
+
+\begin{itemize}[leftmargin=2em]
+  \item If \code{petsc4py} or \code{slepc4py} cannot import, rerun \code{bash install.sh --check}.
+  \item If a run appears to use the wrong Python, use \code{.venv/bin/python} explicitly.
+  \item If a full example is too slow, run the smoke or reduced-grid variant first.
+  \item If a parity report says a MATLAB NPZ bundle is missing, generate or provide the bundle; do not change tolerances to hide the missing input.
+  \item If a high-order run changes behavior, compare \code{fd_order} values through a JSONC matrix instead of editing operator code first.
+\end{itemize}
+
+\section*{12. Build this tutorial}
+
+The tutorial source and Makefile live together:
+
+\begin{outputbox}
+tutorial/tutorial.tex
+tutorial/Makefile
+\end{outputbox}
+
+Build from inside the tutorial directory:
+
+\begin{commandbox}
+cd tutorial
+make
+\end{commandbox}
+
+The build writes:
+
+\begin{outputbox}
+tutorial/tutorial.pdf
+\end{outputbox}
+
+\end{document}
