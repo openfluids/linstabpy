@@ -243,7 +243,7 @@ Parameters that matter in the active code path.
 ### Mesh resolution
 
 - `numerics.stride_ksi`, `numerics.stride_eta` — coarsening during case
-  loading in `studies/common/results_runtime.py`. `1` = full; `2` = every other
+  loading in `src/linstab2d/results_runtime.py`. `1` = full; `2` = every other
   point; `4` = coarse legacy.
 
 Active nomenclature:
@@ -269,7 +269,7 @@ obtained on it must be re-confirmed at `M1` before it enters the paper.
 ### Spanwise parameter
 
 - `numerics.beta` — forwarded as `kx=beta` to the LNSE assembly
-  in `studies/common/results_runtime.py`. Pinned `0.0` for this
+  in `src/linstab2d/results_runtime.py`. Pinned `0.0` for this
   sub-campaign. **Caveat:** `β=0` forecloses any 3D branch by construction;
   this is a 2D-subspace study until the baseline is stable.
 
@@ -296,7 +296,7 @@ obtained on it must be re-confirmed at `M1` before it enters the paper.
 ### Spectral target
 
 - `analysis.omega_target` — complex shift-invert target. If omitted, built
-  from `St`, `ratio_uinf`, `ratio_l` in `studies/common/results_runtime.py`. In SLEPc:
+  from `St`, `ratio_uinf`, `ratio_l` in `src/linstab2d/results_runtime.py`. In SLEPc:
   `eps.setTarget`, `eps.setWhichEigenpairs(TARGET_MAGNITUDE)`,
   `st.setShift`. **Not a passive hint** — it defines the interior eigensolve
   centre.
@@ -342,7 +342,7 @@ Two residual concepts in saved artifacts:
 1. **SLEPc residual** `stability_residual_relative` — from
    `eps.computeError(...)` in `eigenvalue.py:738`.
 2. **Explicit postcheck residual** `stability_postcheck_residual_rel` —
-   `|| i L0 v − ω v || / ||v||` in `studies/common/results_runtime.py`.
+   `|| i L0 v − ω v || / ||v||` in `src/linstab2d/results_runtime.py`.
 
 Rules:
 

@@ -37,7 +37,7 @@ from linstab2d.utils.jsonc import load_jsonc
 
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parent
-DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases.jsonc"
+DEFAULT_CONFIG = CASE_DIR / "configs" / "evp" / "evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc"
 DEFAULT_JSON = CASE_DIR / "output" / "case2_perf_memory_latest.json"
 DEFAULT_CSV = CASE_DIR / "output" / "case2_perf_memory_table.csv"
 DEFAULT_LOG_DIR = CASE_DIR / "output" / "logs"

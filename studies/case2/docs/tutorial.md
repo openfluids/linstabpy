@@ -29,9 +29,9 @@ Se você estiver em dúvida, use estas regras:
 
 Arquivos principais:
 
-- [case2.py](case2.py)
-- [run_case_once.sh](run_case_once.sh)
-- [parity_config.jsonc](parity_config.jsonc)
+- [case2.py](../case2.py)
+- [run_case_once.sh](../run_case_once.sh)
+- [parity_config.jsonc](../configs/parity_config.jsonc)
 
 Esse é o caminho certo quando você quer:
 
@@ -44,9 +44,9 @@ Esse é o caminho certo quando você quer:
 
 Arquivos principais:
 
-- [perf_memory.py](perf_memory.py)
-- [run_perf_queue_once.sh](run_perf_queue_once.sh)
-- um JSONC de campanha, por exemplo [evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc](evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc)
+- [perf_memory.py](../perf_memory.py)
+- [run_perf_queue_once.sh](../run_perf_queue_once.sh)
+- um JSONC de campanha, por exemplo [evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc](../configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc)
 
 Esse é o caminho certo quando você quer:
 
@@ -59,21 +59,21 @@ Esse é o caminho certo quando você quer:
 
 No caminho ativo do `case2`, pense assim:
 
-- [parity_config.jsonc](parity_config.jsonc)
+- [parity_config.jsonc](../configs/parity_config.jsonc)
   Configuração-base completa do caso.
-- [case2.py](case2.py)
+- [case2.py](../case2.py)
   Ponto de entrada do solver para um caso.
-- [run_case_once.sh](run_case_once.sh)
+- [run_case_once.sh](../run_case_once.sh)
   Script recomendado para um caso.
-- [perf_memory.py](perf_memory.py)
+- [perf_memory.py](../perf_memory.py)
   Orquestrador de campanhas.
-- [run_perf_queue_once.sh](run_perf_queue_once.sh)
+- [run_perf_queue_once.sh](../run_perf_queue_once.sh)
   Script de fila para campanhas.
 - [README.md](README.md)
   Visão geral científica da campanha.
 - `output/<campanha>/`
   Logs, NPZs, PNGs e tabelas.
-- [socket0.rankfile](socket0.rankfile), [socket1.rankfile](socket1.rankfile), [socket01.rankfile](socket01.rankfile)
+- [socket0.rankfile](../socket0.rankfile), [socket1.rankfile](../socket1.rankfile), [socket01.rankfile](../socket01.rankfile)
   Arquivos de pinagem MPI desta máquina específica.
 
 ## 4. O erro de MPI mais comum
@@ -218,7 +218,7 @@ studies/case2/output/runs/meu_caso_stride2.npz
 
 ## 6. Como escolher o MPI no wrapper
 
-O wrapper [run_case_once.sh](run_case_once.sh) usa estas variáveis:
+O wrapper [run_case_once.sh](../run_case_once.sh) usa estas variáveis:
 
 - `LINSTAB2D_MPI_PROCS`
   Número de ranks MPI.
@@ -426,9 +426,9 @@ Se quer rodar um caso só:
 
 Na prática:
 
-- copie [parity_config.jsonc](parity_config.jsonc)
+- copie [parity_config.jsonc](../configs/parity_config.jsonc)
 - edite
-- rode com [run_case_once.sh](run_case_once.sh)
+- rode com [run_case_once.sh](../run_case_once.sh)
 
 Se quer rodar uma campanha:
 

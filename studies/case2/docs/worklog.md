@@ -22,7 +22,7 @@ coordinates.
   `numerics.stride_ksi = stride_eta = 1`, `fd_order = 4`, `beta = 0`,
   `alpha_filter = 0.0` (consistent with PLAN screening defaults when
   interpreted as "none" at config layer).
-- `case2.py` — thin wrapper over `studies.common.results_runtime`. No
+- `case2.py` — thin wrapper over `linstab2d.results_runtime`. No
   mesh-aware logic lives here; the stride lives in `numerics.*`.
 - `REFERENCE.md` Framing §3 — confirms the expected contamination
   signature of a DNS operator on an LES-filtered mean: (i) energy
@@ -100,7 +100,7 @@ defend physically.
    pre-processed field (e.g., already mapped to the curvilinear mesh
    with specific boundary handling) rather than raw LES sample points.
    This would affect what "high-k content" means. — Will check
-   `studies.common.results_runtime` / baseflow loader in Entry 2.
+   `linstab2d.results_runtime` / baseflow loader in Entry 2.
 2. Whether the `y` coordinate being non-monotonic along axis 0 at a
    fixed η (curvilinear mesh following a curved surface) introduces
    artefacts when doing a streamwise FFT at fixed η-index. Expected

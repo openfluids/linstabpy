@@ -327,10 +327,10 @@ machine needs explicit paths.
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
-|   `-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
+|   |-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
+|   `-- results_runtime.py         Package runtime used by case study drivers
 |-- examples/                      Runnable Martini examples; generated .npz/.png ignored
 |-- studies/                       Active research workflows, not importable library code
-|   |-- common/                    Shared case-runtime orchestration helpers
 |   |-- case1/                     SWBLI parity/performance study
 |   |   |-- configs/
 |   |   |-- data/baseflow/

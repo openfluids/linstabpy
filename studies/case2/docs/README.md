@@ -26,14 +26,14 @@ Cada campanha grava em `output/<campanha>/`:
 - `plots/spectra/`, `plots/modes/` — figuras
 - arquivos-resumo no topo (JSON latest, CSV table)
 
-## Arquivos ativos nesta pasta
+## Arquivos ativos em `studies/case2/`
 
-- `case2.py` — entrada de um caso só
-- `perf_memory.py` — orquestrador de campanha
-- `run_case_once.sh`, `run_perf_queue_once.sh` — wrappers
-- `configs/parity_config.jsonc` — configuração canônica do caso
-- `configs/evp/evp_stride*.jsonc` — configs por experimento (malha × target × solver)
-- `scripts/plot_saved_spectra.py`, `scripts/plot_saved_modes.py` — pós-processamento
+- `../case2.py` — entrada de um caso só
+- `../perf_memory.py` — orquestrador de campanha
+- `../run_case_once.sh`, `../run_perf_queue_once.sh` — wrappers
+- `../configs/parity_config.jsonc` — configuração canônica do caso
+- `../configs/evp/evp_stride*.jsonc` — configs por experimento (malha × target × solver)
+- `../scripts/plot_saved_spectra.py`, `../scripts/plot_saved_modes.py` — pós-processamento
 
 ## Commands
 

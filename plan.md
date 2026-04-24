@@ -28,6 +28,12 @@ section so they are not lost.
 - Phase 3 legacy-layout fallback removal: completed in `ad341b8`.
 - Phase 4 study runtime split: completed in `d362fff`.
 - Phase 5 documentation refresh: completed in the final documentation commit.
+- Corrective pass: completed. The Phase 4 runtime split crossed the package
+  boundary: `linstab2d.results_runtime` is installed from `src/`, but the
+  implementation had been moved to top-level `studies/`, which is repo-local.
+  Fixed by moving runtime implementation back into `src/linstab2d/`, making
+  studies wrappers depend on the package, deleting the duplicate
+  `studies/common/` module, and repairing direct-entry/config defaults.
 
 Verification notes:
 
@@ -36,6 +42,20 @@ Verification notes:
 - Pytest collection is blocked in this local checkout because `petsc4py` is not
   installed; collection stops in `tests/conftest.py` before reaching the
   changed tests.
+
+Corrective pass validation:
+
+- `python -m compileall -q src studies validation tests`
+- `bash -n run_all_examples.sh validation/song_2023/song_2023.sh studies/case1/case1.sh studies/case2/run_case_once.sh studies/case2/run_perf_queue_once.sh`
+- `git diff --check`
+- `python scripts/check_tracked_file_size.py`
+- `make -C tutorial`
+- `PYTHONPATH=src:. python -c "from studies.case2 import perf_memory; ..."`:
+  default Case 2 campaign config exists and loads one case.
+- `PYTHONPATH=src python -c "import linstab2d.results_runtime"` and direct
+  Case 1/Case 2 entrypoint checks now reach `petsc4py`; this local interpreter
+  still lacks `petsc4py`, so full PETSc-backed entrypoint execution remains
+  blocked here by environment rather than by repository layout.
 
 ## Current Evidence
 
@@ -345,26 +365,27 @@ Validation:
 - `python scripts/check_tracked_file_size.py`
 - `git diff --check`
 
-## Phase 4 - Separate Study Runtime From Library Runtime
+## Phase 4 - Keep Runtime On The Package Boundary
 
-Goal: move study orchestration out of package code after folder paths are
-settled.
+Goal: keep importable runtime code inside the installed package while making
+case-study entrypoints thin and local.
 
 Actions:
 
-1. Split `src/linstab2d/results_runtime.py`:
-   - keep generic runtime helpers in the library;
-   - move Case 1/Case 2 orchestration into `studies/common/` or study-local
-     modules.
-2. Review `src/linstab2d/baseflow/case1.py`:
+1. Keep `src/linstab2d/results_runtime.py` as the single runtime
+   implementation used by Case 1 and Case 2.
+2. Keep `studies/case1/case1.py` and `studies/case2/case2.py` as thin wrappers
+   that set case-specific defaults before calling `linstab2d.results_runtime`.
+3. Do not keep a duplicate `studies/common/` runtime package; `studies/` is
+   repo-local workflow/data/docs, not installable library code.
+4. Review `src/linstab2d/baseflow/case1.py`:
    - keep reusable loader primitives if general;
    - move study-specific Hamada/Case 1 assumptions under `studies/case1/` if
      they are not library-level behavior.
-3. Keep compatibility wrappers only for one transition commit.
 
 Validation:
 
-- public imports used by examples still work
+- package imports used by tests and examples still resolve from `src/linstab2d`
 - Case 1 and Case 2 workflows run from repository root
 - no numerical output changes except path/provenance metadata
 
