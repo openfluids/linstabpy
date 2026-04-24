@@ -349,6 +349,17 @@ Each example writes an \code{.npz} cache and one or more \code{.png} figures in 
 The figures shown in this tutorial are generated artifacts. They are ignored by git, so a fresh checkout may show placeholder notes until the examples are run locally.
 \end{warningbox}
 
+Read the figures in the same order in every case:
+
+\begin{itemize}[leftmargin=2em]
+  \item Start with the baseflow figure. Confirm the domain, coordinate system, sponge region, and any mask or body geometry before looking at modes.
+  \item Then inspect the spectrum or gain summary. For resolvent cases, large separation between leading and suboptimal gains means the leading forcing/response pair is easier to interpret. For stability cases, the sign of the growth coordinate matters.
+  \item Use the mode/support figures for localization. Individual color limits show shape; shared color limits show which component or region carries most of the plotted amplitude.
+  \item Treat residual and parity reports as numerical health checks. A polished figure is not a substitute for a small residual or a passing parity comparison.
+\end{itemize}
+
+If a plot looks suspicious, separate three issues before changing code: numerical convergence, plotting choices, and physical interpretation. For example, a misplaced colorbar is a figure-quality issue; a mode selected from the wrong part of the spectrum is a numerical-study issue; a wavepacket located in the wrong shear layer is a physics/parity issue.
+
 \subsection*{5.1 Example 0: curvilinear derivative validation}
 
 Example 0 is the numerical preflight. It has no flow physics. It builds a symmetric computational mesh, maps it to a parabolic physical domain, evaluates a known function, and checks whether the curvilinear derivative operator differentiates it correctly. Use it before interpreting physical modes, because it exercises the mapping and finite-difference machinery without solver ambiguity.
@@ -379,6 +390,8 @@ artifacts/curvilinear_derivative_parity.json
 \end{outputbox}
 
 What to inspect: the mapped grid should remain smooth, and the support-error figure should localize the derivative error rather than showing a domain-wide failure. This case is mostly a geometry and derivative diagnostic.
+
+The derivative comparison uses \code{f = cos(x)}, so the analytic derivative is \code{-sin(x)}. The useful reading is not whether the plotted curves are visually smooth, but whether the error magnitude stays near the numerical tolerance and whether any larger error is confined to boundary or mapping-sensitive locations. If later figure work shows small oscillations near a boundary, document them as derivative-operator or closure behavior before treating them as a flow result.
 
 \examplefigure{../examples/example_0_curvilinear_validation_baseflow.png}{0.88}{Example 0 grid and mapped-domain view.}
 \examplefigure{../examples/example_0_curvilinear_validation.png}{0.82}{Example 0 derivative comparison.}
@@ -431,6 +444,8 @@ examples/example_1_blasius_support_components_shared_limits.png
 
 What to inspect: the leading forcing is upstream, while the response is strongest downstream. This is the expected amplifier-flow signature of a non-normal boundary-layer operator. The leading response corresponds to the most efficiently forced Tollmien--Schlichting wavepacket. Suboptimal modes use similar physics but must be orthogonal to the leading mode, so their response patterns are modulated and their gains are lower.
 
+Use the baseflow figure to check the growing boundary layer and the downstream sponge before interpreting the modes. If the response or forcing support sits mainly inside the sponge, the plot is telling you about damping or boundary treatment, not the physical TS amplifier. The shared-limit support figure is the better diagnostic for where energy is concentrated across components; the individual-limit figure is better for seeing each component's shape.
+
 \begin{notebox}
 The verification note records \code{Re = 6e5} in MATLAB and Python. The paper text appears to understate this value as \code{60,000}; the MATLAB source and the Python port use \code{600,000}.
 \end{notebox}
@@ -469,6 +484,8 @@ examples/example_2_jet_support_components.png
 \end{outputbox}
 
 What to inspect: the leading forcing should be concentrated near the nozzle lip and mixing layer. The response forms a downstream wavepacket. The large leading gain is consistent with convective amplification associated with the inflectional jet mean flow. Higher modes have lower gain and more distributed support.
+
+Here \code{St = 0.39} is converted in the script to \code{omega = 2*pi*St}, and \code{m = 0} means the perturbation is axisymmetric. In the figures, first locate the nozzle lip and the shear layer in the baseflow. Then check that forcing is near the receptive upstream mixing layer while response extends downstream as a wavepacket. A response that fills the far-field boundary or sponge would be a warning to inspect the domain and damping settings.
 
 \begin{notebox}
 The jet base flow and sponge are loaded from the same \code{.mat} source used by the MATLAB example, so this case is a useful data-loading and axisymmetric-operator parity check.
@@ -512,6 +529,8 @@ examples/example_3_streaky_bl_spectra.png
 \end{outputbox}
 
 What to inspect: the temporal spectrum should identify unstable streak modes. The Floquet treatment lets the smaller domain separate harmonic and subharmonic branches. The spatial analysis follows the corresponding spatial branch and is used to reason about whether the instability is convective or absolute.
+
+For the temporal spectrum, the horizontal coordinate is \code{Re(omega)} and the vertical coordinate is \code{Im(omega)}; positive \code{Im(omega)} indicates temporal growth under this convention. For the spatial plot, \code{alpha} is complex and the sign of spatial amplification depends on the branch being followed. Do not read convective or absolute behavior from one spatial point alone; first make sure the temporal spectrum is converged and the selected branch is the intended one.
 
 \begin{notebox}
 The verification note records MATLAB and Python using \code{125 x 250}. The paper text appears to report a lower grid count; the MATLAB source is the authoritative reference for the port.
@@ -559,6 +578,8 @@ examples/example_4_cavity_adjoint.png
 
 What to inspect: the direct and adjoint spectra should overlay after the documented conjugation convention. The direct modes show the unstable cavity feedback structure. The adjoint support is strongest near the upstream cavity region, which marks where disturbances most efficiently excite the unstable direct modes.
 
+The selected direct and adjoint panels are diagnostics of the computed eigenpair set near the requested target, not a claim that a printed index is physically special by itself. If a label such as ``mode 18'' appears, interpret it as the retained eigenpair index in that run and check the spectrum location before assigning physical meaning. Fine oscillations in adjoint contours can also be a discrete-adjoint effect; the main quantity to read is the receptivity envelope and its overlap with the direct mode, not every small contour wiggle.
+
 \begin{notebox}
 The cavity currently keeps \code{assembly_backend: "scipy"} because the adjoint workflow remains SciPy-based.
 \end{notebox}
@@ -600,6 +621,8 @@ examples/example_5_paraboloid_support_components.png
 
 What to inspect: forcing and response concentrate around the body and stagnation-region boundary layer. The mechanism is tied to streamwise vortices that enter the boundary layer and create downwash/upwash patterns; these redistribute high- and low-speed fluid and form streaks through lift-up. Suboptimal modes show additional radial or wall-normal nodes and lower gains.
 
+This is a nominal zero-frequency resolvent case. The script can use a small imaginary frequency shift when the zero-frequency operator is singular or ill-conditioned; the cache records the frequency actually used. In the figures, blank or clipped regions can come from the mapped physical domain, body geometry, or plotting limits, so inspect the baseflow/body outline before concluding that the baseflow itself is missing data.
+
 \begin{notebox}
 The Python port includes the physical-domain scaling before the conformal mapping. The earlier missing-scaling issue recorded in the verification note is not a current tutorial warning.
 \end{notebox}
@@ -610,14 +633,14 @@ The Python port includes the physical-domain scaling before the conformal mappin
 
 \subsection*{5.7 Figure-quality notes for the next figure pass}
 
-The current figures are usable for this tutorial, but several can be improved for publication-style reporting. The most common improvements are LaTeX-rendered axis labels, closer title placement, tighter colorbar spacing, and shared color limits for support-component comparisons. Example-specific items worth addressing in the plotting code are:
+The current figures are usable for this tutorial, but several can be improved for publication-style reporting. The most common improvements are LaTeX-rendered axis labels, closer title placement, tighter colorbar spacing, scientific notation for small values, and shared color limits for support-component comparisons. Example-specific items worth addressing in the plotting code are:
 
 \begin{itemize}[leftmargin=2em]
-  \item Example 0: show the full physical grid more explicitly and use scientific notation for small derivative errors.
-  \item Examples 1, 2, and 5: reduce spacing between mode panels and move titles closer to the plotted area.
-  \item Example 3: verify the baseflow panel uses the intended streamwise component and converge the temporal spectrum before using the spatial branch for claims.
-  \item Example 4: review cavity-baseflow masking and extent against the MATLAB figure and document why the selected direct/adjoint modes are shown.
-  \item All examples: use consistent math fonts, colorbar tick spacing, and white-centered diverging colormaps for signed modes.
+  \item Example 0: show the full physical grid more explicitly, close the physical-domain outline, reduce column spacing, and use scientific notation for small derivative errors.
+  \item Examples 1, 2, and 5: reduce spacing between mode panels, move titles closer to the plotted area, keep freestream arrows horizontal where shown, and tighten colorbar gaps.
+  \item Example 3: verify the baseflow panel uses the intended streamwise component \code{W}, move spectrum legends away from eigenvalues, converge the temporal spectrum before using the spatial branch for claims, and save enough modes to identify the second unstable branch when that study is run.
+  \item Example 4: review cavity-baseflow masking and extent against the MATLAB figure, keep spectrum-axis labels from overlapping neighboring panels, and document the selected direct/adjoint mode indices in the plotting caption or metadata.
+  \item All examples: use consistent math fonts, colorbar tick spacing, larger axis labels where panels are dense, and white-centered diverging colormaps for signed modes.
 \end{itemize}
 
 \subsection*{5.8 Martini parity notes}

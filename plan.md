@@ -4,6 +4,8 @@ Date: 2026-04-24
 Branch: `main`
 Status: implemented on `main`
 
+Second-pass status: implemented on `main`
+
 ## Goal
 
 Expand `tutorial/tutorial.tex` so the Martini example family is useful as a
@@ -276,3 +278,27 @@ Add a compact table or short callout after the per-example sections:
 - Full example execution was not rerun in this local environment because the
   interpreter lacks `petsc4py`; documentation build and static checks were run
   locally.
+
+## Second-Pass Review Plan
+
+Goal: keep the existing structure, but add the small reader-facing details that
+make the figure walkthrough easier to use without changing solver behavior or
+plot-generation code.
+
+Add:
+
+- a short guide for reading the generated figures: baseflow panels, spectrum or
+  gain panels, mode/support panels, shared-limit comparisons, and residual or
+  parity outputs;
+- one or two extra inspection details per example, especially where the figure
+  can be misread without context;
+- a clearer distinction between numerical health checks, figure aesthetics, and
+  physical interpretation;
+- a more concrete next-pass figure checklist, still framed as proposed plotting
+  work rather than completed figure changes.
+
+Do not add:
+
+- new numerical claims without rerunning the examples;
+- new generated artifacts;
+- plotting-code edits in the same pass.
