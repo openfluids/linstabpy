@@ -199,23 +199,32 @@ def main():
             print(f"  {tag}: BG-S not captured "
                   f"(nearest dist={b['dist_to_target']:.3f})")
 
-    # Gate: fd4_s4 (clean baseline) must have no candidate >= VERDICT_PROCEED.
-    fd4_s4_cands = results["fd4_s4"]["candidates"]
-    fd4_s4_max = max((c["step_max"] for c in fd4_s4_cands), default=0.0)
-    if fd4_s4_max >= VERDICT_PROCEED:
+    # Gate: fd4_s2 (clean refined baseline) must have no window mode
+    # >= VERDICT_PROCEED. We compare against the same-stride fd4 run, not
+    # fd4_s4: at stride-4 every mode has near-wall step ~0.15 from
+    # under-resolved grid noise, so the metric only discriminates at
+    # stride-2 where BG-S baseline drops to ~0.025.
+    fd4_s2_window = results["fd4_s2"]["window_modes"]
+    fd4_s2_max = max((m["step_max"] for m in fd4_s2_window), default=0.0)
+    if fd4_s2_max >= VERDICT_PROCEED:
         raise AssertionError(
-            f"Gate FAIL: fd4_s4 (clean baseline) has candidate step_max = "
-            f"{fd4_s4_max:.4f} >= {VERDICT_PROCEED}. Saw-tooth-window "
-            f"filter is mis-calibrated (it is matching modes fd4 should not "
-            f"produce).")
+            f"Gate FAIL: fd4_s2 (clean refined baseline) has window "
+            f"step_max = {fd4_s2_max:.4f} >= {VERDICT_PROCEED}. "
+            f"Saw-tooth omega-window matches modes fd4 should not produce.")
     print(f"\n=== Window calibration gate ===")
-    print(f"  fd4_s4 candidate-max = {fd4_s4_max:.4f} [OK, < {VERDICT_PROCEED}]")
+    print(f"  fd4_s2 window-max = {fd4_s2_max:.4f} "
+          f"[OK, < {VERDICT_PROCEED}]")
 
     # --- Verdict ---
-    fd6_s2_cands = results["fd6_s2"]["candidates"]
-    fd6_s2_max = max((c["step_max"] for c in fd6_s2_cands), default=0.0)
+    # Use ALL window-matched modes, not just rho-active ones. The saw-tooth
+    # signature is high tang_adj_step in the rho component within the
+    # known frequency family; rho-fraction varies with grid resolution
+    # (stride-4: rho_frac ~0.5; stride-2: same family at ~0.2 because
+    # energy redistributes across variables) but the rho-step persists.
+    fd6_s2_window = results["fd6_s2"]["window_modes"]
+    fd6_s2_max = max((m["step_max"] for m in fd6_s2_window), default=0.0)
     print("\n=== Verdict ===")
-    print(f"fd6 stride-2 candidates: {len(fd6_s2_cands)}, "
+    print(f"fd6 stride-2 window modes: {len(fd6_s2_window)}, "
           f"max step_max = {fd6_s2_max:.4f}")
 
     if fd6_s2_max < VERDICT_STOP:
