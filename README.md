@@ -1,408 +1,932 @@
 # LinStabPy
 
-Sparse linear stability and resolvent analysis for compressible viscous flows.
+## 1. Project overview
 
-## Motivation
+LinStabPy is a Python package for sparse linear stability and resolvent
+analysis of compressible viscous flows.
 
-Stability and resolvent analysis of 2D base flows requires solving large sparse linear systems built from the linearized compressible Navier-Stokes equations (LNSE). MATLAB's `backslash` operator uses dense LU factorization — O(n^2) memory — which makes problems above ~50k DOFs impractical: a 150k-DOF system needs ~180 GB of RAM, crashing even high-memory workstations. Realistic 2D base flows from LES or DNS data routinely produce 10^5-10^6 DOFs.
+The package targets two-dimensional structured base flows and builds operators
+for the linearized compressible Navier-Stokes equations. The public project name
+is `LinStabPy`, the repository and distribution name is `linstabpy`, and the
+current import package is `linstab2d`.
 
-`LinStabPy` is built on sparse matrices from the ground up, with all solvers backed by PETSc/SLEPc and MUMPS. Python handles matrix assembly and orchestration; the heavy linear algebra runs through compiled C/Fortran libraries optimized for large sparse systems. No MATLAB license required.
+The motivation is practical memory use. Stability and resolvent analysis of 2D
+base flows leads to large sparse linear systems. MATLAB's `backslash` path uses
+dense LU-style memory scaling in the workflows that motivated this port. That
+is `O(n^2)` storage: a 150k-DOF system needs about 180 GB of RAM, which makes
+many LES/DNS-derived base-flow problems unusable on normal workstations.
+LinStabPy keeps the matrices sparse and sends the linear algebra through
+PETSc/SLEPc and MUMPS.
 
-Naming convention:
-- public project name: `LinStabPy`
-- GitHub repository and distribution name: `linstabpy`
-- current implementation package: `linstab2d`
+The package currently supports:
 
-## What it does
+- resolvent analysis: leading gain, forcing modes, and response modes;
+- temporal stability: direct and adjoint eigenvalue problems;
+- spatial stability: streamwise-wavenumber eigenvalue problems;
+- coordinate systems: Cartesian, cylindrical/axisymmetric, and curvilinear
+  structured meshes;
+- boundary treatment: Dirichlet rows, Neumann rows, sponge damping fields, and
+  masking for structured grids with excluded points;
+- energy norms: Chu compressible energy norm with quadrature weighting.
 
-`LinStabPy` constructs the LNSE operator on structured 2D meshes using summation-by-parts (SBP) finite difference schemes, then solves for resolvent gains, eigenvalues, or optimal forcing/response modes:
+The implementation follows the modelling choices of Martini and Schmidt (2024)
+where possible, while replacing MATLAB dense workflows with sparse PETSc/SLEPc
+solvers.
 
-- **Resolvent analysis** — optimal gain, forcing, and response mode shapes via SVD of the resolvent operator (SLEPc TRLANCZOS)
-- **Temporal stability** — direct and adjoint eigenvalues of the LNSE operator (SLEPc Krylov-Schur + shift-invert)
-- **Spatial stability** — streamwise wavenumber eigenvalues via the companion-matrix generalized eigenvalue problem, with Floquet ansatz for spanwise-periodic flows
-- **Coordinates** — Cartesian, cylindrical (axisymmetric), and curvilinear (general mesh deformation with full Jacobian)
-- **Boundary treatment** — Dirichlet conditions, sponge layers, mesh masking for complex geometries
-- **Energy norm** — Chu compressible energy norm for physically meaningful gain definitions
+## 2. Installation
 
-## Examples in depth
+### 2.1 Prerequisites
 
-Five validated examples reproduce the cases from Martini & Schmidt (2024). Each example highlights different numerical techniques — this section explains what happens under the hood and why.
+Use the repository scripts first. They check compilers, MPI, Python bindings,
+PETSc/SLEPc, and the runtime stack that will be used by the examples.
 
-Run any example:
+Required system tools:
+
+- POSIX shell with `bash`;
+- C, C++, and Fortran compilers;
+- `make`, `cmake`, `curl`, and `pkg-config`;
+- one MPI stack with development headers (`mpicc`, `mpicxx`, `mpifort`,
+  `mpiexec`);
+- Python environment managed by the repository installer;
+- optional HDF5 development files only when MATLAB v7.3 / HDF5 tooling is
+  needed.
+
+Do not mix MPI stacks in one environment. PETSc, SLEPc, `mpi4py`, and the
+runtime `mpiexec` must agree on the same MPI ABI.
+
+### 2.2 Linux (recommended path)
+
+Clone the repository with submodules and run the native checks:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius
-```
-
-> **macOS only — do not use `uv run`.**
-> `petsc4py` and `slepc4py` require a one-time patched installation performed by
-> `install.sh` into `.venv/`.  Calling `uv run python ...` bypasses the venv and
-> attempts to rebuild `petsc4py` from source on every invocation, which fails due
-> to missing PETSc headers and macOS rpath requirements.  Always invoke Python as
-> `.venv/bin/python`.  On Linux the same restriction applies unless the venv has
-> been activated or the full path is used.
-
-Results are cached to `.npz`; subsequent runs plot directly without recomputing.
-
----
-
-### Example 1: Blasius boundary layer — resolvent analysis
-
-**Physics:** A compressible flat-plate boundary layer (Re = 6 x 10^5, Ma = 0.3) amplifies disturbances through the Tollmien-Schlichting mechanism. Resolvent analysis identifies the frequency and spatial structure of the most amplified perturbations.
-
-**Numerics:**
-
-| Component | Choice | Why |
-|-----------|--------|-----|
-| Discretization | SBP-FD, order 4, 220 x 70 grid | SBP ensures discrete energy stability; 4th order balances accuracy and stencil width |
-| Mesh deformation | Hanifi algebraic y-mapping | Clusters points near the wall where gradients are steepest, stretches to freestream |
-| Linear solve | PETSc KSP + MUMPS (direct LU) | Single factorization of `L0 - i*omega*I`, reused for both forward and adjoint resolvent matvecs |
-| SVD | SLEPc TRLANCZOS (thick-restart Lanczos bidiagonalization) | Purpose-built for computing a few leading singular triplets of large operators; avoids squaring the condition number |
-| Energy norm | Chu norm with quadrature weights | Physically meaningful gains: accounts for compressibility via density and temperature weighting |
-| Boundary treatment | Sponge (tanh ramp at inflow/outflow/freestream) + Dirichlet on u, v, w, T | Sponge absorbs reflections without altering the interior spectrum |
-
-**What makes it interesting:** The resolvent operator `H = C inv(L_sigma) B` is never formed as a matrix. Instead, a PETSc MatShell wraps the MUMPS factorization: each SVD iteration applies `H` via a forward solve and `H^H` via a conjugate-transpose solve. This means a 150k x 150k system requires only the memory of one sparse LU factorization, not a dense matrix.
-
-Important numerical distinction:
-
-- the shifted linear solve `inv(L_sigma)` is controlled by the linear-solver path (`solver.linsolve`)
-- the leading resolvent gains are extracted from an `EPS` solve on the `H^H W H` shell operator (`solver.resolvent.eigen`)
-- in the direct MUMPS path, iterative `KSP` tolerances are not the main accuracy knobs; the relevant eigensolver knobs are the `EPS` settings on `H^H W H` such as `eps_tol`, `conv_test`, `true_residual`, `nev`, and `ncv`
-
-**Key output:** Resolvent gains sigma_1 >> sigma_2 >> sigma_3, confirming rank-1 amplification characteristic of convective instabilities.
-
----
-
-### Example 2: Turbulent jet — axisymmetric resolvent
-
-**Physics:** A subsonic turbulent jet (St = 0.39) exhibits Kelvin-Helmholtz instability in the shear layer. Resolvent analysis in cylindrical coordinates captures the wavepacket structure responsible for jet noise.
-
-**Numerics:**
-
-| Component | Choice | Why |
-|-----------|--------|-----|
-| Coordinates | Cylindrical axisymmetric (z, r) | Natural for round jets; azimuthal Fourier decomposition (m = 0) eliminates one spatial dimension |
-| Base flow | Interpolated from MATLAB table (LES/experimental data) | Realistic mean profile, not an analytical model |
-| Sponge | Loaded from MATLAB `.mat` file and interpolated to mesh | Matches the validated reference configuration exactly |
-| Chu norm | Includes radial weighting (r * W_quad) | Correct energy inner product in cylindrical coordinates |
-| SVD | Same SLEPc TRLANCZOS as Example 1 | |
-
-**What makes it interesting:** The cylindrical LNSE operator includes 1/r singularity terms at the axis. The y_symmetry boundary condition handles the r = 0 pole, and the Chu norm's radial weighting ensures gains represent physical energy amplification (not just a norm artifact).
-
----
-
-### Example 3: Streaky boundary layer — temporal and spatial eigenvalues
-
-**Physics:** A boundary layer perturbed by streamwise streaks develops secondary instabilities. Both temporal (fixed alpha, find omega) and spatial (fixed omega, find alpha) eigenvalue problems reveal the instability mechanism.
-
-**Numerics:**
-
-| Component | Choice | Why |
-|-----------|--------|-----|
-| Periodicity | x-periodic domain with Floquet ansatz | The streaky base flow is periodic in x; Floquet parameter alpha_F sets the subharmonic wavenumber |
-| Temporal EVP | SLEPc Krylov-Schur + shift-invert (MUMPS) | Standard approach: factor `(iL0 - sigma*I)`, search near target omega |
-| Spatial EVP | SLEPc GNHEP (generalized non-Hermitian) + shift-invert | Companion-matrix linearization: `[Lw, Lc; I, 0] v = alpha * [R, 0; 0, I] v` |
-| Sponge | Top boundary only (y-direction tanh ramp) | Periodic x-direction needs no sponge; freestream damping prevents spurious reflections |
-
-**What makes it interesting:** The spatial eigenvalue problem is a *generalized* EVP (two matrices), not a standard one. The companion-matrix formulation converts the quadratic eigenvalue problem in alpha into a linear GNHEP twice the size. SLEPc handles this natively with `setOperators(A, B)` and `setProblemType(GNHEP)`.
-
-**Key output:** Temporal growth rates and spatial amplification rates, directly comparable to published streak instability results.
-
----
-
-### Example 4: Open cavity — direct and adjoint global modes
-
-**Physics:** Flow over an open cavity (Rossiter modes) exhibits global instability. Computing both direct and adjoint eigenmodes reveals where perturbations grow (direct) and where the flow is most receptive to forcing (adjoint).
-
-**Numerics:**
-
-| Component | Choice | Why |
-|-----------|--------|-----|
-| Geometry | Mesh masking (remove points outside cavity walls) | No need for body-fitted grids; structured mesh with masked regions handles the L-shaped domain |
-| Mesh deformation | Cubic + power-law stretching in both x and y | Concentrates resolution near cavity edges (shear layer) and stretches the far field |
-| Direct EVP | SLEPc Krylov-Schur + shift-invert | Standard temporal eigenvalue search near target omega |
-| Adjoint EVP | Same solver on `W^{-1} L0^H W` | The W-weighted adjoint operator ensures biorthogonality in the energy norm |
-| Dense fallback | NumPy `eig()` for small matrices (n < 2500) | On coarse grids the problem is small enough that dense eigendecomposition is faster than iterative |
-
-**What makes it interesting:** The adjoint eigenmodes are localized upstream of the cavity leading edge — physically, this is where external forcing most efficiently triggers the Rossiter cycle. The eigenvalue relation omega_adj = i * conj(omega_direct) provides a built-in consistency check between direct and adjoint spectra.
-
----
-
-### Example 5: Paraboloid body — curvilinear resolvent
-
-**Physics:** A paraboloid-shaped body with azimuthal mode m = 5 exhibits streak receptivity. Resolvent analysis in curvilinear coordinates on the body-fitted mesh reveals optimal forcing patterns.
-
-**Numerics:**
-
-| Component | Choice | Why |
-|-----------|--------|-----|
-| Coordinates | Cylindrical axisymmetric with conformal mapping | Z^2 algebraic mapping (complex plane) maps a rectangular grid onto the paraboloid surface |
-| Azimuthal mode | m = 5 (Fourier decomposition) | Higher azimuthal wavenumbers probe streak-like instabilities |
-| Singular frequency | omega = 0 with fallback to omega = 10^{-4}i | At omega = 0 the shifted operator `L0 - i*omega*I = L0` may be singular; a small imaginary shift regularizes it |
-| SVD | SLEPc TRLANCZOS via MatShell | Same matrix-free approach as Examples 1 and 2 |
-
-**What makes it interesting:** The conformal Z^2 mapping is an elegant way to generate a body-fitted mesh from a simple rectangular grid. The Jacobian of the mapping enters the LNSE coefficients automatically through the curvilinear operator assembly. No special treatment of the body surface is needed beyond the coordinate transformation.
-
----
-
-### Solver stack summary
-
-All five examples share the same solver backend:
-
-```
-SciPy sparse (matrix assembly)  →  PETSc (linear solves via MUMPS)  →  SLEPc (eigenvalue/SVD problems)
-```
-
-| Solver task | Library | Algorithm |
-|-------------|---------|-----------|
-| Sparse LU factorization | PETSc KSP + MUMPS | Multifrontal direct solver with METIS ordering |
-| Temporal/adjoint eigenvalues | SLEPc EPS | Krylov-Schur with shift-invert spectral transformation |
-| Spatial eigenvalues (GNHEP) | SLEPc EPS | Krylov-Schur on generalized non-Hermitian problem |
-| Resolvent SVD | SLEPc SVD | Thick-restart Lanczos bidiagonalization (TRLANCZOS) |
-| Implicit filter factorization | PETSc KSP + MUMPS | Direct LU of tridiagonal filter matrices |
-
-**Why PETSc/SLEPc instead of SciPy?**
-
-- **MUMPS** provides fill-reducing orderings (METIS) that dramatically reduce memory for sparse LU compared to SciPy's SuperLU.
-- **SLEPc Krylov-Schur** is more robust than ARPACK for non-Hermitian eigenvalue problems near interior targets.
-- **SLEPc TRLANCZOS** computes the resolvent SVD directly (no operator squaring), which is numerically more stable than eigendecomposing H^H W H.
-- The entire solver chain is MPI-ready for future distributed-memory parallelism.
-
-For the current Case 1 / Case 2 resolvent implementation, users should also
-keep the following distinction clear:
-
-- `solver.resolvent.eigen.*` controls the `EPS` eigenproblem on the `H^H W H` shell operator
-- `solver.linsolve.*` controls the shifted linear solves used inside each shell-operator application
-- if `solver.linsolve.type=mumps`, the linear solve is `KSPPREONLY+PCLU+MUMPS`, so iterative `KSP` tolerances are not the main tuning knobs
-- if `solver.linsolve.type=iterative`, then `ksp_rtol`, `ksp_atol`, `ksp_max_it`, `pc_type`, and related settings become meaningful
-
-## Linear-system nature (Case 1) and solver strategies
-
-For the assembled LNSE operator (after BCs), the current Case 1 has:
-
-- size `127500 x 127500`
-- `5,678,509` nonzeros (`0.0349%` density)
-- strongly non-symmetric/non-normal behavior
-- low global diagonal dominance
-- large diagonal scale spread (especially from BC-penalty rows)
-
-This is not a classic incompressible saddle-point matrix (`[A B^T; B 0]`).  
-The block system is compressible and mostly coupled in `rho/u/v/T`, with a decoupled `w` block for the 2D (`beta=0`) case.
-
-### Strategy A (robust baseline): MUMPS direct
-
-- `ST=SINVERT`, `KSP=PREONLY`, `PC=LU`, `solver=MUMPS`
-- the main accuracy/selection knobs are `eps_tol`, `conv_test`, `true_residual`, `nev`, `ncv`, and the target shift
-- `KSP` iterative tolerances are not meaningful knobs in this path because `KSPPREONLY` does not run a Krylov iteration
-- use for medium cases where direct factorization memory fits
-- this is the current reliable MATLAB-parity path in this repository
-- verified on **2026-02-26** (`case1`, `n_modes=30`, `MPI=1`, `threads=6`): converged in `~98s`, parity `pass=True`
-
-For the temporal EVP, users should keep the following distinction clear:
-
-- `eps_tol` is an eigensolver convergence threshold, not a guarantee on final full-operator residual
-- `conv_test` decides how SLEPc interprets that threshold (`abs`, `rel`, `norm`)
-- `true_residual=true` is valuable in shift-invert runs because cheap transformed residual estimates can be optimistic
-- the explicit postcheck residual remains the final acceptance gate for returned modes
-
-### Strategy B (scalable, in progress): PETSc iterative + strong preconditioner
-
-- `ST=SINVERT` or `ST=PRECOND` (JD route), with strict `ksp_error_if_not_converged`
-- move from generic ASM to stronger block preconditioning (`PCFIELDSPLIT`) using physics blocks (`rho/u/v/T` and `w`)
-- add scaling before solve to reduce BC-penalty conditioning issues
-- resolvent linear solves can now be switched to PETSc iterative mode via:
-  - `LINSTAB2D_RESOLVENT_TYPE=iterative`
-  - optional tuning: `LINSTAB2D_RESOLVENT_KSP_TYPE`, `LINSTAB2D_RESOLVENT_PC_TYPE`, `LINSTAB2D_RESOLVENT_KSP_RTOL`, `LINSTAB2D_RESOLVENT_KSP_MAX_IT`
-- current tested status on the Case 1:
-- `MPI=1` iterative ASM (`GMRES+ASM+sub-LU`) converges and matches MATLAB, but slower (`~217s`)
-- `MPI=2` iterative SINVERT (`GMRES+ASM+sub-LU`) now converges with parity pass (`~185s`, `n_modes=30`) using root-owned matrix transfer path
-- `MPI=2` JD+PRECOND (`FGMRES+bjacobi+sub-LU`) did not reach convergence in `~320s` (`nconv=0`) and was terminated
-- `MPI=2` `PCFIELDSPLIT` variants are not yet robust on this case and remain experimental
-
-Operational rule:
-
-- if direct factorization fits memory, use Strategy A
-- if not, use Strategy B only with explicit convergence reason + parity checks
-- reference logs from these tests: `results/case1/output/logs/case1_20260226_085632.log`, `results/case1/output/logs/case1_20260226_085247.log`, `results/case1/output/logs/case1_20260226_092026.log`, `results/case1/output/logs/case1_20260226_115755.log`
-
-### Validated discovery (2026-02-26)
-
-- For the Case 1 parity case (`case1`, `n_modes=30`), both strategy classes are now validated for temporal stability:
-- Strategy A (direct MUMPS) converges and matches MATLAB spectrum.
-- Strategy B baseline (iterative SLEPc SINVERT + GMRES/ASM/sub-LU) converges and matches MATLAB spectrum in distributed mode (`MPI=2`), after enabling root-owned SciPy->PETSc row-scatter transfer.
-- Matrix-stage parity (pre/post BC assembly stages) is now emitted as an artifact and passes for the parity case.
-
-### Resolvent parity status
-
-- Resolvent parity on the Case 1 reference case now passes against MATLAB exports:
-  - gains match to machine precision,
-  - leading forcing/response modes match after phase alignment,
-  - operator-action probes (`H`, `H^H`, `H^H W H`) are aligned.
-- Current robust route uses PETSc/SLEPc with MATLAB-equivalent `H^H W H` extraction.
-- Distributed iterative scaling for very large resolvent runs remains a performance-tuning track (preconditioner/profile selection), not a parity-correctness blocker.
-
-### Project expansion roadmap
-
-- Extend Strategy B root-scatter assembly from temporal EVP to resolvent pipeline and validate gains/modes parity against MATLAB exports.
-- Apply the same scalable transfer pattern to spatial EVP (`Lc`, `R`, `Lw`) to avoid full-matrix per-rank paths in distributed runs.
-- Add Linux/Xeon production benchmark profile (`MPI x threads`) with fixed convergence/parity/memory gates and published baseline logs.
-- Promote one stable iterative profile to default only after parity + convergence + memory gates pass across temporal, spatial, and resolvent workflows.
-
-## Quick start
-
-```bash
-# Clone and set up
 git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
 cd linstabpy
-bash diagnose.sh      # read-only Linux preflight (recommended)
-bash install.sh       # creates .venv and installs Python/PETSc stack; no sudo by default
-# If submodules were not cloned with --recurse-submodules:
-git submodule update --init --recursive
 
-# Activate and run
-source .venv/bin/activate
-python -m examples.example_1_blasius
-```
-
-### Linux one-command install (recommended)
-
-For most Linux users, setup is:
-
-```bash
 bash diagnose.sh
 bash install.sh
+bash install.sh --check
+bash benchmark.sh
 ```
 
-`install.sh` handles:
-- Python environment creation with `uv` (`.venv`, Python 3.13)
-- PETSc/SLEPc + `petsc4py`/`slepc4py` installation and verification
-- MPI launcher validation for PETSc configure / verification on Linux
-- `mpi4py` ABI recovery by rebuilding from source when the wheel does not match the selected system MPI
-- editable install of `linstabpy` and test tools
+`diagnose.sh` is read-only. It checks compilers, MPI launchers, development
+headers, dual-MPI conflicts, and whether `mpiexec -n 1 /bin/true` works.
 
-If required Linux build tools are missing, `install.sh` now prints the exact
-package-manager commands and stops. This avoids unexpected `sudo` or
-package-manager calls on cluster/module environments.
+`install.sh` creates `.venv`, builds or installs the Python/PETSc/SLEPc stack,
+repairs `mpi4py` when the wheel ABI does not match the selected MPI stack, and
+installs this repository in editable mode.
 
-If your machine is already provisioned (or you cannot install system packages), skip the system-deps step:
+`install.sh --check` verifies that `petsc4py` and `slepc4py` import, that PETSc
+uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
+works from Python.
 
-```bash
-LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
-```
+`benchmark.sh` runs a small smoke benchmark and writes benchmark artifacts under
+`benchmark_runs/<run-id>/`.
 
-If you are on a workstation and want the installer to install missing system
-packages for you:
+By default, the installer does not call `sudo` or a package manager. If required
+system tools are missing, it prints the commands and stops. On a normal
+workstation, opt in to package-manager installation explicitly:
 
 ```bash
 LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh
 ```
 
-Recommended post-install checks:
+On a provisioned workstation or cluster node, skip the system dependency check:
 
 ```bash
+LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
+```
+
+### 2.3 macOS
+
+Run the same repository scripts:
+
+```bash
+bash diagnose.sh
+bash install.sh
 bash install.sh --check
 bash benchmark.sh
 ```
 
-Linux runtime policy:
-- use exactly one MPI stack per environment
-- run MPI jobs with `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, and `OPENBLAS_NUM_THREADS=1`
-- treat direct PETSc assembly as an explicit opt-in, not the installation baseline
-- start performance checks with the shipped smoke benchmark before running the full Martini examples
-- on clusters, run `bash diagnose.sh`, load the required modules, and only then run `bash install.sh`
+For the macOS PETSc/SLEPc path, install Homebrew OpenBLAS and ScaLAPACK before
+building when possible:
 
-Copy-paste collaborator guide:
-- [LINUX_QUICKSTART.md](LINUX_QUICKSTART.md)
-- [docs/linux_install.md](docs/linux_install.md)
-
-Known-good Linux reference stack:
-- [docs/known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json](docs/known_good/linux-ubuntu24.04-openmpi4.1.6-python3.13.json)
-- export the current machine with `.venv/bin/python tools/export_known_good_stack.py --output docs/known_good/<label>.json`
-- if you plan to commit that file, add `--redact-local-details`
-
-Details and troubleshooting are documented in [docs/linux_install.md](docs/linux_install.md).
-
-### Dependencies
-
-- Python >= 3.10
-- NumPy, SciPy (sparse data structures), Matplotlib
-- PETSc (complex scalars) + petsc4py
-- SLEPc + slepc4py
-- MUMPS (bundled with PETSc)
-
-All dependencies are installed by `install.sh` via [uv](https://docs.astral.sh/uv/).
-
-## Packaging
-
-`LinStabPy` follows current PyPA packaging guidance and the Scientific Python
-Development Guide: `pyproject.toml` build, `src/` layout for importable code,
-PETSc/SLEPc as optional dependencies (`pip install linstabpy[petsc]`).
-
-## Architecture
-
-```
-Mesh → BaseFlow → Operator → BCs → Solver
+```bash
+brew install openblas scalapack
 ```
 
+The reason is a macOS runtime-library ordering issue in Python. PETSc's
+downloaded ScaLAPACK can resolve LAPACK symbols to Apple Accelerate when loaded
+inside Python. The failing path observed in this repository was Python
+`slepc4py` `EPS_NHEP` with Krylov-Schur / Arnoldi, aborting inside Accelerate
+`ZLADIV`. Native C SLEPc NHEP worked, and Python HEP/LAPACK paths worked, which
+pointed to dynamic-library symbol interposition rather than the examples.
+
+The current installer handles this by preferring Homebrew OpenBLAS/ScaLAPACK at
+PETSc configure time and by wrapping `.venv/bin/python` so Homebrew OpenBLAS is
+loaded before Python imports NumPy, PETSc, or SLEPc. `install.sh --check` now
+runs a tiny Python `EPS_NHEP` Krylov-Schur probe, so this crash is detected
+before examples are run.
+
+On macOS, do not use `uv run` to run LinStabPy examples after installation. It
+can bypass the patched `.venv` and try to rebuild `petsc4py`/`slepc4py` from
+source with the wrong runtime layout. Use `.venv/bin/python` directly:
+
+```bash
+.venv/bin/python -m examples.example_1_blasius_smoke
 ```
-src/linstab2d/               # installable library (pip install -e .)
-├── mesh/                    # SBP operators, structured grids, integration weights, filters
-├── baseflow/                # Base flow loaders (Blasius, jet, cavity, ...), Sutherland viscosity
-├── operators/               # LNSE coefficient matrices, assembly, spatial operators, Chu energy norm
-├── boundary_conditions/     # Dirichlet BC enforcement
-├── solvers/                 # Resolvent, temporal/spatial eigenvalue solvers, linear solver config
-├── utils/                   # Plotting, Floquet reconstruction
-└── data/baseflows/          # runtime .mat assets (git submodule)
-examples/                    # 5 runnable examples (start here)
-results/                     # case studies (Case 1, validation)
-tools/parity/                # MATLAB comparison tooling
+
+### 2.4 Clusters / Intel MPI
+
+On clusters, load the compiler/MPI modules before running the installer. The
+repository scripts should see the same `mpicc`, `mpicxx`, `mpifort`, and
+`mpiexec` that will be used at runtime.
+
+Generic module workflow:
+
+```bash
+module load <compiler-module> <mpi-module>
+bash diagnose.sh
+bash install.sh
+bash install.sh --check
 ```
 
-## Reference MATLAB source boundary
+Intel MPI / oneAPI workflow:
 
-- **Project implementation:** the Python code in this repository (`src/linstab2d/`, `tests/`, tooling files) is the source of the `linstabpy` distribution.
-- **Reference source:** the MATLAB reference code and `.mat` base-flow files are kept in the git submodule at `src/linstab2d/data/baseflows`, which points to the upstream MATLAB repository.
-- **Local workflow:** `./install.sh` ensures the submodule is initialized so MATLAB files are present on disk for inspection.
-- **Boundary rule:** modify/commit only files in this repository unless you intentionally update the submodule itself (rare, with explicit intent).
+```bash
+source /opt/intel/oneapi/setvars.sh --force
+export LINSTAB2D_MPI_STACK=intelmpi
+export I_MPI_CC=gcc
+export I_MPI_CXX=g++
+export I_MPI_F90=gfortran
+export I_MPI_FC=gfortran
 
-## Parity status (scoped strict gate)
+bash diagnose.sh
+bash install.sh
+bash install.sh --check
+```
 
-Current strict pipeline command:
+Use Intel MPI only when `diagnose.sh` shows that the active MPI compiler
+wrappers and `mpiexec` come from the Intel MPI environment and the MPI compile
+probe passes. Do not use an Intel MPI launcher with Open MPI or MPICH Python
+bindings.
+
+### 2.5 Environment variables
+
+| Variable | Default | Use |
+|---|---:|---|
+| `LINSTAB2D_WITH_H5PY` | `0` | Set to `1` to install `h5py` for MATLAB v7.3 / HDF5 parity tooling. Leave unset for the normal solver install. |
+| `LINSTAB2D_MPI_STACK` | auto | Set to `intelmpi` when an Intel MPI environment is already loaded and should be used. Otherwise the scripts infer the active stack. |
+| `LINSTAB2D_AUTO_INSTALL_SYS_DEPS` | `0` | Set to `1` to allow `install.sh` to call the system package manager for missing Linux dependencies. |
+| `LINSTAB2D_PETSC_MPIEXEC` | auto | Path to the `mpiexec` PETSc/SLEPc configure should use. Set this when the default launcher hangs or is not the runtime launcher you want. |
+| `LINSTAB2D_MPI4PY_NO_BINARY` | `0` | Set to `1` to force `mpi4py` to build from source against the active MPI stack. |
+| `LINSTAB2D_VERIFY_MPIEXEC` | auto | Path to the `mpiexec` used by `install.sh --check` for MPI import/probe checks. |
+| `LINSTAB2D_SKIP_SYS_DEPS` | `0` | Set to `1` to skip Linux system dependency detection and package-manager advice. |
+
+### 2.6 Known-good reference stacks
+
+A healthy Linux install should satisfy this sequence:
+
+```bash
+bash diagnose.sh
+bash install.sh --check
+bash run_mpi_example.sh -n 1 -m examples.example_1_blasius_smoke
+bash benchmark.sh
+```
+
+One known-good Linux profile used during hardening was:
+
+| Component | Reference value |
+|---|---|
+| OS family | Ubuntu 24.04 class |
+| MPI | Open MPI 4.1.6 class |
+| Python | 3.13 class |
+| PETSc/SLEPc scalar type | complex |
+| Sparse direct solver | MUMPS through PETSc |
+| Thread policy | one BLAS/OpenMP thread per MPI rank |
+
+Use this as a comparison shape, not a hard pin. Export a redacted stack
+manifest from a working machine with:
+
+```bash
+.venv/bin/python tools/export_known_good_stack.py \
+  --output known_good/<machine-label>.json \
+  --redact-local-details
+```
+
+### 2.7 MPI runtime rules
+
+Use one MPI stack per install and one thread per rank unless you are measuring a
+different layout on purpose.
+
+For manual MPI runs:
+
+```bash
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+```
+
+Prefer the wrapper for examples:
+
+```bash
+bash run_mpi_example.sh -m examples.example_1_blasius_smoke
+bash run_mpi_example.sh -n 10 -m examples.example_3_streaky_bl
+bash run_mpi_example.sh -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
+```
+
+If `-n/--ranks` is omitted, the wrapper starts from half of the detected
+physical cores. For sparse direct factorization, more ranks are not
+automatically faster; compare rank counts on the target machine.
+
+## 3. Quick start
+
+```bash
+git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
+cd linstabpy
+
+bash diagnose.sh
+bash install.sh
+bash install.sh --check
+bash benchmark.sh
+```
+
+If the repository was cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+Run the smallest Blasius example:
+
+```bash
+.venv/bin/python -m examples.example_1_blasius_smoke
+```
+
+Run a full example:
+
+```bash
+.venv/bin/python -m examples.example_1_blasius
+```
+
+Do not use `uv run` on macOS for PETSc/SLEPc examples. Use the interpreter
+installed and patched by `install.sh`:
+
+```bash
+.venv/bin/python -m examples.example_1_blasius_smoke
+```
+
+Collect the test suite:
+
+```bash
+.venv/bin/python -m pytest --collect-only tests
+```
+
+The current expected collection size is `535` tests. Run the suite with:
+
+```bash
+.venv/bin/python -m pytest tests/
+```
+
+## 4. Repository layout
+
+```text
+src/linstab2d/
+  mesh/                    SBP finite differences, structured grids,
+                           integration weights, filters, mesh deformation
+  baseflow/                Base-flow loaders and Sutherland viscosity
+  operators/               LNSE coefficients, assembly, spatial operators,
+                           Chu energy norm
+  boundary_conditions/     Dirichlet and Neumann row replacement, recipes
+  solvers/                 Resolvent, temporal/spatial eigenvalue solvers,
+                           PETSc/SLEPc configuration helpers
+  utils/                   Plotting, JSONC loading, Floquet reconstruction,
+                           PETSc utilities, acceptance checks
+  data/baseflows/          MATLAB reference assets as a git submodule
+
+examples/                  Five Martini flow examples plus Example 0
+                           derivative / curvilinear-grid validation
+results/                   Case studies and validation workflows
+tools/parity/              MATLAB-to-Python comparison tooling
+
+install.sh                 Main installer
+diagnose.sh                Read-only environment preflight
+benchmark.sh               Smoke benchmark
+run_mpi_example.sh         MPI-safe example runner
+```
+
+The reference MATLAB code and `.mat` base-flow files live in the submodule
+`src/linstab2d/data/baseflows`. Treat that directory as reference input unless
+you intentionally update the submodule.
+
+## 5. Numerical setup
+
+### Temporal stability
+
+The current temporal stability path uses:
+
+- SLEPc `EPS`;
+- `KRYLOVSCHUR` as the outer eigensolver;
+- shift-invert spectral transformation, `ST=SINVERT`;
+- direct LU factorization with MUMPS for shifted linear systems in the default
+  production path.
+
+The temporal eigenproblem is formed on `i * L0`, so reported temporal
+eigenvalues are `omega = eig(i * L0)`.
+
+### Residual bookkeeping
+
+The code records several residual-like quantities:
+
+- SLEPc EPS residuals from `EPS.computeError(...)`;
+- the configured EPS convergence test: `abs`, `rel`, or `norm`;
+- the selected reported residual type: `absolute`, `relative`, or `backward`;
+- an explicit postcheck residual computed outside SLEPc on returned modes;
+- boundary-condition leakage diagnostics.
+
+These quantities are related but not interchangeable. `EPSSetTolerances()`
+sets the tolerance and maximum iteration count used by the EPS convergence
+test. `EPSSetConvergenceTest()` selects how the EPS convergence test is
+measured. `EPSComputeError()` reports an error estimate for a returned
+eigenpair, but that estimate is not always the same quantity used internally
+during the solve.
+
+For shift-invert runs, `true_residual=true` is useful because cheap transformed
+residual estimates can be optimistic for the original problem.
+
+### PETSc KSP tolerances
+
+`KSPSetTolerances()` controls a linear Krylov solve: relative tolerance,
+absolute tolerance, divergence tolerance, and maximum iteration count. It is
+not an eigenpair tolerance.
+
+In the default direct path, shifted systems use:
+
+```text
+KSPPREONLY + PCLU + MUMPS
+```
+
+In that configuration, iterative `KSP` tolerances are not the main accuracy
+knobs. The dominant knobs are EPS settings, Krylov subspace size `ncv`, target
+placement, and the conditioning of the shifted operator.
+
+When an iterative linear-solve path is selected, `ksp_rtol`, `ksp_atol`,
+`ksp_max_it`, `pc_type`, subdomain settings, and `ksp_error_if_not_converged`
+become meaningful.
+
+### Boundary-condition acceptance
+
+Returned stability modes are postchecked against:
+
+- full-operator residual;
+- boundary-condition leakage;
+- constrained-Dirichlet leakage;
+- target distance;
+- optional spectral boxes on `Re(omega)` and `Im(omega)`.
+
+This matters because an interior eigenvalue solve can report converged Ritz
+pairs while returning modes that are unacceptable under the full operator and
+boundary treatment.
+
+### Convergence principles
+
+`eps_tol` alone does not define mode quality. For interior non-Hermitian
+problems, tightening `eps_tol` does not guarantee proportional improvement in
+accepted modes. Mode quality can be limited by `ncv`, target placement,
+operator conditioning, non-normality, and spectral crowding.
+
+`ncv` is a quality-control parameter. If the target neighborhood is crowded or
+non-normal, too small an `ncv` can make accepted-mode quality plateau even when
+the solve is active.
+
+Eigenvalues can stabilize before eigenvectors. A spectrum that appears stable
+is not enough; explicit postcheck residuals and boundary leakage still matter.
+
+Shift-invert quality depends on the shifted operator. If `iL0 - sigma I` is
+poorly conditioned, residuals can plateau even with direct LU.
+
+Target choice matters. A target on the real axis can sit in a crowded
+neighborhood. Moving the target slightly into the complex plane can isolate a
+branch more cleanly. Treat this as a numerical search choice, not a change in
+physics.
+
+Branch-localize before scaling `nev`. Start with a small solve, test a few
+targets around the branch of interest, judge success from postcheck residual and
+target distance, then increase `nev` and `ncv`.
+
+### What to check on every run
+
+Before trusting a spectrum, check:
+
+- requested `nev`;
+- actual `nconv`;
+- `ncv`;
+- EPS tolerance and EPS convergence test;
+- whether true residuals were enabled;
+- whether shifted solves were direct or iterative;
+- explicit postcheck residual counts;
+- boundary-condition leakage diagnostics;
+- target distance for accepted and rejected modes;
+- wall time;
+- peak RSS;
+- MPI rank count and thread policy;
+- the exact JSONC config and git commit that produced the artifact.
+
+### What not to assume
+
+Do not assume:
+
+- `nconv > 0` means the run succeeded;
+- passing the EPS convergence test implies a small full-operator residual;
+- lowering `eps_tol` is always the cheapest way to improve results;
+- a larger `nev` gives more trustworthy leading modes;
+- the fastest setup on one machine is the fastest setup on another;
+- a mean-flow linearization is physically meaningful only because the operator
+  was assembled correctly.
+
+## 6. Boundary conditions
+
+Boundary setup is JSONC-driven. Row-replacement boundary conditions are listed
+under `bc.recipe`; sponge damping is configured in JSONC as an operator damping
+field or loaded from reference case data.
+
+Example:
+
+```jsonc
+{
+  "physics": {
+    "sponge": {
+      "enabled": true,
+      "preset": "tanh",
+      "amplitude": 0.1
+    }
+  },
+  "bc": {
+    "penalty": 1e8,
+    "recipe": [
+      {
+        "type": "dirichlet",
+        "borders": "lt",
+        "variables": "ruvwT"
+      },
+      {
+        "type": "dirichlet",
+        "borders": "b",
+        "variables": "ruvw"
+      },
+      {
+        "type": "neumann",
+        "borders": "b",
+        "variables": "T",
+        "exclude_corners": true,
+        "curvilinear_normals": true
+      },
+      {
+        "type": "neumann",
+        "borders": "r",
+        "variables": "ruvwT",
+        "exclude_corners": true,
+        "curvilinear_normals": true
+      }
+    ]
+  },
+  "analysis": {
+    "stability_acceptance": {
+      "postcheck_rel_max": 5e-5,
+      "target_distance_max": 0.15,
+      "omega_real_abs_max": 1.5,
+      "omega_imag_abs_max": 2.0,
+      "conjugate_aware": true
+    }
+  }
+}
+```
+
+Recipe fields:
+
+| Field | Meaning |
+|---|---|
+| `type` | `dirichlet` or `neumann` for row-replacement BCs. Sponge damping is configured separately under `physics.sponge` or loaded from case input data. |
+| `borders` | Boundary letters. Common values are `l`, `r`, `t`, `b`, or combinations such as `lt`. |
+| `variables` | Variable block selector, such as `u`, `T`, `ruvw`, or `ruvwT`. |
+| `exclude_corners` | For Neumann rules, remove corner points that would overlap with other boundary rules. |
+| `curvilinear_normals` | For Neumann rules, use per-face curvilinear normals instead of axis-aligned normals. |
+
+Use `curvilinear_normals: true` for deformed or body-fitted curvilinear meshes.
+The flag makes Neumann rows use per-face normals from the stored mesh Jacobian
+entries. Set it to `false` when the base-flow mesh is Cartesian and the
+curvilinear normal path is not needed; that preserves the axis-aligned path and
+can save a small amount of work. Older parity configurations may spell this
+flag explicitly to preserve historical behavior. New configs should spell the
+intended value instead of relying on omission.
+
+`analysis.stability_acceptance.conjugate_aware` defaults to `true` in the
+current stability-acceptance path. It treats an eigenvalue and its complex
+conjugate as equally close to the target:
+
+```text
+min(|omega - target|, |omega - conj(target)|)
+```
+
+This is the right default for real-valued base flows, where oscillatory modes
+come in conjugate pairs. Set `conjugate_aware: false` when you need strict
+non-redundant mode selection around one target branch, or when the operator is
+not real-valued and conjugate symmetry should not be admitted.
+
+## 7. Parity with MATLAB LinStab2D
+
+### 7.1 Example-level parity table
+
+Reference MATLAB examples:
+
+- `linstab2d/data/baseflows/example_0_TestCurvilinearDerivative.m`
+- `linstab2d/data/baseflows/example_1_Blasius.m`
+- `linstab2d/data/baseflows/example_2_Jet.m`
+- `linstab2d/data/baseflows/example_3_Streaky_BL.m`
+- `linstab2d/data/baseflows/example_4_Cavity.m`
+- `linstab2d/data/baseflows/example_5_Paraboloid.m`
+
+Python counterparts:
+
+- `examples/example_0_curvilinear_validation.py`
+- `examples/example_1_blasius.py`
+- `examples/example_2_jet.py`
+- `examples/example_3_streaky_bl.py`
+- `examples/example_4_cavity.py`
+- `examples/example_5_paraboloid.py`
+
+| MATLAB example | Python example | Status | Required artifacts |
+|---|---|---|---|
+| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `tools/parity/output/curvilinear_derivative_parity.json` |
+| `example_1_Blasius.m` | `example_1_blasius.py` | `implemented` | `example_1_blasius.npz`, `example_1_blasius.png` |
+| `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz`, `example_2_jet.png` |
+| `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_streaky_bl.npz`, `example_3_streaky_bl.png` |
+| `example_4_Cavity.m` | `example_4_cavity.py` | `implemented` | `example_4_cavity.npz`, `example_4_cavity.png` |
+| `example_5_Paraboloid.m` | `example_5_paraboloid.py` | `implemented` | `example_5_paraboloid.npz`, `example_5_paraboloid.png` |
+
+### 7.2 Operator parity matrix
+
+Canonical machine-readable source: `tools/parity/operator_matrix.json`.
+
+Status semantics:
+
+- `pending`: not implemented yet;
+- `implemented`: code exists but parity artifact/signoff is still pending;
+- `validated`: implemented and parity-validated by artifacts;
+- `deferred`: intentionally postponed;
+- `out_of_scope`: intentionally not targeted;
+- `blocked`: cannot proceed due to an external blocker.
+
+Every `required: true` entry must reach `status = validated`. Current gate
+status is `pass` with `missing_required = 0`.
+
+| ID | MATLAB | Python target | Status |
+|---|---|---|---|
+| `construct_get_lin_problem` | `ConstructOperators/GetLinProblem.m` | `linstab2d/operators/assembly.py::build_lnse_operator` | `validated` |
+| `construct_get_spatial_lin_problem` | `ConstructOperators/GetSpatialLinProblem.m` | `linstab2d/operators/spatial.py::build_spatial_operator` | `validated` |
+| `construct_cartesian_coefficients` | `ConstructOperators/getCoeffsLaminar_Cartesian.m` | `linstab2d/operators/coefficients.py::compute_cartesian_coefficients` | `validated` |
+| `construct_axisymmetric_coefficients` | `ConstructOperators/getCoeffsLaminar.m` | `linstab2d/operators/coefficients.py::compute_cylindrical_coefficients` | `validated` |
+| `construct_create_diff_matrices_axy` | `ConstructOperators/CreateDiffMatrices_Axy.m` | `linstab2d/operators/assembly.py::_create_axy_diff_matrices` | `validated` |
+| `construct_lnseoperators_cyl` | `ConstructOperators/LNSEoperators_cyl.m` | `linstab2d/operators/assembly.py::build_lnse_operator(model="axy")` | `validated` |
+| `construct_get_comp_energy_norm` | `ConstructOperators/GetCompEnergyNorm.m` | `linstab2d/operators/energy_norm.py::compute_chu_norm` | `validated` |
+| `bc_dirichlet` | `BoundaryConditions/BC_Dirichlet.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet` | `validated` |
+| `bc_dirichlet_spatial` | `BoundaryConditions/BC_Dirichlet_SpatialStability.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_spatial` | `validated` |
+| `bc_neumann` | `BoundaryConditions/BC_Neumann.m` | `linstab2d/boundary_conditions/neumann.py::apply_neumann` | `validated` |
+| `bc_set_dirbc` | `BoundaryConditions/SetDirBC.m` | `linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices` | `validated` |
+| `bc_set_dirichletbc` | `BoundaryConditions/SetDirichletBC.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair` | `validated` |
+
+### 7.3 Branch coverage matrix
+
+Canonical machine-readable source: `tools/parity/branch_matrix.json`.
+
+Target dimensions:
+
+- `model`: `2D`, `axy`;
+- `solver`: `temporal`, `spatial`, `adjoint`, `resolvent`;
+- `bc`: `Dirichlet`, `DirichletSpatial`, `Neumann`;
+- `deformation`: `none`, `x_only`, `y_only`, `full_2d`;
+- `backend`: `petsc_slepc`.
+
+Total combinations:
+
+```text
+2 * 4 * 3 * 4 * 1 = 96
+```
+
+All required combinations must be `validated`. Combinations omitted from
+`records` default to `pending`. Scope is controlled by `required_exclusions` in
+`tools/parity/branch_matrix.json`. Current scoped gate status is `pass`
+with `5` required validated combinations and `91` required exclusions.
+
+| model | solver | bc | deformation | backend | status |
+|---|---|---|---|---|---|
+| `2D` | `temporal` | `Dirichlet` | `none` | `petsc_slepc` | `validated` |
+| `2D` | `spatial` | `DirichletSpatial` | `none` | `petsc_slepc` | `validated` |
+| `2D` | `adjoint` | `Dirichlet` | `none` | `petsc_slepc` | `validated` |
+| `2D` | `resolvent` | `Dirichlet` | `none` | `petsc_slepc` | `validated` |
+| `2D` | `temporal` | `Neumann` | `none` | `petsc_slepc` | `validated` |
+
+### 7.4 Running parity checks
+
+Example-level parity:
 
 ```bash
 .venv/bin/python tools/parity/compare_martini_examples.py
 ```
 
-Current status:
-- examples `0..5`: pass
-- parity matrix gate: pass
-- symbolic parity gate: pass
-- numeric operator parity gate (`--strict`): pass
-- perf/memory parity gate (strict ceilings): pass
+Allow incomplete optional matrix entries while enforcing required scoped gates:
 
-Scope note:
-- strict parity is currently **scoped** by `tools/parity/operator_matrix.json` and `tools/parity/branch_matrix.json`
-- branch scope uses explicit `required_exclusions` for combinations not yet required
-- to enforce full cross-product branch coverage later, reduce/remove exclusions and validate incrementally
+```bash
+python tools/parity/check_parity_matrices.py --allow-incomplete
+```
 
-Current test suite size: `535` collected tests (`pytest --collect-only tests`), covering mesh construction, operators, boundary conditions, solvers, parity tooling, and integration workflows.
+Strict CI gate:
 
-## Roadmap
+```bash
+python tools/parity/check_parity_matrices.py
+```
+
+## 8. Case studies
+
+### 8.1 Case 1 (SWBLI)
+
+Case 1 is the SWBLI parity harness used to prove that the Python/PETSc/SLEPc
+path is equivalent to the MATLAB reference before scaling to larger production
+cases.
+
+Objective:
+
+- compare the Python stability and resolvent paths against MATLAB reference
+  exports;
+- fix operator/source logic when parity fails;
+- avoid hardcoding MATLAB outputs as a substitute for correct assembly.
+
+Current status as of 2026-02-28:
+
+- operator-stage parity: `PASS`;
+- resolvent parity: `PASS`;
+- stability spectrum parity is handled by the case script with awareness of
+  which MATLAB export produced the available spectrum.
+
+Key fixes that made parity stable:
+
+- preserve mesh filters during deformation, matching MATLAB behavior;
+- load `sponge_aux` from MATLAB `case_inputs_used.mat`;
+- use the MATLAB-equivalent `H^H W H` EVP route for resolvent extraction;
+- keep canonical parity parameters in `results/case1/parity_config.jsonc`.
+
+Run from the repository root:
+
+```bash
+bash results/case1/case1.sh
+```
+
+Primary outputs:
+
+- `results/case1/case1.npz`;
+- `results/case1/output/case1_operator_stage_parity.json`;
+- `results/case1/output/case1_spectrum_parity.json`;
+- `results/case1/output/case1_resolvent_parity.json`;
+- parity figures under `results/case1/output/`.
+
+Environment overrides:
+
+| Variable | Default | Use |
+|---|---:|---|
+| `LINSTAB2D_CASE1_CASE_DIR` | `case1` | Case data directory used by the legacy root-level path. |
+| `LINSTAB2D_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
+| `LINSTAB2D_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
+| `LINSTAB2D_CASE1_N_MODES` | `100` | Number of stability modes requested. |
+| `LINSTAB2D_CASE1_N_MODES_RESOLVENT` | `10` | Number of resolvent modes requested. |
+| `LINSTAB2D_CASE1_STRIDE_KSI` | `1` | Mesh stride in the first computational coordinate. |
+| `LINSTAB2D_CASE1_STRIDE_ETA` | `1` | Mesh stride in the second computational coordinate. |
+| `LINSTAB2D_CASE1_BC_PENALTY` | `1e8` | Boundary-condition penalty used by the case driver. |
+
+Spectrum comparison from the repository root:
+
+```bash
+.venv/bin/python results/case1/check_spectrum.py \
+  --python-npz results/case1/case1.npz \
+  --matlab-spectrum results/case1/MATLAB_results/spectrum.mat
+```
+
+Solver strategy A, the robust baseline:
+
+- `ST=SINVERT`;
+- `KSP=PREONLY`;
+- `PC=LU`;
+- PETSc MUMPS factorization;
+- main accuracy/selection knobs are `eps_tol`, `conv_test`,
+  `true_residual`, `nev`, `ncv`, and target shift;
+- use this path first when direct factorization fits memory.
+
+Solver strategy B, the scalable path:
+
+- `ST=SINVERT` or a preconditioned eigensolver route;
+- iterative `KSP` with strict `ksp_error_if_not_converged`;
+- block Jacobi or ASM with local LU as the current baseline direction;
+- stronger physics-block preconditioners remain a tuning track;
+- use this path when the direct memory budget is exceeded, and keep parity and
+  convergence gates enabled.
+
+Practical rule: validate reduced grids with Strategy A, then move to Strategy B
+for cases that do not fit direct factorization.
+
+### 8.2 Case 2
+
+Case 2 has its own active campaign files. Do not duplicate their content in the
+top-level README.
+
+- `results/case2/PLAN.md`: current phase plan, acceptance criteria, open
+  blockers, and campaign state.
+- `results/case2/REFERENCE.md`: stable technical background, governing
+  equations, parameter map, physical framing, and references.
+- `results/case2/README.md`: operational commands and artifact layout.
+
+Read them in that order before changing Case 2 numerics.
+
+## 9. Troubleshooting
+
+### macOS SLEPc NHEP crash
+
+Symptom:
+
+- Python `slepc4py` `EPS_NHEP` with Krylov-Schur / Arnoldi aborts;
+- native C SLEPc NHEP works;
+- Python HEP and LAPACK-backed paths work.
+
+Root cause:
+
+- Apple Accelerate LAPACK symbols can be interposed ahead of the LAPACK symbols
+  expected by PETSc-downloaded ScaLAPACK inside a Python process.
+
+Fix:
+
+- install Homebrew OpenBLAS and ScaLAPACK;
+- run `bash install.sh` so PETSc is configured with those libraries when
+  possible;
+- use the `.venv/bin/python` wrapper generated by the installer.
+
+Detection:
+
+```bash
+bash install.sh --check
+```
+
+The check includes a tiny Python SLEPc `EPS_NHEP` Krylov-Schur solve.
+
+### Linux MPI compile failure
+
+If `diagnose.sh` reports an MPI compile failure with `mpi.h` missing, install
+the development package for the MPI stack you intend to use. On Ubuntu with
+Open MPI, the needed packages are:
+
+```bash
+sudo apt install -y libopenmpi-dev openmpi-bin
+```
+
+On clusters, load the complete MPI/compiler module instead of installing system
+packages.
+
+### Dual-MPI conflict
+
+If Open MPI, MPICH, and/or Intel MPI are all visible, choose one stack, make it
+first in `PATH`, and reinstall from a clean `.venv`. Do not let PETSc build
+against one MPI while `mpiexec` launches another.
+
+### `mpi4py` ABI mismatch
+
+If `mpi4py` imports fail after switching MPI stacks:
+
+```bash
+rm -rf .venv
+uv cache clean
+LINSTAB2D_MPI4PY_NO_BINARY=1 bash install.sh
+```
+
+### PETSc configure hang
+
+If PETSc configure hangs or fails on the wrong launcher:
+
+```bash
+LINSTAB2D_PETSC_MPIEXEC=/path/to/working/mpiexec bash install.sh
+```
+
+Use the same launcher for verification when needed:
+
+```bash
+LINSTAB2D_VERIFY_MPIEXEC=/path/to/working/mpiexec bash install.sh --check
+```
+
+### Intel MPI
+
+Load a complete Intel MPI / oneAPI environment before running `diagnose.sh` or
+`install.sh`. Do not combine an Intel MPI `mpiexec` with Open MPI or MPICH
+Python bindings.
+
+```bash
+source /opt/intel/oneapi/setvars.sh --force
+export LINSTAB2D_MPI_STACK=intelmpi
+bash diagnose.sh
+bash install.sh
+```
+
+### What to send when a machine is still broken
+
+Send:
+
+- full `diagnose.sh` output;
+- full `install.sh` output;
+- `benchmark_runs/<run-id>/benchmark_summary.csv`;
+- relevant `benchmark_runs/<run-id>/*.log`;
+- a redacted stack manifest:
+
+```bash
+.venv/bin/python tools/export_known_good_stack.py \
+  --output stack_manifest.json \
+  --redact-local-details
+```
+
+For deeper OS-specific notes and installer experiments, see
+`install_tester/`.
+
+## 10. Development
+
+Run tests with:
+
+```bash
+.venv/bin/python -m pytest tests/
+```
+
+Expected collection size:
+
+```bash
+.venv/bin/python -m pytest --collect-only tests
+```
+
+Current expected result: `535` collected tests.
+
+Run MATLAB parity checks with:
+
+```bash
+.venv/bin/python tools/parity/compare_martini_examples.py
+python tools/parity/check_parity_matrices.py --allow-incomplete
+python tools/parity/check_parity_matrices.py
+```
+
+Packaging:
+
+- build metadata lives in `pyproject.toml`;
+- importable code uses the `src/` layout;
+- package name is `linstabpy`;
+- import package is `linstab2d`;
+- optional PETSc/SLEPc dependencies are declared as:
+
+```bash
+pip install linstabpy[petsc]
+```
+
+For development from a checkout, prefer the repository installer because it
+builds and verifies PETSc/SLEPc:
+
+```bash
+bash install.sh
+.venv/bin/python -m pip install -e .
+```
+
+Reference MATLAB source boundary:
+
+- Python implementation: `src/linstab2d/`, `tests/`, `examples/`, `tools/`,
+  and repository scripts;
+- MATLAB reference source and `.mat` assets:
+  `src/linstab2d/data/baseflows`;
+- update the submodule only with explicit intent;
+- do not edit reference MATLAB files while trying to fix Python parity.
+
+Roadmap:
 
 | Phase | Status | Description |
-|-------|--------|-------------|
-| Core assembly + 5 examples | Done | All 5 examples validated, Martini parity gate closed |
-| PETSc/SLEPc solvers | Done | MUMPS direct solves, SLEPc eigenvalue/SVD |
-| Additional validation cases | In progress | Song2023 and Case 1 workflow hardening |
-| Solver optimization | Planned | Push matrix-forming efficiency to its limits |
-| Matrix-free Krylov | Future | Time-stepper approach for 3D problems |
+|---|---|---|
+| Core assembly plus Martini examples | Done | Example family implemented and parity-gated. |
+| PETSc/SLEPc solvers | Done | MUMPS direct solves and SLEPc eigenvalue/SVD paths. |
+| Additional validation cases | In progress | SWBLI validation and production case workflows. |
+| Solver optimization | Planned | Improve sparse assembly, transfer, and preconditioner paths. |
+| Matrix-free Krylov | Future | Time-stepper-style approach for larger 3D-oriented workflows. |
 
-## Citing
+## 11. References
 
-`LinStabPy` implements the theoretical framework described in:
+Martini, E. & Schmidt, O. (2024). Linstab2D: stability and resolvent analysis
+of compressible viscous flows in MATLAB. *Theoretical and Computational Fluid
+Dynamics*. doi:10.1007/s00162-024-00706-0.
 
-> Martini, E., Schmidt, O. (2024). Linstab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* [doi:10.1007/s00162-024-00706-0](https://doi.org/10.1007/s00162-024-00706-0)
+Strand, B. (1994). Summation by parts for finite difference approximations for
+d/dx. *Journal of Computational Physics*, 110(1), 47-67.
 
-## License
+Mattsson, K. & Nordstrom, J. (2004). Summation by parts operators for finite
+difference approximations of second derivatives. *Journal of Computational
+Physics*, 199(2), 503-540.
 
-[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html)
+## 12. License
+
+GPL-3.0. See the `LICENSE` file.
