@@ -6,6 +6,7 @@
 #   ./run_all_examples.sh --fresh                        # delete cached NPZs first
 #   ./run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
 #   ./run_all_examples.sh --example 0 --skip-parity      # run one example only
+#   ./run_all_examples.sh --mpi --example 1 -n 10        # run one example under MPI
 #   ./run_all_examples.sh --continue-on-error            # keep going after failures
 #
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
@@ -22,6 +23,8 @@ REPO="$(cd "$(dirname "$0")" && pwd)"
 DEFAULT_PYTHON="$REPO/.venv/bin/python"
 if [[ -n "${LINSTABPY_PYTHON:-}" ]]; then
   PYTHON="$LINSTABPY_PYTHON"
+elif [[ -n "${LINSTAB2D_PYTHON_BIN:-}" ]]; then
+  PYTHON="$LINSTAB2D_PYTHON_BIN"
 elif [[ -x "$DEFAULT_PYTHON" ]]; then
   PYTHON="$DEFAULT_PYTHON"
 elif [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python" ]]; then
@@ -52,6 +55,9 @@ Options:
   --clean               Delete cached example NPZ and PNG artifacts before running
   --example <selector>  Run only one example. Repeatable. Select by index,
                         stem, or module name (for example: 0, example_1_blasius)
+  -m, --module <name>    Alias for --example; accepts full module names
+  --mpi                 Run selected examples through an MPI launcher
+  -n, --ranks <count>   MPI rank count. Implies --mpi
   --skip-parity         Skip the Python vs MATLAB parity comparison
   --continue-on-error   Run remaining examples even if one fails
   --list                Print available examples and exit
@@ -59,6 +65,12 @@ Options:
 
 Environment:
   LINSTABPY_PYTHON      Override the Python interpreter path
+  LINSTABPY_MPIEXEC     Override MPI launcher path/name
+  LINSTABPY_MPI_RANKS   Default MPI rank count
+
+Extra PETSc/SLEPc arguments may be passed after -- when exactly one example
+is selected, for example:
+  ./run_all_examples.sh --mpi --example 1 -n 1 -- -eps_monitor
 EOF
 }
 
@@ -135,6 +147,130 @@ env_or_unset() {
     printf '%s=%s\n' "$name" "$value"
   else
     printf '%s=<unset>\n' "$name"
+  fi
+}
+
+has_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+probe_mpi_launch() {
+  if has_cmd timeout; then
+    timeout -k 2 8 "$@" >/dev/null 2>&1
+  else
+    "$@" >/dev/null 2>&1
+  fi
+}
+
+intel_mpi_root() {
+  if [[ -n "${I_MPI_ROOT:-}" && -d "${I_MPI_ROOT}" ]]; then
+    printf '%s\n' "${I_MPI_ROOT%/}"
+    return 0
+  fi
+  return 1
+}
+
+resolve_launcher_candidate() {
+  local candidate="$1"
+  if [[ -x "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  if has_cmd "$candidate"; then
+    command -v "$candidate"
+    return 0
+  fi
+  return 1
+}
+
+detect_physical_cores() {
+  local cores=0
+  if has_cmd lscpu; then
+    local sockets cores_per_socket
+    sockets="$(lscpu | awk '/^Socket\(s\):/{print $2}')"
+    cores_per_socket="$(lscpu | awk '/^Core\(s\) per socket:/{print $4}')"
+    if [[ -n "$sockets" && -n "$cores_per_socket" ]]; then
+      cores=$((sockets * cores_per_socket))
+    fi
+  fi
+  if [[ "$cores" -eq 0 && -f /proc/cpuinfo ]]; then
+    cores="$(awk '/^processor/{count++} END{print count + 0}' /proc/cpuinfo)"
+  fi
+  if [[ "$cores" -eq 0 ]] && has_cmd sysctl; then
+    cores="$(sysctl -n hw.physicalcpu 2>/dev/null || printf '0')"
+  fi
+  if ! [[ "$cores" =~ ^[0-9]+$ ]] || [[ "$cores" -lt 1 ]]; then
+    cores=1
+  fi
+  printf '%d' "$cores"
+}
+
+find_mpiexec() {
+  local candidate resolved root
+  local candidates=()
+  if root="$(intel_mpi_root)"; then
+    candidates+=("$root/bin/mpiexec" "$root/bin/mpirun")
+  fi
+  candidates+=(mpiexec.mpich mpiexec.hydra mpiexec.openmpi mpirun.openmpi mpiexec mpirun)
+  for candidate in "${candidates[@]}"; do
+    resolved="$(resolve_launcher_candidate "$candidate" || true)"
+    [[ -n "$resolved" ]] || continue
+    if probe_mpi_launch "$resolved" -n 1 /bin/true; then
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+  done
+  return 1
+}
+
+configure_mpi_runtime() {
+  [[ "$MPI_MODE" -eq 1 ]] || return 0
+
+  if [[ -z "$MPIEXEC" ]]; then
+    if ! MPIEXEC="$(find_mpiexec)"; then
+      echo "ERROR: no working MPI launcher found." >&2
+      echo "Set LINSTABPY_MPIEXEC or install an mpiexec/mpirun implementation." >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -z "$MPI_RANKS" ]]; then
+    local physical_cores
+    physical_cores="$(detect_physical_cores)"
+    MPI_RANKS=$((physical_cores / 2))
+    if [[ "$MPI_RANKS" -lt 1 ]]; then
+      MPI_RANKS=1
+    fi
+  fi
+
+  if ! [[ "$MPI_RANKS" =~ ^[0-9]+$ ]] || [[ "$MPI_RANKS" -lt 1 ]]; then
+    echo "ERROR: invalid MPI rank count: $MPI_RANKS" >&2
+    exit 1
+  fi
+
+  export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+  export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
+  export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+  export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
+  export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-1}"
+
+  MPIEXEC_ENV=()
+  if [[ "$MPI_RANKS" -gt 1 ]] && ! probe_mpi_launch "$MPIEXEC" -n "$MPI_RANKS" /bin/true; then
+    case "$(basename "$MPIEXEC")" in
+      mpiexec.mpich|mpiexec.hydra|mpirun.mpich)
+        if probe_mpi_launch env HYDRA_BOOTSTRAP=fork "$MPIEXEC" -n "$MPI_RANKS" /bin/true; then
+          MPIEXEC_ENV=(HYDRA_BOOTSTRAP=fork)
+        else
+          echo "ERROR: $MPIEXEC failed the -n $MPI_RANKS local probe." >&2
+          echo "Tried HYDRA_BOOTSTRAP=fork as well; check local MPI launcher configuration." >&2
+          exit 1
+        fi
+        ;;
+      *)
+        echo "ERROR: $MPIEXEC failed the -n $MPI_RANKS local probe." >&2
+        exit 1
+        ;;
+    esac
   fi
 }
 
@@ -267,7 +403,15 @@ print_system_settings() {
   echo "  host:                    $(hostname 2>/dev/null || echo unknown)"
   echo "  kernel:                  $(uname -srvmo 2>/dev/null || uname -a)"
   echo "  timestamp:               $(date -Iseconds)"
-  echo "  runner process model:    serial; one Python process per example"
+  if [[ $MPI_MODE -eq 1 ]]; then
+    echo "  runner process model:    MPI; $MPI_RANKS Python ranks per example"
+    echo "  MPI launcher:            $MPIEXEC"
+    if [[ ${#MPIEXEC_ENV[@]} -gt 0 ]]; then
+      echo "  MPI launcher env:        ${MPIEXEC_ENV[*]}"
+    fi
+  else
+    echo "  runner process model:    serial; one Python process per example"
+  fi
   echo "  selected example jobs:   ${#SELECTED_MODULES[@]}"
   if command -v nproc >/dev/null 2>&1; then
     echo "  available CPUs (nproc):  $(nproc)"
@@ -290,6 +434,11 @@ FRESH=0
 CLEAN=0
 SKIP_PARITY=0
 CONTINUE_ON_ERROR=0
+MPI_MODE=0
+MPIEXEC="${LINSTABPY_MPIEXEC:-${LINSTAB2D_MPIEXEC:-}}"
+MPI_RANKS="${LINSTABPY_MPI_RANKS:-${LINSTAB2D_MPI_RANKS:-}}"
+MPIEXEC_ENV=()
+EXTRA_ARGS=()
 SELECTED_MODULES=()
 SELECTED_LABELS=()
 SELECTED_STEMS=()
@@ -320,9 +469,35 @@ while [[ $# -gt 0 ]]; do
       select_example "$2"
       shift 2
       ;;
+    -m|--module)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: $1 requires an example module or selector." >&2
+        exit 1
+      fi
+      select_example "$2"
+      shift 2
+      ;;
+    --mpi)
+      MPI_MODE=1
+      shift
+      ;;
+    -n|--ranks)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: $1 requires a positive rank count." >&2
+        exit 1
+      fi
+      MPI_MODE=1
+      MPI_RANKS="$2"
+      shift 2
+      ;;
     --list)
       list_examples
       exit 0
+      ;;
+    --)
+      shift
+      EXTRA_ARGS=("$@")
+      break
       ;;
     -h|--help)
       usage
@@ -353,11 +528,26 @@ if [[ ${#SELECTED_MODULES[@]} -eq 0 ]]; then
   done
 fi
 
+if [[ ${#EXTRA_ARGS[@]} -gt 0 && ${#SELECTED_MODULES[@]} -ne 1 ]]; then
+  echo "ERROR: arguments after -- require exactly one selected example." >&2
+  exit 1
+fi
+
+configure_mpi_runtime
+
 echo "Repo root: $REPO"
 echo "Python:    $PYTHON"
 echo "Examples:  ${#SELECTED_MODULES[@]} selected"
+if [[ $MPI_MODE -eq 1 ]]; then
+  echo "MPI:       $MPIEXEC -n $MPI_RANKS"
+  if [[ ${#MPIEXEC_ENV[@]} -gt 0 ]]; then
+    echo "MPI env:   ${MPIEXEC_ENV[*]}"
+  fi
+fi
 if [[ $SKIP_PARITY -eq 1 ]]; then
   echo "Parity:    skipped"
+elif [[ $MPI_MODE -eq 1 ]]; then
+  echo "Parity:    skipped in MPI mode"
 fi
 print_system_settings
 
@@ -388,13 +578,23 @@ run_example() {
   echo "══════════════════════════════════════════════════════"
 
   start_time=$SECONDS
-  if "$PYTHON" -m "$module"; then
+  if [[ $MPI_MODE -eq 1 ]]; then
+    if [[ ${#MPIEXEC_ENV[@]} -gt 0 ]]; then
+      env "${MPIEXEC_ENV[@]}" "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+    else
+      "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+    fi
+    rc=$?
+  else
+    "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+    rc=$?
+  fi
+
+  if [[ $rc -eq 0 ]]; then
     elapsed=$((SECONDS - start_time))
     echo "Status: PASS ($(format_seconds "$elapsed"))"
     PASSED_LABELS+=("$label")
     return 0
-  else
-    rc=$?
   fi
 
   elapsed=$((SECONDS - start_time))
@@ -416,7 +616,7 @@ for i in "${!SELECTED_MODULES[@]}"; do
   fi
 done
 
-if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 ]]; then
+if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 && $MPI_MODE -eq 0 ]]; then
   echo ""
   echo "══════════════════════════════════════════════════════"
   echo "  Parity comparison (Python vs MATLAB)"

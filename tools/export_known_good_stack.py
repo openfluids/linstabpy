@@ -281,7 +281,7 @@ def build_manifest(repo_root: Path, label: str | None, benchmark_summary: Path |
         "linstabpy_runtime_policy": {
             "use_one_mpi_stack_per_environment": True,
             "prefer_example_configs_with_assembly_backend": "scipy",
-            "mpi_example_wrapper": "bash run_mpi_example.sh",
+            "mpi_example_wrapper": "bash run_all_examples.sh --mpi",
             "environment": {
                 "OMP_NUM_THREADS": "1",
                 "MKL_NUM_THREADS": "1",

@@ -183,7 +183,7 @@ run_case() {
     if [ "${n_ranks}" -eq 1 ]; then
         cmd=( "${PY_BIN}" -m "${module}" )
     else
-        cmd=( bash "${SCRIPT_DIR}/run_mpi_example.sh" -n "${n_ranks}" -m "${module}" )
+        cmd=( bash "${SCRIPT_DIR}/run_all_examples.sh" --mpi --skip-parity -n "${n_ranks}" -m "${module}" )
     fi
 
     local wall_start wall_end wall_sec exit_code peak_rss
