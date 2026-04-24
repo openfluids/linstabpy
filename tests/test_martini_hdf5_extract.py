@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("h5py")
 
-from tools.parity.matlab_hdf5 import extract_file
+from validation.martini2024.tools.matlab_hdf5 import extract_file
 
 from tests._paths import martini_export
 
