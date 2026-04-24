@@ -20,24 +20,14 @@ from linstab2d.operators.coefficients import (
     compute_cylindrical_coefficients,
 )
 
-try:
-    from symbolic_compressible_nse import (
-        cartesian_operator_coefficients,
-        cartesian_symbol_table,
-        curvilinear_operator_coefficients,
-        curvilinear_symbol_table,
-        cylindrical_operator_coefficients,
-        cylindrical_symbol_table,
-    )
-except ModuleNotFoundError:  # pragma: no cover - depends on invocation style
-    from tools.parity.symbolic_compressible_nse import (
-        cartesian_operator_coefficients,
-        cartesian_symbol_table,
-        curvilinear_operator_coefficients,
-        curvilinear_symbol_table,
-        cylindrical_operator_coefficients,
-        cylindrical_symbol_table,
-    )
+from validation.martini2024.tools.symbolic_compressible_nse import (
+    cartesian_operator_coefficients,
+    cartesian_symbol_table,
+    curvilinear_operator_coefficients,
+    curvilinear_symbol_table,
+    cylindrical_operator_coefficients,
+    cylindrical_symbol_table,
+)
 
 
 def _now_utc() -> str:
