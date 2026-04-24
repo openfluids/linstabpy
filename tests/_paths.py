@@ -28,7 +28,7 @@ def require_existing(path: Path, description: str) -> Path:
 
 
 def case_fixture(name: str) -> Path:
-    """Return the current or future root for a named study fixture."""
+    """Return the canonical or legacy root for a named study fixture."""
     if name not in {"case1", "case2"}:
         raise ValueError(f"Unknown study fixture: {name}")
     return first_existing(
@@ -39,7 +39,7 @@ def case_fixture(name: str) -> Path:
 
 
 def martini_fixture(filename: str) -> Path:
-    """Return the current or future Martini parity fixture path."""
+    """Return the canonical or legacy Martini parity fixture path."""
     return first_existing(
         MARTINI_FIXTURE_ROOT / filename,
         REPO_ROOT / "tools" / "parity" / "npz" / filename,
