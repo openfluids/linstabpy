@@ -57,6 +57,11 @@ Completed on `main`:
   - `install_tester` scripts now wrap the canonical repository scripts
   - Martini parity defaults moved to `validation/martini2024/fixtures`
   - `tools/parity/martini_manifest.json` local absolute paths removed
+- Safe GEMINI numerical guardrails implemented in the current pass:
+  - Sutherland non-dimensionalization audited against bundled MATLAB source
+    and locked with a focused regression test
+  - MUMPS PETSc defaults now set ICNTL(14)=100 and ICNTL(24)=1 by default,
+    with JSONC/env override and opt-out coverage
 
 Still open:
 
@@ -67,7 +72,8 @@ Still open:
 - `src/linstab2d/baseflow/case1.py` still contains study-specific Hamada/Case 1
   loading inside the library.
 - Numerical GEMINI findings remain unaccepted until reviewed with tests:
-  - MUMPS defaults and solver doctor behavior
+  - live PETSc/MUMPS factorization verification for the new defaults
+  - solver doctor behavior
   - energy-equation row audit
   - axis singularity regularization
 - Sutherland non-dimensionalization was audited against the code and bundled

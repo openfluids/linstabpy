@@ -14,7 +14,7 @@ from .petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from ._solver_cfg import _scfg, _scfg_bool
+from ._solver_cfg import _mumps_petsc_options, _scfg
 
 
 _petsc_configured = False
@@ -70,8 +70,9 @@ def require_complex(solver_cfg: dict | None = None) -> None:
         )
     global _petsc_configured
     if not _petsc_configured:
-        if _scfg_bool(solver_cfg, "mumps_icntl_7", "LINSTAB2D_PETSC_SET_MUMPS_ICNTL_7", False):
-            PETSc.Options().setValue("mat_mumps_icntl_7", "5")  # METIS ordering
+        opts = PETSc.Options()
+        for key, value in _mumps_petsc_options(solver_cfg).items():
+            opts.setValue(key, value)
         _petsc_configured = True
 
 
