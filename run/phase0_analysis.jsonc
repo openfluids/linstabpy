@@ -1,0 +1,54 @@
+// Phase 0 go/no-go analysis parameters.
+// Consumed by phase0_analysis.py in the same directory.
+{
+  // --- Run manifest: 4 NPZs to analyse ---
+  // Each entry: tag used in report, NPZ filename under ./output/runs/,
+  // fd_order (informational), stride (informational).
+  "runs": [
+    {"tag": "fd6_s4", "npz": "R3a_baseline.npz",     "fd_order": 6, "stride": 4},
+    {"tag": "fd4_s4", "npz": "B1_fd4_stability.npz", "fd_order": 4, "stride": 4},
+    {"tag": "fd4_s2", "npz": "R3_stride2_fd4.npz",   "fd_order": 4, "stride": 2},
+    {"tag": "fd6_s2", "npz": "R3_stride2_fd6.npz",   "fd_order": 6, "stride": 2}
+  ],
+
+  // --- Saw-tooth omega-window ---
+  // Plan identifies the saw-tooth family at omega ~= (+/-0.52, -6.78j) and
+  // (+/-0.78, -8.28j). Window covers both conjugate pairs with margin.
+  // A mode is "in window" iff |Re(w)| is in [re_abs_min, re_abs_max] AND
+  //                            |Im(w)| is in [im_abs_min, im_abs_max].
+  "omega_window": {
+    "re_abs_min": 0.3,
+    "re_abs_max": 1.0,
+    "im_abs_min": 6.0,
+    "im_abs_max": 9.0
+  },
+
+  // --- rho-active threshold ---
+  // A candidate must have ||rho||_2 / ||q||_2 > this value, where
+  // q = [rho, u, v, w, T] stacked. Operational reference points:
+  //   BG-S (purely rho-dominant):      ratio ~ 1.0
+  //   Acoustic modes:                  ratio ~ 0.4
+  //   Pure shear / vortical modes:     ratio ~ 0.05
+  // 0.3 passes acoustic-like saw-tooth candidates, excludes pure shear.
+  "rho_active_threshold": 0.3,
+
+  // --- BG-S control ---
+  // Closest mode to target is used as a metric-validity probe. If the
+  // nearest returned mode is farther than max_dist, mark BG-S as "not
+  // captured" for that run and skip the validity gate on it.
+  "bgs_target_real": 0.0,
+  "bgs_target_imag": -0.6,
+  "bgs_max_dist": 1.0,
+
+  // --- Verdict thresholds (plan section Phase 0) ---
+  //   max tang_adj_step < verdict_stop     -> STOP
+  //   max tang_adj_step >= verdict_proceed -> PROCEED (Phase 1)
+  //   in between                            -> AMBIGUOUS
+  "verdict_stop": 0.05,
+  "verdict_proceed": 0.10,
+
+  // --- Output ---
+  // dpi for the saved .png (CLAUDE.md figure convention: 600 for
+  // publication, keep lower only if iterating locally).
+  "png_dpi": 600
+}

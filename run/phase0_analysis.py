@@ -29,6 +29,7 @@ Writes:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import numpy as np
 import matplotlib
@@ -38,22 +39,24 @@ import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
 NPZ_DIR = HERE / "output" / "runs"
+CFG_PATH = HERE / "phase0_analysis.jsonc"
 
-# Plan section: saw-tooth family at omega ~= (+/-0.52, -6.78j), (+/-0.78, -8.28j)
-OMEGA_WINDOW = {"re_abs_min": 0.3, "re_abs_max": 1.0,
-                "im_abs_min": 6.0, "im_abs_max": 9.0}
-RHO_ACTIVE_THRESHOLD = 0.3
-BGS_TARGET = 0.0 - 0.6j
-BGS_MAX_DIST = 1.0  # soft: if nearest mode is farther, skip BG-S check
-VERDICT_STOP = 0.05
-VERDICT_PROCEED = 0.10
+# linstabpy ships a jsonc loader; use it so this script matches the rest
+# of the kit's config conventions.
+sys.path.insert(0, str(HERE.parent / "src"))
+from linstab2d.utils.jsonc import load_jsonc  # noqa: E402
 
-RUNS = [
-    ("fd6_s4", "R3a_baseline.npz",     6, 4),
-    ("fd4_s4", "B1_fd4_stability.npz", 4, 4),
-    ("fd4_s2", "R3_stride2_fd4.npz",   4, 2),
-    ("fd6_s2", "R3_stride2_fd6.npz",   6, 2),
-]
+CFG = load_jsonc(CFG_PATH)
+OMEGA_WINDOW = CFG["omega_window"]
+RHO_ACTIVE_THRESHOLD = float(CFG["rho_active_threshold"])
+BGS_TARGET = complex(float(CFG["bgs_target_real"]),
+                     float(CFG["bgs_target_imag"]))
+BGS_MAX_DIST = float(CFG["bgs_max_dist"])
+VERDICT_STOP = float(CFG["verdict_stop"])
+VERDICT_PROCEED = float(CFG["verdict_proceed"])
+PNG_DPI = int(CFG.get("png_dpi", 600))
+RUNS = [(r["tag"], r["npz"], int(r["fd_order"]), int(r["stride"]))
+        for r in CFG["runs"]]
 
 
 def reshape_rho(modes, mode_idx, ngp, Ny, Nx):
@@ -318,7 +321,7 @@ def main():
         fontsize=12)
     fig.tight_layout()
     png_path = HERE / "phase0_analysis.png"
-    fig.savefig(png_path, dpi=120)
+    fig.savefig(png_path, dpi=PNG_DPI)
     plt.close(fig)
     print(f"Wrote {png_path}")
 
