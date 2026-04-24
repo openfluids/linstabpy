@@ -1,0 +1,76 @@
+{
+  // AUDIT R2 — Front C verification.
+  //
+  // Same stride4 Case 2 smoke as R1 (same target, same solver), but this
+  // config flips the new per-rule "curvilinear_normals" flag on each
+  // Neumann entry in the BC recipe. Combined with Front B's
+  // conjugate_aware, this exercises both opt-ins simultaneously.
+  //
+  // Expected effects vs baseline (parity_config.jsonc):
+  //   - accepted modes on the small Case 2 stride4 should differ ONLY at
+  //     boundary-adjacent DOFs where Neumann is applied (bottom T, right
+  //     all). Interior residuals should be unchanged to discretisation
+  //     error.
+  //   - stability_bc_leak_* diagnostics should not regress.
+  //
+  // We override bc.recipe in full (merge semantics replace the list).
+  //
+  // Run: from results/case2 on c8 with:
+  //   LINSTAB2D_CASE2_PERF_CONFIG=evp_audit_R2_curvilinear_normals.jsonc \
+  //   ~/linstabpy/.venv/bin/python perf_memory.py
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_audit_R2_curvilinear_normals/case2_evp_audit_R2_curvilinear_normals_latest.json",
+    "report_csv":  "output/evp_audit_R2_curvilinear_normals/case2_evp_audit_R2_curvilinear_normals_table.csv",
+    "log_dir":     "output/evp_audit_R2_curvilinear_normals/logs",
+    "run_dir":     "output/evp_audit_R2_curvilinear_normals/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4
+        },
+        "bc": {
+          "penalty": 1000000.0,
+          "recipe": [
+            {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
+            {"type": "dirichlet", "borders": "b",   "variables": "ruvw"},
+            {"type": "neumann",   "borders": "b",   "variables": "T",     "exclude_corners": true, "curvilinear_normals": true},
+            {"type": "neumann",   "borders": "r",   "variables": "ruvwT", "exclude_corners": true, "curvilinear_normals": true}
+          ]
+        },
+        "analysis": {
+          "n_modes_stability": 4,
+          "stability_acceptance": {
+            "postcheck_rel_max":      5e-05,
+            "target_distance_max":    0.15,
+            "omega_real_abs_max":     1.5,
+            "omega_imag_abs_max":     2.0,
+            "conjugate_aware":        true
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol":    1e-05,
+            "eps_max_it": 300,
+            "ncv":        80
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "audit_R2_curvnorm_stride4",
+      "label":   "R2 Front C — curvilinear Neumann normals + conjugate-aware",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": { "real": 0.561107, "imag": -1.112186 }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  // Controlled fd-order audit for the Case 2 oscillatory-target smoke run.
+  //
+  // Purpose:
+  // - hold mesh, target, acceptance gates, and eigensolver knobs fixed;
+  // - vary only numerics.fd_order across fd4 / fd6 / fd8;
+  // - write into a dedicated output tree so canonical campaign artefacts stay untouched.
+  //
+  // This is the first reproducer for the suspected "fd6-only spurious mode"
+  // report from the turbine case.
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride2_m2_fd_order_audit_exact_smoke/case2_evp_stride2_m2_fd_order_audit_exact_smoke_latest.json",
+    "report_csv": "output/evp_stride2_m2_fd_order_audit_exact_smoke/case2_evp_stride2_m2_fd_order_audit_exact_smoke_table.csv",
+    "log_dir": "output/evp_stride2_m2_fd_order_audit_exact_smoke/logs",
+    "run_dir": "output/evp_stride2_m2_fd_order_audit_exact_smoke/runs"
+  },
+  "defaults": {
+    "launcher": {
+      // Start serially to remove MPI/distribution effects from the first audit.
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 2,
+          "stride_eta": 2
+        },
+        "analysis": {
+          "n_modes_stability": 2,
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          },
+          "stability_acceptance": {
+            "postcheck_rel_max": 5e-05,
+            "target_distance_max": 0.15,
+            "omega_real_abs_max": 1.5,
+            "omega_imag_abs_max": 2.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 1e-05,
+            "eps_max_it": 300,
+            "ncv": 80
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "target_branch_m2_fd4_exact_smoke",
+      "label": "M2 exact branch target, fd4",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 4
+        }
+      }
+    },
+    {
+      "case_id": "target_branch_m2_fd6_exact_smoke",
+      "label": "M2 exact branch target, fd6",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    },
+    {
+      "case_id": "target_branch_m2_fd8_exact_smoke",
+      "label": "M2 exact branch target, fd8",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8
+        }
+      }
+    }
+  ]
+}

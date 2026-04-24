@@ -28,16 +28,11 @@ def test_effective_alpha_filter_keeps_filter_for_resolvent():
     assert results_runtime._effective_alpha_filter("none", run_resolvent=True) == "none"
 
 
-def test_effective_alpha_filter_disables_filter_without_resolvent(monkeypatch):
-    messages: list[str] = []
-    monkeypatch.setattr(results_runtime, "_log", messages.append)
-
-    assert results_runtime._effective_alpha_filter(0.0, run_resolvent=False, context="unit") == "none"
-    assert messages
-    assert "overriding alpha_filter=0.0 -> 'none'" in messages[0]
+def test_effective_alpha_filter_keeps_filter_without_resolvent():
+    assert results_runtime._effective_alpha_filter(0.0, run_resolvent=False, context="unit") == 0.0
 
 
-def test_run_ncv_prepare_case_disables_mesh_filter_without_resolvent(monkeypatch):
+def test_run_ncv_prepare_case_keeps_mesh_filter_without_resolvent(monkeypatch):
     ncv_runtime = _load_module(NCV_PATH, "case2_ncv_alpha_runtime")
     mesh_create_calls: list[object] = []
 
@@ -112,10 +107,10 @@ def test_run_ncv_prepare_case_disables_mesh_filter_without_resolvent(monkeypatch
         }
     )
 
-    assert mesh_create_calls == ["none"]
+    assert mesh_create_calls == [0.0]
 
 
-def test_shock_cleanup_branch_disables_mesh_filter_without_resolvent(monkeypatch, tmp_path):
+def test_shock_cleanup_branch_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
     shock_runtime = _load_module(SHOCK_PATH, "case2_shock_alpha_runtime")
     mesh_create_calls: list[object] = []
 
@@ -191,4 +186,4 @@ def test_shock_cleanup_branch_disables_mesh_filter_without_resolvent(monkeypatch
         cleanup_summary="none",
     )
 
-    assert mesh_create_calls == ["none"]
+    assert mesh_create_calls == [0.0]

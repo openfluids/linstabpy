@@ -1,0 +1,69 @@
+{
+  // Exploratory fast comparison for the Case 2 oscillatory target.
+  //
+  // Same target and solver family as the exact-smoke route, but with a looser
+  // EPS tolerance and a few more requested modes so we can see whether fd6
+  // introduces an extra nearby family qualitatively.
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride4_m4_fd4_fd6_quickscan/case2_evp_stride4_m4_fd4_fd6_quickscan_latest.json",
+    "report_csv": "output/evp_stride4_m4_fd4_fd6_quickscan/case2_evp_stride4_m4_fd4_fd6_quickscan_table.csv",
+    "log_dir": "output/evp_stride4_m4_fd4_fd6_quickscan/logs",
+    "run_dir": "output/evp_stride4_m4_fd4_fd6_quickscan/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4
+        },
+        "analysis": {
+          "n_modes_stability": 4,
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          },
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-04,
+            "target_distance_max": 0.25,
+            "omega_real_abs_max": 2.0,
+            "omega_imag_abs_max": 2.5
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 5e-05,
+            "eps_max_it": 300,
+            "ncv": 80
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "target_branch_m4_fd4_quickscan",
+      "label": "M4 quickscan target, fd4",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 4
+        }
+      }
+    },
+    {
+      "case_id": "target_branch_m4_fd6_quickscan",
+      "label": "M4 quickscan target, fd6",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    }
+  ]
+}

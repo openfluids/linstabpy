@@ -14,7 +14,7 @@
       "comparison_kind": "resolvent",
       "comparison_scope": "direct",
       "label": "Example 1: Blasius resolvent",
-      "note": "Missing MATLAB NPZ bundle: /home/ghamada/linstabpy/tools/parity/npz/example_1_Blasius_results.npz",
+      "note": "Missing MATLAB NPZ bundle: tools/parity/npz/example_1_Blasius_results.npz",
       "python_npz": "examples/example_1_blasius.npz",
       "status": "HARD_FAIL"
     },
@@ -23,7 +23,7 @@
       "comparison_kind": "resolvent",
       "comparison_scope": "direct",
       "label": "Example 2: jet resolvent",
-      "note": "Missing MATLAB NPZ bundle: /home/ghamada/linstabpy/tools/parity/npz/example_2_Jet_results.npz",
+      "note": "Missing MATLAB NPZ bundle: tools/parity/npz/example_2_Jet_results.npz",
       "python_npz": "examples/example_2_jet.npz",
       "status": "HARD_FAIL"
     },
@@ -32,7 +32,7 @@
       "comparison_kind": "streaky_bl",
       "comparison_scope": "temporal_and_spatial",
       "label": "Example 3: streaky boundary layer",
-      "note": "Missing MATLAB NPZ bundle(s) for example_3_streaky_bl: /home/ghamada/linstabpy/tools/parity/npz/example_3_Streaky_BL_results_temporal.npz, /home/ghamada/linstabpy/tools/parity/npz/example_3_Streaky_BL_results_spatial.npz, /home/ghamada/linstabpy/tools/parity/npz/example_3_Streaky_BL_results_base.npz, /home/ghamada/linstabpy/tools/parity/npz/example_3_Streaky_BL_logs.npz",
+      "note": "Missing MATLAB NPZ bundle(s) for example_3_streaky_bl: tools/parity/npz/example_3_Streaky_BL_results_temporal.npz, tools/parity/npz/example_3_Streaky_BL_results_spatial.npz, tools/parity/npz/example_3_Streaky_BL_results_base.npz, tools/parity/npz/example_3_Streaky_BL_logs.npz",
       "python_npz": "examples/example_3_streaky_bl.npz",
       "status": "HARD_FAIL"
     },
@@ -50,15 +50,15 @@
       "comparison_kind": "resolvent",
       "comparison_scope": "direct",
       "label": "Example 5: paraboloid resolvent",
-      "note": "Missing MATLAB NPZ bundle: /home/ghamada/linstabpy/tools/parity/npz/example_5_Paraboloid_results.npz",
+      "note": "Missing MATLAB NPZ bundle: tools/parity/npz/example_5_Paraboloid_results.npz",
       "python_npz": "examples/example_5_paraboloid.npz",
       "status": "HARD_FAIL"
     }
   ],
-  "config": "/home/ghamada/linstabpy/tools/parity/martini_cases.jsonc",
+  "config": "tools/parity/martini_cases.jsonc",
   "counts": {
     "HARD_FAIL": 6
   },
-  "generated_at_utc": "2026-04-21T13:05:53.700507+00:00",
-  "npz_dir": "/home/ghamada/linstabpy/tools/parity/npz"
+  "generated_at_utc": "2026-04-22T21:11:58.002847+00:00",
+  "npz_dir": "tools/parity/npz"
 }

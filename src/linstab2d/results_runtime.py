@@ -109,15 +109,26 @@ def _effective_alpha_filter(
     run_resolvent: bool,
     context: str = "config",
 ) -> float | str:
-    """Disable mesh-filter setup for EVP-only runs while preserving resolvent parity."""
-    alpha_filter = _parse_alpha_filter(alpha_filter_raw)
-    if run_resolvent or alpha_filter == "none":
-        return alpha_filter
-    _log(
-        f"{context}: run_resolvent=false, overriding alpha_filter={alpha_filter!r} -> 'none' "
-        "to skip mesh-filter setup in the EVP-only path"
-    )
-    return "none"
+    """Parse the configured alpha-filter, honoring it for every analysis stage.
+
+    The previous behaviour silently overrode a numeric ``alpha_filter`` to
+    ``"none"`` whenever ``run_resolvent=False``, as a build-time optimisation
+    for EVP-only runs. That override had a real numerical side-effect: SBP
+    diagonal-norm operators have a near-null-space mode at the 2-Δ Nyquist
+    wavenumber, and the Mattsson operator-level filter is the designed
+    damping for that mode. Skipping it for EVP-only runs made those runs
+    produce pixel-scale saw-tooth eigenvectors localised near the boundary
+    closure — a purely numerical artefact that also contaminated resolvent
+    extraction whenever someone happened to set ``alpha_filter: 0.0``.
+
+    The filter is an operator-level property and should not depend on which
+    analysis stage runs. We now honour the configured value for every stage;
+    the ``run_resolvent`` argument is kept so the context parameter remains
+    informative in any future logging.
+    """
+    del run_resolvent  # kept in signature for back-compat; no longer branches.
+    del context
+    return _parse_alpha_filter(alpha_filter_raw)
 
 
 @contextmanager

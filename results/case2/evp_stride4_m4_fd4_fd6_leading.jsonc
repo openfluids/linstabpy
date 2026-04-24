@@ -1,0 +1,69 @@
+{
+  // Minimal leading-mode comparison at the Case 2 oscillatory target.
+  //
+  // This is not the final broad screening. It is the fastest way to ask:
+  // "for the same target, does fd6 latch onto a qualitatively different
+  // leading mode than fd4?"
+  "$include": "_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride4_m4_fd4_fd6_leading/case2_evp_stride4_m4_fd4_fd6_leading_latest.json",
+    "report_csv": "output/evp_stride4_m4_fd4_fd6_leading/case2_evp_stride4_m4_fd4_fd6_leading_table.csv",
+    "log_dir": "output/evp_stride4_m4_fd4_fd6_leading/logs",
+    "run_dir": "output/evp_stride4_m4_fd4_fd6_leading/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4
+        },
+        "analysis": {
+          "n_modes_stability": 1,
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          },
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-04,
+            "target_distance_max": 0.25,
+            "omega_real_abs_max": 2.0,
+            "omega_imag_abs_max": 2.5
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 5e-05,
+            "eps_max_it": 300,
+            "ncv": 40
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "target_branch_m4_fd4_leading",
+      "label": "M4 leading target, fd4",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 4
+        }
+      }
+    },
+    {
+      "case_id": "target_branch_m4_fd6_leading",
+      "label": "M4 leading target, fd6",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    }
+  ]
+}
