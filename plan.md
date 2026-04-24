@@ -67,10 +67,12 @@ Still open:
 - `src/linstab2d/baseflow/case1.py` still contains study-specific Hamada/Case 1
   loading inside the library.
 - Numerical GEMINI findings remain unaccepted until reviewed with tests:
-  - Sutherland non-dimensionalization
   - MUMPS defaults and solver doctor behavior
   - energy-equation row audit
   - axis singularity regularization
+- Sutherland non-dimensionalization was audited against the code and bundled
+  MATLAB source; the implementation already normalizes by `mu(T_0)`. A focused
+  regression test now locks this behavior.
 
 ## Target Layout
 
