@@ -749,8 +749,9 @@ def _prepare_coefficients(
         Dy = mesh.Dy
         D2y = mesh.D2y
         # MATLAB 2D path uses Dzr = Dz*Dr (GetLinProblem.m: D2RZ=blkdiag(Dzr)).
-        # In this codebase that is Dyx = Dy @ Dx, not Dxy.
-        D2RZ = mesh.Dyx
+        # Dz*Dr applied to a vector applies Dr first (r-direction=y), then Dz
+        # (z-direction=x): that is Dx @ Dy = mesh.Dxy, not Dy @ Dx = mesh.Dyx.
+        D2RZ = mesh.Dxy
 
         model = model.lower()
         if model == "2d":

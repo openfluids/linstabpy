@@ -509,8 +509,8 @@ class TestOperatorAssembly:
         np.testing.assert_array_equal(candidate.indices, expected.indices)
         np.testing.assert_allclose(candidate.data, expected.data, atol=1e-12, rtol=1e-12)
 
-    def test_cartesian_prep_uses_dyx_for_mixed_derivative(self, small_mesh_2d, uniform_baseflow):
-        """MATLAB 2D path uses Dzr = Dy @ Dx in the mixed-derivative block."""
+    def test_cartesian_prep_uses_dxy_for_mixed_derivative(self, small_mesh_2d, uniform_baseflow):
+        """MATLAB 2D path uses Dzr = Dz*Dr = Dx @ Dy = mesh.Dxy in the mixed-derivative block."""
         mesh = small_mesh_2d.deform(
             X_new=small_mesh_2d.X + 0.05 * small_mesh_2d.X * small_mesh_2d.Y,
             Y_new=small_mesh_2d.Y + 0.1 * small_mesh_2d.Y**2,
@@ -518,7 +518,7 @@ class TestOperatorAssembly:
         assert (mesh.Dxy != mesh.Dyx).nnz > 0, "test mesh must distinguish Dxy and Dyx"
 
         prepared = _prepare_coefficients(mesh, uniform_baseflow, kx=0.0, model="2D", m=0.0)
-        assert (prepared["D2RZ"] != mesh.Dyx).nnz == 0
+        assert (prepared["D2RZ"] != mesh.Dxy).nnz == 0
 
     def test_build_lnse_system_emits_assembly_metrics_sidecar(
         self,
