@@ -11,7 +11,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "tools" / "parity" / "assembly_parity.py"
+SCRIPT = ROOT / "validation" / "martini2024" / "tools" / "assembly_parity.py"
 
 
 @pytest.mark.parametrize("model", ["2D", "axy"])

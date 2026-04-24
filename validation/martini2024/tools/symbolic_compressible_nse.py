@@ -170,7 +170,7 @@ def continuity_operator_coefficients(symbols: dict[str, sp.Symbol]) -> dict[str,
 
 
 def _coeff_source_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[3]
     candidates = [
         repo_root / "src" / "linstab2d" / "operators" / "coefficients.py",
         repo_root / "linstab2d" / "operators" / "coefficients.py",
@@ -558,7 +558,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("tools/parity/output/operator_symbolic_templates.json"),
+        default=Path("validation/martini2024/output/operator_symbolic_templates.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()

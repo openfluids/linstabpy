@@ -104,7 +104,7 @@ def _write_artifact_report(fields: dict[str, np.ndarray | float | bool]) -> None
         "status": "computed",
         "note": (
             "This artifact stores Python-versus-analytic derivative errors only. "
-            "Use tools/parity/reports/martini_parity_latest.json for MATLAB parity status."
+            "Use validation/martini2024/reports/martini_parity_latest.json for MATLAB parity status."
         ),
         "df_linf": float(fields["df_linf"]),
         "df_rel_l2": float(fields["df_rel_l2"]),

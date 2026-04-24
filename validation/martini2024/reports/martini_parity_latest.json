@@ -55,7 +55,7 @@
       "status": "HARD_FAIL"
     }
   ],
-  "config": "tools/parity/martini_cases.jsonc",
+  "config": "validation/martini2024/tools/martini_cases.jsonc",
   "counts": {
     "HARD_FAIL": 6
   },

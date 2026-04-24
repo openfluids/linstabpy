@@ -197,13 +197,13 @@ def main() -> int:
     parser.add_argument(
         "--operator-matrix",
         type=Path,
-        default=Path("tools/parity/operator_matrix.json"),
+        default=Path("validation/martini2024/tools/operator_matrix.json"),
         help="Path to operator matrix JSON",
     )
     parser.add_argument(
         "--branch-matrix",
         type=Path,
-        default=Path("tools/parity/branch_matrix.json"),
+        default=Path("validation/martini2024/tools/branch_matrix.json"),
         help="Path to branch matrix JSON",
     )
     parser.add_argument(

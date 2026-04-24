@@ -436,7 +436,7 @@ def _common_compare_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--eig-target", type=complex, default=-0.05j)
     parser.add_argument("--max-eig-ndof", type=int, default=1500)
     parser.add_argument("--skip-eigs", action="store_true")
-    parser.add_argument("--output", type=Path, default=Path("tools/parity/output/assembly_parity.json"))
+    parser.add_argument("--output", type=Path, default=Path("validation/martini2024/output/assembly_parity.json"))
     parser.add_argument("--allow-fail", action="store_true")
 
 

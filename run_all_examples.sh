@@ -34,7 +34,7 @@ else
 fi
 
 EXAMPLES_DIR="$REPO/examples"
-PARITY_SCRIPT="$REPO/tools/parity/compare_martini_examples.py"
+PARITY_SCRIPT="$REPO/validation/martini2024/tools/compare_martini_examples.py"
 export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 EXAMPLE_SPECS=(

@@ -14,18 +14,18 @@ from typing import Any
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from linstab2d.utils.jsonc import load_jsonc
-from tools.parity.matlab_hdf5 import compound_to_complex, sanitize_key
+from validation.martini2024.tools.matlab_hdf5 import compound_to_complex, sanitize_key
 
-DEFAULT_CONFIG = ROOT / "tools" / "parity" / "martini_cases.jsonc"
+DEFAULT_CONFIG = ROOT / "validation" / "martini2024" / "tools" / "martini_cases.jsonc"
 DEFAULT_NPZ_DIR = ROOT / "validation" / "martini2024" / "fixtures"
 LEGACY_NPZ_DIR = ROOT / "tools" / "parity" / "npz"
-DEFAULT_REPORT = ROOT / "tools" / "parity" / "reports" / "martini_parity_latest.json"
-DEFAULT_TABLE = ROOT / "tools" / "parity" / "reports" / "martini_parity_table.csv"
+DEFAULT_REPORT = ROOT / "validation" / "martini2024" / "reports" / "martini_parity_latest.json"
+DEFAULT_TABLE = ROOT / "validation" / "martini2024" / "reports" / "martini_parity_table.csv"
 
 
 def _now_utc() -> str:

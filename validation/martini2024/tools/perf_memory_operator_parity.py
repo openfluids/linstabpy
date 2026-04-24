@@ -363,7 +363,7 @@ def main() -> int:
     parser.add_argument("--max-case-runtime-seconds", type=float, default=None)
     parser.add_argument("--max-rss-bytes-per-mnnz", type=float, default=None)
     parser.add_argument("--max-rss-growth-bytes", type=float, default=None)
-    parser.add_argument("--output", type=Path, default=Path("tools/parity/output/operator_perf_memory.json"))
+    parser.add_argument("--output", type=Path, default=Path("validation/martini2024/output/operator_perf_memory.json"))
     parser.add_argument(
         "--allow-failures",
         action="store_true",
