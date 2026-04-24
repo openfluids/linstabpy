@@ -1,328 +1,415 @@
-# LinStabPy Repository Cleanup Plan
+# LinStabPy Folder Reorganization Plan
 
 Date: 2026-04-24
 Branch: `main`
-Status: active cleanup plan; safe `GEMINI.md` hygiene items are being folded in
+Status: proposal; no folder moves have been started in this plan
 
 ## Purpose
 
-Make this repository easier to review, clone, test, and release without
-weakening numerical validation.
+Reduce visual and operational clutter without weakening numerical validation.
+The goal is a repository where a new reader can immediately distinguish:
 
-The cleanup must preserve these invariants:
+- reusable library code;
+- runnable examples;
+- active research campaigns;
+- validation/reference data;
+- developer and installation tools;
+- generated outputs and caches.
 
-- `src/linstab2d/` remains the only importable library source.
-- `README.md` remains the canonical broad documentation.
-- MATLAB-backed validation is preserved through explicit fixtures, scripts, or
-  regeneration instructions.
-- No tracked GitHub-facing file exceeds 50 MiB.
-- Numerical behavior changes require tests or parity checks.
-- `GEMINI.md` is draft review input for a later pass. Do not treat it as
-  canonical until this plan is complete and current.
+This plan replaces the older cleanup plan as the current `plan.md`. Open
+non-folder numerical/release items from that plan are preserved in the final
+section so they are not lost.
 
-## Current State
+## Current Evidence
 
-Verified on 2026-04-24:
+The tracked top-level structure is already mostly reasonable:
 
-- Local and remote branches are consolidated on `main`.
-- Old cleanup branches were merged into `main` and deleted locally/remotely.
-- Last completed cleanup commit before this plan refresh was
-  `d1f5d31 Add layout cleanup guardrails`.
-- `GEMINI.md` is untracked and unfinished.
-- `git submodule status` succeeds for `src/linstab2d/data/baseflows`.
-- `python scripts/check_tracked_file_size.py` passes.
-- The only ignored files over 50 MiB currently reported by the guard are local
-  generated example outputs:
-  - `examples/example_3_streaky_bl.npz`
-  - `examples/example_4_cavity.npz`
+```text
+src/linstab2d/        library package
+tests/                pytest suite
+examples/             Martini examples
+studies/              active Case 1 / Case 2 workflows
+validation/           reproducibility and reference-data workflows
+tools/                developer utilities
+scripts/              guardrails
+install_tester/       installer harness
+tutorial/             tutorial source and PDF
+```
 
-Completed on `main`:
+The main clutter is not duplicated top-level folders anymore. It is inside:
 
-- Default branch migrated from `master` to `main`.
-- Tutorial commit `0e0ff7e` preserved.
-- File-size guardrail added:
-  - `scripts/check_tracked_file_size.py`
-  - `.pre-commit-config.yaml`
-  - `.github/workflows/guardrails.yml`
-- Two over-50 MiB raw MATLAB exports were removed from Git tracking. The paths
-  remain ignored if the files are restored locally:
-  - `studies/case1/MATLAB_exports/operator_convention.mat`
-  - `validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/coefficients_raw.mat`
-- Shared test path helper added:
-  - `tests/_paths.py`
-- Operator fixture schema added:
-  - `validation/operator_fixtures/SCHEMA.md`
-- Phase 1 layout move implemented:
-  - `results/case1` moved to `studies/case1`
-  - `results/case2` moved to `studies/case2`
-  - study references were rewritten to the new `studies/` namespace
-- Safe GEMINI hygiene items implemented in the current pass:
-  - duplicate `install_tester/src` and `install_tester/examples` removed
-  - `install_tester` scripts now wrap the canonical repository scripts
-  - Martini parity defaults moved to `validation/martini2024/fixtures`
-  - `tools/parity/martini_manifest.json` local absolute paths removed
-- Safe GEMINI numerical guardrails implemented in the current pass:
-  - Sutherland non-dimensionalization audited against bundled MATLAB source
-    and locked with a focused regression test
-  - MUMPS PETSc defaults now set ICNTL(14)=100 and ICNTL(24)=1 by default,
-    with JSONC/env override and opt-out coverage
+- `studies/case1/`: baseflow arrays, MATLAB exports, scripts, configs, and
+  outputs all live near the top of the case directory.
+- `studies/case2/`: many EVP/resolvent configs, active scripts, rankfiles,
+  phase artifacts, and documentation share one directory.
+- `validation/song_2023/`: Python workflow code, JSONC configs, baseflow data,
+  MATLAB source, MATLAB reference outputs, and run scripts are mixed.
+- `tools/parity/` and `validation/martini2024/`: Martini validation logic and
+  Martini fixtures are split across two roots.
+- `tests/_paths.py` still has legacy fallback paths for old `results/case*`
+  and root-level `case*` layouts.
 
-Still open:
+## Invariants
 
-- `src/linstab2d/results_runtime.py` still contains study orchestration in
-  package code.
-- `src/linstab2d/baseflow/case1.py` still contains study-specific Hamada/Case 1
-  loading inside the library.
-- Numerical GEMINI findings remain unaccepted until reviewed with tests:
-  - live PETSc/MUMPS factorization verification for the new defaults
-  - solver doctor behavior
-  - energy-equation row audit
-  - axis singularity regularization
-- Sutherland non-dimensionalization was audited against the code and bundled
-  MATLAB source; the implementation already normalizes by `mu(T_0)`. A focused
-  regression test now locks this behavior.
+These must remain true throughout the reorganization:
+
+- `src/linstab2d/` remains the only importable library source tree.
+- Root commands stay easy to find:
+  - `install.sh`
+  - `diagnose.sh`
+  - `benchmark.sh`
+  - `run_all_examples.sh`
+- `run_all_examples.sh` remains the canonical example/parity/MPI runner.
+- `tutorial/` stays available unless a later explicit decision moves docs under
+  `docs/`.
+- Generated `.npz`, `.png`, logs, caches, and campaign `output/` directories
+  stay ignored unless explicitly curated as paper artifacts.
+- Numerical behavior does not change during path-only moves.
+- Every move is followed by reference rewrites and targeted verification.
+- No broad staging: stage only named files.
+
+## Non-Goals
+
+- Do not rename the import package from `linstab2d` to `linstabpy`.
+- Do not change PETSc/SLEPc defaults, boundary conditions, matrix assembly,
+  viscosity formulas, or acceptance thresholds.
+- Do not move root onboarding scripts into a hidden tools directory.
+- Do not split core numerical modules as part of this folder cleanup.
+- Do not delete validation data unless a regeneration path and consumer audit
+  are documented first.
 
 ## Target Layout
 
+Preferred final shape:
+
 ```text
 .
-  README.md
-  LICENSE
-  pyproject.toml
-  uv.lock
-  plan.md
-  src/linstab2d/
-  tests/
-  examples/
-  scripts/
-  studies/
-    case1/
-    case2/
-  validation/
-    operator_fixtures/
-    martini2024/
-      fixtures/
-    song_2023/
+|-- src/linstab2d/
+|-- tests/
+|-- examples/
+|-- studies/
+|   |-- case1/
+|   |   |-- configs/
+|   |   |-- data/baseflow/
+|   |   |-- reference/matlab/
+|   |   |-- scripts/
+|   |   `-- artifacts/
+|   `-- case2/
+|       |-- configs/
+|       |   |-- evp/
+|       |   |-- resolvent/
+|       |   `-- perf/
+|       |-- data/baseflow/
+|       |-- scripts/
+|       |-- artifacts/phase1p5/
+|       `-- docs/
+|-- validation/
+|   |-- martini2024/
+|   |   |-- fixtures/
+|   |   |-- reports/
+|   |   `-- tools/
+|   |-- operator_fixtures/
+|   `-- song_2023/
+|       |-- configs/
+|       |-- data/baseflow/
+|       |-- reference/matlab/
+|       `-- scripts/
+|-- tools/
+|   `-- debug/
+|-- scripts/
+|-- install_tester/
+|-- tutorial/
+|-- install.sh
+|-- diagnose.sh
+|-- benchmark.sh
+`-- run_all_examples.sh
 ```
 
-Directory rules:
+Decision notes:
 
-- `src/linstab2d/`: library code only.
-- `examples/`: runnable examples and `.jsonc` configs; generated `.npz` and
-  `.png` outputs remain ignored.
-- `studies/`: active research/campaign workflows.
-- `validation/operator_fixtures/`: compact MATLAB-derived operator fixtures and
-  metadata.
-- `validation/martini2024/fixtures/`: compact Martini parity bundles.
-- `tools/parity/`: conversion and comparison tools, not data storage.
-- `install_tester/`: install harness, notes, and scripts only; no duplicate
-  package or example tree.
+- Keep `install_tester/` and `tutorial/` at the top level for now. They are
+  user-facing entrypoints, not accidental duplication.
+- Move `tools/parity/` only after the case-study cleanup, because
+  `run_all_examples.sh`, tests, and README currently point to it.
+- Keep case entrypoints at the case root during the first move:
+  - `studies/case1/case1.py`
+  - `studies/case1/case1.sh`
+  - `studies/case2/case2.py`
+  - `studies/case2/perf_memory.py`
 
-## Non-Goals For This Cleanup
+## Phase 0 - Preflight
 
-- Do not rename the import package from `linstab2d` to `linstabpy`.
-- Do not split core numerical modules such as `operators/assembly.py`,
-  `mesh/mesh.py`, or `operators/coefficients.py` in this cleanup.
-- Do not change PETSc/SLEPc solver defaults, matrix assembly, boundary
-  conditions, viscosity formulas, or acceptance thresholds without a separate
-  test-first numerical task.
-- Do not treat `GEMINI.md` findings as accepted until they are reviewed against
-  the code and this plan.
-
-## Phase 1 - Finish Layout Cleanup
-
-Status: implemented in the current pass.
-
-Goal: stop using `results/` as the source namespace for active studies.
+Goal: make sure moves are mechanical and reversible.
 
 Actions:
 
-1. Move curated Case 1 material:
-   - from `results/case1/`
-   - to `studies/case1/`
-2. Move curated Case 2 material:
-   - from `results/case2/`
-   - to `studies/case2/`
-3. Preserve Case 2 scientific state:
-   - `PLAN.md`
-   - `README.md`
-   - `REFERENCE.md`
-   - `worklog.md`
-   - current `.jsonc` campaign configs
-4. Keep generated campaign outputs under ignored `output/` directories inside
-   each study.
-5. Update references from `results/case*` to `studies/case*` in:
-   - `README.md`
-   - `src/linstab2d/config/validation_cases.yaml`
-   - `src/linstab2d/baseflow/case1.py` comments
-   - tests
-   - study scripts
-6. Use `tests/_paths.py` as the compatibility layer during the move.
+1. Confirm clean state:
+   - `git status --short --branch`
+2. Record current tracked path counts:
+   - `git ls-files | awk -F/ '{count[$1]++} END {for (n in count) print count[n], n}'`
+3. Find path consumers before each move:
+   - `rg -n "studies/case1|studies/case2|validation/song_2023|tools/parity"`
+4. Create one small commit per phase.
 
 Validation:
 
-- `rg -n "results/case"` should show only migration notes or no hits.
-- `python scripts/check_tracked_file_size.py`
+- `git diff --check`
+- no unexpected untracked source files
+
+## Phase 1 - Reorganize Study Internals
+
+Goal: make `studies/` readable without changing public study entrypoints.
+
+### Case 1
+
+Proposed moves:
+
+```text
+studies/case1/{T,rho,u,v,w,x,y,sponge}.npy
+  -> studies/case1/data/baseflow/
+
+studies/case1/MATLAB_exports/
+studies/case1/MATLAB_exports_resolvent/
+studies/case1/MATLAB_results/
+  -> studies/case1/reference/matlab/
+
+studies/case1/perf_memory_cases*.jsonc
+studies/case1/production_case_template.jsonc
+studies/case1/resolvent_smoke_fd4_socket1.jsonc
+studies/case1/parity_config.jsonc
+  -> studies/case1/configs/
+
+studies/case1/plot_*.py
+studies/case1/check_*.py
+studies/case1/build_reference_inventory.py
+studies/case1/generate_figures.py
+studies/case1/perf_memory.py
+  -> studies/case1/scripts/
+
+studies/case1/workflow/
+  -> studies/case1/reference/matlab/workflow/
+```
+
+Keep at case root initially:
+
+- `case1.py`
+- `case1.sh`
+- `case1.md`
+- `test_case1.py`
+- `parity_reference_inventory.json` until consumers are checked
+
+### Case 2
+
+Proposed moves:
+
+```text
+studies/case2/baseflow/
+  -> studies/case2/data/baseflow/
+
+studies/case2/evp_*.jsonc
+  -> studies/case2/configs/evp/
+
+studies/case2/resolvent_*.jsonc
+  -> studies/case2/configs/resolvent/
+
+studies/case2/_defaults.jsonc
+studies/case2/parity_config.jsonc
+  -> studies/case2/configs/
+
+studies/case2/phase1p5_*.py
+studies/case2/plot_saved_*.py
+  -> studies/case2/scripts/
+
+studies/case2/phase1p5/
+  -> studies/case2/artifacts/phase1p5/
+
+studies/case2/{PLAN,README,REFERENCE,QFILT_COMPARISON_PROTOCOL}.md
+studies/case2/tutorial.md
+studies/case2/worklog.md
+  -> studies/case2/docs/
+```
+
+Keep at case root initially:
+
+- `case2.py`
+- `perf_memory.py`
+- `run_case_once.sh`
+- `run_perf_queue_once.sh`
+- `socket*.rankfile`
+
+Validation:
+
+- `rg -n "studies/case1|studies/case2" README.md tutorial tests src scripts`
+- `bash -n studies/case1/case1.sh studies/case2/run_case_once.sh studies/case2/run_perf_queue_once.sh`
+- `PYTHONPATH=src .venv/bin/python -m pytest tests/test_case2_perf_memory_include.py`
+- targeted Case 1 tests either pass or skip with precise missing-data messages
+
+## Phase 2 - Consolidate Validation Layouts
+
+Goal: make validation workflows self-contained by case/source.
+
+### Martini 2024
+
+Proposed moves:
+
+```text
+tools/parity/*.py
+tools/parity/*.json
+tools/parity/*.jsonc
+  -> validation/martini2024/tools/
+
+tools/parity/reports/
+  -> validation/martini2024/reports/
+```
+
+Update:
+
+- `run_all_examples.sh` parity script path
+- README parity commands
+- `tests/test_martini_parity_compare.py`
+- any JSON report path references
+
+### Song 2023
+
+Proposed moves:
+
+```text
+validation/song_2023/baseflow/
+  -> validation/song_2023/data/baseflow/
+
+validation/song_2023/*.jsonc
+  -> validation/song_2023/configs/
+
+validation/song_2023/plot_*.py
+validation/song_2023/run_*.py
+validation/song_2023/compare_*.py
+validation/song_2023/scan_preprocess.py
+validation/song_2023/populate_scaling_table.py
+  -> validation/song_2023/scripts/
+
+validation/song_2023/matlab_code/
+validation/song_2023/matlab_reference/
+validation/song_2023/ref_results/
+  -> validation/song_2023/reference/matlab/
+```
+
+Keep at validation root initially:
+
+- `validation/song_2023/song_2023.py`
+- `validation/song_2023/song_2023.sh`
+- `validation/song_2023/baseflow_loader.py`
+- `validation/song_2023/bc_setup.py`
+- `validation/song_2023/plotter.py`
+
+Validation:
+
+- `bash -n validation/song_2023/song_2023.sh`
+- `PYTHONPATH=src .venv/bin/python -m pytest tests/test_martini_parity_compare.py`
+- `bash run_all_examples.sh --list`
+- parity reports still write to the documented location
+
+## Phase 3 - Remove Legacy Compatibility Paths
+
+Goal: stop carrying old layout assumptions after the move is stable.
+
+Actions:
+
+1. Remove fallback paths from `tests/_paths.py`:
+   - `results/case*`
+   - root `case*`
+2. Remove stale README references to migration/legacy locations.
+3. Search for old locations:
+   - `rg -n "results/case|tools/parity|validation/song_2023/baseflow|MATLAB_exports"`
+4. Keep intentional historical notes only if they say they are historical.
+
+Validation:
+
 - `PYTHONPATH=src .venv/bin/python -m pytest -m "not slow"`
-- Targeted Case 1/Case 2 tests either pass or skip with precise missing-data
-  messages.
-
-## Phase 2 - Remove Install Tester Duplication
-
-Status: implemented in the current pass.
-
-Goal: make `src/linstab2d` the only library source tree.
-
-Actions:
-
-1. Remove the duplicate package tree:
-   - `install_tester/src/linstab2d`
-2. Remove duplicated examples:
-   - `install_tester/examples`
-3. Update `install_tester/run_install_tester.sh` so it installs/tests the real
-   package from the repository checkout.
-4. Keep install-tester-specific files:
-   - `install_tester/README.md`
-   - `install_tester/install.sh`
-   - `install_tester/diagnose.sh`
-   - `install_tester/benchmark.sh`
-   - `install_tester/installation_learnings.md`
-   - `install_tester/lovelace_requirements.md`
-5. Update `install_tester/README.md` to explain the new source-of-truth model.
-
-Validation:
-
-- `rg -n "install_tester/src|install_tester/examples"` should show only
-  historical notes or no hits.
-- `bash -n install_tester/run_install_tester.sh`
-- The top-level non-slow pytest suite still passes.
-
-## Phase 3 - Sanitize Martini Parity Metadata
-
-Status: implemented in the current pass.
-
-Goal: remove local-machine paths and define the future parity fixture home.
-
-Actions:
-
-1. Replace absolute paths in `tools/parity/martini_manifest.json` with
-   repository-relative paths.
-2. Update `tools/parity/martini_cases.jsonc` comments from `tools/parity/npz`
-   to `validation/martini2024/fixtures`.
-3. Update parity tools so the default bundle directory is
-   `validation/martini2024/fixtures`, with compatibility for old local
-   `tools/parity/npz` if needed.
-4. Refresh existing tracked parity reports so their path references point to
-   `validation/martini2024/fixtures`.
-
-Validation:
-
-- `rg -n "/Users/rfrantz" tools validation README.md src tests` returns no
-  tracked source references.
-- Existing parity-tool unit tests pass.
-- Missing optional parity bundles skip with precise messages.
-
-## Phase 4 - Preserve Operator Validation With Compact Fixtures
-
-Goal: keep MATLAB validation useful without tracking large raw exports.
-
-Actions:
-
-1. Decide the minimum operator fixtures before converting data:
-   - derivative matrices
-   - quadrature / Chu-norm weights
-   - metric and Jacobian arrays
-   - pre-BC and post-BC operators
-   - selected boundary-condition rows or masks
-   - selected eigen/resolvent reference outputs
-2. Convert selected raw MATLAB exports into compact `.npz` or SciPy sparse
-   `.npz` files under `validation/operator_fixtures/`.
-3. Add `.jsonc` metadata for each fixture following
-   `validation/operator_fixtures/SCHEMA.md`.
-4. Keep each tracked fixture below 10 MiB where possible.
-5. For any larger artifact, add a regeneration script under `scripts/` instead
-   of tracking the artifact.
-6. Update operator parity tests to use compact fixtures where practical.
-
-Validation:
-
-- Operator parity tests run without MATLAB for the selected fixtures.
 - `python scripts/check_tracked_file_size.py`
-- `PYTHONPATH=src .venv/bin/python -m pytest -m "not slow"`
+- `git diff --check`
 
-## Phase 5 - Separate Study Runtime From Library Runtime
+## Phase 4 - Separate Study Runtime From Library Runtime
 
-Goal: keep package code reusable and move study orchestration out of the
-library.
+Goal: move study orchestration out of package code after folder paths are
+settled.
 
 Actions:
 
 1. Split `src/linstab2d/results_runtime.py`:
-   - keep reusable utilities in package code;
+   - keep generic runtime helpers in the library;
    - move Case 1/Case 2 orchestration into `studies/common/` or study-local
-     code.
-2. Keep temporary compatibility wrappers only where tests or study scripts need
-   a transition path.
-3. Remove package comments and configs that point to old `results/case*`
-   locations.
-4. Keep `src/linstab2d/solvers/petsc_utils.py` as a compatibility re-export for
-   now; remove it only in a separate small commit after import cleanup.
+     modules.
+2. Review `src/linstab2d/baseflow/case1.py`:
+   - keep reusable loader primitives if general;
+   - move study-specific Hamada/Case 1 assumptions under `studies/case1/` if
+     they are not library-level behavior.
+3. Keep compatibility wrappers only for one transition commit.
 
 Validation:
 
-- Public imports used by examples and tests still work.
-- Study workflows run from repository root.
-- No numerical output changes except path/provenance metadata.
+- public imports used by examples still work
+- Case 1 and Case 2 workflows run from repository root
+- no numerical output changes except path/provenance metadata
 
-## Phase 6 - Final Documentation And Plan Closure
+## Phase 5 - Documentation And Tutorial Refresh
 
-Goal: leave the repository with one current README and no stale cleanup plan.
+Goal: make the new structure obvious to humans.
 
 Actions:
 
-1. Update `README.md` with the final layout and commands.
-2. Decide whether to keep `plan.md`:
-   - keep it if more cleanup phases remain;
-   - delete it if all actions above are complete and the README is current.
-3. If deleted, make sure remaining release or review notes live in README,
-   issues, or a named review ledger.
-4. Commit and push the final clean state on `main`.
+1. Update the README folder diagram.
+2. Update the tutorial "Where files belong" section.
+3. Update Case 1 and Case 2 local docs after their paths move.
+4. Update `install_tester/README.md` only if root paths changed.
 
 Validation:
 
-- `git status --short --branch` is clean except intentionally untracked drafts.
-- `python scripts/check_tracked_file_size.py`
-- `git submodule status`
+- `make -C tutorial`
+- `pdftotext tutorial/tutorial.pdf - | rg "Where files belong|run_all_examples"`
 - `git diff --check`
-- `PYTHONPATH=src .venv/bin/python -m pytest -m "not slow"`
 
-## GEMINI.md Handling
+## Commit Strategy
 
-`GEMINI.md` is an unfinished review draft. Work on it only after this plan is
-current.
+Use small commits:
 
-When ready:
+1. `Plan folder reorganization`
+2. `Reorganize study case folders`
+3. `Consolidate validation folders`
+4. `Remove legacy layout fallbacks`
+5. `Separate study runtime helpers`
+6. `Refresh layout documentation`
 
-1. Treat it as input, not truth.
-2. Classify each finding as:
-   - accepted now;
-   - needs investigation;
-   - rejected with evidence;
-   - future roadmap.
-3. Do easy hygiene findings first:
-   - install-tester duplication;
-   - absolute manifest paths;
-   - documentation/layout issues.
-4. Do numerical findings only with focused tests and evidence:
-   - Sutherland non-dimensionalization;
-   - axisymmetric `1/r` handling;
-   - MUMPS default changes;
-   - energy-equation row audits.
-5. Commit `GEMINI.md` only when it is either:
-   - a polished review ledger; or
-   - replaced by a cleaner tracked plan/review artifact.
+Do not use broad staging. Stage explicit paths in each commit.
 
-## Immediate Next Step
+## Acceptance Criteria
 
-Continue with Phase 4 compact operator fixtures or Phase 5 study-runtime
-separation. Numerical GEMINI findings still require focused test-first passes.
+The reorganization is done when:
+
+- top-level layout matches README and tutorial;
+- Case 1 and Case 2 root directories no longer contain a flat mix of configs,
+  scripts, baseflow arrays, MATLAB references, and paper artifacts;
+- Martini parity has one validation namespace;
+- Song 2023 has clear `configs/`, `data/`, `reference/`, and `scripts/`
+  subdirectories;
+- legacy fallback paths are removed from tests;
+- `git status --short --branch` is clean;
+- `python scripts/check_tracked_file_size.py` passes;
+- targeted path-sensitive tests pass;
+- generated outputs remain ignored.
+
+## Preserved Non-Folder Backlog
+
+These items came from the previous plan and should remain separate from the
+folder cleanup:
+
+- compact operator fixtures under `validation/operator_fixtures/`;
+- live PETSc/MUMPS factorization verification for current defaults;
+- solver doctor behavior;
+- energy-equation row audit;
+- axis singularity regularization;
+- release tuple / immutable public-code reference:
+  - commit;
+  - release tag;
+  - Zenodo DOI or explicit blocker.
+
+Do not mix those numerical/release tasks into a path-only reorganization commit.
