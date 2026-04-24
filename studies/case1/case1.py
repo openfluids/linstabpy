@@ -15,8 +15,9 @@ SCRIPT = Path(__file__).resolve()
 
 def _prepare_env() -> None:
     """Install Case 1 defaults expected by the shared runtime."""
+    os.chdir(SCRIPT.parent)
     os.environ.setdefault("LINSTAB2D_CASE_LOG_PREFIX", "case1")
-    os.environ.setdefault("LINSTAB2D_CASE1_CONFIG", str(SCRIPT.parent / "parity_config.jsonc"))
+    os.environ.setdefault("LINSTAB2D_CASE1_CONFIG", str(SCRIPT.parent / "configs" / "parity_config.jsonc"))
     os.environ.setdefault("LINSTAB2D_CASE1_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz")))
 
 

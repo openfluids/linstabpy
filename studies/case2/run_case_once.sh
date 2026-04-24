@@ -8,25 +8,25 @@ usage: run_case_once.sh <config-jsonc> <output-npz> [case-module]
 Examples:
   LINSTAB2D_MPI_PROCS=1 \
   studies/case2/run_case_once.sh \
-    studies/case2/parity_config.jsonc \
+    studies/case2/configs/parity_config.jsonc \
     studies/case2/output/runs/case2_smoke.npz
 
   LINSTAB2D_MPI_PROCS=4 \
   LINSTAB2D_MPI_PRESET=none \
   studies/case2/run_case_once.sh \
-    studies/case2/parity_config.jsonc \
+    studies/case2/configs/parity_config.jsonc \
     studies/case2/output/runs/case2_socket_single.npz
 
   # Otimização específica desta máquina:
   studies/case2/run_case_once.sh \
-    studies/case2/parity_config.jsonc \
+    studies/case2/configs/parity_config.jsonc \
     studies/case2/output/runs/case2_manual.npz
 
   LINSTAB2D_MPI_PROCS=10 \
   LINSTAB2D_MPI_PRESET=socket0 \
   LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
   studies/case2/run_case_once.sh \
-    studies/case2/parity_config.jsonc \
+    studies/case2/configs/parity_config.jsonc \
     studies/case2/output/runs/case2_manual.npz
 EOF
   exit 2

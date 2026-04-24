@@ -104,7 +104,7 @@ def load_hamada_case(
     # against future asymmetric use on this loader, where the result
     # would be a location-dependent physical cell aspect ratio (not a
     # natural coarsening of a body-fitted domain); see
-    # `studies/case2/PLAN.md` (F2, I1) and `worklog.md` for the record.
+    # `studies/case2/docs/PLAN.md` (F2, I1) and `worklog.md` for the record.
     if sx != sy:
         raise ValueError(
             f"Asymmetric strides are not supported by load_hamada_case "

@@ -1,0 +1,73 @@
+{
+  // M2 symmetric screening (stride_ksi=stride_eta=2) — replaces the
+  // retired evp_stride2x1_m21_screening_qraw.jsonc. See worklog Entry 9
+  // (2026-04-18) and PLAN.md at-a-glance for the rationale: in a
+  // body-fitted curvilinear mesh, asymmetric strides produce cells
+  // whose physical aspect ratio depends on location, so only symmetric
+  // strides are used.
+  //
+  // Other parameters: PLAN Phase 2 screening defaults exactly —
+  // nev=20, ncv=500, eps_tol=5e-3, alpha_filter='none',
+  // run_stability=true, run_resolvent=false, fd_order=4, beta=0.
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride2_m2_screening_qraw/case2_evp_stride2_m2_screening_qraw_latest.json",
+    "report_csv": "output/evp_stride2_m2_screening_qraw/case2_evp_stride2_m2_screening_qraw_table.csv",
+    "log_dir": "output/evp_stride2_m2_screening_qraw/logs",
+    "run_dir": "output/evp_stride2_m2_screening_qraw/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 2,
+          "stride_eta": 2
+        },
+        "analysis": {
+          "n_modes_stability": 20,
+          "stability_acceptance": {
+            "postcheck_rel_max": 5e-03,
+            "target_distance_max": 0.5,
+            "omega_real_abs_max": 1.5,
+            "omega_imag_abs_max": 2.0
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 5e-03,
+            "eps_max_it": 300,
+            "ncv": 500
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "bstat_m2_qraw_nev20_ncv500_tol5em3",
+      "label": "Bstat M2 Qraw nev=20 ncv=500 tol=5e-3 (γ=1.31, stride 2,2)",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.0,
+            "imag": -0.83
+          }
+        }
+      }
+    },
+    {
+      "case_id": "bosc_m2_qraw_nev20_ncv500_tol5em3",
+      "label": "Bosc M2 Qraw nev=20 ncv=500 tol=5e-3 (γ=1.31, stride 2,2)",
+      "enabled": true,
+      "config_overrides": {
+        "analysis": {
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          }
+        }
+      }
+    }
+  ]
+}

@@ -83,7 +83,7 @@ CASES = (
 
 
 def _case_dir() -> Path:
-    return case_fixture("case1")
+    return case_fixture("case1") / "data" / "baseflow"
 
 
 def _apply_case1_bcs(

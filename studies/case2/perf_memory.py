@@ -831,10 +831,10 @@ def main() -> int:
     config_dir = config_path.parent
 
     outputs = dict(cfg.get("outputs", {}))
-    report_json = _resolve_path(config_dir, outputs.get("report_json", str(DEFAULT_JSON)))
-    report_csv = _resolve_path(config_dir, outputs.get("report_csv", str(DEFAULT_CSV)))
-    log_dir = _resolve_path(config_dir, outputs.get("log_dir", str(DEFAULT_LOG_DIR)))
-    run_dir = _resolve_path(config_dir, outputs.get("run_dir", str(DEFAULT_RUN_DIR)))
+    report_json = _resolve_path(CASE_DIR, outputs.get("report_json", str(DEFAULT_JSON)))
+    report_csv = _resolve_path(CASE_DIR, outputs.get("report_csv", str(DEFAULT_CSV)))
+    log_dir = _resolve_path(CASE_DIR, outputs.get("log_dir", str(DEFAULT_LOG_DIR)))
+    run_dir = _resolve_path(CASE_DIR, outputs.get("run_dir", str(DEFAULT_RUN_DIR)))
     run_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -843,10 +843,13 @@ def main() -> int:
     default_launcher = dict(defaults.get("launcher", {}))
     monitor_interval_seconds = float(defaults.get("monitor_interval_seconds", 0.5))
     python_exe = _resolve_executable(config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR)
-    default_base_config = defaults.get("base_config", default_env.get("LINSTAB2D_CASE2_CONFIG", "parity_config.jsonc"))
+    default_base_config = defaults.get(
+        "base_config",
+        default_env.get("LINSTAB2D_CASE2_CONFIG", "configs/parity_config.jsonc"),
+    )
     default_case_workdir = _resolve_input_path(
         config_dir,
-        defaults.get("case_workdir", "."),
+        defaults.get("case_workdir", str(CASE_DIR)),
         CASE_DIR,
     )
 
@@ -893,6 +896,7 @@ def main() -> int:
         base_config_path = _resolve_input_path(
             config_dir,
             effective_case.get("base_config", default_base_config),
+            CASE_DIR / "configs",
             CASE_DIR,
         )
         base_config = load_jsonc(base_config_path)

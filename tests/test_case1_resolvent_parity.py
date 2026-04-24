@@ -11,7 +11,7 @@ from tests._paths import case_fixture
 
 CASE1_DIR = case_fixture("case1")
 PY_NPZ = CASE1_DIR / "case1.npz"
-MAT_RES = CASE1_DIR / "MATLAB_exports_resolvent/res_svd_final.mat"
+MAT_RES = CASE1_DIR / "reference" / "matlab" / "MATLAB_exports_resolvent" / "res_svd_final.mat"
 
 
 def _require_inputs() -> None:

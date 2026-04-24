@@ -1,0 +1,47 @@
+{
+  // M1 native-mesh screening (stride_ksi=stride_eta=1 → 679×599, 1.7M
+  // DOF after BCs = operator ~3.4M × 3.4M). T2 cross-mesh
+  // verification: does the dominant Qraw spectrum survive M2→M1?
+  //
+  // One case only (stationary target) to save compute. If the
+  // wall-local contamination modes (0, -0.695j), (0, -1.578j) show up
+  // at similar ω, that's strong cross-mesh evidence. If the spectrum
+  // is completely different, we need to rethink.
+  //
+  // Smaller nev=8 to keep wall-time manageable on the 4× larger
+  // operator.
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride1_m1_screening_qraw/case2_evp_stride1_m1_screening_qraw_latest.json",
+    "report_csv": "output/evp_stride1_m1_screening_qraw/case2_evp_stride1_m1_screening_qraw_table.csv",
+    "log_dir": "output/evp_stride1_m1_screening_qraw/logs",
+    "run_dir": "output/evp_stride1_m1_screening_qraw/runs"
+  },
+  "defaults": {
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {"stride_ksi": 1, "stride_eta": 1},
+        "analysis": {
+          "n_modes_stability": 2,
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-02,
+            "target_distance_max": 1.0,
+            "omega_real_abs_max": 5.0,
+            "omega_imag_abs_max": 10.0
+          }
+        },
+        "solver": {
+          "eigen": {"eps_tol": 5e-03, "eps_max_it": 300, "ncv": 300}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "bstat_m1_qraw_nev8_ncv300_tol5em3",
+     "label": "Bstat M1 Qraw nev=8 ncv=300 tol=5e-3 (cross-mesh test)",
+     "enabled": true,
+     "config_overrides": {
+       "analysis": {"omega_target": {"real": 0.0, "imag": -0.83}}
+     }}
+  ]
+}

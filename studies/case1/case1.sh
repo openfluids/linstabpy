@@ -197,15 +197,15 @@ export MKL_NUM_THREADS="$THREADS_PER_RANK"
 export NUMEXPR_NUM_THREADS="$THREADS_PER_RANK"
 export VECLIB_MAXIMUM_THREADS="$THREADS_PER_RANK"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-LINSTAB2D_CASE1_CONFIG_BASE="${LINSTAB2D_CASE1_CONFIG:-parity_config.jsonc}"
+LINSTAB2D_CASE1_CONFIG_BASE="${LINSTAB2D_CASE1_CONFIG:-configs/parity_config.jsonc}"
 export LINSTAB2D_CASE1_CONFIG="$LINSTAB2D_CASE1_CONFIG_BASE"
-export LINSTAB2D_CASE1_CASE_DIR="${LINSTAB2D_CASE1_CASE_DIR:-"."}"
+export LINSTAB2D_CASE1_CASE_DIR="${LINSTAB2D_CASE1_CASE_DIR:-"data/baseflow"}"
 # MATLAB export uses baseFlow.kappa=1.4 in case_inputs_used.mat.
 export LINSTAB2D_CASE1_KAPPA="${LINSTAB2D_CASE1_KAPPA:-1.4}"
 # MATLAB export path uses uppercase dMUdT/d2MUdT2 fields (stored as zeros).
 export LINSTAB2D_CASE1_ZERO_MU_T_DERIVS="${LINSTAB2D_CASE1_ZERO_MU_T_DERIVS:-1}"
 export LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX="${LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX:-1}"
-export LINSTAB2D_CASE1_CASE_INPUTS_MAT="${LINSTAB2D_CASE1_CASE_INPUTS_MAT:-MATLAB_exports_resolvent/case_inputs_used.mat}"
+export LINSTAB2D_CASE1_CASE_INPUTS_MAT="${LINSTAB2D_CASE1_CASE_INPUTS_MAT:-reference/matlab/MATLAB_exports_resolvent/case_inputs_used.mat}"
 # Matrix conversion mode:
 #   auto         -> distributed when MPI_PROCS > 1
 #   distributed  -> force ownership-aware PETSc AIJ path
@@ -285,8 +285,8 @@ echo "[case1] petsc_root_scatter: ${LINSTAB2D_PETSC_ROOT_SCATTER}"
 # 3) Two-pass run plan and reference mapping
 # -------------------------------------------------------------------
 RUN_PLAN="${LINSTAB2D_CASE1_RUN_PLAN:-both}"
-STABILITY_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_STABILITY_DIR:-MATLAB_exports}"
-RESOLVENT_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_RESOLVENT_DIR:-MATLAB_exports_resolvent}"
+STABILITY_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_STABILITY_DIR:-reference/matlab/MATLAB_exports}"
+RESOLVENT_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_RESOLVENT_DIR:-reference/matlab/MATLAB_exports_resolvent}"
 STABILITY_SPECTRUM_REF="${STABILITY_MATLAB_DIR}/spectrum.mat"
 STABILITY_MODE7_REF="${STABILITY_MATLAB_DIR}/eigenvector_7.mat"
 RESOLVENT_SVD_REF="${RESOLVENT_MATLAB_DIR}/res_svd_final.mat"
@@ -494,7 +494,7 @@ run_solver_pass() {
   if [[ "$pass_run_stability" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing spectrum parity artifact"
     set +e
-    "$PYTHON_BIN" check_spectrum.py \
+    "$PYTHON_BIN" scripts/check_spectrum.py \
       --python-npz case1.npz \
       --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
       --artifact "output/parity/case1_spectrum_parity_${pass_name}.json"
@@ -508,7 +508,7 @@ run_solver_pass() {
   if [[ "$pass_run_resolvent" == "1" ]]; then
     echo "[case1] pass=${pass_name} writing operator-stage parity artifact"
     set +e
-    "$PYTHON_BIN" check_operator_stages.py \
+    "$PYTHON_BIN" scripts/check_operator_stages.py \
       --config "$pass_cfg_path" \
       --artifact "output/parity/case1_operator_stage_parity_${pass_name}.json"
     op_parity_exit=$?
@@ -519,7 +519,7 @@ run_solver_pass() {
 
     echo "[case1] pass=${pass_name} writing resolvent parity artifact"
     set +e
-    "$PYTHON_BIN" check_resolvent.py \
+    "$PYTHON_BIN" scripts/check_resolvent.py \
       --config "$pass_cfg_path" \
       --python-npz case1.npz \
       --matlab-resolvent "$RESOLVENT_SVD_REF" \
@@ -532,7 +532,7 @@ run_solver_pass() {
   fi
 
   echo "[case1] pass=${pass_name} generating figures"
-  "$PYTHON_BIN" generate_figures.py \
+  "$PYTHON_BIN" scripts/generate_figures.py \
     --python-npz case1.npz \
     --matlab-spectrum "$STABILITY_SPECTRUM_REF" \
     --matlab-mode "$STABILITY_MODE7_REF" \

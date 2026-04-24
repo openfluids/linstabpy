@@ -15,8 +15,8 @@ from tests._paths import case_fixture
 CASE1_DIR = case_fixture("case1")
 PY_NPZ = CASE1_DIR / "case1.npz"
 PY_STABILITY_NPZ = CASE1_DIR / "output/runs/case1_stability.npz"
-MAT_SPEC = CASE1_DIR / "MATLAB_results/spectrum.mat"
-MAT_MODE7 = CASE1_DIR / "MATLAB_results/eigenvector_7.mat"
+MAT_SPEC = CASE1_DIR / "reference" / "matlab" / "MATLAB_results" / "spectrum.mat"
+MAT_MODE7 = CASE1_DIR / "reference" / "matlab" / "MATLAB_results" / "eigenvector_7.mat"
 
 
 def _load_stability_npz() -> dict[str, np.ndarray]:
