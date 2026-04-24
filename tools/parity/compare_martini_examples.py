@@ -22,13 +22,30 @@ from linstab2d.utils.jsonc import load_jsonc
 from tools.parity.matlab_hdf5 import compound_to_complex, sanitize_key
 
 DEFAULT_CONFIG = ROOT / "tools" / "parity" / "martini_cases.jsonc"
-DEFAULT_NPZ_DIR = ROOT / "tools" / "parity" / "npz"
+DEFAULT_NPZ_DIR = ROOT / "validation" / "martini2024" / "fixtures"
+LEGACY_NPZ_DIR = ROOT / "tools" / "parity" / "npz"
 DEFAULT_REPORT = ROOT / "tools" / "parity" / "reports" / "martini_parity_latest.json"
 DEFAULT_TABLE = ROOT / "tools" / "parity" / "reports" / "martini_parity_table.csv"
 
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _resolve_npz_dir(npz_dir: Path) -> Path:
+    default_dir = DEFAULT_NPZ_DIR.resolve()
+    legacy_dir = LEGACY_NPZ_DIR.resolve()
+    resolved = npz_dir.resolve()
+    if resolved == default_dir and not resolved.exists() and legacy_dir.exists():
+        return legacy_dir
+    return resolved
 
 
 def _load_npz_dict(path: Path) -> dict[str, np.ndarray]:
@@ -717,7 +734,7 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = load_jsonc(args.config)
-    npz_dir = args.npz_dir.resolve()
+    npz_dir = _resolve_npz_dir(args.npz_dir)
     report_path = args.report.resolve()
     table_path = args.table.resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -730,8 +747,8 @@ def main() -> int:
 
     report = {
         "generated_at_utc": _now_utc(),
-        "config": str(args.config.resolve()),
-        "npz_dir": str(npz_dir),
+        "config": _display_path(args.config),
+        "npz_dir": _display_path(npz_dir),
         "counts": counts,
         "cases": cases,
     }

@@ -19,13 +19,20 @@ from linstab2d.utils.jsonc import load_jsonc
 from tools.parity.matlab_hdf5 import extract_file
 
 DEFAULT_INPUT_DIR = ROOT / "martini_examples"
-DEFAULT_OUTPUT_DIR = ROOT / "tools" / "parity" / "npz"
+DEFAULT_OUTPUT_DIR = ROOT / "validation" / "martini2024" / "fixtures"
 DEFAULT_MANIFEST = ROOT / "tools" / "parity" / "martini_manifest.json"
 DEFAULT_CONFIG = ROOT / "tools" / "parity" / "martini_cases.jsonc"
 
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _expected_case_notes(config_path: Path) -> list[dict]:
@@ -74,7 +81,7 @@ def main() -> int:
 
         payload: dict[str, np.ndarray] = {
             "__meta_schema_version": np.asarray(["martini_extract_v1"], dtype=str),
-            "__meta_source_file": np.asarray([str(mat_path.relative_to(ROOT))], dtype=str),
+            "__meta_source_file": np.asarray([_display_path(mat_path)], dtype=str),
             "__meta_generated_at_utc": np.asarray([_now_utc()], dtype=str),
             "__meta_field_paths": np.asarray([field.path for field in inventory], dtype=str),
             "__meta_field_dtypes": np.asarray([field.dtype for field in inventory], dtype=str),
@@ -89,8 +96,8 @@ def main() -> int:
         entries.append(
             {
                 "stem": mat_path.stem,
-                "source_file": str(mat_path.relative_to(ROOT)),
-                "npz_file": str(out_path.relative_to(ROOT)),
+                "source_file": _display_path(mat_path),
+                "npz_file": _display_path(out_path),
                 "n_fields": len(inventory),
                 "field_paths": [field.path for field in inventory],
             }
@@ -98,8 +105,8 @@ def main() -> int:
 
     manifest = {
         "generated_at_utc": _now_utc(),
-        "input_dir": str(input_dir),
-        "output_dir": str(output_dir),
+        "input_dir": _display_path(input_dir),
+        "output_dir": _display_path(output_dir),
         "files": entries,
         "notes": _expected_case_notes(config_path),
     }
@@ -108,8 +115,8 @@ def main() -> int:
     print(
         "Martini extraction:",
         f"files={len(entries)}",
-        f"output_dir={output_dir}",
-        f"manifest={manifest_path}",
+        f"output_dir={_display_path(output_dir)}",
+        f"manifest={_display_path(manifest_path)}",
     )
     return 0
 

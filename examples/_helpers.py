@@ -41,7 +41,8 @@ def load_or_compute(
 
 FIGURE_DPI = 600
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
+PARITY_NPZ_DIR = REPO_ROOT / "validation" / "martini2024" / "fixtures"
+LEGACY_PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
 _STYLE_CONFIGURED = False
 
 
@@ -216,6 +217,10 @@ def set_suptitle(
 def load_parity_npz(stem: str) -> dict[str, np.ndarray]:
     """Load an extracted MATLAB parity NPZ bundle by stem."""
     path = PARITY_NPZ_DIR / f"{stem}.npz"
+    if not path.exists():
+        legacy_path = LEGACY_PARITY_NPZ_DIR / f"{stem}.npz"
+        if legacy_path.exists():
+            path = legacy_path
     with np.load(path, allow_pickle=False) as data:
         return {key: data[key] for key in data.files}
 
