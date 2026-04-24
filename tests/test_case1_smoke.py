@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -15,11 +13,12 @@ from linstab2d.operators.assembly import build_lnse_operator, build_lnse_system
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import temporal_eigenvalues
 from linstab2d.utils.petsc_core import compare_petsc_against_scipy, petsc_matvec_residual
+from tests._paths import case_fixture
 
 
-CASE_DIR = Path(__file__).resolve().parent.parent / "results/case1"
+CASE_DIR = case_fixture("case1")
 
-pytestmark = pytest.mark.skipif(not CASE_DIR.exists(), reason="results/case1 data is not present")
+pytestmark = pytest.mark.skipif(not CASE_DIR.exists(), reason=f"Case 1 data is not present: {CASE_DIR}")
 
 
 def test_load_hamada_case_shapes() -> None:

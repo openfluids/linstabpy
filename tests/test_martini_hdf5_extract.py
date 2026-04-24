@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 pytest.importorskip("h5py")
 
 from tools.parity.matlab_hdf5 import extract_file
 
-
-ROOT = Path(__file__).resolve().parents[1]
+from tests._paths import martini_export
 
 
 def test_extract_blasius_results_exposes_resolvent_fields() -> None:
-    path = ROOT / "martini_examples/example_1_Blasius_results.mat"
+    path = martini_export("example_1_Blasius_results.mat")
     if not path.exists():
         pytest.skip(f"Missing Martini export: {path}")
 
@@ -30,7 +27,7 @@ def test_extract_blasius_results_exposes_resolvent_fields() -> None:
 
 
 def test_extract_blasius_logs_decodes_strings_and_scalars() -> None:
-    path = ROOT / "martini_examples/example_1_Blasius_logs.mat"
+    path = martini_export("example_1_Blasius_logs.mat")
     if not path.exists():
         pytest.skip(f"Missing Martini export: {path}")
 

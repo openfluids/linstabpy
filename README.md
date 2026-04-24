@@ -307,8 +307,14 @@ src/linstab2d/
 
 examples/                  Five Martini flow examples plus Example 0
                            derivative / curvilinear-grid validation
-results/                   Case studies and validation workflows
+results/                   Current Case 1 / Case 2 study workflows and
+                           local generated outputs. This namespace is being
+                           retired in favor of studies/.
+studies/                   Future home for active case-study workflows
+validation/                Validation harnesses and compact fixtures
 tools/parity/              MATLAB-to-Python comparison tooling
+scripts/                   Repository guardrails and maintenance utilities
+tutorial/                  Tutorial source and generated PDF
 
 install.sh                 Main installer
 diagnose.sh                Read-only environment preflight
@@ -319,6 +325,26 @@ run_mpi_example.sh         MPI-safe example runner
 The reference MATLAB code and `.mat` base-flow files live in the submodule
 `src/linstab2d/data/baseflows`. Treat that directory as reference input unless
 you intentionally update the submodule.
+
+### 4.1 Data and file-size policy
+
+Tracked GitHub-facing files must stay at or below 50 MiB. Large generated
+outputs, raw MATLAB exports, and machine-local benchmark products are kept out
+of Git and either regenerated or stored externally. The guardrail is:
+
+```bash
+python scripts/check_tracked_file_size.py
+```
+
+The same guard is wired into the local `pre-commit` configuration and the
+GitHub guardrails workflow. Ignored local outputs above the report threshold are
+listed separately so they can be cleaned or archived without blocking normal
+source commits.
+
+Compact validation fixtures belong under `validation/operator_fixtures/` or
+`validation/martini2024/fixtures/`. Raw MATLAB exports such as
+`operator_convention.mat` and `coefficients_raw.mat` are intentionally not
+tracked when they exceed the 50 MiB policy.
 
 ## 5. Numerical setup
 
@@ -674,9 +700,9 @@ Key fixes that made parity stable:
 - preserve mesh filters during deformation, matching MATLAB behavior;
 - load `sponge_aux` from MATLAB `case_inputs_used.mat`;
 - use the MATLAB-equivalent `H^H W H` EVP route for resolvent extraction;
-- keep canonical parity parameters in `results/case1/parity_config.jsonc`.
+- keep canonical parity parameters in the Case 1 fixture directory.
 
-Run from the repository root:
+Run from the repository root while the current layout is still `results/`:
 
 ```bash
 bash results/case1/case1.sh
@@ -689,6 +715,11 @@ Primary outputs:
 - `results/case1/output/case1_spectrum_parity.json`;
 - `results/case1/output/case1_resolvent_parity.json`;
 - parity figures under `results/case1/output/`.
+
+The layout cleanup is introducing `studies/case1/` as the future canonical
+study path. Tests already resolve Case 1 through a shared helper so they can
+accept either the current `results/case1/` location or the future `studies/`
+location.
 
 Environment overrides:
 
@@ -745,6 +776,9 @@ top-level README.
 - `results/case2/README.md`: operational commands and artifact layout.
 
 Read them in that order before changing Case 2 numerics.
+
+As with Case 1, `studies/case2/` is the future study namespace. Until that move
+is complete, current Case 2 files remain under `results/case2/`.
 
 ## 9. Troubleshooting
 
