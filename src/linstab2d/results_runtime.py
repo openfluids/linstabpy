@@ -197,16 +197,73 @@ def _postcheck_target_distance(
     *,
     conjugate_aware: bool,
 ) -> np.ndarray:
-    """Compute per-mode target distance, optionally min'ing against conjugate target.
+    """Per-mode distance from the shift-invert target, optionally conjugate-aware.
 
-    When ``conjugate_aware=False`` (the default), returns ``|omega - target|``
-    exactly as before — no change in output for existing configs.
-    When ``conjugate_aware=True``, returns ``min(|omega - target|, |omega - conj(target)|)``
-    so that the physical conjugate of a target eigenvalue is treated as equally close.
+    Background
+    ----------
+    For a real-valued baseflow, the linearised Navier-Stokes operator ``L`` has
+    real matrix entries. If ``(omega, v)`` is an eigenpair, then conjugating
+    both sides of ``L v = omega v`` gives ``L conj(v) = conj(omega) conj(v)``,
+    so ``(conj(omega), conj(v))`` is also an eigenpair. The two are the **same**
+    physical instability wave in two complex representations — their sum is the
+    real, observable perturbation field. This pairing is a mathematical
+    consequence of ``L`` being real, not a numerical coincidence.
+
+    Why a non-conjugate-aware distance gate can drop half the physics
+    -----------------------------------------------------------------
+    SLEPc shift-invert returns a cloud of eigenvalues near a single complex
+    ``target`` shift ``sigma``. When the user picks
+    ``omega_target = omega_r + 1j * omega_i`` with ``omega_r != 0``, they sit
+    near ONE branch of the conjugate pair; the MIRROR branch at
+    ``conj(target)`` lives far from ``sigma`` in ``|omega - sigma|``. A
+    straight-Euclidean target-distance filter ``|omega - target| <= max`` then
+    systematically rejects the conjugate partner — losing half the physical
+    content of the spectrum.
+
+    When ``conjugate_aware=True``, the distance becomes::
+
+        min(|omega - target|, |omega - conj(target)|)
+
+    so the conjugate partner passes the same gate as the primary. On a real
+    baseflow this is the physically correct choice. On a complex baseflow
+    (Floquet-shifted, complex-valued base perturbation, etc.) it would
+    over-accept and should stay ``False``.
+
+    Scope: this flag only handles the ``(omega, conj(omega))`` symmetry.
+    Other spectral pairings you may encounter in 2D problems —
+    ``(omega, -omega)`` from z-reflection, ``(omega(beta), omega(-beta))``
+    from spanwise reflection — require different knobs because they are
+    different symmetries.
+
+    Parameters
+    ----------
+    omega : np.ndarray
+        Complex temporal eigenvalues. ``Re(omega)`` = oscillation frequency,
+        ``Im(omega)`` = growth/decay rate.
+    target : complex
+        The SLEPc shift-invert target ``sigma`` (the ``omega_target`` from
+        the JSONC config).
+    conjugate_aware : bool
+        Default in this project is ``True`` (set at the config-loading layer
+        in ``compute``) because every SWBLI baseflow we run is real-valued
+        and we want the conjugate partner of every oscillatory mode in the
+        accepted set. When ``True``, returns
+        ``min(|omega - target|, |omega - conj(target)|)``. When ``False``,
+        returns the raw Euclidean ``|omega - target|`` — use this only for
+        complex baseflows (Floquet, complex perturbation-tracking) where the
+        ``conj(L) = L`` symmetry is broken.
+
+    Returns
+    -------
+    np.ndarray
+        Float array of distances, same shape as ``omega``.
     """
     direct = np.abs(omega - target)
     if not conjugate_aware:
         return direct
+    # Real-baseflow conjugate partner of the target lives at conj(target).
+    # Any eigenvalue closer to that partner than to the target itself is
+    # the conjugate branch we care about — admit it under the same gate.
     conj_target = np.conjugate(target)
     conj_dist = np.abs(omega - conj_target)
     return np.minimum(direct, conj_dist)
@@ -440,9 +497,13 @@ def compute() -> None:
             "analysis.stability_acceptance.sigma_abs_max",
         )
     )
-    # Default False: existing configs produce bit-identical output.
+    # Default True: real-valued baseflows have a conjugate-pair spectrum, and
+    # admitting the conjugate partner at the same target_distance_max is the
+    # physically correct metric (see _postcheck_target_distance docstring and
+    # SWBLI.md for the mode-family rationale). Set to False in the JSONC only
+    # for complex baseflows (Floquet, complex perturbation-tracking).
     stability_acceptance_conjugate_aware: bool = bool(
-        cfg("analysis.stability_acceptance.conjugate_aware", False)
+        cfg("analysis.stability_acceptance.conjugate_aware", True)
     )
 
     n_modes = int(cfg("analysis.n_modes_stability", 100))

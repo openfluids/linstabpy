@@ -12,28 +12,95 @@ def evaluate_stability_acceptance(
     target_distance_max: float,
     omega_real_abs_max: float = float("nan"),
     omega_imag_abs_max: float = float("nan"),
-    conjugate_aware: bool = False,
+    conjugate_aware: bool = True,
 ) -> dict[str, object]:
     """Apply optional acceptance gates to returned stability modes.
 
-    The solver stores complex temporal eigenvalues directly in ``omega``.
-    In the current convention:
-    - ``real(omega)`` is the oscillation frequency
-    - ``imag(omega)`` is the growth/decay rate
+    Temporal eigenvalue convention
+    ------------------------------
+    ``omega`` stores complex temporal eigenvalues directly:
+    - ``real(omega)``  = oscillation frequency
+    - ``imag(omega)``  = growth/decay rate (positive = unstable)
 
     All thresholds are optional. When every threshold is disabled (NaN), the
     function returns an empty dictionary so older workflows remain unchanged.
 
-    New additive return keys (always present when any gate is active):
-    - ``rejected_indices``: int32 array of mode indices where ``accepted`` is False.
-    - ``reject_reason_code``: int32 array of length ``n_modes`` with a bitmask per
-      mode encoding which gates failed (0 = accepted):
+    Gate semantics
+    --------------
+    A mode passes acceptance iff every enabled gate passes:
+    - postcheck_rel_max   : explicit full-operator residual, relative
+    - target_distance_max : complex distance from the solver shift target
+                            (see ``conjugate_aware`` below)
+    - omega_real_abs_max  : cap on |Re(omega)|; physically a filter on
+                            oscillation frequency magnitude
+    - omega_imag_abs_max  : cap on |Im(omega)|; physically a filter on
+                            growth/decay rate magnitude
+
+    The ``conjugate_aware`` flag (default ``True``)
+    -----------------------------------------------
+    For a real-valued baseflow the linearised operator ``L`` is real, so the
+    spectrum is symmetric under complex conjugation: ``(omega, v)`` and
+    ``(conj(omega), conj(v))`` are both eigenpairs of ``L``. These two
+    eigenpairs represent the SAME physical instability wave — their sum is
+    the real, observable perturbation field. A shift-invert EVP with a complex
+    ``omega_target`` that has non-zero real part sits near ONE branch of
+    this conjugate pair; the other branch lives near ``conj(omega_target)``
+    on the far side of the real axis.
+
+    Why this is the default
+    ~~~~~~~~~~~~~~~~~~~~~~~
+    For the SWBLI mode families tracked in this project (see ``SWBLI.md``):
+
+    * **BG-S** (bubble global stationary mode): ``Re(omega) ~ 0``. Target and
+      its conjugate coincide on the imaginary axis, so the metric is a no-op
+      here — steady modes are admitted cleanly.
+    * **OM-1** (oblique first-Mack wave): appears as a conjugate pair
+      ``(omega_r + 1j*omega_i, omega_r - 1j*omega_i)``. Without conjugate
+      awareness the straight Euclidean ``|omega - target|`` metric would
+      silently drop the mirror partner, losing half the physical mode.
+    * **LU-S** (lift-up streak response): near-zero frequency, same story
+      as BG-S — no effect either way.
+
+    With ``conjugate_aware=True``, the distance metric becomes::
+
+        min(|omega - target|, |omega - conj(target)|)
+
+    so the conjugate partner passes the same gate as the primary.
+
+    When to disable
+    ~~~~~~~~~~~~~~~
+    Set ``conjugate_aware=False`` only when the underlying operator is no
+    longer real: Floquet-shifted problems, complex base-flow perturbation
+    tracking, or any formulation that explicitly breaks the real-``L``
+    symmetry. In those cases admitting ``conj(target)`` would over-accept
+    unphysical partners.
+
+    Provenance
+    ~~~~~~~~~~
+    The actual distance values the solver computes upstream already use this
+    metric when ``conjugate_aware=True`` was threaded through
+    ``_postcheck_target_distance``; this function only decides acceptance.
+    The flag is recorded in the result dict as ``acceptance_conjugate_aware``
+    so the downstream ``.npz`` preserves what metric produced the verdicts.
+
+    Back-compat note: flipping the default from ``False`` to ``True``
+    widens acceptance on real-baseflow runs where the old metric was
+    silently discarding the conjugate partner. Saved ``.npz`` artefacts
+    produced before commit ``d{conjugate-default}`` may show a different
+    accepted set on rerun — that is a correction, not a regression.
+
+    Additive return keys (always present when any gate is active)
+    -------------------------------------------------------------
+    - ``rejected_indices``: int32 array of mode indices where ``accepted``
+      is False.
+    - ``reject_reason_code``: int32 array of length ``n_modes`` with a
+      bitmask per mode encoding which gates failed (0 = accepted):
         bit 0 (=1): postcheck_rel gate failed
         bit 1 (=2): target_distance gate failed
         bit 2 (=4): omega_real gate failed
         bit 3 (=8): omega_imag gate failed
     - ``acceptance_conjugate_aware``: bool recording whether conjugate-aware
-      target distance was used.
+      target distance was used, for provenance.
     """
 
     use_postcheck_gate = np.isfinite(postcheck_rel_max)
