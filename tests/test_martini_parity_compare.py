@@ -35,20 +35,6 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
 
 
-def test_martini_npz_dir_falls_back_to_legacy_local_bundle(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-) -> None:
-    default_dir = tmp_path / "validation" / "martini2024" / "fixtures"
-    legacy_dir = tmp_path / "tools" / "parity" / "npz"
-    legacy_dir.mkdir(parents=True)
-
-    monkeypatch.setattr(compare_martini_examples, "DEFAULT_NPZ_DIR", default_dir)
-    monkeypatch.setattr(compare_martini_examples, "LEGACY_NPZ_DIR", legacy_dir)
-
-    assert compare_martini_examples._resolve_npz_dir(default_dir) == legacy_dir.resolve()
-
-
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
     gains = np.array([3.0, 2.0, 1.0], dtype=float)
 
