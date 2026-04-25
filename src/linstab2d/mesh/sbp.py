@@ -442,18 +442,25 @@ def build_sbp_dissipation_matrices(
 
     Constructs the Mattsson-Svard-Nordstrom (2004) dissipation operator
 
-        Q_diss = h^{2p-1} H^{-1} D_p^T B_p D_p
+        Q_diss = h^{2p+1} H^{-1} D_p^T B_p D_p                      (divided form)
+               = H_tilde^{-1} D_tilde_p^T B_p D_tilde_p             (undivided form)
 
-    where ``p = order_interior // 2``, ``H`` is the full-norm SBP mass
-    matrix, ``D_p`` is the divided p-th derivative matrix, and ``B_p`` is the
-    diagonal ``A_{2p}(transition_fraction, endpoint_exponent, interior_value)``
-    profile from MSN Def. 4.3.
+    where ``p = order_interior // 2``, ``H = h * H_tilde`` is the full-norm
+    SBP mass matrix, ``D_p = h^{-p} D_tilde_p`` is the divided p-th derivative
+    matrix, and ``B_p`` is the diagonal
+    ``A_{2p}(transition_fraction, endpoint_exponent, interior_value)`` profile
+    from MSN Def. 4.3.
+
+    The h^{2p+1} prefactor is mandatory for dimensional consistency: with
+    H_tilde^{-1} = h * H^{-1}, D_tilde_p = h^p D_p, the substitution gives
+    h^{1 + 2p} = h^{2p+1}. (Earlier internal drafts used h^{2p-1}, off by
+    h^{-2}; the validation gate caught it.)
 
     The caller subtracts ``epsilon * Q_diss`` from the operator:
 
         L_reg = L - epsilon * Q_diss
 
-    ``H * Q_diss = h^{2p-1} D_p^T B_p D_p`` is symmetric positive
+    ``H * Q_diss = h^{2p+1} D_p^T B_p D_p`` is symmetric positive
     semidefinite whenever ``B_p >= 0``.
 
     Parameters
@@ -522,6 +529,6 @@ def build_sbp_dissipation_matrices(
     Dp = _build_dp_matrix(n, h, p)
     sandwich = Dp.T @ Bp @ Dp
     sandwich = 0.5 * (sandwich + sandwich.T)
-    Q_diss = (h ** (2 * p - 1)) * H_inv @ sandwich
+    Q_diss = (h ** (2 * p + 1)) * H_inv @ sandwich
 
     return Q_diss.tocsr(), H_norm
