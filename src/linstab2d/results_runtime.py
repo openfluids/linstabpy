@@ -24,6 +24,7 @@ from mpi4py import MPI
 from linstab2d.baseflow import load_hamada_case, sutherland_air
 from linstab2d.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
 from linstab2d.mesh import Mesh
+from linstab2d.mesh.sbp import DISSIPATION_DEFAULTS
 from linstab2d.operators.assembly import build_lnse_system
 from linstab2d.operators.energy_norm import compute_chu_norm
 from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
@@ -530,6 +531,26 @@ def compute() -> None:
         run_resolvent=run_resolvent,
         context="config",
     )
+    od_raw = cfg("numerics.operator_dissipation", None)
+    od_cfg = od_raw if isinstance(od_raw, dict) else {}
+    od_enabled = bool(od_cfg.get("enabled", False))
+    od_epsilon = float(od_cfg.get("epsilon", 0.0))
+    od_order_diss = int(od_cfg.get("order_diss", fd_order))
+    od_apply_to_stability = bool(od_cfg.get("apply_to_stability", True))
+    od_apply_to_resolvent = bool(od_cfg.get("apply_to_resolvent", False))
+    od_transition_fraction = float(od_cfg.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"]))
+    od_endpoint_exponent = float(od_cfg.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"]))
+    od_interior_value = float(od_cfg.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
+    # Effective epsilon per analysis stage
+    eps_stab = od_epsilon if (od_enabled and od_apply_to_stability) else 0.0
+    eps_resolv = od_epsilon if (od_enabled and od_apply_to_resolvent) else 0.0  # Phase 4: use when wiring resolvent
+    if od_enabled:
+        _log(
+            f"numerics.operator_dissipation effective: enabled=True, epsilon={od_epsilon}, order_diss={od_order_diss}, "
+            f"apply_to_stability={od_apply_to_stability}, apply_to_resolvent={od_apply_to_resolvent}, "
+            f"transition_fraction={od_transition_fraction}, endpoint_exponent={od_endpoint_exponent}, "
+            f"interior_value={od_interior_value}"
+        )
     # MATLAB export note:
     # case_inputs_used.mat stores uppercase dMUdT/d2MUdT2 as zeros; GetLinProblem.m
     # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
@@ -655,6 +676,7 @@ def compute() -> None:
             ny=ny,
             fd_order=fd_order,
             alpha_filter=alpha_filter,
+            numerics_operator_dissipation=od_cfg if od_enabled else None,
         )
         mesh = cmesh.deform(X_new=X, Y_new=Y)
         mesh.sponge = sponge
@@ -696,6 +718,7 @@ def compute() -> None:
                 bc_penalty=penalty,
                 backend=assembly_backend,
                 solver_cfg=solver_cfg,
+                dissipation_epsilon=eps_stab,
             )
         nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
         _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
@@ -1153,6 +1176,14 @@ def compute() -> None:
                     stability_info.get("leading_weighted_norm_error", np.nan)
                 ),
                 stability_weighted_norm_tol=float(stability_info.get("weighted_norm_tol", np.nan)),
+                numerics_operator_dissipation_enabled=np.bool_(od_enabled),
+                numerics_operator_dissipation_epsilon=np.float64(od_epsilon),
+                numerics_operator_dissipation_order_diss=np.int64(od_order_diss),
+                numerics_operator_dissipation_apply_to_stability=np.bool_(od_apply_to_stability),
+                numerics_operator_dissipation_apply_to_resolvent=np.bool_(od_apply_to_resolvent),
+                numerics_operator_dissipation_transition_fraction=np.float64(od_transition_fraction),
+                numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
+                numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
             )
         _log_stage("save_results", stage_start)
     elapsed = time.perf_counter() - t0

@@ -331,3 +331,197 @@ def _mohseni_pole_stencil(a_interior: np.ndarray, h: int) -> np.ndarray:
         out[j, affected] = coeff + h * reflected
 
     return out
+
+
+# Single source of truth for MSN A_{2p}(n, r, s) defaults.
+# Layers above (mesh.py, results_runtime.py) MUST reference these names rather
+# than re-declaring the literals. See `phase1_dissipation_math.md` §4 for the
+# meaning of the three parameters.
+DISSIPATION_DEFAULTS: dict[str, float] = {
+    "transition_fraction": 1.0 / 20.0,
+    "endpoint_exponent": 2.0,
+    "interior_value": 1.0,
+}
+
+
+def _build_sbp_norm_diag(n: int, h: float, order_interior: int) -> np.ndarray:
+    """Return the H diagonal for the full-norm SBP operator."""
+    from linstab2d.mesh.sbp_generator import _sbp_norm_weights
+
+    bw = _sbp_norm_weights(order_interior)
+    r = len(bw)
+    H_diag = np.ones(n) * h
+    H_diag[:r] = bw * h
+    H_diag[n - r:] = bw[::-1] * h
+    return H_diag
+
+
+def _build_dp_matrix(n: int, h: float, p: int) -> sp.csr_matrix:
+    """Build the divided p-th derivative matrix D_p.
+
+    For p=3 the boundary closure aliases the same 4-point one-sided stencil
+    [-1, 3, -3, 1]/h^3 onto rows 0..3. This satisfies MSN 2004 Eq. (5)
+    consistency at every boundary row by polynomial coincidence:
+    d^3/dx^3 of any cubic is constant, so the identity
+    sum_j d_{i,j} (j-i)^n = 0 for n=0..2, =3! for n=3 holds at any row i
+    regardless of where in the stencil the row index lies. The construction
+    is therefore valid for SPSD-via-sandwich purposes (D_p^T B_p D_p is
+    SPSD whenever B_p >= 0), but it is NOT an SBP-energy-compatible
+    boundary closure in the strict sense — see MSN 2004 reference [10] for
+    properly row-shifted explicit stencils. Acceptable here because B_p ~ h^2
+    near the wall suppresses the dissipation contribution there.
+    """
+    if p == 2:
+        _, D2 = build_sbp_matrix(n, h, order=4)
+        return D2
+
+    if p == 3:
+        half_w = 4
+        a_i3_undiv = np.array([
+            -7 / 240,
+            3 / 10,
+            -169 / 120,
+            61 / 30,
+            0,
+            -61 / 30,
+            169 / 120,
+            -3 / 10,
+            7 / 240,
+        ])
+        a_i3 = a_i3_undiv / h**3
+        D3 = sp.lil_matrix((n, n))
+
+        for j in range(half_w, n - half_w):
+            for k, ck in enumerate(a_i3):
+                D3[j, j - half_w + k] = ck
+
+        fwd = np.array([-1.0, 3.0, -3.0, 1.0]) / h**3
+        bwd = -fwd[::-1]
+        for j in range(half_w):
+            D3[j, 0:4] = fwd
+        for j in range(n - half_w, n):
+            D3[j, n - 4:n] = bwd
+
+        return D3.tocsr()
+
+    raise ValueError(f"Unsupported p={p}; only p=2 (fd4) and p=3 (fd6) implemented.")
+
+
+def _build_bp_diag(
+    n: int,
+    h: float,
+    transition_fraction: float,
+    endpoint_exponent: float,
+    interior_value: float,
+) -> np.ndarray:
+    """Build the MSN A_{2p} diagonal boundary-to-interior profile."""
+    k = max(1, round(n * transition_fraction))
+    B = np.full(n, interior_value)
+    b0 = h**endpoint_exponent
+
+    for j in range(k):
+        t = j / (k - 1) if k > 1 else 1.0
+        ramp = 3 * t**2 - 2 * t**3
+        B[j] = b0 + (interior_value - b0) * ramp
+        B[n - 1 - j] = B[j]
+
+    return B
+
+
+def build_sbp_dissipation_matrices(
+    n: int,
+    h: float,
+    order_interior: int,
+    order_diss: int | None = None,
+    *,
+    transition_fraction: float = DISSIPATION_DEFAULTS["transition_fraction"],
+    endpoint_exponent: float = DISSIPATION_DEFAULTS["endpoint_exponent"],
+    interior_value: float = DISSIPATION_DEFAULTS["interior_value"],
+) -> tuple[sp.csr_matrix, sp.csr_matrix]:
+    """Return ``(Q_diss, H_norm)`` for 1-D MSN artificial dissipation.
+
+    Constructs the Mattsson-Svard-Nordstrom (2004) dissipation operator
+
+        Q_diss = h^{2p-1} H^{-1} D_p^T B_p D_p
+
+    where ``p = order_interior // 2``, ``H`` is the full-norm SBP mass
+    matrix, ``D_p`` is the divided p-th derivative matrix, and ``B_p`` is the
+    diagonal ``A_{2p}(transition_fraction, endpoint_exponent, interior_value)``
+    profile from MSN Def. 4.3.
+
+    The caller subtracts ``epsilon * Q_diss`` from the operator:
+
+        L_reg = L - epsilon * Q_diss
+
+    ``H * Q_diss = h^{2p-1} D_p^T B_p D_p`` is symmetric positive
+    semidefinite whenever ``B_p >= 0``.
+
+    Parameters
+    ----------
+    n : int
+        Number of grid points.
+    h : float
+        Uniform grid spacing.
+    order_interior : int
+        Interior accuracy order of the underlying SBP first-derivative
+        operator. Currently 4 and 6 are implemented.
+    order_diss : int or None
+        Order of the dissipation operator (2*p_diss). When ``None`` (the
+        default), defaults to ``order_interior`` so the dissipation order
+        matches the underlying scheme. Phase 1 currently enforces equality;
+        Phase 3 (when MSN 2004 allows decoupling, e.g. 4th-order dissipation
+        on a 6th-order scheme) will lift this restriction. Passing a value
+        that differs from ``order_interior`` raises ``NotImplementedError``.
+    transition_fraction : float
+        Fraction of the grid over which ``B_p`` ramps from boundary value to
+        interior value. Default is ``1/20``.
+    endpoint_exponent : float
+        Exponent ``r`` such that the boundary value is ``h^r``.
+    interior_value : float
+        Interior value of ``B_p``.
+
+    Returns
+    -------
+    Q_diss : scipy.sparse.csr_matrix, shape (n, n)
+        Positive dissipation operator in the SBP norm.
+    H_norm : scipy.sparse.csr_matrix, shape (n, n)
+        Full-norm SBP diagonal mass matrix.
+
+    References
+    ----------
+    K. Mattsson, M. Svard, J. Nordstrom. Stable and Accurate Artificial
+    Dissipation. J. Sci. Comput. 21 (2004) 57-79.
+    """
+    if order_interior not in (4, 6):
+        raise ValueError(f"order_interior must be 4 or 6, got {order_interior}")
+
+    if order_diss is None:
+        order_diss = order_interior
+    elif order_diss != order_interior:
+        raise NotImplementedError(
+            f"Phase 1 enforces order_diss == order_interior; got "
+            f"order_diss={order_diss}, order_interior={order_interior}. "
+            f"Decoupled orders are a Phase 3 item."
+        )
+
+    p = order_interior // 2
+
+    H_diag = _build_sbp_norm_diag(n, h, order_interior)
+    H_norm = sp.diags(H_diag, format="csr")
+    H_inv = sp.diags(1.0 / H_diag, format="csr")
+
+    B_diag = _build_bp_diag(
+        n,
+        h,
+        transition_fraction,
+        endpoint_exponent,
+        interior_value,
+    )
+    Bp = sp.diags(B_diag, format="csr")
+
+    Dp = _build_dp_matrix(n, h, p)
+    sandwich = Dp.T @ Bp @ Dp
+    sandwich = 0.5 * (sandwich + sandwich.T)
+    Q_diss = (h ** (2 * p - 1)) * H_inv @ sandwich
+
+    return Q_diss.tocsr(), H_norm

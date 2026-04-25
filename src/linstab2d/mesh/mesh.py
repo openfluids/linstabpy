@@ -13,7 +13,13 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
-from .sbp import build_sbp_matrix, build_sbp_pole_matrices, min_points
+from .sbp import (
+    DISSIPATION_DEFAULTS,
+    build_sbp_dissipation_matrices,
+    build_sbp_matrix,
+    build_sbp_pole_matrices,
+    min_points,
+)
 from .filters import MeshFilters, build_mesh_filters
 
 
@@ -84,6 +90,14 @@ class Mesh:
         Direct and adjoint filter operators.
     J11, J12, J21, J22 : np.ndarray | None
         Computational-to-physical Jacobian entries on the used grid points.
+    Q_diss_x : sp.csr_matrix | None
+        1-D SBP artificial dissipation operator along the ksi (x) reference
+        direction, shape (nx, nx).  None when
+        numerics.operator_dissipation.enabled is absent or False.
+    Q_diss_y : sp.csr_matrix | None
+        1-D SBP artificial dissipation operator along the eta (y) reference
+        direction, shape (ny, ny).  None when
+        numerics.operator_dissipation.enabled is absent or False.
     """
 
     X: np.ndarray
@@ -118,6 +132,8 @@ class Mesh:
     J12: np.ndarray | None = None  # dY_phys/dxi_comp, shape (ngp,)
     J21: np.ndarray | None = None  # dX_phys/deta_comp, shape (ngp,)
     J22: np.ndarray | None = None  # dY_phys/deta_comp, shape (ngp,)
+    Q_diss_x: sp.csr_matrix | None = None  # 1-D SBP dissipation along ksi (x), shape (nx, nx)
+    Q_diss_y: sp.csr_matrix | None = None  # 1-D SBP dissipation along eta (y), shape (ny, ny)
 
     # ------------------------------------------------------------------
     # Construction
@@ -134,6 +150,7 @@ class Mesh:
         y_symmetry: bool = False,
         x_periodicity: bool = False,
         alpha_filter: float | str = "none",
+        numerics_operator_dissipation: dict | None = None,
     ) -> Mesh:
         """Build a uniform rectangular mesh with SBP operators.
 
@@ -156,6 +173,9 @@ class Mesh:
             Whether the x-direction is treated as periodic.
         alpha_filter : float | str
             Spatial filtering coefficient (`0` or `'none'` disables filtering).
+        numerics_operator_dissipation : dict or None
+            When provided and enabled is True, populates
+            Q_diss_x and Q_diss_y on the returned mesh.
 
         Returns
         -------
@@ -228,6 +248,29 @@ class Mesh:
 
         filters = build_mesh_filters(X, Y, used_ind, alpha_filter=alpha_filter)
 
+        # --- SBP artificial dissipation (operator_dissipation config) ---
+        od = numerics_operator_dissipation or {}
+        if od.get('enabled', False):
+            p_order = int(od.get('order_diss', fd_order))
+            n_trans = float(od.get('transition_fraction', DISSIPATION_DEFAULTS['transition_fraction']))
+            end_exp = float(od.get('endpoint_exponent', DISSIPATION_DEFAULTS['endpoint_exponent']))
+            int_val = float(od.get('interior_value', DISSIPATION_DEFAULTS['interior_value']))
+            hx_ref = 1.0 / (nx_full - 1) if nx_full > 1 else 1.0
+            hy_ref = 1.0 / (ny_full - 1) if ny_full > 1 else 1.0
+            Q_diss_x, _ = build_sbp_dissipation_matrices(
+                n=nx_full, h=hx_ref, order_interior=p_order,
+                transition_fraction=n_trans, endpoint_exponent=end_exp,
+                interior_value=int_val,
+            )
+            Q_diss_y, _ = build_sbp_dissipation_matrices(
+                n=ny_full, h=hy_ref, order_interior=p_order,
+                transition_fraction=n_trans, endpoint_exponent=end_exp,
+                interior_value=int_val,
+            )
+        else:
+            Q_diss_x = None
+            Q_diss_y = None
+
         idx = _build_indices(
             X,
             Y,
@@ -269,6 +312,8 @@ class Mesh:
             J12=np.zeros(used_ind.size),
             J21=np.zeros(used_ind.size),
             J22=np.ones(used_ind.size),
+            Q_diss_x=Q_diss_x,
+            Q_diss_y=Q_diss_y,
         )
 
     # ------------------------------------------------------------------
@@ -431,6 +476,8 @@ class Mesh:
             J12=J12_new,
             J21=J21_new,
             J22=J22_new,
+            Q_diss_x=self.Q_diss_x,
+            Q_diss_y=self.Q_diss_y,
         )
 
     def _deform_x_only(self, X_new, p):
@@ -690,6 +737,8 @@ class Mesh:
             J12=np.zeros(used_ind.size),
             J21=np.zeros(used_ind.size),
             J22=np.ones(used_ind.size),
+            Q_diss_x=self.Q_diss_x,
+            Q_diss_y=self.Q_diss_y,
         )
 
 
