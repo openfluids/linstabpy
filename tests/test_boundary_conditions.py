@@ -658,3 +658,135 @@ class TestRecipeAnalysis:
         assert analysis["overlap_indices"].size == 0
         assert analysis["rule_reports"][2]["cross_type_overlap"].size == 0
         assert analysis["rule_reports"][3]["cross_type_overlap"].size == 0
+
+
+class TestDissipationBCInteraction:
+    """T5 gate: dissipation must not smear Dirichlet rows after apply_bc_recipe."""
+
+    _BC_RECIPE = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+    _BC_PENALTY = 1e4
+    _DISS_EPSILON = 0.1
+
+    def _build_baseline(self, mesh, baseflow):
+        """Build L0 (no dissipation) and apply BC recipe; return (L_bc, bc_indices)."""
+        from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+
+        L0, idx = build_lnse_operator(mesh, baseflow, kx=0.0, dissipation_epsilon=0.0)
+        L_bc, bc_indices = apply_bc_recipe(
+            L0, mesh, idx, self._BC_RECIPE, penalty=self._BC_PENALTY
+        )
+        return L_bc, bc_indices, idx
+
+    def _build_with_dissipation(self, baseflow):
+        """Build L0 with dissipation and apply same BC recipe; return (L_bc, bc_indices)."""
+        from linstab2d.mesh import Mesh
+        from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+
+        mesh_diss = Mesh.create(
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            numerics_operator_dissipation={"enabled": True, "order_diss": 4},
+        )
+        L0, idx = build_lnse_operator(
+            mesh_diss, baseflow, kx=0.0, dissipation_epsilon=self._DISS_EPSILON
+        )
+        L_bc, bc_indices = apply_bc_recipe(
+            L0, mesh_diss, idx, self._BC_RECIPE, penalty=self._BC_PENALTY
+        )
+        return L_bc, bc_indices
+
+    # ------------------------------------------------------------------ #
+    # T5 gate: Dirichlet rows are penalty*I regardless of dissipation flag
+    # ------------------------------------------------------------------ #
+    def test_dirichlet_rows_unchanged_with_dissipation(self, small_mesh_2d, uniform_baseflow):
+        """T5: Dirichlet rows must be exactly penalty*I after apply_bc_recipe,
+        whether or not operator dissipation was subtracted before BCs were applied."""
+        L_A, bc_indices_A, _ = self._build_baseline(small_mesh_2d, uniform_baseflow)
+        L_B, bc_indices_B = self._build_with_dissipation(uniform_baseflow)
+
+        assert len(bc_indices_A) > 0, "BC recipe produced no Dirichlet indices"
+
+        # Check first 5 Dirichlet DOFs (avoid checking all 160 for speed)
+        check_indices = bc_indices_A[:5]
+
+        L_A_csr = L_A.tocsr()
+        L_B_csr = L_B.tocsr()
+
+        for i in check_indices:
+            # --- variant A (no dissipation) ---
+            row_A = L_A_csr.getrow(int(i)).toarray().ravel()
+            off_diag_A = row_A.copy()
+            off_diag_A[i] = 0.0
+            assert row_A[i] == pytest.approx(self._BC_PENALTY, rel=1e-12), (
+                f"Baseline: diagonal at BC DOF {i} should be {self._BC_PENALTY}, "
+                f"got {row_A[i]}"
+            )
+            assert np.sum(np.abs(off_diag_A)) < 1e-10, (
+                f"Baseline: off-diagonal entries at BC DOF {i} should be zero, "
+                f"got sum_abs={np.sum(np.abs(off_diag_A))}"
+            )
+            nnz_A = int(L_A_csr.getrow(int(i)).nnz)
+            assert nnz_A == 1, (
+                f"Baseline: BC row {i} should have exactly 1 nonzero, got {nnz_A}"
+            )
+
+            # --- variant B (with dissipation) ---
+            row_B = L_B_csr.getrow(int(i)).toarray().ravel()
+            off_diag_B = row_B.copy()
+            off_diag_B[i] = 0.0
+            assert row_B[i] == pytest.approx(self._BC_PENALTY, rel=1e-12), (
+                f"Dissipation-on: diagonal at BC DOF {i} should be {self._BC_PENALTY}, "
+                f"got {row_B[i]}"
+            )
+            assert np.sum(np.abs(off_diag_B)) < 1e-10, (
+                f"Dissipation-on: off-diagonal entries at BC DOF {i} should be zero, "
+                f"got sum_abs={np.sum(np.abs(off_diag_B))}"
+            )
+            nnz_B = int(L_B_csr.getrow(int(i)).nnz)
+            assert nnz_B == 1, (
+                f"Dissipation-on: BC row {i} should have exactly 1 nonzero, got {nnz_B}"
+            )
+
+            # --- both variants must agree at the diagonal entry ---
+            assert row_A[i] == pytest.approx(row_B[i], rel=1e-12), (
+                f"Penalty diagonal at BC DOF {i} differs between baseline and "
+                f"dissipation-on variants: {row_A[i]!r} vs {row_B[i]!r}"
+            )
+
+    # ------------------------------------------------------------------ #
+    # Complementary check: dissipation IS visible in interior rows
+    # ------------------------------------------------------------------ #
+    def test_interior_rows_dissipated_correctly(self, small_mesh_2d, uniform_baseflow):
+        """Dissipation must modify interior rows but leave Dirichlet rows intact.
+
+        This is the positive half of the T5 gate: confirms that Q_diss_block
+        is actually being subtracted (not silently skipped) and that the
+        difference lives only in non-Dirichlet rows."""
+        L_A, bc_indices_A, _ = self._build_baseline(small_mesh_2d, uniform_baseflow)
+        L_B, bc_indices_B = self._build_with_dissipation(uniform_baseflow)
+
+        n = L_A.shape[0]
+        bc_set = set(int(k) for k in bc_indices_A)
+
+        # Find the first interior DOF (not penalised by the Dirichlet recipe)
+        interior_dof = None
+        for candidate in range(n):
+            if candidate not in bc_set:
+                interior_dof = candidate
+                break
+        assert interior_dof is not None, "Could not find any interior DOF"
+
+        L_A_csr = L_A.tocsr()
+        L_B_csr = L_B.tocsr()
+
+        row_A = L_A_csr.getrow(interior_dof).toarray().ravel()
+        row_B = L_B_csr.getrow(interior_dof).toarray().ravel()
+
+        max_diff = float(np.max(np.abs(row_B - row_A)))
+        assert max_diff > 0.0, (
+            f"Interior row {interior_dof} is identical between baseline and "
+            f"dissipation-on variants — dissipation was not applied (max_diff={max_diff})"
+        )

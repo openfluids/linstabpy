@@ -356,6 +356,7 @@ def build_lnse_operator(
     model: str = "2D",
     m: float = 0,
     floquet_exp: float = 0.0,
+    dissipation_epsilon: float = 0.0,
 ) -> tuple[sp.csc_matrix, dict]:
     """Build the LNSE operator L0 as a scipy sparse matrix.
 
@@ -383,6 +384,10 @@ def build_lnse_operator(
         Azimuthal Fourier mode for cylindrical model ``"axy"``.
     floquet_exp : float
         Floquet exponent used only by the cylindrical model.
+    dissipation_epsilon : float
+        Artificial dissipation strength. When positive and mesh dissipation
+        matrices are available, subtracts epsilon times the 5-variable block
+        dissipation operator from the pre-BC LNSE operator.
 
     Returns
     -------
@@ -409,6 +414,16 @@ def build_lnse_operator(
     ):
         prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
         L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
+        if dissipation_epsilon > 0.0 and mesh.Q_diss_x is not None and mesh.Q_diss_y is not None:
+            ny, nx = mesh.X.shape
+            I_ny = sp.eye(ny, format="csr")
+            I_nx = sp.eye(nx, format="csr")
+            Q_diss_2D = (
+                sp.kron(mesh.Q_diss_x, I_ny, format="csr")
+                + sp.kron(I_nx, mesh.Q_diss_y, format="csr")
+            )
+            Q_diss_block = sp.block_diag([Q_diss_2D] * 5, format="csr")
+            L0 = (L0 - dissipation_epsilon * Q_diss_block).tocsc()
         idx = _build_index_structure(mesh.idx, mesh.ngp)
         _note_assembly_metadata(
             nnz_pre_bc=_matrix_nnz(L0),
@@ -539,6 +554,7 @@ def _build_lnse_system_scipy(
     model: str = "2D",
     m: float = 0,
     floquet_exp: float = 0.0,
+    dissipation_epsilon: float = 0.0,
     bc_recipe: list[dict] | None = None,
     bc_penalty: float = 1e4,
 ) -> tuple[sp.csc_matrix, dict, np.ndarray]:
@@ -552,6 +568,7 @@ def _build_lnse_system_scipy(
         model=model,
         m=m,
         floquet_exp=floquet_exp,
+        dissipation_epsilon=dissipation_epsilon,
     )
     with _assembly_stage("apply_bc") as stage:
         if bc_recipe:
@@ -578,6 +595,7 @@ def build_lnse_system(
     model: str = "2D",
     m: float = 0,
     floquet_exp: float = 0.0,
+    dissipation_epsilon: float = 0.0,
     bc_recipe: list[dict] | None = None,
     bc_penalty: float = 1e4,
     backend: str | None = None,
@@ -625,6 +643,7 @@ def build_lnse_system(
                 model=model,
                 m=m,
                 floquet_exp=floquet_exp,
+                dissipation_epsilon=dissipation_epsilon,
                 bc_recipe=bc_recipe,
                 bc_penalty=bc_penalty,
             )
@@ -698,6 +717,7 @@ def build_lnse_system(
             model=model,
             m=m,
             floquet_exp=floquet_exp,
+            dissipation_epsilon=dissipation_epsilon,
             bc_recipe=bc_recipe,
             bc_penalty=bc_penalty,
         )
