@@ -119,35 +119,45 @@ class TestMeshDissipationEnabled:
 
 
 class TestMeshDissipationExplicitOrder:
-    """order_diss parameter is honoured independently of fd_order."""
+    """order_diss must match fd_order in Phase 1; mixed orders raise."""
 
-    def test_explicit_order_differs(self) -> None:
-        """Meshes built with order_diss=4 and order_diss=6 must differ."""
+    def test_matching_orders_succeed(self) -> None:
+        """Meshes built with order_diss == fd_order must succeed."""
+        import pytest
+
         from linstab2d.mesh import Mesh
 
-        mesh_o4 = Mesh.create(
-            xrange=(0.0, 1.0),
-            yrange=(0.0, 1.0),
-            nx=_NX,
-            ny=_NY,
-            fd_order=4,
-            numerics_operator_dissipation={"enabled": True, "order_diss": 4},
-        )
-        mesh_o6 = Mesh.create(
-            xrange=(0.0, 1.0),
-            yrange=(0.0, 1.0),
-            nx=_NX,
-            ny=_NY,
-            fd_order=4,
-            numerics_operator_dissipation={"enabled": True, "order_diss": 6},
-        )
-        # The two dissipation operators must differ when order_diss differs.
-        same = np.allclose(
-            mesh_o4.Q_diss_x.toarray(),
-            mesh_o6.Q_diss_x.toarray(),
-            atol=1e-14,
-        )
-        assert not same, (
-            "Q_diss_x with order_diss=4 and order_diss=6 must differ; "
-            "parameter is not being honoured"
-        )
+        for order in (4, 6, 8):
+            mesh = Mesh.create(
+                xrange=(0.0, 1.0),
+                yrange=(0.0, 1.0),
+                nx=_NX,
+                ny=_NY,
+                fd_order=order,
+                numerics_operator_dissipation={"enabled": True, "order_diss": order},
+            )
+            assert mesh.Q_diss_x is not None
+            assert mesh.Q_diss_y is not None
+
+    def test_mixed_orders_raise(self) -> None:
+        """Phase 1 enforces order_diss == fd_order; mixed orders must raise.
+
+        Without this guard, a config like fd_order=4, order_diss=6 would
+        silently build a fd6 dissipation operator on a fd4 mesh, breaking
+        the SPSD-in-the-correct-H-norm argument that Phase 1's energy proof
+        relies on. Phase 3 (decoupled orders, MSN 2004 §4) is the legitimate
+        place to lift this restriction; until then it must be a hard error.
+        """
+        import pytest
+
+        from linstab2d.mesh import Mesh
+
+        with pytest.raises(NotImplementedError, match="order_diss"):
+            Mesh.create(
+                xrange=(0.0, 1.0),
+                yrange=(0.0, 1.0),
+                nx=_NX,
+                ny=_NY,
+                fd_order=4,
+                numerics_operator_dissipation={"enabled": True, "order_diss": 6},
+            )

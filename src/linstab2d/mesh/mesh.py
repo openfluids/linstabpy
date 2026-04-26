@@ -251,6 +251,13 @@ class Mesh:
         # --- SBP artificial dissipation (operator_dissipation config) ---
         od = numerics_operator_dissipation or {}
         if od.get('enabled', False):
+            # Pass BOTH fd_order (the SBP scheme order, fixes the H norm)
+            # AND order_diss (the dissipation order, picks D_p) into the
+            # builder so the NotImplementedError guard in
+            # build_sbp_dissipation_matrices fires for mixed-order configs.
+            # In Phase 1 we always have order_diss == fd_order. Allowing
+            # them to differ silently would build a wrong-norm dissipation
+            # operator, breaking the SPSD-in-H argument.
             p_order = int(od.get('order_diss', fd_order))
             n_trans = float(od.get('transition_fraction', DISSIPATION_DEFAULTS['transition_fraction']))
             end_exp = float(od.get('endpoint_exponent', DISSIPATION_DEFAULTS['endpoint_exponent']))
@@ -258,12 +265,14 @@ class Mesh:
             hx_ref = 1.0 / (nx_full - 1) if nx_full > 1 else 1.0
             hy_ref = 1.0 / (ny_full - 1) if ny_full > 1 else 1.0
             Q_diss_x, _ = build_sbp_dissipation_matrices(
-                n=nx_full, h=hx_ref, order_interior=p_order,
+                n=nx_full, h=hx_ref,
+                order_interior=fd_order, order_diss=p_order,
                 transition_fraction=n_trans, endpoint_exponent=end_exp,
                 interior_value=int_val,
             )
             Q_diss_y, _ = build_sbp_dissipation_matrices(
-                n=ny_full, h=hy_ref, order_interior=p_order,
+                n=ny_full, h=hy_ref,
+                order_interior=fd_order, order_diss=p_order,
                 transition_fraction=n_trans, endpoint_exponent=end_exp,
                 interior_value=int_val,
             )
