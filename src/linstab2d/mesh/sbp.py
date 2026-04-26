@@ -356,20 +356,38 @@ def _build_sbp_norm_diag(n: int, h: float, order_interior: int) -> np.ndarray:
     return H_diag
 
 
+def _vandermonde_centered_stencil(half_w: int, derivative_order: int) -> np.ndarray:
+    """Return undivided (2*half_w+1)-point centered FD stencil for d^k/dx^k.
+
+    Solves the Vandermonde system V c = e_k where V[i,j] = (j-half_w)^i / i!
+    and e_k has 1 in position k (derivative_order). Returns coefficients c
+    such that sum_j c[j] * f(x + (j-half_w)*h) ≈ d^k f / dx^k * h^k
+    (undivided; divide by h^k to get the divided-form approximation).
+    """
+    from math import factorial
+
+    n = 2 * half_w + 1
+    V = np.zeros((n, n))
+    for i in range(n):
+        for k in range(n):
+            V[i, k] = (k - half_w) ** i / factorial(i)
+    e = np.zeros(n)
+    e[derivative_order] = 1.0
+    return np.linalg.solve(V, e)
+
+
 def _build_dp_matrix(n: int, h: float, p: int) -> sp.csr_matrix:
     """Build the divided p-th derivative matrix D_p.
 
-    For p=3 the boundary closure aliases the same 4-point one-sided stencil
-    [-1, 3, -3, 1]/h^3 onto rows 0..3. This satisfies MSN 2004 Eq. (5)
-    consistency at every boundary row by polynomial coincidence:
-    d^3/dx^3 of any cubic is constant, so the identity
-    sum_j d_{i,j} (j-i)^n = 0 for n=0..2, =3! for n=3 holds at any row i
-    regardless of where in the stencil the row index lies. The construction
-    is therefore valid for SPSD-via-sandwich purposes (D_p^T B_p D_p is
-    SPSD whenever B_p >= 0), but it is NOT an SBP-energy-compatible
-    boundary closure in the strict sense — see MSN 2004 reference [10] for
-    properly row-shifted explicit stencils. Acceptable here because B_p ~ h^2
-    near the wall suppresses the dissipation contribution there.
+    For p=3 and p=4 the boundary closure aliases the same one-sided stencil
+    onto the first and last four rows: 4-point for d^3/dx^3 and 5-point for
+    d^4/dx^4. This satisfies MSN 2004 Eq. (5) consistency at every boundary
+    row by polynomial coincidence. The construction is therefore valid for
+    SPSD-via-sandwich purposes (D_p^T B_p D_p is SPSD whenever B_p >= 0), but
+    it is NOT an SBP-energy-compatible boundary closure in the strict sense —
+    see MSN 2004 reference [10] for properly row-shifted explicit stencils.
+    Acceptable here because B_p ~ h^2 near the wall suppresses the
+    dissipation contribution there.
     """
     if p == 2:
         _, D2 = build_sbp_matrix(n, h, order=4)
@@ -404,7 +422,25 @@ def _build_dp_matrix(n: int, h: float, p: int) -> sp.csr_matrix:
 
         return D3.tocsr()
 
-    raise ValueError(f"Unsupported p={p}; only p=2 (fd4) and p=3 (fd6) implemented.")
+    if p == 4:
+        half_w = 4
+        a_i4_undiv = _vandermonde_centered_stencil(half_w, 4)
+        a_i4 = a_i4_undiv / h**4
+        D4 = sp.lil_matrix((n, n))
+        for j in range(half_w, n - half_w):
+            for k, ck in enumerate(a_i4):
+                D4[j, j - half_w + k] = ck
+        fwd = np.array([1.0, -4.0, 6.0, -4.0, 1.0]) / h**4
+        bwd = fwd[::-1].copy()  # even-order: symmetric, no sign flip
+        for j in range(half_w):
+            D4[j, 0:5] = fwd
+        for j in range(n - half_w, n):
+            D4[j, n - 5:n] = bwd
+        return D4.tocsr()
+
+    raise ValueError(
+        f"Unsupported p={p}; only p=2 (fd4), p=3 (fd6), p=4 (fd8) implemented."
+    )
 
 
 def _build_bp_diag(
@@ -471,7 +507,7 @@ def build_sbp_dissipation_matrices(
         Uniform grid spacing.
     order_interior : int
         Interior accuracy order of the underlying SBP first-derivative
-        operator. Currently 4 and 6 are implemented.
+        operator. Currently 4, 6, and 8 are implemented.
     order_diss : int or None
         Order of the dissipation operator (2*p_diss). When ``None`` (the
         default), defaults to ``order_interior`` so the dissipation order
@@ -499,8 +535,8 @@ def build_sbp_dissipation_matrices(
     K. Mattsson, M. Svard, J. Nordstrom. Stable and Accurate Artificial
     Dissipation. J. Sci. Comput. 21 (2004) 57-79.
     """
-    if order_interior not in (4, 6):
-        raise ValueError(f"order_interior must be 4 or 6, got {order_interior}")
+    if order_interior not in (4, 6, 8):
+        raise ValueError(f"order_interior must be 4, 6, or 8, got {order_interior}")
 
     if order_diss is None:
         order_diss = order_interior
