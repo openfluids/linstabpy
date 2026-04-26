@@ -489,29 +489,36 @@ def _configure_st_for_eigenvalue(
         pc.setType(pc_type)
         if pc_type in {"asm", "gasm"}:
             pc.setASMOverlap(asm_overlap)
-            pc.setUp()
-            try:
-                sub_ksps = pc.getASMSubKSP()
-                for sk in sub_ksps:
-                    sub_pc = sk.getPC()
-                    sub_pc.setType(sub_pc_type)
-                    if sub_pc_type == "ilu":
-                        sub_pc.setFactorLevels(factor_levels)
-                    sk.setType("preonly")
-            except PETSc.Error:
-                pass
+            # Sub-KSP configuration (type and sub-PC) must be deferred until after
+            # the matrix is available (i.e. after eps.setUp()).  We store the
+            # desired sub-PC settings on the helper object so _eigs_near_target
+            # can apply them post-setUp.  For the common single-rank / test-matrix
+            # case we attempt the call immediately but catch the "no matrix" error.
+            def _apply_asm_sub_pc(pc_obj=pc):
+                try:
+                    sub_ksps = pc_obj.getASMSubKSP()
+                    for sk in sub_ksps:
+                        sub_pc = sk.getPC()
+                        sub_pc.setType(sub_pc_type)
+                        if sub_pc_type == "ilu":
+                            sub_pc.setFactorLevels(factor_levels)
+                        sk.setType("preonly")
+                except PETSc.Error:
+                    pass
+            _apply_asm_sub_pc()
         elif pc_type == "bjacobi":
-            pc.setUp()
-            try:
-                sub_ksps = pc.getBJacobiSubKSP()
-                for sk in sub_ksps:
-                    sub_pc = sk.getPC()
-                    sub_pc.setType(sub_pc_type)
-                    if sub_pc_type == "ilu":
-                        sub_pc.setFactorLevels(factor_levels)
-                    sk.setType("preonly")
-            except PETSc.Error:
-                pass
+            def _apply_bjacobi_sub_pc(pc_obj=pc):
+                try:
+                    sub_ksps = pc_obj.getBJacobiSubKSP()
+                    for sk in sub_ksps:
+                        sub_pc = sk.getPC()
+                        sub_pc.setType(sub_pc_type)
+                        if sub_pc_type == "ilu":
+                            sub_pc.setFactorLevels(factor_levels)
+                        sk.setType("preonly")
+                except PETSc.Error:
+                    pass
+            _apply_bjacobi_sub_pc()
 
     else:
         raise ValueError(
