@@ -1184,6 +1184,7 @@ def compute() -> None:
                 numerics_operator_dissipation_transition_fraction=np.float64(od_transition_fraction),
                 numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
                 numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
+                solver_eigen_st_solver_used=str(st_solver),
             )
         _log_stage("save_results", stage_start)
     elapsed = time.perf_counter() - t0
