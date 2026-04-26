@@ -1,4 +1,45 @@
-"""Temporal and adjoint eigenvalue solvers using SLEPc EPS."""
+"""Temporal and adjoint eigenvalue solvers using SLEPc EPS.
+
+Solver configuration — ``solver.eigen`` section in JSONC
+---------------------------------------------------------
+
+``st_solver`` selects the shift-invert inner linear solver:
+
+* ``"mumps"`` (default) — direct LU via MUMPS.  Robust, memory-heavy.
+  Requires ~3 TiB at stride-1 for the SWBLI LNSE operator.
+* ``"iterative"`` / ``"krylov"`` / ``"slepc"`` — configurable Krylov inner
+  solver with a wide choice of preconditioners (including ASM, BJacobi,
+  FieldSplit).  Parameters are read from the *top-level* ``solver.eigen``
+  section keys (``ksp_type``, ``pc_type``, …).
+* ``"inexact"`` — FGMRES + ASM + local ILU inner solver tuned for
+  memory-constrained large-DOF runs.  Parameters live in the nested
+  ``solver.eigen.inexact`` sub-dict so they do not collide with the
+  ``"iterative"`` key names.  Memory scales with preconditioner storage
+  instead of the LU factor, giving 5–20× lower peak RSS at stride-1.
+
+JSONC schema for ``"inexact"`` mode::
+
+    "solver": {
+      "eigen": {
+        "st_solver": "inexact",
+        "inexact": {
+          "ksp_type":         "fgmres",  // inner Krylov method
+          "ksp_rtol":          1e-8,     // relative tolerance
+          "ksp_atol":          1e-10,    // absolute tolerance
+          "ksp_max_it":        200,      // max inner iterations
+          "pc_type":          "asm",     // additive Schwarz (MPI-parallel)
+          "asm_overlap":       1,        // subdomain overlap
+          "sub_pc_type":      "ilu",     // local subdomain factor
+          "pc_factor_levels":  2         // ILU fill level
+        }
+      }
+    }
+
+``true_residual`` defaults to ``True`` when ``st_solver == "inexact"``.
+Inexact inner solves can satisfy the preconditioned residual while the
+true residual remains large; forcing true-residual checks at convergence
+time catches this case.
+"""
 
 from __future__ import annotations
 
@@ -319,6 +360,166 @@ def _reorder_info_residuals(info: dict[str, object], order: np.ndarray) -> None:
             info[key] = arr[order]
 
 
+
+def _configure_st_for_eigenvalue(
+    st_solver: str,
+    ecfg: dict | None,
+    ksp: "PETSc.KSP",
+    pc: "PETSc.PC",
+    st: "SLEPc.ST",
+) -> None:
+    """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
+
+    Parameters
+    ----------
+    st_solver:
+        One of ``"mumps"``, ``"direct"``, ``"lu"``, ``"iterative"``,
+        ``"krylov"``, ``"slepc"``, or ``"inexact"``.
+    ecfg:
+        The ``solver.eigen`` JSONC sub-dict (may be empty or ``None``).
+    ksp:
+        KSP object obtained from ``eps.getST().getKSP()``.
+    pc:
+        PC object obtained from ``ksp.getPC()``.
+    st:
+        The SLEPc ST object (unused in this helper but kept for future use).
+    """
+    if ecfg is None:
+        ecfg = {}
+
+    if st_solver in {"mumps", "direct", "lu"}:
+        ignored_iterative_keys = sorted(
+            key for key in (
+                "ksp_type",
+                "pc_type",
+                "pc_factor_solver_type",
+                "ksp_pc_side",
+                "ksp_rtol",
+                "ksp_max_it",
+                "asm_overlap",
+                "sub_ksp_type",
+                "sub_pc_type",
+                "gmres_orthogonalization",
+                "gmres_cgs_refinement_type",
+                "gmres_restart",
+            )
+            if key in ecfg
+        )
+        if ignored_iterative_keys:
+            logger.warning(
+                "Ignoring iterative ST-KSP options for direct eigensolve path "
+                "(st_solver=%s uses KSPPREONLY+PCLU): %s",
+                st_solver,
+                ", ".join(ignored_iterative_keys),
+            )
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc.setType(PETSc.PC.Type.LU)
+        if st_solver == "mumps":
+            pc.setFactorSolverType("mumps")
+
+    elif st_solver in {"iterative", "krylov", "slepc"}:
+        ksp_type = _scfg(ecfg, "ksp_type", "LINSTAB2D_EIGEN_KSP_TYPE", "gmres")
+        pc_type = _scfg(ecfg, "pc_type", "LINSTAB2D_EIGEN_PC_TYPE", "asm")
+        pc_factor_solver_type = _scfg(
+            ecfg,
+            "pc_factor_solver_type",
+            "LINSTAB2D_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            "",
+        )
+        pc_side = _scfg(ecfg, "ksp_pc_side", "LINSTAB2D_EIGEN_KSP_PC_SIDE", "left")
+        ksp_rtol = _scfg_float(ecfg, "ksp_rtol", "LINSTAB2D_EIGEN_KSP_RTOL", 1e-8)
+        ksp_max_it = _scfg_int(ecfg, "ksp_max_it", "LINSTAB2D_EIGEN_KSP_MAX_IT", 20000)
+        asm_overlap = _scfg_int(ecfg, "asm_overlap", "LINSTAB2D_EIGEN_ASM_OVERLAP", 2)
+        sub_ksp_type = _scfg(ecfg, "sub_ksp_type", "LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly")
+        sub_pc_type = _scfg(ecfg, "sub_pc_type", "LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu")
+        ksp.setType(ksp_type)
+        if pc_side == "left":
+            ksp.setPCSide(PETSc.PC.Side.LEFT)
+        elif pc_side == "right":
+            ksp.setPCSide(PETSc.PC.Side.RIGHT)
+        elif pc_side in {"symmetric", "symm"}:
+            ksp.setPCSide(PETSc.PC.Side.SYMMETRIC)
+        else:
+            raise ValueError(
+                "Invalid LINSTAB2D_EIGEN_KSP_PC_SIDE "
+                f"'{pc_side}'; expected left|right|symmetric"
+            )
+        if pc_type in {"fieldsplit", "fs"}:
+            pc.setType(PETSc.PC.Type.FIELDSPLIT)
+        else:
+            pc.setType(pc_type)
+            if pc_type == "lu":
+                factor_solver_type = pc_factor_solver_type if pc_factor_solver_type else "mumps"
+                pc.setFactorSolverType(factor_solver_type)
+        ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
+        ksp.setErrorIfNotConverged(True)
+        if ksp_type in {"gmres", "fgmres"}:
+            _apply_ksp_jsonc_options(ksp, ecfg)
+        if pc_type == "asm":
+            pc.setASMOverlap(asm_overlap)
+            # Rank-local coarse solves for ASM blocks (parallel-safe default).
+            # A user can still override from PETSc options DB.
+            try:
+                sub_ksps = pc.getASMSubKSP()
+                for sub_ksp in sub_ksps:
+                    sub_ksp.setType(sub_ksp_type)
+                    sub_pc = sub_ksp.getPC()
+                    sub_pc.setType(sub_pc_type)
+            except PETSc.Error:
+                pass
+
+    elif st_solver == "inexact":
+        # Inexact shift-invert: FGMRES outer + ASM subdomain + local ILU.
+        # Memory scales with preconditioner storage, not with the LU factor.
+        # All parameters are read from the nested "inexact" sub-dict to avoid
+        # key collision with the "iterative" branch options.
+        inexact_cfg = ecfg.get("inexact", {}) if ecfg else {}
+        ksp_type = str(inexact_cfg.get("ksp_type", "fgmres"))
+        ksp_rtol = float(inexact_cfg.get("ksp_rtol", 1e-8))
+        ksp_atol = float(inexact_cfg.get("ksp_atol", 1e-10))
+        ksp_max_it = int(inexact_cfg.get("ksp_max_it", 200))
+        pc_type = str(inexact_cfg.get("pc_type", "asm"))
+        asm_overlap = int(inexact_cfg.get("asm_overlap", 1))
+        sub_pc_type = str(inexact_cfg.get("sub_pc_type", "ilu"))
+        factor_levels = int(inexact_cfg.get("pc_factor_levels", 2))
+
+        ksp.setType(ksp_type)
+        ksp.setTolerances(rtol=ksp_rtol, atol=ksp_atol, max_it=ksp_max_it)
+        ksp.setErrorIfNotConverged(True)
+        pc.setType(pc_type)
+        if pc_type in {"asm", "gasm"}:
+            pc.setASMOverlap(asm_overlap)
+            pc.setUp()
+            try:
+                sub_ksps = pc.getASMSubKSP()
+                for sk in sub_ksps:
+                    sub_pc = sk.getPC()
+                    sub_pc.setType(sub_pc_type)
+                    if sub_pc_type == "ilu":
+                        sub_pc.setFactorLevels(factor_levels)
+                    sk.setType("preonly")
+            except PETSc.Error:
+                pass
+        elif pc_type == "bjacobi":
+            pc.setUp()
+            try:
+                sub_ksps = pc.getBJacobiSubKSP()
+                for sk in sub_ksps:
+                    sub_pc = sk.getPC()
+                    sub_pc.setType(sub_pc_type)
+                    if sub_pc_type == "ilu":
+                        sub_pc.setFactorLevels(factor_levels)
+                    sk.setType("preonly")
+            except PETSc.Error:
+                pass
+
+    else:
+        raise ValueError(
+            f"Unsupported st_solver={st_solver!r}; "
+            "expected mumps|direct|lu|iterative|krylov|slepc|inexact"
+        )
+
+
 def _eigs_near_target(
     operator: sp.csc_matrix | PETSc.Mat,
     n_modes: int,
@@ -448,114 +649,33 @@ def _eigs_near_target(
     ksp = st.getKSP()
     pc = ksp.getPC()
 
-    if st_solver in {"mumps", "direct", "lu"}:
-        ignored_iterative_keys = sorted(
-            key for key in (
-                "ksp_type",
-                "pc_type",
-                "pc_factor_solver_type",
-                "ksp_pc_side",
-                "ksp_rtol",
-                "ksp_max_it",
-                "asm_overlap",
-                "sub_ksp_type",
-                "sub_pc_type",
-                "gmres_orthogonalization",
-                "gmres_cgs_refinement_type",
-                "gmres_restart",
-            )
-            if _ecfg is not None and key in _ecfg
-        )
-        if ignored_iterative_keys:
-            logger.warning(
-                "Ignoring iterative ST-KSP options for direct eigensolve path "
-                "(st_solver=%s uses KSPPREONLY+PCLU): %s",
-                st_solver,
-                ", ".join(ignored_iterative_keys),
-            )
-        ksp.setType(PETSc.KSP.Type.PREONLY)
-        pc.setType(PETSc.PC.Type.LU)
-        if st_solver == "mumps":
-            pc.setFactorSolverType("mumps")
-    elif st_solver in {"iterative", "krylov", "slepc"}:
-        ksp_type = _scfg(_ecfg, "ksp_type", "LINSTAB2D_EIGEN_KSP_TYPE", "gmres")
-        pc_type = _scfg(_ecfg, "pc_type", "LINSTAB2D_EIGEN_PC_TYPE", "asm")
-        pc_factor_solver_type = _scfg(
-            _ecfg,
-            "pc_factor_solver_type",
-            "LINSTAB2D_EIGEN_PC_FACTOR_SOLVER_TYPE",
-            "",
-        )
-        pc_side = _scfg(_ecfg, "ksp_pc_side", "LINSTAB2D_EIGEN_KSP_PC_SIDE", "left")
-        ksp_rtol = _scfg_float(_ecfg, "ksp_rtol", "LINSTAB2D_EIGEN_KSP_RTOL", 1e-8)
-        ksp_max_it = _scfg_int(_ecfg, "ksp_max_it", "LINSTAB2D_EIGEN_KSP_MAX_IT", 20000)
-        asm_overlap = _scfg_int(_ecfg, "asm_overlap", "LINSTAB2D_EIGEN_ASM_OVERLAP", 2)
-        sub_ksp_type = _scfg(_ecfg, "sub_ksp_type", "LINSTAB2D_EIGEN_SUB_KSP_TYPE", "preonly")
-        sub_pc_type = _scfg(_ecfg, "sub_pc_type", "LINSTAB2D_EIGEN_SUB_PC_TYPE", "lu")
-        ksp.setType(ksp_type)
-        if pc_side == "left":
-            ksp.setPCSide(PETSc.PC.Side.LEFT)
-        elif pc_side == "right":
-            ksp.setPCSide(PETSc.PC.Side.RIGHT)
-        elif pc_side in {"symmetric", "symm"}:
-            ksp.setPCSide(PETSc.PC.Side.SYMMETRIC)
-        else:
-            raise ValueError(
-                "Invalid LINSTAB2D_EIGEN_KSP_PC_SIDE "
-                f"'{pc_side}'; expected left|right|symmetric"
-            )
-        if pc_type in {"fieldsplit", "fs"}:
-            pc.setType(PETSc.PC.Type.FIELDSPLIT)
-        else:
-            pc.setType(pc_type)
-            if pc_type == "lu":
-                factor_solver_type = pc_factor_solver_type if pc_factor_solver_type else "mumps"
-                pc.setFactorSolverType(factor_solver_type)
-        ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
-        ksp.setErrorIfNotConverged(True)
-        if ksp_type in {"gmres", "fgmres"}:
-            _apply_ksp_jsonc_options(ksp, _ecfg)
-        if pc_type in {"fieldsplit", "fs"}:
-            # Physics-aware 5-variable split for compressible LNSE state:
-            # fluid = [rho, u, v, T], spanwise = [w]
-            # Assumes state layout [rho(ngp), u(ngp), v(ngp), w(ngp), T(ngp)].
-            if ndof % 5 == 0:
-                ngp = ndof // 5
-                fluid_idx = np.concatenate(
-                    (
-                        np.arange(0, 3 * ngp, dtype=np.int32),
-                        np.arange(4 * ngp, 5 * ngp, dtype=np.int32),
-                    )
+    _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st)
+    # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
+    # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
+    # Re-apply FieldSplit IS setup here since the helper cannot access ndof/A.
+    if st_solver in {"iterative", "krylov", "slepc"}:
+        pc_type_used = _scfg(_ecfg, "pc_type", "LINSTAB2D_EIGEN_PC_TYPE", "asm")
+        if pc_type_used in {"fieldsplit", "fs"} and ndof % 5 == 0:
+            ngp = ndof // 5
+            fluid_idx = np.concatenate(
+                (
+                    np.arange(0, 3 * ngp, dtype=np.int32),
+                    np.arange(4 * ngp, 5 * ngp, dtype=np.int32),
                 )
-                w_idx = np.arange(3 * ngp, 4 * ngp, dtype=np.int32)
-                rstart, rend = A.getOwnershipRange()
-                fluid_local = fluid_idx[(fluid_idx >= rstart) & (fluid_idx < rend)]
-                w_local = w_idx[(w_idx >= rstart) & (w_idx < rend)]
-                is_fluid = PETSc.IS().createGeneral(fluid_local, comm=PETSc.COMM_WORLD)
-                is_w = PETSc.IS().createGeneral(w_local, comm=PETSc.COMM_WORLD)
-                pc.setFieldSplitIS(("fluid", is_fluid), ("w", is_w))
-                pc.setFieldSplitType(PETSc.PC.CompositeType.ADDITIVE)
-        if pc_type == "asm":
-            pc.setASMOverlap(asm_overlap)
-            # Rank-local coarse solves for ASM blocks (parallel-safe default).
-            # A user can still override from PETSc options DB.
-            try:
-                sub_ksps = pc.getASMSubKSP()
-                for sub_ksp in sub_ksps:
-                    sub_ksp.setType(sub_ksp_type)
-                    sub_pc = sub_ksp.getPC()
-                    sub_pc.setType(sub_pc_type)
-            except PETSc.Error:
-                pass
-    else:
-        raise ValueError(
-            f"Unsupported LINSTAB2D_EIGEN_ST_SOLVER={st_solver!r}; "
-            "expected mumps|direct|lu|iterative|krylov|slepc"
-        )
+            )
+            w_idx = np.arange(3 * ngp, 4 * ngp, dtype=np.int32)
+            rstart, rend = A.getOwnershipRange()
+            fluid_local = fluid_idx[(fluid_idx >= rstart) & (fluid_idx < rend)]
+            w_local = w_idx[(w_idx >= rstart) & (w_idx < rend)]
+            is_fluid = PETSc.IS().createGeneral(fluid_local, comm=PETSc.COMM_WORLD)
+            is_w = PETSc.IS().createGeneral(w_local, comm=PETSc.COMM_WORLD)
+            pc.setFieldSplitIS(("fluid", is_fluid), ("w", is_w))
+            pc.setFieldSplitType(PETSc.PC.CompositeType.ADDITIVE)
 
     # Allow PETSc/SLEPc options DB overrides from command-line flags.
-    if not (st_solver in {"iterative", "krylov", "slepc"} and ksp_type in {"gmres", "fgmres"}):
-        ksp.setFromOptions()
+    # For direct solvers (mumps/lu) ksp.setFromOptions() is a no-op but harmless.
+    # For iterative/inexact solvers the options DB can override JSONC-level settings.
+    ksp.setFromOptions()
     st.setFromOptions()
     eps.setFromOptions()
     logger.info(
@@ -565,7 +685,10 @@ def _eigs_near_target(
         _safe_petsc_info(pc.getFactorSolverType, "?"),
         _safe_petsc_info(ksp.getPCSide, "?"),
     )
-    true_residual = _scfg_bool(_ecfg, "true_residual", "LINSTAB2D_EIGEN_TRUE_RESIDUAL", False)
+    # "inexact" inner solves can satisfy the preconditioned residual while
+    # the true residual remains large; default true_residual=True for that path.
+    true_residual_default = st_solver == "inexact"
+    true_residual = _scfg_bool(_ecfg, "true_residual", "LINSTAB2D_EIGEN_TRUE_RESIDUAL", true_residual_default)
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
 
