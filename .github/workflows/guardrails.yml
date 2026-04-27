@@ -3,13 +3,14 @@ name: Guardrails
 on:
   push:
   pull_request:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    branches:
+      - main
+      - phase1/operator-dissipation
 
 jobs:
-  tracked-file-size:
+  pure-math-tests:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -17,7 +18,39 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Install test dependencies
+        run: uv sync --group test
+
+      - name: Use uv virtual environment
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Check tracked file sizes
         run: python scripts/check_tracked_file_size.py
+
+      - name: Run dissipation guardrail tests
+        run: >
+          PYTHONPATH=src python -m pytest --tb=short -q
+          tests/test_sbp_dissipation.py
+          tests/test_sbp_generator.py
+          tests/test_mesh_dissipation.py
+          tests/test_assembly_dissipation.py
+          tests/test_runtime_dissipation.py
+          -v
+
+      - name: Run broader non-PETSc tests
+        continue-on-error: true
+        run: >
+          PYTHONPATH=src python -m pytest --tb=short -q tests/
+          -m "not slow"
+          --ignore=tests/test_linear_operator_adapters.py
+          --ignore=tests/test_linear_operator_matrix.py
+          --ignore=tests/test_linear_operator_product.py
+          --ignore=tests/test_linear_operator_projection.py
+          --ignore=tests/test_linear_operator_shell.py
+          --ignore=tests/test_solvers.py
+          --ignore=tests/test_solvers_inexact.py
