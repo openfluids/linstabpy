@@ -130,9 +130,9 @@ def test_conjugate_aware_distance_accepts_conjugate() -> None:
     # the actual distance array comes pre-computed from _postcheck_stability_modes.
     # So to test the full end-to-end B2/B3 path, we simulate what results_runtime does:
     # re-compute target_dist with conjugate awareness before calling evaluate_stability_acceptance.
-    from linstab2d.utils.stability_acceptance import postcheck_target_distance
+    from linstab2d.utils.stability_acceptance import _postcheck_target_distance
 
-    target_dist_conj = postcheck_target_distance(omega, target, conjugate_aware=True)
+    target_dist_conj = _postcheck_target_distance(omega, target, conjugate_aware=True)
     result_conj = evaluate_stability_acceptance(
         omega,
         post_rel,
