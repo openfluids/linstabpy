@@ -153,6 +153,7 @@ def make_linear_solver(
         asm_overlap = _scfg_int(_sub, "asm_overlap", f"{env_prefix}_ASM_OVERLAP", 2)
         sub_ksp_type = _scfg(_sub, "sub_ksp_type", f"{env_prefix}_SUB_KSP_TYPE", "preonly")
         sub_pc_type = _scfg(_sub, "sub_pc_type", f"{env_prefix}_SUB_PC_TYPE", "lu")
+        pc_factor_levels = _scfg_int(_sub, "pc_factor_levels", f"{env_prefix}_PC_FACTOR_LEVELS", 0)
 
         ksp.setType(ksp_type)
         if pc_side == "left":
@@ -172,36 +173,48 @@ def make_linear_solver(
         if pc_type == "asm":
             pc.setASMOverlap(asm_overlap)
 
-        # Configure local block solvers for ASM/BJACOBI (parallel-safe defaults).
-        if pc_type in {"asm", "bjacobi"}:
-            try:
-                sub_ksps = pc.getASMSubKSP() if pc_type == "asm" else pc.getBJacobiSubKSP()
-                for sub_ksp in sub_ksps:
-                    sub_ksp.setType(sub_ksp_type)
-                    # Hard-stop on any local block Krylov divergence so iterative
-                    # runs cannot silently continue with invalid sub-solves.
-                    sub_ksp.setErrorIfNotConverged(True)
-                    sub_pc = sub_ksp.getPC()
-                    sub_pc.setType(sub_pc_type)
-            except PETSc.Error as exc:
-                logger.debug(
-                    "Could not configure %s subblock KSP/PC (sub_ksp=%s, sub_pc=%s): %s",
-                    pc_type,
-                    sub_ksp_type,
-                    sub_pc_type,
-                    exc,
-                )
-
-        # Allow runtime override via PETSc options DB.
+        # Allow runtime override via PETSc options DB before setUp materialises
+        # the preconditioner stack and (for ASM/BJACOBI) the local sub-solvers.
         ksp.setFromOptions()
         ksp.setUp()
+
+        # Configure local block solvers for ASM/BJACOBI after the outer KSP
+        # has been set up (PETSc requires this for getASMSubKSP / getBJacobiSubKSP
+        # to return materialised sub-solvers). Hard-fail on any error so the
+        # realized stack always matches the configured one.
+        realized_sub_pc_type: str | None = None
+        realized_factor_levels: int | None = None
+        if pc_type in {"asm", "bjacobi"}:
+            sub_ksps = pc.getASMSubKSP() if pc_type == "asm" else pc.getBJacobiSubKSP()
+            for sub_ksp in sub_ksps:
+                sub_ksp.setType(sub_ksp_type)
+                # Hard-stop on any local block Krylov divergence so iterative
+                # runs cannot silently continue with invalid sub-solves.
+                sub_ksp.setErrorIfNotConverged(True)
+                sub_pc = sub_ksp.getPC()
+                sub_pc.setType(sub_pc_type)
+                if sub_pc_type in {"ilu", "icc"}:
+                    sub_pc.setFactorLevels(pc_factor_levels)
+                sub_pc.setUp()
+                realized_sub_pc_type = sub_pc.getType()
+                if sub_pc_type in {"ilu", "icc"}:
+                    try:
+                        realized_factor_levels = int(sub_pc.getFactorLevels())
+                    except (AttributeError, RuntimeError):
+                        realized_factor_levels = pc_factor_levels
+
         logger.info(
-            "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, side=%s, rtol=%g, max_it=%d)",
+            "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, side=%s, "
+            "asm_overlap=%d, sub_ksp=%s, sub_pc=%s, fill_levels=%s, rtol=%g, max_it=%d)",
             n,
             nnz,
             ksp_type,
             pc_type,
             pc_side,
+            asm_overlap if pc_type == "asm" else 0,
+            sub_ksp_type if realized_sub_pc_type is not None else "n/a",
+            realized_sub_pc_type if realized_sub_pc_type is not None else "n/a",
+            realized_factor_levels if realized_factor_levels is not None else "n/a",
             ksp_rtol,
             ksp_max_it,
         )
