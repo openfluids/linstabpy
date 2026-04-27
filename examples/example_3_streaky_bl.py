@@ -263,9 +263,7 @@ def _reconstruct_mode_field(
 
     return reconstruct_floquet(
         X,
-        Y,
         mode[np.asarray(idx_block)],
-        {},
         used_ind=used_ind,
         floquet_exp=floquet_exp,
     ).reshape(X.shape, order="F")
