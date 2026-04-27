@@ -21,7 +21,7 @@ from petsc4py import PETSc
 
 from .petsc_utils import _is_petsc_matrix, _matrix_nnz, _operator_shape, require_complex, scipy_to_petsc, vec_to_numpy
 from ._eps_helpers import _resolve_solver_cfg_subsection
-from ..utils._solver_cfg import _scfg, _scfg_float, _scfg_int
+from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +163,9 @@ def make_linear_solver(
         pc_factor_shift_amount = _scfg_float(
             _sub, "pc_factor_shift_amount", f"{env_prefix}_PC_FACTOR_SHIFT_AMOUNT", 1e-12
         )
+        # When True, attach KSPMonitorDefault so each iteration prints
+        # `iter rnorm` to stdout. Visible in c8 run logs without -ksp_monitor.
+        ksp_monitor = _scfg_bool(_sub, "ksp_monitor", f"{env_prefix}_KSP_MONITOR", False)
 
         ksp.setType(ksp_type)
         if pc_side == "left":
@@ -181,6 +184,15 @@ def make_linear_solver(
 
         if pc_type == "asm":
             pc.setASMOverlap(asm_overlap)
+
+        if ksp_monitor:
+            # KSPMonitorDefault prints `iter rnorm` per iteration. Wrapped in
+            # a small lambda so we can prefix lines with env_prefix to keep
+            # outer/inner KSP traces distinguishable.
+            def _monitor(_ksp, it, rnorm, _prefix=env_prefix):  # noqa: ANN001
+                print(f"[{_prefix} ksp] it={it:5d} rnorm={rnorm:.6e}", flush=True)
+
+            ksp.setMonitor(_monitor)
 
         # Allow runtime override via PETSc options DB before setUp materialises
         # the preconditioner stack and (for ASM/BJACOBI) the local sub-solvers.
