@@ -728,6 +728,38 @@ class TestAdjointEigenvalues:
         finally:
             L0_petsc.destroy()
 
+    def test_adjoint_temporal_scaling(self, blasius_problem):
+        """temporal=True flag should return conj(direct_omegas).
+
+        When adjoint_eigenvalues is called with temporal=True and the same
+        target as temporal_eigenvalues, the returned eigenvalues should be
+        np.conj(direct_omegas) (up to spectral-neighborhood ordering).
+        """
+        _, _, L0, _, _, W_diag, invW_diag = blasius_problem
+        omega_d, _ = temporal_eigenvalues(L0, n_modes=3, target=-0.1j)
+        # Search the adjoint in temporal convention around the first direct omega
+        omega_a, _ = adjoint_eigenvalues(
+            L0,
+            n_modes=6,
+            target=omega_d[0],
+            W_diag=W_diag,
+            invW_diag=invW_diag,
+            temporal=True,
+        )
+        # Each direct omega should have a conjugate partner in the adjoint set
+        matched = 0
+        for od in omega_d:
+            expected = np.conj(od)
+            dists = np.abs(omega_a - expected)
+            if np.min(dists) < 1e-4:
+                matched += 1
+        assert matched >= 1, (
+            f"temporal=True: no adjoint omega matched conj(direct_omega).\n"
+            f"  direct omegas  = {omega_d}\n"
+            f"  expected conj  = {np.conj(omega_d)}\n"
+            f"  adjoint omegas = {omega_a}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Spatial eigenvalues

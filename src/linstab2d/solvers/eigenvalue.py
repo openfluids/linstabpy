@@ -971,11 +971,37 @@ def adjoint_eigenvalues(
     invW_diag: np.ndarray,
     ncv: int | None = None,
     solver_cfg: dict | None = None,
+    temporal: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute adjoint temporal eigenvalues near a target with W weighting.
 
     The adjoint operator is formed as ``W^{-1} L0^* W`` and eigendecomposed
     with shift-invert at ``target``.
+
+    Parameters
+    ----------
+    L0 : sparse matrix or PETSc.Mat
+        State matrix from ``build_lnse_operator``.
+    n_modes : int
+        Number of eigenpairs requested.
+    target : float or complex
+        Target eigenvalue for the shift-invert search.
+    W_diag : ndarray
+        Diagonal of the energy-norm weight matrix.
+    invW_diag : ndarray
+        Diagonal of the inverse weight matrix.
+    ncv : int or None, optional
+        Arnoldi subspace dimension.
+    solver_cfg : dict or None, optional
+        Solver configuration dictionary.
+    temporal : bool, optional
+        When True, interpret *target* as a temporal eigenvalue omega (from
+        ``temporal_eigenvalues``) and return eigenvalues in the same
+        convention.  The target is converted internally to the adjoint
+        eigenvalue space (``target_internal = 1j * conj(target)``), and
+        the returned eigenvalues are the conjugates of the direct temporal
+        eigenvalues so that ``adjoint_omegas == conj(temporal_omegas)``.
+        Default is False (raw adjoint eigenvalue convention).
     """
     operator, _ = _check_inputs_shape(L0, n_modes)
     if _is_petsc_matrix(operator):
@@ -985,15 +1011,29 @@ def adjoint_eigenvalues(
         )
     adjoint_op = _build_adjoint_operator(operator, W_diag, invW_diag)
 
-    omega = complex(target)
+    if temporal:
+        # temporal_eigenvalues returns omega = eig(i*L0).
+        # adjoint_eigenvalues operates on W^{-1} L0^H W whose eigenvalues
+        # are lambda_adj = conj(eig(L0)) = conj(-i*omega) = i*conj(omega).
+        # To search near the adjoint eigenvalue corresponding to omega_target,
+        # convert: target_internal = i * conj(omega_target).
+        omega_internal = 1j * np.conj(complex(target))
+    else:
+        omega_internal = complex(target)
+
     eigenvalues, eigenvectors = _eigs_near_target(
         adjoint_op,
         n_modes,
-        omega,
+        omega_internal,
         ncv=ncv,
         solver_cfg=solver_cfg,
     )
-    eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega)
+    eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega_internal)
     eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
+
+    if temporal:
+        # Convert back to temporal omega convention:
+        # omega_temporal = -i * conj(lambda_adj)
+        eigenvalues = -1j * np.conj(eigenvalues)
 
     return eigenvalues, eigenvectors
