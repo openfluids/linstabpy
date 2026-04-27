@@ -440,6 +440,7 @@ def build_lnse_operator_petsc(
     m: float = 0,
     floquet_exp: float = 0.0,
     *,
+    dissipation_epsilon: float = 0.0,
     solver_cfg: dict | None = None,
 ) -> tuple["PETSc.Mat", dict]:
     """Build the pre-BC LNSE operator L0 directly as a PETSc AIJ matrix.
@@ -448,6 +449,13 @@ def build_lnse_operator_petsc(
     the final SciPy-assembled global matrix. It currently targets the same
     pre-BC operator returned by :func:`build_lnse_operator`.
     """
+    if dissipation_epsilon != 0.0:
+        raise NotImplementedError(
+            "Direct PETSc backend does not yet support dissipation_epsilon. "
+            'Use backend="auto" or "scipy", or implement Q_diss subtraction '
+            "in build_lnse_operator_petsc()."
+        )
+
     from ..utils.petsc_core import require_complex
 
     model_name = str(model).lower()
@@ -672,6 +680,7 @@ def build_lnse_system(
                 model=model,
                 m=m,
                 floquet_exp=floquet_exp,
+                dissipation_epsilon=dissipation_epsilon,
                 solver_cfg=solver_cfg,
             )
             with _assembly_stage("apply_bc") as stage:
