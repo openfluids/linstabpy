@@ -3,6 +3,38 @@ from __future__ import annotations
 import numpy as np
 
 
+def _postcheck_target_distance(
+    omega: np.ndarray,
+    target: complex,
+    *,
+    conjugate_aware: bool,
+) -> np.ndarray:
+    """Per-mode distance from the shift-invert target, optionally conjugate-aware.
+
+    Background
+    ----------
+    For a real-valued baseflow, the linearised Navier-Stokes operator ``L`` has
+    real matrix entries. If ``(omega, v)`` is an eigenpair, then conjugating
+    both sides of ``L v = omega v`` gives ``L conj(v) = conj(omega) conj(v)``,
+    so ``(conj(omega), conj(v))`` is also an eigenpair. The two are the same
+    physical instability wave in two complex representations.
+
+    When ``conjugate_aware=True``, the distance becomes::
+
+        min(|omega - target|, |omega - conj(target)|)
+
+    so the conjugate partner passes the same target-distance gate as the
+    primary branch. Use ``conjugate_aware=False`` for complex operators where
+    the real-``L`` conjugate symmetry no longer applies.
+    """
+    omega_arr = np.asarray(omega, dtype=complex)
+    direct = np.abs(omega_arr - complex(target))
+    if not conjugate_aware:
+        return direct
+    conj_dist = np.abs(omega_arr - np.conjugate(complex(target)))
+    return np.minimum(direct, conj_dist)
+
+
 def evaluate_stability_acceptance(
     omega: np.ndarray,
     postcheck_residual_rel: np.ndarray,
@@ -187,3 +219,155 @@ def evaluate_stability_acceptance(
         result["accepted_omega_imag_max"] = float(np.max(np.imag(accepted_omega)))
 
     return result
+
+
+def check_conjugate_pair_completeness(
+    omega: np.ndarray,
+    accepted_indices: np.ndarray,
+    *,
+    pair_tol_imag: float = 1e-10,
+    pair_tol_real: float = 1e-6,
+    pair_tolerance: float = 1e-6,
+) -> dict[str, np.ndarray]:
+    """Diagnostic: check whether accepted complex modes have conjugate partners.
+
+    For each accepted mode with nonzero real and imaginary parts, search all
+    returned eigenvalues for its complex-conjugate partner. This reports
+    incomplete pairs without changing the accepted or rejected sets.
+    """
+    omega_arr = np.asarray(omega, dtype=complex).reshape(-1)
+    accepted_arr = np.asarray(accepted_indices, dtype=np.int64).reshape(-1)
+    accepted_mask = np.zeros(omega_arr.size, dtype=bool)
+    valid_accepted = accepted_arr[(accepted_arr >= 0) & (accepted_arr < omega_arr.size)]
+    accepted_mask[valid_accepted] = True
+
+    missing_partner_indices: list[int] = []
+    partner_rejected_indices: list[int] = []
+
+    for idx in valid_accepted:
+        value = omega_arr[idx]
+        if abs(np.imag(value)) <= pair_tol_imag or abs(np.real(value)) <= pair_tol_real:
+            continue
+
+        distances = np.abs(omega_arr - np.conjugate(value))
+        distances[idx] = np.inf
+        partner_candidates = np.flatnonzero(np.isfinite(distances) & (distances <= pair_tolerance))
+
+        if partner_candidates.size == 0:
+            missing_partner_indices.append(int(idx))
+        elif not np.any(accepted_mask[partner_candidates]):
+            partner_rejected_indices.append(int(idx))
+
+    return {
+        "missing_partner_indices": np.asarray(missing_partner_indices, dtype=np.int32),
+        "partner_rejected_indices": np.asarray(partner_rejected_indices, dtype=np.int32),
+    }
+
+
+def postcheck_target_distance(
+    omega: np.ndarray,
+    target: complex,
+    *,
+    conjugate_aware: bool,
+) -> np.ndarray:
+    """Per-mode distance from the shift-invert target, optionally conjugate-aware.
+
+    For a real-valued baseflow the linearised operator L has real entries, so
+    (omega, v) and (conj(omega), conj(v)) are both eigenpairs. When
+    ``conjugate_aware=True`` the distance metric becomes::
+
+        min(|omega - target|, |omega - conj(target)|)
+
+    so the conjugate partner of the target passes the same gate as the primary.
+    On a complex baseflow set ``conjugate_aware=False`` to use raw Euclidean
+    distance ``|omega - target|``.
+
+    Parameters
+    ----------
+    omega : np.ndarray
+        Complex temporal eigenvalues.
+    target : complex
+        The SLEPc shift-invert target sigma.
+    conjugate_aware : bool
+        Whether to use the conjugate-aware minimum-distance metric.
+
+    Returns
+    -------
+    np.ndarray
+        Float array of distances, same shape as ``omega``.
+    """
+    direct = np.abs(omega - target)
+    if not conjugate_aware:
+        return direct
+    conj_target = np.conjugate(target)
+    conj_dist = np.abs(omega - conj_target)
+    return np.minimum(direct, conj_dist)
+
+
+def check_conjugate_pair_completeness(
+    omega: np.ndarray,
+    accepted_indices: np.ndarray,
+    *,
+    pair_tol_imag: float = 1e-10,
+    pair_tol_real: float = 1e-6,
+    pair_tolerance: float = 1e-6,
+) -> dict[str, np.ndarray]:
+    """Diagnostic: check whether accepted complex modes have their conjugate partners.
+
+    For each accepted mode with ``|Im(omega)| > pair_tol_imag`` AND
+    ``|Re(omega)| > pair_tol_real`` (i.e., genuinely off both axes), search
+    ALL returned omegas for a conjugate partner within ``pair_tolerance``.
+
+    Does NOT modify the accepted/rejected sets. Pure diagnostic.
+
+    Parameters
+    ----------
+    omega : np.ndarray
+        All returned complex eigenvalues (not just accepted ones).
+    accepted_indices : np.ndarray
+        Integer indices into ``omega`` of the accepted modes.
+    pair_tol_imag : float
+        Minimum |Im(omega)| for a mode to be considered a conjugate-pair candidate.
+    pair_tol_real : float
+        Minimum |Re(omega)| for a mode to be considered a conjugate-pair candidate.
+    pair_tolerance : float
+        Maximum distance between an eigenvalue and its expected conjugate partner
+        for the partner to be considered found.
+
+    Returns
+    -------
+    dict with keys:
+    - ``missing_partner_indices`` : int32 array of accepted-mode indices whose
+      conjugate partner was not found anywhere in ``omega``.
+    - ``partner_rejected_indices`` : int32 array of accepted-mode indices whose
+      conjugate partner exists in ``omega`` but was not accepted.
+    """
+    omega_arr = np.asarray(omega, dtype=complex).reshape(-1)
+    accepted_idx = np.asarray(accepted_indices, dtype=np.int32).reshape(-1)
+    accepted_set = set(int(i) for i in accepted_idx)
+
+    missing: list[int] = []
+    partner_rejected: list[int] = []
+
+    for ai in accepted_idx:
+        oi = omega_arr[int(ai)]
+        if abs(np.imag(oi)) <= pair_tol_imag or abs(np.real(oi)) <= pair_tol_real:
+            # On real or imaginary axis — no conjugate-pair obligation.
+            continue
+        conj_oi = np.conj(oi)
+        # Search ALL omegas for the conjugate partner.
+        dists = np.abs(omega_arr - conj_oi)
+        # Exclude self (the mode itself is not its own partner when off-axis).
+        close = np.flatnonzero(dists <= pair_tolerance)
+        # Remove self from candidates.
+        close = close[close != int(ai)]
+        if close.size == 0:
+            missing.append(int(ai))
+        elif not any(int(c) in accepted_set for c in close):
+            partner_rejected.append(int(ai))
+        # else: partner found AND accepted — pair complete, nothing to record.
+
+    return {
+        "missing_partner_indices": np.array(missing, dtype=np.int32),
+        "partner_rejected_indices": np.array(partner_rejected, dtype=np.int32),
+    }
