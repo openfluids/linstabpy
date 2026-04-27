@@ -214,9 +214,10 @@ def make_linear_solver(
                             f"Invalid {env_prefix}_PC_FACTOR_SHIFT_TYPE "
                             f"{pc_factor_shift_type!r}; expected one of {sorted(shift_map)}"
                         )
-                    sub_pc.setFactorShiftType(shift_map[pc_factor_shift_type])
-                    if pc_factor_shift_type != "none":
-                        sub_pc.setFactorShiftAmount(pc_factor_shift_amount)
+                    sub_pc.setFactorShift(
+                        shift_map[pc_factor_shift_type],
+                        pc_factor_shift_amount if pc_factor_shift_type != "none" else 0.0,
+                    )
                 if sub_pc_type in {"ilu", "icc"}:
                     sub_pc.setFactorLevels(pc_factor_levels)
                 sub_pc.setUp()
