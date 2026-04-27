@@ -382,6 +382,49 @@ class TestCylindricalCoefficients:
         np.testing.assert_allclose(cyl.Ayy, cart.Ayy, atol=1e-3)
 
 
+    def test_axis_regularization_uses_mesh_spacing_floor(self):
+        """R=0 axis singularity is regularized with local mesh spacing, not 1e-14.
+
+        With the 1e-14 floor, 1/R² near the axis could reach ~10²⁸.  The fix
+        clips R to the smallest positive inter-node gap, so 1/R stays O(1/dr).
+        We verify:
+        1. No NaN or Inf in any coefficient for a grid that includes R=0.
+        2. The effective floor is >= the minimum inter-node spacing (>> 1e-14).
+        """
+        ngp = 10
+        # Grid with the axis (R=0) as the first point
+        R_axis = np.linspace(0.0, 1.0, ngp)
+        z = np.zeros(ngp)
+        Ma = 0.3
+        kappa = 1.4
+        U, V, W, RHO, T, MU, _ = _uniform_scalars(ngp, kappa=kappa, Ma=Ma)
+        coeffs = compute_cylindrical_coefficients(
+            U, V, W, R_axis, RHO, T, MU, m=0,
+            Re=1e5, Ma=Ma, Pr=0.72, kappa=kappa,
+            dUdr=z, dVdr=z, dWdr=z, dRHOdr=z, dTdr=z,
+            dUdz=z, dVdz=z, dWdz=z, dRHOdz=z, dTdz=z,
+            d2Udr2=z, d2Vdr2=z, d2Wdr2=z, d2Tdr2=z,
+            d2Udz2=z, d2Vdz2=z, d2Wdz2=z, d2Tdz2=z,
+            d2Udrz=z, d2Vdrz=z, d2Wdrz=z,
+            dmudT=z, d2mudT2=z,
+        )
+        for attr in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+            arr = getattr(coeffs, attr)
+            assert np.all(np.isfinite(arr)), (
+                f"{attr} contains non-finite values when R includes axis (R=0)"
+            )
+        # The smallest axis-normal value should be bounded by 1/dr, not 1e-14
+        # i.e. max(|1/R_regularised|) <= 1/dr_min + small tolerance
+        dr_min = float(np.min(np.diff(R_axis[R_axis > 0]))) if np.any(R_axis > 0) else 1.0
+        max_abs_A0 = float(np.max(np.abs(coeffs.A0)))
+        # Sanity: the largest coefficient must not be astronomically large
+        threshold = 1.0 / dr_min * 1e4   # generous factor for combined coefficients
+        assert max_abs_A0 < threshold, (
+            f"max|A0| = {max_abs_A0:.3e} exceeds 1/dr threshold {threshold:.3e}; "
+            "axis regularization may be using 1e-14 floor instead of mesh spacing"
+        )
+
+
 # =========================================================================
 # TestOperatorAssembly
 # =========================================================================

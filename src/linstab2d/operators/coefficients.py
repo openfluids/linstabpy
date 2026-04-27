@@ -752,7 +752,22 @@ def compute_cylindrical_coefficients(
     # Step 1: Build derived coefficients from physical thermodynamic inputs.
     # ------------------------------------------------------------------
     R = np.asarray(R, dtype=float)
-    R = np.maximum(R, 1e-14)
+    # Regularize the axis singularity using the local radial mesh spacing as
+    # a floor.  The hard-coded 1e-14 floor allows 1/R² ~ 10²⁸, which can
+    # produce large spurious coefficients near the axis.  Using the smallest
+    # positive gap between adjacent r-values caps 1/R at O(1/dr) and
+    # 1/R² at O(1/dr²) --- values that are physically meaningful at the
+    # numerical resolution of the mesh.  For off-axis grids with no
+    # near-zero radii this max is a no-op.
+    R_sorted = np.sort(R[R > 0])
+    if R_sorted.size >= 2:
+        dr_min = float(np.min(np.diff(R_sorted)))
+    elif R_sorted.size == 1:
+        dr_min = float(R_sorted[0])
+    else:
+        dr_min = 1e-14  # fallback: no positive R values (degenerate grid)
+    dr_floor = max(dr_min, 1e-14)
+    R = np.maximum(R, dr_floor)
     c1 = (kappa - 1.0) * Re * Pr * Ma**2
     c2 = kappa * Ma**2
     cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
