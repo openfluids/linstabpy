@@ -29,6 +29,8 @@ build/
 .venv/
 artifacts/
 output/
+# Case 2 generated run artifacts can contain local absolute paths.
+studies/case2/output/
 .DS_Store
 .beads/
 gmn_*.json
