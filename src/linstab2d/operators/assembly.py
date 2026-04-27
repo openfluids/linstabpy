@@ -1433,6 +1433,17 @@ def _apply_inv_B_petsc(
     from petsc4py import PETSc
     from ..utils.petsc_core import petsc_to_scipy
 
+    # Hard-fail early: the axisymmetric path falls back to petsc_to_scipy which
+    # converts the distributed matrix to a local SciPy CSR (only valid on one
+    # rank).  Raise a clean error before any silent data corruption can occur.
+    if model == "axy" and L0.getComm().getSize() > 1:
+        raise RuntimeError(
+            "_apply_inv_B_petsc: model='axy' is not supported with distributed "
+            "PETSc matrices (comm size = %d).  Assemble with backend='scipy' "
+            "or run on a single MPI rank for axisymmetric resolvent/stability."
+            % L0.getComm().getSize()
+        )
+
     row_scaling = np.ones(5 * ngp, dtype=complex)
     if model == "2d":
         row_scaling[1*ngp:2*ngp] = 1.0 / RHO
