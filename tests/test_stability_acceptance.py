@@ -130,9 +130,9 @@ def test_conjugate_aware_distance_accepts_conjugate() -> None:
     # the actual distance array comes pre-computed from _postcheck_stability_modes.
     # So to test the full end-to-end B2/B3 path, we simulate what results_runtime does:
     # re-compute target_dist with conjugate awareness before calling evaluate_stability_acceptance.
-    from linstab2d.results_runtime import _postcheck_target_distance  # type: ignore[attr-defined]
+    from linstab2d.utils.stability_acceptance import postcheck_target_distance
 
-    target_dist_conj = _postcheck_target_distance(omega, target, conjugate_aware=True)
+    target_dist_conj = postcheck_target_distance(omega, target, conjugate_aware=True)
     result_conj = evaluate_stability_acceptance(
         omega,
         post_rel,
@@ -145,3 +145,26 @@ def test_conjugate_aware_distance_accepts_conjugate() -> None:
     np.testing.assert_array_equal(result_conj["accepted_indices"], np.array([0, 1], dtype=np.int32))
     np.testing.assert_array_equal(result_conj["rejected_indices"], np.array([2], dtype=np.int32))
     assert result_conj["acceptance_conjugate_aware"] is True
+
+
+def test_conjugate_pair_completeness() -> None:
+    """Fix #5: conjugate-pair completeness diagnostic."""
+    from linstab2d.utils.stability_acceptance import check_conjugate_pair_completeness
+
+    # Omega list: modes 0 and 1 are a conjugate pair, mode 2 has no partner in the list.
+    omega = np.array([0.5 + 1.0j, 0.5 - 1.0j, 3.0 + 2.0j], dtype=complex)
+    # Accepted: modes 0 and 2 only (mode 1 — the partner of mode 0 — was rejected).
+    accepted_indices = np.array([0, 2], dtype=np.int32)
+
+    result = check_conjugate_pair_completeness(omega, accepted_indices)
+
+    # Mode 0's partner (mode 1, conj = 0.5 - 1.0j) is found in omega but was rejected.
+    np.testing.assert_array_equal(
+        result["partner_rejected_indices"],
+        np.array([0], dtype=np.int32),
+    )
+    # Mode 2's partner (conj = 3.0 - 2.0j) does not exist in omega at all.
+    np.testing.assert_array_equal(
+        result["missing_partner_indices"],
+        np.array([2], dtype=np.int32),
+    )

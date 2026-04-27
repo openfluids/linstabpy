@@ -34,7 +34,37 @@ from linstab2d.solvers.resolvent import (
     resolvent_analysis,
 )
 from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.utils.stability_acceptance import evaluate_stability_acceptance
+from linstab2d.utils.stability_acceptance import (
+    _postcheck_target_distance,
+    check_conjugate_pair_completeness,
+    evaluate_stability_acceptance,
+)
+
+
+def _config_hash(config_dict: dict) -> str:
+    """Return a 64-char hex SHA-256 of the sorted-key JSON serialization."""
+    import hashlib
+    import json
+
+    return hashlib.sha256(json.dumps(config_dict, sort_keys=True).encode()).hexdigest()
+
+
+def _git_head_sha() -> str:
+    """Return the current git HEAD SHA, or 'unknown' on failure."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
 
 
 def _first_env(*names: str, default: str | None = None) -> str | None:
@@ -201,84 +231,6 @@ def _build_distributed_vec_from_global_array(mat: PETSc.Mat, values: np.ndarray)
     return vec
 
 
-def _postcheck_target_distance(
-    omega: np.ndarray,
-    target: complex,
-    *,
-    conjugate_aware: bool,
-) -> np.ndarray:
-    """Per-mode distance from the shift-invert target, optionally conjugate-aware.
-
-    Background
-    ----------
-    For a real-valued baseflow, the linearised Navier-Stokes operator ``L`` has
-    real matrix entries. If ``(omega, v)`` is an eigenpair, then conjugating
-    both sides of ``L v = omega v`` gives ``L conj(v) = conj(omega) conj(v)``,
-    so ``(conj(omega), conj(v))`` is also an eigenpair. The two are the **same**
-    physical instability wave in two complex representations — their sum is the
-    real, observable perturbation field. This pairing is a mathematical
-    consequence of ``L`` being real, not a numerical coincidence.
-
-    Why a non-conjugate-aware distance gate can drop half the physics
-    -----------------------------------------------------------------
-    SLEPc shift-invert returns a cloud of eigenvalues near a single complex
-    ``target`` shift ``sigma``. When the user picks
-    ``omega_target = omega_r + 1j * omega_i`` with ``omega_r != 0``, they sit
-    near ONE branch of the conjugate pair; the MIRROR branch at
-    ``conj(target)`` lives far from ``sigma`` in ``|omega - sigma|``. A
-    straight-Euclidean target-distance filter ``|omega - target| <= max`` then
-    systematically rejects the conjugate partner — losing half the physical
-    content of the spectrum.
-
-    When ``conjugate_aware=True``, the distance becomes::
-
-        min(|omega - target|, |omega - conj(target)|)
-
-    so the conjugate partner passes the same gate as the primary. On a real
-    baseflow this is the physically correct choice. On a complex baseflow
-    (Floquet-shifted, complex-valued base perturbation, etc.) it would
-    over-accept and should stay ``False``.
-
-    Scope: this flag only handles the ``(omega, conj(omega))`` symmetry.
-    Other spectral pairings you may encounter in 2D problems —
-    ``(omega, -omega)`` from z-reflection, ``(omega(beta), omega(-beta))``
-    from spanwise reflection — require different knobs because they are
-    different symmetries.
-
-    Parameters
-    ----------
-    omega : np.ndarray
-        Complex temporal eigenvalues. ``Re(omega)`` = oscillation frequency,
-        ``Im(omega)`` = growth/decay rate.
-    target : complex
-        The SLEPc shift-invert target ``sigma`` (the ``omega_target`` from
-        the JSONC config).
-    conjugate_aware : bool
-        Default in this project is ``True`` (set at the config-loading layer
-        in ``compute``) because every SWBLI baseflow we run is real-valued
-        and we want the conjugate partner of every oscillatory mode in the
-        accepted set. When ``True``, returns
-        ``min(|omega - target|, |omega - conj(target)|)``. When ``False``,
-        returns the raw Euclidean ``|omega - target|`` — use this only for
-        complex baseflows (Floquet, complex perturbation-tracking) where the
-        ``conj(L) = L`` symmetry is broken.
-
-    Returns
-    -------
-    np.ndarray
-        Float array of distances, same shape as ``omega``.
-    """
-    direct = np.abs(omega - target)
-    if not conjugate_aware:
-        return direct
-    # Real-baseflow conjugate partner of the target lives at conj(target).
-    # Any eigenvalue closer to that partner than to the target itself is
-    # the conjugate branch we care about — admit it under the same gate.
-    conj_target = np.conjugate(target)
-    conj_dist = np.abs(omega - conj_target)
-    return np.minimum(direct, conj_dist)
-
-
 def _postcheck_stability_modes(
     L0: sp.spmatrix | PETSc.Mat,
     omega: np.ndarray,
@@ -441,6 +393,9 @@ def compute() -> None:
         )
     ):
         raise FileNotFoundError(f"case config file not found: {config_path}")
+
+    config_hash = _config_hash(config)
+    git_sha = _git_head_sha()
 
     def cfg(path: str, default):
         node = config
@@ -705,6 +660,7 @@ def compute() -> None:
             "T_j": np.arange(4 * mesh.ngp, 5 * mesh.ngp, dtype=np.int64),
         }
         bc_indices = np.array([], dtype=np.int64)
+        L0_resolv = L0
     else:
         stage_start = time.perf_counter()
         _log("assembling LNSE operator")
@@ -723,6 +679,45 @@ def compute() -> None:
         nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
         _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
         _log_stage("assemble_operator_bc", stage_start)
+        if run_resolvent and eps_resolv != eps_stab:
+            stage_start = time.perf_counter()
+            _log(
+                "assembling separate resolvent LNSE operator "
+                f"(dissipation_epsilon={eps_resolv})"
+            )
+            with _stage_heartbeat(
+                "assemble_resolvent_operator_bc",
+                interval_seconds=heartbeat_seconds,
+            ):
+                L0_resolv, _, _ = build_lnse_system(
+                    mesh,
+                    baseflow,
+                    kx=beta,
+                    model="2D",
+                    bc_recipe=bc_recipe,
+                    bc_penalty=penalty,
+                    backend=assembly_backend,
+                    solver_cfg=solver_cfg,
+                    dissipation_epsilon=eps_resolv,
+                )
+            nnz_resolv = (
+                int(L0_resolv.getInfo()["nz_used"])
+                if hasattr(L0_resolv, "getInfo")
+                else int(L0_resolv.nnz)
+            )
+            _log(
+                "resolvent operator assembled with BCs: "
+                f"shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz_resolv}"
+            )
+            _log_stage("assemble_resolvent_operator_bc", stage_start)
+        elif run_resolvent:
+            L0_resolv = L0
+            _log(
+                "reusing stability LNSE operator for resolvent "
+                f"(eps_stab == eps_resolv == {eps_stab})"
+            )
+        else:
+            L0_resolv = L0
 
     bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
     effective_dirichlet_indices = np.asarray(
@@ -792,11 +787,11 @@ def compute() -> None:
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[total_bc_indices] = 0.0
         B_mat_sp = sp.diags(B_diag, format="csc")
-        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0, "getInfo") else B_mat_sp
+        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0_resolv, "getInfo") else B_mat_sp
         C_mat = B_mat.copy()
         with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
             gains, responses, forcings = resolvent_analysis(
-                L0,
+                L0_resolv,
                 omega_target,
                 n_modes_resolvent,
                 W_diag,
@@ -815,7 +810,7 @@ def compute() -> None:
                 "resolvent_postcheck", interval_seconds=heartbeat_seconds
             ):
                 resolvent_rho_fwd, resolvent_rho_adj = compute_resolvent_svd_residuals(
-                    L0,
+                    L0_resolv,
                     omega_target,
                     B_mat,
                     C_mat,
@@ -1045,6 +1040,21 @@ def compute() -> None:
                 f"omega_real_abs_max={stability_acceptance_omega_real_abs_max:.3e} "
                 f"omega_imag_abs_max={stability_acceptance_omega_imag_abs_max:.3e}"
             )
+        # ------------------------------------------------------------------
+        # Conjugate-pair completeness diagnostic (Fix #5).
+        # Pure diagnostic: does NOT modify accepted/rejected sets.
+        # ------------------------------------------------------------------
+        _accepted_idx_for_diag = np.asarray(
+            stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+            dtype=np.int32,
+        )
+        _conj_diag = check_conjugate_pair_completeness(omega, _accepted_idx_for_diag)
+        if _conj_diag["missing_partner_indices"].size > 0:
+            _log(
+                f"warning: {_conj_diag['missing_partner_indices'].size} accepted mode(s) "
+                "have no conjugate partner in returned spectrum: "
+                f"indices={_conj_diag['missing_partner_indices'].tolist()}"
+            )
         with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
             np.savez_compressed(
                 output_npz,
@@ -1185,6 +1195,15 @@ def compute() -> None:
                 numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
                 numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
                 solver_eigen_st_solver_used=str(st_solver),
+                solver_apply_to_resolvent_effective=np.bool_(eps_resolv > 0.0),
+                provenance_config_hash=np.bytes_(config_hash[:16].encode()),
+                provenance_linstabpy_git_sha=np.bytes_(git_sha.encode()),
+                stability_missing_conjugate_partner_indices=np.asarray(
+                    _conj_diag["missing_partner_indices"], dtype=np.int32
+                ),
+                stability_partner_rejected_indices=np.asarray(
+                    _conj_diag["partner_rejected_indices"], dtype=np.int32
+                ),
             )
         _log_stage("save_results", stage_start)
     elapsed = time.perf_counter() - t0
@@ -1199,12 +1218,74 @@ def main() -> None:
     rank = comm.getRank()
     output_npz = _output_npz_path()
     need_recompute = False
+
+    force_recompute = os.getenv("LINSTAB2D_FORCE_RECOMPUTE", "").strip() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
     if rank == 0:
-        try:
-            np.load(output_npz, allow_pickle = False)
-        except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
-            print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+        if force_recompute:
+            print("LINSTAB2D_FORCE_RECOMPUTE set: skipping cache check.")
             need_recompute = True
+        else:
+            try:
+                data = np.load(output_npz, allow_pickle=False)
+            except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
+                print(f"Cached results unavailable or invalid ({exc}), recomputing.")
+                need_recompute = True
+            else:
+                try:
+                    config_path_raw = _first_env(
+                        "LINSTAB2D_CASE_CONFIG",
+                        "LINSTAB2D_CASE2_CONFIG",
+                        "LINSTAB2D_CASE1_CONFIG",
+                    )
+                    if config_path_raw is not None:
+                        current_config = load_jsonc(Path(config_path_raw))
+                        current_hash = _config_hash(current_config)[:16]
+                        current_sha = _git_head_sha()
+                        cached_hash = data.get(
+                            "provenance_config_hash",
+                            np.bytes_(b""),
+                        ).item().decode("utf-8", errors="replace")
+                        cached_sha = data.get(
+                            "provenance_linstabpy_git_sha",
+                            np.bytes_(b""),
+                        ).item().decode("utf-8", errors="replace")
+                        if cached_hash != current_hash:
+                            print(
+                                "Config hash mismatch "
+                                f"(cached={cached_hash!r}, current={current_hash!r}), "
+                                "recomputing."
+                            )
+                            need_recompute = True
+                        elif (
+                            cached_sha != current_sha
+                            and cached_sha not in {"", "unknown"}
+                            and current_sha != "unknown"
+                        ):
+                            print(
+                                "Git SHA mismatch "
+                                f"(cached={cached_sha!r}, current={current_sha!r}), "
+                                "recomputing."
+                            )
+                            need_recompute = True
+                        else:
+                            print(
+                                f"Cache valid (hash={cached_hash!r}, sha={cached_sha!r}), "
+                                "using cached results."
+                            )
+                    else:
+                        # No config path available to check; trust cache.
+                        pass
+                except Exception as exc:
+                    print(f"Cache validation failed ({exc}), recomputing.")
+                    need_recompute = True
+                finally:
+                    data.close()
     need_recompute = MPI.COMM_WORLD.bcast(need_recompute, root=0)
     if need_recompute:
         compute()
