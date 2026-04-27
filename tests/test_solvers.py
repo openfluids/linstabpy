@@ -39,6 +39,7 @@ from linstab2d.solvers import (
     adjoint_eigenvalues,
     spatial_eigenvalues,
 )
+from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals
 from linstab2d.solvers.eigenvalue import (
     _resolve_ncv as _resolve_temporal_ncv,
     _sort_nearest as _sort_temporal_nearest,
@@ -388,6 +389,31 @@ class TestResolventAnalysis:
         ndof = L0.shape[0]
         assert responses.shape == (ndof, 3)
 
+    def test_resolvent_svd_residual_norm(self, blasius_problem):
+        """W-norm denominator: residuals must be finite and small for converged modes.
+
+        compute_resolvent_svd_residuals uses ||v_i||_W in the denominator.
+        For W-normalised forcing modes ||v_i||_W == 1, so rho_fwd and rho_adj
+        must be well-conditioned.  rho_fwd is near eps by construction;
+        rho_adj tests the adjoint half and must be below a loose tolerance.
+        """
+        _, _, L0, _, ngp, W_diag, invW_diag = blasius_problem
+        solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+        gains, responses, forcings = resolvent_analysis(
+            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+        )
+        rho_fwd, rho_adj = compute_resolvent_svd_residuals(
+            L0, omega=60.0, B_mat=None, C_mat=None,
+            gains=gains, forcings=forcings, responses=responses,
+            W_diag=W_diag, solver_cfg=solver_cfg,
+        )
+        assert np.all(np.isfinite(rho_fwd)), "rho_fwd contains non-finite values"
+        assert np.all(np.isfinite(rho_adj)), "rho_adj contains non-finite values"
+        # Forward residual: near machine eps by construction
+        assert np.all(rho_fwd < 1e-10), f"rho_fwd unexpectedly large: {rho_fwd}"
+        # Adjoint residual: converges to EPS tolerance for correct solutions
+        assert np.all(rho_adj < 1e-6), f"rho_adj unexpectedly large: {rho_adj}"
+
 
 # ---------------------------------------------------------------------------
 # Temporal eigenvalues
@@ -727,6 +753,38 @@ class TestAdjointEigenvalues:
                 )
         finally:
             L0_petsc.destroy()
+
+    def test_adjoint_temporal_scaling(self, blasius_problem):
+        """temporal=True flag should return conj(direct_omegas).
+
+        When adjoint_eigenvalues is called with temporal=True and the same
+        target as temporal_eigenvalues, the returned eigenvalues should be
+        np.conj(direct_omegas) (up to spectral-neighborhood ordering).
+        """
+        _, _, L0, _, _, W_diag, invW_diag = blasius_problem
+        omega_d, _ = temporal_eigenvalues(L0, n_modes=3, target=-0.1j)
+        # Search the adjoint in temporal convention around the first direct omega
+        omega_a, _ = adjoint_eigenvalues(
+            L0,
+            n_modes=6,
+            target=omega_d[0],
+            W_diag=W_diag,
+            invW_diag=invW_diag,
+            temporal=True,
+        )
+        # Each direct omega should have a conjugate partner in the adjoint set
+        matched = 0
+        for od in omega_d:
+            expected = np.conj(od)
+            dists = np.abs(omega_a - expected)
+            if np.min(dists) < 1e-4:
+                matched += 1
+        assert matched >= 1, (
+            f"temporal=True: no adjoint omega matched conj(direct_omega).\n"
+            f"  direct omegas  = {omega_d}\n"
+            f"  expected conj  = {np.conj(omega_d)}\n"
+            f"  adjoint omegas = {omega_a}"
+        )
 
 
 # ---------------------------------------------------------------------------

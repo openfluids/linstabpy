@@ -7,9 +7,7 @@ import numpy as np
 
 def reconstruct_floquet(
     X: np.ndarray,
-    Y: np.ndarray,
     V: np.ndarray,
-    idx: dict[str, np.ndarray],
     used_ind: np.ndarray,
     floquet_exp: float,
 ) -> np.ndarray:
@@ -17,7 +15,7 @@ def reconstruct_floquet(
 
     Parameters
     ----------
-    X, Y : ndarray
+    X : ndarray
         Coordinates of the computational domain.
     V : ndarray
         Mode values on active grid points. Accepts:
@@ -25,13 +23,10 @@ def reconstruct_floquet(
         - 1-D array of length ``len(used_ind)``.
         - 2-D array where one axis has length ``len(used_ind)``; the
           other axis is treated as an ensemble axis.
-    idx : dict
-        Boundary index map from the mesh (used for compatibility; currently
-        accepted but not required for reconstruction).
     used_ind : ndarray
         Active-point indices into ``np.ravel(X, order='F')``.
     floquet_exp : float
-        Floquet exponent ``β`` used in the phase ``exp(i β x)``.
+        Floquet exponent ``beta`` used in the phase ``exp(i beta x)``.
 
     Returns
     -------
@@ -39,9 +34,6 @@ def reconstruct_floquet(
         Reconstructed array shaped like ``X`` (for 1-D input) or
         ``(num_fields, ny, nx)`` for ensemble input.
     """
-    _ = Y  # retained for signature parity with MATLAB reconstruction helpers
-    _ = idx
-
     x_phase = np.exp(1j * floquet_exp * np.asarray(X, dtype=float))
     used_ind = np.asarray(used_ind, dtype=int)
     flat_active = np.asarray(V, dtype=complex)
