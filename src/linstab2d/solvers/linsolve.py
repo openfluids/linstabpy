@@ -154,6 +154,15 @@ def make_linear_solver(
         sub_ksp_type = _scfg(_sub, "sub_ksp_type", f"{env_prefix}_SUB_KSP_TYPE", "preonly")
         sub_pc_type = _scfg(_sub, "sub_pc_type", f"{env_prefix}_SUB_PC_TYPE", "lu")
         pc_factor_levels = _scfg_int(_sub, "pc_factor_levels", f"{env_prefix}_PC_FACTOR_LEVELS", 0)
+        # Default to NONZERO pivot shift for ILU/ICC sub-PCs: prevents NaN/Inf
+        # in FGMRES inner products when PC factorization hits near-zero pivots
+        # on stiff non-normal LNSE operators. PETSc default (NONE) is fragile.
+        pc_factor_shift_type = _scfg(
+            _sub, "pc_factor_shift_type", f"{env_prefix}_PC_FACTOR_SHIFT_TYPE", "nonzero"
+        )
+        pc_factor_shift_amount = _scfg_float(
+            _sub, "pc_factor_shift_amount", f"{env_prefix}_PC_FACTOR_SHIFT_AMOUNT", 1e-12
+        )
 
         ksp.setType(ksp_type)
         if pc_side == "left":
@@ -193,6 +202,21 @@ def make_linear_solver(
                 sub_ksp.setErrorIfNotConverged(True)
                 sub_pc = sub_ksp.getPC()
                 sub_pc.setType(sub_pc_type)
+                if sub_pc_type in {"ilu", "icc", "lu"}:
+                    shift_map = {
+                        "none": PETSc.Mat.FactorShiftType.NONE,
+                        "nonzero": PETSc.Mat.FactorShiftType.NONZERO,
+                        "positive_definite": PETSc.Mat.FactorShiftType.POSITIVE_DEFINITE,
+                        "inblocks": PETSc.Mat.FactorShiftType.INBLOCKS,
+                    }
+                    if pc_factor_shift_type not in shift_map:
+                        raise ValueError(
+                            f"Invalid {env_prefix}_PC_FACTOR_SHIFT_TYPE "
+                            f"{pc_factor_shift_type!r}; expected one of {sorted(shift_map)}"
+                        )
+                    sub_pc.setFactorShiftType(shift_map[pc_factor_shift_type])
+                    if pc_factor_shift_type != "none":
+                        sub_pc.setFactorShiftAmount(pc_factor_shift_amount)
                 if sub_pc_type in {"ilu", "icc"}:
                     sub_pc.setFactorLevels(pc_factor_levels)
                 sub_pc.setUp()
@@ -205,7 +229,8 @@ def make_linear_solver(
 
         logger.info(
             "Linear solver: iterative (n=%d, nnz=%d, ksp=%s, pc=%s, side=%s, "
-            "asm_overlap=%d, sub_ksp=%s, sub_pc=%s, fill_levels=%s, rtol=%g, max_it=%d)",
+            "asm_overlap=%d, sub_ksp=%s, sub_pc=%s, fill_levels=%s, "
+            "shift_type=%s, shift_amount=%g, rtol=%g, max_it=%d)",
             n,
             nnz,
             ksp_type,
@@ -215,6 +240,8 @@ def make_linear_solver(
             sub_ksp_type if realized_sub_pc_type is not None else "n/a",
             realized_sub_pc_type if realized_sub_pc_type is not None else "n/a",
             realized_factor_levels if realized_factor_levels is not None else "n/a",
+            pc_factor_shift_type if realized_sub_pc_type in {"ilu", "icc", "lu"} else "n/a",
+            pc_factor_shift_amount if pc_factor_shift_type != "none" else 0.0,
             ksp_rtol,
             ksp_max_it,
         )
