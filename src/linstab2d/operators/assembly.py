@@ -3,6 +3,28 @@
 Translates GetLinProblem.m: assembles the 5*ngp × 5*ngp linear operator
 L0 such that dq/dt = L0 @ q, with eig(i*L0) = omega_code = -omega_OS.
 Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
+
+PETSc assembly sequencing
+-------------------------
+The PETSc operator pipeline applies transformations in a fixed order that
+cannot be permuted.  The canonical sequence inside
+``build_lnse_operator_petsc`` is:
+
+1. ``_assemble_block_operator_petsc`` — builds the raw LNSE block matrix
+   L_raw from coefficient arrays and FD stencil matrices.
+2. ``_apply_inv_B_petsc`` — applies the analytical ``inv(B/1j)`` left
+   scaling row-by-row, converting L_raw to the B-preconditioned form
+   L0 = inv(B/1j) @ L_raw.  This step must come before the sponge and
+   artificial dissipation additions, which add to L0 rather than to L_raw.
+3. Sponge layer addition — adds the diagonal sponge damping to L0.
+4. Artificial dissipation addition — adds the FD dissipation operator to L0.
+5. ``apply_bc_recipe`` / ``apply_bc_recipe_petsc`` — overwrites boundary
+   rows of L0 with the chosen boundary conditions.  This must be the
+   last step: BC rows must not be touched by subsequent sponge or
+   dissipation additions.
+
+This ordering is non-interchangeable.  Applying BCs before inv(B) scaling
+would corrupt the BC rows; applying inv(B) after BCs would overwrite them.
 """
 
 from __future__ import annotations
@@ -1429,7 +1451,21 @@ def _apply_inv_B_petsc(
     kappa: float,
     Ma: float,
 ) -> None:
-    """Apply the analytical ``inv(B/1j)`` left scaling directly to PETSc rows."""
+    """Apply the analytical ``inv(B/1j)`` left scaling directly to PETSc rows.
+
+    This is step 2 of the PETSc assembly sequence (see module docstring).
+    It must be called after ``_assemble_block_operator_petsc`` and before
+    the sponge, dissipation, and boundary-condition steps.
+
+    For ``model='2d'``: the inverse B matrix is block-diagonal and applied
+    via PETSc diagonal scaling --- efficient and parallel-safe.
+
+    For ``model='axy'``: the lower-triangular inv(B) couples different
+    variable blocks, so the matrix is first converted to SciPy CSR on rank 0,
+    transformed in scipy, then rebuilt as a PETSc AIJ matrix.  This path
+    requires a sequential (single-rank) PETSc matrix; it raises
+    ``RuntimeError`` for distributed matrices.
+    """
     from petsc4py import PETSc
     from ..utils.petsc_core import petsc_to_scipy
 
