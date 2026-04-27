@@ -274,6 +274,63 @@ def test_spatial_resolve_ncv_respects_requested_subspace() -> None:
     assert _resolve_spatial_ncv(ndof=120, n_modes=50, default_ncv=200, requested_ncv=300) == 119
 
 
+def test_adjoint_temporal_scaling() -> None:
+    """temporal=True returns adjoint eigenvalues in the temporal convention."""
+    diag = np.array([1.0, 2.0, 3.0], dtype=float)
+    L0 = sp.diags(diag, format="csc", dtype=complex)
+    W_diag = np.ones(diag.size)
+    invW_diag = np.ones(diag.size)
+    target = 2.2j
+
+    direct_omegas, _ = temporal_eigenvalues(L0, n_modes=2, target=target)
+    adjoint_omegas, _ = adjoint_eigenvalues(
+        L0,
+        n_modes=2,
+        target=target,
+        W_diag=W_diag,
+        invW_diag=invW_diag,
+        temporal=True,
+    )
+
+    expected = np.conj(direct_omegas)
+    rows, cols = linear_sum_assignment(
+        np.abs(adjoint_omegas[:, None] - expected[None, :])
+    )
+    np.testing.assert_allclose(adjoint_omegas[rows], expected[cols], atol=1e-12)
+
+
+def test_resolvent_svd_residual_norm() -> None:
+    """SVD residuals use the forcing W-norm in the denominator."""
+    diag = -np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
+    L0 = sp.diags(diag, format="csc", dtype=complex)
+    W_diag = np.array([1.0, 2.0, 0.5, 1.5, 3.0])
+    solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+
+    gains, responses, forcings = resolvent_analysis(
+        L0,
+        omega=0.25,
+        n_modes=2,
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+    rho_fwd, rho_adj = compute_resolvent_svd_residuals(
+        L0,
+        omega=0.25,
+        B_mat=None,
+        C_mat=None,
+        gains=gains,
+        forcings=forcings,
+        responses=responses,
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+
+    assert np.all(np.isfinite(rho_fwd))
+    assert np.all(np.isfinite(rho_adj))
+    assert np.all(rho_fwd < 1e-10), f"rho_fwd unexpectedly large: {rho_fwd}"
+    assert np.all(rho_adj < 1e-6), f"rho_adj unexpectedly large: {rho_adj}"
+
+
 # ---------------------------------------------------------------------------
 # Resolvent analysis
 # ---------------------------------------------------------------------------
