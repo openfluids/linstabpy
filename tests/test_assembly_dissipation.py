@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 import scipy.sparse as sp
+import pytest
 
 _NX = 20
 _NY = 15
@@ -160,3 +161,33 @@ class TestDissipationPositiveCorrectness:
             f"epsilon > 0 with no Q_diss unexpectedly changed the operator: "
             f"max diff = {max_diff:.2e}"
         )
+
+
+def test_petsc_backend_rejects_dissipation():
+    """build_lnse_operator_petsc must raise NotImplementedError when dissipation_epsilon > 0."""
+    pytest.importorskip("petsc4py", reason="petsc4py not available")
+    from linstab2d.operators.assembly import build_lnse_operator_petsc
+    from linstab2d.mesh import Mesh
+    from linstab2d.baseflow import BaseFlow, sutherland_air
+    import pytest as _pytest
+
+    mesh = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(0.0, 1.0),
+        nx=10,
+        ny=8,
+        fd_order=4,
+        numerics_operator_dissipation={"enabled": True, "order_diss": 4},
+    )
+    ny, nx = mesh.X.shape
+    ones = np.ones((ny, nx))
+    zeros = np.zeros((ny, nx))
+    bf = BaseFlow(
+        Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
+        RHO=ones.copy(), U=ones.copy(), V=zeros.copy(),
+        W=zeros.copy(), T=ones.copy(),
+    )
+    sutherland_air(bf)
+
+    with _pytest.raises(NotImplementedError, match="dissipation_epsilon"):
+        build_lnse_operator_petsc(mesh, bf, dissipation_epsilon=1.0)

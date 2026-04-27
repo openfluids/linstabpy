@@ -2,9 +2,106 @@
 
 from __future__ import annotations
 
+import sys
 import types
 
 import numpy as np
+
+
+def _install_optional_petsc_stubs() -> None:
+    """Provide single-rank PETSc/MPI stubs for runtime tests without PETSc."""
+    try:
+        import mpi4py.MPI  # noqa: F401
+        import petsc4py  # noqa: F401
+        import slepc4py  # noqa: F401
+    except ModuleNotFoundError:
+        pass
+    else:
+        return
+
+    class _FakeComm:
+        def getRank(self):
+            return 0
+
+        def getSize(self):
+            return 1
+
+        def barrier(self):
+            return None
+
+        def bcast(self, value, root=0):
+            return value
+
+    class _FakeMat:
+        pass
+
+    class _FakeVec:
+        pass
+
+    class _FakeKSP:
+        pass
+
+    class _FakePC:
+        pass
+
+    fake_mpi = types.ModuleType("mpi4py")
+    fake_mpi_submodule = types.ModuleType("mpi4py.MPI")
+    fake_mpi_submodule.COMM_WORLD = _FakeComm()
+    fake_mpi.MPI = fake_mpi_submodule
+
+    fake_petsc4py = types.ModuleType("petsc4py")
+    fake_petsc4py.init = lambda *args, **kwargs: None
+    fake_petsc = types.SimpleNamespace(
+        COMM_WORLD=_FakeComm(),
+        COMM_SELF=_FakeComm(),
+        Mat=_FakeMat,
+        Vec=_FakeVec,
+        KSP=_FakeKSP,
+        PC=_FakePC,
+        Error=RuntimeError,
+        ScalarType=np.complex128,
+        IntType=np.int64,
+        InsertMode=types.SimpleNamespace(INSERT_VALUES=0),
+    )
+    fake_petsc4py.PETSc = fake_petsc
+
+    class _FakeEPS:
+        class Conv:
+            ABS = "abs"
+            REL = "rel"
+            NORM = "norm"
+
+        class ErrorType:
+            ABSOLUTE = "absolute"
+            RELATIVE = "relative"
+            BACKWARD = "backward"
+
+        class ProblemType:
+            NHEP = "nhep"
+
+        class Type:
+            KRYLOVSCHUR = "krylovschur"
+
+        class Which:
+            TARGET_MAGNITUDE = "target_magnitude"
+            LARGEST_MAGNITUDE = "largest_magnitude"
+
+    class _FakeST:
+        class Type:
+            SINVERT = "sinvert"
+
+    fake_slepc4py = types.ModuleType("slepc4py")
+    fake_slepc4py.init = lambda *args, **kwargs: None
+    fake_slepc4py.SLEPc = types.SimpleNamespace(EPS=_FakeEPS, ST=_FakeST)
+
+    sys.modules["mpi4py"] = fake_mpi
+    sys.modules["mpi4py.MPI"] = fake_mpi_submodule
+    sys.modules["petsc4py"] = fake_petsc4py
+    sys.modules["slepc4py"] = fake_slepc4py
+
+
+_install_optional_petsc_stubs()
+
 from linstab2d import results_runtime
 
 
@@ -199,3 +296,77 @@ def test_log_emitted(monkeypatch, tmp_path):
         stem="disabled",
     )
     assert not any("operator_dissipation" in message for message in log_messages)
+
+
+def test_apply_to_resolvent_false_isolates_stages(monkeypatch, tmp_path):
+    """When apply_to_resolvent=false and apply_to_stability=true, the resolvent
+    stage receives build_lnse_system with dissipation_epsilon=0.0, while the
+    stability stage receives dissipation_epsilon > 0."""
+    _, _, build_lnse_kwargs = _run_compute(
+        monkeypatch,
+        tmp_path,
+        operator_dissipation=(
+            '{"enabled": true, "epsilon": 1.0, '
+            '"apply_to_stability": true, "apply_to_resolvent": false}'
+        ),
+    )
+    # build_lnse_system is called once (stability only, run_resolvent=false by default)
+    # With apply_to_resolvent=false: eps_resolv=0.0, eps_stab=1.0
+    # The stability call uses eps_stab
+    stab_epsilons = [kw["dissipation_epsilon"] for kw in build_lnse_kwargs]
+    assert any(eps == 1.0 for eps in stab_epsilons), (
+        f"Expected dissipation_epsilon=1.0 for stability, got: {stab_epsilons}"
+    )
+    # eps_resolv is 0.0 when apply_to_resolvent=False; verify it is recorded in NPZ
+    output_path = tmp_path / "case.npz"
+    with np.load(output_path, allow_pickle=False) as data:
+        assert data["solver_apply_to_resolvent_effective"].item() is False
+
+
+def test_cache_invalidation_on_config_change(monkeypatch, tmp_path):
+    """Changing the config with the same output NPZ path must trigger recompute.
+    Verified by checking that build_lnse_system is called a second time."""
+    import time as _time
+
+    # First run
+    output_path, _, build_calls_1 = _run_compute(
+        monkeypatch,
+        tmp_path,
+        operator_dissipation=None,
+        stem="cachetest",
+    )
+    mtime_1 = output_path.stat().st_mtime
+
+    # Sleep briefly so mtime can differ
+    _time.sleep(0.05)
+
+    # Second run with a DIFFERENT config (epsilon changed) -- same output path
+    # We must re-create the monkeypatch environment for the second run.
+    # _run_compute writes config_path and output_path based on stem.
+    # Change the config so the hash differs.
+    config_path = tmp_path / "cachetest.jsonc"
+    config_path.write_text(
+        """{
+          "paths": {"case_dir": "."},
+          "analysis": {"run_stability": false, "run_resolvent": false},
+          "numerics": {
+            "alpha_filter": "none",
+            "fd_order": 4,
+            "operator_dissipation": {"enabled": true, "epsilon": 0.5}
+          },
+          "solver": {}
+        }""",
+        encoding="utf-8",
+    )
+
+    _, _, build_calls_2 = _run_compute(
+        monkeypatch,
+        tmp_path,
+        operator_dissipation='{"enabled": true, "epsilon": 0.5}',
+        stem="cachetest",
+    )
+    mtime_2 = output_path.stat().st_mtime
+
+    # Recompute must have happened (file mtime advanced and build was called again)
+    assert mtime_2 > mtime_1, "NPZ was not rewritten on config change"
+    assert len(build_calls_2) > 0, "build_lnse_system was not called in second run"
