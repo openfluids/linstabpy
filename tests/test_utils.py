@@ -50,7 +50,7 @@ class TestFloquetReconstruction:
         """floquet_exp=0 applies no phase shift; output equals V on full grid."""
         V = np.ones(self.ngp, dtype=complex)
         result = reconstruct_floquet(
-            self.X, self.Y, V, self.idx, self.used_ind, floquet_exp=0.0
+            self.X, V, self.used_ind, floquet_exp=0.0
         )
         np.testing.assert_allclose(result, 1.0 + 0j, atol=1e-14)
 
@@ -59,7 +59,7 @@ class TestFloquetReconstruction:
         beta = 1.0
         V = np.ones(self.ngp, dtype=complex)
         result = reconstruct_floquet(
-            self.X, self.Y, V, self.idx, self.used_ind, floquet_exp=beta
+            self.X, V, self.used_ind, floquet_exp=beta
         )
         expected = np.exp(1j * beta * self.X)
         np.testing.assert_allclose(result, expected, atol=1e-12)
@@ -68,7 +68,7 @@ class TestFloquetReconstruction:
         """1-D V produces output with shape (ny, nx)."""
         V = np.ones(self.ngp, dtype=complex)
         result = reconstruct_floquet(
-            self.X, self.Y, V, self.idx, self.used_ind, floquet_exp=0.0
+            self.X, V, self.used_ind, floquet_exp=0.0
         )
         assert result.shape == self.X.shape
 
@@ -77,7 +77,7 @@ class TestFloquetReconstruction:
         ones = np.ones(self.ngp, dtype=complex)
         V = np.column_stack([ones, 2 * ones])
         result = reconstruct_floquet(
-            self.X, self.Y, V, self.idx, self.used_ind, floquet_exp=0.0
+            self.X, V, self.used_ind, floquet_exp=0.0
         )
         n_fields = V.shape[1]
         assert result.shape == (n_fields, *self.X.shape)
@@ -87,7 +87,7 @@ class TestFloquetReconstruction:
         V = np.zeros(self.ngp + 5, dtype=complex)
         with pytest.raises(ValueError):
             reconstruct_floquet(
-                self.X, self.Y, V, self.idx, self.used_ind, floquet_exp=0.0
+            self.X, V, self.used_ind, floquet_exp=0.0
             )
 
 
