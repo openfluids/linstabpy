@@ -367,8 +367,8 @@ def compute_resolvent_svd_residuals(
     with ``v_i`` normalised in the W-inner product (``v_i^H W v_i = 1``) and
     response ``u_i = H v_i / sigma_i``.  The two residuals reported are:
 
-        rho_fwd[i] = ||H v_i − sigma_i u_i|| / (sigma_i ||v_i||_2)
-        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i|| / (sigma_i ||v_i||_2)
+        rho_fwd[i] = ||H v_i − sigma_i u_i|| / (sigma_i ||v_i||_W)
+        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i|| / (sigma_i ||v_i||_W)
 
     *rho_fwd* is near machine precision by construction (u_i is defined as
     H v_i / sigma_i).  *rho_adj* is the meaningful residual: it checks the
@@ -443,26 +443,29 @@ def compute_resolvent_svd_residuals(
     rho_fwd = np.empty(n_modes, dtype=float)
     rho_adj = np.empty(n_modes, dtype=float)
 
-    print("SVD residuals  rho_fwd = ||H v - s u||/(s||v||)  "
-          "rho_adj = ||invW H^H(Wu) - s v||/(s||v||)")
+    print("SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
+          "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)")
     print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
     print("-" * 50)
     for i in range(n_modes):
         sigma = gains[i]
         v_i = forcings[:, i]
         u_i = responses[:, i]
-        norm_v = max(float(np.linalg.norm(v_i)), 1e-300)
+        # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
+        # equals 1, but we compute it explicitly so residuals are consistent even
+        # if the mode is slightly off unit W-norm (e.g., after filter projection).
+        w_norm_v = max(float(np.sqrt(np.real(v_i.conj() @ (W_vec * v_i)))), 1e-300)
 
-        # Forward: ||H v_i - sigma u_i|| / (sigma ||v_i||)
+        # Forward: ||H v_i - sigma u_i|| / (sigma ||v_i||_W)
         # Near eps by construction since u_i = H(v_i)/sigma in resolvent_analysis.
         Hv = _apply_H(v_i)
-        rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * norm_v)
+        rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * w_norm_v)
 
-        # Adjoint: ||invW H^H(W u_i) - sigma v_i|| / (sigma ||v_i||)
+        # Adjoint: ||invW H^H(W u_i) - sigma v_i|| / (sigma ||v_i||_W)
         # Tests the adjoint half of the weighted eigenproblem; converges to
         # ≤ SLEPc tolerance when the discrete operator is solved correctly.
         HH_Wu = _apply_H_adj(W_vec * u_i)
-        rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * norm_v)
+        rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * w_norm_v)
 
         print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
 
