@@ -547,7 +547,6 @@ name = "linstabpy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "h5py" },
     { name = "matplotlib" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -556,6 +555,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+hdf5 = [
+    { name = "h5py" },
+]
 petsc = [
     { name = "mpi4py" },
     { name = "petsc4py" },
@@ -564,10 +566,12 @@ petsc = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "h5py" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "sympy" },
+]
+parity = [
+    { name = "h5py" },
 ]
 test = [
     { name = "pytest" },
@@ -577,7 +581,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "h5py" },
+    { name = "h5py", marker = "extra == 'hdf5'" },
     { name = "matplotlib", specifier = ">=3.7" },
     { name = "mpi4py", marker = "extra == 'petsc'", specifier = ">=3.1" },
     { name = "numpy", specifier = ">=1.23" },
@@ -585,15 +589,15 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.10" },
     { name = "slepc4py", marker = "extra == 'petsc'", specifier = ">=3.18" },
 ]
-provides-extras = ["petsc"]
+provides-extras = ["hdf5", "petsc"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "h5py" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "sympy", specifier = ">=1.13" },
 ]
+parity = [{ name = "h5py" }]
 test = [
     { name = "pytest" },
     { name = "pytest-cov" },
