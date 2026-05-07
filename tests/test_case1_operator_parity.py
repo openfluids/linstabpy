@@ -49,6 +49,7 @@ def test_case1_operator_stages_match_matlab_exports() -> None:
     case_dir = case_fixture("case1")
     baseflow_dir = case_dir / "data" / "baseflow"
     exports_dir = case_dir / "reference" / "matlab" / "MATLAB_exports"
+    sponge_mat_path = exports_dir / "case_inputs_used.mat"
 
     if not exports_dir.exists():
         pytest.skip(f"Missing MATLAB exports directory: {exports_dir}")
@@ -72,6 +73,8 @@ def test_case1_operator_stages_match_matlab_exports() -> None:
         stride_eta=1,
         transpose_input=True,
         zero_spanwise=False,
+        sponge_mat_path=sponge_mat_path,
+        prefer_matlab_sponge_aux=sponge_mat_path.exists(),
     )
     sutherland_air(baseflow)
 
