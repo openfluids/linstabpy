@@ -753,21 +753,17 @@ def compute_cylindrical_coefficients(
     # ------------------------------------------------------------------
     R = np.asarray(R, dtype=float)
     # Regularize the axis singularity using the local radial mesh spacing as
-    # a floor.  The hard-coded 1e-14 floor allows 1/R² ~ 10²⁸, which can
-    # produce large spurious coefficients near the axis.  Using the smallest
-    # positive gap between adjacent r-values caps 1/R at O(1/dr) and
-    # 1/R² at O(1/dr²) --- values that are physically meaningful at the
-    # numerical resolution of the mesh.  For off-axis grids with no
-    # near-zero radii this max is a no-op.
-    R_sorted = np.sort(R[R > 0])
-    if R_sorted.size >= 2:
-        dr_min = float(np.min(np.diff(R_sorted)))
-    elif R_sorted.size == 1:
-        dr_min = float(R_sorted[0])
+    # a floor.  The old hard-coded 1e-14 floor allowed 1/R² ~ 10²⁸ near the
+    # axis; using the smallest positive local spacing caps the metric terms at
+    # the mesh resolution.  Degenerate single-point/all-axis inputs use a small
+    # numeric floor rather than the old near-zero singular value.
+    if R.size > 1:
+        diffs = np.diff(np.sort(R))
+        positive_diffs = diffs[diffs > 0]
+        eps_reg = float(positive_diffs.min()) if positive_diffs.size > 0 else 1e-8
     else:
-        dr_min = 1e-14  # fallback: no positive R values (degenerate grid)
-    dr_floor = max(dr_min, 1e-14)
-    R = np.maximum(R, dr_floor)
+        eps_reg = 1e-8
+    R = np.maximum(R, eps_reg)
     c1 = (kappa - 1.0) * Re * Pr * Ma**2
     c2 = kappa * Ma**2
     cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
