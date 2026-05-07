@@ -7,6 +7,7 @@
 #   ./run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
 #   ./run_all_examples.sh --example 0 --skip-parity      # run one example only
 #   ./run_all_examples.sh --mpi --example 1 -n 10        # run one example under MPI
+#   ./run_all_examples.sh --mpi --example 1s -n 10       # run the Blasius smoke benchmark
 #   ./run_all_examples.sh --continue-on-error            # keep going after failures
 #
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
@@ -46,6 +47,10 @@ EXAMPLE_SPECS=(
   "5|example_5_paraboloid|examples.example_5_paraboloid|Example 5: paraboloid resolvent"
 )
 
+EXTRA_EXAMPLE_SPECS=(
+  "1s|example_1_blasius_smoke|examples.example_1_blasius_smoke|Example 1 smoke: reduced Blasius benchmark"
+)
+
 usage() {
   cat <<EOF
 Usage: ./run_all_examples.sh [options]
@@ -54,7 +59,8 @@ Options:
   --fresh               Delete cached example NPZ artifacts before running
   --clean               Delete cached example NPZ and PNG artifacts before running
   --example <selector>  Run only one example. Repeatable. Select by index,
-                        stem, or module name (for example: 0, example_1_blasius)
+                        stem, or module name (for example: 0, example_1_blasius,
+                        examples.example_1_blasius_smoke)
   -m, --module <name>    Alias for --example; accepts full module names
   --mpi                 Run selected examples through an MPI launcher
   -n, --ranks <count>   MPI rank count. Implies --mpi
@@ -77,9 +83,9 @@ EOF
 list_examples() {
   echo "Available examples:"
   local spec idx stem module label
-  for spec in "${EXAMPLE_SPECS[@]}"; do
+  for spec in "${EXAMPLE_SPECS[@]}" "${EXTRA_EXAMPLE_SPECS[@]}"; do
     IFS='|' read -r idx stem module label <<<"$spec"
-    printf '  %s  %-32s %s\n' "$idx" "$stem" "$label"
+    printf '  %s  %-32s %-38s %s\n' "$idx" "$stem" "$module" "$label"
   done
 }
 
@@ -104,7 +110,7 @@ contains_module() {
 select_example() {
   local selector="$1"
   local spec idx stem module label matched=0
-  for spec in "${EXAMPLE_SPECS[@]}"; do
+  for spec in "${EXAMPLE_SPECS[@]}" "${EXTRA_EXAMPLE_SPECS[@]}"; do
     IFS='|' read -r idx stem module label <<<"$spec"
     if [[ "$selector" == "$idx" || "$selector" == "$stem" || "$selector" == "$module" ]]; then
       matched=1
@@ -580,13 +586,25 @@ run_example() {
   start_time=$SECONDS
   if [[ $MPI_MODE -eq 1 ]]; then
     if [[ ${#MPIEXEC_ENV[@]} -gt 0 ]]; then
-      env "${MPIEXEC_ENV[@]}" "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+      if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
+        env "${MPIEXEC_ENV[@]}" "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+      else
+        env "${MPIEXEC_ENV[@]}" "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module"
+      fi
     else
-      "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+      if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
+        "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+      else
+        "$MPIEXEC" -n "$MPI_RANKS" "$PYTHON" -m "$module"
+      fi
     fi
     rc=$?
   else
-    "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+    if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
+      "$PYTHON" -m "$module" "${EXTRA_ARGS[@]}"
+    else
+      "$PYTHON" -m "$module"
+    fi
     rc=$?
   fi
 
