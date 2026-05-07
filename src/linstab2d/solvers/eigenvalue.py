@@ -887,7 +887,7 @@ def temporal_eigenvalues(
     Returns
     -------
     omega:
-        Temporal eigenvalues ``omega = eig(i*L0) = -ω_OS``.
+        Temporal eigenvalues ``omega = eig(i*L0)``.
     modes:
         Right eigenvectors corresponding to ``omega``.
     """
