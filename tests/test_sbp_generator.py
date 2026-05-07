@@ -200,26 +200,23 @@ class TestDerivativeAccuracy:
 
 
 # ---------------------------------------------------------------------------
-# Higher-order generation (orders > 8)
+# Higher-order interiors and unsupported full closures (orders > 8)
 # ---------------------------------------------------------------------------
 
-class TestHigherOrders:
-    """Verify that orders 10+ can be generated and produce valid operators."""
+class TestUnsupportedHigherOrders:
+    """Higher-order interiors exist, but full SBP closures are unsupported."""
 
     @pytest.mark.parametrize("order", [10, 12])
-    def test_generates_without_error(self, order: int) -> None:
-        s = generate_sbp_stencils(order)
-        assert s["a_i1"].shape == (order + 1,)
-        assert s["a_i2"].shape == (order + 1,)
-        assert s["a_b1"].shape[0] == order  # r = order
-        assert s["a_b1"].shape[1] == 3 * order // 2  # m = 3*order/2
+    def test_full_sbp_closure_rejects_unsupported_order(self, order: int) -> None:
+        with pytest.raises(ValueError, match="validated only for orders"):
+            generate_sbp_stencils(order)
 
     @pytest.mark.parametrize("order", [10, 12])
     def test_d1_interior_exact_high_order(self, order: int) -> None:
         """Higher-order interior stencil differentiates x^order exactly."""
         n = 4 * order
         dz = 0.1
-        a_i1 = generate_sbp_stencils(order)["a_i1"]
+        a_i1 = fornberg_interior(order, 1)
         w = order // 2
         x = np.arange(n) * dz
         f = x ** order
@@ -231,33 +228,6 @@ class TestHigherOrders:
         np.testing.assert_allclose(df_num, df_exact[mid], rtol=1e-8)
 
     @pytest.mark.parametrize("order", [10, 12])
-    @pytest.mark.xfail(
-        reason="Norm weight solver for orders > 8 uses ill-conditioned "
-               "Vandermonde system; extending rational arithmetic to the "
-               "norm computation is a separate effort.",
-        strict=False,
-    )
-    def test_sbp_property_high_order(self, order: int) -> None:
-        """Q + Q^T = B must hold for generated higher-order operators."""
-        n = 4 * order
-        dz = 1.0
-        D1, _ = build_sbp_matrix(n, dz, order)
-        h = _sbp_norm_weights(order)
-
-        H_diag = np.ones(n)
-        r = len(h)
-        H_diag[:r] = h
-        H_diag[n - r:] = h[::-1]
-        H = sp.diags(H_diag) * dz
-
-        Q = H @ D1 * dz
-        Q_dense = Q.toarray()
-
-        B = np.zeros((n, n))
-        B[0, 0] = -1.0
-        B[n - 1, n - 1] = 1.0
-
-        residual = Q_dense + Q_dense.T - B
-        assert np.max(np.abs(residual)) < 1e-10, (
-            f"SBP property violated for order {order}: max residual = {np.max(np.abs(residual)):.2e}"
-        )
+    def test_build_sbp_matrix_rejects_unsupported_order(self, order: int) -> None:
+        with pytest.raises(ValueError, match="validated only for orders"):
+            build_sbp_matrix(4 * order, 1.0, order)

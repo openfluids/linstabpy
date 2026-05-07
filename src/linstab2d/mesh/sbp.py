@@ -25,13 +25,14 @@ def sbp_stencils(order: int) -> dict[str, np.ndarray]:
     """Return SBP stencil coefficients for a given finite-difference order.
 
     For orders 2–8, returns the hardcoded reference tables from Strand (1994)
-    and Mattsson & Nordström (2004). For higher even orders, delegates to
-    :func:`~linstab2d.mesh.sbp_generator.generate_sbp_stencils`.
+    and Mattsson & Nordström (2004). Higher-order SBP boundary closures are
+    intentionally rejected until validated norm and closure tables are added.
 
     Parameters
     ----------
     order : int
-        Even finite-difference order (2, 4, 6, 8, 10, 12, ...).
+        Even finite-difference order. Full SBP closures are supported for
+        2, 4, 6, and 8.
 
     Returns
     -------
