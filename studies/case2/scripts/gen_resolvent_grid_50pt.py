@@ -141,6 +141,17 @@ def build_config(cases: list[dict]) -> dict:
             "run_dir":     "output/resolvent_grid_50pt_fd6_stride4/runs",
         },
         "defaults": {
+            # Override _defaults.jsonc launcher to pin Phase 3 to socket1,
+            # leaving socket0 free for Phase 2b (cross-order EVP) to run
+            # in parallel. mpi_procs stays at 10 (one full socket).
+            "launcher": {
+                "mpi_procs": 10,
+                "launcher": (
+                    "mpiexec --rankfile "
+                    "/home/ghamada/linstabpy/studies/case2/socket1.rankfile "
+                    "--bind-to core"
+                ),
+            },
             "case_defaults": {
                 "config_overrides": {
                     "numerics": {

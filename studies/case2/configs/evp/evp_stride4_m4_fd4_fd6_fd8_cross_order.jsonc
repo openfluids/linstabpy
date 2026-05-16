@@ -1,16 +1,25 @@
 {
-  // Phase 2b — cross-order EVP at the calibrated working point.
+  // Phase 2b -- cross-order x cross-epsilon EVP at stride-4.
   //
-  // Three single-EVP cases at the same Case 2 mesh (stride 4, M4),
-  // same operator-dissipation epsilon, same target, varying only
-  // fd_order in {4, 6, 8}. This feeds paper section 5 Table tab:eps-sweep
-  // and Figure fig:trajectories with the BG-S shift at fixed bare epsilon.
+  // Nine single-EVP cases: fd_order in {4, 6, 8} crossed with
+  // operator_dissipation.epsilon in {0.3, 1.0, 3.0}. Feeds paper section 5
+  // tab:eps-sweep and fig:trajectories with a full (order, eps) cross-table
+  // rather than a single-epsilon slice.
   //
-  // Derived 1-for-1 from evp_stride4_m4_fd4_fd6_leading.jsonc; only
-  // additions are (a) the fd8 case, (b) numerics.operator_dissipation
-  // set to epsilon=1.0 (the canonical paper-section-5 working point).
-  // Do not retune target/ncv/eps_tol artisinally — keep parity with the
-  // existing fd4/fd6 leading config so cross-order comparison is honest.
+  // Expanded from the original 3-case fixed-epsilon=1.0 plan after the
+  // Phase 2a fd6 sweep (bead resolvent-np5) showed the perturbation is
+  // sub-linear in epsilon at eps>=0.3, and the canonical paper section 1
+  // working point eps=1.0 lives past the linear regime. The 3-epsilon
+  // sweep makes the cross-order story honest at fd6's choice of eps=1.0
+  // and shows the order-stability of the working-point choice.
+  //
+  // eps=0.3, 1.0, 3.0 chosen to bracket the canonical point:
+  //   eps=0.3 sits at the edge of the linear regime (shift/eps = 0.38 at fd6)
+  //   eps=1.0 is the paper's canonical (shift/eps = 0.15 at fd6)
+  //   eps=3.0 pulls Re(omega) onto target 0.561 (shift/eps = 0.076 at fd6)
+  //
+  // Same target / ncv / eps_tol as the existing evp_stride4_m4_fd4_fd6_leading
+  // config, plus the operator_dissipation override per case.
   "$include": "../_defaults.jsonc",
   "outputs": {
     "report_json": "output/evp_stride4_m4_fd4_fd6_fd8_cross_order/case2_evp_stride4_m4_fd4_fd6_fd8_cross_order_latest.json",
@@ -29,7 +38,6 @@
           "stride_eta": 4,
           "operator_dissipation": {
             "enabled": true,
-            "epsilon": 1.0,
             "apply_to_stability": true,
             "apply_to_resolvent": false
           }
@@ -59,32 +67,101 @@
   },
   "cases": [
     {
-      "case_id": "cross_order_m4_fd4_eps1",
-      "label": "M4 cross-order, fd4, eps=1.0",
+      "case_id": "cross_fd4_eps0p3",
+      "label": "fd4 stride-4, eps=0.3",
       "enabled": true,
       "config_overrides": {
         "numerics": {
-          "fd_order": 4
+          "fd_order": 4,
+          "operator_dissipation": {"epsilon": 0.3}
         }
       }
     },
     {
-      "case_id": "cross_order_m4_fd6_eps1",
-      "label": "M4 cross-order, fd6, eps=1.0",
+      "case_id": "cross_fd4_eps1",
+      "label": "fd4 stride-4, eps=1.0",
       "enabled": true,
       "config_overrides": {
         "numerics": {
-          "fd_order": 6
+          "fd_order": 4,
+          "operator_dissipation": {"epsilon": 1.0}
         }
       }
     },
     {
-      "case_id": "cross_order_m4_fd8_eps1",
-      "label": "M4 cross-order, fd8, eps=1.0",
+      "case_id": "cross_fd4_eps3",
+      "label": "fd4 stride-4, eps=3.0",
       "enabled": true,
       "config_overrides": {
         "numerics": {
-          "fd_order": 8
+          "fd_order": 4,
+          "operator_dissipation": {"epsilon": 3.0}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd6_eps0p3",
+      "label": "fd6 stride-4, eps=0.3",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6,
+          "operator_dissipation": {"epsilon": 0.3}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd6_eps1",
+      "label": "fd6 stride-4, eps=1.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6,
+          "operator_dissipation": {"epsilon": 1.0}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd6_eps3",
+      "label": "fd6 stride-4, eps=3.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6,
+          "operator_dissipation": {"epsilon": 3.0}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd8_eps0p3",
+      "label": "fd8 stride-4, eps=0.3",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8,
+          "operator_dissipation": {"epsilon": 0.3}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd8_eps1",
+      "label": "fd8 stride-4, eps=1.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8,
+          "operator_dissipation": {"epsilon": 1.0}
+        }
+      }
+    },
+    {
+      "case_id": "cross_fd8_eps3",
+      "label": "fd8 stride-4, eps=3.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8,
+          "operator_dissipation": {"epsilon": 3.0}
         }
       }
     }
