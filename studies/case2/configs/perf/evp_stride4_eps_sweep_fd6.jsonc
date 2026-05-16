@@ -1,0 +1,133 @@
+{
+  // Phase 2a - bare-epsilon sweep at fd6 stride-4.
+  //
+  // Six EVP cases at the same Case 2 mesh (stride 4, M4) and fd_order=6,
+  // varying only numerics.operator_dissipation.epsilon. Drives paper
+  // section 5 epsilon calibration story: bare-epsilon vs symbol-aware
+  // epsilon-tilde, BG-S shift trajectory.
+  //
+  // Derived from evp_stride4_m4_fd4_fd6_leading.jsonc (same target, same
+  // ncv, same eps_tol) to keep cross-config comparability. The epsilon=0
+  // case is the no-dissipation baseline; the other five span ~3 decades.
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride4_eps_sweep_fd6/case2_evp_stride4_eps_sweep_fd6_latest.json",
+    "report_csv":  "output/evp_stride4_eps_sweep_fd6/case2_evp_stride4_eps_sweep_fd6_table.csv",
+    "log_dir":     "output/evp_stride4_eps_sweep_fd6/logs",
+    "run_dir":     "output/evp_stride4_eps_sweep_fd6/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4,
+          "fd_order": 6,
+          "operator_dissipation": {
+            "enabled": true,
+            "apply_to_stability": true,
+            "apply_to_resolvent": false
+          }
+        },
+        "analysis": {
+          "n_modes_stability": 1,
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          },
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-04,
+            "target_distance_max": 0.25,
+            "omega_real_abs_max": 2.0,
+            "omega_imag_abs_max": 2.5
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 5e-05,
+            "eps_max_it": 300,
+            "ncv": 40
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "eps_sweep_fd6_eps0",
+      "label": "fd6 stride-4, epsilon=0 (baseline, no dissipation)",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {
+            "enabled": false,
+            "epsilon": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps0p01",
+      "label": "fd6 stride-4, epsilon=0.01",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 0.01}
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps0p1",
+      "label": "fd6 stride-4, epsilon=0.1",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 0.1}
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps0p3",
+      "label": "fd6 stride-4, epsilon=0.3",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 0.3}
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps1",
+      "label": "fd6 stride-4, epsilon=1.0 (canonical working point)",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 1.0}
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps3",
+      "label": "fd6 stride-4, epsilon=3.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 3.0}
+        }
+      }
+    },
+    {
+      "case_id": "eps_sweep_fd6_eps10",
+      "label": "fd6 stride-4, epsilon=10.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "operator_dissipation": {"epsilon": 10.0}
+        }
+      }
+    }
+  ]
+}

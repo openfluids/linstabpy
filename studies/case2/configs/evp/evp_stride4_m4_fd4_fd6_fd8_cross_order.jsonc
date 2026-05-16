@@ -1,0 +1,92 @@
+{
+  // Phase 2b — cross-order EVP at the calibrated working point.
+  //
+  // Three single-EVP cases at the same Case 2 mesh (stride 4, M4),
+  // same operator-dissipation epsilon, same target, varying only
+  // fd_order in {4, 6, 8}. This feeds paper section 5 Table tab:eps-sweep
+  // and Figure fig:trajectories with the BG-S shift at fixed bare epsilon.
+  //
+  // Derived 1-for-1 from evp_stride4_m4_fd4_fd6_leading.jsonc; only
+  // additions are (a) the fd8 case, (b) numerics.operator_dissipation
+  // set to epsilon=1.0 (the canonical paper-section-5 working point).
+  // Do not retune target/ncv/eps_tol artisinally — keep parity with the
+  // existing fd4/fd6 leading config so cross-order comparison is honest.
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/evp_stride4_m4_fd4_fd6_fd8_cross_order/case2_evp_stride4_m4_fd4_fd6_fd8_cross_order_latest.json",
+    "report_csv":  "output/evp_stride4_m4_fd4_fd6_fd8_cross_order/case2_evp_stride4_m4_fd4_fd6_fd8_cross_order_table.csv",
+    "log_dir":     "output/evp_stride4_m4_fd4_fd6_fd8_cross_order/logs",
+    "run_dir":     "output/evp_stride4_m4_fd4_fd6_fd8_cross_order/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4,
+          "operator_dissipation": {
+            "enabled": true,
+            "epsilon": 1.0,
+            "apply_to_stability": true,
+            "apply_to_resolvent": false
+          }
+        },
+        "analysis": {
+          "n_modes_stability": 1,
+          "omega_target": {
+            "real": 0.561107,
+            "imag": -1.112186
+          },
+          "stability_acceptance": {
+            "postcheck_rel_max": 1e-04,
+            "target_distance_max": 0.25,
+            "omega_real_abs_max": 2.0,
+            "omega_imag_abs_max": 2.5
+          }
+        },
+        "solver": {
+          "eigen": {
+            "eps_tol": 5e-05,
+            "eps_max_it": 300,
+            "ncv": 40
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_order_m4_fd4_eps1",
+      "label": "M4 cross-order, fd4, eps=1.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 4
+        }
+      }
+    },
+    {
+      "case_id": "cross_order_m4_fd6_eps1",
+      "label": "M4 cross-order, fd6, eps=1.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    },
+    {
+      "case_id": "cross_order_m4_fd8_eps1",
+      "label": "M4 cross-order, fd8, eps=1.0",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 8
+        }
+      }
+    }
+  ]
+}
