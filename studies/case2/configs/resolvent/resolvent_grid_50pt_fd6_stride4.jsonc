@@ -31,7 +31,12 @@
           "stride_ksi": 4,
           "stride_eta": 4,
           "fd_order": 6,
-          "alpha_filter": "none"
+          "alpha_filter": "none",
+          "operator_dissipation": {
+            "enabled": true,
+            "epsilon": 1.0,
+            "apply_to_resolvent": true
+          }
         },
         "analysis": {
           "run_stability": false,

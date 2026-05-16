@@ -31,13 +31,24 @@ Per-case overrides only:
     analysis.omega_target.imag     = 0.0  (real-omega resolvent)
 
 Per-default overrides (set once at top-level):
-    numerics.{stride_ksi, stride_eta} = 4
-    numerics.fd_order                 = 6
-    numerics.alpha_filter             = "none"
-    analysis.{run_stability, run_resolvent} = (false, true)
-    analysis.n_modes_resolvent        = 10
-    solver.resolvent.eigen.eps_tol    = 1e-8
-    solver.linsolve.type              = "mumps"
+    numerics.{stride_ksi, stride_eta}         = 4
+    numerics.fd_order                         = 6
+    numerics.alpha_filter                     = "none"
+    numerics.operator_dissipation.enabled     = true
+    numerics.operator_dissipation.epsilon     = 1.0  (canonical paper section 1 working point)
+    numerics.operator_dissipation.apply_to_resolvent = true
+    analysis.{run_stability, run_resolvent}   = (false, true)
+    analysis.n_modes_resolvent                = 10
+    solver.resolvent.eigen.eps_tol            = 1e-8
+    solver.linsolve.type                      = "mumps"
+
+The operator_dissipation block aligns the Phase 3 sweep with paper
+section 1 contribution C2 ("apply-to-resolvent extension"). Without
+it, every resolvent on the Lui curvilinear baseflow would pick up
+shock-mode contamination at every (beta, St) point. The historical
+phase_r_gain_map campaign used alpha_filter=0.1 instead; per paper
+section 1 the two routes give numerically agreeing leading triplets
+at the working point.
 
 Run as:
     cd linstabpy
@@ -137,6 +148,11 @@ def build_config(cases: list[dict]) -> dict:
                         "stride_eta": 4,
                         "fd_order": 6,
                         "alpha_filter": "none",
+                        "operator_dissipation": {
+                            "enabled": True,
+                            "epsilon": 1.0,
+                            "apply_to_resolvent": True,
+                        },
                     },
                     "analysis": {
                         "run_stability": False,
