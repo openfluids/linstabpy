@@ -1,0 +1,86 @@
+{
+  // beta=24 anomaly verification: 5 resolvent cases at (beta=24, St in
+  // {0.05, 0.1, 0.2, 0.5, 1.0}) with operator_dissipation DISABLED.
+  //
+  // The Phase 3 50-pt grid (sha c249045) showed a sigma_1 spike at
+  // beta=24, St=0.05 (sigma_1=35.02 vs 10.46 at beta=16). The leading
+  // u-component looked coherent but the rho-component panel had heavy
+  // mesh-scale striping. This run isolates the dissipation contribution:
+  // if sigma_1 stays high at beta=24 here, the spike is real LU-S; if it
+  // drops, it was a numerical artefact from operator_dissipation at the
+  // grid edge.
+  //
+  // All other settings match the lean Phase 3 config: fd6 stride-4,
+  // n_modes_resolvent=3, eps_tol=1e-6, ncv=20, eps_max_it=500. Only the
+  // operator_dissipation block changes (enabled=False, apply_to_resolvent=False).
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/resolvent_beta24_nodiss_verify/report_latest.json",
+    "report_csv":  "output/resolvent_beta24_nodiss_verify/report_table.csv",
+    "log_dir":     "output/resolvent_beta24_nodiss_verify/logs",
+    "run_dir":     "output/resolvent_beta24_nodiss_verify/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/studies/case2/socket0.rankfile --bind-to core"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4,
+          "fd_order": 6,
+          "alpha_filter": "none",
+          "operator_dissipation": {
+            "enabled": false,
+            "epsilon": 0.0,
+            "apply_to_resolvent": false
+          },
+          "beta": 24.0
+        },
+        "analysis": {
+          "run_stability": false,
+          "run_resolvent": true,
+          "n_modes_resolvent": 3
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-6,
+              "ncv": 20,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 500
+            }
+          },
+          "linsolve": {"type": "mumps"}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"case_id": "b24_st0p05_nodiss",
+     "label": "beta=24, St=0.05, no dissipation",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.3141592653589793, "imag": 0.0}}}},
+    {"case_id": "b24_st0p1_nodiss",
+     "label": "beta=24, St=0.1, no dissipation",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 0.6283185307179586, "imag": 0.0}}}},
+    {"case_id": "b24_st0p2_nodiss",
+     "label": "beta=24, St=0.2, no dissipation",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 1.2566370614359172, "imag": 0.0}}}},
+    {"case_id": "b24_st0p5_nodiss",
+     "label": "beta=24, St=0.5, no dissipation",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 3.141592653589793, "imag": 0.0}}}},
+    {"case_id": "b24_st1_nodiss",
+     "label": "beta=24, St=1.0, no dissipation",
+     "enabled": true,
+     "config_overrides": {"analysis": {"omega_target": {"real": 6.283185307179586, "imag": 0.0}}}}
+  ]
+}
