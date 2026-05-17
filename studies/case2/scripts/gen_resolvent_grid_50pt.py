@@ -168,18 +168,23 @@ def build_config(cases: list[dict]) -> dict:
                     "analysis": {
                         "run_stability": False,
                         "run_resolvent": True,
-                        "n_modes_resolvent": 10,
+                        # Lean settings after the original config ran at
+                        # 4h 25min per case (vs 45 min estimate). Paper section
+                        # 6 needs the leading sigma_1 plus a small mode set
+                        # for the LU-S geometry figure; n_modes=3 + tol=1e-6
+                        # is sufficient and cuts the per-case wall to ~30 min.
+                        "n_modes_resolvent": 3,
                     },
                     "solver": {
                         "petsc_matrix_mode": "distributed",
                         "resolvent": {
                             "type": "mumps",
                             "eigen": {
-                                "eps_tol": 1e-8,
-                                "ncv": 40,
+                                "eps_tol": 1e-6,
+                                "ncv": 20,
                                 "conv_test": "rel",
                                 "true_residual": True,
-                                "eps_max_it": 1000,
+                                "eps_max_it": 500,
                             },
                         },
                         "linsolve": {"type": "mumps"},

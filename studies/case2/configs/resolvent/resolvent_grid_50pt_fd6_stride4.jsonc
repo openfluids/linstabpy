@@ -45,18 +45,18 @@
         "analysis": {
           "run_stability": false,
           "run_resolvent": true,
-          "n_modes_resolvent": 10
+          "n_modes_resolvent": 3
         },
         "solver": {
           "petsc_matrix_mode": "distributed",
           "resolvent": {
             "type": "mumps",
             "eigen": {
-              "eps_tol": 1e-08,
-              "ncv": 40,
+              "eps_tol": 1e-06,
+              "ncv": 20,
               "conv_test": "rel",
               "true_residual": true,
-              "eps_max_it": 1000
+              "eps_max_it": 500
             }
           },
           "linsolve": {
