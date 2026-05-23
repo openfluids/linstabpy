@@ -614,8 +614,9 @@ Enters thermal diffusion as `1 / (Re * Pr)`; for example,
 kappa = cp / cv  (gamma)
 ```
 
-Stored as `BaseFlow.kappa`. Labeled `kappa` throughout the code rather than
-`gamma` to avoid shadowing the Python built-in. Enters the ideal gas relation,
+Stored as `BaseFlow.kappa`. The code uses `kappa` rather than `gamma`; the
+`BaseFlow` docstring at `baseflow.py:27` notes "Heat capacity ratio (gamma)"
+to keep the physical meaning explicit. Enters the ideal gas relation, the
 Chu norm weights, and all compressibility terms.
 
 Re, Ma, Pr, and kappa are user-supplied in the JSONC config under `physics`.
