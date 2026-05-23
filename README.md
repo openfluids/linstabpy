@@ -1168,4 +1168,14 @@ Physics*, 199(2), 503-540.
 
 ## 13. License
 
-GPL-3.0. See the `LICENSE` file.
+linstabpy is distributed under **GPL-3.0-only**, matching the license of
+its upstream MATLAB ancestor LinStab2D (Martini & Schmidt 2024,
+https://github.com/LinStab2D/LinStab2D). See `LICENSE` for the full
+GPL-3.0 text and `NOTICE` for upstream attribution and modification
+history.
+
+When using linstabpy in published work, cite the LinStab2D paper:
+
+> Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent
+> analysis of compressible viscous flows in MATLAB. *Theor. Comput.
+> Fluid Dyn.* (2024). doi:10.1007/s00162-024-00706-0
