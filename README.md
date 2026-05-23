@@ -530,7 +530,156 @@ Do not assume:
 - a mean-flow linearization is physically meaningful only because the operator
   was assembled correctly.
 
-## 6. Boundary conditions
+## 6. Nondimensionalization
+
+All flow fields stored in `BaseFlow` are nondimensional. The governing
+equations are the compressible Navier-Stokes equations in the primitive
+variables `[rho, u, v, w, T]`, linearized around the base flow. The
+nondimensionalization follows the standard convective scaling described
+below.
+
+### 6.1 Reference scales
+
+| Symbol | Definition | Units | Source in code |
+|---|---|---|---|
+| `rho_ref` | freestream density | kg/m³ | implicit: `RHO = 1` at freestream (`loaders.py`) |
+| `U_ref` | freestream velocity | m/s | implicit: `U = 1` at freestream |
+| `L_ref` | problem reference length | m | user-supplied (e.g. displacement thickness `delta*` for Blasius, shock-impingement length `X_sh` for SWBLI) |
+| `T_ref` | freestream static temperature | K | `BaseFlow.T_0` (`baseflow.py:40`) |
+| `p_ref` | `rho_ref * U_ref**2` | Pa | confirmed by Chu norm weights in `energy_norm.py` |
+| `mu_ref` | `mu(T_0)` via Sutherland | Pa·s | `viscosity.py:46`, variable `mu_0` |
+| `t_ref` | `L_ref / U_ref` | s | derived |
+
+`L_ref` is not stored inside `BaseFlow`; it is the length scale used when
+computing `Re` and when building the mesh coordinate arrays passed to the
+loaders. Its physical interpretation depends on the case.
+
+### 6.2 Nondimensional variables
+
+| Variable | Stored as | Nondim form | Freestream value |
+|---|---|---|---|
+| density | `BaseFlow.RHO` | `rho* = rho / rho_ref` | 1 |
+| streamwise velocity | `BaseFlow.U` | `u* = u / U_ref` | 1 |
+| wall-normal velocity | `BaseFlow.V` | `v* = v / U_ref` | 0 |
+| spanwise velocity | `BaseFlow.W` | `w* = w / U_ref` | 0 |
+| temperature | `BaseFlow.T` | `T* = T / T_ref` | 1 |
+| viscosity | `BaseFlow.MU` | `mu* = mu / mu(T_0)` | 1 |
+| streamwise coordinate | mesh `X` | `x* = x / L_ref` | — |
+| wall-normal coordinate | mesh `Y` | `y* = y / L_ref` | — |
+| time | operator eigenvalue `omega` | `t* = t * U_ref / L_ref` | — |
+
+Pressure is not stored explicitly. From the ideal gas law nondimensionalized
+with `p_ref = rho_ref * U_ref**2`:
+
+```
+p* = RHO * T / (kappa * Ma**2)
+```
+
+This `Ma**2` factor is absent in acoustic-scaled codes; see §6.5.
+
+### 6.3 Dimensionless numbers
+
+**Reynolds number**
+
+```
+Re = rho_ref * U_ref * L_ref / mu(T_0)
+```
+
+`mu(T_0)` is Sutherland's law evaluated at the freestream temperature `T_0`.
+Enters viscous terms as `1/Re`; for example, `coefficients.py` has
+`c_Arr_44 = -MU / Re` (streamwise momentum wall-normal diffusion).
+
+**Mach number**
+
+```
+Ma = U_ref / a_ref,  a_ref = sqrt(kappa * R * T_ref)
+```
+
+Enters the operator via `c2 = kappa * Ma**2` (pressure-velocity coupling)
+and `cv = 1 / (kappa * (kappa - 1) * Ma**2)` (energy equation). Both are
+derived in `viscosity.py:34-36` and used throughout `coefficients.py`.
+
+**Prandtl number**
+
+```
+Pr = mu(T_0) * cp / k_ref,  cp = kappa * R / (kappa - 1)
+```
+
+Enters thermal diffusion as `1 / (Re * Pr)`; for example,
+`c_Arr_55 = -kappa * MU / Re / Pr` (temperature Laplacian in energy equation).
+
+**Heat capacity ratio**
+
+```
+kappa = cp / cv  (gamma)
+```
+
+Stored as `BaseFlow.kappa`. Labeled `kappa` throughout the code rather than
+`gamma` to avoid shadowing the Python built-in. Enters the ideal gas relation,
+Chu norm weights, and all compressibility terms.
+
+Re, Ma, Pr, and kappa are user-supplied in the JSONC config under `physics`.
+The code uses them as given without internal consistency checks.
+
+### 6.4 Sutherland viscosity
+
+Dynamic viscosity follows Sutherland's law for air. The normalization
+reference is `mu_0 = mu(T_0)`, the Sutherland value at the actual freestream
+temperature. The relevant section of `viscosity.py`:
+
+```python
+    S1: float = 110.4  # Sutherland temperature [K]
+    T_ref: float = 280.0  # reference temperature [K]
+    mu_ref: float = 1.735e-5  # reference dynamic viscosity [Pa.s]
+
+    Tstar = bf.T * T_0  # dimensional temperature
+
+    # Reference viscosity at T_0
+    mu_0 = mu_ref * (T_ref + S1) / (T_0 + S1) * (T_0 / T_ref) ** 1.5
+
+    # Viscosity and its first two derivatives w.r.t. dimensional T
+    mu = mu_ref * (T_ref + S1) / (Tstar + S1) * (Tstar / T_ref) ** 1.5
+```
+
+`T_ref = 280.0 K` and `mu_ref = 1.735e-5 Pa.s` are anchoring constants in
+the Sutherland formula, not the nondimensionalization scale. The operative
+nondim scale is `mu_0`, which depends on `T_0`. `MU = mu / mu_0`, so
+`MU = 1` at freestream regardless of what `T_0` is.
+
+The temperature derivatives are nondimensionalized consistently:
+
+```
+dmudT*  = d(mu/mu_0) / d(T*)  =  (dmu/dT_dim) * T_0 / mu_0
+d2mudT2* = (d2mu/dT_dim**2) * T_0**2 / mu_0
+```
+
+### 6.5 LES vs linstabpy convention notes
+
+Three specific points where LES codes commonly differ.
+
+**Pressure reference.** Some LES codes use `p_ref = rho_ref * R * T_ref`
+(acoustic scaling). linstabpy uses `p_ref = rho_ref * U_ref**2` (dynamic
+pressure). The two coincide only at `Ma = 1`. For `Ma != 1`, the nondim
+ideal gas law differs by a factor of `kappa * Ma**2`:
+
+| Quantity | linstabpy | acoustic-scaled LES |
+|---|---|---|
+| `p*` | `p / (rho_ref U_ref**2)` | `p / (rho_ref R T_ref)` |
+| ideal gas | `p* = RHO * T / (kappa * Ma**2)` | `p* = RHO * T` |
+| conversion | multiply acoustic `p*` by `kappa * Ma**2` | divide linstabpy `p*` by `kappa * Ma**2` |
+
+**Energy equation scaling.** In linstabpy `cv* = 1 / (kappa * (kappa-1) * Ma**2)`.
+An LES code that writes `cv* = 1 / (kappa - 1)` is using acoustic-based
+nondim. To convert: `cv_LES = cv_linstabpy * kappa * Ma**2`.
+
+**Temperature.** linstabpy stores `T* = T / T_ref` with `T* = 1` in the
+freestream. Some LES post-processing outputs temperature as excess
+`(T - T_inf) / T_inf` or as a ratio `(T - T_w) / (T_0 - T_w)`. If an
+external base-flow file provides temperature already divided by `T_ref`,
+load it directly into `BaseFlow.T`. If it provides temperature in Kelvin,
+divide by `T_0` before assigning.
+
+## 7. Boundary conditions
 
 Boundary setup is JSONC-driven. Row-replacement boundary conditions are listed
 under `bc.recipe`; sponge damping is configured in JSONC as an operator damping
@@ -619,9 +768,9 @@ come in conjugate pairs. Set `conjugate_aware: false` when you need strict
 non-redundant mode selection around one target branch, or when the operator is
 not real-valued and conjugate symmetry should not be admitted.
 
-## 7. Parity with MATLAB LinStab2D
+## 8. Parity with MATLAB LinStab2D
 
-### 7.1 Example-level parity table
+### 8.1 Example-level parity table
 
 Reference MATLAB examples:
 
@@ -650,7 +799,7 @@ Python counterparts:
 | `example_4_Cavity.m` | `example_4_cavity.py` | `implemented` | `example_4_cavity.npz`, `example_4_cavity.png` |
 | `example_5_Paraboloid.m` | `example_5_paraboloid.py` | `implemented` | `example_5_paraboloid.npz`, `example_5_paraboloid.png` |
 
-### 7.2 Operator parity matrix
+### 8.2 Operator parity matrix
 
 Canonical machine-readable source: `validation/martini2024/tools/operator_matrix.json`.
 
@@ -681,7 +830,7 @@ status is `pass` with `missing_required = 0`.
 | `bc_set_dirbc` | `BoundaryConditions/SetDirBC.m` | `linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices` | `validated` |
 | `bc_set_dirichletbc` | `BoundaryConditions/SetDirichletBC.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair` | `validated` |
 
-### 7.3 Branch coverage matrix
+### 8.3 Branch coverage matrix
 
 Canonical machine-readable source: `validation/martini2024/tools/branch_matrix.json`.
 
@@ -712,7 +861,7 @@ with `5` required validated combinations and `91` required exclusions.
 | `2D` | `resolvent` | `Dirichlet` | `none` | `petsc_slepc` | `validated` |
 | `2D` | `temporal` | `Neumann` | `none` | `petsc_slepc` | `validated` |
 
-### 7.4 Running parity checks
+### 8.4 Running parity checks
 
 Example-level parity:
 
@@ -732,9 +881,9 @@ Strict CI gate:
 python validation/martini2024/tools/check_parity_matrices.py
 ```
 
-## 8. Case studies
+## 9. Case studies
 
-### 8.1 Case 1 (SWBLI)
+### 9.1 Case 1 (SWBLI)
 
 Case 1 is the SWBLI parity harness used to prove that the Python/PETSc/SLEPc
 path is equivalent to the MATLAB reference before scaling to larger production
@@ -820,7 +969,7 @@ Solver strategy B, the scalable path:
 Practical rule: validate reduced grids with Strategy A, then move to Strategy B
 for cases that do not fit direct factorization.
 
-### 8.2 Case 2
+### 9.2 Case 2
 
 Case 2 has its own active campaign files. Do not duplicate their content in the
 top-level README.
@@ -835,7 +984,7 @@ Read them in that order before changing Case 2 numerics.
 
 As with Case 1, `studies/case2/` is the canonical Case 2 study namespace.
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### macOS SLEPc NHEP crash
 
@@ -940,7 +1089,7 @@ Send:
 For deeper OS-specific notes and installer experiments, see
 `install_tester/`.
 
-## 10. Development
+## 11. Development
 
 Run tests with:
 
@@ -1003,7 +1152,7 @@ Roadmap:
 | Solver optimization | Planned | Improve sparse assembly, transfer, and preconditioner paths. |
 | Matrix-free Krylov | Future | Time-stepper-style approach for larger 3D-oriented workflows. |
 
-## 11. References
+## 12. References
 
 Martini, E. & Schmidt, O. (2024). Linstab2D: stability and resolvent analysis
 of compressible viscous flows in MATLAB. *Theoretical and Computational Fluid
@@ -1016,6 +1165,6 @@ Mattsson, K. & Nordstrom, J. (2004). Summation by parts operators for finite
 difference approximations of second derivatives. *Journal of Computational
 Physics*, 199(2), 503-540.
 
-## 12. License
+## 13. License
 
 GPL-3.0. See the `LICENSE` file.
