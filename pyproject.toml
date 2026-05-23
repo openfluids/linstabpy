@@ -7,7 +7,7 @@ name = "linstabpy"
 version = "0.1.0"
 description = "Stability and resolvent analysis of compressible viscous flows"
 requires-python = ">=3.10"
-license = "GPL-3.0-or-later"
+license = "GPL-3.0-only"
 readme = "README.md"
 authors = [
     { name = "Ricardo Frantz" },

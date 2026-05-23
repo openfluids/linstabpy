@@ -1,0 +1,36 @@
+linstabpy
+=========
+Copyright (C) 2024-2026 Ricardo Frantz, Gabriel Hamada, and contributors.
+
+This product is a Python port and derivative of LinStab2D
+(https://github.com/LinStab2D/LinStab2D), copyright E. Martini and
+O. T. Schmidt, licensed under GPL-3.0.
+
+Files whose module docstring states "Translates <FILENAME>.m from the
+MATLAB LinStab2D codebase" are direct ports or close adaptations of the
+corresponding upstream MATLAB sources. Examples include:
+
+  - src/linstab2d/mesh/mesh.py                       (DeformMesh.m)
+  - src/linstab2d/baseflow/viscosity.py              (sutherland_air.m)
+  - src/linstab2d/baseflow/loaders.py                (example_1_readbaseflow.m)
+  - src/linstab2d/operators/coefficients.py          (getCoeffsLaminar_Cartesian.m)
+  - src/linstab2d/operators/energy_norm.py           (GetCompEnergyNorm.m)
+  - src/linstab2d/boundary_conditions/dirichlet.py   (BC_Dirichlet.m)
+  - src/linstab2d/boundary_conditions/neumann.py     (BC_Neumann.m)
+
+Modifications made by the linstabpy authors (2024-2026):
+
+  - Translation from MATLAB to Python 3.
+  - Integration with PETSc/SLEPc/MUMPS sparse solvers, replacing
+    MATLAB's `eigs` and built-in sparse stack.
+  - Extension to fd2/fd4/fd6/fd8 SBP-MSN operators with optional
+    operator dissipation.
+  - JSONC-driven configuration system.
+  - Test infrastructure (535 tests across 52 files) and CI.
+
+When using linstabpy in published work, please cite the LinStab2D
+paper:
+
+  Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent
+  analysis of compressible viscous flows in MATLAB. Theor. Comput.
+  Fluid Dyn. (2024). doi:10.1007/s00162-024-00706-0
