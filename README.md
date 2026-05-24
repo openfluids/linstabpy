@@ -8,7 +8,7 @@ analysis of compressible viscous flows.
 The package targets two-dimensional structured base flows and builds operators
 for the linearized compressible Navier-Stokes equations. The public project name
 is `LinStabPy`, the repository and distribution name is `linstabpy`, and the
-current import package is `linstab2d`.
+current import package is `linstabpy`.
 
 The motivation is practical memory use. Stability and resolvent analysis of 2D
 base flows leads to large sparse linear systems. MATLAB's `backslash` path uses
@@ -56,10 +56,10 @@ runtime `mpiexec` must agree on the same MPI ABI.
 
 ### 2.2 Linux (recommended path)
 
-Clone the repository with submodules and run the native checks:
+Clone the repository and run the native checks:
 
 ```bash
-git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
+git clone https://github.com/ricardofrantz/linstabpy.git
 cd linstabpy
 
 bash diagnose.sh
@@ -67,6 +67,10 @@ bash install.sh
 bash install.sh --check
 bash benchmark.sh
 ```
+
+The reference MATLAB base flows (`M09jet.mat`, `BL_BF.mat`, `Step_BF.mat`,
+`Paraboloid_BF.mat`) used by the Martini example loaders are not bundled.
+See section 2.8 for how to point linstabpy at a local clone of LinStab2D.
 
 `diagnose.sh` is read-only. It checks compilers, MPI launchers, development
 headers, dual-MPI conflicts, and whether `mpiexec -n 1 /bin/true` works.
@@ -208,7 +212,7 @@ Use this as a comparison shape, not a hard pin. Export a redacted stack
 manifest from a working machine with:
 
 ```bash
-.venv/bin/python tools/export_known_good_stack.py \
+.venv/bin/python scripts/tools/export_known_good_stack.py \
   --output known_good/<machine-label>.json \
   --redact-local-details
 ```
@@ -242,10 +246,37 @@ default rank count with `LINSTABPY_MPI_RANKS` when the target machine needs an
 explicit MPI runtime. For sparse direct factorization, more ranks are not
 automatically faster; compare rank counts on the target machine.
 
+### 2.8 Fetching reference base flows
+
+The Martini example loaders (`example_1_blasius`, `example_2_jet`,
+`example_4_cavity`, `example_5_paraboloid`) consume four `.mat` base
+flows from the upstream LinStab2D project: `M09jet.mat`, `BL_BF.mat`,
+`Step_BF.mat`, `Paraboloid_BF.mat`. linstabpy does not bundle these
+files. Two options to make them available:
+
+1. Clone LinStab2D once and point linstabpy at it with an env var:
+
+   ```bash
+   git clone https://github.com/LinStab2D/LinStab2D.git ~/linstab2d-reference
+   export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
+   ```
+
+2. Copy the four `.mat` files into the gitignored data dir:
+
+   ```bash
+   mkdir -p src/linstabpy/data/baseflows/BaseFlows
+   cp ~/linstab2d-reference/BaseFlows/*.mat src/linstabpy/data/baseflows/BaseFlows/
+   ```
+
+If neither is in place, the Martini examples raise a `FileNotFoundError`
+with the exact instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. All
+non-Martini examples (Case 1 Song, Case 2) ship their own base flows
+under `examples/case_studies/` and are unaffected.
+
 ## 3. Quick start
 
 ```bash
-git clone --recurse-submodules https://github.com/ricardofrantz/linstabpy.git
+git clone https://github.com/ricardofrantz/linstabpy.git
 cd linstabpy
 
 bash diagnose.sh
@@ -335,7 +366,7 @@ still letting the case file document why each parameter exists.
 
 ```text
 .
-|-- src/linstab2d/                 Importable Python package
+|-- src/linstabpy/                 Importable Python package
 |   |-- baseflow/                  Base-flow loaders and viscosity helpers
 |   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
 |   |-- config/                    Runtime validation metadata
@@ -367,7 +398,7 @@ still letting the case file document why each parameter exists.
 |   `-- debug/                     Platform/debug probes
 |-- scripts/                       Repository guardrails and maintenance utilities
 |-- tests/                         Pytest suite and shared path helpers
-|-- install_tester/                Thin install/diagnose/benchmark harness
+|-- scripts/ci/                Thin install/diagnose/benchmark harness
 |-- tutorial/                      Tutorial source and generated PDF
 |-- install.sh                     Main installer
 |-- diagnose.sh                    Read-only environment preflight
@@ -375,14 +406,14 @@ still letting the case file document why each parameter exists.
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
 
-Keep reusable code under `src/linstab2d/`, runnable examples under `examples/`,
+Keep reusable code under `src/linstabpy/`, runnable examples under `examples/`,
 case-specific campaigns under `studies/`, and validation reference data under
 `validation/`. Generated example outputs, campaign `output/` directories,
 runtime caches, and build metadata are ignored rather than represented as
 tracked layout.
 
 The reference MATLAB code and `.mat` base-flow files live in the submodule
-`src/linstab2d/data/baseflows`. Treat that directory as reference input unless
+`src/linstabpy/data/baseflows`. Treat that directory as reference input unless
 you intentionally update the submodule.
 
 ### 4.1 Data and file-size policy
@@ -400,8 +431,8 @@ GitHub guardrails workflow. Ignored local outputs above the report threshold are
 listed separately so they can be cleaned or archived without blocking normal
 source commits.
 
-Compact validation fixtures belong under `validation/operator_fixtures/` or
-`validation/martini2024/fixtures/`. Raw MATLAB exports such as
+Compact validation fixtures belong under `scripts/validation/operator_fixtures/` or
+`scripts/validation/martini2024/fixtures/`. Raw MATLAB exports such as
 `operator_convention.mat` and `coefficients_raw.mat` are intentionally not
 tracked when they exceed the 50 MiB policy.
 
@@ -775,12 +806,12 @@ not real-valued and conjugate symmetry should not be admitted.
 
 Reference MATLAB examples:
 
-- `linstab2d/data/baseflows/example_0_TestCurvilinearDerivative.m`
-- `linstab2d/data/baseflows/example_1_Blasius.m`
-- `linstab2d/data/baseflows/example_2_Jet.m`
-- `linstab2d/data/baseflows/example_3_Streaky_BL.m`
-- `linstab2d/data/baseflows/example_4_Cavity.m`
-- `linstab2d/data/baseflows/example_5_Paraboloid.m`
+- `linstabpy/data/baseflows/example_0_TestCurvilinearDerivative.m`
+- `linstabpy/data/baseflows/example_1_Blasius.m`
+- `linstabpy/data/baseflows/example_2_Jet.m`
+- `linstabpy/data/baseflows/example_3_Streaky_BL.m`
+- `linstabpy/data/baseflows/example_4_Cavity.m`
+- `linstabpy/data/baseflows/example_5_Paraboloid.m`
 
 Python counterparts:
 
@@ -793,7 +824,7 @@ Python counterparts:
 
 | MATLAB example | Python example | Status | Required artifacts |
 |---|---|---|---|
-| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `artifacts/curvilinear_derivative_parity.json` |
+| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz`, `example_0_curvilinear_validation.png`, `tests/fixtures/curvilinear_derivative_parity.json` |
 | `example_1_Blasius.m` | `example_1_blasius.py` | `implemented` | `example_1_blasius.npz`, `example_1_blasius.png` |
 | `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz`, `example_2_jet.png` |
 | `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_streaky_bl.npz`, `example_3_streaky_bl.png` |
@@ -802,7 +833,7 @@ Python counterparts:
 
 ### 8.2 Operator parity matrix
 
-Canonical machine-readable source: `validation/martini2024/tools/operator_matrix.json`.
+Canonical machine-readable source: `scripts/validation/martini2024/tools/operator_matrix.json`.
 
 Status semantics:
 
@@ -818,22 +849,22 @@ status is `pass` with `missing_required = 0`.
 
 | ID | MATLAB | Python target | Status |
 |---|---|---|---|
-| `construct_get_lin_problem` | `ConstructOperators/GetLinProblem.m` | `linstab2d/operators/assembly.py::build_lnse_operator` | `validated` |
-| `construct_get_spatial_lin_problem` | `ConstructOperators/GetSpatialLinProblem.m` | `linstab2d/operators/spatial.py::build_spatial_operator` | `validated` |
-| `construct_cartesian_coefficients` | `ConstructOperators/getCoeffsLaminar_Cartesian.m` | `linstab2d/operators/coefficients.py::compute_cartesian_coefficients` | `validated` |
-| `construct_axisymmetric_coefficients` | `ConstructOperators/getCoeffsLaminar.m` | `linstab2d/operators/coefficients.py::compute_cylindrical_coefficients` | `validated` |
-| `construct_create_diff_matrices_axy` | `ConstructOperators/CreateDiffMatrices_Axy.m` | `linstab2d/operators/assembly.py::_create_axy_diff_matrices` | `validated` |
-| `construct_lnseoperators_cyl` | `ConstructOperators/LNSEoperators_cyl.m` | `linstab2d/operators/assembly.py::build_lnse_operator(model="axy")` | `validated` |
-| `construct_get_comp_energy_norm` | `ConstructOperators/GetCompEnergyNorm.m` | `linstab2d/operators/energy_norm.py::compute_chu_norm` | `validated` |
-| `bc_dirichlet` | `BoundaryConditions/BC_Dirichlet.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet` | `validated` |
-| `bc_dirichlet_spatial` | `BoundaryConditions/BC_Dirichlet_SpatialStability.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_spatial` | `validated` |
-| `bc_neumann` | `BoundaryConditions/BC_Neumann.m` | `linstab2d/boundary_conditions/neumann.py::apply_neumann` | `validated` |
-| `bc_set_dirbc` | `BoundaryConditions/SetDirBC.m` | `linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices` | `validated` |
-| `bc_set_dirichletbc` | `BoundaryConditions/SetDirichletBC.m` | `linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair` | `validated` |
+| `construct_get_lin_problem` | `ConstructOperators/GetLinProblem.m` | `linstabpy/operators/assembly.py::build_lnse_operator` | `validated` |
+| `construct_get_spatial_lin_problem` | `ConstructOperators/GetSpatialLinProblem.m` | `linstabpy/operators/spatial.py::build_spatial_operator` | `validated` |
+| `construct_cartesian_coefficients` | `ConstructOperators/getCoeffsLaminar_Cartesian.m` | `linstabpy/operators/coefficients.py::compute_cartesian_coefficients` | `validated` |
+| `construct_axisymmetric_coefficients` | `ConstructOperators/getCoeffsLaminar.m` | `linstabpy/operators/coefficients.py::compute_cylindrical_coefficients` | `validated` |
+| `construct_create_diff_matrices_axy` | `ConstructOperators/CreateDiffMatrices_Axy.m` | `linstabpy/operators/assembly.py::_create_axy_diff_matrices` | `validated` |
+| `construct_lnseoperators_cyl` | `ConstructOperators/LNSEoperators_cyl.m` | `linstabpy/operators/assembly.py::build_lnse_operator(model="axy")` | `validated` |
+| `construct_get_comp_energy_norm` | `ConstructOperators/GetCompEnergyNorm.m` | `linstabpy/operators/energy_norm.py::compute_chu_norm` | `validated` |
+| `bc_dirichlet` | `BoundaryConditions/BC_Dirichlet.m` | `linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet` | `validated` |
+| `bc_dirichlet_spatial` | `BoundaryConditions/BC_Dirichlet_SpatialStability.m` | `linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet_spatial` | `validated` |
+| `bc_neumann` | `BoundaryConditions/BC_Neumann.m` | `linstabpy/boundary_conditions/neumann.py::apply_neumann` | `validated` |
+| `bc_set_dirbc` | `BoundaryConditions/SetDirBC.m` | `linstabpy/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices` | `validated` |
+| `bc_set_dirichletbc` | `BoundaryConditions/SetDirichletBC.m` | `linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair` | `validated` |
 
 ### 8.3 Branch coverage matrix
 
-Canonical machine-readable source: `validation/martini2024/tools/branch_matrix.json`.
+Canonical machine-readable source: `scripts/validation/martini2024/tools/branch_matrix.json`.
 
 Target dimensions:
 
@@ -851,7 +882,7 @@ Total combinations:
 
 All required combinations must be `validated`. Combinations omitted from
 `records` default to `pending`. Scope is controlled by `required_exclusions` in
-`validation/martini2024/tools/branch_matrix.json`. Current scoped gate status is `pass`
+`scripts/validation/martini2024/tools/branch_matrix.json`. Current scoped gate status is `pass`
 with `5` required validated combinations and `91` required exclusions.
 
 | model | solver | bc | deformation | backend | status |
@@ -867,19 +898,19 @@ with `5` required validated combinations and `91` required exclusions.
 Example-level parity:
 
 ```bash
-.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
+.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
 ```
 
 Allow incomplete optional matrix entries while enforcing required scoped gates:
 
 ```bash
-python validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
+python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
 ```
 
 Strict CI gate:
 
 ```bash
-python validation/martini2024/tools/check_parity_matrices.py
+python scripts/validation/martini2024/tools/check_parity_matrices.py
 ```
 
 ## 9. Case studies
@@ -914,24 +945,24 @@ Key fixes that made parity stable:
 Run from the repository root:
 
 ```bash
-bash studies/case1/case1.sh
+bash examples/case_studies/case1_song/case1.sh
 ```
 
 Primary outputs:
 
-- `studies/case1/case1.npz`;
-- `studies/case1/output/case1_operator_stage_parity.json`;
-- `studies/case1/output/case1_spectrum_parity.json`;
-- `studies/case1/output/case1_resolvent_parity.json`;
-- parity figures under `studies/case1/output/`.
+- `examples/case_studies/case1_song/case1.npz`;
+- `examples/case_studies/case1_song/output/case1_operator_stage_parity.json`;
+- `examples/case_studies/case1_song/output/case1_spectrum_parity.json`;
+- `examples/case_studies/case1_song/output/case1_resolvent_parity.json`;
+- parity figures under `examples/case_studies/case1_song/output/`.
 
-`studies/case1/` is the canonical Case 1 study path.
+`examples/case_studies/case1_song/` is the canonical Case 1 study path.
 
 Environment overrides:
 
 | Variable | Default | Use |
 |---|---:|---|
-| `LINSTAB2D_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `studies/case1/` unless absolute. |
+| `LINSTAB2D_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `examples/case_studies/case1_song/` unless absolute. |
 | `LINSTAB2D_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
 | `LINSTAB2D_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
 | `LINSTAB2D_CASE1_N_MODES` | `100` | Number of stability modes requested. |
@@ -943,9 +974,9 @@ Environment overrides:
 Spectrum comparison from the repository root:
 
 ```bash
-.venv/bin/python studies/case1/scripts/check_spectrum.py \
-  --python-npz studies/case1/case1.npz \
-  --matlab-spectrum studies/case1/reference/matlab/MATLAB_results/spectrum.mat
+.venv/bin/python examples/case_studies/case1_song/scripts/check_spectrum.py \
+  --python-npz examples/case_studies/case1_song/case1.npz \
+  --matlab-spectrum examples/case_studies/case1_song/reference/matlab/MATLAB_results/spectrum.mat
 ```
 
 Solver strategy A, the robust baseline:
@@ -975,15 +1006,15 @@ for cases that do not fit direct factorization.
 Case 2 has its own active campaign files. Do not duplicate their content in the
 top-level README.
 
-- `studies/case2/docs/PLAN.md`: current phase plan, acceptance criteria, open
+- `examples/case_studies/case2_lui/docs/PLAN.md`: current phase plan, acceptance criteria, open
   blockers, and campaign state.
-- `studies/case2/docs/REFERENCE.md`: stable technical background, governing
+- `examples/case_studies/case2_lui/docs/REFERENCE.md`: stable technical background, governing
   equations, parameter map, physical framing, and references.
-- `studies/case2/docs/README.md`: operational commands and artifact layout.
+- `examples/case_studies/case2_lui/docs/README.md`: operational commands and artifact layout.
 
 Read them in that order before changing Case 2 numerics.
 
-As with Case 1, `studies/case2/` is the canonical Case 2 study namespace.
+As with Case 1, `examples/case_studies/case2_lui/` is the canonical Case 2 study namespace.
 
 ## 10. Troubleshooting
 
@@ -1082,13 +1113,13 @@ Send:
 - a redacted stack manifest:
 
 ```bash
-.venv/bin/python tools/export_known_good_stack.py \
+.venv/bin/python scripts/tools/export_known_good_stack.py \
   --output stack_manifest.json \
   --redact-local-details
 ```
 
 For deeper OS-specific notes and installer experiments, see
-`install_tester/`.
+`scripts/ci/`.
 
 ## 11. Development
 
@@ -1109,9 +1140,9 @@ Current expected result: `535` collected tests.
 Run MATLAB parity checks with:
 
 ```bash
-.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
-python validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
-python validation/martini2024/tools/check_parity_matrices.py
+.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
+python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
+python scripts/validation/martini2024/tools/check_parity_matrices.py
 ```
 
 Packaging:
@@ -1119,7 +1150,7 @@ Packaging:
 - build metadata lives in `pyproject.toml`;
 - importable code uses the `src/` layout;
 - package name is `linstabpy`;
-- import package is `linstab2d`;
+- import package is `linstabpy`;
 - optional PETSc/SLEPc dependencies are declared as:
 
 ```bash
@@ -1136,10 +1167,10 @@ bash install.sh
 
 Reference MATLAB source boundary:
 
-- Python implementation: `src/linstab2d/`, `tests/`, `examples/`, `tools/`,
+- Python implementation: `src/linstabpy/`, `tests/`, `examples/`, `tools/`,
   and repository scripts;
 - MATLAB reference source and `.mat` assets:
-  `src/linstab2d/data/baseflows`;
+  `src/linstabpy/data/baseflows`;
 - update the submodule only with explicit intent;
 - do not edit reference MATLAB files while trying to fix Python parity.
 

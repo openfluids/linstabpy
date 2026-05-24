@@ -49,9 +49,6 @@ Issues = "https://github.com/ricardofrantz/linstabpy/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-linstab2d = ["data/baseflows/*.mat"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["slow: tests taking > 30s (deselect with -m 'not slow')"]
