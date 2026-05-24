@@ -1,0 +1,132 @@
+{
+  // Fresh Case 1 native-sponge stability study.
+  //
+  // Run with:
+  //   ../../.venv/bin/python perf_memory.py
+  //
+  // This matrix is intentionally minimal:
+  // - 10 MPI ranks only
+  // - nev = 150 for every case
+  // - filtered branch only (alpha_filter = 0.0)
+  // - four cases: fd4/fd6 × sponge off/on
+
+  "outputs": {
+    "report_json": "output/case1_perf_memory_latest.json",
+    "report_csv": "output/case1_perf_memory_table.csv",
+    "log_dir": "output/logs",
+    "run_dir": "output/runs"
+  },
+
+  "defaults": {
+    "base_config": "parity_config.jsonc",
+    "monitor_interval_seconds": 0.5,
+    "python_exe": "../../.venv/bin/python",
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1"
+    },
+    "launcher": {
+      "mpi_procs": 10,
+      "launcher": "mpiexec"
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 1,
+          "stride_eta": 1,
+          "fd_order": 4,
+          "beta": 0.0,
+          "alpha_filter": 0.0
+        },
+        "analysis": {
+          "ratio_uinf": 1.0,
+          "ratio_l": 0.1,
+          "St": 0.1,
+          "use_raw_eigs": false,
+          "run_stability": true,
+          "run_resolvent": false,
+          "n_modes_stability": 150
+        },
+        "physics": {
+          "use_matlab_sponge_aux": false,
+          "sponge": {
+            "enabled": false,
+            "preset": "case1_stability"
+          }
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed",
+          "eigen": {
+            "st_solver": "mumps",
+            "eps_tol": 1e-6,
+            "ncv": 360,
+            "conv_test": "rel",
+            "true_residual": true
+          },
+          "linsolve": {
+            "type": "mumps"
+          },
+          "resolvent": {
+            "type": "mumps",
+            "eigen": {
+              "eps_tol": 1e-8,
+              "ncv": 40,
+              "conv_test": "rel",
+              "true_residual": true,
+              "eps_max_it": 1000
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "cases": [
+    {
+      "case_id": "case1_fd4_sponge_off",
+      "label": "Case 1 stability: fd4, sponge off",
+      "enabled": true
+    },
+    {
+      "case_id": "case1_fd4_sponge_on",
+      "label": "Case 1 stability: fd4, sponge on",
+      "enabled": true,
+      "config_overrides": {
+        "physics": {
+          "sponge": {
+            "enabled": true,
+            "preset": "case1_smooth_soft"
+          }
+        }
+      }
+    },
+    {
+      "case_id": "case1_fd6_sponge_off",
+      "label": "Case 1 stability: fd6, sponge off",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        }
+      }
+    },
+    {
+      "case_id": "case1_fd6_sponge_on",
+      "label": "Case 1 stability: fd6, sponge on",
+      "enabled": true,
+      "config_overrides": {
+        "numerics": {
+          "fd_order": 6
+        },
+        "physics": {
+          "sponge": {
+            "enabled": true,
+            "preset": "case1_smooth_soft"
+          }
+        }
+      }
+    }
+  ]
+}
