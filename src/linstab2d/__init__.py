@@ -1,3 +1,12 @@
-"""linstab2d: 2D compressible linear stability and resolvent analysis."""
+import sys
+import warnings
 
-__version__ = "0.1.0"
+warnings.warn(
+    "Importing from linstabpy is deprecated. Please import from linstabpy instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+# Alias linstabpy to linstabpy
+import linstabpy
+sys.modules["linstabpy"] = linstabpy
