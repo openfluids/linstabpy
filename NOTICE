@@ -6,17 +6,22 @@ This product is a Python port and derivative of LinStab2D
 (https://github.com/LinStab2D/LinStab2D), copyright E. Martini and
 O. T. Schmidt, licensed under GPL-3.0.
 
+The upstream LinStab2D source tree is not bundled with linstabpy. Users
+who want the upstream MATLAB code or reference base flows can clone it
+themselves; see README section 2.8 for the LINSTABPY_BASEFLOW_DATA_DIR
+env-var override that points linstabpy at a local upstream clone.
+
 Files whose module docstring states "Translates <FILENAME>.m from the
 MATLAB LinStab2D codebase" are direct ports or close adaptations of the
 corresponding upstream MATLAB sources. Examples include:
 
-  - src/linstab2d/mesh/mesh.py                       (DeformMesh.m)
-  - src/linstab2d/baseflow/viscosity.py              (sutherland_air.m)
-  - src/linstab2d/baseflow/loaders.py                (example_1_readbaseflow.m)
-  - src/linstab2d/operators/coefficients.py          (getCoeffsLaminar_Cartesian.m)
-  - src/linstab2d/operators/energy_norm.py           (GetCompEnergyNorm.m)
-  - src/linstab2d/boundary_conditions/dirichlet.py   (BC_Dirichlet.m)
-  - src/linstab2d/boundary_conditions/neumann.py     (BC_Neumann.m)
+  - src/linstabpy/mesh/mesh.py                       (DeformMesh.m)
+  - src/linstabpy/baseflow/viscosity.py              (sutherland_air.m)
+  - src/linstabpy/baseflow/loaders.py                (example_1_readbaseflow.m)
+  - src/linstabpy/operators/coefficients.py          (getCoeffsLaminar_Cartesian.m)
+  - src/linstabpy/operators/energy_norm.py           (GetCompEnergyNorm.m)
+  - src/linstabpy/boundary_conditions/dirichlet.py   (BC_Dirichlet.m)
+  - src/linstabpy/boundary_conditions/neumann.py     (BC_Neumann.m)
 
 Modifications made by the linstabpy authors (2024-2026):
 

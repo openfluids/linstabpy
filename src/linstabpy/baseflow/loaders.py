@@ -5,6 +5,7 @@ Translates ``example_1_readbaseflow.m`` from the MATLAB LinStab2D codebase.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,12 @@ from scipy.io import loadmat
 from .baseflow import BaseFlow
 
 
-_BASEFLOW_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "baseflows"
+_BASEFLOW_DATA_ROOT = Path(
+    os.environ.get(
+        "LINSTABPY_BASEFLOW_DATA_DIR",
+        Path(__file__).resolve().parent.parent / "data" / "baseflows",
+    )
+)
 if (_BASEFLOW_DATA_ROOT / "BaseFlows").is_dir():
     _BASEFLOW_DATA_DIR = _BASEFLOW_DATA_ROOT / "BaseFlows"
 else:
@@ -23,13 +29,15 @@ else:
 
 
 def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
-    """Load a MATLAB base-flow file from the repository data directory."""
+    """Load a MATLAB base-flow file from the configured data directory."""
     path = _BASEFLOW_DATA_DIR / filename
     if not path.exists():
         if not _BASEFLOW_DATA_DIR.is_dir():
             raise FileNotFoundError(
-                "Missing MATLAB base-flow data submodule. "
-                "Run: git submodule update --init --recursive"
+                f"Reference base-flow data not found at {_BASEFLOW_DATA_DIR}. "
+                "Set LINSTABPY_BASEFLOW_DATA_DIR to a local clone of "
+                "https://github.com/LinStab2D/LinStab2D, or place .mat files at "
+                "src/linstabpy/data/baseflows/BaseFlows/."
             ) from FileNotFoundError(f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}")
         raise FileNotFoundError(f"Could not find base-flow data file: {path}")
     return loadmat(path)
@@ -279,7 +287,7 @@ def load_blasius(
     -------
     BaseFlow
         Fully populated base flow (except for viscosity fields, which are
-        set by :func:`~linstab2d.baseflow.viscosity.sutherland_air`).
+        set by :func:`~linstabpy.baseflow.viscosity.sutherland_air`).
     """
     nu = 1.0 / Re
 

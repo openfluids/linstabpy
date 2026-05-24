@@ -43,3 +43,8 @@ gmn_*.txt
 martini_examples/
 studies/case1/MATLAB_exports/operator_convention.mat
 validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/coefficients_raw.mat
+
+# Upstream LinStab2D reference checkout (not bundled; point
+# LINSTABPY_BASEFLOW_DATA_DIR at a local clone of
+# https://github.com/LinStab2D/LinStab2D, or place .mat files here directly).
+src/linstabpy/data/baseflows/
