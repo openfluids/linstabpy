@@ -1,6 +1,6 @@
 # LinStabPy
 
-![LinStabPy banner](docs/assets/linstabpy-banner.svg)
+![LinStabPy banner](docs/assets/linstabpy-banner.png)
 
 ## 1. Project overview
 
