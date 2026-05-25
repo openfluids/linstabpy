@@ -14,6 +14,7 @@ RUN apt-get update \
         gcc \
         gfortran \
         make \
+        cmake \
         libopenmpi-dev \
         openmpi-bin \
         liblapack-dev \

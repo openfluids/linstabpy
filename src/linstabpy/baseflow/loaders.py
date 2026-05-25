@@ -596,11 +596,13 @@ def load_cavity(mesh) -> BaseFlow:
     W = _interp_regular_grid_linear(Xq, Yq, X_data, Y_data, data["W_mean"], used_ind=used_ind)
     MU = np.ones_like(RHO, dtype=float)
 
+    fp = None
     flow_parameters = data.get("flowParameters")
     if flow_parameters is not None:
         fp_container = np.asarray(flow_parameters).reshape(-1)
         if fp_container.size:
             fp = fp_container[0]
+    if fp is not None:
         Re = float(np.asarray(fp["Re"]).reshape(-1)[0])
         Ma = float(np.asarray(fp["Ma"]).reshape(-1)[0])
         Pr = float(np.asarray(fp["Pr"]).reshape(-1)[0])

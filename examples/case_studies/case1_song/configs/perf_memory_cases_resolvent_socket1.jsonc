@@ -2,7 +2,7 @@
   // Case 1 resolvent study pinned to socket 1 physical cores only.
   //
   // Run with:
-  //   LINSTAB2D_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_resolvent_socket1.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
+  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_resolvent_socket1.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
 
   "outputs": {
     "report_json": "output/resolvent_socket1/case1_perf_memory_latest.json",

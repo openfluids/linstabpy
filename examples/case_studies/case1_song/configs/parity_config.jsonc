@@ -88,7 +88,7 @@
   },
 
   // Solver configuration
-  // Replaces LINSTAB2D_* env vars previously set in case1.sh.
+  // Replaces LINSTABPY_* env vars previously set in case1.sh.
   "solver": {
     // PETSc matrix transfer: "auto" (default), "local", "distributed"
     "petsc_matrix_mode": "auto",
