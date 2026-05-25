@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """PETSc/SLEPc initialization helpers.
 
 Ensures petsc4py/slepc4py parse process argv exactly once so command-line

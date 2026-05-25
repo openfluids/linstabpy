@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Neumann boundary-condition enforcement for the LNSE operator.
 
 Translates ``BC_Neumann.m`` from the MATLAB LinStab2D codebase.

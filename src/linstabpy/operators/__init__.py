@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """LNSE operator construction: coefficients, assembly, energy norms."""
 
 from .coefficients import (

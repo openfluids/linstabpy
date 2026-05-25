@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Product (composite) linear operator.
 
 Represents :math:`L = L_r \\cdots L_2 L_1` where each :math:`L_i` acts

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """JSONC (JSON with comments) loader and config-value parsers.
 
 Provides a single ``load_jsonc()`` entry point used by examples,

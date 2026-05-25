@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Smoke tests for the assembly metrics diff CLI."""
 
 from __future__ import annotations

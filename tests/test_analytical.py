@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Analytical benchmark tests against classical hydrodynamic stability results.
 
 These tests validate the entire linstab2d pipeline — coefficient computation,

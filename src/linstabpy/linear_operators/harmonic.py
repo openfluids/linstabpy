@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Harmonic resolvent infrastructure.
 
 Provides harmonic layout, block assembly, and weight lifting for

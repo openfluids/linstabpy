@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Viscosity models for compressible flow.
 
 Translates ``sutherland_air.m`` from the MATLAB LinStab2D codebase.

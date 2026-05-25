@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for LNSE coefficients, assembly, energy norm, and spatial formulation."""
 
 import json

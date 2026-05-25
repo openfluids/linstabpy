@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """LNSE coefficient matrices for Cartesian compressible flows.
 
 Translates ``getCoeffsLaminar_Cartesian.m`` from the MATLAB LinStab2D

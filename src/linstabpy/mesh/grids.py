@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Piecewise grid generation helpers."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Phase 1 Step 4 gate tests for dissipation wiring in the assembler.
 
 T1 (flag off): assembler with epsilon=0.0 is bitwise identical to baseline.

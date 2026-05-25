@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Structured mesh with SBP finite-difference operators and integration weights.
 
 Translates the MATLAB routines ``CreateMesh.m``, ``AddDW2mesh.m``, and

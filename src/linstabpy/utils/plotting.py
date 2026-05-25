@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Plotting helpers for field visualization."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Matrix-backed linear operator.
 
 Wraps a PETSc Mat and an optional KSP for solve operations.

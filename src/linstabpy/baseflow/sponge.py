@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Native structured sponge generators for Case 1-style workflows."""
 
 from __future__ import annotations

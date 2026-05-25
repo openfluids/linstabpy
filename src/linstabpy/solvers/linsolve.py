@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Direct linear solver via PETSc KSP with MUMPS.
 
 Provides a factorize-once, solve-many interface for the LNSE shift-invert

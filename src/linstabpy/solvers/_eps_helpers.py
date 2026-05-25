@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared SLEPc EPS helpers used by temporal, adjoint, and resolvent solvers."""
 
 from __future__ import annotations

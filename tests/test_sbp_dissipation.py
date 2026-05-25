@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for the SBP artificial dissipation operator (MSN 2004).
 
 Gates T2 (SPSD), T3 (sawtooth damping), and T4 (smooth-mode bound) from

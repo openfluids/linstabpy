@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for results-driver operator-dissipation handling."""
 
 from __future__ import annotations

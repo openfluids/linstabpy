@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for PetscShellOperator: wrapping LinearOperator as PETSc Mat.
 
 Validates that the shell matrix produces identical results to direct

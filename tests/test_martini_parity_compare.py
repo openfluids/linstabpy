@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Focused tests for Martini parity comparison helpers."""
 
 from __future__ import annotations

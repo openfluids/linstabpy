@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Automatic generation of SBP finite-difference stencils.
 
 Generates interior stencils via Fornberg (1988) weights and boundary

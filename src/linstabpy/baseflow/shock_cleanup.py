@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Optional shock-aware mean-flow cleanup helpers.
 
 This module is intentionally self-contained so experimental shock cleanup can

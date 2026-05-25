@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Coefficient-level regression tests."""
 
 from __future__ import annotations

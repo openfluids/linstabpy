@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Dirichlet boundary condition enforcement for the LNSE operator.
 
 Translates ``BC_Dirichlet.m`` from the MATLAB LinStab2D codebase.  Works

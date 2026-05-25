@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """LNSE operator assembly from coefficients and FD matrices.
 
 Translates GetLinProblem.m: assembles the 5*ngp × 5*ngp linear operator

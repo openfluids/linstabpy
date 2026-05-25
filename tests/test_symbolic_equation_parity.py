@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Numeric parity check between SymPy templates and operator implementations."""
 
 from __future__ import annotations

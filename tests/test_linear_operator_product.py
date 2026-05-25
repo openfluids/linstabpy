@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for ProductOperator: forward and adjoint chains.
 
 Validates that composite operator actions match dense numpy references.

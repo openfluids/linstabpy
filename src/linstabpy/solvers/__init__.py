@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Eigenvalue and resolvent solvers."""
 
 from .resolvent import resolvent_analysis

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Spatial eigenproblem assembly for LNSE spatial stability analysis."""
 
 from __future__ import annotations

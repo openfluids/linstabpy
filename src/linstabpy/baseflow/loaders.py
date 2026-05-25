@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Base flow loaders (Blasius, etc.).
 
 Translates ``example_1_readbaseflow.m`` from the MATLAB LinStab2D codebase.

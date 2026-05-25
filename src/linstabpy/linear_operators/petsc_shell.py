@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Expose a LinearOperator as a PETSc Mat (shell matrix).
 
 Useful for passing operator compositions to SLEPc EPS/SVD solvers.

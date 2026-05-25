@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Unit tests for results-runtime stage heartbeat logging."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for the Q_diss_x / Q_diss_y fields on the Mesh dataclass (Phase 1, Step 3).
 
 Three checks:

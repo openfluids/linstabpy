@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Operator abstraction layer for linstab2d.
 
 Provides a composable interface for linear operators on top of PETSc.

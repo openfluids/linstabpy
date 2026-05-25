@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared runtime for the case-style study drivers.
 
 Wrappers under ``studies/case*/`` prepare case-specific environment defaults

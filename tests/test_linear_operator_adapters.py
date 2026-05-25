@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for adapter functions and composed resolvent operator.
 
 B1: scipy_to_operator, scipy_to_solve_operator, DiagonalOperator, NumpyCallableOperator

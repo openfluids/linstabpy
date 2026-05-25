@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Regression tests for Martini MATLAB HDF5 extraction."""
 
 from __future__ import annotations

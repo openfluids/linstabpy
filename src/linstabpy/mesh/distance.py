@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Distance helpers for structured grids."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Resolvent analysis via PETSc/SLEPc on the weighted resolvent operator.
 
 Computes the optimal forcing/response pairs and gains for the linearised
