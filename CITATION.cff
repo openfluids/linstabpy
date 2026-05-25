@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: linstabpy
+message: >-
+  If you use linstabpy in published work, please cite both the
+  underlying methodology paper (Martini & Schmidt 2024) and this
+  software release.
+type: software
+authors:
+  - given-names: Ricardo
+    family-names: Frantz
+  - given-names: Gabriel
+    family-names: Hamada
+repository-code: 'https://github.com/ricardofrantz/linstabpy'
+url: 'https://github.com/ricardofrantz/linstabpy'
+license: GPL-3.0-only
+# TODO when the first tagged release lands on Zenodo, add the
+# following three keys with concrete values (placeholders below
+# are deliberately omitted because strict CFF validation rejects
+# non-ISO-8601 date-released or invalid DOI strings):
+#   doi: 10.5281/zenodo.XXXXXXX
+#   version: v0.1.0
+#   date-released: 2026-MM-DD
+preferred-citation:
+  type: article
+  title: >-
+    LinStab2D: stability and resolvent analysis of compressible
+    viscous flows in MATLAB
+  authors:
+    - given-names: Eduardo
+      family-names: Martini
+    - given-names: Oliver T.
+      family-names: Schmidt
+  journal: Theoretical and Computational Fluid Dynamics
+  year: 2024
+  doi: 10.1007/s00162-024-00706-0
