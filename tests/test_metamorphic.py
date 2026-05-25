@@ -127,7 +127,7 @@ def test_A_eigenvalue_shift_invariance(alpha: complex) -> None:
     shifted_A = A + alpha * np.eye(n, dtype=complex)
 
     vals_A_plus_alpha = _sorted_eigs(A) + alpha  # analytical prediction
-    vals_shifted = _sorted_eigs(shifted_A)       # what numpy reports
+    vals_shifted = _sorted_eigs(shifted_A)  # what numpy reports
 
     np.testing.assert_allclose(
         vals_shifted,
@@ -283,27 +283,25 @@ def test_F_chu_norm_positive_definite(kappa: float, Ma: float, label: str) -> No
     T = 0.9 + 0.3 * np.abs(rng.standard_normal(ngp))
     w_int = np.abs(rng.standard_normal(ngp)) + 0.01  # integration weights > 0
 
-    Ma2 = Ma ** 2
+    Ma2 = Ma**2
 
-    W_diag = 0.5 * np.concatenate([
-        T / (rho * kappa * Ma2) * w_int,           # rho block
-        rho * w_int,                                 # u block
-        rho * w_int,                                 # v block
-        rho * w_int,                                 # w block
-        rho / (kappa * (kappa - 1.0) * T * Ma2) * w_int,  # T block
-    ])
+    W_diag = 0.5 * np.concatenate(
+        [
+            T / (rho * kappa * Ma2) * w_int,  # rho block
+            rho * w_int,  # u block
+            rho * w_int,  # v block
+            rho * w_int,  # w block
+            rho / (kappa * (kappa - 1.0) * T * Ma2) * w_int,  # T block
+        ]
+    )
     invW_diag = 1.0 / W_diag
 
     # 1. All entries strictly positive
-    assert np.all(W_diag > 0), (
-        f"[{label}] W_diag has non-positive entries: min={W_diag.min():.3e}"
-    )
+    assert np.all(W_diag > 0), f"[{label}] W_diag has non-positive entries: min={W_diag.min():.3e}"
 
     # 2. Inverse matches 1/W_diag to tight tolerance
     rel_inv_err = np.max(np.abs(invW_diag - 1.0 / W_diag) / np.abs(invW_diag))
-    assert rel_inv_err < 1e-14, (
-        f"[{label}] invW_diag ≠ 1/W_diag: max rel err = {rel_inv_err:.3e}"
-    )
+    assert rel_inv_err < 1e-14, f"[{label}] invW_diag ≠ 1/W_diag: max rel err = {rel_inv_err:.3e}"
 
     # 3. W_diag is real (Hermitian diagonal)
     assert np.all(np.isreal(W_diag)), f"[{label}] W_diag has imaginary parts"
@@ -315,9 +313,7 @@ def test_F_chu_norm_positive_definite(kappa: float, Ma: float, label: str) -> No
 
     # 5. W * invW = 1 (self-consistency of normalization)
     product_err = np.max(np.abs(W_diag * invW_diag - 1.0))
-    assert product_err < 1e-14, (
-        f"[{label}] W * invW ≠ 1: max err = {product_err:.3e}"
-    )
+    assert product_err < 1e-14, f"[{label}] W * invW ≠ 1: max err = {product_err:.3e}"
 
 
 # ===========================================================================
