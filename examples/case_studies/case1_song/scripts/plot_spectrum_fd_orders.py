@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 DEFAULT_REPORT = CASE_DIR / "output" / "case1_perf_memory_latest.json"
@@ -76,7 +75,9 @@ def main() -> int:
         raise SystemExit("No completed Case 1 stability runs in perf report.")
 
     matlab = _diag_or_flat(np.asarray(loadmat(MATLAB_SPECTRUM)["omega"]))
-    panels: dict[tuple[int, bool], dict] = {(row["fd_order"], row["sponge_enabled"]): row for row in rows}
+    panels: dict[tuple[int, bool], dict] = {
+        (row["fd_order"], row["sponge_enabled"]): row for row in rows
+    }
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharex=True, sharey=True)
     panel_order = [

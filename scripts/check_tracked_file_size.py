@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 DEFAULT_TRACKED_LIMIT_MIB = 50.0
 DEFAULT_IGNORED_REPORT_LIMIT_MIB = 50.0
 

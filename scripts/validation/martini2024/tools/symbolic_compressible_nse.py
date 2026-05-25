@@ -7,10 +7,11 @@ import argparse
 import ast
 import json
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import sympy as sp
 
@@ -504,11 +505,21 @@ def build_symbolic_report(mode: str = "all") -> dict[str, Any]:
     ] = []
 
     if mode in ("cartesian", "both", "all"):
-        tasks.append(("cartesian_full_5x5", cartesian_symbol_table, cartesian_operator_coefficients))
+        tasks.append(
+            ("cartesian_full_5x5", cartesian_symbol_table, cartesian_operator_coefficients)
+        )
     if mode in ("cylindrical", "both", "all"):
-        tasks.append(("cylindrical_full_5x5", cylindrical_symbol_table, cylindrical_operator_coefficients))
+        tasks.append(
+            ("cylindrical_full_5x5", cylindrical_symbol_table, cylindrical_operator_coefficients)
+        )
     if mode in ("curvilinear", "all"):
-        tasks.append(("curvilinear_metric_terms", curvilinear_symbol_table, curvilinear_operator_coefficients))
+        tasks.append(
+            (
+                "curvilinear_metric_terms",
+                curvilinear_symbol_table,
+                curvilinear_operator_coefficients,
+            )
+        )
 
     model_reports: dict[str, Any] = {}
     combined_unresolved: dict[str, list[str]] = {}

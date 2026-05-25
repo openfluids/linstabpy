@@ -5,13 +5,14 @@ G-001 guard: axisymmetric model must fail fast with a clean RuntimeError
 when the PETSc matrix spans multiple MPI ranks, rather than silently
 corrupting data via petsc_to_scipy on a distributed matrix.
 """
+
 from __future__ import annotations
 
 import textwrap
+
 import pytest
 
 from tests.mpi_helpers import run_mpi_python
-
 
 _SCRIPT = textwrap.dedent("""\
     import sys, json
@@ -70,12 +71,11 @@ _SCRIPT = textwrap.dedent("""\
 def test_axy_distributed_raises_runtime_error():
     """_apply_inv_B_petsc must raise RuntimeError for axy + 2 MPI ranks."""
     proc = run_mpi_python(2, _SCRIPT)
-    assert proc.returncode == 0, (
-        f"MPI script crashed (rc={proc.returncode}):\n{proc.stderr}"
-    )
+    assert proc.returncode == 0, f"MPI script crashed (rc={proc.returncode}):\n{proc.stderr}"
     lines = [l for l in proc.stdout.splitlines() if l.strip().startswith("{")]
     assert lines, f"No JSON output from MPI script:\n{proc.stdout}\n{proc.stderr}"
     import json
+
     report = json.loads(lines[0])
     assert report["raised"], (
         f"Expected RuntimeError but got: {report['error']}\n"

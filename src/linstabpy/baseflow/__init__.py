@@ -2,7 +2,7 @@
 """Base flow infrastructure: data loading, viscosity models."""
 
 from .baseflow import BaseFlow
-from .viscosity import sutherland_air
+from .case1 import load_hamada_case
 from .loaders import (
     load_blasius,
     load_cavity,
@@ -10,5 +10,5 @@ from .loaders import (
     load_paraboloid,
     load_streaky_bl,
 )
-from .case1 import load_hamada_case
 from .sponge import CASE1_SPONGE_PRESETS, case1_sponge_from_config, generate_case1_sponge
+from .viscosity import sutherland_air

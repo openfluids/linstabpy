@@ -97,7 +97,9 @@ def _as_dir_fractions(values: Any, *, name: str) -> np.ndarray:
     return arr
 
 
-def _constant_sponge(shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray) -> np.ndarray:
+def _constant_sponge(
+    shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray
+) -> np.ndarray:
     sponge = np.zeros(shape, dtype=float)
     if pts_dir[0] != 0:
         sponge[:, -pts_dir[0] :] = amp_dir[0]
@@ -110,7 +112,9 @@ def _constant_sponge(shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.nd
     return sponge
 
 
-def _parabolic_sponge(shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray) -> np.ndarray:
+def _parabolic_sponge(
+    shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray
+) -> np.ndarray:
     sponge = np.zeros(shape, dtype=float)
     if pts_dir[0] != 0:
         width = pts_dir[0]
@@ -131,12 +135,14 @@ def _parabolic_sponge(shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.n
     return sponge
 
 
-def _localized_sponge(shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray) -> np.ndarray:
+def _localized_sponge(
+    shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray
+) -> np.ndarray:
     sponge = np.ones(shape, dtype=float)
     if pts_dir[0] != 0:
-        sponge[:, :-pts_dir[0]] *= 0.0
+        sponge[:, : -pts_dir[0]] *= 0.0
     if pts_dir[1] != 0:
-        sponge[:-pts_dir[1], :] *= 0.0
+        sponge[: -pts_dir[1], :] *= 0.0
     if pts_dir[2] != 0:
         sponge[:, pts_dir[2] :] *= 0.0
     if pts_dir[3] != 0:
@@ -278,7 +284,8 @@ def _smooth_localized_sponge(
 ) -> np.ndarray:
     distances = _boundary_distance_fields(X, Y)
     active_edges = [
-        edge for edge, width, amplitude in zip(EDGE_NAMES, width_dir, amp_dir, strict=True)
+        edge
+        for edge, width, amplitude in zip(EDGE_NAMES, width_dir, amp_dir, strict=True)
         if width > 0.0 and amplitude != 0.0
     ]
     if not active_edges:

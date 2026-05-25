@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import importlib
 import json
@@ -11,7 +12,6 @@ import subprocess
 import sys
 import time
 import traceback
-import argparse
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -19,7 +19,6 @@ from typing import Any
 import numpy as np
 
 from linstabpy.utils.jsonc import load_jsonc
-
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[1]
@@ -84,13 +83,21 @@ def _summarize(example_name: str, npz_path: Path) -> dict[str, Any]:
         files = set(data.files)
         summary: dict[str, Any] = {}
         if "temporal_residuals" in files:
-            summary["temporal_residual_max"] = float(np.max(np.asarray(data["temporal_residuals"], dtype=float)))
+            summary["temporal_residual_max"] = float(
+                np.max(np.asarray(data["temporal_residuals"], dtype=float))
+            )
         if "spatial_residuals" in files:
-            summary["spatial_residual_max"] = float(np.max(np.asarray(data["spatial_residuals"], dtype=float)))
+            summary["spatial_residual_max"] = float(
+                np.max(np.asarray(data["spatial_residuals"], dtype=float))
+            )
         if "direct_residuals" in files:
-            summary["direct_residual_max"] = float(np.max(np.asarray(data["direct_residuals"], dtype=float)))
+            summary["direct_residual_max"] = float(
+                np.max(np.asarray(data["direct_residuals"], dtype=float))
+            )
         if "adjoint_residuals" in files:
-            summary["adjoint_residual_max"] = float(np.max(np.asarray(data["adjoint_residuals"], dtype=float)))
+            summary["adjoint_residual_max"] = float(
+                np.max(np.asarray(data["adjoint_residuals"], dtype=float))
+            )
         return summary
 
 
@@ -146,10 +153,22 @@ def _run_single_trial(cfg: dict[str, Any], example_name: str, trial_name: str) -
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--worker-example", default="", help="Internal: run one example trial in an isolated subprocess.")
-    parser.add_argument("--worker-trial", default="", help="Internal: run one example trial in an isolated subprocess.")
-    parser.add_argument("--examples", default="", help="Comma-separated example names to run from the tuning JSONC.")
-    parser.add_argument("--trials", default="", help="Comma-separated trial names to run from the tuning JSONC.")
+    parser.add_argument(
+        "--worker-example",
+        default="",
+        help="Internal: run one example trial in an isolated subprocess.",
+    )
+    parser.add_argument(
+        "--worker-trial",
+        default="",
+        help="Internal: run one example trial in an isolated subprocess.",
+    )
+    parser.add_argument(
+        "--examples", default="", help="Comma-separated example names to run from the tuning JSONC."
+    )
+    parser.add_argument(
+        "--trials", default="", help="Comma-separated trial names to run from the tuning JSONC."
+    )
     args = parser.parse_args()
 
     cfg = load_jsonc(CONFIG_PATH)

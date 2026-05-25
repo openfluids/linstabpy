@@ -16,11 +16,12 @@ All heavy imports (Mesh, BaseFlow, build_lnse_operator) are done lazily inside
 each test method to avoid module-level petsc4py/mpi4py import failures on
 machines without PETSc (e.g. macOS developer machines).
 """
+
 from __future__ import annotations
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 
 _NX = 20
 _NY = 15
@@ -29,6 +30,7 @@ _FD_ORDER = 4
 
 def _make_mesh(enabled: bool = False):
     from linstabpy.mesh import Mesh
+
     od = {"enabled": enabled, "order_diss": _FD_ORDER} if enabled else None
     return Mesh.create(
         xrange=(0.0, 1.0),
@@ -42,13 +44,21 @@ def _make_mesh(enabled: bool = False):
 
 def _make_baseflow(mesh):
     from linstabpy.baseflow import BaseFlow, sutherland_air
+
     ny, nx = mesh.X.shape
     ones = np.ones((ny, nx))
     zeros = np.zeros((ny, nx))
     bf = BaseFlow(
-        Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
-        RHO=ones.copy(), U=ones.copy(), V=zeros.copy(),
-        W=zeros.copy(), T=ones.copy(),
+        Re=1e4,
+        Ma=0.3,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=ones.copy(),
+        U=ones.copy(),
+        V=zeros.copy(),
+        W=zeros.copy(),
+        T=ones.copy(),
     )
     sutherland_air(bf)
     return bf
@@ -60,6 +70,7 @@ class TestDissipationT1FlagOff:
     def test_no_kwarg_identical_to_explicit_zero(self) -> None:
         """build_lnse_operator with no dissipation_epsilon kwarg equals epsilon=0.0 explicitly."""
         from linstabpy.operators import build_lnse_operator
+
         mesh = _make_mesh(enabled=False)
         bf = _make_baseflow(mesh)
         L_no_kwarg, _ = build_lnse_operator(mesh, bf)
@@ -79,6 +90,7 @@ class TestDissipationT1FlagOff:
         Both meshes have identical grid parameters so the LNSE operators must match.
         """
         from linstabpy.operators import build_lnse_operator
+
         mesh_nodiss = _make_mesh(enabled=False)
         mesh_diss = _make_mesh(enabled=True)
         bf_nodiss = _make_baseflow(mesh_nodiss)
@@ -107,6 +119,7 @@ class TestDissipationPositiveCorrectness:
         convention used in _build_operators_kron.
         """
         from linstabpy.operators import build_lnse_operator
+
         epsilon = 0.1
         mesh = _make_mesh(enabled=True)
         bf = _make_baseflow(mesh)
@@ -118,9 +131,8 @@ class TestDissipationPositiveCorrectness:
         ny, nx = mesh.X.shape
         I_ny = sp.eye(ny, format="csr")
         I_nx = sp.eye(nx, format="csr")
-        Q_2D = (
-            sp.kron(mesh.Q_diss_x, I_ny, format="csr")
-            + sp.kron(I_nx, mesh.Q_diss_y, format="csr")
+        Q_2D = sp.kron(mesh.Q_diss_x, I_ny, format="csr") + sp.kron(
+            I_nx, mesh.Q_diss_y, format="csr"
         )
         Q_block = sp.block_diag([Q_2D] * 5, format="csr")
 
@@ -136,6 +148,7 @@ class TestDissipationPositiveCorrectness:
     def test_epsilon_nonzero_changes_operator(self) -> None:
         """Sanity: epsilon=0.1 with Q_diss populated must change the operator."""
         from linstabpy.operators import build_lnse_operator
+
         mesh = _make_mesh(enabled=True)
         bf = _make_baseflow(mesh)
 
@@ -143,13 +156,12 @@ class TestDissipationPositiveCorrectness:
         L_on, _ = build_lnse_operator(mesh, bf, dissipation_epsilon=0.1)
 
         diff = (L_baseline - L_on).tocsr()
-        assert diff.nnz > 0, (
-            "epsilon=0.1 did not change the operator — Q_diss was not subtracted"
-        )
+        assert diff.nnz > 0, "epsilon=0.1 did not change the operator — Q_diss was not subtracted"
 
     def test_epsilon_positive_no_dissipation_matrices_unchanged(self) -> None:
         """If mesh has no Q_diss (flag off), epsilon > 0 must not change the operator."""
         from linstabpy.operators import build_lnse_operator
+
         mesh_nodiss = _make_mesh(enabled=False)
         bf = _make_baseflow(mesh_nodiss)
 
@@ -167,10 +179,11 @@ class TestDissipationPositiveCorrectness:
 def test_petsc_backend_rejects_dissipation():
     """build_lnse_operator_petsc must raise NotImplementedError when dissipation_epsilon > 0."""
     pytest.importorskip("petsc4py", reason="petsc4py not available")
-    from linstabpy.operators.assembly import build_lnse_operator_petsc
-    from linstabpy.mesh import Mesh
-    from linstabpy.baseflow import BaseFlow, sutherland_air
     import pytest as _pytest
+
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_operator_petsc
 
     mesh = Mesh.create(
         xrange=(0.0, 1.0),
@@ -184,9 +197,16 @@ def test_petsc_backend_rejects_dissipation():
     ones = np.ones((ny, nx))
     zeros = np.zeros((ny, nx))
     bf = BaseFlow(
-        Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
-        RHO=ones.copy(), U=ones.copy(), V=zeros.copy(),
-        W=zeros.copy(), T=ones.copy(),
+        Re=1e4,
+        Ma=0.3,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=ones.copy(),
+        U=ones.copy(),
+        V=zeros.copy(),
+        W=zeros.copy(),
+        T=ones.copy(),
     )
     sutherland_air(bf)
 

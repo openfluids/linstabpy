@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import abc
 import functools
-from typing import Optional, Union
 
 from ..utils.petsc_init import init_petsc_from_argv
 
@@ -22,9 +21,7 @@ def _not_implemented(method):
 
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
-        raise NotImplementedError(
-            f"'{type(self).__name__}' does not implement '{method.__name__}'"
-        )
+        raise NotImplementedError(f"'{type(self).__name__}' does not implement '{method.__name__}'")
 
     return wrapper
 
@@ -49,7 +46,7 @@ class LinearOperator(abc.ABC):
         comm: PETSc.Comm,
         name: str,
         dimensions: tuple[tuple[int, int], tuple[int, int]],
-        nblocks: Optional[Union[int, None]] = None,
+        nblocks: int | None | None = None,
     ) -> None:
         self._comm = comm
         self._name = name
@@ -103,19 +100,13 @@ class LinearOperator(abc.ABC):
     # -- Optional: default raises NotImplementedError ------------------------
 
     @_not_implemented
-    def apply_adjoint(
-        self, x: PETSc.Vec, y: PETSc.Vec | None = None
-    ) -> PETSc.Vec:
+    def apply_adjoint(self, x: PETSc.Vec, y: PETSc.Vec | None = None) -> PETSc.Vec:
         r"""Compute :math:`y = L^H x`."""
 
     @_not_implemented
-    def solve(
-        self, x: PETSc.Vec, y: PETSc.Vec | None = None
-    ) -> PETSc.Vec:
+    def solve(self, x: PETSc.Vec, y: PETSc.Vec | None = None) -> PETSc.Vec:
         r"""Compute :math:`y = L^{-1} x`."""
 
     @_not_implemented
-    def solve_adjoint(
-        self, x: PETSc.Vec, y: PETSc.Vec | None = None
-    ) -> PETSc.Vec:
+    def solve_adjoint(self, x: PETSc.Vec, y: PETSc.Vec | None = None) -> PETSc.Vec:
         r"""Compute :math:`y = L^{-H} x`."""

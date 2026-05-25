@@ -28,10 +28,10 @@ from numpy.typing import NDArray
 
 from .fdweights import fdweights
 
-
 # ---------------------------------------------------------------------------
 # Interior stencils via Fornberg weights
 # ---------------------------------------------------------------------------
+
 
 def fornberg_interior(order: int, deriv: int) -> NDArray[np.float64]:
     """Central FD weights for derivative *deriv* at interior order *order*.
@@ -62,6 +62,7 @@ def fornberg_interior(order: int, deriv: int) -> NDArray[np.float64]:
 # SBP diagonal-norm parameters
 # ---------------------------------------------------------------------------
 
+
 def _sbp_norm_weights(order: int) -> NDArray[np.float64]:
     """Return the diagonal-norm weights h_0 .. h_{r-1} for an SBP operator.
 
@@ -83,15 +84,28 @@ def _sbp_norm_weights(order: int) -> NDArray[np.float64]:
     _known_norms: dict[int, NDArray[np.float64]] = {
         2: np.array([0.5]),
         4: np.array([17 / 48, 59 / 48, 43 / 48, 49 / 48]),
-        6: np.array([
-            13649 / 43200, 12013 / 8640, 2711 / 4320,
-            5359 / 4320, 7877 / 8640, 43801 / 43200,
-        ]),
-        8: np.array([
-            1498139 / 5080320, 1107307 / 725760, 20761 / 80640,
-            1304999 / 725760, 299527 / 725760, 103097 / 80640,
-            670091 / 725760, 5127739 / 5080320,
-        ]),
+        6: np.array(
+            [
+                13649 / 43200,
+                12013 / 8640,
+                2711 / 4320,
+                5359 / 4320,
+                7877 / 8640,
+                43801 / 43200,
+            ]
+        ),
+        8: np.array(
+            [
+                1498139 / 5080320,
+                1107307 / 725760,
+                20761 / 80640,
+                1304999 / 725760,
+                299527 / 725760,
+                103097 / 80640,
+                670091 / 725760,
+                5127739 / 5080320,
+            ]
+        ),
     }
 
     if order not in _known_norms:
@@ -120,8 +134,11 @@ def _sbp_boundary_rows(order: int) -> int:
 # Rational-arithmetic least-squares solver
 # ---------------------------------------------------------------------------
 
+
 def _solve_rational_lstsq(
-    A: NDArray[np.float64], b: NDArray[np.float64], n_unk: int,
+    A: NDArray[np.float64],
+    b: NDArray[np.float64],
+    n_unk: int,
 ) -> NDArray[np.float64]:
     """Solve an overdetermined system using exact rational arithmetic.
 
@@ -135,8 +152,9 @@ def _solve_rational_lstsq(
     assert n_cols == n_unk
 
     # Convert to exact rationals
-    AF = [[Fraction(A[i, j]).limit_denominator(10**18) for j in range(n_cols)]
-          for i in range(n_rows)]
+    AF = [
+        [Fraction(A[i, j]).limit_denominator(10**18) for j in range(n_cols)] for i in range(n_rows)
+    ]
     bF = [Fraction(b[i]).limit_denominator(10**18) for i in range(n_rows)]
 
     # Gaussian elimination with partial pivoting on the augmented matrix
@@ -188,6 +206,7 @@ def _solve_rational_lstsq(
 # D1 boundary closure via SBP decomposition
 # ---------------------------------------------------------------------------
 
+
 def _interior_coeff(a_interior: NDArray[np.float64], row: int, col: int) -> float:
     """Interior stencil coefficient D[row, col] on a unit-spaced grid."""
     w = (len(a_interior) - 1) // 2
@@ -198,7 +217,11 @@ def _interior_coeff(a_interior: NDArray[np.float64], row: int, col: int) -> floa
 
 
 def _solve_d1_closure(
-    order: int, r: int, m: int, p: int, h: NDArray[np.float64],
+    order: int,
+    r: int,
+    m: int,
+    p: int,
+    h: NDArray[np.float64],
 ) -> NDArray[np.float64]:
     """Solve for the first-derivative boundary closure.
 
@@ -238,15 +261,15 @@ def _solve_d1_closure(
     def _build_accuracy_eq(row_i: int, k: int) -> tuple[NDArray[np.float64], float]:
         """Build one accuracy equation for row row_i, monomial degree k."""
         target = float(k * row_i ** (k - 1)) if k > 0 else 0.0
-        known = a_b1[row_i, row_i] * float(row_i ** k)
+        known = a_b1[row_i, row_i] * float(row_i**k)
         for j in range(r, m):
-            known += a_b1[row_i, j] * float(j ** k)
+            known += a_b1[row_i, j] * float(j**k)
         eq = np.zeros(n_unk)
         for idx, (uj, ui) in enumerate(unknown_map):
             if uj == row_i:
-                eq[idx] += float(ui ** k)
+                eq[idx] += float(ui**k)
             if ui == row_i and uj != row_i:
-                eq[idx] += -(h[uj] / h[row_i]) * float(uj ** k)
+                eq[idx] += -(h[uj] / h[row_i]) * float(uj**k)
         return eq, target - known
 
     # Base accuracy equations (degree 0..p at each boundary row)
@@ -301,8 +324,13 @@ def _solve_d1_closure(
 # D2 boundary closure via H-symmetry decomposition
 # ---------------------------------------------------------------------------
 
+
 def _solve_d2_closure(
-    order: int, r: int, m: int, p: int, h: NDArray[np.float64],
+    order: int,
+    r: int,
+    m: int,
+    p: int,
+    h: NDArray[np.float64],
     a_b1: NDArray[np.float64],
 ) -> NDArray[np.float64]:
     """Solve for the second-derivative boundary closure.
@@ -321,6 +349,7 @@ def _solve_d2_closure(
     # For higher orders: compute the wide-stencil D2 from D1
     # Build a small matrix with enough points to extract the boundary block.
     import scipy.sparse as sp
+
     n_build = 3 * m  # enough points for clean interior
     dz = 1.0
 
@@ -354,6 +383,7 @@ def _solve_d2_closure(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def sbp_boundary_closure(
     order: int,

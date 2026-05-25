@@ -66,8 +66,7 @@ def load_hamada_case(
     """Load Hamada case arrays and build a ``BaseFlow`` object."""
     root = Path(case_dir)
     fields = {
-        name: _load_field(root, name)
-        for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")
+        name: _load_field(root, name) for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")
     }
 
     if transpose_input:

@@ -10,7 +10,6 @@ Adapted from resolvent4py's ProductLinearOperator (Padovan et al.).
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Optional, Union
 
 from ..utils.petsc_init import init_petsc_from_argv
 
@@ -18,7 +17,6 @@ init_petsc_from_argv()
 from petsc4py import PETSc
 
 from .base import LinearOperator
-
 
 # Map each forward action to its adjoint counterpart (method names).
 _ADJOINT_MAP: dict[str, str] = {
@@ -41,23 +39,18 @@ def _action_name(linop: LinearOperator, action: Callable) -> str:
         if getattr(method, "__func__", method) is action_func:
             return name
     raise ValueError(
-        f"Action is not one of apply / apply_adjoint / solve / solve_adjoint "
-        f"for '{linop.name}'"
+        f"Action is not one of apply / apply_adjoint / solve / solve_adjoint for '{linop.name}'"
     )
 
 
-def _output_dims(
-    linop: LinearOperator, action_name: str
-) -> tuple[int, int]:
+def _output_dims(linop: LinearOperator, action_name: str) -> tuple[int, int]:
     """Return the output (range) dimension of *action_name* on *linop*."""
     if action_name in ("apply", "solve"):
         return linop.dimensions[0]  # range = rows
     return linop.dimensions[1]  # adjoint: range = cols
 
 
-def _input_dims(
-    linop: LinearOperator, action_name: str
-) -> tuple[int, int]:
+def _input_dims(linop: LinearOperator, action_name: str) -> tuple[int, int]:
     """Return the input (domain) dimension of *action_name* on *linop*."""
     if action_name in ("apply", "solve"):
         return linop.dimensions[1]  # domain = cols
@@ -91,30 +84,23 @@ class ProductOperator(LinearOperator):
         self,
         operators: list[LinearOperator],
         actions: list[Callable],
-        nblocks: Optional[Union[int, None]] = None,
+        nblocks: int | None | None = None,
     ) -> None:
         if len(operators) < 2:
             raise ValueError("ProductOperator requires at least 2 sub-operators")
         if len(operators) != len(actions):
-            raise ValueError(
-                f"len(operators)={len(operators)} != len(actions)={len(actions)}"
-            )
+            raise ValueError(f"len(operators)={len(operators)} != len(actions)={len(actions)}")
 
         # Store in application order: operators[0] applied first.
         self._ops = list(operators)
-        self._action_names = [
-            _action_name(op, act) for op, act in zip(operators, actions)
-        ]
+        self._action_names = [_action_name(op, act) for op, act in zip(operators, actions)]
         self._actions = list(actions)
 
         # Derive adjoint action chain (reversed, each action mapped to adjoint).
-        self._adj_action_names = [
-            _ADJOINT_MAP[n] for n in reversed(self._action_names)
-        ]
+        self._adj_action_names = [_ADJOINT_MAP[n] for n in reversed(self._action_names)]
         self._adj_ops = list(reversed(self._ops))
         self._adj_actions = [
-            getattr(op, name)
-            for op, name in zip(self._adj_ops, self._adj_action_names)
+            getattr(op, name) for op, name in zip(self._adj_ops, self._adj_action_names)
         ]
 
         # Compute overall dimensions.
@@ -164,9 +150,7 @@ class ProductOperator(LinearOperator):
     def apply_adjoint(self, x, y=None):
         if y is None:
             y = self.create_right_vector()
-        return self._chain_apply(
-            self._adj_actions, self._adj_intermediates, x, y
-        )
+        return self._chain_apply(self._adj_actions, self._adj_intermediates, x, y)
 
     def destroy(self):
         for v in self._intermediates:

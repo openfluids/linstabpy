@@ -7,8 +7,8 @@ and then call ``compute()`` / ``main()`` from this module.
 
 from __future__ import annotations
 
-import threading
 import os
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -19,8 +19,8 @@ import scipy.sparse as sp
 from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
-from petsc4py import PETSc
 from mpi4py import MPI
+from petsc4py import PETSc
 
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
@@ -164,7 +164,9 @@ def _effective_alpha_filter(
 @contextmanager
 def _stage_heartbeat(stage: str, *, interval_seconds: float | None = None):
     """Emit periodic 'still alive' logs while a long stage is running."""
-    interval = _default_stage_heartbeat_seconds() if interval_seconds is None else float(interval_seconds)
+    interval = (
+        _default_stage_heartbeat_seconds() if interval_seconds is None else float(interval_seconds)
+    )
     if interval <= 0.0:
         yield
         return
@@ -200,7 +202,9 @@ def _restrict_operator_for_stability(
     W_reduced = np.asarray(W_diag, dtype=float)[free_dofs]
     if _is_petsc_matrix(operator):
         r0, r1 = operator.getOwnershipRange()
-        free_local = free_dofs[(free_dofs >= r0) & (free_dofs < r1)].astype(PETSc.IntType, copy=False)
+        free_local = free_dofs[(free_dofs >= r0) & (free_dofs < r1)].astype(
+            PETSc.IntType, copy=False
+        )
         is_free = PETSc.IS().createGeneral(free_local, comm=operator.getComm())
         try:
             reduced = operator.createSubMatrix(is_free, is_free)
@@ -211,7 +215,9 @@ def _restrict_operator_for_stability(
     return reduced, W_reduced, free_dofs
 
 
-def _expand_reduced_modes(modes_reduced: np.ndarray, n_full: int, free_dofs: np.ndarray) -> np.ndarray:
+def _expand_reduced_modes(
+    modes_reduced: np.ndarray, n_full: int, free_dofs: np.ndarray
+) -> np.ndarray:
     """Expand reduced eigenvectors back into the full state space."""
     if modes_reduced.size == 0:
         return np.empty((n_full, 0), dtype=complex)
@@ -226,7 +232,9 @@ def _build_distributed_vec_from_global_array(mat: PETSc.Mat, values: np.ndarray)
     r0, r1 = vec.getOwnershipRange()
     if r1 > r0:
         rows = np.arange(r0, r1, dtype=PETSc.IntType)
-        vec.setValues(rows, np.asarray(values[r0:r1], dtype=complex), addv=PETSc.InsertMode.INSERT_VALUES)
+        vec.setValues(
+            rows, np.asarray(values[r0:r1], dtype=complex), addv=PETSc.InsertMode.INSERT_VALUES
+        )
     vec.assemblyBegin()
     vec.assemblyEnd()
     return vec
@@ -415,7 +423,9 @@ def compute() -> None:
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
     case_dir = Path(str(cfg("paths.case_dir", str(Path.cwd() / "data" / "baseflow"))))
-    sponge_mat_path = Path(str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat")))
+    sponge_mat_path = Path(
+        str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat"))
+    )
     Re = float(cfg("physics.Re", 395000.0))
     Ma = float(cfg("physics.Ma", 2.0))
     Pr = float(cfg("physics.Pr", 0.747))
@@ -494,12 +504,18 @@ def compute() -> None:
     od_order_diss = int(od_cfg.get("order_diss", fd_order))
     od_apply_to_stability = bool(od_cfg.get("apply_to_stability", True))
     od_apply_to_resolvent = bool(od_cfg.get("apply_to_resolvent", False))
-    od_transition_fraction = float(od_cfg.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"]))
-    od_endpoint_exponent = float(od_cfg.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"]))
+    od_transition_fraction = float(
+        od_cfg.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"])
+    )
+    od_endpoint_exponent = float(
+        od_cfg.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"])
+    )
     od_interior_value = float(od_cfg.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
     # Effective epsilon per analysis stage
     eps_stab = od_epsilon if (od_enabled and od_apply_to_stability) else 0.0
-    eps_resolv = od_epsilon if (od_enabled and od_apply_to_resolvent) else 0.0  # Phase 4: use when wiring resolvent
+    eps_resolv = (
+        od_epsilon if (od_enabled and od_apply_to_resolvent) else 0.0
+    )  # Phase 4: use when wiring resolvent
     if od_enabled:
         _log(
             f"numerics.operator_dissipation effective: enabled=True, epsilon={od_epsilon}, order_diss={od_order_diss}, "
@@ -516,7 +532,9 @@ def compute() -> None:
     #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
     # Keep this as default for parity with exported MATLAB spectrum.
     use_raw_eigs = bool(cfg("analysis.use_raw_eigs", False))
-    prefer_matlab_sponge_aux = (not native_sponge_enabled) and use_matlab_sponge_aux and sponge_mat_path.exists()
+    prefer_matlab_sponge_aux = (
+        (not native_sponge_enabled) and use_matlab_sponge_aux and sponge_mat_path.exists()
+    )
     solver_cfg = config.get("solver")
     if solver_cfg is None:
         solver_cfg = {}
@@ -524,8 +542,9 @@ def compute() -> None:
 
     # Read solver knobs from JSONC (env-var fallback for backward compat).
     _ecfg = solver_cfg.get("eigen", {})
-    st_solver = _ecfg.get("st_solver",
-                          os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
+    st_solver = (
+        _ecfg.get("st_solver", os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
+    )
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
     _root_raw = _first_env(
         "LINSTABPY_CASE_ROOT_ASSEMBLY",
@@ -533,7 +552,9 @@ def compute() -> None:
         "LINSTABPY_CASE1_ROOT_ASSEMBLY",
     )
     requested_root_operator = size > 1 and (
-        (_root_raw.strip().lower() in {"1", "true", "yes", "on"}) if _root_raw is not None else iterative_st_solver
+        (_root_raw.strip().lower() in {"1", "true", "yes", "on"})
+        if _root_raw is not None
+        else iterative_st_solver
     )
     use_root_operator = requested_root_operator and iterative_st_solver
     if requested_root_operator and not iterative_st_solver:
@@ -557,9 +578,7 @@ def compute() -> None:
     reduce_dirichlet = bool(_ecfg.get("reduce_dirichlet", False))
     reduce_dirichlet_set = str(_ecfg.get("reduce_dirichlet_set", "column_zeroed")).strip().lower()
     if reduce_dirichlet_set not in {"effective", "column_zeroed"}:
-        raise ValueError(
-            "solver.eigen.reduce_dirichlet_set must be 'effective' or 'column_zeroed'"
-        )
+        raise ValueError("solver.eigen.reduce_dirichlet_set must be 'effective' or 'column_zeroed'")
 
     _log(
         f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
@@ -641,12 +660,15 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 4) Assemble LNSE operator and impose boundary conditions.
     # ------------------------------------------------------------------
-    bc_recipe = cfg("bc.recipe", [
-        {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
-        {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
-        {"type": "neumann", "borders": "b", "variables": "T", "exclude_corners": True},
-        {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
-    ])
+    bc_recipe = cfg(
+        "bc.recipe",
+        [
+            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+            {"type": "neumann", "borders": "b", "variables": "T", "exclude_corners": True},
+            {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
+        ],
+    )
     if use_root_operator and rank != 0:
         # Root-assembly mode for MPI scalability:
         # non-root ranks keep only a shape-compatible placeholder; the real
@@ -682,10 +704,7 @@ def compute() -> None:
         _log_stage("assemble_operator_bc", stage_start)
         if run_resolvent and eps_resolv != eps_stab:
             stage_start = time.perf_counter()
-            _log(
-                "assembling separate resolvent LNSE operator "
-                f"(dissipation_epsilon={eps_resolv})"
-            )
+            _log(f"assembling separate resolvent LNSE operator (dissipation_epsilon={eps_resolv})")
             with _stage_heartbeat(
                 "assemble_resolvent_operator_bc",
                 interval_seconds=heartbeat_seconds,
@@ -770,7 +789,9 @@ def compute() -> None:
     RHO_p = baseflow.RHO.ravel(order="F")[p]
     T_p = baseflow.T.ravel(order="F")[p]
     with _stage_heartbeat("compute_chu_norm", interval_seconds=heartbeat_seconds):
-        W_diag, invW_diag = compute_chu_norm(W_int, RHO_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp)
+        W_diag, invW_diag = compute_chu_norm(
+            W_int, RHO_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp
+        )
     _log_stage("compute_chu_norm", stage_start)
 
     gains = np.array([], dtype=float)
@@ -807,9 +828,7 @@ def compute() -> None:
 
         if gains.size > 0:
             stage_start = time.perf_counter()
-            with _stage_heartbeat(
-                "resolvent_postcheck", interval_seconds=heartbeat_seconds
-            ):
+            with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
                 resolvent_rho_fwd, resolvent_rho_adj = compute_resolvent_svd_residuals(
                     L0_resolv,
                     omega_target,
@@ -937,7 +956,9 @@ def compute() -> None:
             )
         stability_info.update(stability_meta)
         _log(f"stability analysis finished: converged_modes={omega.size}")
-        residuals = np.asarray(stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float)
+        residuals = np.asarray(
+            stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float
+        )
         if residuals.size:
             finite = residuals[np.isfinite(residuals)]
             if finite.size:
@@ -1115,12 +1136,16 @@ def compute() -> None:
                 stability_eps_solve_seconds=float(stability_info.get("eps_solve_seconds", np.nan)),
                 stability_true_residual=bool(stability_info.get("true_residual", False)),
                 stability_reduce_dirichlet=bool(stability_info.get("reduce_dirichlet", False)),
-                stability_reduce_dirichlet_set=np.array(str(stability_info.get("reduce_dirichlet_set", ""))),
+                stability_reduce_dirichlet_set=np.array(
+                    str(stability_info.get("reduce_dirichlet_set", ""))
+                ),
                 stability_free_dof_count=int(stability_info.get("free_dof_count", -1)),
                 stability_constrained_dirichlet_count=int(
                     stability_info.get("constrained_dirichlet_count", -1)
                 ),
-                stability_residual_error_type=np.array(str(stability_info.get("residual_error_type", ""))),
+                stability_residual_error_type=np.array(
+                    str(stability_info.get("residual_error_type", ""))
+                ),
                 stability_residual_estimates=stability_residual_estimates,
                 stability_residual_absolute=stability_residual_absolute,
                 stability_residual_relative=stability_residual_relative,
@@ -1143,10 +1168,18 @@ def compute() -> None:
                     stability_acceptance.get("reject_reason_code", np.array([], dtype=np.int32)),
                     dtype=np.int32,
                 ),
-                stability_acceptance_postcheck_rel_max=float(stability_acceptance_postcheck_rel_max),
-                stability_acceptance_target_distance_max=float(stability_acceptance_target_distance_max),
-                stability_acceptance_omega_real_abs_max=float(stability_acceptance_omega_real_abs_max),
-                stability_acceptance_omega_imag_abs_max=float(stability_acceptance_omega_imag_abs_max),
+                stability_acceptance_postcheck_rel_max=float(
+                    stability_acceptance_postcheck_rel_max
+                ),
+                stability_acceptance_target_distance_max=float(
+                    stability_acceptance_target_distance_max
+                ),
+                stability_acceptance_omega_real_abs_max=float(
+                    stability_acceptance_omega_real_abs_max
+                ),
+                stability_acceptance_omega_imag_abs_max=float(
+                    stability_acceptance_omega_imag_abs_max
+                ),
                 stability_acceptance_conjugate_aware=bool(
                     stability_acceptance.get("acceptance_conjugate_aware", False)
                 ),
@@ -1192,7 +1225,9 @@ def compute() -> None:
                 numerics_operator_dissipation_order_diss=np.int64(od_order_diss),
                 numerics_operator_dissipation_apply_to_stability=np.bool_(od_apply_to_stability),
                 numerics_operator_dissipation_apply_to_resolvent=np.bool_(od_apply_to_resolvent),
-                numerics_operator_dissipation_transition_fraction=np.float64(od_transition_fraction),
+                numerics_operator_dissipation_transition_fraction=np.float64(
+                    od_transition_fraction
+                ),
                 numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
                 numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
                 solver_eigen_st_solver_used=str(st_solver),
@@ -1248,14 +1283,22 @@ def main() -> None:
                         current_config = load_jsonc(Path(config_path_raw))
                         current_hash = _config_hash(current_config)[:16]
                         current_sha = _git_head_sha()
-                        cached_hash = data.get(
-                            "provenance_config_hash",
-                            np.bytes_(b""),
-                        ).item().decode("utf-8", errors="replace")
-                        cached_sha = data.get(
-                            "provenance_linstabpy_git_sha",
-                            np.bytes_(b""),
-                        ).item().decode("utf-8", errors="replace")
+                        cached_hash = (
+                            data.get(
+                                "provenance_config_hash",
+                                np.bytes_(b""),
+                            )
+                            .item()
+                            .decode("utf-8", errors="replace")
+                        )
+                        cached_sha = (
+                            data.get(
+                                "provenance_linstabpy_git_sha",
+                                np.bytes_(b""),
+                            )
+                            .item()
+                            .decode("utf-8", errors="replace")
+                        )
                         if cached_hash != current_hash:
                             print(
                                 "Config hash mismatch "

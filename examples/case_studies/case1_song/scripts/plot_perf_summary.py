@@ -12,7 +12,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 DEFAULT_REPORT = CASE_DIR / "output" / "case1_perf_memory_latest.json"
@@ -55,7 +54,8 @@ def _case_rows(report: dict) -> list[dict]:
                 "fd_order": int(numerics.get("fd_order", -1)),
                 "sponge_enabled": bool(sponge_cfg.get("enabled", False)),
                 "elapsed_seconds": float(case.get("metrics", {}).get("elapsed_seconds") or 0.0),
-                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0) / 1024**3,
+                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0)
+                / 1024**3,
                 "stage_timings": dict(case.get("parsed", {}).get("stage_timings_seconds", {})),
                 "residual_max": case.get("output", {}).get("stability_residual_max"),
                 "n_modes": int(case.get("output", {}).get("n_modes_stability_requested") or 0),
@@ -97,7 +97,9 @@ def _plot_summary(rows: list[dict]) -> None:
         )
         res = row.get("residual_max")
         axes[1].annotate(
-            f"{memory[idx]:.2f} GiB\nmax res {res:.1e}" if res is not None else f"{memory[idx]:.2f} GiB",
+            f"{memory[idx]:.2f} GiB\nmax res {res:.1e}"
+            if res is not None
+            else f"{memory[idx]:.2f} GiB",
             (x[idx], memory[idx]),
             textcoords="offset points",
             xytext=(0, 6),
@@ -127,10 +129,13 @@ def _plot_breakdown(rows: list[dict]) -> None:
 
     fig, ax = plt.subplots(figsize=(10, 5))
     for stage_key, stage_label, color in STAGE_KEYS:
-        values = np.array(
-            [float(row["stage_timings"].get(stage_key, 0.0)) for row in rows],
-            dtype=float,
-        ) / 60.0
+        values = (
+            np.array(
+                [float(row["stage_timings"].get(stage_key, 0.0)) for row in rows],
+                dtype=float,
+            )
+            / 60.0
+        )
         if np.allclose(values, 0.0):
             continue
         ax.bar(x, values, bottom=bottoms, width=0.72, color=color, label=stage_label)

@@ -28,7 +28,9 @@ def _relative_delta(before: float | int | None, after: float | int | None) -> fl
     return (after_f - before_f) / before_f
 
 
-def _metric_triplet(before: float | int | None, after: float | int | None) -> dict[str, float | None]:
+def _metric_triplet(
+    before: float | int | None, after: float | int | None
+) -> dict[str, float | None]:
     delta = None if before is None or after is None else float(after) - float(before)
     return {
         "before": None if before is None else float(before),

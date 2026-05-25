@@ -57,9 +57,15 @@ def test_case1_operator_stages_match_matlab_exports() -> None:
 
     matlab_stages = {
         "pre": _load_matlab_sparse(exports_dir / "L0_preBC.mat", "L0_preBC"),
-        "after_lt": _load_matlab_sparse(exports_dir / "L0_after_dirichlet_lt.mat", "L0_after_dirichlet_lt"),
-        "after_b": _load_matlab_sparse(exports_dir / "L0_after_dirichlet_b.mat", "L0_after_dirichlet_b"),
-        "after_nb": _load_matlab_sparse(exports_dir / "L0_after_neumann_bT.mat", "L0_after_neumann_bT"),
+        "after_lt": _load_matlab_sparse(
+            exports_dir / "L0_after_dirichlet_lt.mat", "L0_after_dirichlet_lt"
+        ),
+        "after_b": _load_matlab_sparse(
+            exports_dir / "L0_after_dirichlet_b.mat", "L0_after_dirichlet_b"
+        ),
+        "after_nb": _load_matlab_sparse(
+            exports_dir / "L0_after_neumann_bT.mat", "L0_after_neumann_bT"
+        ),
         "post": _load_matlab_sparse(exports_dir / "L0_postBC.mat", "L0_postBC"),
     }
 

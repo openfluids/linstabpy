@@ -11,11 +11,10 @@ from pathlib import Path
 
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
-from scipy.interpolate import CubicSpline, RegularGridInterpolator, RectBivariateSpline, griddata
+from scipy.interpolate import CubicSpline, RectBivariateSpline, RegularGridInterpolator, griddata
 from scipy.io import loadmat
 
 from .baseflow import BaseFlow
-
 
 _BASEFLOW_DATA_ROOT = Path(
     os.environ.get(
@@ -39,7 +38,9 @@ def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
                 "Set LINSTABPY_BASEFLOW_DATA_DIR to a local clone of "
                 "https://github.com/LinStab2D/LinStab2D, or place .mat files at "
                 "src/linstabpy/data/baseflows/BaseFlows/."
-            ) from FileNotFoundError(f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}")
+            ) from FileNotFoundError(
+                f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}"
+            )
         raise FileNotFoundError(f"Could not find base-flow data file: {path}")
     return loadmat(path)
 
@@ -104,7 +105,9 @@ def _interp_scattered_cubic(
     field: np.ndarray,
 ) -> np.ndarray:
     """Interpolate a scattered field with cubic `griddata`."""
-    points = np.column_stack((np.asarray(Xpts, dtype=float).ravel(), np.asarray(Ypts, dtype=float).ravel()))
+    points = np.column_stack(
+        (np.asarray(Xpts, dtype=float).ravel(), np.asarray(Ypts, dtype=float).ravel())
+    )
     values = np.asarray(field, dtype=float).ravel()
     query = np.column_stack((Xq.ravel(order="F"), Yq.ravel(order="F")))
     flat = griddata(points, values, query, method="cubic", fill_value=np.nan).reshape(
@@ -123,43 +126,189 @@ def _interp_scattered_cubic(
 # ---------------------------------------------------------------------------
 # Blasius tabulated solution (White, *Viscous Fluid Flow*, p. 233, Table 4-1)
 # ---------------------------------------------------------------------------
-_ETA_BLASIUS = np.array([
-    0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-    1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9,
-    2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8,
-    4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8,
-    6.0,
-])
+_ETA_BLASIUS = np.array(
+    [
+        0.0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2.0,
+        2.2,
+        2.4,
+        2.6,
+        2.8,
+        3.0,
+        3.2,
+        3.4,
+        3.6,
+        3.8,
+        4.0,
+        4.2,
+        4.4,
+        4.6,
+        4.8,
+        5.0,
+        5.2,
+        5.4,
+        5.6,
+        5.8,
+        6.0,
+    ]
+)
 
-_F_BLASIUS = np.array([
-    0.00000, 0.00235, 0.00939, 0.02113, 0.03755, 0.05864,
-    0.08439, 0.11474, 0.14967, 0.18911, 0.23299, 0.28121,
-    0.33366, 0.39021, 0.45072, 0.51503, 0.58296, 0.65430,
-    0.72887, 0.80644, 0.88680, 1.05495, 1.23153, 1.41482,
-    1.60328, 1.79557, 1.99058, 2.18747, 2.38559, 2.58450,
-    2.78388, 2.98355, 3.18338, 3.38329, 3.58325, 3.78323,
-    3.98322, 4.18322, 4.38322, 4.58322, 4.78322,
-])
+_F_BLASIUS = np.array(
+    [
+        0.00000,
+        0.00235,
+        0.00939,
+        0.02113,
+        0.03755,
+        0.05864,
+        0.08439,
+        0.11474,
+        0.14967,
+        0.18911,
+        0.23299,
+        0.28121,
+        0.33366,
+        0.39021,
+        0.45072,
+        0.51503,
+        0.58296,
+        0.65430,
+        0.72887,
+        0.80644,
+        0.88680,
+        1.05495,
+        1.23153,
+        1.41482,
+        1.60328,
+        1.79557,
+        1.99058,
+        2.18747,
+        2.38559,
+        2.58450,
+        2.78388,
+        2.98355,
+        3.18338,
+        3.38329,
+        3.58325,
+        3.78323,
+        3.98322,
+        4.18322,
+        4.38322,
+        4.58322,
+        4.78322,
+    ]
+)
 
-_FPRIME_BLASIUS = np.array([
-    0.00000, 0.04696, 0.09391, 0.14081, 0.18761, 0.23423,
-    0.28058, 0.32653, 0.37196, 0.41672, 0.46063, 0.50354,
-    0.54525, 0.58559, 0.62439, 0.66147, 0.69670, 0.72993,
-    0.76106, 0.79000, 0.81669, 0.86330, 0.90107, 0.93060,
-    0.95288, 0.96905, 0.98037, 0.98797, 0.99289, 0.99594,
-    0.99777, 0.99882, 0.99940, 0.99970, 0.99986, 0.99994,
-    0.999971, 0.999981, 0.999995, 0.999998, 0.999999,
-])
+_FPRIME_BLASIUS = np.array(
+    [
+        0.00000,
+        0.04696,
+        0.09391,
+        0.14081,
+        0.18761,
+        0.23423,
+        0.28058,
+        0.32653,
+        0.37196,
+        0.41672,
+        0.46063,
+        0.50354,
+        0.54525,
+        0.58559,
+        0.62439,
+        0.66147,
+        0.69670,
+        0.72993,
+        0.76106,
+        0.79000,
+        0.81669,
+        0.86330,
+        0.90107,
+        0.93060,
+        0.95288,
+        0.96905,
+        0.98037,
+        0.98797,
+        0.99289,
+        0.99594,
+        0.99777,
+        0.99882,
+        0.99940,
+        0.99970,
+        0.99986,
+        0.99994,
+        0.999971,
+        0.999981,
+        0.999995,
+        0.999998,
+        0.999999,
+    ]
+)
 
-_FPRIMEPRIME_BLASIUS = np.array([
-    0.46960, 0.46956, 0.46931, 0.46861, 0.46725, 0.46503,
-    0.46173, 0.45718, 0.45119, 0.44363, 0.43438, 0.42337,
-    0.41057, 0.39598, 0.37969, 0.36180, 0.34249, 0.32195,
-    0.30045, 0.27825, 0.25567, 0.21058, 0.16756, 0.12861,
-    0.09511, 0.06771, 0.04637, 0.03054, 0.01933, 0.01176,
-    0.00687, 0.00386, 0.00208, 0.00108, 0.00054, 0.00026,
-    0.000119, 0.000052, 0.000022, 0.000009, 0.000003,
-])
+_FPRIMEPRIME_BLASIUS = np.array(
+    [
+        0.46960,
+        0.46956,
+        0.46931,
+        0.46861,
+        0.46725,
+        0.46503,
+        0.46173,
+        0.45718,
+        0.45119,
+        0.44363,
+        0.43438,
+        0.42337,
+        0.41057,
+        0.39598,
+        0.37969,
+        0.36180,
+        0.34249,
+        0.32195,
+        0.30045,
+        0.27825,
+        0.25567,
+        0.21058,
+        0.16756,
+        0.12861,
+        0.09511,
+        0.06771,
+        0.04637,
+        0.03054,
+        0.01933,
+        0.01176,
+        0.00687,
+        0.00386,
+        0.00208,
+        0.00108,
+        0.00054,
+        0.00026,
+        0.000119,
+        0.000052,
+        0.000022,
+        0.000009,
+        0.000003,
+    ]
+)
 
 
 def _blasius_profiles(
@@ -248,7 +397,9 @@ def _blasius_profiles(
     rhorhoevue = np.empty_like(rhorhoeuue)
     for i in range(nx):
         rhorhoevue[:, i] = -cumulative_trapezoid(
-            ddx_rhorhoeuue[:, i], Y[:, 0], initial=0.0,
+            ddx_rhorhoeuue[:, i],
+            Y[:, 0],
+            initial=0.0,
         )
 
     vue_g = rhorhoevue / rhorhoe_g

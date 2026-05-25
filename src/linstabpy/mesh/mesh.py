@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
+from .filters import MeshFilters, build_mesh_filters
 from .sbp import (
     DISSIPATION_DEFAULTS,
     build_sbp_dissipation_matrices,
@@ -21,7 +22,6 @@ from .sbp import (
     build_sbp_pole_matrices,
     min_points,
 )
-from .filters import MeshFilters, build_mesh_filters
 
 
 @dataclass
@@ -251,7 +251,7 @@ class Mesh:
 
         # --- SBP artificial dissipation (operator_dissipation config) ---
         od = numerics_operator_dissipation or {}
-        if od.get('enabled', False):
+        if od.get("enabled", False):
             # Pass BOTH fd_order (the SBP scheme order, fixes the H norm)
             # AND order_diss (the dissipation order, picks D_p) into the
             # builder so the NotImplementedError guard in
@@ -259,22 +259,30 @@ class Mesh:
             # In Phase 1 we always have order_diss == fd_order. Allowing
             # them to differ silently would build a wrong-norm dissipation
             # operator, breaking the SPSD-in-H argument.
-            p_order = int(od.get('order_diss', fd_order))
-            n_trans = float(od.get('transition_fraction', DISSIPATION_DEFAULTS['transition_fraction']))
-            end_exp = float(od.get('endpoint_exponent', DISSIPATION_DEFAULTS['endpoint_exponent']))
-            int_val = float(od.get('interior_value', DISSIPATION_DEFAULTS['interior_value']))
+            p_order = int(od.get("order_diss", fd_order))
+            n_trans = float(
+                od.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"])
+            )
+            end_exp = float(od.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"]))
+            int_val = float(od.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
             hx_ref = 1.0 / (nx_full - 1) if nx_full > 1 else 1.0
             hy_ref = 1.0 / (ny_full - 1) if ny_full > 1 else 1.0
             Q_diss_x, _ = build_sbp_dissipation_matrices(
-                n=nx_full, h=hx_ref,
-                order_interior=fd_order, order_diss=p_order,
-                transition_fraction=n_trans, endpoint_exponent=end_exp,
+                n=nx_full,
+                h=hx_ref,
+                order_interior=fd_order,
+                order_diss=p_order,
+                transition_fraction=n_trans,
+                endpoint_exponent=end_exp,
                 interior_value=int_val,
             )
             Q_diss_y, _ = build_sbp_dissipation_matrices(
-                n=ny_full, h=hy_ref,
-                order_interior=fd_order, order_diss=p_order,
-                transition_fraction=n_trans, endpoint_exponent=end_exp,
+                n=ny_full,
+                h=hy_ref,
+                order_interior=fd_order,
+                order_diss=p_order,
+                transition_fraction=n_trans,
+                endpoint_exponent=end_exp,
                 interior_value=int_val,
             )
         else:
@@ -379,29 +387,94 @@ class Mesh:
         D2y = self.D2y
 
         if x_only:
-            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
-                J11_new, J12_new, J21_new, J22_new = \
-                self._deform_x_only(X_new, p)
+            (
+                Dx_new,
+                D2x_new,
+                Dy_new,
+                D2y_new,
+                Dxy_new,
+                Dyx_new,
+                det,
+                Dy_symm_new,
+                D2y_symm_new,
+                Dy_asymm_new,
+                D2y_asymm_new,
+                Dxy_symm_new,
+                Dyx_symm_new,
+                Dxy_asymm_new,
+                Dyx_asymm_new,
+                J11_new,
+                J12_new,
+                J21_new,
+                J22_new,
+            ) = self._deform_x_only(X_new, p)
         elif y_only:
-            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
-                J11_new, J12_new, J21_new, J22_new = \
-                self._deform_y_only(Y_new, p)
+            (
+                Dx_new,
+                D2x_new,
+                Dy_new,
+                D2y_new,
+                Dxy_new,
+                Dyx_new,
+                det,
+                Dy_symm_new,
+                D2y_symm_new,
+                Dy_asymm_new,
+                D2y_asymm_new,
+                Dxy_symm_new,
+                Dyx_symm_new,
+                Dxy_asymm_new,
+                Dyx_asymm_new,
+                J11_new,
+                J12_new,
+                J21_new,
+                J22_new,
+            ) = self._deform_y_only(Y_new, p)
         else:
-            Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det, \
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new, \
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new, \
-                J11_new, J12_new, J21_new, J22_new = \
-                self._deform_full_2d(X_new, Y_new, p)
+            (
+                Dx_new,
+                D2x_new,
+                Dy_new,
+                D2y_new,
+                Dxy_new,
+                Dyx_new,
+                det,
+                Dy_symm_new,
+                D2y_symm_new,
+                Dy_asymm_new,
+                D2y_asymm_new,
+                Dxy_symm_new,
+                Dyx_symm_new,
+                Dxy_asymm_new,
+                Dyx_asymm_new,
+                J11_new,
+                J12_new,
+                J21_new,
+                J22_new,
+            ) = self._deform_full_2d(X_new, Y_new, p)
             if self.y_symmetry and _is_separable_axis_deformation(X_new, Y_new):
                 x_mesh = self.deform(X_new=X_new)
-                _, _, _, _, _, _, _, \
-                    Dy_symm_seq, D2y_symm_seq, Dy_asymm_seq, D2y_asymm_seq, \
-                    Dxy_symm_seq, Dyx_symm_seq, Dxy_asymm_seq, Dyx_asymm_seq, \
-                    _, _, _, _ = x_mesh._deform_y_only(Y_new, p)
+                (
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    Dy_symm_seq,
+                    D2y_symm_seq,
+                    Dy_asymm_seq,
+                    D2y_asymm_seq,
+                    Dxy_symm_seq,
+                    Dyx_symm_seq,
+                    Dxy_asymm_seq,
+                    Dyx_asymm_seq,
+                    _,
+                    _,
+                    _,
+                    _,
+                ) = x_mesh._deform_y_only(Y_new, p)
                 Dy_symm_new = Dy_symm_seq
                 D2y_symm_new = D2y_symm_seq
                 Dxy_symm_new = Dxy_symm_seq
@@ -497,12 +570,12 @@ class Mesh:
         D2x = self.D2x
         Dy = self.Dy
 
-        x2p = Dx @ x          # dx_new / dx_comp
-        x2pp = D2x @ x        # d²x_new / dx_comp²
+        x2p = Dx @ x  # dx_new / dx_comp
+        x2pp = D2x @ x  # d²x_new / dx_comp²
 
         inv_x2p = 1.0 / x2p
         Dx_new = _axm_diag(inv_x2p, Dx)
-        D2x_new = _axm_diag(inv_x2p ** 2, D2x) - _axm_diag(x2pp * inv_x2p ** 3, Dx)
+        D2x_new = _axm_diag(inv_x2p**2, D2x) - _axm_diag(x2pp * inv_x2p**3, Dx)
         Dy_new = Dy
         D2y_new = self.D2y
         Dxy_new = Dx_new @ Dy
@@ -525,10 +598,27 @@ class Mesh:
             Dxy_asymm_new = Dx_new @ self.Dy_asymm
             Dyx_asymm_new = self.Dy_asymm @ Dx_new
 
-        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
-                x2p, np.zeros_like(x2p), np.zeros_like(x2p), np.ones_like(x2p))
+        return (
+            Dx_new,
+            D2x_new,
+            Dy_new,
+            D2y_new,
+            Dxy_new,
+            Dyx_new,
+            det,
+            Dy_symm_new,
+            D2y_symm_new,
+            Dy_asymm_new,
+            D2y_asymm_new,
+            Dxy_symm_new,
+            Dyx_symm_new,
+            Dxy_asymm_new,
+            Dyx_asymm_new,
+            x2p,
+            np.zeros_like(x2p),
+            np.zeros_like(x2p),
+            np.ones_like(x2p),
+        )
 
     def _deform_y_only(self, Y_new, p):
         """1-D chain-rule deformation in y (MATLAB DeformMesh branch 2)."""
@@ -537,14 +627,14 @@ class Mesh:
         Dy = self.Dy
         D2y = self.D2y
 
-        y2p = Dy @ y           # dy_new / dy_comp
-        y2pp = D2y @ y         # d²y_new / dy_comp²
+        y2p = Dy @ y  # dy_new / dy_comp
+        y2pp = D2y @ y  # d²y_new / dy_comp²
 
         inv_y2p = 1.0 / y2p
         Dx_new = Dx
         D2x_new = self.D2x
         Dy_new = _axm_diag(inv_y2p, Dy)
-        D2y_new = _axm_diag(inv_y2p ** 2, D2y) - _axm_diag(y2pp * inv_y2p ** 3, Dy)
+        D2y_new = _axm_diag(inv_y2p**2, D2y) - _axm_diag(y2pp * inv_y2p**3, Dy)
         Dxy_new = Dx @ Dy_new
         Dyx_new = Dy_new @ Dx
         det = y2p
@@ -561,20 +651,39 @@ class Mesh:
 
         if self.y_symmetry and self.Dy_symm is not None:
             Dy_symm_new = _axm_diag(inv_y2p, self.Dy_symm)
-            D2y_symm_new = (_axm_diag(inv_y2p ** 2, self.D2y_symm)
-                            - _axm_diag(y2pp * inv_y2p ** 3, self.Dy_symm))
+            D2y_symm_new = _axm_diag(inv_y2p**2, self.D2y_symm) - _axm_diag(
+                y2pp * inv_y2p**3, self.Dy_symm
+            )
             Dy_asymm_new = _axm_diag(inv_y2p, self.Dy_asymm)
-            D2y_asymm_new = (_axm_diag(inv_y2p ** 2, self.D2y_asymm)
-                             - _axm_diag(y2pp * inv_y2p ** 3, self.Dy_asymm))
+            D2y_asymm_new = _axm_diag(inv_y2p**2, self.D2y_asymm) - _axm_diag(
+                y2pp * inv_y2p**3, self.Dy_asymm
+            )
             Dxy_symm_new = Dx @ Dy_symm_new
             Dyx_symm_new = Dy_symm_new @ Dx
             Dxy_asymm_new = Dx @ Dy_asymm_new
             Dyx_asymm_new = Dy_asymm_new @ Dx
 
-        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
-                np.ones_like(y2p), np.zeros_like(y2p), np.zeros_like(y2p), y2p)
+        return (
+            Dx_new,
+            D2x_new,
+            Dy_new,
+            D2y_new,
+            Dxy_new,
+            Dyx_new,
+            det,
+            Dy_symm_new,
+            D2y_symm_new,
+            Dy_asymm_new,
+            D2y_asymm_new,
+            Dxy_symm_new,
+            Dyx_symm_new,
+            Dxy_asymm_new,
+            Dyx_asymm_new,
+            np.ones_like(y2p),
+            np.zeros_like(y2p),
+            np.zeros_like(y2p),
+            y2p,
+        )
 
     def _deform_full_2d(self, X_new, Y_new, p):
         """Full 2-D Jacobian deformation (MATLAB DeformMesh branch 3)."""
@@ -609,7 +718,18 @@ class Mesh:
         Dxy = Dx @ Dy
         Dyx = Dy @ Dx
         D2x_new, Dxy_new, Dyx_new, D2y_new = _transform_second_derivatives(
-            Ji11, Ji12, Ji21, Ji22, D2x, D2y, Dxy, Dyx, Dx, Dy, x, y,
+            Ji11,
+            Ji12,
+            Ji21,
+            Ji22,
+            D2x,
+            D2y,
+            Dxy,
+            Dyx,
+            Dx,
+            Dy,
+            x,
+            y,
         )
 
         Dy_symm_new = None
@@ -626,20 +746,57 @@ class Mesh:
             Dy_asymm_new = _axm_diag(Ji21, Dx) + _axm_diag(Ji22, self.Dy_asymm)
 
             _, Dxy_symm_new, Dyx_symm_new, D2y_symm_new = _transform_second_derivatives(
-                Ji11, Ji12, Ji21, Ji22, D2x, self.D2y_symm,
-                self.Dxy_symm, self.Dyx_symm, Dx, self.Dy_symm, x, y,
+                Ji11,
+                Ji12,
+                Ji21,
+                Ji22,
+                D2x,
+                self.D2y_symm,
+                self.Dxy_symm,
+                self.Dyx_symm,
+                Dx,
+                self.Dy_symm,
+                x,
+                y,
             )
             _, Dxy_asymm_new, Dyx_asymm_new, D2y_asymm_new = _transform_second_derivatives(
-                Ji11, Ji12, Ji21, Ji22, D2x, self.D2y_asymm,
-                self.Dxy_asymm, self.Dyx_asymm, Dx, self.Dy_asymm, x, y,
+                Ji11,
+                Ji12,
+                Ji21,
+                Ji22,
+                D2x,
+                self.D2y_asymm,
+                self.Dxy_asymm,
+                self.Dyx_asymm,
+                Dx,
+                self.Dy_asymm,
+                x,
+                y,
             )
 
         det = detJ
 
-        return (Dx_new, D2x_new, Dy_new, D2y_new, Dxy_new, Dyx_new, det,
-                Dy_symm_new, D2y_symm_new, Dy_asymm_new, D2y_asymm_new,
-                Dxy_symm_new, Dyx_symm_new, Dxy_asymm_new, Dyx_asymm_new,
-                J11, J12, J21, J22)
+        return (
+            Dx_new,
+            D2x_new,
+            Dy_new,
+            D2y_new,
+            Dxy_new,
+            Dyx_new,
+            det,
+            Dy_symm_new,
+            D2y_symm_new,
+            Dy_asymm_new,
+            D2y_asymm_new,
+            Dxy_symm_new,
+            Dyx_symm_new,
+            Dxy_asymm_new,
+            Dyx_asymm_new,
+            J11,
+            J12,
+            J21,
+            J22,
+        )
 
     def mask(self, mask_array: np.ndarray) -> Mesh:
         """Return a new mesh masked by a boolean keep-mask.
@@ -824,7 +981,15 @@ def _build_operators(
     # --- Fast path: Kronecker product for unmasked rectangular meshes ---
     if active_mask is None and ngp == nx * ny:
         return _build_operators_kron(
-            X, Y, dx, dy, nx, ny, fd_order, x_periodicity, y_symmetry,
+            X,
+            Y,
+            dx,
+            dy,
+            nx,
+            ny,
+            fd_order,
+            x_periodicity,
+            y_symmetry,
         )
 
     # --- Slow path: line-by-line LIL assembly for masked meshes ----------
@@ -1026,9 +1191,8 @@ def _starts_at_pole_line(y0: float, dy: float) -> bool:
 
 def _is_separable_axis_deformation(X_new: np.ndarray, Y_new: np.ndarray) -> bool:
     """Whether the supplied deformation is separable in x and y."""
-    return (
-        np.allclose(X_new, X_new[0:1, :], rtol=0.0, atol=1e-12)
-        and np.allclose(Y_new, Y_new[:, 0:1], rtol=0.0, atol=1e-12)
+    return np.allclose(X_new, X_new[0:1, :], rtol=0.0, atol=1e-12) and np.allclose(
+        Y_new, Y_new[:, 0:1], rtol=0.0, atol=1e-12
     )
 
 
@@ -1096,7 +1260,9 @@ def _build_operators_kron(
         has_pole = _starts_at_pole_line(y_col[0], dy)
         if has_pole:
             D1y_sym, D1y_asym, D2y_sym, D2y_asym = build_sbp_pole_matrices(
-                ny, dy, fd_order,
+                ny,
+                dy,
+                fd_order,
             )
         else:
             D1y_sym = D1y
@@ -1118,11 +1284,23 @@ def _build_operators_kron(
         W_asymm_g[axis_nodes] *= 0.75
 
     return (
-        Dx_g, D2x_g, Dy_g, D2y_g,
-        Dy_symm_g, D2y_symm_g, Dy_asymm_g, D2y_asymm_g,
-        Dxy_g, Dyx_g,
-        Dxy_symm_g, Dyx_symm_g, Dxy_asymm_g, Dyx_asymm_g,
-        W_g, W_symm_g, W_asymm_g,
+        Dx_g,
+        D2x_g,
+        Dy_g,
+        D2y_g,
+        Dy_symm_g,
+        D2y_symm_g,
+        Dy_asymm_g,
+        D2y_asymm_g,
+        Dxy_g,
+        Dyx_g,
+        Dxy_symm_g,
+        Dyx_symm_g,
+        Dxy_asymm_g,
+        Dyx_asymm_g,
+        W_g,
+        W_symm_g,
+        W_asymm_g,
     )
 
 
@@ -1286,14 +1464,14 @@ def _transform_second_derivatives(
     dJ22_eta = D2y_y
 
     # dJi = -Ji * dJ/dσ * Ji
-    p11_xi = (dJ11_xi * a + dJ12_xi * c)
-    p12_xi = (dJ11_xi * b + dJ12_xi * d)
-    p21_xi = (dJ21_xi * a + dJ22_xi * c)
-    p22_xi = (dJ21_xi * b + dJ22_xi * d)
-    p11_eta = (dJ11_eta * a + dJ12_eta * c)
-    p12_eta = (dJ11_eta * b + dJ12_eta * d)
-    p21_eta = (dJ21_eta * a + dJ22_eta * c)
-    p22_eta = (dJ21_eta * b + dJ22_eta * d)
+    p11_xi = dJ11_xi * a + dJ12_xi * c
+    p12_xi = dJ11_xi * b + dJ12_xi * d
+    p21_xi = dJ21_xi * a + dJ22_xi * c
+    p22_xi = dJ21_xi * b + dJ22_xi * d
+    p11_eta = dJ11_eta * a + dJ12_eta * c
+    p12_eta = dJ11_eta * b + dJ12_eta * d
+    p21_eta = dJ21_eta * a + dJ22_eta * c
+    p22_eta = dJ21_eta * b + dJ22_eta * d
 
     dJi11_xi = -(a * p11_xi + b * p21_xi)
     dJi12_xi = -(a * p12_xi + b * p22_xi)

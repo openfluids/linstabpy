@@ -16,11 +16,16 @@ from scripts.validation.martini2024.tools.compare_martini_examples import (
     compare_curvilinear_protocol_case,
     compare_resolvent_case,
 )
-from tests._paths import MARTINI_FIXTURE_ROOT, REPO_ROOT as repo, martini_fixture
+from tests._paths import MARTINI_FIXTURE_ROOT, martini_fixture
+from tests._paths import REPO_ROOT as repo
 
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
-    manifest = json.loads((repo / "scripts/validation/martini2024/tools/martini_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (repo / "scripts/validation/martini2024/tools/martini_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     assert manifest["input_dir"] == "martini_examples"
     assert manifest["output_dir"] == "scripts/validation/martini2024/fixtures"
@@ -123,7 +128,9 @@ def legacy_test_example_0_reference_fields_match_exported_matlab_bundle() -> Non
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)
     np.testing.assert_allclose(fields["y"], matlab["results_TestCurv__y"], atol=1e-12, rtol=1e-12)
     np.testing.assert_allclose(fields["f"], matlab["results_TestCurv__f"], atol=1e-12, rtol=1e-12)
-    np.testing.assert_allclose(fields["df_an"], matlab["results_TestCurv__df_an"], atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(
+        fields["df_an"], matlab["results_TestCurv__df_an"], atol=1e-12, rtol=1e-12
+    )
     np.testing.assert_allclose(fields["df"], matlab["results_TestCurv__df"], atol=1e-12, rtol=1e-12)
 
 

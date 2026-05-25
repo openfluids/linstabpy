@@ -129,7 +129,9 @@ def sanitize_string(value: str, repo_root: Path, hostname: str) -> str:
 
 def sanitize_manifest(value: Any, repo_root: Path, hostname: str) -> Any:
     if isinstance(value, dict):
-        return {key: sanitize_manifest(subvalue, repo_root, hostname) for key, subvalue in value.items()}
+        return {
+            key: sanitize_manifest(subvalue, repo_root, hostname) for key, subvalue in value.items()
+        }
     if isinstance(value, list):
         return [sanitize_manifest(item, repo_root, hostname) for item in value]
     if isinstance(value, str):
@@ -146,9 +148,9 @@ def collect_petsc_probe() -> dict[str, Any]:
     probe: dict[str, Any] = {}
     try:
         import mpi4py.MPI  # noqa: F401
+        import numpy as np
         from petsc4py import PETSc
         from slepc4py import SLEPc
-        import numpy as np
 
         probe["petsc_version"] = ".".join(map(str, PETSc.Sys.getVersion()))
         probe["slepc_version"] = ".".join(map(str, SLEPc.Sys.getVersion()))
@@ -202,7 +204,9 @@ def parse_benchmark_summary(path: Path, repo_root: Path) -> dict[str, Any]:
     }
 
 
-def build_manifest(repo_root: Path, label: str | None, benchmark_summary: Path | None) -> dict[str, Any]:
+def build_manifest(
+    repo_root: Path, label: str | None, benchmark_summary: Path | None
+) -> dict[str, Any]:
     os_release = read_os_release()
     mpiexec_path = shutil.which("mpiexec")
     mpicc_path = shutil.which("mpicc")
@@ -262,7 +266,9 @@ def build_manifest(repo_root: Path, label: str | None, benchmark_summary: Path |
             },
             "uv": {
                 "path": shutil.which("uv"),
-                "version_line": first_nonempty_line(uv_version.get("stdout", ""), uv_version.get("stderr", "")),
+                "version_line": first_nonempty_line(
+                    uv_version.get("stdout", ""), uv_version.get("stderr", "")
+                ),
             },
             "mpi": {
                 "vendor": detect_mpi_vendor(
@@ -297,7 +303,15 @@ def build_manifest(repo_root: Path, label: str | None, benchmark_summary: Path |
             "lscpu_summary": [
                 line
                 for line in lscpu.get("stdout", "").splitlines()
-                if line.startswith(("Architecture:", "CPU(s):", "Socket(s):", "Core(s) per socket:", "Thread(s) per core:"))
+                if line.startswith(
+                    (
+                        "Architecture:",
+                        "CPU(s):",
+                        "Socket(s):",
+                        "Core(s) per socket:",
+                        "Thread(s) per core:",
+                    )
+                )
             ],
         },
         "benchmark_reference": benchmark,

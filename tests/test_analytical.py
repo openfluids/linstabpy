@@ -32,16 +32,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstabpy.mesh import Mesh
 from linstabpy.baseflow import BaseFlow, sutherland_air
-from linstabpy.operators import build_lnse_operator
 from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.mesh import Mesh
+from linstabpy.operators import build_lnse_operator
 from linstabpy.solvers import temporal_eigenvalues
-
 
 # ---------------------------------------------------------------------------
 # Helper: build parallel-flow LNSE problem
 # ---------------------------------------------------------------------------
+
 
 def _build_parallel_flow(
     U_func,
@@ -97,7 +97,11 @@ def _build_parallel_flow(
     )
 
     bf = BaseFlow(
-        Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0,
+        Re=Re,
+        Ma=Ma,
+        Pr=Pr,
+        kappa=kappa,
+        T_0=T_0,
         RHO=np.ones_like(mesh.Y),
         U=U_func(mesh.Y),
         V=np.zeros_like(mesh.Y),
@@ -117,6 +121,7 @@ def _build_parallel_flow(
 # Test 1: Poiseuille Flow — Orszag (1971) benchmark
 # ===========================================================================
 
+
 class TestPoiseuilleFlow:
     """Plane Poiseuille flow: U(y) = 1 - y², y ∈ [-1, 1].
 
@@ -128,7 +133,7 @@ class TestPoiseuilleFlow:
     """
 
     ORSZAG_OMEGA = 0.23752649 + 0.00373967j  # O-S eigenvalue
-    ORSZAG_CODE = ORSZAG_OMEGA                # temporal_eigenvalues convention
+    ORSZAG_CODE = ORSZAG_OMEGA  # temporal_eigenvalues convention
 
     @staticmethod
     def _poiseuille(y):
@@ -138,12 +143,18 @@ class TestPoiseuilleFlow:
     def test_orszag_eigenvalue(self):
         """Least-stable eigenvalue matches Orszag (1971) to ~1%."""
         d = _build_parallel_flow(
-            self._poiseuille, yrange=(-1, 1), ny=128,
-            Re=10000, Ma=0.01, alpha=1.0,
+            self._poiseuille,
+            yrange=(-1, 1),
+            ny=128,
+            Re=10000,
+            Ma=0.01,
+            alpha=1.0,
         )
 
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=10, target=self.ORSZAG_CODE,
+            d["L0"],
+            n_modes=10,
+            target=self.ORSZAG_CODE,
         )
 
         # Find closest eigenvalue to Orszag reference (in code convention)
@@ -154,16 +165,15 @@ class TestPoiseuilleFlow:
         alpha = 1.0
         c_phase = best.real / alpha
         np.testing.assert_allclose(
-            c_phase, self.ORSZAG_OMEGA.real, rtol=0.01,
+            c_phase,
+            self.ORSZAG_OMEGA.real,
+            rtol=0.01,
             err_msg=f"Phase speed mismatch: got {c_phase:.6f}, "
-                    f"expected {self.ORSZAG_OMEGA.real:.6f}",
+            f"expected {self.ORSZAG_OMEGA.real:.6f}",
         )
 
         # Growth rate: Im(ω) > 0 → unstable TS wave
-        assert best.imag > 0, (
-            f"TS wave should be unstable (Im(ω) > 0), "
-            f"got Im(ω) = {best.imag:.6e}"
-        )
+        assert best.imag > 0, f"TS wave should be unstable (Im(ω) > 0), got Im(ω) = {best.imag:.6e}"
 
     @pytest.mark.slow
     def test_poiseuille_convergence(self):
@@ -173,11 +183,17 @@ class TestPoiseuilleFlow:
 
         for ny in grids:
             d = _build_parallel_flow(
-                self._poiseuille, yrange=(-1, 1), ny=ny,
-                Re=10000, Ma=0.01, alpha=1.0,
+                self._poiseuille,
+                yrange=(-1, 1),
+                ny=ny,
+                Re=10000,
+                Ma=0.01,
+                alpha=1.0,
             )
             omegas, _ = temporal_eigenvalues(
-                d["L0"], n_modes=5, target=self.ORSZAG_CODE,
+                d["L0"],
+                n_modes=5,
+                target=self.ORSZAG_CODE,
             )
             dists = np.abs(omegas - self.ORSZAG_CODE)
             errors.append(dists.min())
@@ -186,7 +202,7 @@ class TestPoiseuilleFlow:
         for i in range(len(errors) - 1):
             assert errors[i + 1] < errors[i], (
                 f"Error not decreasing: ny={grids[i]} err={errors[i]:.4e}, "
-                f"ny={grids[i+1]} err={errors[i+1]:.4e}"
+                f"ny={grids[i + 1]} err={errors[i + 1]:.4e}"
             )
 
         # Convergence ratio ~4× between doubling grids (O(h²) for SBP)
@@ -194,7 +210,7 @@ class TestPoiseuilleFlow:
         for i in range(len(errors) - 1):
             ratio = errors[i] / errors[i + 1]
             assert ratio > 1.5, (
-                f"Convergence ratio (ny={grids[i]}→{grids[i+1]}) = "
+                f"Convergence ratio (ny={grids[i]}→{grids[i + 1]}) = "
                 f"{ratio:.2f} < 1.5 (expected > 1.5 for O(h²))"
             )
 
@@ -202,14 +218,20 @@ class TestPoiseuilleFlow:
     def test_poiseuille_stable_below_critical(self):
         """Below critical Re ≈ 5772, the TS wave is stable."""
         d = _build_parallel_flow(
-            self._poiseuille, yrange=(-1, 1), ny=128,
-            Re=5000, Ma=0.01, alpha=1.0,
+            self._poiseuille,
+            yrange=(-1, 1),
+            ny=128,
+            Re=5000,
+            Ma=0.01,
+            alpha=1.0,
         )
 
         # Search near the Orszag phase speed (same Re(ω) region)
         target = self.ORSZAG_CODE.real + 0.0j
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=5, target=target,
+            d["L0"],
+            n_modes=5,
+            target=target,
         )
 
         # Mode closest to Orszag phase speed should be stable:
@@ -227,6 +249,7 @@ class TestPoiseuilleFlow:
 # Test 2: Couette Flow — all modes stable
 # ===========================================================================
 
+
 class TestCouetteFlow:
     """Plane Couette flow: U(y) = y, y ∈ [-1, 1].
 
@@ -242,13 +265,19 @@ class TestCouetteFlow:
     def test_couette_all_stable(self):
         """All eigenvalues of Couette flow are damped."""
         d = _build_parallel_flow(
-            self._couette, yrange=(-1, 1), ny=80,
-            Re=2000, Ma=0.01, alpha=1.0,
+            self._couette,
+            yrange=(-1, 1),
+            ny=80,
+            Re=2000,
+            Ma=0.01,
+            alpha=1.0,
         )
 
         # Search near the center of the spectrum with small positive Im
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=10, target=0.0 + 0.1j,
+            d["L0"],
+            n_modes=10,
+            target=0.0 + 0.1j,
         )
 
         # ALL returned modes must be stable: Im(ω) < 0 in code convention
@@ -263,6 +292,7 @@ class TestCouetteFlow:
 # ===========================================================================
 # Test 3: Kelvin-Helmholtz Mixing Layer
 # ===========================================================================
+
 
 class TestMixingLayerKH:
     """Hyperbolic-tangent mixing layer: U(y) = 0.5·(1 + tanh(2y)).
@@ -284,13 +314,19 @@ class TestMixingLayerKH:
     def test_kh_instability_exists(self):
         """KH instability exists at α=0.4 (below cutoff α=1)."""
         d = _build_parallel_flow(
-            self._tanh_profile, yrange=(-10, 10), ny=100,
-            Re=1000, Ma=0.01, alpha=0.4,
+            self._tanh_profile,
+            yrange=(-10, 10),
+            ny=100,
+            Re=1000,
+            Ma=0.01,
+            alpha=0.4,
         )
 
         # Phase speed ≈ 0.5, so ω_r ≈ 0.4·0.5 = 0.2.
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=5, target=0.2 + 0.05j,
+            d["L0"],
+            n_modes=5,
+            target=0.2 + 0.05j,
         )
 
         # At least one unstable mode: Im(ω) > 0
@@ -302,23 +338,25 @@ class TestMixingLayerKH:
 
         # Growth rate should be O(0.1), not spuriously small or large
         max_growth = growth_rates.max()
-        assert max_growth > 0.01, (
-            f"KH growth rate suspiciously small: {max_growth:.4e}"
-        )
-        assert max_growth < 1.0, (
-            f"KH growth rate suspiciously large: {max_growth:.4e}"
-        )
+        assert max_growth > 0.01, f"KH growth rate suspiciously small: {max_growth:.4e}"
+        assert max_growth < 1.0, f"KH growth rate suspiciously large: {max_growth:.4e}"
 
     @pytest.mark.slow
     def test_kh_phase_speed(self):
         """KH mode phase speed ≈ 0.5 (mean velocity at inflection)."""
         d = _build_parallel_flow(
-            self._tanh_profile, yrange=(-10, 10), ny=100,
-            Re=1000, Ma=0.01, alpha=0.4,
+            self._tanh_profile,
+            yrange=(-10, 10),
+            ny=100,
+            Re=1000,
+            Ma=0.01,
+            alpha=0.4,
         )
 
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=5, target=0.2 + 0.05j,
+            d["L0"],
+            n_modes=5,
+            target=0.2 + 0.05j,
         )
 
         # Find the most unstable mode (largest Im)
@@ -330,7 +368,9 @@ class TestMixingLayerKH:
         c_phase = omega_kh.real / alpha
 
         np.testing.assert_allclose(
-            c_phase, 0.5, atol=0.1,
+            c_phase,
+            0.5,
+            atol=0.1,
             err_msg=f"KH phase speed should be ≈ 0.5, got {c_phase:.4f}",
         )
 
@@ -339,13 +379,19 @@ class TestMixingLayerKH:
         """At α=2.5, the tanh(2y) mixing layer is above the scaled cutoff."""
         alpha = 2.5
         d = _build_parallel_flow(
-            self._tanh_profile, yrange=(-10, 10), ny=100,
-            Re=1000, Ma=0.01, alpha=alpha,
+            self._tanh_profile,
+            yrange=(-10, 10),
+            ny=100,
+            Re=1000,
+            Ma=0.01,
+            alpha=alpha,
         )
 
         # Phase speed ≈ 0.5, so search near ω_r ≈ α·0.5.
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=5, target=0.5 * alpha + 0.05j,
+            d["L0"],
+            n_modes=5,
+            target=0.5 * alpha + 0.05j,
         )
 
         # All returned modes should be stable: Im(ω) < 0
@@ -358,6 +404,7 @@ class TestMixingLayerKH:
 # ===========================================================================
 # Test 4: Uniform Flow — analytical dispersion
 # ===========================================================================
+
 
 class TestUniformFlowEigenvalues:
     """Uniform base flow: U=1, V=W=0, T=RHO=1.
@@ -377,14 +424,20 @@ class TestUniformFlowEigenvalues:
     def test_convective_cluster(self):
         """Vorticity/entropy modes cluster near ω ≈ α·U = 2."""
         d = _build_parallel_flow(
-            self._uniform, yrange=(0, 1), ny=40,
-            Re=1e6, Ma=0.5, alpha=2.0,
+            self._uniform,
+            yrange=(0, 1),
+            ny=40,
+            Re=1e6,
+            Ma=0.5,
+            alpha=2.0,
         )
 
         alpha_U = 2.0  # α * U
         # Code convention: modes near ω ≈ α·U = 2
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=10, target=alpha_U,
+            d["L0"],
+            n_modes=10,
+            target=alpha_U,
         )
 
         # Count modes with Re(ω) within 20% of α·U
@@ -400,12 +453,18 @@ class TestUniformFlowEigenvalues:
     def test_all_damped(self):
         """Uniform flow has no instability mechanism."""
         d = _build_parallel_flow(
-            self._uniform, yrange=(0, 1), ny=40,
-            Re=1e6, Ma=0.5, alpha=2.0,
+            self._uniform,
+            yrange=(0, 1),
+            ny=40,
+            Re=1e6,
+            Ma=0.5,
+            alpha=2.0,
         )
 
         omegas, _ = temporal_eigenvalues(
-            d["L0"], n_modes=10, target=2.0,
+            d["L0"],
+            n_modes=10,
+            target=2.0,
         )
 
         # All modes must be stable: Im(ω) < 0 (or neutral within tolerance)

@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Mesh infrastructure: SBP finite differences, structured grids, integration weights."""
 
-from .sbp import (
-    sbp_stencils,
-    build_sbp_matrix,
-    build_sbp_pole_matrices,
-    build_sbp_dissipation_matrices,
-    min_points,
-)
+from .distance import min_distance
 from .fdweights import fdweights
 from .grids import segmspace
-from .distance import min_distance
 from .interpolation import interp_mat_2d
+from .sbp import (
+    build_sbp_dissipation_matrices,
+    build_sbp_matrix,
+    build_sbp_pole_matrices,
+    min_points,
+    sbp_stencils,
+)
 
 __all__ = [
     "Mesh",

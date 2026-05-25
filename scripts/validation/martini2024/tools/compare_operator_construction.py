@@ -58,10 +58,16 @@ def _build_thresholds(tol: float, args: argparse.Namespace) -> dict[str, Any]:
             "rel": _resolve_threshold(args.rebuild_rel_threshold, tol, "rebuild-rel-threshold"),
         },
         "matvec": {
-            "L0": _resolve_threshold(args.l0_matvec_threshold, matvec_default, "l0-matvec-threshold"),
-            "Lc": _resolve_threshold(args.lc_matvec_threshold, matvec_default, "lc-matvec-threshold"),
+            "L0": _resolve_threshold(
+                args.l0_matvec_threshold, matvec_default, "l0-matvec-threshold"
+            ),
+            "Lc": _resolve_threshold(
+                args.lc_matvec_threshold, matvec_default, "lc-matvec-threshold"
+            ),
             "R": _resolve_threshold(args.r_matvec_threshold, matvec_default, "r-matvec-threshold"),
-            "Lw": _resolve_threshold(args.lw_matvec_threshold, matvec_default, "lw-matvec-threshold"),
+            "Lw": _resolve_threshold(
+                args.lw_matvec_threshold, matvec_default, "lw-matvec-threshold"
+            ),
         },
     }
 
@@ -191,8 +197,8 @@ def _case_setup(model: str, seed: int, Mesh, BaseFlow, sutherland_air):
         )
         X, Y = mesh.X, mesh.Y
         U = 0.8 + 0.15 * np.exp(-2.2 * Y**2) + 0.03 * np.sin(0.6 * X)  # axial
-        V = 0.02 * np.sin(0.4 * X) * np.exp(-1.5 * Y)                    # radial
-        W = 0.01 * np.cos(0.5 * X) * np.exp(-1.2 * Y)                    # azimuthal
+        V = 0.02 * np.sin(0.4 * X) * np.exp(-1.5 * Y)  # radial
+        W = 0.01 * np.cos(0.5 * X) * np.exp(-1.2 * Y)  # azimuthal
         RHO = np.maximum(0.2, 1.0 + 0.04 * np.cos(0.5 * X) - 0.03 * Y)
         T = np.maximum(0.2, 1.0 + 0.03 * np.sin(0.8 * X) + 0.02 * Y)
         bf = BaseFlow(
@@ -255,7 +261,11 @@ def run_numeric_parity(
 
         delta = L0 - L0_rebuilt
         rebuild_abs = float(np.max(np.abs(delta.data))) if delta.nnz else 0.0
-        rebuild_rel = float(np.linalg.norm(delta.data) / max(np.linalg.norm(L0.data), 1e-30)) if delta.nnz else 0.0
+        rebuild_rel = (
+            float(np.linalg.norm(delta.data) / max(np.linalg.norm(L0.data), 1e-30))
+            if delta.nnz
+            else 0.0
+        )
         rebuild_terms = _delta_unresolved_terms(
             delta,
             L0,
@@ -274,7 +284,8 @@ def run_numeric_parity(
 
         block_checks = {
             "rebuild": {
-                "pass": rebuild_abs <= rebuild_thresholds["abs"] and rebuild_rel <= rebuild_thresholds["rel"],
+                "pass": rebuild_abs <= rebuild_thresholds["abs"]
+                and rebuild_rel <= rebuild_thresholds["rel"],
                 "abs_residual": rebuild_abs,
                 "abs_threshold": rebuild_thresholds["abs"],
                 "rel_residual": rebuild_rel,

@@ -20,21 +20,21 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.linear_operators import (
+    DiagonalOperator,
     MatrixOperator,
-    ProductOperator,
+    NumpyCallableOperator,
     PetscShellOperator,
+    ProductOperator,
+    build_shifted_operator,
     scipy_to_operator,
     scipy_to_solve_operator,
-    build_shifted_operator,
-    DiagonalOperator,
-    NumpyCallableOperator,
 )
 from linstabpy.utils.petsc_core import petsc_vec, vec_to_numpy
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _random_invertible(n: int, rng: np.random.Generator) -> np.ndarray:
     A = rng.standard_normal((n, n)) + 1j * rng.standard_normal((n, n))
@@ -53,6 +53,7 @@ def _vec_to_np(v: PETSc.Vec) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # B1: Adapter tests
 # ---------------------------------------------------------------------------
+
 
 class TestScipyToOperator:
     """Test scipy_to_operator (apply-only adapter)."""
@@ -249,6 +250,7 @@ class TestNumpyCallableOperator:
 # B2: Shifted operator
 # ---------------------------------------------------------------------------
 
+
 class TestBuildShiftedOperator:
     """Test build_shifted_operator."""
 
@@ -300,6 +302,7 @@ class TestBuildShiftedOperator:
 # ---------------------------------------------------------------------------
 # B3: Operator-composed resolvent vs closure-based implementation
 # ---------------------------------------------------------------------------
+
 
 class TestComposedResolvent:
     """Compare operator-composed resolvent gains against the current

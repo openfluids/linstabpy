@@ -8,24 +8,12 @@ import json
 import shutil
 import textwrap
 
-from tests.conftest import build_synthetic_jet
-from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ownership
-
 import numpy as np
 import pytest
 import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
-from linstabpy.mesh import Mesh
-from linstabpy.baseflow import BaseFlow, sutherland_air, load_blasius
-from linstabpy.operators import (
-    build_lnse_operator,
-    build_lnse_operator_petsc,
-    build_lnse_system,
-    compute_chu_norm,
-    build_spatial_operator,
-    build_spatial_operator_petsc,
-)
+from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
     apply_bc_recipe_petsc,
@@ -34,20 +22,33 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
-from linstabpy.solvers import (
-    resolvent_analysis,
-    temporal_eigenvalues,
-    adjoint_eigenvalues,
-    spatial_eigenvalues,
+from linstabpy.mesh import Mesh
+from linstabpy.operators import (
+    build_lnse_operator,
+    build_lnse_operator_petsc,
+    build_lnse_system,
+    build_spatial_operator,
+    build_spatial_operator_petsc,
+    compute_chu_norm,
 )
-from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals
+from linstabpy.solvers import (
+    adjoint_eigenvalues,
+    resolvent_analysis,
+    spatial_eigenvalues,
+    temporal_eigenvalues,
+)
 from linstabpy.solvers.eigenvalue import (
     _resolve_ncv as _resolve_temporal_ncv,
+)
+from linstabpy.solvers.eigenvalue import (
     _sort_nearest as _sort_temporal_nearest,
 )
-from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from linstabpy.solvers.linsolve import make_linear_solver
 from linstabpy.solvers.petsc_utils import scipy_to_petsc
+from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals
+from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
+from tests.conftest import build_synthetic_jet
+from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
 
 
 def _assert_temporal_spectrum_allclose(
@@ -294,9 +295,7 @@ def test_adjoint_temporal_scaling() -> None:
     )
 
     expected = np.conj(direct_omegas)
-    rows, cols = linear_sum_assignment(
-        np.abs(adjoint_omegas[:, None] - expected[None, :])
-    )
+    rows, cols = linear_sum_assignment(np.abs(adjoint_omegas[:, None] - expected[None, :]))
     np.testing.assert_allclose(adjoint_omegas[rows], expected[cols], atol=1e-12)
 
 
@@ -354,7 +353,11 @@ class TestResolventAnalysis:
         # 1e-8 only delivers orthonormality to ~1e-7.
         solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
         gains, _, forcings = resolvent_analysis(
-            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+            L0,
+            omega=60.0,
+            n_modes=3,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
         )
         n = forcings.shape[1]
         gram = np.empty((n, n), dtype=complex)
@@ -368,7 +371,11 @@ class TestResolventAnalysis:
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
         solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
         gains, responses, _ = resolvent_analysis(
-            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+            L0,
+            omega=60.0,
+            n_modes=3,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
         )
         n = responses.shape[1]
         gram = np.empty((n, n), dtype=complex)
@@ -387,9 +394,7 @@ class TestResolventAnalysis:
     def test_full_resolvent_default(self, blasius_problem):
         """B_mat=None, C_mat=None gives the full (unrestricted) resolvent."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
-        gains, responses, forcings = resolvent_analysis(
-            L0, omega=60.0, n_modes=3, W_diag=W_diag
-        )
+        gains, responses, forcings = resolvent_analysis(L0, omega=60.0, n_modes=3, W_diag=W_diag)
         assert gains.shape == (3,)
         assert responses.shape[1] == 3
         assert forcings.shape[1] == 3
@@ -441,9 +446,7 @@ class TestResolventAnalysis:
     def test_response_shape(self, blasius_problem):
         """Response array must be (ndof, n_modes)."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
-        gains, responses, forcings = resolvent_analysis(
-            L0, omega=60.0, n_modes=3, W_diag=W_diag
-        )
+        gains, responses, forcings = resolvent_analysis(L0, omega=60.0, n_modes=3, W_diag=W_diag)
         ndof = L0.shape[0]
         assert responses.shape == (ndof, 3)
 
@@ -458,12 +461,22 @@ class TestResolventAnalysis:
         _, _, L0, _, ngp, W_diag, invW_diag = blasius_problem
         solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
         gains, responses, forcings = resolvent_analysis(
-            L0, omega=60.0, n_modes=3, W_diag=W_diag, solver_cfg=solver_cfg,
+            L0,
+            omega=60.0,
+            n_modes=3,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
         )
         rho_fwd, rho_adj = compute_resolvent_svd_residuals(
-            L0, omega=60.0, B_mat=None, C_mat=None,
-            gains=gains, forcings=forcings, responses=responses,
-            W_diag=W_diag, solver_cfg=solver_cfg,
+            L0,
+            omega=60.0,
+            B_mat=None,
+            C_mat=None,
+            gains=gains,
+            forcings=forcings,
+            responses=responses,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
         )
         assert np.all(np.isfinite(rho_fwd)), "rho_fwd contains non-finite values"
         assert np.all(np.isfinite(rho_adj)), "rho_adj contains non-finite values"
@@ -598,6 +611,8 @@ class TestDirectPetscSolverInputs:
             _assert_temporal_spectrum_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
         finally:
             L0_petsc.destroy()
+
+
 @pytest.mark.slow
 class TestDistributedPetscFallbackSolverInputs:
     """Tests for solver entry points fed by the distributed PETSc fallback workflow."""
@@ -659,7 +674,9 @@ class TestDistributedPetscFallbackSolverInputs:
             x_vec = solver_petsc.solve_vec(b)
             x_adj_vec = solver_petsc.solve_transpose_vec(b)
             try:
-                np.testing.assert_allclose(np.array(x_vec.array_r, copy=True), x_sp[r0:r1], atol=1e-8, rtol=1e-8)
+                np.testing.assert_allclose(
+                    np.array(x_vec.array_r, copy=True), x_sp[r0:r1], atol=1e-8, rtol=1e-8
+                )
                 np.testing.assert_allclose(
                     np.array(x_adj_vec.array_r, copy=True),
                     solver_sp.solve_transpose(rhs)[r0:r1],
@@ -734,7 +751,6 @@ class TestDistributedPetscFallbackSolverInputs:
         reports = parse_mpi_reports(proc.stdout)
         assert_split_ownership(reports, n_ranks)
         assert all(report["local_rhs"] > 0 for report in reports)
-
 
 
 @pytest.mark.slow
@@ -873,9 +889,7 @@ class TestSpatialEigenvalues:
     def test_returns_n_modes(self, spatial_problem):
         """Must return exactly n_modes eigenvalues."""
         _, _, Lc, Lw, R_mat, _ = spatial_problem
-        alpha, modes = spatial_eigenvalues(
-            Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j
-        )
+        alpha, modes = spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j)
         assert alpha.shape == (3,)
         assert modes.shape[1] == 3
 
@@ -892,7 +906,9 @@ class TestSpatialEigenvalues:
                 "uvwT",
                 ngp,
             )
-            alpha_sp, _ = spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j)
+            alpha_sp, _ = spatial_eigenvalues(
+                Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j
+            )
             alpha_petsc, _ = spatial_eigenvalues(
                 Lc_petsc,
                 Lw_petsc,
@@ -920,9 +936,7 @@ class TestSpatialEigenvalues:
         We verify structural properties rather than the eigenpair residual.
         """
         _, _, Lc, Lw, R_mat, _ = spatial_problem
-        alpha, modes = spatial_eigenvalues(
-            Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j
-        )
+        alpha, modes = spatial_eigenvalues(Lc, Lw, R_mat, omega=60.0, n_modes=3, target=0.1 + 0.01j)
         assert np.all(np.isfinite(alpha)), f"Non-finite eigenvalues: {alpha}"
         for i in range(modes.shape[1]):
             assert np.linalg.norm(modes[:, i]) > 0, f"Zero eigenvector at mode {i}"
@@ -952,9 +966,7 @@ class TestCylindricalTemporalEigenvalues:
             v = modes[:, i]
             residual = iL0 @ v - omega[i] * v
             rel_err = np.linalg.norm(residual) / np.linalg.norm(v)
-            assert rel_err < 1e-6, (
-                f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
-            )
+            assert rel_err < 1e-6, f"Mode {i}: eigenpair residual {rel_err:.2e} (expected < 1e-6)"
 
     def test_direct_petsc_matches_scipy_axy_eigenvalues_m1(self):
         """Direct-PETSc axy input should reproduce the SciPy temporal spectrum."""
@@ -1125,7 +1137,12 @@ class TestCylindricalSpatialEigenvalues:
         Lc, R_mat, Lw, idx = build_spatial_operator(mesh, bf, model="axy", m=0)
         ngp = mesh.ngp
         Lc, R_mat, bc_indices = apply_dirichlet_spatial(
-            Lc, R_mat, idx, "ltr", "uvwT", ngp,
+            Lc,
+            R_mat,
+            idx,
+            "ltr",
+            "uvwT",
+            ngp,
         )
         return Lc, Lw, R_mat, ngp
 
@@ -1133,7 +1150,12 @@ class TestCylindricalSpatialEigenvalues:
         """Spatial axy eigenvalues are finite and eigenvectors are nonzero."""
         Lc, Lw, R_mat, _ = spatial_axy_problem
         alpha, modes = spatial_eigenvalues(
-            Lc, Lw, R_mat, omega=2.0, n_modes=3, target=0.1 + 0.01j,
+            Lc,
+            Lw,
+            R_mat,
+            omega=2.0,
+            n_modes=3,
+            target=0.1 + 0.01j,
         )
         assert np.all(np.isfinite(alpha)), f"Non-finite eigenvalues: {alpha}"
         for i in range(modes.shape[1]):

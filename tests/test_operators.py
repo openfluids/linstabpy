@@ -5,14 +5,11 @@ import json
 import shutil
 import textwrap
 
-from tests.mpi_helpers import run_mpi_python, parse_mpi_reports, assert_split_ownership
-
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 
-from linstabpy.mesh import Mesh
-from linstabpy.baseflow import BaseFlow, sutherland_air, load_blasius
+from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
     apply_bc_recipe_petsc,
@@ -23,13 +20,14 @@ from linstabpy.boundary_conditions import (
     apply_neumann,
     apply_neumann_petsc,
 )
+from linstabpy.mesh import Mesh
 from linstabpy.operators import (
     build_lnse_operator,
     build_lnse_operator_petsc,
     build_lnse_system,
-    compute_chu_norm,
     build_spatial_operator,
     build_spatial_operator_petsc,
+    compute_chu_norm,
 )
 from linstabpy.operators.assembly import (
     _apply_inv_B,
@@ -48,6 +46,7 @@ from linstabpy.utils.petsc_core import (
     petsc_matvec_residual,
     scipy_to_petsc,
 )
+from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
 
 slow = pytest.mark.slow
 
@@ -56,51 +55,111 @@ slow = pytest.mark.slow
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _uniform_scalars(ngp, *, kappa=1.4, Ma=0.3):
     """Return uniform-flow scalars as flat arrays of length *ngp*."""
-    U   = np.ones(ngp)
-    V   = np.zeros(ngp)
-    W   = np.zeros(ngp)
+    U = np.ones(ngp)
+    V = np.zeros(ngp)
+    W = np.zeros(ngp)
     RHO = np.ones(ngp)
-    T   = np.ones(ngp)
-    MU  = np.ones(ngp)
-    P   = RHO * T / (kappa * Ma**2)
+    T = np.ones(ngp)
+    MU = np.ones(ngp)
+    P = RHO * T / (kappa * Ma**2)
     return U, V, W, RHO, T, MU, P
 
 
 def _zero_derivatives(ngp):
     """Return a dict of all derivative arrays set to zero."""
     names = [
-        "dUdx", "dVdx", "dWdx", "dRHOdx", "dTdx", "dPdx",
-        "dUdy", "dVdy", "dWdy", "dRHOdy", "dTdy", "dPdy",
-        "d2Udx2", "d2Vdx2", "d2Wdx2",
-        "d2Udy2", "d2Vdy2", "d2Wdy2",
-        "d2Tdx2", "d2Tdy2",
-        "d2Udxdy", "d2Vdxdy", "d2Wdxdy",
-        "dmudT", "d2mudT2",
+        "dUdx",
+        "dVdx",
+        "dWdx",
+        "dRHOdx",
+        "dTdx",
+        "dPdx",
+        "dUdy",
+        "dVdy",
+        "dWdy",
+        "dRHOdy",
+        "dTdy",
+        "dPdy",
+        "d2Udx2",
+        "d2Vdx2",
+        "d2Wdx2",
+        "d2Udy2",
+        "d2Vdy2",
+        "d2Wdy2",
+        "d2Tdx2",
+        "d2Tdy2",
+        "d2Udxdy",
+        "d2Vdxdy",
+        "d2Wdxdy",
+        "dmudT",
+        "d2mudT2",
     ]
     return {n: np.zeros(ngp) for n in names}
 
 
-def _call_cartesian(ngp, *, kx=0.0, Re=1e5, Ma=0.3, Pr=0.72, kappa=1.4,
-                    U=None, V=None, W=None, RHO=None, T=None, MU=None, P=None,
-                    derivs=None):
+def _call_cartesian(
+    ngp,
+    *,
+    kx=0.0,
+    Re=1e5,
+    Ma=0.3,
+    Pr=0.72,
+    kappa=1.4,
+    U=None,
+    V=None,
+    W=None,
+    RHO=None,
+    T=None,
+    MU=None,
+    P=None,
+    derivs=None,
+):
     """Convenience wrapper around compute_cartesian_coefficients."""
     if U is None:
         U, V, W, RHO, T, MU, P = _uniform_scalars(ngp, kappa=kappa, Ma=Ma)
     if derivs is None:
         derivs = _zero_derivatives(ngp)
     return compute_cartesian_coefficients(
-        U, V, W, RHO, T, MU, P, kx, Re, Ma, Pr, kappa,
-        derivs["dUdx"], derivs["dVdx"], derivs["dWdx"],
-        derivs["dRHOdx"], derivs["dTdx"], derivs["dPdx"],
-        derivs["dUdy"], derivs["dVdy"], derivs["dWdy"],
-        derivs["dRHOdy"], derivs["dTdy"], derivs["dPdy"],
-        derivs["d2Udx2"], derivs["d2Vdx2"], derivs["d2Wdx2"],
-        derivs["d2Udy2"], derivs["d2Vdy2"], derivs["d2Wdy2"],
-        derivs["d2Tdx2"], derivs["d2Tdy2"],
-        derivs["d2Udxdy"], derivs["d2Vdxdy"], derivs["d2Wdxdy"],
-        derivs["dmudT"], derivs["d2mudT2"],
+        U,
+        V,
+        W,
+        RHO,
+        T,
+        MU,
+        P,
+        kx,
+        Re,
+        Ma,
+        Pr,
+        kappa,
+        derivs["dUdx"],
+        derivs["dVdx"],
+        derivs["dWdx"],
+        derivs["dRHOdx"],
+        derivs["dTdx"],
+        derivs["dPdx"],
+        derivs["dUdy"],
+        derivs["dVdy"],
+        derivs["dWdy"],
+        derivs["dRHOdy"],
+        derivs["dTdy"],
+        derivs["dPdy"],
+        derivs["d2Udx2"],
+        derivs["d2Vdx2"],
+        derivs["d2Wdx2"],
+        derivs["d2Udy2"],
+        derivs["d2Vdy2"],
+        derivs["d2Wdy2"],
+        derivs["d2Tdx2"],
+        derivs["d2Tdy2"],
+        derivs["d2Udxdy"],
+        derivs["d2Vdxdy"],
+        derivs["d2Wdxdy"],
+        derivs["dmudT"],
+        derivs["d2mudT2"],
     )
 
 
@@ -209,6 +268,7 @@ def _build_lnse_system_mpi_script(*, bc_recipe: list[dict] | None) -> str:
 # TestCartesianCoefficients
 # =========================================================================
 
+
 class TestCartesianCoefficients:
     """Tests for compute_cartesian_coefficients with uniform base flow."""
 
@@ -234,8 +294,10 @@ class TestCartesianCoefficients:
             for j in range(5):
                 if i != j:
                     np.testing.assert_allclose(
-                        B[i, j, :], np.zeros(self.NGP),
-                        atol=1e-15, err_msg=f"B[{i},{j},:] should be zero",
+                        B[i, j, :],
+                        np.zeros(self.NGP),
+                        atol=1e-15,
+                        err_msg=f"B[{i},{j},:] should be zero",
                     )
 
     def test_continuity_row_inviscid(self):
@@ -244,7 +306,9 @@ class TestCartesianCoefficients:
         for name in ("Axx", "Ayy", "Axy"):
             arr = getattr(coeffs, name)
             np.testing.assert_allclose(
-                arr[0, :, :], 0.0, atol=1e-15,
+                arr[0, :, :],
+                0.0,
+                atol=1e-15,
                 err_msg=f"{name}[0,:,:] should be zero (continuity is inviscid)",
             )
 
@@ -288,8 +352,17 @@ class TestCartesianCoefficients:
         derivs = _zero_derivatives(ngp)
 
         coeffs = _call_cartesian(
-            ngp, U=U, V=V, W=W, RHO=RHO, T=T, MU=MU, P=P,
-            derivs=derivs, kappa=kappa, Ma=Ma,
+            ngp,
+            U=U,
+            V=V,
+            W=W,
+            RHO=RHO,
+            T=T,
+            MU=MU,
+            P=P,
+            derivs=derivs,
+            kappa=kappa,
+            Ma=Ma,
         )
         # With zero velocity and zero derivatives, the advection part of A0
         # should contribute nothing; check a few representative entries.
@@ -305,22 +378,32 @@ class TestCartesianCoefficients:
         derivs = _zero_derivatives(ngp)
 
         coeffs = _call_cartesian(
-            ngp, U=U, V=V, W=W, RHO=RHO, T=T, MU=MU, P=P,
-            derivs=derivs, Re=1e5,
+            ngp,
+            U=U,
+            V=V,
+            W=W,
+            RHO=RHO,
+            T=T,
+            MU=MU,
+            P=P,
+            derivs=derivs,
+            Re=1e5,
         )
         for name in ("Axx", "Ayy", "Axy"):
             arr = getattr(coeffs, name)
             for k in range(1, 5):
                 np.testing.assert_allclose(
-                    arr[k, :, :], 0.0, atol=1e-20,
+                    arr[k, :, :],
+                    0.0,
+                    atol=1e-20,
                     err_msg=f"Inviscid limit: {name}[{k},:,:] should vanish",
                 )
-
 
 
 # =========================================================================
 # TestCylindricalCoefficients
 # =========================================================================
+
 
 class TestCylindricalCoefficients:
     """Tests for compute_cylindrical_coefficients."""
@@ -341,22 +424,50 @@ class TestCylindricalCoefficients:
                 dmudT, d2mudT2,
             )
         """
-        Re   = kwargs.get("Re", 1e5)
-        Ma   = kwargs.get("Ma", 0.3)
-        Pr   = kwargs.get("Pr", 0.72)
+        Re = kwargs.get("Re", 1e5)
+        Ma = kwargs.get("Ma", 0.3)
+        Pr = kwargs.get("Pr", 0.72)
         kappa = kwargs.get("kappa", 1.4)
         U, V, W, RHO, T, MU, _ = _uniform_scalars(ngp, kappa=kappa, Ma=Ma)
         z = np.zeros(ngp)
         if R is None:
             R = np.ones(ngp) * 1e6  # large radius
         return compute_cylindrical_coefficients(
-            U, V, W, R, RHO, T, MU, m, Re, Ma, Pr, kappa,
-            z, z, z, z, z,       # dUdr..dTdr
-            z, z, z, z, z,       # dUdz..dTdz
-            z, z, z, z,          # d2Udr2..d2Tdr2
-            z, z, z, z,          # d2Udz2..d2Tdz2
-            z, z, z,             # d2Udrz..d2Wdrz
-            z, z,                # dmudT, d2mudT2
+            U,
+            V,
+            W,
+            R,
+            RHO,
+            T,
+            MU,
+            m,
+            Re,
+            Ma,
+            Pr,
+            kappa,
+            z,
+            z,
+            z,
+            z,
+            z,  # dUdr..dTdr
+            z,
+            z,
+            z,
+            z,
+            z,  # dUdz..dTdz
+            z,
+            z,
+            z,
+            z,  # d2Udr2..d2Tdr2
+            z,
+            z,
+            z,
+            z,  # d2Udz2..d2Tdz2
+            z,
+            z,
+            z,  # d2Udrz..d2Wdrz
+            z,
+            z,  # dmudT, d2mudT2
         )
 
     def test_cylindrical_shapes(self):
@@ -382,7 +493,6 @@ class TestCylindricalCoefficients:
         np.testing.assert_allclose(cyl.Axx, cart.Axx, atol=1e-3)
         np.testing.assert_allclose(cyl.Ayy, cart.Ayy, atol=1e-3)
 
-
     def test_axis_regularization_uses_mesh_spacing_floor(self):
         """R=0 axis singularity is regularized with local mesh spacing, not 1e-14.
 
@@ -400,14 +510,41 @@ class TestCylindricalCoefficients:
         kappa = 1.4
         U, V, W, RHO, T, MU, _ = _uniform_scalars(ngp, kappa=kappa, Ma=Ma)
         coeffs = compute_cylindrical_coefficients(
-            U, V, W, R_axis, RHO, T, MU, m=0,
-            Re=1e5, Ma=Ma, Pr=0.72, kappa=kappa,
-            dUdr=z, dVdr=z, dWdr=z, dRHOdr=z, dTdr=z,
-            dUdz=z, dVdz=z, dWdz=z, dRHOdz=z, dTdz=z,
-            d2Udr2=z, d2Vdr2=z, d2Wdr2=z, d2Tdr2=z,
-            d2Udz2=z, d2Vdz2=z, d2Wdz2=z, d2Tdz2=z,
-            d2Udrz=z, d2Vdrz=z, d2Wdrz=z,
-            dmudT=z, d2mudT2=z,
+            U,
+            V,
+            W,
+            R_axis,
+            RHO,
+            T,
+            MU,
+            m=0,
+            Re=1e5,
+            Ma=Ma,
+            Pr=0.72,
+            kappa=kappa,
+            dUdr=z,
+            dVdr=z,
+            dWdr=z,
+            dRHOdr=z,
+            dTdr=z,
+            dUdz=z,
+            dVdz=z,
+            dWdz=z,
+            dRHOdz=z,
+            dTdz=z,
+            d2Udr2=z,
+            d2Vdr2=z,
+            d2Wdr2=z,
+            d2Tdr2=z,
+            d2Udz2=z,
+            d2Vdz2=z,
+            d2Wdz2=z,
+            d2Tdz2=z,
+            d2Udrz=z,
+            d2Vdrz=z,
+            d2Wdrz=z,
+            dmudT=z,
+            d2mudT2=z,
         )
         for attr in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
             arr = getattr(coeffs, attr)
@@ -419,7 +556,7 @@ class TestCylindricalCoefficients:
         dr_min = float(np.min(np.diff(R_axis[R_axis > 0]))) if np.any(R_axis > 0) else 1.0
         max_abs_A0 = float(np.max(np.abs(coeffs.A0)))
         # Sanity: the largest coefficient must not be astronomically large
-        threshold = 1.0 / dr_min * 1e4   # generous factor for combined coefficients
+        threshold = 1.0 / dr_min * 1e4  # generous factor for combined coefficients
         assert max_abs_A0 < threshold, (
             f"max|A0| = {max_abs_A0:.3e} exceeds 1/dr threshold {threshold:.3e}; "
             "axis regularization may be using 1e-14 floor instead of mesh spacing"
@@ -429,6 +566,7 @@ class TestCylindricalCoefficients:
 # =========================================================================
 # TestOperatorAssembly
 # =========================================================================
+
 
 class TestOperatorAssembly:
     """Tests for build_lnse_operator using small_mesh_2d + uniform_baseflow."""
@@ -447,7 +585,7 @@ class TestOperatorAssembly:
         L0_csr = L0.tocsr()
         # Count non-zeros in continuity rows vs. first momentum rows
         cont_nnz = L0_csr[:ngp, :].nnz
-        mom_nnz  = L0_csr[ngp:2*ngp, :].nnz
+        mom_nnz = L0_csr[ngp : 2 * ngp, :].nnz
         # Continuity block should be sparser (no viscous stencil)
         assert cont_nnz < mom_nnz, (
             f"Continuity nnz ({cont_nnz}) should be < momentum nnz ({mom_nnz})"
@@ -459,10 +597,10 @@ class TestOperatorAssembly:
         ngp = mesh.ngp
         _, idx = build_lnse_operator(mesh, uniform_baseflow, kx=0.0)
         np.testing.assert_array_equal(idx["rho_j"], np.arange(0, ngp))
-        np.testing.assert_array_equal(idx["u_j"],   np.arange(ngp, 2 * ngp))
-        np.testing.assert_array_equal(idx["v_j"],   np.arange(2 * ngp, 3 * ngp))
-        np.testing.assert_array_equal(idx["w_j"],   np.arange(3 * ngp, 4 * ngp))
-        np.testing.assert_array_equal(idx["T_j"],   np.arange(4 * ngp, 5 * ngp))
+        np.testing.assert_array_equal(idx["u_j"], np.arange(ngp, 2 * ngp))
+        np.testing.assert_array_equal(idx["v_j"], np.arange(2 * ngp, 3 * ngp))
+        np.testing.assert_array_equal(idx["w_j"], np.arange(3 * ngp, 4 * ngp))
+        np.testing.assert_array_equal(idx["T_j"], np.arange(4 * ngp, 5 * ngp))
 
     def test_invalid_model_raises(self, small_mesh_2d, uniform_baseflow):
         """Invalid model string raises ValueError."""
@@ -614,9 +752,12 @@ class TestOperatorAssembly:
         assert stages["apply_bc"]["skipped"] is True
         assert stages["scipy_to_petsc"]["skipped"] is True
         assert stages["petsc_compaction"]["skipped"] is True
-        assert {"seconds", "rss_peak_before_bytes", "rss_peak_after_bytes", "rss_peak_delta_bytes"} <= set(
-            stages["assemble_raw_blocks"]
-        )
+        assert {
+            "seconds",
+            "rss_peak_before_bytes",
+            "rss_peak_after_bytes",
+            "rss_peak_delta_bytes",
+        } <= set(stages["assemble_raw_blocks"])
 
     def test_build_lnse_system_petsc_metrics_records_local_full_csr_mode(
         self,
@@ -741,6 +882,7 @@ class TestOperatorAssembly:
             assert report["max_rel_residual"] < 1e-11
         finally:
             L0_petsc.destroy()
+
     def test_direct_petsc_pre_bc_l0_has_sparse_parity(self):
         """Direct PETSc pre-BC L0 matches the SciPy reference entrywise."""
         mesh = Mesh.create(
@@ -811,6 +953,7 @@ class TestOperatorAssembly:
             assert report["max_rel_residual"] < 1e-10
         finally:
             L0_petsc.destroy()
+
     def test_direct_petsc_post_dirichlet_l0_has_sparse_parity(self):
         """Direct PETSc Dirichlet enforcement matches the SciPy BC path."""
         mesh = Mesh.create(
@@ -892,13 +1035,16 @@ class TestOperatorAssembly:
 
         L0_petsc, idx_petsc = build_lnse_operator_petsc(mesh, bf, kx=0.2, model="2D")
         try:
-            L0_petsc_bc, _ = apply_dirichlet_petsc(L0_petsc, idx_petsc, borders, variables, mesh.ngp)
+            L0_petsc_bc, _ = apply_dirichlet_petsc(
+                L0_petsc, idx_petsc, borders, variables, mesh.ngp
+            )
             report = petsc_matvec_residual(L0_bc, L0_petsc_bc, seed=17, trials=3)
             assert report["pass"], report
             assert report["max_abs_residual"] < 1e-10
             assert report["max_rel_residual"] < 1e-10
         finally:
             L0_petsc.destroy()
+
     def test_direct_petsc_post_neumann_l0_has_sparse_parity(self):
         """Direct PETSc Neumann enforcement matches the SciPy BC path."""
         mesh = Mesh.create(
@@ -1208,7 +1354,9 @@ class TestOperatorAssembly:
         finally:
             L0_sys.destroy()
 
-    def test_build_lnse_system_auto_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
+    def test_build_lnse_system_auto_uses_direct_distributed_petsc_for_supported_2d(
+        self, monkeypatch
+    ):
         """Auto backend should use direct distributed PETSc assembly for supported 2D cases."""
         import linstabpy.utils.petsc_core as petsc_core
 
@@ -1245,7 +1393,9 @@ class TestOperatorAssembly:
         )
 
         def _unexpected_fallback(*args, **kwargs):
-            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+            raise AssertionError(
+                "SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly"
+            )
 
         monkeypatch.setattr(petsc_core, "scipy_to_petsc", _unexpected_fallback)
 
@@ -1275,7 +1425,9 @@ class TestOperatorAssembly:
         finally:
             L0_sys.destroy()
 
-    def test_build_lnse_system_petsc_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
+    def test_build_lnse_system_petsc_uses_direct_distributed_petsc_for_supported_2d(
+        self, monkeypatch
+    ):
         """Explicit PETSc backend should use direct distributed PETSc assembly for supported 2D cases."""
         import linstabpy.utils.petsc_core as petsc_core
 
@@ -1312,7 +1464,9 @@ class TestOperatorAssembly:
         )
 
         def _unexpected_fallback(*args, **kwargs):
-            raise AssertionError("SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly")
+            raise AssertionError(
+                "SciPy-to-PETSc fallback should not be used for supported distributed 2D direct assembly"
+            )
 
         monkeypatch.setattr(petsc_core, "scipy_to_petsc", _unexpected_fallback)
 
@@ -1583,7 +1737,9 @@ class TestOperatorAssembly:
             np.testing.assert_array_equal(bc_explicit, bc_ref)
             np.testing.assert_array_equal(bc_config, bc_ref)
 
-            explicit_report = compare_petsc_against_scipy(L0_ref, L0_explicit, check_structure=False)
+            explicit_report = compare_petsc_against_scipy(
+                L0_ref, L0_explicit, check_structure=False
+            )
             config_report = compare_petsc_against_scipy(L0_ref, L0_config, check_structure=False)
             assert explicit_report["pass"], explicit_report
             assert config_report["pass"], config_report
@@ -1597,6 +1753,7 @@ class TestOperatorAssembly:
 # =========================================================================
 # TestChuEnergyNorm
 # =========================================================================
+
 
 class TestChuEnergyNorm:
     """Tests for compute_chu_norm."""
@@ -1612,7 +1769,14 @@ class TestChuEnergyNorm:
         RHO = np.ones(ngp)
         T = np.ones(ngp)
         return compute_chu_norm(
-            W_int, RHO, T, self.KAPPA, self.MA, ngp, model=model, R=R,
+            W_int,
+            RHO,
+            T,
+            self.KAPPA,
+            self.MA,
+            ngp,
+            model=model,
+            R=R,
         )
 
     def test_shapes(self):
@@ -1643,36 +1807,33 @@ class TestChuEnergyNorm:
         W_diag, _ = self._make_norm()
         ngp = self.NGP
         expected = 0.5 * np.ones(3 * ngp)
-        np.testing.assert_allclose(W_diag[ngp:4*ngp], expected, rtol=1e-12)
+        np.testing.assert_allclose(W_diag[ngp : 4 * ngp], expected, rtol=1e-12)
 
     def test_T_block(self):
         """T block: W[4*ngp:5*ngp] = 0.5 * RHO / (kappa*(kappa-1)*T*Ma^2) * W_int."""
         W_diag, _ = self._make_norm()
         ngp = self.NGP
-        expected = (
-            0.5 * 1.0
-            / (self.KAPPA * (self.KAPPA - 1.0) * 1.0 * self.MA**2)
-            * np.ones(ngp)
-        )
-        np.testing.assert_allclose(W_diag[4*ngp:5*ngp], expected, rtol=1e-12)
+        expected = 0.5 * 1.0 / (self.KAPPA * (self.KAPPA - 1.0) * 1.0 * self.MA**2) * np.ones(ngp)
+        np.testing.assert_allclose(W_diag[4 * ngp : 5 * ngp], expected, rtol=1e-12)
 
     def test_axy_model_R_scaling(self):
         """model='axy': R is multiplied into W_int."""
         ngp = self.NGP
         R = np.full(ngp, 3.0)
         W_diag_cart, _ = self._make_norm(model="2D")
-        W_diag_cyl, _  = self._make_norm(model="axy", R=R)
+        W_diag_cyl, _ = self._make_norm(model="axy", R=R)
         # Each block should be scaled by R=3 relative to the 2D case.
         # Check the rho block as representative.
         np.testing.assert_allclose(
-            W_diag_cyl[:ngp], 3.0 * W_diag_cart[:ngp], rtol=1e-12,
+            W_diag_cyl[:ngp],
+            3.0 * W_diag_cart[:ngp],
+            rtol=1e-12,
         )
 
 
 # =========================================================================
 # TestSpatialOperator
 # =========================================================================
-
 
 
 class TestSpatialOperator:
@@ -1770,6 +1931,7 @@ class TestSpatialOperator:
 # TestAxyParity
 # =========================================================================
 
+
 class TestAxyParity:
     """Tests for parity logic in _create_axy_diff_matrices."""
 
@@ -1777,8 +1939,12 @@ class TestAxyParity:
     def symmetric_mesh(self):
         """20x30 mesh with y_symmetry on [0,2]x[0,1]."""
         return Mesh.create(
-            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
-            nx=20, ny=30, fd_order=4, y_symmetry=True,
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            y_symmetry=True,
         )
 
     def test_parity_m0(self, symmetric_mesh):
@@ -1823,7 +1989,8 @@ class TestAxyParity:
         Dy_asym = symmetric_mesh.Dy_asymm.tocsc()
         for k in range(5):
             np.testing.assert_array_equal(
-                DR[k].toarray(), Dy_asym.toarray(),
+                DR[k].toarray(),
+                Dy_asym.toarray(),
                 err_msg=f"DR[{k}] should be antisymmetric for m>=2",
             )
 
@@ -1833,21 +2000,27 @@ class TestAxyParity:
         DR2, _, _, _, _ = _create_axy_diff_matrices(symmetric_mesh, m=2)
         for k in range(5):
             np.testing.assert_array_equal(
-                DR5[k].toarray(), DR2[k].toarray(),
+                DR5[k].toarray(),
+                DR2[k].toarray(),
                 err_msg=f"DR[{k}] should be identical for m=2 and m=5",
             )
 
     def test_no_symmetry_mesh_uses_standard_Dy(self):
         """Without y_symmetry, all variables use the standard Dy."""
         mesh = Mesh.create(
-            xrange=(0.0, 2.0), yrange=(0.0, 1.0),
-            nx=20, ny=30, fd_order=4, y_symmetry=False,
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            y_symmetry=False,
         )
         DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m=0)
         Dy = mesh.Dy.tocsc()
         for k in range(5):
             np.testing.assert_array_equal(
-                DR[k].toarray(), Dy.toarray(),
+                DR[k].toarray(),
+                Dy.toarray(),
                 err_msg=f"DR[{k}] should be standard Dy without y_symmetry",
             )
 
@@ -1869,6 +2042,7 @@ class TestAxyParity:
 # =========================================================================
 # TestInvBBlockInverse
 # =========================================================================
+
 
 class TestInvBBlockInverse:
     """Test the analytical 5x5 block inverse of B in cylindrical coordinates."""
@@ -1894,11 +2068,11 @@ class TestInvBBlockInverse:
 
         Z = sp.csc_matrix((ngp, ngp))
         blocks = [
-            [D(np.ones(ngp)), Z,          Z,          Z,          Z          ],
-            [D(U),            D(RHO),     Z,          Z,          Z          ],
-            [D(V),            Z,          D(RHO),     Z,          Z          ],
-            [D(W),            Z,          Z,          D(RHO),     Z          ],
-            [D(KE),           D(U * RHO), D(V * RHO), D(W * RHO), D(cv * RHO)],
+            [D(np.ones(ngp)), Z, Z, Z, Z],
+            [D(U), D(RHO), Z, Z, Z],
+            [D(V), Z, D(RHO), Z, Z],
+            [D(W), Z, Z, D(RHO), Z],
+            [D(KE), D(U * RHO), D(V * RHO), D(W * RHO), D(cv * RHO)],
         ]
         return sp.bmat(blocks, format="csc")
 
@@ -1921,7 +2095,9 @@ class TestInvBBlockInverse:
         product = (inv_B @ B).toarray()
         expected = np.eye(5 * ngp)
         np.testing.assert_allclose(
-            product, expected, atol=1e-12,
+            product,
+            expected,
+            atol=1e-12,
             err_msg="inv(B/1j) @ (B/1j) should equal I",
         )
 
@@ -1941,15 +2117,19 @@ class TestInvBBlockInverse:
 
         # Should be diagonal
         dense = inv_B.toarray()
-        expected_diag = np.concatenate([
-            np.ones(ngp),
-            1.0 / RHO,
-            1.0 / RHO,
-            1.0 / RHO,
-            1.0 / RHO,
-        ])
+        expected_diag = np.concatenate(
+            [
+                np.ones(ngp),
+                1.0 / RHO,
+                1.0 / RHO,
+                1.0 / RHO,
+                1.0 / RHO,
+            ]
+        )
         np.testing.assert_allclose(
-            np.diag(dense), expected_diag, atol=1e-14,
+            np.diag(dense),
+            expected_diag,
+            atol=1e-14,
         )
         # Off-diagonal should be zero
         off_diag = dense - np.diag(np.diag(dense))
@@ -1973,13 +2153,15 @@ class TestInvBBlockInverse:
         # and the energy row simplifies: e40 = -T/RHO = -1.
         cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
         # Expected diagonal
-        expected_diag = np.concatenate([
-            np.ones(ngp),       # rho
-            np.ones(ngp),       # u: 1/RHO
-            np.ones(ngp),       # v: 1/RHO
-            np.ones(ngp),       # w: 1/RHO
-            np.full(ngp, 1.0 / cv),  # T: 1/(RHO*cv)
-        ])
+        expected_diag = np.concatenate(
+            [
+                np.ones(ngp),  # rho
+                np.ones(ngp),  # u: 1/RHO
+                np.ones(ngp),  # v: 1/RHO
+                np.ones(ngp),  # w: 1/RHO
+                np.full(ngp, 1.0 / cv),  # T: 1/(RHO*cv)
+            ]
+        )
         np.testing.assert_allclose(np.diag(dense), expected_diag, atol=1e-14)
 
         # inv(B)[4,0] = KE_half/(RHO*cv) - T/RHO.
@@ -1988,6 +2170,8 @@ class TestInvBBlockInverse:
             row_T = 4 * ngp + k
             col_rho = k
             np.testing.assert_allclose(
-                dense[row_T, col_rho], -1.0, atol=1e-14,
+                dense[row_T, col_rho],
+                -1.0,
+                atol=1e-14,
                 err_msg=f"inv(B)[4,0] at gp {k}: expected -1 (U=V=W=0, T=RHO=1)",
             )

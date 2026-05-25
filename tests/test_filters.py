@@ -6,12 +6,12 @@ import pytest
 from numpy.testing import assert_allclose
 
 from linstabpy.mesh import Mesh
-from linstabpy.mesh.filters import filter_O10_diffMat, build_mesh_filters
-
+from linstabpy.mesh.filters import build_mesh_filters, filter_O10_diffMat
 
 # ---------------------------------------------------------------------------
 # TestFilterConstruction
 # ---------------------------------------------------------------------------
+
 
 class TestFilterConstruction:
     """Tests for filter matrix construction and basic behaviour."""
@@ -26,8 +26,12 @@ class TestFilterConstruction:
     def test_filter_preserves_constants(self):
         """Filtering a constant field returns the same constant field."""
         mesh = Mesh.create(
-            xrange=(0, 2), yrange=(0, 1),
-            nx=20, ny=30, fd_order=4, alpha_filter=0.4,
+            xrange=(0, 2),
+            yrange=(0, 1),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            alpha_filter=0.4,
         )
         ngp = mesh.X.size
         ones = np.ones(ngp)
@@ -41,8 +45,12 @@ class TestFilterConstruction:
         10th-order filter (M=I). Only 'none' gives identity.
         """
         mesh = Mesh.create(
-            xrange=(0, 2), yrange=(0, 1),
-            nx=20, ny=30, fd_order=4, alpha_filter=0,
+            xrange=(0, 2),
+            yrange=(0, 1),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            alpha_filter=0,
         )
         rng = np.random.default_rng(42)
         ngp = mesh.X.size
@@ -57,8 +65,12 @@ class TestFilterConstruction:
     def test_alpha_none_gives_identity(self):
         """alpha_filter='none' produces an identity filter."""
         mesh = Mesh.create(
-            xrange=(0, 2), yrange=(0, 1),
-            nx=20, ny=30, fd_order=4, alpha_filter="none",
+            xrange=(0, 2),
+            yrange=(0, 1),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            alpha_filter="none",
         )
         rng = np.random.default_rng(99)
         ngp = mesh.X.size
@@ -71,14 +83,19 @@ class TestFilterConstruction:
 # TestFilterAdjointProperty
 # ---------------------------------------------------------------------------
 
+
 class TestFilterAdjointProperty:
     """Tests for the adjoint-compliant filter."""
 
     @pytest.fixture()
     def mesh_with_filter(self):
         return Mesh.create(
-            xrange=(0, 2), yrange=(0, 1),
-            nx=20, ny=30, fd_order=4, alpha_filter=0.4,
+            xrange=(0, 2),
+            yrange=(0, 1),
+            nx=20,
+            ny=30,
+            fd_order=4,
+            alpha_filter=0.4,
         )
 
     def test_adjoint_property_single_column(self, mesh_with_filter):

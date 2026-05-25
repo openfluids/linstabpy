@@ -20,12 +20,12 @@ ROOT = SCRIPT.parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstabpy.utils.jsonc import load_jsonc
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
 from linstabpy.boundary_conditions.neumann import apply_neumann
 from linstabpy.mesh import Mesh
 from linstabpy.operators.assembly import build_lnse_operator
+from linstabpy.utils.jsonc import load_jsonc
 
 
 def _now_utc() -> str:
@@ -149,9 +149,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     exports_dir = args.exports_dir
     matlab_stages = {
         "pre": _load_matlab_sparse(exports_dir / "L0_preBC.mat", "L0_preBC"),
-        "after_lt": _load_matlab_sparse(exports_dir / "L0_after_dirichlet_lt.mat", "L0_after_dirichlet_lt"),
-        "after_b": _load_matlab_sparse(exports_dir / "L0_after_dirichlet_b.mat", "L0_after_dirichlet_b"),
-        "after_nb": _load_matlab_sparse(exports_dir / "L0_after_neumann_bT.mat", "L0_after_neumann_bT"),
+        "after_lt": _load_matlab_sparse(
+            exports_dir / "L0_after_dirichlet_lt.mat", "L0_after_dirichlet_lt"
+        ),
+        "after_b": _load_matlab_sparse(
+            exports_dir / "L0_after_dirichlet_b.mat", "L0_after_dirichlet_b"
+        ),
+        "after_nb": _load_matlab_sparse(
+            exports_dir / "L0_after_neumann_bT.mat", "L0_after_neumann_bT"
+        ),
         "post": _load_matlab_sparse(exports_dir / "L0_postBC.mat", "L0_postBC"),
     }
 
@@ -274,7 +280,11 @@ def main() -> int:
     parser.add_argument(
         "--sponge-mat-path",
         type=Path,
-        default=CASE_DIR / "reference" / "matlab" / "MATLAB_exports_resolvent" / "case_inputs_used.mat",
+        default=CASE_DIR
+        / "reference"
+        / "matlab"
+        / "MATLAB_exports_resolvent"
+        / "case_inputs_used.mat",
     )
     parser.add_argument("--use-matlab-sponge-aux", action="store_true", default=True)
     parser.add_argument("--zero-mu-t-derivs", action="store_true", default=True)
@@ -321,7 +331,9 @@ def main() -> int:
         args.tol_abs = float(
             _cfg_get(cfg, "parity_tolerances.operator_stage_max_abs_early", args.tol_abs)
         )
-        args.tol_rel = float(_cfg_get(cfg, "parity_tolerances.operator_stage_max_rel", args.tol_rel))
+        args.tol_rel = float(
+            _cfg_get(cfg, "parity_tolerances.operator_stage_max_rel", args.tol_rel)
+        )
 
     report = run(args)
     args.artifact.parent.mkdir(parents=True, exist_ok=True)

@@ -18,8 +18,8 @@ USAGE:   python example_0_curvilinear_validation.py
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -247,7 +247,9 @@ def plot(data: dict[str, np.ndarray]) -> None:
     abs_error = np.abs(error[np.isfinite(error)])
     axes_support[1].hist(abs_error, bins=30, color="#7a86b8", edgecolor="#394264")
     axes_support[1].set_title("Absolute error distribution", pad=4.0)
-    axes_support[1].set_xlabel(r"$\left|\partial_x f_{\mathrm{num}}-\partial_x f_{\mathrm{an}}\right|$")
+    axes_support[1].set_xlabel(
+        r"$\left|\partial_x f_{\mathrm{num}}-\partial_x f_{\mathrm{an}}\right|$"
+    )
     axes_support[1].set_ylabel("Count")
     axes_support[1].set_yscale("log")
     format_scientific_ticks(axes_support[1], axes=("x",))

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -19,7 +19,7 @@ def fdweights(xi: float, x: ArrayLike, m: int) -> NDArray[np.float64]:
     p = x_nodes.size - 1
     shifted = x_nodes - float(xi)
 
-    @lru_cache(maxsize=None)
+    @cache
     def weight(q: int, j: int, k: int) -> float:
         if q < 0 or q > j:
             return 0.0
@@ -32,11 +32,7 @@ def fdweights(xi: float, x: ArrayLike, m: int) -> NDArray[np.float64]:
         beta_den = float(np.prod(shifted[j] - shifted[:j]))
         beta = beta_num / beta_den
         return float(
-            beta
-            * (
-                q * weight(q - 1, j - 1, j - 1)
-                - shifted[j - 1] * weight(q, j - 1, j - 1)
-            )
+            beta * (q * weight(q - 1, j - 1, j - 1) - shifted[j - 1] * weight(q, j - 1, j - 1))
         )
 
     return np.array([weight(order, p, k) for k in range(p + 1)], dtype=float)

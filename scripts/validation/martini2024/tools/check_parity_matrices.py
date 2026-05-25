@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 BRANCH_KEYS = ["model", "solver", "bc", "deformation", "backend"]
 
 
@@ -127,8 +126,7 @@ def _branch_report(spec: dict[str, Any]) -> dict[str, Any]:
         for k in BRANCH_KEYS:
             if rec[k] not in dims[k]:
                 raise ValueError(
-                    f"branch record {i} has invalid {k}='{rec[k]}'; "
-                    f"allowed: {dims[k]}"
+                    f"branch record {i} has invalid {k}='{rec[k]}'; allowed: {dims[k]}"
                 )
 
         status = str(rec.get("status", "pending"))

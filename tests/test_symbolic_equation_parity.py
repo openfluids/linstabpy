@@ -20,7 +20,6 @@ from linstabpy.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
-
 from scripts.validation.martini2024.tools.symbolic_compressible_nse import (
     cartesian_operator_coefficients,
     cartesian_symbol_table,
@@ -550,31 +549,21 @@ def _run_curvilinear(ngp: int, seed: int, tol: float) -> dict[str, Any]:
 
     residuals.update(
         {
-            "curv_xonly_Dx": float(
-                np.max(np.abs((Dx_x_impl @ f) - coeff["x_only_Dx_Dx"] * f_xi))
-            ),
+            "curv_xonly_Dx": float(np.max(np.abs((Dx_x_impl @ f) - coeff["x_only_Dx_Dx"] * f_xi))),
             "curv_xonly_D2x": float(
                 np.max(
                     np.abs(
                         (D2x_x_impl @ f)
-                        - (
-                            coeff["x_only_D2x_D2x"] * f_xixi
-                            + coeff["x_only_D2x_Dx"] * f_xi
-                        )
+                        - (coeff["x_only_D2x_D2x"] * f_xixi + coeff["x_only_D2x_Dx"] * f_xi)
                     )
                 )
             ),
-            "curv_yonly_Dy": float(
-                np.max(np.abs((Dy_y_impl @ f) - coeff["y_only_Dy_Dy"] * f_eta))
-            ),
+            "curv_yonly_Dy": float(np.max(np.abs((Dy_y_impl @ f) - coeff["y_only_Dy_Dy"] * f_eta))),
             "curv_yonly_D2y": float(
                 np.max(
                     np.abs(
                         (D2y_y_impl @ f)
-                        - (
-                            coeff["y_only_D2y_D2y"] * f_etaeta
-                            + coeff["y_only_D2y_Dy"] * f_eta
-                        )
+                        - (coeff["y_only_D2y_D2y"] * f_etaeta + coeff["y_only_D2y_Dy"] * f_eta)
                     )
                 )
             ),

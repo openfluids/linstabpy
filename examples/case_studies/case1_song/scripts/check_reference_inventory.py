@@ -8,7 +8,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 

@@ -13,10 +13,11 @@ OUTPUTS:
 USAGE:   python example_1_blasius.py                       # .npz exists → plot only
          rm example_1_blasius.npz && python example_1_blasius.py  # recompute
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -27,7 +28,6 @@ from ._helpers import (
     label_axes,
     load_or_compute,
     load_parity_npz,
-    mesh_view,
     parity_npz_get,
     plot_gain_bars,
     plot_scalar_panel,
@@ -41,7 +41,9 @@ OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
 OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_components.png")
-OUTPUT_SUPPORT_SHARED = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_components_shared_limits.png")
+OUTPUT_SUPPORT_SHARED = OUTPUT_PNG.with_name(
+    f"{OUTPUT_PNG.stem}_support_components_shared_limits.png"
+)
 MATLAB_RESULTS_STEM = "example_1_Blasius_results"
 
 
@@ -117,10 +119,16 @@ def compute(cfg: dict):
     ys_offset = sponge_cfg["ys_offset"]
     sponge_amp = sponge_cfg["amplitude"]
 
-    sponge = sponge_amp / 2 * np.maximum(
-        np.tanh((y - y.max() + ys_offset) / ys_trans) + 1,
-        np.tanh(-(x - x.min() - xs_offset) / xs_trans) + 1
-        + np.tanh((x - x.max() + xs_offset) / xs_trans) + 1,
+    sponge = (
+        sponge_amp
+        / 2
+        * np.maximum(
+            np.tanh((y - y.max() + ys_offset) / ys_trans) + 1,
+            np.tanh(-(x - x.min() - xs_offset) / xs_trans)
+            + 1
+            + np.tanh((x - x.max() + xs_offset) / xs_trans)
+            + 1,
+        )
     )
     mesh.sponge = sponge
 
@@ -171,8 +179,7 @@ def compute(cfg: dict):
     )
     t_resolvent = time.perf_counter() - t_resolvent
     print(
-        "Blasius timing: "
-        f"build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
+        f"Blasius timing: build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
     )
 
     print(f"Resolvent gains: {gains}")
@@ -246,7 +253,9 @@ def _load_baseflow_u(data) -> np.ndarray:
     )
 
 
-def _component(matrix: np.ndarray, ngp: int, component: int, mode_index: int, shape: tuple[int, int]) -> np.ndarray:
+def _component(
+    matrix: np.ndarray, ngp: int, component: int, mode_index: int, shape: tuple[int, int]
+) -> np.ndarray:
     """Extract one state component from a flattened mode matrix."""
     start = component * ngp
     stop = (component + 1) * ngp
@@ -386,9 +395,7 @@ def plot(data):
     apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
     save_figure(fig_support, OUTPUT_SUPPORT)
 
-    support_limit = max(
-        float(np.max(np.abs(np.real(field)))) for field, _ in support_fields
-    )
+    support_limit = max(float(np.max(np.abs(np.real(field)))) for field, _ in support_fields)
     fig_support_shared, axes_support_shared = plt.subplots(
         2,
         2,

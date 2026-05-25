@@ -10,11 +10,11 @@ from linstabpy.utils.petsc_core import (  # noqa: F401
     _matrix_nnz,
     _operator_shape,
     numpy_columns_to_petsc_vecs,
-    require_complex,
     petsc_to_scipy,
+    petsc_vec,
+    require_complex,
     scipy_to_petsc,
     scipy_to_petsc_distributed,
     scipy_to_petsc_distributed_from_root,
-    petsc_vec,
     vec_to_numpy,
 )

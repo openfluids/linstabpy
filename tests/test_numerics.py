@@ -9,22 +9,21 @@ All tests are marked @pytest.mark.slow.
 """
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 
-from linstabpy.mesh import Mesh
 from linstabpy.baseflow import BaseFlow, sutherland_air
-from linstabpy.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
-from linstabpy.operators.assembly import _apply_inv_B
 from linstabpy.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
-from linstabpy.solvers import temporal_eigenvalues, resolvent_analysis
-
+from linstabpy.mesh import Mesh
+from linstabpy.operators import build_lnse_operator, build_spatial_operator, compute_chu_norm
+from linstabpy.operators.assembly import _apply_inv_B
+from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
 from tests.conftest import build_synthetic_jet
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _eigenvalues_at_resolution(nx, ny, m=0, target=-0.1j, n_modes=5):
     """Compute temporal eigenvalues on a synthetic jet at given resolution."""
@@ -36,6 +35,7 @@ def _eigenvalues_at_resolution(nx, ny, m=0, target=-0.1j, n_modes=5):
 # =========================================================================
 # TestGridConvergence
 # =========================================================================
+
 
 @pytest.mark.slow
 class TestGridConvergence:
@@ -57,7 +57,11 @@ class TestGridConvergence:
 
         for nx, ny in resolutions:
             omega, modes, d = _eigenvalues_at_resolution(
-                nx, ny, m=0, target=-0.1j, n_modes=3,
+                nx,
+                ny,
+                m=0,
+                target=-0.1j,
+                n_modes=3,
             )
             iL0 = 1j * d["L0"]
             worst = 0.0
@@ -68,14 +72,13 @@ class TestGridConvergence:
             max_residuals.append(worst)
 
         # Finer grids should have smaller (or equal) residuals
-        assert max_residuals[2] <= max_residuals[0], (
-            f"Residual not improving: {max_residuals}"
-        )
+        assert max_residuals[2] <= max_residuals[0], f"Residual not improving: {max_residuals}"
 
 
 # =========================================================================
 # TestResolventNumerics
 # =========================================================================
+
 
 @pytest.mark.slow
 class TestResolventNumerics:
@@ -87,7 +90,10 @@ class TestResolventNumerics:
         d = build_synthetic_jet(nx=15, ny=10, m=0)
         omega = 2.0
         gains, responses, forcings = resolvent_analysis(
-            d["L0"], omega=omega, n_modes=3, W_diag=d["W_diag"],
+            d["L0"],
+            omega=omega,
+            n_modes=3,
+            W_diag=d["W_diag"],
         )
         return d, omega, gains, responses, forcings
 
@@ -106,6 +112,7 @@ class TestResolventNumerics:
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
         from linstabpy.solvers.linsolve import make_linear_solver
+
         solver = make_linear_solver(L_sigma.tocsc())
 
         rng = np.random.default_rng(42)
@@ -129,6 +136,7 @@ class TestResolventNumerics:
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
         from linstabpy.solvers.linsolve import make_linear_solver
+
         solver = make_linear_solver(L_sigma.tocsc())
 
         f1 = forcings[:, 0]
@@ -138,15 +146,17 @@ class TestResolventNumerics:
         achieved = r_norm / f_norm
 
         np.testing.assert_allclose(
-            achieved, gains[0], rtol=1e-4,
+            achieved,
+            gains[0],
+            rtol=1e-4,
             err_msg="Optimal forcing should achieve σ₁",
         )
-
 
 
 # =========================================================================
 # TestSpectrumProperties
 # =========================================================================
+
 
 @pytest.mark.slow
 class TestSpectrumProperties:
@@ -181,7 +191,9 @@ class TestSpectrumProperties:
         # Without sponge
         d = build_synthetic_jet(nx=15, ny=10, m=0)
         omega_no_sponge, _ = temporal_eigenvalues(
-            d["L0"], n_modes=5, target=-0.1j,
+            d["L0"],
+            n_modes=5,
+            target=-0.1j,
         )
 
         # With sponge: add damping in the freestream region
@@ -194,7 +206,9 @@ class TestSpectrumProperties:
         L0_sponge = d["L0"] - sp.diags(sponge_diag)
 
         omega_sponge, _ = temporal_eigenvalues(
-            L0_sponge, n_modes=5, target=-0.1j,
+            L0_sponge,
+            n_modes=5,
+            target=-0.1j,
         )
 
         # The dominant mode (most negative Im) should be even more negative
@@ -228,6 +242,7 @@ class TestSpectrumProperties:
 # TestAdjointConsistency
 # =========================================================================
 
+
 @pytest.mark.slow
 class TestAdjointConsistency:
     """Verify adjoint operator consistency for cylindrical model."""
@@ -254,7 +269,9 @@ class TestAdjointConsistency:
             rhs = np.vdot(L_adj_v, W * u)
 
             np.testing.assert_allclose(
-                lhs, rhs, rtol=1e-8,
+                lhs,
+                rhs,
+                rtol=1e-8,
                 err_msg=f"Adjoint identity failed on trial {trial}",
             )
 
@@ -281,6 +298,7 @@ class TestAdjointConsistency:
 # TestInvBConsistency
 # =========================================================================
 
+
 @pytest.mark.slow
 class TestInvBConsistency:
     """Verify inv(B) consistency between Cartesian and cylindrical models."""
@@ -294,13 +312,22 @@ class TestInvBConsistency:
         """
         # Cartesian problem
         mesh_cart = Mesh.create(
-            xrange=(0.0, 4.0), yrange=(0.0, 2.0),
-            nx=15, ny=10, fd_order=4,
+            xrange=(0.0, 4.0),
+            yrange=(0.0, 2.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
         )
         bf_cart = BaseFlow(
-            Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
-            RHO=np.ones_like(mesh_cart.X), U=np.ones_like(mesh_cart.X),
-            V=np.zeros_like(mesh_cart.X), W=np.zeros_like(mesh_cart.X),
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(mesh_cart.X),
+            U=np.ones_like(mesh_cart.X),
+            V=np.zeros_like(mesh_cart.X),
+            W=np.zeros_like(mesh_cart.X),
             T=np.ones_like(mesh_cart.X),
         )
         sutherland_air(bf_cart)
@@ -310,22 +337,36 @@ class TestInvBConsistency:
 
         # Cylindrical problem with large R offset (simulates R→∞)
         mesh_cyl = Mesh.create(
-            xrange=(0.0, 4.0), yrange=(0.0, 2.0),
-            nx=15, ny=10, fd_order=4, y_symmetry=False,
+            xrange=(0.0, 4.0),
+            yrange=(0.0, 2.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+            y_symmetry=False,
         )
         # Shift Y to large radius so 1/R terms vanish
         Y_shifted = mesh_cyl.Y + 1000.0
         mesh_cyl = mesh_cyl.deform(Y_new=Y_shifted)
 
         bf_cyl = BaseFlow(
-            Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
-            RHO=np.ones_like(mesh_cyl.X), U=np.ones_like(mesh_cyl.X),
-            V=np.zeros_like(mesh_cyl.X), W=np.zeros_like(mesh_cyl.X),
+            Re=1e4,
+            Ma=0.3,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(mesh_cyl.X),
+            U=np.ones_like(mesh_cyl.X),
+            V=np.zeros_like(mesh_cyl.X),
+            W=np.zeros_like(mesh_cyl.X),
             T=np.ones_like(mesh_cyl.X),
         )
         sutherland_air(bf_cyl)
         L0_cyl, idx_cyl = build_lnse_operator(
-            mesh_cyl, bf_cyl, kx=0.0, model="axy", m=0,
+            mesh_cyl,
+            bf_cyl,
+            kx=0.0,
+            model="axy",
+            m=0,
         )
         L0_cyl, _ = apply_dirichlet(L0_cyl, idx_cyl, "bt", "uvwT", mesh_cyl.ngp)
         omega_cyl, _ = temporal_eigenvalues(L0_cyl, n_modes=5, target=-0.1j)
@@ -348,6 +389,7 @@ class TestInvBConsistency:
 # TestSpatialEVPNumerics
 # =========================================================================
 
+
 @pytest.mark.slow
 class TestSpatialEVPNumerics:
     """Numerical tests for the spatial eigenvalue problem with axy model."""
@@ -363,15 +405,25 @@ class TestSpatialEVPNumerics:
         We verify Lc, R, Lw have the expected block structure.
         """
         mesh = Mesh.create(
-            xrange=(0.0, 10.0), yrange=(0.0, 3.0),
-            nx=15, ny=10, fd_order=4, y_symmetry=True,
+            xrange=(0.0, 10.0),
+            yrange=(0.0, 3.0),
+            nx=15,
+            ny=10,
+            fd_order=4,
+            y_symmetry=True,
         )
         R_field = mesh.Y
-        U_axial = 0.9 / np.cosh(R_field)**2
+        U_axial = 0.9 / np.cosh(R_field) ** 2
         bf = BaseFlow(
-            Re=1e4, Ma=0.9, Pr=0.7, kappa=1.4, T_0=288.15,
-            RHO=np.ones_like(R_field), U=U_axial,
-            V=np.zeros_like(R_field), W=np.zeros_like(R_field),
+            Re=1e4,
+            Ma=0.9,
+            Pr=0.7,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=np.ones_like(R_field),
+            U=U_axial,
+            V=np.zeros_like(R_field),
+            W=np.zeros_like(R_field),
             T=np.ones_like(R_field),
         )
         sutherland_air(bf)
@@ -382,42 +434,58 @@ class TestSpatialEVPNumerics:
         # Lw should have -iI in its bottom-left block
         Lw_dense = Lw.toarray()
         np.testing.assert_allclose(
-            Lw_dense[:n, :n], 0.0, atol=1e-14,
+            Lw_dense[:n, :n],
+            0.0,
+            atol=1e-14,
             err_msg="Lw top-left should be zero",
         )
         np.testing.assert_allclose(
-            Lw_dense[:n, n:], 0.0, atol=1e-14,
+            Lw_dense[:n, n:],
+            0.0,
+            atol=1e-14,
             err_msg="Lw top-right should be zero",
         )
         np.testing.assert_allclose(
-            Lw_dense[n:, n:], 0.0, atol=1e-14,
+            Lw_dense[n:, n:],
+            0.0,
+            atol=1e-14,
             err_msg="Lw bottom-right should be zero",
         )
         # Bottom-left block should be -iI
         expected_bl = -1j * np.eye(n)
         np.testing.assert_allclose(
-            Lw_dense[n:, :n], expected_bl, atol=1e-14,
+            Lw_dense[n:, :n],
+            expected_bl,
+            atol=1e-14,
             err_msg="Lw bottom-left should be -iI",
         )
 
         # Lc top-left block should be zero, top-right should be I
         Lc_dense = Lc.toarray()
         np.testing.assert_allclose(
-            Lc_dense[:n, :n], 0.0, atol=1e-14,
+            Lc_dense[:n, :n],
+            0.0,
+            atol=1e-14,
             err_msg="Lc top-left should be zero",
         )
         np.testing.assert_allclose(
-            Lc_dense[:n, n:], np.eye(n), atol=1e-14,
+            Lc_dense[:n, n:],
+            np.eye(n),
+            atol=1e-14,
             err_msg="Lc top-right should be I",
         )
 
         # R top-left block should be I
         R_dense = R_mat.toarray()
         np.testing.assert_allclose(
-            R_dense[:n, :n], np.eye(n), atol=1e-14,
+            R_dense[:n, :n],
+            np.eye(n),
+            atol=1e-14,
             err_msg="R top-left should be I",
         )
         np.testing.assert_allclose(
-            R_dense[:n, n:], 0.0, atol=1e-14,
+            R_dense[:n, n:],
+            0.0,
+            atol=1e-14,
             err_msg="R top-right should be zero",
         )

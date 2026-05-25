@@ -75,15 +75,17 @@ def compute_chu_norm(
         R = np.asarray(R, dtype=float)
         W_int = np.asarray(W_int) * np.maximum(R, 1e-14)
 
-    Ma2 = Ma ** 2
+    Ma2 = Ma**2
 
-    W_diag = 0.5 * np.concatenate([
-        T / (RHO * kappa * Ma2) * W_int,                       # rho block
-        RHO * W_int,                                            # u block
-        RHO * W_int,                                            # v block
-        RHO * W_int,                                            # w block
-        RHO / (kappa * (kappa - 1.0) * T * Ma2) * W_int,       # T block
-    ])
+    W_diag = 0.5 * np.concatenate(
+        [
+            T / (RHO * kappa * Ma2) * W_int,  # rho block
+            RHO * W_int,  # u block
+            RHO * W_int,  # v block
+            RHO * W_int,  # w block
+            RHO / (kappa * (kappa - 1.0) * T * Ma2) * W_int,  # T block
+        ]
+    )
 
     invW_diag = 1.0 / W_diag
 

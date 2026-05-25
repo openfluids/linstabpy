@@ -17,17 +17,17 @@ import scipy.sparse as sp
 
 from linstabpy.linear_operators import (
     HarmonicLayout,
-    build_harmonic_weights,
-    assemble_harmonic_operator,
     apply_harmonic_bcs,
+    assemble_harmonic_operator,
+    build_harmonic_weights,
     harmonic_resolvent_analysis,
     projected_harmonic_resolvent_analysis,
 )
 
-
 # ---------------------------------------------------------------------------
 # C1: HarmonicLayout
 # ---------------------------------------------------------------------------
+
 
 class TestHarmonicLayout:
     """Test HarmonicLayout bookkeeping."""
@@ -94,6 +94,7 @@ class TestHarmonicLayout:
 # C2: build_harmonic_weights
 # ---------------------------------------------------------------------------
 
+
 class TestBuildHarmonicWeights:
     """Test build_harmonic_weights."""
 
@@ -130,6 +131,7 @@ class TestBuildHarmonicWeights:
 # C3: assemble_harmonic_operator
 # ---------------------------------------------------------------------------
 
+
 class TestAssembleHarmonicOperator:
     """Test assemble_harmonic_operator."""
 
@@ -165,8 +167,7 @@ class TestAssembleHarmonicOperator:
             block = T_dense[s, s]
             expected = L0.toarray() - 1j * k * omega * np.eye(n)
             np.testing.assert_allclose(
-                block, expected, atol=1e-14,
-                err_msg=f"Diagonal block k={k} mismatch"
+                block, expected, atol=1e-14, err_msg=f"Diagonal block k={k} mismatch"
             )
 
         # Off-diagonal blocks should be zero.
@@ -177,9 +178,7 @@ class TestAssembleHarmonicOperator:
                 si = layout.block_slice(layout.harmonics[i])
                 sj = layout.block_slice(layout.harmonics[j])
                 block = T_dense[si, sj]
-                assert np.linalg.norm(block) < 1e-14, (
-                    f"Off-diagonal block ({i},{j}) is not zero"
-                )
+                assert np.linalg.norm(block) < 1e-14, f"Off-diagonal block ({i},{j}) is not zero"
 
     def test_block_toeplitz_structure(self):
         """The (i,j) block should be L_{i-j} when |i-j| <= Nf, else zero."""
@@ -216,8 +215,10 @@ class TestAssembleHarmonicOperator:
                 block = A_dense[si, sj]
                 if diff in full_harmonics:
                     np.testing.assert_allclose(
-                        block, full_harmonics[diff], atol=1e-14,
-                        err_msg=f"Block ({i},{j}), diff={diff} mismatch"
+                        block,
+                        full_harmonics[diff],
+                        atol=1e-14,
+                        err_msg=f"Block ({i},{j}), diff={diff} mismatch",
                     )
                 else:
                     assert np.linalg.norm(block) < 1e-14, (
@@ -237,7 +238,10 @@ class TestAssembleHarmonicOperator:
         L1 = self._random_sparse(n, rng)
 
         A_hat = assemble_harmonic_operator(
-            layout, [L0, L1], real_baseflow=True, include_time_derivative=False,
+            layout,
+            [L0, L1],
+            real_baseflow=True,
+            include_time_derivative=False,
         )
         A_dense = A_hat.toarray()
 
@@ -263,10 +267,16 @@ class TestAssembleHarmonicOperator:
         L0 = self._random_sparse(n, rng)
 
         A_hat = assemble_harmonic_operator(
-            layout, [L0], real_baseflow=True, include_time_derivative=False,
+            layout,
+            [L0],
+            real_baseflow=True,
+            include_time_derivative=False,
         )
         T = assemble_harmonic_operator(
-            layout, [L0], real_baseflow=True, include_time_derivative=True,
+            layout,
+            [L0],
+            real_baseflow=True,
+            include_time_derivative=True,
         )
         diff = (A_hat - T).toarray()
 
@@ -274,7 +284,7 @@ class TestAssembleHarmonicOperator:
         expected = np.zeros(layout.N, dtype=complex)
         for k in layout.harmonics:
             s = layout.block_slice(k)
-            expected[s.start:s.stop] = 1j * k * omega
+            expected[s.start : s.stop] = 1j * k * omega
 
         np.testing.assert_allclose(diff, np.diag(expected), atol=1e-14)
 
@@ -369,14 +379,14 @@ class TestAssembleHarmonicOperator:
             sv_ref = la.svdvals(ref_inv)
 
             np.testing.assert_allclose(
-                sv_block, sv_ref, rtol=1e-10,
-                err_msg=f"Singular values mismatch at k={k}"
+                sv_block, sv_ref, rtol=1e-10, err_msg=f"Singular values mismatch at k={k}"
             )
 
 
 # ---------------------------------------------------------------------------
 # C4: apply_harmonic_bcs
 # ---------------------------------------------------------------------------
+
 
 class TestApplyHarmonicBCs:
     """Test harmonic BC lifting and enforcement."""
@@ -452,9 +462,7 @@ class TestApplyHarmonicBCs:
             for j in range(layout.N):
                 if j in all_bc:
                     continue
-                assert T_dense[i, j] == T_orig[i, j], (
-                    f"Interior entry ({i},{j}) was modified"
-                )
+                assert T_dense[i, j] == T_orig[i, j], f"Interior entry ({i},{j}) was modified"
 
     def test_off_diagonal_coupling_zeroed(self):
         """BC rows in off-diagonal (cross-harmonic) blocks should be zeroed."""
@@ -468,7 +476,9 @@ class TestApplyHarmonicBCs:
         L0 = self._random_sparse(n, rng)
         L1 = self._random_sparse(n, rng)
         T = assemble_harmonic_operator(
-            layout, [L0, L1], real_baseflow=True,
+            layout,
+            [L0, L1],
+            real_baseflow=True,
         )
 
         # Before BC: off-diagonal blocks should have nonzero entries.
@@ -493,8 +503,7 @@ class TestApplyHarmonicBCs:
                 for r in lifted_rows:
                     row_slice = T_dense[r, s_col]
                     assert np.linalg.norm(row_slice) < 1e-14, (
-                        f"BC row {r} in cross-block (k_row={k_row}, k_col={k_col}) "
-                        f"is not zero"
+                        f"BC row {r} in cross-block (k_row={k_row}, k_col={k_col}) is not zero"
                     )
 
     def test_empty_bc_indices(self):
@@ -570,23 +579,24 @@ class TestApplyHarmonicBCs:
         # and add penalty only when i==j.
         # Build reference dense matrix.
         T_ref = T.toarray().copy()
-        all_lifted = np.concatenate([
-            layout.lift_indices(bc_base, k) for k in layout.harmonics
-        ])
+        all_lifted = np.concatenate([layout.lift_indices(bc_base, k) for k in layout.harmonics])
         all_lifted = np.unique(all_lifted)
         T_ref[all_lifted, :] = 0.0
         T_ref[:, all_lifted] = 0.0
         T_ref[all_lifted, all_lifted] = penalty
 
         np.testing.assert_allclose(
-            T_bc.toarray(), T_ref, atol=1e-14,
-            err_msg="Harmonic BCs don't match manual per-row application"
+            T_bc.toarray(),
+            T_ref,
+            atol=1e-14,
+            err_msg="Harmonic BCs don't match manual per-row application",
         )
 
 
 # ---------------------------------------------------------------------------
 # C5: Harmonic resolvent analysis
 # ---------------------------------------------------------------------------
+
 
 class TestHarmonicResolventAnalysis:
     """Test harmonic_resolvent_analysis via operator-composed HtrH + SLEPc EPS."""
@@ -618,7 +628,10 @@ class TestHarmonicResolventAnalysis:
 
         # Run harmonic resolvent.
         gains, responses, forcings = harmonic_resolvent_analysis(
-            T, layout, n_modes, W_diag,
+            T,
+            layout,
+            n_modes,
+            W_diag,
         )
 
         # Build reference: collect the top singular values from each
@@ -638,8 +651,10 @@ class TestHarmonicResolventAnalysis:
         ref_top = ref_gains_all[:n_modes]
 
         np.testing.assert_allclose(
-            gains, ref_top, rtol=1e-8,
-            err_msg="Harmonic gains don't match standard resolvent reference"
+            gains,
+            ref_top,
+            rtol=1e-8,
+            err_msg="Harmonic gains don't match standard resolvent reference",
         )
 
     def test_output_shapes(self):
@@ -659,7 +674,10 @@ class TestHarmonicResolventAnalysis:
         W_diag = np.ones(n)
 
         gains, responses, forcings = harmonic_resolvent_analysis(
-            T, layout, n_modes, W_diag,
+            T,
+            layout,
+            n_modes,
+            W_diag,
         )
 
         assert gains.shape == (n_modes,)
@@ -705,7 +723,10 @@ class TestHarmonicResolventAnalysis:
         W_diag = np.abs(rng.standard_normal(n)) + 0.1
 
         gains, responses, forcings = harmonic_resolvent_analysis(
-            T, layout, n_modes, W_diag,
+            T,
+            layout,
+            n_modes,
+            W_diag,
         )
 
         # Dense inverse for verification.
@@ -723,9 +744,7 @@ class TestHarmonicResolventAnalysis:
 
             # Allow for arbitrary complex phase in eigenvector.
             # Check that |<u_i, u_ref>| / (||u_i|| ||u_ref||) ≈ 1.
-            cos_angle = abs(np.vdot(u_i, u_ref)) / (
-                np.linalg.norm(u_i) * np.linalg.norm(u_ref)
-            )
+            cos_angle = abs(np.vdot(u_i, u_ref)) / (np.linalg.norm(u_i) * np.linalg.norm(u_ref))
             assert cos_angle > 1 - 1e-8, (
                 f"Mode {i}: response doesn't match T^{{-1}} forcing / sigma "
                 f"(cos_angle={cos_angle:.2e})"
@@ -735,6 +754,7 @@ class TestHarmonicResolventAnalysis:
 # ---------------------------------------------------------------------------
 # C6: Projected harmonic resolvent analysis
 # ---------------------------------------------------------------------------
+
 
 class TestProjectedHarmonicResolvent:
     """Test projected_harmonic_resolvent_analysis."""
@@ -767,7 +787,9 @@ class TestProjectedHarmonicResolvent:
         # This makes T_new @ null_vec = eps * null_vec.
         eps = 1e-10
         Tv = T_dense @ null_vec
-        T_dense = T_dense - np.outer(Tv, null_vec.conj()) + eps * np.outer(null_vec, null_vec.conj())
+        T_dense = (
+            T_dense - np.outer(Tv, null_vec.conj()) + eps * np.outer(null_vec, null_vec.conj())
+        )
         T_mod = sp.csc_matrix(T_dense)
 
         return layout, T_mod, null_vec, n
@@ -782,13 +804,19 @@ class TestProjectedHarmonicResolvent:
         n_modes = 3
 
         layout, T_mod, null_vec, _ = self._build_near_singular_system(
-            n, Nh, omega, rng,
+            n,
+            Nh,
+            omega,
+            rng,
         )
         W_diag = np.ones(n)
 
         # Unprojected: the leading gain should be huge (≈ 1/eps = 1e10).
         gains_unproj, _, _ = harmonic_resolvent_analysis(
-            T_mod, layout, n_modes, W_diag,
+            T_mod,
+            layout,
+            n_modes,
+            W_diag,
         )
         assert gains_unproj[0] > 1e6, (
             f"Expected very large unprojected gain, got {gains_unproj[0]:.2e}"
@@ -796,7 +824,11 @@ class TestProjectedHarmonicResolvent:
 
         # Projected: the divergent gain should be removed.
         gains_proj, _, _ = projected_harmonic_resolvent_analysis(
-            T_mod, layout, n_modes, W_diag, dQdt=null_vec,
+            T_mod,
+            layout,
+            n_modes,
+            W_diag,
+            dQdt=null_vec,
         )
         # The projected leading gain should be orders of magnitude smaller.
         assert gains_proj[0] < gains_unproj[0] * 1e-4, (
@@ -814,7 +846,10 @@ class TestProjectedHarmonicResolvent:
         n_modes = 3
 
         layout, T_mod, null_vec, _ = self._build_near_singular_system(
-            n, Nh, omega, rng,
+            n,
+            Nh,
+            omega,
+            rng,
         )
         N = layout.N
         W_diag = np.abs(rng.standard_normal(n)) + 0.1
@@ -845,12 +880,15 @@ class TestProjectedHarmonicResolvent:
 
         # Compute via projected harmonic resolvent.
         gains_proj, _, _ = projected_harmonic_resolvent_analysis(
-            T_mod, layout, n_modes, W_diag, dQdt=null_vec,
+            T_mod,
+            layout,
+            n_modes,
+            W_diag,
+            dQdt=null_vec,
         )
 
         np.testing.assert_allclose(
-            gains_proj, ref_gains, rtol=1e-6,
-            err_msg="Projected gains don't match dense reference"
+            gains_proj, ref_gains, rtol=1e-6, err_msg="Projected gains don't match dense reference"
         )
 
     def test_output_shapes(self):
@@ -862,12 +900,19 @@ class TestProjectedHarmonicResolvent:
         n_modes = 3
 
         layout, T_mod, null_vec, _ = self._build_near_singular_system(
-            n, Nh, omega, rng,
+            n,
+            Nh,
+            omega,
+            rng,
         )
         W_diag = np.ones(n)
 
         gains, responses, forcings = projected_harmonic_resolvent_analysis(
-            T_mod, layout, n_modes, W_diag, dQdt=null_vec,
+            T_mod,
+            layout,
+            n_modes,
+            W_diag,
+            dQdt=null_vec,
         )
 
         assert gains.shape == (n_modes,)
@@ -884,13 +929,20 @@ class TestProjectedHarmonicResolvent:
         n_modes = 3
 
         layout, T_mod, null_vec, _ = self._build_near_singular_system(
-            n, Nh, omega, rng,
+            n,
+            Nh,
+            omega,
+            rng,
         )
         N = layout.N
         W_diag = np.ones(n)
 
         gains, responses, forcings = projected_harmonic_resolvent_analysis(
-            T_mod, layout, n_modes, W_diag, dQdt=null_vec,
+            T_mod,
+            layout,
+            n_modes,
+            W_diag,
+            dQdt=null_vec,
         )
 
         # Compute w (the domain projector direction).
@@ -902,6 +954,5 @@ class TestProjectedHarmonicResolvent:
         for i in range(n_modes):
             overlap = abs(np.vdot(w, forcings[:, i]))
             assert overlap < 1e-6, (
-                f"Forcing mode {i} has overlap {overlap:.2e} with w "
-                f"(should be near zero)"
+                f"Forcing mode {i} has overlap {overlap:.2e} with w (should be near zero)"
             )

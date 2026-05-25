@@ -24,6 +24,7 @@ def load_or_compute(
     **np_load_kwargs,
 ):
     """Return ``np.load(npz_path)``; on miss (absent/truncated/unreadable/schema) call ``compute_fn`` and retry."""
+
     def _load():
         return np.load(npz_path, **np_load_kwargs)
 
@@ -38,6 +39,7 @@ def load_or_compute(
         compute_fn()
         data = _load()
     return data
+
 
 FIGURE_DPI = 600
 REPO_ROOT = Path(__file__).resolve().parents[1]

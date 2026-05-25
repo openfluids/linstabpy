@@ -58,6 +58,7 @@ def parse_int_list(value) -> list[int]:
 # Internal
 # ------------------------------------------------------------------
 
+
 def _strip_jsonc_comments(text: str) -> str:
     """Remove ``//`` and ``/* */`` comments while preserving string literals."""
     out: list[str] = []

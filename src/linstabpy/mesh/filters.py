@@ -8,8 +8,8 @@ the separable 2D operator pair used by the mesh object.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 import scipy.sparse as sp
@@ -19,7 +19,7 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from ..utils.petsc_core import require_complex, scipy_to_petsc, petsc_vec, vec_to_numpy
+from ..utils.petsc_core import require_complex
 
 
 @dataclass(frozen=True)

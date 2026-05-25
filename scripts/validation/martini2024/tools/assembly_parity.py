@@ -199,7 +199,9 @@ def _compute_temporal_eigs(
     return {
         "status": "ok",
         "eigenvalues": [_complex_parts(val) for val in eigvals],
-        "max_residual": None if residuals is None else float(np.max(np.asarray(residuals, dtype=float))),
+        "max_residual": None
+        if residuals is None
+        else float(np.max(np.asarray(residuals, dtype=float))),
         "info": {
             key: value
             for key, value in info.items()
@@ -232,8 +234,12 @@ def _compare_eigenvalues(
 
     left = _compute_temporal_eigs(before, n_modes=n_modes, target=target)
     right = _compute_temporal_eigs(after, n_modes=n_modes, target=target)
-    left_vals = np.array([complex(v["real"], v["imag"]) for v in left["eigenvalues"]], dtype=complex)
-    right_vals = np.array([complex(v["real"], v["imag"]) for v in right["eigenvalues"]], dtype=complex)
+    left_vals = np.array(
+        [complex(v["real"], v["imag"]) for v in left["eigenvalues"]], dtype=complex
+    )
+    right_vals = np.array(
+        [complex(v["real"], v["imag"]) for v in right["eigenvalues"]], dtype=complex
+    )
     delta = right_vals - left_vals
     max_abs = float(np.max(np.abs(delta))) if delta.size else 0.0
     max_rel = float(max_abs / max(np.max(np.abs(left_vals)), 1e-30)) if delta.size else 0.0
@@ -286,8 +292,12 @@ def _compare_matrices(
     )
 
     pass_sparse = bool(sparse_report["pass"] and sparse_report["structure_match"])
-    pass_blocks = bool(block_report.get("match", False)) if block_report.get("available", False) else True
-    pass_eigs = bool(eigen_report.get("pass", False)) if eigen_report.get("status") == "ok" else True
+    pass_blocks = (
+        bool(block_report.get("match", False)) if block_report.get("available", False) else True
+    )
+    pass_eigs = (
+        bool(eigen_report.get("pass", False)) if eigen_report.get("status") == "ok" else True
+    )
 
     return {
         "generated_at_utc": _now_utc(),
@@ -436,7 +446,11 @@ def _common_compare_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--eig-target", type=complex, default=-0.05j)
     parser.add_argument("--max-eig-ndof", type=int, default=1500)
     parser.add_argument("--skip-eigs", action="store_true")
-    parser.add_argument("--output", type=Path, default=Path("scripts/validation/martini2024/output/assembly_parity.json"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("scripts/validation/martini2024/output/assembly_parity.json"),
+    )
     parser.add_argument("--allow-fail", action="store_true")
 
 

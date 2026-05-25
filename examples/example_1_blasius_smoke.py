@@ -8,10 +8,11 @@ Usage:
   .venv/bin/python -m examples.example_1_blasius_smoke
   mpiexec.mpich -n 1 .venv/bin/python -m examples.example_1_blasius_smoke
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import os
+from pathlib import Path
 
 import numpy as np
 

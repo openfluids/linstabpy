@@ -39,14 +39,14 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from .linsolve import make_linear_solver
-from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, petsc_vec, vec_to_numpy
+from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 from ._eps_helpers import (
     _install_eps_monitor,
     _resolve_eps_convergence_test,
     _resolve_solver_cfg_subsection,
 )
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from .linsolve import make_linear_solver
+from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_vec, require_complex, vec_to_numpy
 
 logger = logging.getLogger(__name__)
 
@@ -178,8 +178,7 @@ def resolvent_analysis(
     """
     require_complex(solver_cfg)
     ndof = _operator_ndof(L0)
-    logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d",
-                omega, n_modes, ndof)
+    logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
 
     # ------------------------------------------------------------------
     # 1. Form the shifted operator  L_sigma = L0 - i*omega*I
@@ -255,7 +254,9 @@ def resolvent_analysis(
     ncv = _resolve_resolvent_ncv(
         ndof,
         n_modes,
-        int(_res_eps_cfg["ncv"]) if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg else None,
+        int(_res_eps_cfg["ncv"])
+        if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg
+        else None,
     )
     eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTABPY_RESOLVENT_EPS_TOL", 1e-8)
     eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTABPY_RESOLVENT_EPS_MAX_IT", 1000)
@@ -301,7 +302,8 @@ def resolvent_analysis(
     if nconv < n_modes:
         logger.warning(
             "SLEPc EPS converged %d/%d HtrH eigenpairs; returning partial result",
-            nconv, n_modes,
+            nconv,
+            n_modes,
         )
 
     n_extract = min(nconv, n_modes)
@@ -444,8 +446,10 @@ def compute_resolvent_svd_residuals(
     rho_fwd = np.empty(n_modes, dtype=float)
     rho_adj = np.empty(n_modes, dtype=float)
 
-    print("SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
-          "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)")
+    print(
+        "SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
+        "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)"
+    )
     print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
     print("-" * 50)
     for i in range(n_modes):

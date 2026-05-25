@@ -11,6 +11,7 @@ OUTPUTS:
   - example_5_paraboloid.png
   - example_5_paraboloid_support_components.png
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -94,9 +95,7 @@ def compute(cfg: dict):
     X = cmesh.X.copy()
     x_nonzero = X != 0.0
     X_mapped = np.zeros_like(X)
-    X_mapped[x_nonzero] = 1 / (
-        1 / (X[x_nonzero] ** 4) * np.sign(X[x_nonzero]) + 1 / X[x_nonzero]
-    )
+    X_mapped[x_nonzero] = 1 / (1 / (X[x_nonzero] ** 4) * np.sign(X[x_nonzero]) + 1 / X[x_nonzero])
     X = X_mapped
     X[np.isnan(X)] = 0.0
     X = X / np.max(np.abs(X))
@@ -193,7 +192,9 @@ def compute(cfg: dict):
             )
             omega_used = candidate
             if candidate != solve_freqs[0]:
-                print(f"Using fallback frequency ω={candidate:.3g} to avoid singular/ill-conditioned solve at ω={solve_freqs[0]:.3g}.")
+                print(
+                    f"Using fallback frequency ω={candidate:.3g} to avoid singular/ill-conditioned solve at ω={solve_freqs[0]:.3g}."
+                )
             break
         except RuntimeError as exc:
             last_error = exc
@@ -206,7 +207,9 @@ def compute(cfg: dict):
             raise
 
     if "gains" not in locals():
-        raise RuntimeError("Paraboloid resolvent failed for all frequency attempts.") from last_error
+        raise RuntimeError(
+            "Paraboloid resolvent failed for all frequency attempts."
+        ) from last_error
 
     # ---- SVD self-residuals -----------------------------------------------
     # MATLAB used 5-output lu(A) (UMFPACK) + ARPACK eigs at tol=eps=2.2e-16,
@@ -279,7 +282,9 @@ def _body_outline(X: np.ndarray, Y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
 def _load_baseflow_fields(data) -> tuple[np.ndarray, np.ndarray]:
     """Reload the paraboloid baseflow when plotting from an older cache."""
     if "baseflow_u" in data and "baseflow_v" in data:
-        return np.asarray(data["baseflow_u"], dtype=float), np.asarray(data["baseflow_v"], dtype=float)
+        return np.asarray(data["baseflow_u"], dtype=float), np.asarray(
+            data["baseflow_v"], dtype=float
+        )
     try:
         bundle = load_parity_npz(MATLAB_RESULTS_STEM)
     except FileNotFoundError:

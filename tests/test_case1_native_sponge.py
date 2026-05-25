@@ -10,7 +10,6 @@ import pytest
 from linstabpy.baseflow import case1_sponge_from_config, generate_case1_sponge, load_hamada_case
 from tests._paths import case_fixture
 
-
 CASE1_DIR = case_fixture("case1")
 BASEFLOW_DIR = CASE1_DIR / "data" / "baseflow"
 MATLAB_REF_DIR = CASE1_DIR / "reference" / "matlab"
@@ -45,7 +44,9 @@ def test_native_sponge_matches_legacy_workflow_generator() -> None:
             pts_dir=pts_dir,
             amp_dir=amp_dir,
         )
-        legacy_out = legacy.generate_sponge(np.zeros(shape, dtype=float), sponge_type, pts_dir, amp_dir)
+        legacy_out = legacy.generate_sponge(
+            np.zeros(shape, dtype=float), sponge_type, pts_dir, amp_dir
+        )
         np.testing.assert_allclose(native, legacy_out, atol=0.0, rtol=0.0)
 
 

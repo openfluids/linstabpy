@@ -12,7 +12,6 @@ import numpy as np
 from scipy.io import loadmat
 from scipy.optimize import linear_sum_assignment
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 
@@ -53,7 +52,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    py = np.load(args.python_npz, allow_pickle = False)
+    py = np.load(args.python_npz, allow_pickle=False)
     if "omega" not in py:
         raise KeyError(f"{args.python_npz} has no 'omega' key")
     omega_py_all = np.asarray(py["omega"], dtype=complex).reshape(-1)
@@ -88,7 +87,10 @@ def main() -> int:
         "python_npz": str(args.python_npz),
         "matlab_spectrum": str(args.matlab_spectrum),
         "n_compare": n,
-        "omega_target": {"real": float(np.real(omega_target)), "imag": float(np.imag(omega_target))},
+        "omega_target": {
+            "real": float(np.real(omega_target)),
+            "imag": float(np.imag(omega_target)),
+        },
         "tol_abs": float(args.tol_abs),
         "tol_rel": float(args.tol_rel),
         "max_abs_error": max_abs,

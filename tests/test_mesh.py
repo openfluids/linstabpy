@@ -42,10 +42,10 @@ from linstabpy.mesh import (
 )
 from linstabpy.mesh.mesh import _build_periodic_1d_operators
 
-
 # ===================================================================
 # Helper: square-mesh factory (nx == ny)
 # ===================================================================
+
 
 def _square_mesh(n: int = 30, fd_order: int = 4, L: float = 1.0) -> Mesh:
     """Create a square mesh on [0, L] x [0, L] with n x n points."""
@@ -200,7 +200,9 @@ class TestDerivativeAccuracy:
             df_num = D1 @ f
             interior = slice(cw, n - cw)
             np.testing.assert_allclose(
-                df_num[interior], df_exact[interior], atol=1e-10,
+                df_num[interior],
+                df_exact[interior],
+                atol=1e-10,
                 err_msg=f"D1 not exact on x^{p}, order={order}",
             )
 
@@ -221,7 +223,9 @@ class TestDerivativeAccuracy:
             d2f_num = D2 @ f
             interior = slice(cw, n - cw)
             np.testing.assert_allclose(
-                d2f_num[interior], d2f_exact[interior], atol=1e-10,
+                d2f_num[interior],
+                d2f_exact[interior],
+                atol=1e-10,
                 err_msg=f"D2 not exact on x^{p}, order={order}",
             )
 
@@ -253,9 +257,7 @@ class TestDerivativeAccuracy:
         log_h = np.log(1.0 / (np.array(ns, dtype=float) - 1))
         log_e = np.log(np.array(errors))
         slope = np.polyfit(log_h, log_e, 1)[0]
-        assert slope >= order - 0.5, (
-            f"D1 interior convergence slope {slope:.2f} < {order - 0.5}"
-        )
+        assert slope >= order - 0.5, f"D1 interior convergence slope {slope:.2f} < {order - 0.5}"
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
     def test_d2_interior_convergence_rate(self, order):
@@ -274,7 +276,7 @@ class TestDerivativeAccuracy:
             x = np.linspace(0, 1, n)
             freq = max(2 * np.pi, order * np.pi)
             f = np.sin(freq * x)
-            d2f_exact = -(freq ** 2) * np.sin(freq * x)
+            d2f_exact = -(freq**2) * np.sin(freq * x)
             d2f_num = D2 @ f
             err = np.abs(d2f_num - d2f_exact)
             errors.append(np.max(err[cw : n - cw]))
@@ -282,9 +284,7 @@ class TestDerivativeAccuracy:
         log_h = np.log(1.0 / (np.array(ns, dtype=float) - 1))
         log_e = np.log(np.array(errors))
         slope = np.polyfit(log_h, log_e, 1)[0]
-        assert slope >= order - 0.5, (
-            f"D2 interior convergence slope {slope:.2f} < {order - 0.5}"
-        )
+        assert slope >= order - 0.5, f"D2 interior convergence slope {slope:.2f} < {order - 0.5}"
 
 
 # ===================================================================
@@ -334,7 +334,11 @@ class TestIntegrationAccuracy:
     def test_2d_integration_constant_rectangular_domain(self):
         """W integrates 1 over [0,2]x[0,1] on a square mesh (nx=ny=30)."""
         mesh = Mesh.create(
-            xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=30, ny=30, fd_order=4,
+            xrange=(0.0, 2.0),
+            yrange=(0.0, 1.0),
+            nx=30,
+            ny=30,
+            fd_order=4,
         )
         area = np.sum(mesh.W)
         np.testing.assert_allclose(area, 2.0, atol=1e-12)
@@ -416,7 +420,6 @@ class TestMeshCreation:
         mesh = small_mesh_2d
         result = mesh.Dy @ np.ones(mesh.ngp)
         np.testing.assert_allclose(result, 0.0, atol=1e-12)
-
 
 
 # ===================================================================
@@ -526,7 +529,6 @@ class TestMeshDeformation:
             mesh.deform(Y_new=wrong_shape)
 
 
-
 # ===================================================================
 # TestMeshMasking
 # ===================================================================
@@ -563,9 +565,7 @@ class TestMeshMasking:
         for key in ("bi", "ti", "li", "ri"):
             if key in masked.idx and len(masked.idx[key]) > 0:
                 assert np.all(masked.idx[key] >= 0)
-                assert np.all(masked.idx[key] < new_ngp), (
-                    f"idx['{key}'] out of range"
-                )
+                assert np.all(masked.idx[key] < new_ngp), f"idx['{key}'] out of range"
 
     def test_mask_all_raises(self, small_mesh_2d):
         mesh = small_mesh_2d
@@ -676,7 +676,9 @@ class TestPoleStencils:
         D1_dense = D1.toarray()
         D1s_dense = D1_sym.toarray()
         np.testing.assert_allclose(
-            D1s_dense[1:], D1_dense[1:], atol=1e-13,
+            D1s_dense[1:],
+            D1_dense[1:],
+            atol=1e-13,
             err_msg="D1_sym interior rows differ from standard D1",
         )
 
@@ -694,8 +696,12 @@ class TestPoleStencils:
             cols = slice(row - w, row + w + 1)
             np.testing.assert_allclose(D1_sym[row, cols].toarray().ravel(), a_i1 / dz, atol=1e-13)
             np.testing.assert_allclose(D1_asymm[row, cols].toarray().ravel(), a_i1 / dz, atol=1e-13)
-            np.testing.assert_allclose(D2_sym[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11)
-            np.testing.assert_allclose(D2_asymm[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11)
+            np.testing.assert_allclose(
+                D2_sym[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11
+            )
+            np.testing.assert_allclose(
+                D2_asymm[row, cols].toarray().ravel(), a_i2 / dz**2, atol=1e-11
+            )
 
 
 # ===================================================================
@@ -751,7 +757,9 @@ class TestPeriodicOperators:
         row0 = D1_dense[0]
         for i in range(1, n):
             np.testing.assert_allclose(
-                D1_dense[i], np.roll(row0, i), atol=1e-13,
+                D1_dense[i],
+                np.roll(row0, i),
+                atol=1e-13,
                 err_msg=f"Row {i} not a circular shift of row 0",
             )
 
@@ -797,7 +805,11 @@ class TestMaskThenDeform:
     def _cavity_mesh():
         """Create a 20x20 mesh with a 4x4 hole (cavity mask)."""
         mesh = Mesh.create(
-            xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=20, ny=20, fd_order=4,
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=20,
+            ny=20,
+            fd_order=4,
         )
         keep = np.ones(mesh.X.shape, dtype=bool)
         keep[8:12, 8:12] = False
@@ -850,10 +862,7 @@ class TestMaskThenDeform:
         x_mi = x[mi]
         y_mi = y[mi]
         # Some mi points must be near the cavity region
-        cavity_adjacent = (
-            (x_mi >= 0.3) & (x_mi <= 0.65)
-            & (y_mi >= 0.3) & (y_mi <= 0.65)
-        )
+        cavity_adjacent = (x_mi >= 0.3) & (x_mi <= 0.65) & (y_mi >= 0.3) & (y_mi <= 0.65)
         assert np.any(cavity_adjacent), "no mi points near cavity boundary"
 
 

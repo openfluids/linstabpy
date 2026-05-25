@@ -18,17 +18,13 @@ from petsc4py import PETSc
 
 from linstabpy.linear_operators import MatrixOperator, ProductOperator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _random_complex_matrix(
-    rows: int, cols: int, rng: np.random.Generator
-) -> np.ndarray:
-    return rng.standard_normal((rows, cols)) + 1j * rng.standard_normal(
-        (rows, cols)
-    )
+
+def _random_complex_matrix(rows: int, cols: int, rng: np.random.Generator) -> np.ndarray:
+    return rng.standard_normal((rows, cols)) + 1j * rng.standard_normal((rows, cols))
 
 
 def _invertible_matrix(n: int, rng: np.random.Generator) -> np.ndarray:
@@ -41,9 +37,7 @@ def _np_to_petsc_mat(A: np.ndarray) -> PETSc.Mat:
     import scipy.sparse as sp
 
     csr = sp.csr_matrix(A)
-    mat = PETSc.Mat().createAIJ(
-        size=csr.shape, csr=(csr.indptr, csr.indices, csr.data)
-    )
+    mat = PETSc.Mat().createAIJ(size=csr.shape, csr=(csr.indptr, csr.indices, csr.data))
     mat.assemble()
     return mat
 
@@ -70,6 +64,7 @@ def _create_ksp(A_petsc: PETSc.Mat) -> PETSc.KSP:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestProductApply:
     """Test ProductOperator.apply against dense references."""
@@ -234,7 +229,7 @@ class TestProductAdjoint:
         Lx_np = _vec_to_np(Lx)
         LHz_np = _vec_to_np(LHz)
 
-        ip_left = np.vdot(Lx_np, z_np)    # <Lx, z>
+        ip_left = np.vdot(Lx_np, z_np)  # <Lx, z>
         ip_right = np.vdot(x_np, LHz_np)  # <x, L^H z>
 
         assert abs(ip_left - ip_right) / abs(ip_left) < 1e-12

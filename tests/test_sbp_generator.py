@@ -4,23 +4,24 @@
 Validates that generated stencils match hardcoded reference tables and
 satisfy the mathematical properties required for SBP operators.
 """
+
 from __future__ import annotations
 
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.mesh.sbp import sbp_stencils, build_sbp_matrix
+from linstabpy.mesh.sbp import build_sbp_matrix, sbp_stencils
 from linstabpy.mesh.sbp_generator import (
+    _sbp_norm_weights,
     fornberg_interior,
     generate_sbp_stencils,
-    _sbp_norm_weights,
 )
-
 
 # ---------------------------------------------------------------------------
 # Phase 2a: Fornberg interior stencils match hardcoded tables
 # ---------------------------------------------------------------------------
+
 
 class TestFornbergInterior:
     """Interior stencils generated via Fornberg must match hardcoded values."""
@@ -78,6 +79,7 @@ class TestFornbergInterior:
 # Phase 2b: Full SBP stencils (interior + boundary) match hardcoded tables
 # ---------------------------------------------------------------------------
 
+
 class TestSBPGeneratorMatchesReference:
     """Generated boundary closures must match hardcoded reference to ~machine eps."""
 
@@ -100,6 +102,7 @@ class TestSBPGeneratorMatchesReference:
 # SBP property tests
 # ---------------------------------------------------------------------------
 
+
 class TestSBPProperty:
     """Verify the SBP property Q + Q^T = B for generated operators."""
 
@@ -115,7 +118,7 @@ class TestSBPProperty:
         H_diag = np.ones(n)
         r = len(h)
         H_diag[:r] = h
-        H_diag[n - r:] = h[::-1]
+        H_diag[n - r :] = h[::-1]
         H = sp.diags(H_diag) * dz
 
         Q = H @ D1 * dz  # undo the 1/dz in D1
@@ -135,6 +138,7 @@ class TestSBPProperty:
 # Derivative accuracy tests
 # ---------------------------------------------------------------------------
 
+
 class TestDerivativeAccuracy:
     """D1 and D2 applied to polynomials of appropriate degree must be exact."""
 
@@ -148,7 +152,7 @@ class TestDerivativeAccuracy:
         x = np.arange(n) * dz
         # Test with polynomial of degree order (should be exact for interior)
         p = order
-        f = x ** p
+        f = x**p
         df_exact = p * x ** (p - 1)
         df_num = D1 @ f
 
@@ -156,8 +160,10 @@ class TestDerivativeAccuracy:
         r = 1 if order == 2 else order
         interior = slice(r, n - r)
         np.testing.assert_allclose(
-            df_num[interior], df_exact[interior], atol=1e-10,
-            err_msg=f"D1 interior accuracy failed for order {order}"
+            df_num[interior],
+            df_exact[interior],
+            atol=1e-10,
+            err_msg=f"D1 interior accuracy failed for order {order}",
         )
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
@@ -169,15 +175,17 @@ class TestDerivativeAccuracy:
 
         x = np.arange(n) * dz
         p = order
-        f = x ** p
+        f = x**p
         d2f_exact = p * (p - 1) * x ** (p - 2)
         d2f_num = D2 @ f
 
         r = 1 if order == 2 else order
         interior = slice(r, n - r)
         np.testing.assert_allclose(
-            d2f_num[interior], d2f_exact[interior], atol=1e-8,
-            err_msg=f"D2 interior accuracy failed for order {order}"
+            d2f_num[interior],
+            d2f_exact[interior],
+            atol=1e-8,
+            err_msg=f"D2 interior accuracy failed for order {order}",
         )
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
@@ -189,20 +197,23 @@ class TestDerivativeAccuracy:
 
         x = np.arange(n) * dz
         p = order // 2  # boundary accuracy
-        f = x ** p
+        f = x**p
         df_exact = p * x ** (p - 1) if p > 0 else np.zeros(n)
         df_num = D1 @ f
 
         r = 1 if order == 2 else order
         np.testing.assert_allclose(
-            df_num[:r], df_exact[:r], atol=1e-10,
-            err_msg=f"D1 boundary accuracy failed for order {order}"
+            df_num[:r],
+            df_exact[:r],
+            atol=1e-10,
+            err_msg=f"D1 boundary accuracy failed for order {order}",
         )
 
 
 # ---------------------------------------------------------------------------
 # Higher-order interiors and unsupported full closures (orders > 8)
 # ---------------------------------------------------------------------------
+
 
 class TestUnsupportedHigherOrders:
     """Higher-order interiors exist, but full SBP closures are unsupported."""
@@ -220,12 +231,12 @@ class TestUnsupportedHigherOrders:
         a_i1 = fornberg_interior(order, 1)
         w = order // 2
         x = np.arange(n) * dz
-        f = x ** order
+        f = x**order
         df_exact = order * x ** (order - 1)
 
         # Apply interior stencil at midpoint
         mid = n // 2
-        df_num = np.dot(a_i1, f[mid - w:mid + w + 1]) / dz
+        df_num = np.dot(a_i1, f[mid - w : mid + w + 1]) / dz
         np.testing.assert_allclose(df_num, df_exact[mid], rtol=1e-8)
 
     @pytest.mark.parametrize("order", [10, 12])

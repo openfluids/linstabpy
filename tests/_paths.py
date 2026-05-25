@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STUDIES_ROOT = REPO_ROOT / "examples" / "case_studies"
 VALIDATION_ROOT = REPO_ROOT / "scripts" / "validation"

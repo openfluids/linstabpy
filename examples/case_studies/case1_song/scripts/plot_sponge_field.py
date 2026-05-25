@@ -9,12 +9,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 
 from linstabpy.baseflow import case1_sponge_from_config
 from linstabpy.utils.jsonc import load_jsonc
-
 
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
@@ -47,11 +46,7 @@ def _current_sponge_cfg() -> tuple[dict, str]:
     for case in cfg.get("cases", []):
         if not case.get("enabled", False):
             continue
-        override = (
-            case.get("config_overrides", {})
-            .get("physics", {})
-            .get("sponge", {})
-        )
+        override = case.get("config_overrides", {}).get("physics", {}).get("sponge", {})
         if not isinstance(override, dict):
             override = {}
         sponge_cfg = _deep_merge(default_sponge, override)
