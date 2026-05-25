@@ -36,4 +36,10 @@ COPY tests/ ./tests/
 # "uv sync --extra petsc --no-build-isolation" if the platform needs it.
 RUN uv sync --extra petsc
 
+# Build-time sanity print: emits the PETSc/SLEPc versions baked in.
+# Also serves as a layer cache breaker — when the PETSc stack
+# version changes, this RUN reruns even if uv.lock did not move.
+RUN .venv/bin/python -c "import petsc4py, slepc4py; \
+    print(f'petsc4py {petsc4py.__version__}, slepc4py {slepc4py.__version__}')"
+
 CMD [".venv/bin/python", "-m", "pytest", "--tb=short", "-q", "tests/"]
