@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Analytical benchmark tests against classical hydrodynamic stability results.
 
-These tests validate the entire linstab2d pipeline — coefficient computation,
+These tests validate the entire linstabpy pipeline — coefficient computation,
 operator assembly, inv(B) application, boundary conditions, and eigenvalue
 solver — against known analytical/reference solutions from the literature.
 
@@ -32,11 +32,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air
-from linstab2d.operators import build_lnse_operator
-from linstab2d.boundary_conditions import apply_dirichlet
-from linstab2d.solvers import temporal_eigenvalues
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, sutherland_air
+from linstabpy.operators import build_lnse_operator
+from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.solvers import temporal_eigenvalues
 
 
 # ---------------------------------------------------------------------------

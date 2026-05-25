@@ -11,9 +11,9 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
-from linstab2d.boundary_conditions import (
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, sutherland_air, load_blasius
+from linstabpy.boundary_conditions import (
     apply_bc_recipe,
     apply_bc_recipe_petsc,
     apply_dirichlet,
@@ -23,7 +23,7 @@ from linstab2d.boundary_conditions import (
     apply_neumann,
     apply_neumann_petsc,
 )
-from linstab2d.operators import (
+from linstabpy.operators import (
     build_lnse_operator,
     build_lnse_operator_petsc,
     build_lnse_system,
@@ -31,19 +31,19 @@ from linstab2d.operators import (
     build_spatial_operator,
     build_spatial_operator_petsc,
 )
-from linstab2d.operators.assembly import (
+from linstabpy.operators.assembly import (
     _apply_inv_B,
     _build_block_csr,
     _create_axy_diff_matrices,
     _make_csr_derivative_cache,
     _prepare_coefficients,
 )
-from linstab2d.operators.coefficients import (
+from linstabpy.operators.coefficients import (
     _pack_coefficients_in_physical_order,
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
-from linstab2d.utils.petsc_core import (
+from linstabpy.utils.petsc_core import (
     compare_petsc_against_scipy,
     petsc_matvec_residual,
     scipy_to_petsc,
@@ -111,11 +111,11 @@ def _build_lnse_system_mpi_script(*, bc_recipe: list[dict] | None) -> str:
         import json
         import numpy as np
         import scipy.sparse as sp
-        from linstab2d.mesh import Mesh
-        from linstab2d.baseflow import BaseFlow, sutherland_air
-        from linstab2d.operators import build_lnse_system
-        from linstab2d.utils.petsc_core import petsc_owned_rows
-        import linstab2d.utils.petsc_core as petsc_core
+        from linstabpy.mesh import Mesh
+        from linstabpy.baseflow import BaseFlow, sutherland_air
+        from linstabpy.operators import build_lnse_system
+        from linstabpy.utils.petsc_core import petsc_owned_rows
+        import linstabpy.utils.petsc_core as petsc_core
 
         recipe = json.loads({recipe_json!r})
         mesh = Mesh.create(
@@ -1210,7 +1210,7 @@ class TestOperatorAssembly:
 
     def test_build_lnse_system_auto_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
         """Auto backend should use direct distributed PETSc assembly for supported 2D cases."""
-        import linstab2d.utils.petsc_core as petsc_core
+        import linstabpy.utils.petsc_core as petsc_core
 
         mesh = Mesh.create(
             xrange=(0.0, 2.0),
@@ -1277,7 +1277,7 @@ class TestOperatorAssembly:
 
     def test_build_lnse_system_petsc_uses_direct_distributed_petsc_for_supported_2d(self, monkeypatch):
         """Explicit PETSc backend should use direct distributed PETSc assembly for supported 2D cases."""
-        import linstab2d.utils.petsc_core as petsc_core
+        import linstabpy.utils.petsc_core as petsc_core
 
         mesh = Mesh.create(
             xrange=(0.0, 2.0),

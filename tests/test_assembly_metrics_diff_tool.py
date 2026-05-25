@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "validation" / "martini2024" / "tools" / "assembly_metrics_diff.py"
+SCRIPT = ROOT / "scripts" / "validation" / "martini2024" / "tools" / "assembly_metrics_diff.py"
 
 
 def _write_metrics(path: Path, *, wall: float, coeff_bytes: int, stage_seconds: float, stage_rss: int) -> None:

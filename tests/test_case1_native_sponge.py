@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from linstab2d.baseflow import case1_sponge_from_config, generate_case1_sponge, load_hamada_case
+from linstabpy.baseflow import case1_sponge_from_config, generate_case1_sponge, load_hamada_case
 from tests._paths import case_fixture
 
 

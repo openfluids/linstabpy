@@ -15,13 +15,13 @@ import numpy as np
 import scipy.sparse as sps
 import sympy as sp
 
-from linstab2d.mesh.mesh import _transform_second_derivatives
-from linstab2d.operators.coefficients import (
+from linstabpy.mesh.mesh import _transform_second_derivatives
+from linstabpy.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
 
-from validation.martini2024.tools.symbolic_compressible_nse import (
+from scripts.validation.martini2024.tools.symbolic_compressible_nse import (
     cartesian_operator_coefficients,
     cartesian_symbol_table,
     curvilinear_operator_coefficients,
@@ -684,7 +684,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("validation/martini2024/output/operator_symbolic_parity.json"),
+        default=Path("scripts/validation/martini2024/output/operator_symbolic_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()

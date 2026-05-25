@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstab2d.mesh.sbp import build_sbp_dissipation_matrices
+from linstabpy.mesh.sbp import build_sbp_dissipation_matrices
 
 # Small mesh dimensions used throughout.
 _NX = 20
@@ -27,7 +27,7 @@ class TestMeshDissipationDefaultOff:
     """T1 prerequisite: flag absent -> Q_diss fields are None."""
 
     def test_default_off(self) -> None:
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         mesh = Mesh.create(
             xrange=(0.0, 1.0),
@@ -40,7 +40,7 @@ class TestMeshDissipationDefaultOff:
         assert mesh.Q_diss_y is None, "Q_diss_y must be None when flag is absent"
 
     def test_flag_false(self) -> None:
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         mesh = Mesh.create(
             xrange=(0.0, 1.0),
@@ -58,7 +58,7 @@ class TestMeshDissipationEnabled:
     """Flag on -> Q_diss fields populated with correct shape and SPSD property."""
 
     def test_enabled_populates_type(self) -> None:
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         mesh = Mesh.create(
             xrange=(0.0, 1.0),
@@ -78,7 +78,7 @@ class TestMeshDissipationEnabled:
         )
 
     def test_enabled_shape(self) -> None:
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         mesh = Mesh.create(
             xrange=(0.0, 1.0),
@@ -97,7 +97,7 @@ class TestMeshDissipationEnabled:
 
     def test_enabled_spsd_symmetry(self) -> None:
         """H * Q_diss_x must be symmetric (SPSD passthrough, T2 gate)."""
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         mesh = Mesh.create(
             xrange=(0.0, 1.0),
@@ -126,7 +126,7 @@ class TestMeshDissipationExplicitOrder:
         """Meshes built with order_diss == fd_order must succeed."""
         import pytest
 
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         for order in (4, 6, 8):
             mesh = Mesh.create(
@@ -151,7 +151,7 @@ class TestMeshDissipationExplicitOrder:
         """
         import pytest
 
-        from linstab2d.mesh import Mesh
+        from linstabpy.mesh import Mesh
 
         with pytest.raises(NotImplementedError, match="order_diss"):
             Mesh.create(

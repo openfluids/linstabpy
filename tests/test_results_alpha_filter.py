@@ -6,7 +6,7 @@ from __future__ import annotations
 import types
 
 import numpy as np
-from linstab2d import results_runtime
+from linstabpy import results_runtime
 
 
 def test_effective_alpha_filter_keeps_filter_for_resolvent():

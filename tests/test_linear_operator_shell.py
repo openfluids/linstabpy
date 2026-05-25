@@ -10,12 +10,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstab2d.utils.petsc_init import init_petsc_from_argv
+from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from linstab2d.linear_operators import (
+from linstabpy.linear_operators import (
     MatrixOperator,
     ProductOperator,
     PetscShellOperator,

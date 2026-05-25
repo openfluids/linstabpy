@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from linstab2d.utils.stability_acceptance import evaluate_stability_acceptance
+from linstabpy.utils.stability_acceptance import evaluate_stability_acceptance
 
 
 def test_acceptance_disabled_returns_empty_dict() -> None:
@@ -131,7 +131,7 @@ def test_conjugate_aware_distance_accepts_conjugate() -> None:
     # the actual distance array comes pre-computed from _postcheck_stability_modes.
     # So to test the full end-to-end B2/B3 path, we simulate what results_runtime does:
     # re-compute target_dist with conjugate awareness before calling evaluate_stability_acceptance.
-    from linstab2d.utils.stability_acceptance import _postcheck_target_distance
+    from linstabpy.utils.stability_acceptance import _postcheck_target_distance
 
     target_dist_conj = _postcheck_target_distance(omega, target, conjugate_aware=True)
     result_conj = evaluate_stability_acceptance(
@@ -150,7 +150,7 @@ def test_conjugate_aware_distance_accepts_conjugate() -> None:
 
 def test_conjugate_pair_completeness() -> None:
     """Fix #5: conjugate-pair completeness diagnostic."""
-    from linstab2d.utils.stability_acceptance import check_conjugate_pair_completeness
+    from linstabpy.utils.stability_acceptance import check_conjugate_pair_completeness
 
     # Omega list: modes 0 and 1 are a conjugate pair, mode 2 has no partner in the list.
     omega = np.array([0.5 + 1.0j, 0.5 - 1.0j, 3.0 + 2.0j], dtype=complex)

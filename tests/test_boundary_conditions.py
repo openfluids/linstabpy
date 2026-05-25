@@ -5,8 +5,8 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from linstab2d.operators import build_lnse_operator
-from linstab2d.boundary_conditions import (
+from linstabpy.operators import build_lnse_operator
+from linstabpy.boundary_conditions import (
     analyze_bc_recipe,
     apply_dirichlet,
     apply_dirichlet_identity_pair,
@@ -14,7 +14,7 @@ from linstab2d.boundary_conditions import (
     apply_neumann,
     build_dirichlet_restriction_matrices,
 )
-from linstab2d.operators import build_spatial_operator
+from linstabpy.operators import build_spatial_operator
 
 
 class TestDirichletBC:
@@ -433,7 +433,7 @@ class TestNeumannBC:
         uniform_baseflow,
     ):
         """On a Cartesian mesh J11=J22=1 J12=J21=0 so both paths must agree to 1e-12."""
-        from linstab2d.boundary_conditions.neumann import (
+        from linstabpy.boundary_conditions.neumann import (
             _build_neumann_rows,
             _collect_neumann_indices,
         )
@@ -481,8 +481,8 @@ class TestNeumannBC:
 
     def test_neumann_sheared_mesh_correct_normal(self):
         """Sheared mesh X=xi+0.3*eta Y=eta. Right boundary curvilinear normal differs from axis-aligned by J21=0.3."""
-        from linstab2d.mesh.mesh import Mesh
-        from linstab2d.boundary_conditions.neumann import (
+        from linstabpy.mesh.mesh import Mesh
+        from linstabpy.boundary_conditions.neumann import (
             _build_neumann_rows,
             _collect_neumann_indices,
         )
@@ -551,8 +551,8 @@ class TestNeumannBC:
         """scipy and PETSc paths must produce identical rows with curvilinear_normals=True."""
         pytest.importorskip("petsc4py")
         from petsc4py import PETSc
-        from linstab2d.boundary_conditions import apply_neumann
-        from linstab2d.boundary_conditions.neumann import apply_neumann_petsc
+        from linstabpy.boundary_conditions import apply_neumann
+        from linstabpy.boundary_conditions.neumann import apply_neumann_petsc
 
         mesh = small_mesh_2d
         bf = uniform_baseflow
@@ -670,7 +670,7 @@ class TestDissipationBCInteraction:
 
     def _build_baseline(self, mesh, baseflow):
         """Build L0 (no dissipation) and apply BC recipe; return (L_bc, bc_indices)."""
-        from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+        from linstabpy.boundary_conditions.recipe import apply_bc_recipe
 
         L0, idx = build_lnse_operator(mesh, baseflow, kx=0.0, dissipation_epsilon=0.0)
         L_bc, bc_indices = apply_bc_recipe(
@@ -680,8 +680,8 @@ class TestDissipationBCInteraction:
 
     def _build_with_dissipation(self, baseflow):
         """Build L0 with dissipation and apply same BC recipe; return (L_bc, bc_indices)."""
-        from linstab2d.mesh import Mesh
-        from linstab2d.boundary_conditions.recipe import apply_bc_recipe
+        from linstabpy.mesh import Mesh
+        from linstabpy.boundary_conditions.recipe import apply_bc_recipe
 
         mesh_diss = Mesh.create(
             xrange=(0.0, 2.0),

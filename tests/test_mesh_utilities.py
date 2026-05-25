@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.sparse import csc_matrix, identity
 
-from linstab2d.mesh import fdweights, interp_mat_2d, min_distance, segmspace
+from linstabpy.mesh import fdweights, interp_mat_2d, min_distance, segmspace
 
 
 def test_fdweights_known_centered_stencils() -> None:

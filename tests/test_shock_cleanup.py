@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from linstab2d.baseflow.shock_cleanup import apply_optional_shock_cleanup
+from linstabpy.baseflow.shock_cleanup import apply_optional_shock_cleanup
 
 
 def _regular_grid(nx: int = 81, ny: int = 41) -> tuple[np.ndarray, np.ndarray]:

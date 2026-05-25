@@ -12,14 +12,14 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 import scipy.sparse as sp
-from linstab2d.mesh import Mesh
+from linstabpy.mesh import Mesh
 from examples._helpers import leading_mode_real_frequency
 from examples.example_3_streaky_bl import (
     _merge_temporal_target_batches,
     _resolve_baseflow_plot_field,
 )
-from linstab2d.utils import reconstruct_floquet, plot_flow
-from linstab2d.utils.petsc_core import (
+from linstabpy.utils import reconstruct_floquet, plot_flow
+from linstabpy.utils.petsc_core import (
     compare_petsc_against_scipy,
     compare_sparse_matrices,
     compact_petsc_matrix,
@@ -172,7 +172,7 @@ class TestPetscSciPyParityUtilities:
             import numpy as np
             import scipy.sparse as sp
             from petsc4py import PETSc
-            from linstab2d.utils.petsc_core import petsc_owned_rows, scipy_to_petsc_distributed
+            from linstabpy.utils.petsc_core import petsc_owned_rows, scipy_to_petsc_distributed
 
             ref = sp.csr_matrix(
                 np.array(

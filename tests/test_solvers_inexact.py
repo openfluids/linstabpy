@@ -26,7 +26,7 @@ pytest.importorskip("slepc4py", reason="slepc4py not available")
 from petsc4py import PETSc  # noqa: E402
 from slepc4py import SLEPc  # noqa: E402
 
-from linstab2d.solvers.eigenvalue import _configure_st_for_eigenvalue  # noqa: E402
+from linstabpy.solvers.eigenvalue import _configure_st_for_eigenvalue  # noqa: E402
 
 
 def _make_st_ksp_pc():

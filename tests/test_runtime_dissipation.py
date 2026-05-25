@@ -103,7 +103,7 @@ def _install_optional_petsc_stubs() -> None:
 
 _install_optional_petsc_stubs()
 
-from linstab2d import results_runtime
+from linstabpy import results_runtime
 
 
 DISSIPATION_KEYS = (
