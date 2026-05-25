@@ -6,9 +6,9 @@
   // - keep the study separate from the aborted MPI scaling ladder
   // - stop before the machine becomes unhealthy
 
-  "output_root": "validation/song_2023/serial_order_runs",
+  "output_root": "scripts/validation/song_2023/serial_order_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "memory_guard": {
     "machine_memory_mib": 16384.0,

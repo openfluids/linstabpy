@@ -2,8 +2,8 @@
 """Plot the Song baseflow fields (x, y, rho, u, v, w, T, sponge).
 
 Usage (run from this directory):
-  python validation/song_2023/scripts/plot_baseflow.py
-  python validation/song_2023/scripts/plot_baseflow.py /path/to/another/baseflow
+  python scripts/validation/song_2023/scripts/plot_baseflow.py
+  python scripts/validation/song_2023/scripts/plot_baseflow.py /path/to/another/baseflow
 
 Reads x.npy, y.npy, rho.npy, u.npy, v.npy, w.npy, T.npy, sponge.npy and saves
 baseflow_plot.png (and optionally separate panels) in the same directory.

@@ -6,7 +6,7 @@ Produces a summary JSON and CSV suitable for populating the paper's
 scaling table (tab:scaling).
 
 Usage (from repo root):
-    PYTHONPATH=src:. .venv/bin/python -m validation.song_2023.scripts.run_song_2023_order_convergence
+    PYTHONPATH=src:. .venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_convergence
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
 from .run_song_2023_order_preflight import _memory_limit_hit
@@ -58,7 +58,7 @@ def _json_safe(value: Any) -> Any:
 
 def _compare_with_matlab(npz_path: Path) -> dict[str, Any]:
     """Compare eigenvalues from an NPZ with the MATLAB reference spectrum."""
-    matlab_ref = REPO / "validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+    matlab_ref = REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
     if not npz_path.exists():
         return {"status": "missing_npz"}
 
@@ -148,7 +148,7 @@ def main() -> None:
         cmd = [
             str(REPO / ".venv" / "bin" / "python"),
             "-m",
-            "validation.song_2023.song_2023",
+            "scripts.validation.song_2023.song_2023",
             "--config",
             str(config_path),
         ]

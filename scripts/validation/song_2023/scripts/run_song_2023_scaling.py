@@ -14,7 +14,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
 
@@ -318,9 +318,9 @@ def main() -> None:
 
         python_bin = str(REPO / ".venv" / "bin" / "python")
         if ranks == 1:
-            cmd = [python_bin, "-m", "validation.song_2023.song_2023", "--config", str(config_path)]
+            cmd = [python_bin, "-m", "scripts.validation.song_2023.song_2023", "--config", str(config_path)]
         else:
-            cmd = ["mpiexec", "-n", str(ranks), python_bin, "-m", "validation.song_2023.song_2023", "--config", str(config_path)]
+            cmd = ["mpiexec", "-n", str(ranks), python_bin, "-m", "scripts.validation.song_2023.song_2023", "--config", str(config_path)]
 
         swap_before = _read_swap_used_mib()
         free_before = _read_free_percent()

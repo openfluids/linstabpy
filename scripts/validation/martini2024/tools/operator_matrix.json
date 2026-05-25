@@ -12,396 +12,396 @@
   "entries": [
     {
       "id": "construct_get_lin_problem",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetLinProblem.m",
-      "python": "linstab2d/operators/assembly.py::build_lnse_operator",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/GetLinProblem.m",
+      "python": "linstabpy/operators/assembly.py::build_lnse_operator",
       "status": "validated",
       "required": true,
       "notes": "Core temporal assembly path exists; strict parity artifact still pending."
     },
     {
       "id": "construct_get_spatial_lin_problem",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetSpatialLinProblem.m",
-      "python": "linstab2d/operators/spatial.py::build_spatial_operator",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/GetSpatialLinProblem.m",
+      "python": "linstabpy/operators/spatial.py::build_spatial_operator",
       "status": "validated",
       "required": true,
       "notes": "Spatial doubled system path exists; strict parity artifact still pending."
     },
     {
       "id": "construct_cartesian_coefficients",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar_Cartesian.m",
-      "python": "linstab2d/operators/coefficients.py::compute_cartesian_coefficients",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar_Cartesian.m",
+      "python": "linstabpy/operators/coefficients.py::compute_cartesian_coefficients",
       "status": "validated",
       "required": true,
       "notes": "Implementation exists; term-level symbolic parity not yet signed off."
     },
     {
       "id": "construct_axisymmetric_coefficients",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar.m",
-      "python": "linstab2d/operators/coefficients.py::compute_cylindrical_coefficients",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/getCoeffsLaminar.m",
+      "python": "linstabpy/operators/coefficients.py::compute_cylindrical_coefficients",
       "status": "validated",
       "required": true,
       "notes": "Implementation exists; branch-level validated coverage pending."
     },
     {
       "id": "construct_create_diff_matrices_axy",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/CreateDiffMatrices_Axy.m",
-      "python": "linstab2d/operators/assembly.py::_create_axy_diff_matrices",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/CreateDiffMatrices_Axy.m",
+      "python": "linstabpy/operators/assembly.py::_create_axy_diff_matrices",
       "status": "validated",
       "required": true,
       "notes": "Axy derivative remapping path exists; strict parity checks pending."
     },
     {
       "id": "construct_lnseoperators_cyl",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/LNSEoperators_cyl.m",
-      "python": "linstab2d/operators/assembly.py::build_lnse_operator(model=\"axy\")",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/LNSEoperators_cyl.m",
+      "python": "linstabpy/operators/assembly.py::build_lnse_operator(model=\"axy\")",
       "status": "validated",
       "required": true,
       "notes": "Axisymmetric model branch exists; integration validation pending."
     },
     {
       "id": "construct_get_comp_energy_norm",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/GetCompEnergyNorm.m",
-      "python": "linstab2d/operators/energy_norm.py::compute_chu_norm",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/GetCompEnergyNorm.m",
+      "python": "linstabpy/operators/energy_norm.py::compute_chu_norm",
       "status": "validated",
       "required": true,
       "notes": "Implementation exists for 2D and axy; strict artifact pending."
     },
     {
       "id": "bc_dirichlet",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet.m",
-      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet.m",
+      "python": "linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet",
       "status": "validated",
       "required": true,
       "notes": "Unit coverage exists; validation artifact pending."
     },
     {
       "id": "bc_dirichlet_spatial",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet_SpatialStability.m",
-      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_spatial",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/BoundaryConditions/BC_Dirichlet_SpatialStability.m",
+      "python": "linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet_spatial",
       "status": "validated",
       "required": true,
       "notes": "Unit coverage exists; validation artifact pending."
     },
     {
       "id": "bc_neumann",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/BC_Neumann.m",
-      "python": "linstab2d/boundary_conditions/neumann.py::apply_neumann",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/BoundaryConditions/BC_Neumann.m",
+      "python": "linstabpy/boundary_conditions/neumann.py::apply_neumann",
       "status": "validated",
       "required": true,
       "notes": "Implemented with face/corner tests; integration artifact pending."
     },
     {
       "id": "bc_set_dirbc",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirBC.m",
-      "python": "linstab2d/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/BoundaryConditions/SetDirBC.m",
+      "python": "linstabpy/boundary_conditions/dirichlet.py::build_dirichlet_restriction_matrices",
       "status": "validated",
       "required": true,
       "notes": "Adapter implemented with direct unit tests."
     },
     {
       "id": "bc_set_dirichletbc",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/BoundaryConditions/SetDirichletBC.m",
-      "python": "linstab2d/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/BoundaryConditions/SetDirichletBC.m",
+      "python": "linstabpy/boundary_conditions/dirichlet.py::apply_dirichlet_identity_pair",
       "status": "validated",
       "required": true,
       "notes": "Adapter implemented with direct unit tests."
     },
     {
       "id": "example_0_curvilinear",
-      "matlab": "linstab2d/data/baseflows/example_0_TestCurvilinearDerivative.m",
-      "python": "linstab2d/examples/example_0_curvilinear_validation.py",
+      "matlab": "linstabpy/data/baseflows/example_0_TestCurvilinearDerivative.m",
+      "python": "linstabpy/examples/example_0_curvilinear_validation.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "example_1_blasius",
-      "matlab": "linstab2d/data/baseflows/example_1_Blasius.m",
-      "python": "linstab2d/examples/example_1_blasius.py",
+      "matlab": "linstabpy/data/baseflows/example_1_Blasius.m",
+      "python": "linstabpy/examples/example_1_blasius.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "example_2_jet",
-      "matlab": "linstab2d/data/baseflows/example_2_Jet.m",
-      "python": "linstab2d/examples/example_2_jet.py",
+      "matlab": "linstabpy/data/baseflows/example_2_Jet.m",
+      "python": "linstabpy/examples/example_2_jet.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "example_3_streaky_bl",
-      "matlab": "linstab2d/data/baseflows/example_3_Streaky_BL.m",
-      "python": "linstab2d/examples/example_3_streaky_bl.py",
+      "matlab": "linstabpy/data/baseflows/example_3_Streaky_BL.m",
+      "python": "linstabpy/examples/example_3_streaky_bl.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "example_4_cavity",
-      "matlab": "linstab2d/data/baseflows/example_4_Cavity.m",
-      "python": "linstab2d/examples/example_4_cavity.py",
+      "matlab": "linstabpy/data/baseflows/example_4_Cavity.m",
+      "python": "linstabpy/examples/example_4_cavity.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "example_5_paraboloid",
-      "matlab": "linstab2d/data/baseflows/example_5_Paraboloid.m",
-      "python": "linstab2d/examples/example_5_paraboloid.py",
+      "matlab": "linstabpy/data/baseflows/example_5_Paraboloid.m",
+      "python": "linstabpy/examples/example_5_paraboloid.py",
       "status": "validated",
       "required": true,
       "notes": "Example script"
     },
     {
       "id": "aux_sutherland_air",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/AuxiliaryFunctions/sutherland_air.m",
-      "python": "linstab2d/baseflow/viscosity.py::sutherland_air",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/AuxiliaryFunctions/sutherland_air.m",
+      "python": "linstabpy/baseflow/viscosity.py::sutherland_air",
       "status": "validated",
       "required": true,
       "notes": "Viscosity model"
     },
     {
       "id": "aux_reconstruct_floquet",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/AuxiliaryFunctions/ReconstructFloquetSol.m",
-      "python": "linstab2d/utils/floquet.py::reconstruct_floquet",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/AuxiliaryFunctions/ReconstructFloquetSol.m",
+      "python": "linstabpy/utils/floquet.py::reconstruct_floquet",
       "status": "validated",
       "required": true,
       "notes": "Floquet reconstruction"
     },
     {
       "id": "aux_inverse_function",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/AuxiliaryFunctions/GetInverseFunction.m",
-      "python": "linstab2d/solvers/linsolve.py::make_linear_solver",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/AuxiliaryFunctions/GetInverseFunction.m",
+      "python": "linstabpy/solvers/linsolve.py::make_linear_solver",
       "status": "validated",
       "required": true,
       "notes": "Direct solver wrapper"
     },
     {
       "id": "mesh_create_mesh",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/CreateMesh.m",
-      "python": "linstab2d/mesh/mesh.py::Mesh.create",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/CreateMesh.m",
+      "python": "linstabpy/mesh/mesh.py::Mesh.create",
       "status": "validated",
       "required": true,
       "notes": "Mesh factory"
     },
     {
       "id": "mesh_deform_mesh",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/DeformMesh.m",
-      "python": "linstab2d/mesh/mesh.py::Mesh.deform",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/DeformMesh.m",
+      "python": "linstabpy/mesh/mesh.py::Mesh.deform",
       "status": "validated",
       "required": true,
       "notes": "Curvilinear deformation"
     },
     {
       "id": "mesh_add_dw",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/AddDW2mesh.m",
-      "python": "linstab2d/mesh/mesh.py::Mesh._build_operators",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/AddDW2mesh.m",
+      "python": "linstabpy/mesh/mesh.py::Mesh._build_operators",
       "status": "validated",
       "required": true,
       "notes": "Integration weights"
     },
     {
       "id": "mesh_mask",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/MeshMask.m",
-      "python": "linstab2d/mesh/mesh.py::Mesh.mask",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/MeshMask.m",
+      "python": "linstabpy/mesh/mesh.py::Mesh.mask",
       "status": "validated",
       "required": true,
       "notes": "Sponge/mask regions"
     },
     {
       "id": "mesh_dmats_sbp",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/Dmats_SBP.m",
-      "python": "linstab2d/mesh/sbp.py::build_sbp_matrix",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/Dmats_SBP.m",
+      "python": "linstabpy/mesh/sbp.py::build_sbp_matrix",
       "status": "validated",
       "required": true,
       "notes": "SBP-FD operators"
     },
     {
       "id": "mesh_create_filter",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/CreateFilter.m",
-      "python": "linstab2d/mesh/filters.py::filter_O10_diffMat",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/CreateFilter.m",
+      "python": "linstabpy/mesh/filters.py::filter_O10_diffMat",
       "status": "validated",
       "required": true,
       "notes": "Filter construction"
     },
     {
       "id": "mesh_get_filter",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/GetFilter.m",
-      "python": "linstab2d/mesh/filters.py::build_mesh_filters",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/GetFilter.m",
+      "python": "linstabpy/mesh/filters.py::build_mesh_filters",
       "status": "validated",
       "required": true,
       "notes": "Mesh filter assembly"
     },
     {
       "id": "mesh_filter_o10",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/filter_O10_diffMat.m",
-      "python": "linstab2d/mesh/filters.py::filter_O10_diffMat",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/filter_O10_diffMat.m",
+      "python": "linstabpy/mesh/filters.py::filter_O10_diffMat",
       "status": "validated",
       "required": true,
       "notes": "10th-order filter stencil"
     },
     {
       "id": "bf_blasius",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/example_1_readbaseflow.m",
-      "python": "linstab2d/baseflow/loaders.py::load_blasius",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/example_1_readbaseflow.m",
+      "python": "linstabpy/baseflow/loaders.py::load_blasius",
       "status": "validated",
       "required": true,
       "notes": "Baseflow loader"
     },
     {
       "id": "bf_jet",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/example_2_readbaseflow.m",
-      "python": "linstab2d/baseflow/loaders.py::load_jet",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/example_2_readbaseflow.m",
+      "python": "linstabpy/baseflow/loaders.py::load_jet",
       "status": "validated",
       "required": true,
       "notes": "Baseflow loader"
     },
     {
       "id": "bf_streaky_bl",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/example_3_readbaseflow.m",
-      "python": "linstab2d/baseflow/loaders.py::load_streaky_bl",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/example_3_readbaseflow.m",
+      "python": "linstabpy/baseflow/loaders.py::load_streaky_bl",
       "status": "validated",
       "required": true,
       "notes": "Baseflow loader"
     },
     {
       "id": "bf_cavity",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/example_4_readbaseflow.m",
-      "python": "linstab2d/baseflow/loaders.py::load_cavity",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/example_4_readbaseflow.m",
+      "python": "linstabpy/baseflow/loaders.py::load_cavity",
       "status": "validated",
       "required": true,
       "notes": "Baseflow loader"
     },
     {
       "id": "bf_paraboloid",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/example_5_readbaseflow.m",
-      "python": "linstab2d/baseflow/loaders.py::load_paraboloid",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/example_5_readbaseflow.m",
+      "python": "linstabpy/baseflow/loaders.py::load_paraboloid",
       "status": "validated",
       "required": true,
       "notes": "Baseflow loader"
     },
     {
       "id": "solver_resolvent",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/resolvent.m",
-      "python": "linstab2d/solvers/resolvent.py::resolvent_analysis",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/resolvent.m",
+      "python": "linstabpy/solvers/resolvent.py::resolvent_analysis",
       "status": "validated",
       "required": true,
       "notes": "Resolvent SVD solver"
     },
     {
       "id": "aux_plot_flow",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/AuxiliaryFunctions/plotFlow.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/AuxiliaryFunctions/plotFlow.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "MATLAB pcolor plotting; Python uses matplotlib"
     },
     {
       "id": "aux_multiprod",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/AuxiliaryFunctions/multiprod.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/AuxiliaryFunctions/multiprod.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "N-D matrix multiply; replaced by NumPy broadcasting"
     },
     {
       "id": "mesh_create_dw",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/CreateDW.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/CreateDW.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "Older stand-alone version; superseded by AddDW2mesh"
     },
     {
       "id": "construct_gridtrans1d",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/gridtrans1D.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/gridtrans1D.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "1-D grid transform; absorbed into Mesh.deform"
     },
     {
       "id": "mesh_trapz_weights",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/trapzWeights.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/trapzWeights.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "Trapezoidal weights; embedded in Mesh._build_operators"
     },
     {
       "id": "mesh_trapz_weights2",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/trapzWeights2.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/trapzWeights2.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "2D variant; embedded in Mesh._build_operators"
     },
     {
       "id": "mesh_trapz_weights_polar",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/trapzWeightsPolar.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/trapzWeightsPolar.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "Polar weights; embedded in compute_chu_norm"
     },
     {
       "id": "mesh_trapz_weights_polar_1d",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/trapzWeightsPolar_1D.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/trapzWeightsPolar_1D.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "1D polar variant; embedded in compute_chu_norm"
     },
     {
       "id": "mesh_tri_smooth",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/triSmooth.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/triSmooth.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "Triangle smoother; not used by any example"
     },
     {
       "id": "mesh_mvg_line",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/mvg_line.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/mvg_line.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "MATLAB GUI callback; no Python equivalent needed"
     },
     {
       "id": "bf_radj_iteration",
-      "matlab": "linstab2d/data/baseflows/BaseFlows/R_RadjIteraction.m",
+      "matlab": "linstabpy/data/baseflows/BaseFlows/R_RadjIteraction.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "Incomplete MATLAB stub with syntax errors"
     },
     {
       "id": "mesh_mvg",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/mvg.m",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/mvg.m",
       "status": "out_of_scope",
       "required": false,
       "notes": "5-point moving average; absorbed as private helper into segmspace"
     },
     {
       "id": "mesh_fdweights",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/fdweights.m",
-      "python": "linstab2d/mesh/fdweights.py::fdweights",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/fdweights.m",
+      "python": "linstabpy/mesh/fdweights.py::fdweights",
       "status": "validated",
       "required": true,
       "notes": "Fornberg FD weights"
     },
     {
       "id": "mesh_segmspace",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/segmspace.m",
-      "python": "linstab2d/mesh/grids.py::segmspace",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/segmspace.m",
+      "python": "linstabpy/mesh/grids.py::segmspace",
       "status": "validated",
       "required": true,
       "notes": "Piecewise uniform grid"
     },
     {
       "id": "mesh_min_distance",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/MeshOperations/GetMinDistance.m",
-      "python": "linstab2d/mesh/distance.py::min_distance",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/MeshOperations/GetMinDistance.m",
+      "python": "linstabpy/mesh/distance.py::min_distance",
       "status": "validated",
       "required": true,
       "notes": "Min distance to reference points"
     },
     {
       "id": "construct_interp_mat_2d",
-      "matlab": "linstab2d/data/baseflows/aux_matlab/ConstructOperators/interpMat_2D.m",
-      "python": "linstab2d/mesh/interpolation.py::interp_mat_2d",
+      "matlab": "linstabpy/data/baseflows/aux_matlab/ConstructOperators/interpMat_2D.m",
+      "python": "linstabpy/mesh/interpolation.py::interp_mat_2d",
       "status": "validated",
       "required": true,
       "notes": "2D sparse interpolation matrix"

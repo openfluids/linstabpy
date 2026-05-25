@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc, parse_complex
+from linstabpy.utils.jsonc import load_jsonc, parse_complex
 
 
 SCRIPT = Path(__file__).resolve()
@@ -60,10 +60,10 @@ def _json_safe(value: Any) -> Any:
 def _worker_run(cfg: dict[str, Any], backend: str, omega_target: complex) -> int:
     from petsc4py import PETSc
 
-    from validation.song_2023.baseflow_loader import load_my_case
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_system
-    from linstab2d.solvers.petsc_utils import scipy_to_petsc
+    from scripts.validation.song_2023.baseflow_loader import load_my_case
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.solvers.petsc_utils import scipy_to_petsc
 
     output_root = REPO / cfg["output_root"]
     label = f"{backend}__omega_{omega_target.real:+.6f}_{omega_target.imag:+.6f}j".replace(".", "p")

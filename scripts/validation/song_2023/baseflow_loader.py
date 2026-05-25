@@ -5,8 +5,8 @@ from typing import Any
 
 import numpy as np
 
-from linstab2d.baseflow import BaseFlow
-from linstab2d.baseflow import sutherland_air
+from linstabpy.baseflow import BaseFlow
+from linstabpy.baseflow import sutherland_air
 
 
 def _binomial5_filter(arr: np.ndarray, axis: int) -> np.ndarray:

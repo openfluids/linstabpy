@@ -2,11 +2,11 @@
   // Song2023 / Robinet validation matrix.
   //
   // Keep solver choices in JSONC and write variant outputs under
-  // validation/song_2023/matrix_runs so the canonical song_2023.npz is untouched.
+  // scripts/validation/song_2023/matrix_runs so the canonical song_2023.npz is untouched.
 
-  "output_root": "validation/song_2023/matrix_runs",
+  "output_root": "scripts/validation/song_2023/matrix_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   // Optional reduced-case overrides for quick validation loops.
   // These do not change the canonical song_2023.jsonc; they only apply when

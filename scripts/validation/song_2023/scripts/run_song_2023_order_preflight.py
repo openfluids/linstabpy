@@ -12,7 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
 
@@ -86,7 +86,7 @@ def main() -> None:
         cmd = [
             str(REPO / ".venv" / "bin" / "python"),
             "-m",
-            "validation.song_2023.song_2023",
+            "scripts.validation.song_2023.song_2023",
             "--config",
             str(config_path),
         ]

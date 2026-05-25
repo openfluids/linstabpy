@@ -6,9 +6,9 @@
   // - avoid paying for the eigensolve until we know which orders are safe on
   //   the current machine
 
-  "output_root": "validation/song_2023/order_preflight_runs",
+  "output_root": "scripts/validation/song_2023/order_preflight_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   // 16 GB laptop guardrail:
   // stay well below the physical limit so the next higher-order run does not

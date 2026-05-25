@@ -12,7 +12,7 @@ The main goal is to make normalization/scaling mismatches explicit.
 
 Usage from repo root:
 
-    PYTHONPATH=src:. python -m validation.song_2023.scripts.compare_spectra
+    PYTHONPATH=src:. python -m scripts.validation.song_2023.scripts.compare_spectra
 """
 
 from __future__ import annotations

@@ -5,9 +5,9 @@
   // - locate a healthier shift-invert target before retrying Krylov EVP
   // - keep all target choices in JSONC
 
-  "output_root": "validation/song_2023/shift_scan_runs",
+  "output_root": "scripts/validation/song_2023/shift_scan_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "reduced_overrides": {
     "stride_ksi": 2,

@@ -2,16 +2,16 @@
   // Song2023 fd6 stride-1 resolvent-only run for the TCFD campaign.
   //
   // Use with:
-  //   .venv/bin/python -m validation.song_2023.scripts.run_song_2023_matrix \
-  //     --config validation/song_2023/configs/song_2023_resolvent_fd6.jsonc
+  //   .venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_matrix \
+  //     --config scripts/validation/song_2023/configs/song_2023_resolvent_fd6.jsonc
   //
   // This keeps the generated run config and outputs under
-  // validation/song_2023/resolvent_runs/ instead of leaving canonical
+  // scripts/validation/song_2023/resolvent_runs/ instead of leaving canonical
   // song_2023.npz files in the validation directory.
 
-  "output_root": "validation/song_2023/resolvent_runs",
+  "output_root": "scripts/validation/song_2023/resolvent_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "variants": [
     {

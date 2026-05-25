@@ -13,9 +13,9 @@
   //   - 16 GB laptop: stop_on_peak_memory_mib = 13000
   //   - 64 GB c8:     stop_on_peak_memory_mib = 56000
 
-  "output_root": "validation/song_2023/order_convergence_runs",
+  "output_root": "scripts/validation/song_2023/order_convergence_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   // 64 GB machine (c8) — raise for larger machines
   "memory_guard": {

@@ -6,5 +6,5 @@ boundary layer at Ma=2.15, Re=1e5, beta=19.2.
 
 Usage (from repo root):
 
-    .venv/bin/python -m validation.song_2023.song_2023
+    .venv/bin/python -m scripts.validation.song_2023.song_2023
 """

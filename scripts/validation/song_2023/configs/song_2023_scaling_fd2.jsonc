@@ -6,9 +6,9 @@
   // - probe ranks 2, 4, and 8 one by one with a more permissive swap guard
   // - stop immediately when the machine pressure becomes unacceptable
 
-  "output_root": "validation/song_2023/scaling_fd2_runs",
+  "output_root": "scripts/validation/song_2023/scaling_fd2_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "memory_guard": {
     "machine_memory_mib": 16384.0,

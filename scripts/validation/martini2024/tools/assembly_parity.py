@@ -129,7 +129,7 @@ def _compare_sparse_matrices(
     rel_tol: float,
     max_terms: int,
 ) -> dict[str, Any]:
-    from linstab2d.utils.petsc_core import compare_sparse_matrices
+    from linstabpy.utils.petsc_core import compare_sparse_matrices
 
     report = compare_sparse_matrices(
         before,
@@ -186,7 +186,7 @@ def _compute_temporal_eigs(
     target: complex,
     solver_cfg: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from linstab2d.solvers.eigenvalue import temporal_eigenvalues
+    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
 
     eigvals, _, info = temporal_eigenvalues(
         sp.csc_matrix(matrix, dtype=complex),
@@ -316,8 +316,8 @@ def _smooth_field(X: np.ndarray, Y: np.ndarray, seed: int, scale: float = 0.05) 
 
 
 def _case_setup(model: str, seed: int):
-    from linstab2d.baseflow import BaseFlow, sutherland_air
-    from linstab2d.mesh import Mesh
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.mesh import Mesh
 
     if model == "2D":
         mesh = Mesh.create(
@@ -388,8 +388,8 @@ def _build_backend_matrix(
     seed: int,
     petsc_matrix_mode: str,
 ) -> tuple[sp.csr_matrix, dict[str, Any]]:
-    from linstab2d.operators import build_lnse_system
-    from linstab2d.utils.petsc_core import petsc_to_scipy
+    from linstabpy.operators import build_lnse_system
+    from linstabpy.utils.petsc_core import petsc_to_scipy
 
     mesh, bf, opts = _case_setup(model, seed)
     solver_cfg = {"petsc_matrix_mode": petsc_matrix_mode}
@@ -436,7 +436,7 @@ def _common_compare_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--eig-target", type=complex, default=-0.05j)
     parser.add_argument("--max-eig-ndof", type=int, default=1500)
     parser.add_argument("--skip-eigs", action="store_true")
-    parser.add_argument("--output", type=Path, default=Path("validation/martini2024/output/assembly_parity.json"))
+    parser.add_argument("--output", type=Path, default=Path("scripts/validation/martini2024/output/assembly_parity.json"))
     parser.add_argument("--allow-fail", action="store_true")
 
 

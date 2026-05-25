@@ -19,9 +19,9 @@ This mirrors the Hamada stage-parity tooling, but for Song (2023):
 
 Run from repo root, for example:
 
-    python -m validation.song_2023.scripts.compare_stages \\
-        --case-dir validation/song_2023 \\
-        --matlab-exports validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming
+    python -m scripts.validation.song_2023.scripts.compare_stages \\
+        --case-dir scripts/validation/song_2023 \\
+        --matlab-exports scripts/validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming
 """
 
 from __future__ import annotations
@@ -34,10 +34,10 @@ import numpy as np
 import scipy.io
 import scipy.sparse as sp
 
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator
+from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
+from linstabpy.boundary_conditions.neumann import apply_neumann
 
 from ..baseflow_loader import load_my_case
 
@@ -245,14 +245,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--case-dir",
         type=Path,
-        default=Path("validation/song_2023"),
+        default=Path("scripts/validation/song_2023"),
         help="Directory containing song_2023 inputs (baseflow .npy fields).",
     )
     parser.add_argument(
         "--matlab-exports",
         type=Path,
         default=Path(
-            "validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming"
+            "scripts/validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming"
         ),
         help="Directory with MATLAB-exported operator stages from main_export_stages.m.",
     )

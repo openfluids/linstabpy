@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 
 SCRIPT = Path(__file__).resolve()
@@ -179,7 +179,7 @@ def main() -> None:
         cmd = [
             str(REPO / ".venv" / "bin" / "python"),
             "-m",
-            "validation.song_2023.song_2023",
+            "scripts.validation.song_2023.song_2023",
             "--config",
             str(config_path),
         ]

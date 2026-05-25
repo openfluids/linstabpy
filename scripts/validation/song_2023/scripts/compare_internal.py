@@ -12,9 +12,9 @@ This script compares:
 
 Run from repo root, for example:
 
-    python -m validation.song_2023.scripts.compare_internal \\
-        --case-dir validation/song_2023 \\
-        --matlab-internal validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal
+    python -m scripts.validation.song_2023.scripts.compare_internal \\
+        --case-dir scripts/validation/song_2023 \\
+        --matlab-internal scripts/validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ import numpy as np
 import scipy.io
 import scipy.sparse as sp
 
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator
 
 from ..baseflow_loader import load_my_case
 
@@ -269,14 +269,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--case-dir",
         type=Path,
-        default=Path("validation/song_2023"),
+        default=Path("scripts/validation/song_2023"),
         help="Directory containing song_2023 inputs (baseflow .npy fields).",
     )
     parser.add_argument(
         "--matlab-internal",
         type=Path,
         default=Path(
-            "validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal"
+            "scripts/validation/song_2023/reference/matlab/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal"
         ),
         help="Directory produced by GetLinProblem_export/main_preBC_export.m.",
     )

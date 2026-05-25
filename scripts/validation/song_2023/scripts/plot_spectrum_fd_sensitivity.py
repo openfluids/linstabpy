@@ -12,9 +12,9 @@ from scipy.io import loadmat
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SCALING_SUMMARY = REPO / "validation/song_2023/scaling_runs/summary.json"
-ORDER_SUMMARY = REPO / "validation/song_2023/order_convergence_runs/order_convergence_summary.json"
-MATLAB_SPECTRUM = REPO / "validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+SCALING_SUMMARY = REPO / "scripts/validation/song_2023/scaling_runs/summary.json"
+ORDER_SUMMARY = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+MATLAB_SPECTRUM = REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
 OUTPUT_PNG = SCRIPT.with_name("song_fd_spectrum_sensitivity.png")
 
 FD_STYLES = {
@@ -58,7 +58,7 @@ def _collect_npz_by_fd() -> dict[int, Path]:
         ranks = int(item.get("ranks", 1))
         npz_rel = item.get("output_npz")
         if npz_rel is None:
-            npz_rel = f"validation/song_2023/scaling_runs/{item['variant']}/song_2023.npz"
+            npz_rel = f"scripts/validation/song_2023/scaling_runs/{item['variant']}/song_2023.npz"
         npz_path = REPO / npz_rel
         if not npz_path.exists():
             continue

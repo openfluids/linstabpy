@@ -6,9 +6,9 @@
   // - determine whether the Song Krylov failure is GMRES-specific or broader
   // - keep all KSP choices in JSONC
 
-  "output_root": "validation/song_2023/shifted_ksp_runs",
+  "output_root": "scripts/validation/song_2023/shifted_ksp_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "reduced_overrides": {
     "stride_ksi": 2,

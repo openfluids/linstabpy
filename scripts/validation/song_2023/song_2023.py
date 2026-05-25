@@ -1,7 +1,7 @@
 """Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case.
 
 Usage (from repo root):
-    .venv/bin/python -m validation.song_2023.song_2023
+    .venv/bin/python -m scripts.validation.song_2023.song_2023
 """
 from __future__ import annotations
 
@@ -16,21 +16,21 @@ from typing import List, Tuple
 import numpy as np
 import scipy.sparse as sp
 
-from linstab2d.utils.petsc_init import init_petsc_from_argv
+from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 
 from mpi4py import MPI  # noqa: E402
 from petsc4py import PETSc  # noqa: E402
 
-from linstab2d.mesh import Mesh  # noqa: E402
-from linstab2d.operators.assembly import build_lnse_system  # noqa: E402
-from linstab2d.operators.energy_norm import compute_chu_norm  # noqa: E402
-from linstab2d.solvers.eigenvalue import temporal_eigenvalues  # noqa: E402
-from linstab2d.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
-from linstab2d.solvers.resolvent import resolvent_analysis  # noqa: E402
-from linstab2d.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
-from linstab2d.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
+from linstabpy.mesh import Mesh  # noqa: E402
+from linstabpy.operators.assembly import build_lnse_system  # noqa: E402
+from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
+from linstabpy.solvers.eigenvalue import temporal_eigenvalues  # noqa: E402
+from linstabpy.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
+from linstabpy.solvers.resolvent import resolvent_analysis  # noqa: E402
+from linstabpy.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
+from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
 from examples._helpers import (  # noqa: E402
     format_complex,
@@ -537,7 +537,7 @@ def run_case(
         # Write timing and memory stats to .log for comparison with other codes
         log_file = out_path.with_suffix(".log")
         with open(log_file, "w") as f:
-            f.write(f"# linstab2d template run log\n")
+            f.write(f"# linstabpy template run log\n")
             f.write(f"# generated {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} UTC\n")
             f.write(f"case_dir={case_dir}\n")
             f.write(f"output_npz={out_path}\n")

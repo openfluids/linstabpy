@@ -4,7 +4,7 @@ Checks stencil fidelity against MATLAB Dmats_SBP.m, polynomial exactness,
 SBP property Q+Q^T=B, consistency, and anti-symmetry for orders 4, 6, 8.
 
 Run with:
-    .venv/bin/python tools/audit_sbp.py
+    .venv/bin/python scripts/tools/audit_sbp.py
 """
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import numpy as np
 import scipy.sparse as sp
 
-from linstab2d.mesh.sbp import sbp_stencils, build_sbp_matrix
-from linstab2d.mesh.sbp_generator import _sbp_norm_weights
+from linstabpy.mesh.sbp import sbp_stencils, build_sbp_matrix
+from linstabpy.mesh.sbp_generator import _sbp_norm_weights
 
 # ---------------------------------------------------------------------------
 # MATLAB reference stencils — transcribed literally from Dmats_SBP.m

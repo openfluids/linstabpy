@@ -3,7 +3,7 @@
 Installer harness for testing the canonical LinStabPy checkout on another
 machine.
 
-`install_tester/` no longer contains a duplicate `src/` or `examples/` tree.
+`scripts/ci/` no longer contains a duplicate `src/` or `examples/` tree.
 By default the harness treats the parent directory as the repository root. If
 you copy the harness elsewhere, set:
 
@@ -14,7 +14,7 @@ export LINSTAB2D_REPO_ROOT=/path/to/linstabpy
 ## Layout
 
 ```text
-install_tester/
+scripts/ci/
   diagnose.sh             # read-only system check (recommended first step)
   install.sh              # wrapper around ../install.sh with preflight snapshot
   benchmark.sh            # wrapper around ../benchmark.sh

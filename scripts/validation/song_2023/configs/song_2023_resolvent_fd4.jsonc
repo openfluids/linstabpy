@@ -2,15 +2,15 @@
   // Song2023 fd4 stride-1 resolvent-only run for the TCFD campaign.
   //
   // Use with:
-  //   .venv/bin/python -m validation.song_2023.scripts.run_song_2023_matrix \
-  //     --config validation/song_2023/configs/song_2023_resolvent_fd4.jsonc
+  //   .venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_matrix \
+  //     --config scripts/validation/song_2023/configs/song_2023_resolvent_fd4.jsonc
   //
   // Cross-order companion to song_2023_resolvent_fd6.jsonc; lets the
   // TCFD paper section 4 report resolvent gains across fd4/fd6/fd8.
 
-  "output_root": "validation/song_2023/resolvent_runs",
+  "output_root": "scripts/validation/song_2023/resolvent_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   "variants": [
     {

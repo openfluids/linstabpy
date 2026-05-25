@@ -8,7 +8,7 @@ that are numerically stable and not obviously worse than the raw baseline.
 
 Usage from repo root:
 
-    PYTHONPATH=src:. .venv/bin/python -m validation.song_2023.scripts.scan_preprocess
+    PYTHONPATH=src:. .venv/bin/python -m scripts.validation.song_2023.scripts.scan_preprocess
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 from scipy.io import loadmat
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from ..song_2023 import DEFAULT_CONFIG_PATH, _resolve_frequency_target, run_case
 

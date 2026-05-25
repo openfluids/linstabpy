@@ -11,7 +11,7 @@ import numpy as np
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SUMMARY_JSON = REPO / "validation/song_2023/scaling_runs/summary.json"
+SUMMARY_JSON = REPO / "scripts/validation/song_2023/scaling_runs/summary.json"
 OUTPUT_PNG = SCRIPT.with_name("song_scaling_summary.png")
 
 FD_STYLES = {

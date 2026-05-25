@@ -232,11 +232,11 @@ def run_numeric_parity(
     from petsc4py import PETSc
     from slepc4py import SLEPc
 
-    from linstab2d.baseflow import BaseFlow, sutherland_air
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators import build_lnse_operator, build_spatial_operator
-    from linstab2d.operators.assembly import _assemble_from_prepared, _prepare_coefficients
-    from linstab2d.utils.petsc_core import scipy_to_petsc, vec_to_numpy
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator, build_spatial_operator
+    from linstabpy.operators.assembly import _assemble_from_prepared, _prepare_coefficients
+    from linstabpy.utils.petsc_core import scipy_to_petsc, vec_to_numpy
 
     rng = np.random.default_rng(seed)
     case_reports = []
@@ -362,7 +362,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("validation/martini2024/output/operator_numeric_parity.json"),
+        default=Path("scripts/validation/martini2024/output/operator_numeric_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     parser.add_argument(

@@ -5,9 +5,9 @@ from typing import Dict, Tuple
 import numpy as np
 import scipy.sparse as sp
 
-from linstab2d.mesh import Mesh
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
+from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
+from linstabpy.boundary_conditions.neumann import apply_neumann
 
 
 def my_bc_setup(
@@ -19,7 +19,7 @@ def my_bc_setup(
     """
     Boundary-condition recipe matching the Song (2023) MATLAB setup.
 
-    Mesh border convention (see linstab2d.mesh.mesh): ``bi`` = bottom = first
+    Mesh border convention (see linstabpy.mesh.mesh): ``bi`` = bottom = first
     row (row 0), ``ti`` = top = last row, ``li`` = left = first column (col 0),
     ``ri`` = right = last column. So: inlet = left, outlet = right, wall =
     bottom, free stream = top.

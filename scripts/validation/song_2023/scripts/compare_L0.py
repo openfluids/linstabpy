@@ -3,9 +3,9 @@
 
 Usage (from repo root):
 
-    python -m validation.song_2023.scripts.compare_L0 \
-        --case-dir validation/song_2023 \
-        --matlab-L0 validation/song_2023/reference/matlab/matlab_reference/L0.mat
+    python -m scripts.validation.song_2023.scripts.compare_L0 \
+        --case-dir scripts/validation/song_2023 \
+        --matlab-L0 scripts/validation/song_2023/reference/matlab/matlab_reference/L0.mat
 
 This script:
   1. Loads the MATLAB `L0` matrix saved by the MATLAB reference code
@@ -25,8 +25,8 @@ import numpy as np
 import scipy.io
 import scipy.sparse as sp
 
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator
 
 from ..baseflow_loader import load_my_case
 from ..bc_setup import my_bc_setup
@@ -180,13 +180,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--case-dir",
         type=Path,
-        default=Path("validation/song_2023"),
+        default=Path("scripts/validation/song_2023"),
         help="Directory containing song_2023 inputs (X/Y/baseflow/sponge).",
     )
     parser.add_argument(
         "--matlab-L0",
         type=Path,
-        default=Path("validation/song_2023/reference/matlab/matlab_reference/L0.mat"),
+        default=Path("scripts/validation/song_2023/reference/matlab/matlab_reference/L0.mat"),
         help="Path to MATLAB L0.mat saved by the MATLAB reference code.",
     )
     parser.add_argument("--Re", type=float, default=1.0e5)

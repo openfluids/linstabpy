@@ -2,13 +2,13 @@
 """Plot fd-order convergence for the Song2023 validation case.
 
 Reads order_convergence_summary.json and produces:
-  - validation/song_2023/order_convergence.png
+  - scripts/validation/song_2023/order_convergence.png
 
 Shows: (a) mean nearest-MATLAB eigenvalue distance vs fd_order,
        (b) leading-mode growth-rate error vs fd_order.
 
 Usage (from repo root):
-    .venv/bin/python validation/song_2023/scripts/plot_order_convergence.py
+    .venv/bin/python scripts/validation/song_2023/scripts/plot_order_convergence.py
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import numpy as np
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SUMMARY_JSON = REPO / "validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+SUMMARY_JSON = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
 OUTPUT_PNG = SCRIPT.with_name("order_convergence.png")
 
 

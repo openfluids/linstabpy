@@ -6,9 +6,9 @@ run_song_2023_order_convergence.py and replaces the 'pending' entries
 in supp.tex with actual numbers.
 
 Usage (from repo root):
-    .venv/bin/python validation/song_2023/scripts/populate_scaling_table.py
+    .venv/bin/python scripts/validation/song_2023/scripts/populate_scaling_table.py
 
-Reads:  validation/song_2023/order_convergence_runs/order_convergence_summary.json
+Reads:  scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json
 Writes: paper/supp.tex (in-place edit of tab:scaling rows)
 """
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SUMMARY_JSON = REPO / "validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+SUMMARY_JSON = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
 SUPP_TEX = REPO / "paper/supp.tex"
 
 

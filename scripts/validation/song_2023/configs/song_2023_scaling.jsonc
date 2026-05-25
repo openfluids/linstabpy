@@ -13,9 +13,9 @@
   // - peak memory exceeds configured guard
   // - swap usage grows beyond the configured delta guard
 
-  "output_root": "validation/song_2023/scaling_runs",
+  "output_root": "scripts/validation/song_2023/scaling_runs",
 
-  "base_config": "validation/song_2023/configs/song_2023.jsonc",
+  "base_config": "scripts/validation/song_2023/configs/song_2023.jsonc",
 
   // Memory guard for the current Linux workstation (~1.5 TiB RAM).
   // Keep these high enough that we exercise the full ladder unless there is

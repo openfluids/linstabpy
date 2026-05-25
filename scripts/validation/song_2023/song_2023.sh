@@ -13,7 +13,7 @@ fi
 export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 if [[ -n "${SONG2023_CONFIG:-}" ]]; then
-  exec "$PYTHON_BIN" -m validation.song_2023.song_2023 --config "$SONG2023_CONFIG"
+  exec "$PYTHON_BIN" -m scripts.validation.song_2023.song_2023 --config "$SONG2023_CONFIG"
 fi
 
-exec "$PYTHON_BIN" -m validation.song_2023.song_2023
+exec "$PYTHON_BIN" -m scripts.validation.song_2023.song_2023

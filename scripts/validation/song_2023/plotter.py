@@ -6,8 +6,8 @@ Reads the compressed .npz saved by song_2023.py and generates:
   - <output_dir>/resolvent/gains.png, mode_0.png, mode_1.png, ...
 
 Usage:
-  python validation/song_2023/plotter.py --npz validation/song_2023/song_2023.npz
-  python validation/song_2023/plotter.py --npz path/to/output.npz --output-dir my_plots --dpi 300
+  python scripts/validation/song_2023/plotter.py --npz scripts/validation/song_2023/song_2023.npz
+  python scripts/validation/song_2023/plotter.py --npz path/to/output.npz --output-dir my_plots --dpi 300
 """
 
 from __future__ import annotations

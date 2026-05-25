@@ -172,14 +172,14 @@ def continuity_operator_coefficients(symbols: dict[str, sp.Symbol]) -> dict[str,
 def _coeff_source_path() -> Path:
     repo_root = Path(__file__).resolve().parents[3]
     candidates = [
-        repo_root / "src" / "linstab2d" / "operators" / "coefficients.py",
-        repo_root / "linstab2d" / "operators" / "coefficients.py",
+        repo_root / "src" / "linstabpy" / "operators" / "coefficients.py",
+        repo_root / "linstabpy" / "operators" / "coefficients.py",
     ]
     for path in candidates:
         if path.exists():
             return path
     raise FileNotFoundError(
-        "Could not locate coefficients.py under either src/linstab2d/operators or linstab2d/operators"
+        "Could not locate coefficients.py under either src/linstabpy/operators or linstabpy/operators"
     )
 
 
@@ -558,7 +558,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("validation/martini2024/output/operator_symbolic_templates.json"),
+        default=Path("scripts/validation/martini2024/output/operator_symbolic_templates.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()
