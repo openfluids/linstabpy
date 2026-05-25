@@ -1,5 +1,7 @@
 # LinStabPy
 
+![LinStabPy banner](docs/assets/linstabpy-banner.svg)
+
 ## 1. Project overview
 
 LinStabPy is a Python package for sparse linear stability and resolvent
