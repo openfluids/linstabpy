@@ -2,7 +2,7 @@
 """Abstract base class for linear operators.
 
 Adapted from resolvent4py's LinearOperator design (Padovan et al.).
-Simplified for linstab2d: no BV methods, no runtime probes, always complex.
+Simplified for linstabpy: no BV methods, no runtime probes, always complex.
 """
 
 from __future__ import annotations

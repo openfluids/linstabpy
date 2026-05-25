@@ -93,6 +93,7 @@ def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Ma
     A = PETSc.Mat().createAIJ(
         size=csr.shape,
         csr=(csr.indptr, csr.indices, csr.data),
+        comm=PETSc.COMM_SELF,
     )
     A.assemble()
     return A

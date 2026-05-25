@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Operator abstraction layer for linstab2d.
+"""Operator abstraction layer for linstabpy.
 
 Provides a composable interface for linear operators on top of PETSc.
 Adapted from resolvent4py (Padovan et al.).

@@ -16,26 +16,26 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 
-from linstab2d.utils.petsc_init import init_petsc_from_argv
+from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 from petsc4py import PETSc
 from mpi4py import MPI
 
-from linstab2d.baseflow import load_hamada_case, sutherland_air
-from linstab2d.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
-from linstab2d.mesh import Mesh
-from linstab2d.mesh.sbp import DISSIPATION_DEFAULTS
-from linstab2d.operators.assembly import build_lnse_system
-from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
-from linstab2d.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
-from linstab2d.solvers.resolvent import (
+from linstabpy.baseflow import load_hamada_case, sutherland_air
+from linstabpy.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
+from linstabpy.mesh import Mesh
+from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
+from linstabpy.operators.assembly import build_lnse_system
+from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
+from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
+from linstabpy.solvers.resolvent import (
     compute_resolvent_svd_residuals,
     resolvent_analysis,
 )
-from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.utils.stability_acceptance import (
+from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.stability_acceptance import (
     _postcheck_target_distance,
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,

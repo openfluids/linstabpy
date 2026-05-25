@@ -3,7 +3,7 @@
 
 Provides a single ``load_jsonc()`` entry point used by examples,
 validation cases, and results pipelines to read ``.jsonc`` parameter
-files that drive all linstab2d runs.
+files that drive all linstabpy runs.
 """
 
 from __future__ import annotations
