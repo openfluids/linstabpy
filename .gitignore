@@ -6,6 +6,7 @@ dist/
 build/
 *.npz
 *.png
+!docs/assets/linstabpy-banner.png
 # Compact validation fixtures may be tracked; generated example outputs remain ignored.
 !validation/operator_fixtures/**/*.npz
 !validation/martini2024/fixtures/**/*.npz
