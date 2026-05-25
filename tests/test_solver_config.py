@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for solver configuration helpers that do not require PETSc."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Test that _apply_inv_B_petsc raises RuntimeError for axy + distributed PETSc.
 
 G-001 guard: axisymmetric model must fail fast with a clean RuntimeError

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Base flow infrastructure: data loading, viscosity models."""
 
 from .baseflow import BaseFlow

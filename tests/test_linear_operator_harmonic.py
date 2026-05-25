@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for harmonic resolvent infrastructure.
 
 C1: HarmonicLayout — block indexing, offsets, slices, lifting

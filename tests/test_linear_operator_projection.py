@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for ProjectionOperator.
 
 A4: Oblique projection, complementary projection, adjoint, idempotency,

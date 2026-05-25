@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Boundary condition enforcement."""
 
 from .dirichlet import (

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Plumb-tests for the inexact shift-invert ST configuration.
 
 These tests verify that ``_configure_st_for_eigenvalue`` wires up the

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for Dirichlet boundary condition enforcement."""
 
 import numpy as np

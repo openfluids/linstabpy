@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Projection operators for harmonic resolvent phase-direction removal.
 
 Implements oblique projectors of the form

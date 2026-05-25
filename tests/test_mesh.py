@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Comprehensive tests for the linstab2d.mesh module.
 
 Covers SBP stencils, 1-D derivative operators, integration, mesh creation,

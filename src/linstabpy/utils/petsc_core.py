@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """SciPy <-> PETSc conversion utilities (local and distributed scaffolding).
 
 Shared by both mesh (filters) and solver modules to avoid circular

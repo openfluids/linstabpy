@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Focused tests for viscosity models that do not need mesh/PETSc setup."""
 
 from __future__ import annotations

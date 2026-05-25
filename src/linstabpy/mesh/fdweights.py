@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Finite-difference weights for arbitrary nodes."""
 
 from __future__ import annotations

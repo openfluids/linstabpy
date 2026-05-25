@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Numerical soundness tests for the cylindrical (axy) LNSE operators.
 
 These tests verify mathematical properties that must hold regardless of the

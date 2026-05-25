@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Declarative boundary-condition recipe applicator.
 
 Reads a list of BC rule dicts (typically from a JSONC config) and

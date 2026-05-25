@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Parity checks for Case 1 resolvent gains and leading modes."""
 
 from __future__ import annotations

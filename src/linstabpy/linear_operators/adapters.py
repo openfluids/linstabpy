@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Adapters bridging existing linstab2d sparse matrices to the operator layer.
 
 Provides factory functions that convert SciPy sparse matrices, MUMPS-factorized

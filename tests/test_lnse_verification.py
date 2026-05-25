@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Independent verification of LNSE coefficient matrices.
 
 Two complementary approaches:

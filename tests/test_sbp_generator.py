@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for the automatic SBP stencil generator.
 
 Validates that generated stencils match hardcoded reference tables and

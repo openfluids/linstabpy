@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Temporal and adjoint eigenvalue solvers using SLEPc EPS.
 
 Solver configuration — ``solver.eigen`` section in JSONC

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Backward-compatible re-export of PETSc utilities.
 
 The canonical definitions live in ``linstab2d.utils.petsc_core``.

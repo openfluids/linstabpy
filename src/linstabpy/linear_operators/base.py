@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Abstract base class for linear operators.
 
 Adapted from resolvent4py's LinearOperator design (Padovan et al.).

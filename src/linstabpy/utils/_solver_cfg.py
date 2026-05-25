@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Solver-config lookup: JSONC dict -> env var -> default."""
 
 from __future__ import annotations

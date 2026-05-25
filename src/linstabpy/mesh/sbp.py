@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Summation-by-parts (SBP) finite difference stencils and matrix construction.
 
 Implements standard SBP operators of orders 2, 4, 6, and 8 following

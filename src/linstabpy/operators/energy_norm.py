@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Chu's compressible energy norm for perturbation analysis.
 
 Translates ``GetCompEnergyNorm.m`` from the MATLAB LinStab2D codebase.

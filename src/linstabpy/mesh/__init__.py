@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Mesh infrastructure: SBP finite differences, structured grids, integration weights."""
 
 from .sbp import (

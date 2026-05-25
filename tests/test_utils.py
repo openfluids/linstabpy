@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for Floquet reconstruction, PETSc/SciPy parity utilities, and flow plotting utilities."""
 
 import shutil

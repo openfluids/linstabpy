@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for base flow loading and viscosity (Sutherland's law)."""
 
 import numpy as np

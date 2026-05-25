@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Spatial filter builders and mesh filter containers.
 
 This module translates the MATLAB ``GetFilter.m``/``CreateFilter.m`` helpers

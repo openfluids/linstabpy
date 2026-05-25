@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Contracts between benchmark.sh and run_all_examples.sh."""
 
 from __future__ import annotations

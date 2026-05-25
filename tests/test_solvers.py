@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for resolvent and eigenvalue solvers.
 
 All tests in this file are marked @pytest.mark.slow.

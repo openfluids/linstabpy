@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Parametric parity/sanity checks for Case 1 operator assembly.
 
 Purpose:

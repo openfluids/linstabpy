@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Generalized eigensolvers for spatial stability using SLEPc EPS."""
 
 from __future__ import annotations

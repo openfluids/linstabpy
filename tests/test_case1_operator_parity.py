@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Regression parity test for Case 1 operator assembly vs MATLAB exports.
 
 This test intentionally checks matrix construction only (no eigensolve) so it

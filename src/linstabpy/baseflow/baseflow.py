@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Base flow data container for linear stability analysis."""
 
 from __future__ import annotations

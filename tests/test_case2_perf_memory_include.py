@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Unit tests for ``_load_jsonc_with_includes`` in studies/case2/perf_memory.py."""
 
 from __future__ import annotations

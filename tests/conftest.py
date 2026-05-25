@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared fixtures for linstab2d test suite."""
 
 from __future__ import annotations

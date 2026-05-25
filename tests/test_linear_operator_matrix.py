@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Tests for MatrixOperator: apply, apply_adjoint, solve, solve_adjoint.
 
 Validates all four actions against dense numpy references on small random
