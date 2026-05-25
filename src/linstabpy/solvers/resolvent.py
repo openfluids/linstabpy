@@ -190,7 +190,7 @@ def resolvent_analysis(
     # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
     # make_linear_solver copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
@@ -250,20 +250,20 @@ def resolvent_analysis(
     # ------------------------------------------------------------------
     # 5. SLEPc EPS on HtrH (MATLAB-parity route)
     # ------------------------------------------------------------------
-    _res_cfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTAB2D_RESOLVENT")
+    _res_cfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_RESOLVENT")
     _res_eps_cfg = _res_cfg.get("eigen", _res_cfg) if isinstance(_res_cfg, dict) else {}
     ncv = _resolve_resolvent_ncv(
         ndof,
         n_modes,
         int(_res_eps_cfg["ncv"]) if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg else None,
     )
-    eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTAB2D_RESOLVENT_EPS_TOL", 1e-8)
-    eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTAB2D_RESOLVENT_EPS_MAX_IT", 1000)
-    conv_test_name = _scfg(_res_eps_cfg, "conv_test", "LINSTAB2D_RESOLVENT_EPS_CONV_TEST", "")
+    eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTABPY_RESOLVENT_EPS_TOL", 1e-8)
+    eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTABPY_RESOLVENT_EPS_MAX_IT", 1000)
+    conv_test_name = _scfg(_res_eps_cfg, "conv_test", "LINSTABPY_RESOLVENT_EPS_CONV_TEST", "")
     true_residual = _scfg_bool(
         _res_eps_cfg,
         "true_residual",
-        "LINSTAB2D_RESOLVENT_EPS_TRUE_RESIDUAL",
+        "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL",
         False,
     )
     logger.info(
@@ -286,10 +286,10 @@ def resolvent_analysis(
     eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
-    if _scfg_bool(_res_eps_cfg, "monitor", "LINSTAB2D_RESOLVENT_EPS_MONITOR", False):
+    if _scfg_bool(_res_eps_cfg, "monitor", "LINSTABPY_RESOLVENT_EPS_MONITOR", False):
         _install_eps_monitor(
             eps,
-            _scfg_int(_res_eps_cfg, "monitor_every", "LINSTAB2D_RESOLVENT_EPS_MONITOR_EVERY", 10),
+            _scfg_int(_res_eps_cfg, "monitor_every", "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10),
             label="resolvent",
         )
     eps.setFromOptions()
@@ -418,7 +418,7 @@ def compute_resolvent_svd_residuals(
 
     # Rebuild shifted operator and factorization (same path as resolvent_analysis).
     L_sigma = _shifted_operator(L0, omega)
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTAB2D_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
 

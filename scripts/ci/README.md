@@ -8,7 +8,7 @@ By default the harness treats the parent directory as the repository root. If
 you copy the harness elsewhere, set:
 
 ```bash
-export LINSTAB2D_REPO_ROOT=/path/to/linstabpy
+export LINSTABPY_REPO_ROOT=/path/to/linstabpy
 ```
 
 ## Layout
@@ -25,7 +25,7 @@ scripts/ci/
 
 ## Cluster: Lovelace (Cenapad / OHPC)
 
-On **lovelace** (no `sudo`), load compiler, CMake, MVAPICH2, and **HDF5 for MVAPICH2** before install — see **[lovelace_requirements.md](lovelace_requirements.md)** for the exact `module load` lines (including `hdf5/1.12.1-mvapich2`) and `LINSTAB2D_SKIP_SYS_DEPS=1`.
+On **lovelace** (no `sudo`), load compiler, CMake, MVAPICH2, and **HDF5 for MVAPICH2** before install — see **[lovelace_requirements.md](lovelace_requirements.md)** for the exact `module load` lines (including `hdf5/1.12.1-mvapich2`) and `LINSTABPY_SKIP_SYS_DEPS=1`.
 
 ## Benchmark examples
 
@@ -148,8 +148,8 @@ This uses `examples/example_1_blasius_smoke.jsonc` (small `nx` / `ny`) and write
 
 ## Notes
 
-- `LINSTAB2D_INSTALL_RUN_ID` can be set to override the auto-generated run id.
-- `LINSTAB2D_INSTALL_LOG_DIR` overrides the default log directory (`install_runs/`).
-- `LINSTAB2D_REPO_ROOT` points the harness at a checkout outside the parent directory.
-- `LINSTAB2D_SKIP_SYS_DEPS=1` skips system dependency checks (pre-provisioned machines only).
+- `LINSTABPY_INSTALL_RUN_ID` can be set to override the auto-generated run id.
+- `LINSTABPY_INSTALL_LOG_DIR` overrides the default log directory (`install_runs/`).
+- `LINSTABPY_REPO_ROOT` points the harness at a checkout outside the parent directory.
+- `LINSTABPY_SKIP_SYS_DEPS=1` skips system dependency checks (pre-provisioned machines only).
 - Progress tracking is at the repository root in `PROGRESS.md`.

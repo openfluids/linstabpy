@@ -93,7 +93,7 @@ def _eigs_generalized(
 
     # Shift-invert spectral transformation (MUMPS by default, configurable).
     _scfg_spatial = solver_cfg.get("spatial", solver_cfg.get("eigen", {})) if solver_cfg is not None else None
-    st_solver = _scfg(_scfg_spatial, "st_solver", "LINSTAB2D_SPATIAL_ST_SOLVER", "mumps")
+    st_solver = _scfg(_scfg_spatial, "st_solver", "LINSTABPY_SPATIAL_ST_SOLVER", "mumps")
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
     # Mirror the temporal solver and set the shift explicitly on ST so the

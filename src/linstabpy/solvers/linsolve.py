@@ -52,7 +52,7 @@ class LinearSolver:
 def make_linear_solver(
     operator: sp.spmatrix | PETSc.Mat,
     *,
-    env_prefix: str = "LINSTAB2D_LINSOLVE",
+    env_prefix: str = "LINSTABPY_LINSOLVE",
     solver_cfg: dict | None = None,
 ) -> LinearSolver:
     """Build a reusable PETSc linear solver for ``operator``.
@@ -67,7 +67,7 @@ def make_linear_solver(
         Optional solver config dict (from JSONC ``"solver"`` section).
         When provided, the appropriate subsection is selected based on
         ``env_prefix``: ``"resolvent"`` subsection for
-        ``LINSTAB2D_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
+        ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
         subsection override the corresponding env vars.
     """
     require_complex(solver_cfg)

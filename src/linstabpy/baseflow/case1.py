@@ -36,7 +36,7 @@ def _load_sponge_aux(case_inputs_mat: Path) -> np.ndarray:
         raise ModuleNotFoundError(
             "MATLAB sponge_aux loading requires optional dependency 'h5py'. "
             "Install the 'linstabpy[hdf5]' extra or rerun install.sh with "
-            "LINSTAB2D_WITH_H5PY=1."
+            "LINSTABPY_WITH_H5PY=1."
         ) from exc
     with h5py.File(case_inputs_mat, "r") as handle:
         if "sponge_aux" not in handle:

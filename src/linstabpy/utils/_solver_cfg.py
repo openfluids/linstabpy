@@ -70,13 +70,13 @@ def _mumps_petsc_options(cfg: dict | None) -> dict[str, str]:
     """
     options: dict[str, str] = {}
 
-    if _scfg_bool(cfg, "mumps_icntl_7", "LINSTAB2D_PETSC_SET_MUMPS_ICNTL_7", False):
+    if _scfg_bool(cfg, "mumps_icntl_7", "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False):
         options["mat_mumps_icntl_7"] = "5"  # METIS ordering
 
     mumps_icntl_14 = _scfg_optional_int(
         cfg,
         "mumps_icntl_14",
-        "LINSTAB2D_PETSC_MUMPS_ICNTL_14",
+        "LINSTABPY_PETSC_MUMPS_ICNTL_14",
         100,
     )
     if mumps_icntl_14 is not None:
@@ -85,7 +85,7 @@ def _mumps_petsc_options(cfg: dict | None) -> dict[str, str]:
     mumps_icntl_24 = _scfg_optional_int(
         cfg,
         "mumps_icntl_24",
-        "LINSTAB2D_PETSC_MUMPS_ICNTL_24",
+        "LINSTABPY_PETSC_MUMPS_ICNTL_24",
         1,
     )
     if mumps_icntl_24 is not None:

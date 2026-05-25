@@ -485,7 +485,7 @@ def _build_env(default_env: dict[str, str], case: dict[str, Any]) -> dict[str, s
 def _build_command(python_exe: str, launcher_cfg: dict[str, Any]) -> list[str]:
     mpi_procs = int(launcher_cfg.get("mpi_procs", 1))
     launcher = str(launcher_cfg.get("launcher", "")).strip()
-    case_module = os.getenv("LINSTAB2D_CASE_MODULE", "case1").strip() or "case1"
+    case_module = os.getenv("LINSTABPY_CASE_MODULE", "case1").strip() or "case1"
     command = [python_exe, "-u", "-c", f"from {case_module} import compute; compute()"]
     if mpi_procs <= 1:
         return command
@@ -807,7 +807,7 @@ def _flush_reports(
 
 
 def main() -> int:
-    config_path = Path(os.getenv("LINSTAB2D_CASE1_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
+    config_path = Path(os.getenv("LINSTABPY_CASE1_PERF_CONFIG", str(DEFAULT_CONFIG))).resolve()
     cfg = load_jsonc(config_path)
     config_dir = config_path.parent
 
@@ -826,7 +826,7 @@ def main() -> int:
     python_exe = _resolve_executable(config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR)
     default_base_config = defaults.get(
         "base_config",
-        default_env.get("LINSTAB2D_CASE1_CONFIG", "configs/parity_config.jsonc"),
+        default_env.get("LINSTABPY_CASE1_CONFIG", "configs/parity_config.jsonc"),
     )
     default_case_workdir = _resolve_input_path(
         config_dir,
@@ -887,8 +887,8 @@ def main() -> int:
 
         env = os.environ.copy()
         env.update(_build_env(default_env, effective_case))
-        env["LINSTAB2D_CASE1_CONFIG"] = str(case_cfg_path)
-        env["LINSTAB2D_CASE1_OUTPUT_NPZ"] = str(case_npz)
+        env["LINSTABPY_CASE1_CONFIG"] = str(case_cfg_path)
+        env["LINSTABPY_CASE1_OUTPUT_NPZ"] = str(case_npz)
         pythonpath_entries = [str(ROOT / "src"), str(ROOT)]
         existing_pythonpath = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = os.pathsep.join(

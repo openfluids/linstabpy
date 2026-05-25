@@ -195,8 +195,8 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
             np.array([], dtype=np.int64),
         )
 
-    monkeypatch.setenv("LINSTAB2D_CASE_CONFIG", str(config_path))
-    monkeypatch.setenv("LINSTAB2D_CASE_OUTPUT_NPZ", str(output_path))
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
+    monkeypatch.setenv("LINSTABPY_CASE_OUTPUT_NPZ", str(output_path))
     monkeypatch.setattr(results_runtime, "_log", log_sink or (lambda message: None))
     monkeypatch.setattr(results_runtime, "_log_stage", lambda stage, start: None)
     monkeypatch.setattr(

@@ -27,7 +27,7 @@ def _run_all_examples_list() -> str:
 def _benchmark_default_module() -> str:
     text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
     match = re.search(
-        r'EX1_MODULE="\$\{LINSTAB2D_BENCHMARK_EX1_MODULE:-([^}]+)\}"',
+        r'EX1_MODULE="\$\{LINSTABPY_BENCHMARK_EX1_MODULE:-([^}]+)\}"',
         text,
     )
 

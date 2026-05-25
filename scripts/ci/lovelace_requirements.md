@@ -35,19 +35,19 @@ After `module load`:
 
 ```bash
 bash diagnose.sh
-export LINSTAB2D_SKIP_SYS_DEPS=1
-export LINSTAB2D_PETSC_MPIEXEC="$(command -v mpiexec.hydra 2>/dev/null || command -v mpiexec)"
+export LINSTABPY_SKIP_SYS_DEPS=1
+export LINSTABPY_PETSC_MPIEXEC="$(command -v mpiexec.hydra 2>/dev/null || command -v mpiexec)"
 bash run_install_tester.sh lovelace
 # or: bash install.sh
 ```
 
-- **`LINSTAB2D_SKIP_SYS_DEPS=1`**: do not run `sudo dnf`; rely on modules + `uv` for Python.
-- **`LINSTAB2D_PETSC_MPIEXEC`**: optional but useful so PETSc configure uses the same Hydra `mpiexec` as diagnostics (`diagnose.sh` prints a hint when probes pass).
+- **`LINSTABPY_SKIP_SYS_DEPS=1`**: do not run `sudo dnf`; rely on modules + `uv` for Python.
+- **`LINSTABPY_PETSC_MPIEXEC`**: optional but useful so PETSc configure uses the same Hydra `mpiexec` as diagnostics (`diagnose.sh` prints a hint when probes pass).
 
 For HDF5-enabled Python extras (only if you need h5py):
 
 ```bash
-LINSTAB2D_WITH_H5PY=1 bash install.sh
+LINSTABPY_WITH_H5PY=1 bash install.sh
 ```
 
 (requires a consistent HDF5 module such as the one above).
@@ -66,4 +66,4 @@ Common on module-only MPI installs. If runtime errors mention missing `libmpi`, 
 
 ## Note on `install.sh` and `h5cc`
 
-The installer currently treats `h5cc` as a prerequisite when missing and may attempt `dnf` before you can opt out. On shared clusters, always set **`LINSTAB2D_SKIP_SYS_DEPS=1`** *or* load an HDF5 module first so `h5cc` is present.
+The installer currently treats `h5cc` as a prerequisite when missing and may attempt `dnf` before you can opt out. On shared clusters, always set **`LINSTABPY_SKIP_SYS_DEPS=1`** *or* load an HDF5 module first so `h5cc` is present.

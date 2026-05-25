@@ -43,7 +43,7 @@ def _matrix_nnz(operator) -> int:
 
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
     """Resolve PETSc matrix conversion mode."""
-    raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTAB2D_PETSC_MATRIX_MODE", "auto")
+    raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto")
     if raw in {"auto", "local", "serial", "distributed", "mpi", "parallel"}:
         return raw
     raise ValueError(
@@ -81,7 +81,7 @@ def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Ma
     """Convert a SciPy sparse matrix to a PETSc AIJ Mat.
 
     Behavior is controlled by ``petsc_matrix_mode`` (JSONC) or
-    ``LINSTAB2D_PETSC_MATRIX_MODE`` (env var):
+    ``LINSTABPY_PETSC_MATRIX_MODE`` (env var):
     - ``local``/``serial``: local AIJ from full CSR (single-rank style)
     - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ
     - ``auto`` (default): distributed when MPI size > 1, else local

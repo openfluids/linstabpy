@@ -87,9 +87,9 @@ def _output_npz_path() -> Path:
     harness to isolate concurrent runs by providing a unique target path.
     """
     raw = _first_env(
-        "LINSTAB2D_CASE_OUTPUT_NPZ",
-        "LINSTAB2D_CASE2_OUTPUT_NPZ",
-        "LINSTAB2D_CASE1_OUTPUT_NPZ",
+        "LINSTABPY_CASE_OUTPUT_NPZ",
+        "LINSTABPY_CASE2_OUTPUT_NPZ",
+        "LINSTABPY_CASE1_OUTPUT_NPZ",
         default=str(Path.cwd() / f"{_log_prefix()}.npz"),
     )
     return Path(raw).resolve()
@@ -97,7 +97,7 @@ def _output_npz_path() -> Path:
 
 def _log_prefix() -> str:
     """Return the runtime log prefix for the current case runner."""
-    return os.getenv("LINSTAB2D_CASE_LOG_PREFIX", "case1").strip() or "case1"
+    return os.getenv("LINSTABPY_CASE_LOG_PREFIX", "case1").strip() or "case1"
 
 
 def _log(message: str) -> None:
@@ -113,12 +113,12 @@ def _log_stage(stage: str, stage_start: float) -> None:
 
 def _default_stage_heartbeat_seconds() -> float:
     """Return the default heartbeat interval for long-running stages."""
-    raw = os.getenv("LINSTAB2D_STAGE_HEARTBEAT_SECONDS", "30")
+    raw = os.getenv("LINSTABPY_STAGE_HEARTBEAT_SECONDS", "30")
     try:
         return float(raw)
     except ValueError:
         raise ValueError(
-            "LINSTAB2D_STAGE_HEARTBEAT_SECONDS must be a float number of seconds"
+            "LINSTABPY_STAGE_HEARTBEAT_SECONDS must be a float number of seconds"
         ) from None
 
 
@@ -375,9 +375,9 @@ def compute() -> None:
 
     config_path = Path(
         _first_env(
-            "LINSTAB2D_CASE_CONFIG",
-            "LINSTAB2D_CASE2_CONFIG",
-            "LINSTAB2D_CASE1_CONFIG",
+            "LINSTABPY_CASE_CONFIG",
+            "LINSTABPY_CASE2_CONFIG",
+            "LINSTABPY_CASE1_CONFIG",
             default=str(Path.cwd() / "configs" / "parity_config.jsonc"),
         )
     )
@@ -388,9 +388,9 @@ def compute() -> None:
     elif any(
         name in os.environ
         for name in (
-            "LINSTAB2D_CASE_CONFIG",
-            "LINSTAB2D_CASE2_CONFIG",
-            "LINSTAB2D_CASE1_CONFIG",
+            "LINSTABPY_CASE_CONFIG",
+            "LINSTABPY_CASE2_CONFIG",
+            "LINSTABPY_CASE1_CONFIG",
         )
     ):
         raise FileNotFoundError(f"case config file not found: {config_path}")
@@ -525,12 +525,12 @@ def compute() -> None:
     # Read solver knobs from JSONC (env-var fallback for backward compat).
     _ecfg = solver_cfg.get("eigen", {})
     st_solver = _ecfg.get("st_solver",
-                          os.getenv("LINSTAB2D_EIGEN_ST_SOLVER", "mumps")).strip().lower()
+                          os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
     iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
     _root_raw = _first_env(
-        "LINSTAB2D_CASE_ROOT_ASSEMBLY",
-        "LINSTAB2D_CASE2_ROOT_ASSEMBLY",
-        "LINSTAB2D_CASE1_ROOT_ASSEMBLY",
+        "LINSTABPY_CASE_ROOT_ASSEMBLY",
+        "LINSTABPY_CASE2_ROOT_ASSEMBLY",
+        "LINSTABPY_CASE1_ROOT_ASSEMBLY",
     )
     requested_root_operator = size > 1 and (
         (_root_raw.strip().lower() in {"1", "true", "yes", "on"}) if _root_raw is not None else iterative_st_solver
@@ -544,7 +544,7 @@ def compute() -> None:
     if use_root_operator and run_resolvent:
         raise RuntimeError(
             "Root-only operator assembly mode is currently intended for stability solves only. "
-            "Set LINSTAB2D_CASE_ROOT_ASSEMBLY=0 when running resolvent in MPI."
+            "Set LINSTABPY_CASE_ROOT_ASSEMBLY=0 when running resolvent in MPI."
         )
     if use_root_operator:
         solver_cfg.setdefault("root_scatter", True)
@@ -1220,7 +1220,7 @@ def main() -> None:
     output_npz = _output_npz_path()
     need_recompute = False
 
-    force_recompute = os.getenv("LINSTAB2D_FORCE_RECOMPUTE", "").strip() in {
+    force_recompute = os.getenv("LINSTABPY_FORCE_RECOMPUTE", "").strip() in {
         "1",
         "true",
         "yes",
@@ -1229,7 +1229,7 @@ def main() -> None:
 
     if rank == 0:
         if force_recompute:
-            print("LINSTAB2D_FORCE_RECOMPUTE set: skipping cache check.")
+            print("LINSTABPY_FORCE_RECOMPUTE set: skipping cache check.")
             need_recompute = True
         else:
             try:
@@ -1240,9 +1240,9 @@ def main() -> None:
             else:
                 try:
                     config_path_raw = _first_env(
-                        "LINSTAB2D_CASE_CONFIG",
-                        "LINSTAB2D_CASE2_CONFIG",
-                        "LINSTAB2D_CASE1_CONFIG",
+                        "LINSTABPY_CASE_CONFIG",
+                        "LINSTABPY_CASE2_CONFIG",
+                        "LINSTABPY_CASE1_CONFIG",
                     )
                     if config_path_raw is not None:
                         current_config = load_jsonc(Path(config_path_raw))

@@ -214,27 +214,27 @@ def _resolve_assembly_metrics_config(solver_cfg: dict | None) -> _AssemblyMetric
     output = _raw_cfg_value(
         solver_cfg,
         "assembly_metrics_output",
-        "LINSTAB2D_ASSEMBLY_METRICS_OUTPUT",
+        "LINSTABPY_ASSEMBLY_METRICS_OUTPUT",
     )
     directory = _raw_cfg_value(
         solver_cfg,
         "assembly_metrics_dir",
-        "LINSTAB2D_ASSEMBLY_METRICS_DIR",
+        "LINSTABPY_ASSEMBLY_METRICS_DIR",
     )
     tag = _raw_cfg_value(
         solver_cfg,
         "assembly_metrics_tag",
-        "LINSTAB2D_ASSEMBLY_METRICS_TAG",
+        "LINSTABPY_ASSEMBLY_METRICS_TAG",
     )
     enabled = (
-        _scfg_bool(solver_cfg, "assembly_metrics", "LINSTAB2D_ASSEMBLY_METRICS", False)
+        _scfg_bool(solver_cfg, "assembly_metrics", "LINSTABPY_ASSEMBLY_METRICS", False)
         or output is not None
         or directory is not None
     )
     log_enabled = _scfg_bool(
         solver_cfg,
         "assembly_metrics_log",
-        "LINSTAB2D_ASSEMBLY_METRICS_LOG",
+        "LINSTABPY_ASSEMBLY_METRICS_LOG",
         enabled,
     )
     return _AssemblyMetricsConfig(
@@ -547,7 +547,7 @@ def _requested_lnse_backend(
 ) -> str:
     """Return the normalized backend request string for LNSE workflow helpers."""
     raw = (
-        _scfg(solver_cfg, "assembly_backend", "LINSTAB2D_ASSEMBLY_BACKEND", "scipy")
+        _scfg(solver_cfg, "assembly_backend", "LINSTABPY_ASSEMBLY_BACKEND", "scipy")
         if backend is None
         else backend
     )

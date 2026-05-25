@@ -31,7 +31,7 @@ If the PETSc line completes in **seconds** after you changed system MPI, you may
 
 On some systems, `mpiexec` for one vendor **hangs** or times out on `mpiexec -n 1 /bin/true` while another launcher works (this showed up with older Open MPI on one host while MPICH was fine).
 
-The `scripts/ci/diagnose.sh` script uses short timeouts and force-kill so a broken stack does not wedge an interactive shell. Prefer the launcher that passes the probe when setting `LINSTAB2D_PETSC_MPIEXEC` / `LINSTAB2D_VERIFY_MPIEXEC` if the installer doc suggests it.
+The `scripts/ci/diagnose.sh` script uses short timeouts and force-kill so a broken stack does not wedge an interactive shell. Prefer the launcher that passes the probe when setting `LINSTABPY_PETSC_MPIEXEC` / `LINSTABPY_VERIFY_MPIEXEC` if the installer doc suggests it.
 
 ## GNU toolchain vs Intel MPI on `PATH`
 
@@ -46,7 +46,7 @@ If Intel oneAPI MPI appears first on `PATH`, `mpicc` / `mpiexec` may be Intel’
 
 `install_tester` now runs against the real repository checkout instead of a
 copied `src/` and `examples/` bundle. The harness defaults to the parent
-directory as the checkout root; set `LINSTAB2D_REPO_ROOT=/path/to/linstabpy`
+directory as the checkout root; set `LINSTABPY_REPO_ROOT=/path/to/linstabpy`
 when the harness is copied elsewhere.
 
 This keeps `src/linstabpy/` as the only importable library source tree. The
