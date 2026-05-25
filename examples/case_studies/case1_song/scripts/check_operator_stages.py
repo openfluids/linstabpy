@@ -20,12 +20,12 @@ ROOT = SCRIPT.parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstab2d.utils.jsonc import load_jsonc
-from linstab2d.baseflow import load_hamada_case, sutherland_air
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator
+from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.baseflow import load_hamada_case, sutherland_air
+from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
+from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator
 
 
 def _now_utc() -> str:

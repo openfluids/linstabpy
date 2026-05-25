@@ -2,7 +2,7 @@
   // Canonical parity configuration for Case 1 (SWBLI).
   // Runtime code should use this as default and only diverge when
   // explicit environment overrides are provided.
-  // Paths are relative to studies/case1/ (the case working directory).
+  // Paths are relative to examples/case_studies/case1_song/ (the case working directory).
 
   "paths": {
     // Directory containing x/y/rho/u/v/w/T/sponge .npy files.
