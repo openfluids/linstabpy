@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_all_examples.sh — recompute linstab2d examples and run the parity check.
+# run_all_examples.sh — recompute linstabpy examples and run the parity check.
 #
 # USAGE
 #   ./run_all_examples.sh                                # use cached NPZs when present
@@ -35,7 +35,7 @@ else
 fi
 
 EXAMPLES_DIR="$REPO/examples"
-PARITY_SCRIPT="$REPO/validation/martini2024/tools/compare_martini_examples.py"
+PARITY_SCRIPT="$REPO/scripts/validation/martini2024/tools/compare_martini_examples.py"
 export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 EXAMPLE_SPECS=(

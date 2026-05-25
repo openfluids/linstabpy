@@ -220,11 +220,11 @@ The install script creates \path{.venv/} and installs PETSc/SLEPc support for th
 
 \begin{commandbox}
 .venv/bin/python --version
-.venv/bin/python -c "import linstab2d; print(linstab2d.__file__)"
+.venv/bin/python -c "import linstabpy; print(linstabpy.__file__)"
 \end{commandbox}
 
 \begin{notebox}
-The import package is \code{linstab2d}. The repository and distribution name are \code{linstabpy}. Keep this distinction in mind when reading commands and imports.
+The import package is \code{linstabpy}. The repository and distribution name are \code{linstabpy}. Keep this distinction in mind when reading commands and imports.
 \end{notebox}
 
 \section*{3. The code pattern}
@@ -264,19 +264,19 @@ The full examples can be memory- and time-intensive. Start with the smoke run an
 The top-level directories have distinct roles. Keep reusable package code, runnable examples, study campaigns, and validation data separated:
 
 \begin{outputbox}
-src/linstab2d/      importable Python package
+src/linstabpy/      importable Python package
 examples/           runnable Martini examples; generated .npz/.png ignored
-studies/case1/      SWBLI study: configs, data/baseflow, reference, scripts
-studies/case2/      TCFD campaign: configs, data/baseflow, scripts, docs
+examples/case_studies/case1_song/      SWBLI study: configs, data/baseflow, reference, scripts
+examples/case_studies/case2_lui/      TCFD campaign: configs, data/baseflow, scripts, docs
 validation/         reproducibility harnesses, fixtures, reports, references
-validation/martini2024/tools/
+scripts/validation/martini2024/tools/
                     MATLAB-to-Python conversion and parity tooling
 scripts/            repository guardrails and maintenance utilities
-install_tester/     thin install/diagnose/benchmark harness
+scripts/ci/     thin install/diagnose/benchmark harness
 tutorial/           tutorial source and generated PDF
 \end{outputbox}
 
-Do not put reusable solver code under \path{studies/} or \path{examples/}. Put reusable code under \path{src/linstab2d/}, runnable examples under \path{examples/}, case-specific workflows under \path{studies/}, and reference/validation assets under \path{validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
+Do not put reusable solver code under \path{studies/} or \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{studies/}, and reference/validation assets under \path{validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
 
 \subsection*{Use one example runner}
 
@@ -390,7 +390,7 @@ examples/example_0_curvilinear_validation.npz
 examples/example_0_curvilinear_validation.png
 examples/example_0_curvilinear_validation_baseflow.png
 examples/example_0_curvilinear_validation_support_error.png
-artifacts/curvilinear_derivative_parity.json
+tests/fixtures/curvilinear_derivative_parity.json
 \end{outputbox}
 
 What to inspect: the mapped grid should remain smooth, and the support-error figure should localize the derivative error rather than showing a domain-wide failure. This case is mostly a geometry and derivative diagnostic.
@@ -664,20 +664,20 @@ Example 5  gains and mapped domain    mapping scaling is fixed in Python
 After the example artifacts exist, compare Python outputs with extracted MATLAB bundles:
 
 \begin{commandbox}
-.venv/bin/python validation/martini2024/tools/compare_martini_examples.py
+.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
 \end{commandbox}
 
 The machine-readable registry is:
 
 \begin{outputbox}
-validation/martini2024/tools/martini_cases.jsonc
+scripts/validation/martini2024/tools/martini_cases.jsonc
 \end{outputbox}
 
 The current reports are written under:
 
 \begin{outputbox}
-validation/martini2024/reports/martini_parity_latest.json
-validation/martini2024/reports/martini_parity_table.csv
+scripts/validation/martini2024/reports/martini_parity_latest.json
+scripts/validation/martini2024/reports/martini_parity_table.csv
 \end{outputbox}
 
 \begin{warningbox}
@@ -697,15 +697,15 @@ The Song 2023 case is a validation workflow for an oblique shock / boundary-laye
 The main files are:
 
 \begin{outputbox}
-validation/song_2023/song_2023.py
-validation/song_2023/configs/song_2023.jsonc
-validation/song_2023/song_2023.sh
+scripts/validation/song_2023/song_2023.py
+scripts/validation/song_2023/configs/song_2023.jsonc
+scripts/validation/song_2023/song_2023.sh
 \end{outputbox}
 
 Run the baseline through the wrapper:
 
 \begin{commandbox}
-bash validation/song_2023/song_2023.sh
+bash scripts/validation/song_2023/song_2023.sh
 \end{commandbox}
 
 The baseline JSONC contains the physical parameters, finite-difference order, stride, preprocessing, boundary conditions, and solver settings.
@@ -733,11 +733,11 @@ Boundary conditions:
 Expected canonical outputs:
 
 \begin{outputbox}
-validation/song_2023/song_2023.npz
-validation/song_2023/song_2023.log
-validation/song_2023/song_2023.png
-validation/song_2023/song_2023_baseflow.png
-validation/song_2023/song_2023_support_direct_modes.png
+scripts/validation/song_2023/song_2023.npz
+scripts/validation/song_2023/song_2023.log
+scripts/validation/song_2023/song_2023.png
+scripts/validation/song_2023/song_2023_baseflow.png
+scripts/validation/song_2023/song_2023_support_direct_modes.png
 \end{outputbox}
 
 \section*{8. Song validation matrices}
@@ -745,36 +745,36 @@ validation/song_2023/song_2023_support_direct_modes.png
 Use JSONC matrix files when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
 
 \begin{outputbox}
-validation/song_2023/configs/song_2023_matrix.jsonc
-validation/song_2023/configs/order_convergence.jsonc
-validation/song_2023/configs/song_2023_order_preflight.jsonc
-validation/song_2023/configs/song_2023_scaling.jsonc
-validation/song_2023/configs/fd4_sensitivity.jsonc
-validation/song_2023/configs/shift_scan.jsonc
-validation/song_2023/configs/shifted_ksp_matrix.jsonc
+scripts/validation/song_2023/configs/song_2023_matrix.jsonc
+scripts/validation/song_2023/configs/order_convergence.jsonc
+scripts/validation/song_2023/configs/song_2023_order_preflight.jsonc
+scripts/validation/song_2023/configs/song_2023_scaling.jsonc
+scripts/validation/song_2023/configs/fd4_sensitivity.jsonc
+scripts/validation/song_2023/configs/shift_scan.jsonc
+scripts/validation/song_2023/configs/shifted_ksp_matrix.jsonc
 \end{outputbox}
 
 Run the solver/preprocessing matrix:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.scripts.run_song_2023_matrix
+.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_matrix
 \end{commandbox}
 
 Run the finite-difference order preflight before the full order convergence study:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.scripts.run_song_2023_order_preflight
+.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_preflight
 \end{commandbox}
 
 Run the order convergence study only on a machine with enough memory for the configured guard:
 
 \begin{commandbox}
-.venv/bin/python -m validation.song_2023.scripts.run_song_2023_order_convergence
-.venv/bin/python validation/song_2023/scripts/plot_order_convergence.py
+.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_convergence
+.venv/bin/python scripts/validation/song_2023/scripts/plot_order_convergence.py
 \end{commandbox}
 
 \begin{warningbox}
-The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{validation/song_2023/configs/order_convergence.jsonc} before running it.
+The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{scripts/validation/song_2023/configs/order_convergence.jsonc} before running it.
 \end{warningbox}
 
 \section*{9. How to adjust a shipped case}
@@ -826,7 +826,7 @@ Use this checklist before writing new package code:
 For MATLAB-backed parity, add a registry entry only after the reference bundle location is known:
 
 \begin{outputbox}
-validation/martini2024/tools/martini_cases.jsonc
+scripts/validation/martini2024/tools/martini_cases.jsonc
 \end{outputbox}
 
 \section*{11. Common first-run problems}

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# linstab2d bootstrap installer
+# linstabpy bootstrap installer
 # =============================================================================
 #
 # Creates a Python 3.13 virtual environment and installs all dependencies
@@ -52,11 +52,11 @@ warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
 err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
 ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
-mktemp_py() { mktemp "${TMPDIR:-/tmp}/linstab2d.XXXXXX"; }
+mktemp_py() { mktemp "${TMPDIR:-/tmp}/linstabpy.XXXXXX"; }
 
 # Print a directory containing libmpi.so* / libmpich.so* (Open MPI, MPICH, Intel MPI)
 # or return non-zero.
-linstab2d_resolve_mpi_libdir() {
+linstabpy_resolve_mpi_libdir() {
     local mpicc_bin=""
     local d=""
     local so=""
@@ -139,16 +139,16 @@ linstab2d_resolve_mpi_libdir() {
 # descriptor" chatter that MPICH prints after the child process exits. Any other
 # stderr output is forwarded untouched. Preserves the child's exit code.
 #
-# Usage: linstab2d_run_verify <py_bin> <heredoc_path>
-linstab2d_run_verify() {
+# Usage: linstabpy_run_verify <py_bin> <heredoc_path>
+linstabpy_run_verify() {
     if declare -p LINSTAB_VERIFY_MPIWRAP >/dev/null 2>&1 && [ "${#LINSTAB_VERIFY_MPIWRAP[@]}" -gt 0 ]; then
-        linstab2d_run_verify_wrapped "$1" "$2" "${LINSTAB_VERIFY_MPIWRAP[@]}"
+        linstabpy_run_verify_wrapped "$1" "$2" "${LINSTAB_VERIFY_MPIWRAP[@]}"
     else
-        linstab2d_run_verify_wrapped "$1" "$2"
+        linstabpy_run_verify_wrapped "$1" "$2"
     fi
 }
 
-linstab2d_run_verify_wrapped() {
+linstabpy_run_verify_wrapped() {
     local py_bin="$1"; shift
     local snippet_file="$1"; shift
     local _err _rc
@@ -173,7 +173,7 @@ ensure_reference_submodule() {
         return 0
     fi
 
-    local submodule_path="src/linstab2d/data/baseflows"
+    local submodule_path="src/linstabpy/data/baseflows"
     if ! git -C "${ROOT_DIR}" config --file .gitmodules --get-regexp '^submodule\..*\.path$' \
         | awk '{print $2}' | grep -Fxq "${submodule_path}"; then
         warn "Skipping baseflow submodule init; ${submodule_path} is not declared in .gitmodules."
@@ -226,7 +226,7 @@ _venv_dir="$(cd "${_script_dir}/.." && pwd)"
 _site_packages="$(printf '%s\n' "${_venv_dir}"/lib/python*/site-packages | head -n 1)"
 _petsc_lib="${_site_packages}/petsc/lib"
 _slepc_lib="${_site_packages}/slepc/lib"
-_ld_file="${_venv_dir}/linstab2d_ld_library_path"
+_ld_file="${_venv_dir}/linstabpy_ld_library_path"
 
 # Prefer the install-time runtime manifest. This preserves an Intel MPI install
 # even when /usr/bin/mpicc from Open MPI is also present on the host.
@@ -801,7 +801,7 @@ configure_linux_petsc_toolchain() {
     ok "Configured Linux PETSc toolchain (GNU Fortran)."
 }
 
-linstab2d_resolve_launcher_candidate() {
+linstabpy_resolve_launcher_candidate() {
     local candidate="$1"
     if [ -x "${candidate}" ]; then
         printf '%s\n' "${candidate}"
@@ -815,7 +815,7 @@ linstab2d_resolve_launcher_candidate() {
 }
 
 # Echo absolute path to an mpiexec that successfully runs -n 1 /bin/true, or return 1.
-linstab2d_find_mpiexec_for_n1() {
+linstabpy_find_mpiexec_for_n1() {
     local candidate resolved mpi_root
     local candidates=()
     if mpi_root="$(linux_intel_mpi_root)"; then
@@ -823,7 +823,7 @@ linstab2d_find_mpiexec_for_n1() {
     fi
     candidates+=(mpiexec.mpich mpiexec.hydra mpirun.mpich mpirun.openmpi mpiexec.openmpi mpiexec mpirun)
     for candidate in "${candidates[@]}"; do
-        resolved="$(linstab2d_resolve_launcher_candidate "${candidate}" || true)"
+        resolved="$(linstabpy_resolve_launcher_candidate "${candidate}" || true)"
         [ -n "${resolved}" ] || continue
         if has_cmd timeout; then
             if timeout 25 "$resolved" -n 1 /bin/true 2>/dev/null; then
@@ -840,7 +840,7 @@ linstab2d_find_mpiexec_for_n1() {
     return 1
 }
 
-linstab2d_probe_mpi_launch() {
+linstabpy_probe_mpi_launch() {
     if has_cmd timeout; then
         timeout 25 "$@" >/dev/null 2>&1
     else
@@ -860,7 +860,7 @@ configure_petsc_build_mpiexec() {
         return 0
     fi
     local resolved
-    if ! resolved="$(linstab2d_find_mpiexec_for_n1)"; then
+    if ! resolved="$(linstabpy_find_mpiexec_for_n1)"; then
         err "No working mpiexec for PETSc configure. Try: mpiexec.mpich -n 1 /bin/true"
         err "Or set LINSTAB2D_PETSC_MPIEXEC=/path/to/mpiexec and re-run install.sh"
         exit 1
@@ -871,14 +871,14 @@ configure_petsc_build_mpiexec() {
 
 # On Linux MPICH/Hydra, ``import mpi4py.MPI`` in a plain python process can hang in MPI_Init.
 # Populate LINSTAB_VERIFY_MPIWRAP as: empty or ( mpiexec -n 1 ).
-linstab2d_prepare_verify_mpiwrap() {
+linstabpy_prepare_verify_mpiwrap() {
     LINSTAB_VERIFY_MPIWRAP=()
     [ "${OS_NAME}" = "Linux" ] || return 0
     # Drop inherited HYDRA_BOOTSTRAP (e.g. conda / old shells): Hydra \"exec\" is unsupported on many distros.
     unset HYDRA_BOOTSTRAP 2>/dev/null || true
     local mx="${LINSTAB2D_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
     if [ -z "${mx}" ]; then
-        mx="$(linstab2d_find_mpiexec_for_n1 || true)"
+        mx="$(linstabpy_find_mpiexec_for_n1 || true)"
     fi
     if [ -n "${mx}" ]; then
         LINSTAB_VERIFY_MPIWRAP=( "${mx}" -n 1 )
@@ -888,7 +888,7 @@ linstab2d_prepare_verify_mpiwrap() {
     fi
 }
 
-linstab2d_prepare_multirank_verify_mpiwrap() {
+linstabpy_prepare_multirank_verify_mpiwrap() {
     local ranks="$1"
     LINSTAB_VERIFY_MULTIWRAP=()
     LINSTAB_VERIFY_MULTIENV=()
@@ -896,11 +896,11 @@ linstab2d_prepare_multirank_verify_mpiwrap() {
     unset HYDRA_BOOTSTRAP 2>/dev/null || true
     local mx="${LINSTAB2D_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
     if [ -z "${mx}" ]; then
-        mx="$(linstab2d_find_mpiexec_for_n1 || true)"
+        mx="$(linstabpy_find_mpiexec_for_n1 || true)"
     fi
     [ -n "${mx}" ] || return 1
 
-    if linstab2d_probe_mpi_launch "${mx}" -n "${ranks}" /bin/true; then
+    if linstabpy_probe_mpi_launch "${mx}" -n "${ranks}" /bin/true; then
         LINSTAB_VERIFY_MULTIWRAP=( "${mx}" -n "${ranks}" )
         log "Multi-rank verification will use: ${mx} -n ${ranks}"
         return 0
@@ -908,7 +908,7 @@ linstab2d_prepare_multirank_verify_mpiwrap() {
 
     case "$(basename "${mx}")" in
         mpiexec.mpich|mpiexec.hydra|mpirun.mpich)
-            if linstab2d_probe_mpi_launch env HYDRA_BOOTSTRAP=fork "${mx}" -n "${ranks}" /bin/true; then
+            if linstabpy_probe_mpi_launch env HYDRA_BOOTSTRAP=fork "${mx}" -n "${ranks}" /bin/true; then
                 LINSTAB_VERIFY_MULTIENV=( HYDRA_BOOTSTRAP=fork )
                 LINSTAB_VERIFY_MULTIWRAP=( "${mx}" -n "${ranks}" )
                 log "Multi-rank verification will use: HYDRA_BOOTSTRAP=fork ${mx} -n ${ranks}"
@@ -919,7 +919,7 @@ linstab2d_prepare_multirank_verify_mpiwrap() {
     return 1
 }
 
-linstab2d_cpu_count() {
+linstabpy_cpu_count() {
     if has_cmd getconf; then
         getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
     fi
@@ -1075,11 +1075,11 @@ if [[ "${1:-}" == "--check" ]]; then
         err "No virtual environment found at ${VENV_DIR}"
         exit 1
     fi
-    linstab2d_prepare_verify_mpiwrap
+    linstabpy_prepare_verify_mpiwrap
     _check_snippet="$(mktemp_py)"
     cat >"${_check_snippet}" <<'PY'
 import sys, numpy as np
-# mpi4py must bind MPI before petsc4py (same rule as linstab2d.utils.petsc_init).
+# mpi4py must bind MPI before petsc4py (same rule as linstabpy.utils.petsc_init).
 import mpi4py.MPI  # noqa: F401
 from petsc4py import PETSc
 from slepc4py import SLEPc
@@ -1109,16 +1109,16 @@ eps.destroy()
 mat.destroy()
 print("All checks passed.")
 PY
-    linstab2d_run_verify "${VENV_DIR}/bin/python" "${_check_snippet}"
+    linstabpy_run_verify "${VENV_DIR}/bin/python" "${_check_snippet}"
     _check_rc=$?
     rm -f "${_check_snippet}"
     if [ "${_check_rc}" -ne 0 ]; then
         exit "${_check_rc}"
     fi
 
-    _cpu_count="$(linstab2d_cpu_count)"
+    _cpu_count="$(linstabpy_cpu_count)"
     if [ "${OS_NAME}" = "Linux" ] && [ "${_cpu_count}" -gt 1 ]; then
-        if ! linstab2d_prepare_multirank_verify_mpiwrap 2; then
+        if ! linstabpy_prepare_multirank_verify_mpiwrap 2; then
             err "Quick check failed: no working 2-rank mpiexec launcher was found."
             err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
             exit 1
@@ -1139,7 +1139,7 @@ if rank == 0:
     print(f"mpi4py_multirank=size={size}")
     print(f"petsc4py_multirank=size={petsc_size}")
 PY
-        linstab2d_run_verify_wrapped \
+        linstabpy_run_verify_wrapped \
             "${VENV_DIR}/bin/python" \
             "${_check_multirank_snippet}" \
             "${LINSTAB_VERIFY_MULTIENV[@]}" \
@@ -1459,9 +1459,9 @@ if [ "${OS_NAME}" = "Darwin" ]; then
     done
 fi
 
-# ── Step 7: Install linstab2d in editable mode ──────────────────────────────
+# ── Step 7: Install linstabpy in editable mode ──────────────────────────────
 if [ -f "${ROOT_DIR}/pyproject.toml" ]; then
-    log "Installing linstab2d (editable)..."
+    log "Installing linstabpy (editable)..."
     ${PIP_INSTALL} --no-deps -e "${ROOT_DIR}"
 else
     log "No pyproject.toml (minimal bundle); using .pth fallback."
@@ -1470,8 +1470,8 @@ else
         err "Could not locate site-packages for .pth fallback."
         exit 1
     fi
-    printf '%s\n' "${ROOT_DIR}/src" > "${_sp_fallback}/linstab2d_src_fallback.pth"
-    ok "Installed .pth fallback: ${ROOT_DIR}/src -> ${_sp_fallback}/linstab2d_src_fallback.pth"
+    printf '%s\n' "${ROOT_DIR}/src" > "${_sp_fallback}/linstabpy_src_fallback.pth"
+    ok "Installed .pth fallback: ${ROOT_DIR}/src -> ${_sp_fallback}/linstabpy_src_fallback.pth"
 fi
 
 # h5py is optional (older distro HDF5, Song2023 LNSE, and many workflows do not need it).
@@ -1490,16 +1490,16 @@ fi
 
 # Record DSO search path for mpi4py + PETSc wheels. sitecustomize prepends this
 # before any import (pytest / tools that bypass the bin/python shell wrapper).
-if _mpi_ld_install="$(linstab2d_resolve_mpi_libdir 2>/dev/null)"; then
+if _mpi_ld_install="$(linstabpy_resolve_mpi_libdir 2>/dev/null)"; then
     ok "Resolved MPI libdir for venv: ${_mpi_ld_install}"
 else
     warn "Could not resolve system MPI libdir; mpi4py may need LD_LIBRARY_PATH if imports fail."
     _mpi_ld_install=""
 fi
-: > "${VENV_DIR}/linstab2d_ld_library_path"
-[ -n "${_mpi_ld_install}" ] && printf '%s\n' "${_mpi_ld_install}" >> "${VENV_DIR}/linstab2d_ld_library_path"
-printf '%s\n' "${PETSC_DIR}/lib" >> "${VENV_DIR}/linstab2d_ld_library_path"
-printf '%s\n' "${SLEPC_DIR}/lib" >> "${VENV_DIR}/linstab2d_ld_library_path"
+: > "${VENV_DIR}/linstabpy_ld_library_path"
+[ -n "${_mpi_ld_install}" ] && printf '%s\n' "${_mpi_ld_install}" >> "${VENV_DIR}/linstabpy_ld_library_path"
+printf '%s\n' "${PETSC_DIR}/lib" >> "${VENV_DIR}/linstabpy_ld_library_path"
+printf '%s\n' "${SLEPC_DIR}/lib" >> "${VENV_DIR}/linstabpy_ld_library_path"
 
 # Workaround: Python 3.13 (uv standalone builds) skips .pth files during startup.
 # Setuptools' __editable__*.pth files are never processed, breaking src-layout
@@ -1508,7 +1508,7 @@ for _sp in "${VENV_DIR}"/lib/python*/site-packages; do
     [ -d "$_sp" ] || continue
     _sc="${_sp}/sitecustomize.py"
     cat > "$_sc" << 'PYEOF'
-"""linstab2d venv hooks (install.sh): LD_LIBRARY_PATH + editable .pth workaround."""
+"""linstabpy venv hooks (install.sh): LD_LIBRARY_PATH + editable .pth workaround."""
 from __future__ import annotations
 
 import os
@@ -1516,7 +1516,7 @@ import sys
 
 _sp = os.path.dirname(os.path.abspath(__file__))
 _vroot = os.path.abspath(os.path.join(_sp, os.pardir, os.pardir, os.pardir))
-_ldfile = os.path.join(_vroot, "linstab2d_ld_library_path")
+_ldfile = os.path.join(_vroot, "linstabpy_ld_library_path")
 if os.path.isfile(_ldfile):
     _extra: list[str] = []
     with open(_ldfile, encoding="utf-8") as _fh:
@@ -1530,7 +1530,7 @@ if os.path.isfile(_ldfile):
         )
 
 for _f in os.listdir(_sp):
-    if _f.endswith(".pth") and "linstab2d" in _f:
+    if _f.endswith(".pth") and "linstabpy" in _f:
         _path = open(os.path.join(_sp, _f), encoding="utf-8").read().strip()
         if os.path.isdir(_path) and _path not in sys.path:
             sys.path.insert(0, _path)
@@ -1545,7 +1545,7 @@ ${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"
 
 # Persist runtime library paths in the venv activation script.
 _mpi_activate=""
-_mpi_activate="$(linstab2d_resolve_mpi_libdir 2>/dev/null || true)"
+_mpi_activate="$(linstabpy_resolve_mpi_libdir 2>/dev/null || true)"
 if ! grep -q "LINSTAB2D_RUNTIME_LD" "${VENV_DIR}/bin/activate" 2>/dev/null; then
     {
         echo ""
@@ -1560,7 +1560,7 @@ if [[ "${LINSTAB2D_INSTALL_SKIP_VERIFY:-0}" = "1" ]]; then
     warn "Run manually: ${PY_BIN} -c \"import mpi4py.MPI; from petsc4py import PETSc; print(PETSc.Sys.getVersion())\""
 else
 log "Verifying installation..."
-linstab2d_prepare_verify_mpiwrap
+linstabpy_prepare_verify_mpiwrap
 _verify_snippet="$(mktemp_py)"
 cat >"${_verify_snippet}" <<'PY'
 import sys
@@ -1611,14 +1611,14 @@ mat.destroy()
 import mpi4py
 print(f"  mpi4py       = {mpi4py.__version__}", flush=True)
 
-print("  linstab2d …", flush=True)
-import linstab2d
-print(f"  linstab2d    = {linstab2d.__version__}", flush=True)
+print("  linstabpy …", flush=True)
+import linstabpy
+print(f"  linstabpy    = {linstabpy.__version__}", flush=True)
 
 print()
 print("  All checks passed.", flush=True)
 PY
-linstab2d_run_verify "${PY_BIN}" "${_verify_snippet}"
+linstabpy_run_verify "${PY_BIN}" "${_verify_snippet}"
 _verify_rc=$?
 rm -f "${_verify_snippet}"
 if [ "${_verify_rc}" -ne 0 ]; then
@@ -1626,9 +1626,9 @@ if [ "${_verify_rc}" -ne 0 ]; then
     exit "${_verify_rc}"
 fi
 
-_cpu_count="$(linstab2d_cpu_count)"
+_cpu_count="$(linstabpy_cpu_count)"
 if [ "${OS_NAME}" = "Linux" ] && [ "${_cpu_count}" -gt 1 ]; then
-    if ! linstab2d_prepare_multirank_verify_mpiwrap 2; then
+    if ! linstabpy_prepare_multirank_verify_mpiwrap 2; then
         err "Verification failed: no working 2-rank mpiexec launcher was found."
         err "Try: HYDRA_BOOTSTRAP=fork ${MPIEXEC:-mpiexec} -n 2 /bin/true"
         exit 1
@@ -1649,7 +1649,7 @@ if rank == 0:
     print(f"  mpi4py multirank = OK  (size={size})", flush=True)
     print(f"  petsc4py multirank = OK  (size={petsc_size})", flush=True)
 PY
-    linstab2d_run_verify_wrapped \
+    linstabpy_run_verify_wrapped \
         "${PY_BIN}" \
         "${_verify_multirank_snippet}" \
         "${LINSTAB_VERIFY_MULTIENV[@]}" \
