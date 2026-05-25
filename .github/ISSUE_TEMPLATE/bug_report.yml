@@ -1,0 +1,117 @@
+name: Bug report
+description: Report a bug or unexpected behavior in linstabpy
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Most install / import problems on macOS and
+        Linux come down to the MPI / PETSc / SLEPc layering. Please run
+        `bash diagnose.sh` and `bash install.sh --check` before filing and
+        paste the relevant output below.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing what went wrong.
+      placeholder: "e.g. EPS_NHEP Krylov-Schur crashes inside Apple Accelerate ZLADIV on macOS 14."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Exact commands that trigger the bug from a fresh clone.
+      placeholder: |
+        git clone https://github.com/ricardofrantz/linstabpy.git
+        cd linstabpy
+        bash install.sh
+        .venv/bin/python -m examples.example_1_blasius
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Paste error messages, stack traces, MPI launcher output.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux (Ubuntu / Debian)
+        - Linux (RHEL / CentOS / Rocky / Alma)
+        - Linux (Fedora)
+        - Linux (Arch / Manjaro)
+        - Linux (other)
+        - macOS (Apple Silicon, M-series)
+        - macOS (Intel)
+        - Cluster with module environment (Intel MPI / oneAPI)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "e.g. Ubuntu 24.04 LTS, macOS 14.5 Sonoma"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      description: Output of `python --version` (or `.venv/bin/python --version` if installed).
+      placeholder: "Python 3.13.x"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: How did you install linstabpy?
+      options:
+        - "`bash install.sh` (recommended)"
+        - "Manual uv / pip install"
+        - "Docker / Dockerfile"
+        - "Cluster module environment"
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: Output of `bash diagnose.sh`
+      description: Run from the repo root. Paste the full output.
+      render: text
+
+  - type: textarea
+    id: install_check
+    attributes:
+      label: Output of `bash install.sh --check`
+      description: Run from the repo root. Paste the full output if a normal install completed.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else useful — base flow type, MPI stack, cluster name, screenshots, etc.
