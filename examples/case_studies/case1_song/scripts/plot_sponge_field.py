@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 
-from linstab2d.baseflow import case1_sponge_from_config
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.baseflow import case1_sponge_from_config
+from linstabpy.utils.jsonc import load_jsonc
 
 
 SCRIPT = Path(__file__).resolve()

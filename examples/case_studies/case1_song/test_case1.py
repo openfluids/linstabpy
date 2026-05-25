@@ -7,16 +7,16 @@ import time
 import numpy as np
 import scipy.sparse as sp
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air
-from linstab2d.operators.coefficients import compute_cartesian_coefficients
-from linstab2d.operators.assembly import build_lnse_operator
-from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
-from linstab2d.solvers.resolvent import resolvent_analysis
-from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
-from linstab2d.utils.plotting import plot_flow
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, sutherland_air
+from linstabpy.operators.coefficients import compute_cartesian_coefficients
+from linstabpy.operators.assembly import build_lnse_operator
+from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
+from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.solvers.resolvent import resolvent_analysis
+from linstabpy.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
+from linstabpy.utils.plotting import plot_flow
 
 from examples._helpers import to_grid
 

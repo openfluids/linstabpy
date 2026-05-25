@@ -22,7 +22,7 @@ ROOT = SCRIPT.parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 
 def _now_utc() -> str:

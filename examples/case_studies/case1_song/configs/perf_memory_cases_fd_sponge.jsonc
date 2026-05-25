@@ -2,7 +2,7 @@
   // Case 1 fd-order sweep with the smooth localized sponge fixed at sigma_max=0.5.
   //
   // Run with:
-  //   LINSTAB2D_CASE1_PERF_CONFIG=studies/case1/perf_memory_cases_fd_sponge.jsonc ../../.venv/bin/python studies/case1/perf_memory.py
+  //   LINSTAB2D_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_fd_sponge.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
 
   "outputs": {
     "report_json": "output/fd_sponge/case1_perf_memory_latest.json",
