@@ -24,8 +24,8 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.mesh import Mesh
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.mesh import Mesh
+from linstabpy.utils.jsonc import load_jsonc
 
 from ._helpers import (
     apply_figure_layout,
@@ -104,7 +104,7 @@ def _write_artifact_report(fields: dict[str, np.ndarray | float | bool]) -> None
         "status": "computed",
         "note": (
             "This artifact stores Python-versus-analytic derivative errors only. "
-            "Use validation/martini2024/reports/martini_parity_latest.json for MATLAB parity status."
+            "Use scripts/validation/martini2024/reports/martini_parity_latest.json for MATLAB parity status."
         ),
         "df_linf": float(fields["df_linf"]),
         "df_rel_l2": float(fields["df_rel_l2"]),

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc, parse_complex
+from linstabpy.utils.jsonc import load_jsonc, parse_complex
 
 from ._helpers import (
     apply_figure_layout,
@@ -62,11 +62,11 @@ def _load_matlab_spectra() -> tuple[np.ndarray | None, np.ndarray | None]:
 
 def compute(cfg: dict):
     """Run cavity direct/adjoint temporal eigenproblems."""
-    from linstab2d.baseflow import load_cavity, sutherland_air
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_system
-    from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
+    from linstabpy.baseflow import load_cavity, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.energy_norm import compute_chu_norm
+    from linstabpy.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
 
     solver_cfg = cfg.get("solver")
     if solver_cfg is None:
@@ -261,7 +261,7 @@ def _load_baseflow_u(data) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Cavity_base/baseFlow/U"), dtype=float).T
-    from linstab2d.baseflow import load_cavity
+    from linstabpy.baseflow import load_cavity
 
     return np.asarray(load_cavity(mesh_view(data["X"], data["Y"], used_ind=data["used_ind"])).U, dtype=float)
 

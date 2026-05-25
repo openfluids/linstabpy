@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 
 # Re-export from canonical location for callers that import from here.
-from linstab2d.utils.jsonc import load_jsonc  # noqa: F401
+from linstabpy.utils.jsonc import load_jsonc  # noqa: F401
 
 
 def load_or_compute(
@@ -269,7 +269,7 @@ def plot_signed_panel(
     vmax: float | None = None,
 ):
     """Plot a signed field with a symmetric color scale."""
-    from linstab2d.utils.plotting import plot_flow
+    from linstabpy.utils.plotting import plot_flow
 
     configure_example_style()
     contour = plot_flow(
@@ -313,7 +313,7 @@ def plot_scalar_panel(
     vmax: float | None = None,
 ):
     """Plot a non-signed scalar field with standard example defaults."""
-    from linstab2d.utils.plotting import plot_flow
+    from linstabpy.utils.plotting import plot_flow
 
     configure_example_style()
     contour = plot_flow(
