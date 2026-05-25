@@ -1,0 +1,52 @@
+# ruff configuration for linstabpy
+# https://docs.astral.sh/ruff/configuration/
+
+target-version = "py310"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "docs/tutorial",
+    "src/linstabpy/data",
+    "examples/case_studies/*/data",
+    "examples/case_studies/*/reference",
+    "scripts/validation/song_2023/reference",
+]
+
+[lint]
+# Pragmatic starter set tuned for a scientific-computing codebase.
+# Strict on correctness (F* pyflakes), modernization (UP), and isort (I).
+# Lenient on style rules that fight common scientific-Python idioms.
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "UP",
+]
+ignore = [
+    "E402",   # module-import-not-at-top-of-file — common with cv2/petsc/mpi4py conditional imports
+    "E501",   # line-too-long — formatter handles wrapping; long math lines stay readable
+    "E702",   # multiple-statements-on-one-line-semicolon — minor, often deliberate for tight loops
+    "E731",   # lambda-assignment — common in plotting and quick callbacks
+    "E741",   # ambiguous variable names (i, l, o) — common in numerics (l for length, I for current)
+    "UP015",  # redundant open() mode — pre-3.10 style still readable
+    "UP037",  # quoted annotation — explicit string annotations are sometimes deliberate
+]
+
+[lint.per-file-ignores]
+# Tests may import fixtures without using them directly
+"tests/**" = ["F401", "F811", "F841"]
+# __init__.py files re-export public symbols; ruff treats this as F401 unless
+# explicit `as X` aliasing is used, which is noise for science libraries.
+"**/__init__.py" = ["F401"]
+# Example drivers use lazy imports for heavy modules (Mesh, PETSc) inside
+# function bodies; type annotations reference them at module level.
+"examples/**" = ["F821", "F841"]
+# Validation harness uses similar lazy-import + ad-hoc helper patterns.
+"scripts/validation/**" = ["F821", "F841"]
+"scripts/tools/**" = ["F841"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
