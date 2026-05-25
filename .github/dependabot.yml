@@ -4,3 +4,24 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      scientific:
+        patterns:
+          - "numpy"
+          - "scipy"
+          - "matplotlib"
+      petsc-stack:
+        patterns:
+          - "mpi4py"
+          - "petsc4py"
+          - "slepc4py"
+      test-tooling:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "uv"

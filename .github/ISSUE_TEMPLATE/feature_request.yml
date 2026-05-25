@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a new feature or capability for linstabpy
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the scientific or workflow problem first, not the solution.
+      placeholder: |
+        e.g. "I want to compute resolvent gain for a turbulent base flow with a
+        non-uniform spanwise mean. Currently linstabpy only supports..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the API or workflow look like? Examples welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, or other libraries that do this.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Papers, similar implementations, RFCs, related issues.
