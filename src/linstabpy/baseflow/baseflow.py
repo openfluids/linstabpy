@@ -14,7 +14,7 @@ class BaseFlow:
 
     All flow field arrays have shape ``(ny, nx)`` matching the computational
     mesh.  Viscosity fields and derived coefficients are populated later by
-    :func:`~linstab2d.baseflow.viscosity.sutherland_air`.
+    :func:`~linstabpy.baseflow.viscosity.sutherland_air`.
 
     Parameters
     ----------

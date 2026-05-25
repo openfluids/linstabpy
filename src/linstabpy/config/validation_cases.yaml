@@ -29,12 +29,12 @@
       "name": "case1_stability_resolvent",
       "module": "studies.case1.case1",
       "artifacts": [
-        "studies/case1/case1.npz"
+        "examples/case_studies/case1_song/case1.npz"
       ]
     }
   ],
   "orthogonality_check": {
-    "artifact": "studies/case1/case1.npz",
+    "artifact": "examples/case_studies/case1_song/case1.npz",
     "mode_key": "direct_modes",
     "weights_key": "W_diag",
     "tolerance": 1e-12

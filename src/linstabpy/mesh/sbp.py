@@ -348,7 +348,7 @@ DISSIPATION_DEFAULTS: dict[str, float] = {
 
 def _build_sbp_norm_diag(n: int, h: float, order_interior: int) -> np.ndarray:
     """Return the H diagonal for the full-norm SBP operator."""
-    from linstab2d.mesh.sbp_generator import _sbp_norm_weights
+    from linstabpy.mesh.sbp_generator import _sbp_norm_weights
 
     bw = _sbp_norm_weights(order_interior)
     r = len(bw)
