@@ -10,7 +10,7 @@ build/
 !validation/operator_fixtures/**/*.npz
 !validation/martini2024/fixtures/**/*.npz
 # Exception: track Case 2 Phase 1.5 figures (paper artefacts).
-!studies/case2/phase1p5/*.png
+!examples/case_studies/case2_lui/artifacts/phase1p5/*.png
 *.log
 *.aux
 *.bbl
