@@ -1210,3 +1210,7 @@ When using linstabpy in published work, cite the LinStab2D paper:
 > Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent
 > analysis of compressible viscous flows in MATLAB. *Theor. Comput.
 > Fluid Dyn.* (2024). doi:10.1007/s00162-024-00706-0
+
+See `CITATION.cff` for the machine-readable citation entry. Once
+linstabpy is archived on Zenodo, the software DOI and release version
+will be added to that file (placeholders are listed there as TODOs).
