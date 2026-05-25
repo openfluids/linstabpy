@@ -36,24 +36,25 @@ import os
 import resource
 import sys
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import scipy.sparse as sp
 
+from ..baseflow.baseflow import BaseFlow
+from ..mesh.mesh import Mesh
 from ..utils._solver_cfg import _scfg, _scfg_bool
 from ..utils.petsc_core import _matrix_nnz
-from ..mesh.mesh import Mesh
-from ..baseflow.baseflow import BaseFlow
 from .coefficients import (
+    LNSECoefficients,
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
-    LNSECoefficients,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
@@ -368,7 +369,9 @@ def _cache_5_block_derivatives(
 
     cache = _make_csr_derivative_cache(op)
     if cache.csr.shape != (ngp, ngp):
-        raise ValueError(f"Expected derivative operator with shape {(ngp, ngp)}, got {cache.csr.shape}")
+        raise ValueError(
+            f"Expected derivative operator with shape {(ngp, ngp)}, got {cache.csr.shape}"
+        )
     return [cache] * 5
 
 
@@ -441,9 +444,8 @@ def build_lnse_operator(
             ny, nx = mesh.X.shape
             I_ny = sp.eye(ny, format="csr")
             I_nx = sp.eye(nx, format="csr")
-            Q_diss_2D = (
-                sp.kron(mesh.Q_diss_x, I_ny, format="csr")
-                + sp.kron(I_nx, mesh.Q_diss_y, format="csr")
+            Q_diss_2D = sp.kron(mesh.Q_diss_x, I_ny, format="csr") + sp.kron(
+                I_nx, mesh.Q_diss_y, format="csr"
             )
             Q_diss_block = sp.block_diag([Q_diss_2D] * 5, format="csr")
             L0 = (L0 - dissipation_epsilon * Q_diss_block).tocsc()
@@ -807,34 +809,70 @@ def _prepare_coefficients(
 
         model = model.lower()
         if model == "2d":
-            dUdx = Dx @ U;    dUdy = Dy @ U
-            dVdx = Dx @ V;    dVdy = Dy @ V
-            dWdx = Dx @ W;    dWdy = Dy @ W
-            dRHOdx = Dx @ RHO;  dRHOdy = Dy @ RHO
-            dTdx = Dx @ T;    dTdy = Dy @ T
-            dPdx = Dx @ P;    dPdy = Dy @ P
+            dUdx = Dx @ U
+            dUdy = Dy @ U
+            dVdx = Dx @ V
+            dVdy = Dy @ V
+            dWdx = Dx @ W
+            dWdy = Dy @ W
+            dRHOdx = Dx @ RHO
+            dRHOdy = Dy @ RHO
+            dTdx = Dx @ T
+            dTdy = Dy @ T
+            dPdx = Dx @ P
+            dPdy = Dy @ P
 
-            d2Udx2 = D2x @ U;  d2Udy2 = D2y @ U
-            d2Vdx2 = D2x @ V;  d2Vdy2 = D2y @ V
-            d2Wdx2 = D2x @ W;  d2Wdy2 = D2y @ W
-            d2Tdx2 = D2x @ T;  d2Tdy2 = D2y @ T
+            d2Udx2 = D2x @ U
+            d2Udy2 = D2y @ U
+            d2Vdx2 = D2x @ V
+            d2Vdy2 = D2y @ V
+            d2Wdx2 = D2x @ W
+            d2Wdy2 = D2y @ W
+            d2Tdx2 = D2x @ T
+            d2Tdy2 = D2y @ T
 
             d2Udxdy = Dx @ dUdy
             d2Vdxdy = Dx @ dVdy
             d2Wdxdy = Dx @ dWdy
 
             coeffs = compute_cartesian_coefficients(
-                U=U, V=V, W=W, RHO=RHO, T=T, MU=MU, P=P,
-                kx=kx, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
-                dUdx=dUdx, dVdx=dVdx, dWdx=dWdx,
-                dRHOdx=dRHOdx, dTdx=dTdx, dPdx=dPdx,
-                dUdy=dUdy, dVdy=dVdy, dWdy=dWdy,
-                dRHOdy=dRHOdy, dTdy=dTdy, dPdy=dPdy,
-                d2Udx2=d2Udx2, d2Vdx2=d2Vdx2, d2Wdx2=d2Wdx2,
-                d2Udy2=d2Udy2, d2Vdy2=d2Vdy2, d2Wdy2=d2Wdy2,
-                d2Tdx2=d2Tdx2, d2Tdy2=d2Tdy2,
-                d2Udxdy=d2Udxdy, d2Vdxdy=d2Vdxdy, d2Wdxdy=d2Wdxdy,
-                dmudT=dmudT, d2mudT2=d2mudT2,
+                U=U,
+                V=V,
+                W=W,
+                RHO=RHO,
+                T=T,
+                MU=MU,
+                P=P,
+                kx=kx,
+                Re=Re,
+                Ma=Ma,
+                Pr=Pr,
+                kappa=kappa,
+                dUdx=dUdx,
+                dVdx=dVdx,
+                dWdx=dWdx,
+                dRHOdx=dRHOdx,
+                dTdx=dTdx,
+                dPdx=dPdx,
+                dUdy=dUdy,
+                dVdy=dVdy,
+                dWdy=dWdy,
+                dRHOdy=dRHOdy,
+                dTdy=dTdy,
+                dPdy=dPdy,
+                d2Udx2=d2Udx2,
+                d2Vdx2=d2Vdx2,
+                d2Wdx2=d2Wdx2,
+                d2Udy2=d2Udy2,
+                d2Vdy2=d2Vdy2,
+                d2Wdy2=d2Wdy2,
+                d2Tdx2=d2Tdx2,
+                d2Tdy2=d2Tdy2,
+                d2Udxdy=d2Udxdy,
+                d2Vdxdy=d2Vdxdy,
+                d2Wdxdy=d2Wdxdy,
+                dmudT=dmudT,
+                d2mudT2=d2mudT2,
             )
 
             DR = Dy
@@ -848,27 +886,66 @@ def _prepare_coefficients(
             V_c = baseflow.W.ravel(order="F")[p]
             W_c = baseflow.U.ravel(order="F")[p]
 
-            dUdr = Dy @ U_c;    dVdr = Dy @ V_c;    dWdr = Dy @ W_c
-            dRHOdr = Dy @ RHO;  dTdr = Dy @ T
-            dUdz = Dx @ U_c;    dVdz = Dx @ V_c;    dWdz = Dx @ W_c
-            dRHOdz = Dx @ RHO;  dTdz = Dx @ T
+            dUdr = Dy @ U_c
+            dVdr = Dy @ V_c
+            dWdr = Dy @ W_c
+            dRHOdr = Dy @ RHO
+            dTdr = Dy @ T
+            dUdz = Dx @ U_c
+            dVdz = Dx @ V_c
+            dWdz = Dx @ W_c
+            dRHOdz = Dx @ RHO
+            dTdz = Dx @ T
 
-            d2Udr2 = D2y @ U_c;  d2Vdr2 = D2y @ V_c;  d2Wdr2 = D2y @ W_c
+            d2Udr2 = D2y @ U_c
+            d2Vdr2 = D2y @ V_c
+            d2Wdr2 = D2y @ W_c
             d2Tdr2 = D2y @ T
-            d2Udz2 = D2x @ U_c;  d2Vdz2 = D2x @ V_c;  d2Wdz2 = D2x @ W_c
+            d2Udz2 = D2x @ U_c
+            d2Vdz2 = D2x @ V_c
+            d2Wdz2 = D2x @ W_c
             d2Tdz2 = D2x @ T
 
-            d2Udrz = Dx @ dUdr;  d2Vdrz = Dx @ dVdr;  d2Wdrz = Dx @ dWdr
+            d2Udrz = Dx @ dUdr
+            d2Vdrz = Dx @ dVdr
+            d2Wdrz = Dx @ dWdr
 
             coeffs = compute_cylindrical_coefficients(
-                U=U_c, V=V_c, W=W_c, R=R, RHO=RHO, T=T, MU=MU, m=m, Re=Re, Ma=Ma,
-                Pr=Pr, kappa=kappa,
-                dUdr=dUdr, dVdr=dVdr, dWdr=dWdr, dRHOdr=dRHOdr, dTdr=dTdr,
-                dUdz=dUdz, dVdz=dVdz, dWdz=dWdz, dRHOdz=dRHOdz, dTdz=dTdz,
-                d2Udr2=d2Udr2, d2Vdr2=d2Vdr2, d2Wdr2=d2Wdr2, d2Tdr2=d2Tdr2,
-                d2Udz2=d2Udz2, d2Vdz2=d2Vdz2, d2Wdz2=d2Wdz2, d2Tdz2=d2Tdz2,
-                d2Udrz=d2Udrz, d2Vdrz=d2Vdrz, d2Wdrz=d2Wdrz,
-                dmudT=dmudT, d2mudT2=d2mudT2,
+                U=U_c,
+                V=V_c,
+                W=W_c,
+                R=R,
+                RHO=RHO,
+                T=T,
+                MU=MU,
+                m=m,
+                Re=Re,
+                Ma=Ma,
+                Pr=Pr,
+                kappa=kappa,
+                dUdr=dUdr,
+                dVdr=dVdr,
+                dWdr=dWdr,
+                dRHOdr=dRHOdr,
+                dTdr=dTdr,
+                dUdz=dUdz,
+                dVdz=dVdz,
+                dWdz=dWdz,
+                dRHOdz=dRHOdz,
+                dTdz=dTdz,
+                d2Udr2=d2Udr2,
+                d2Vdr2=d2Vdr2,
+                d2Wdr2=d2Wdr2,
+                d2Tdr2=d2Tdr2,
+                d2Udz2=d2Udz2,
+                d2Vdz2=d2Vdz2,
+                d2Wdz2=d2Wdz2,
+                d2Tdz2=d2Tdz2,
+                d2Udrz=d2Udrz,
+                d2Vdrz=d2Vdrz,
+                d2Wdrz=d2Wdrz,
+                dmudT=dmudT,
+                d2mudT2=d2mudT2,
             )
             DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m)
 
@@ -876,8 +953,7 @@ def _prepare_coefficients(
             raise ValueError("model must be '2D' or 'axy'")
 
         coeff_tensor_bytes = {
-            name: int(getattr(coeffs, name).nbytes)
-            for name in _COEFF_TENSOR_NAMES
+            name: int(getattr(coeffs, name).nbytes) for name in _COEFF_TENSOR_NAMES
         }
         coeff_tensor_bytes_total = int(sum(coeff_tensor_bytes.values()))
         stage["ngp"] = int(ngp)
@@ -892,10 +968,22 @@ def _prepare_coefficients(
         )
 
         return {
-            "ngp": ngp, "model": model, "coeffs": coeffs,
-            "DR": DR, "D2R": D2R, "DZ": DZ, "D2Z": D2Z, "D2RZ": D2RZ,
-            "RHO": RHO, "U": U, "V": V, "W": W, "T": T,
-            "kappa": kappa, "Ma": Ma, "mesh": mesh,
+            "ngp": ngp,
+            "model": model,
+            "coeffs": coeffs,
+            "DR": DR,
+            "D2R": D2R,
+            "DZ": DZ,
+            "D2Z": D2Z,
+            "D2RZ": D2RZ,
+            "RHO": RHO,
+            "U": U,
+            "V": V,
+            "W": W,
+            "T": T,
+            "kappa": kappa,
+            "Ma": Ma,
+            "mesh": mesh,
         }
 
 
@@ -926,9 +1014,16 @@ def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_m
 
     with _assembly_stage("apply_invB") as stage:
         L0 = _apply_inv_B(
-            L0, model, ngp,
-            prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
-            prep["kappa"], prep["Ma"],
+            L0,
+            model,
+            ngp,
+            prep["RHO"],
+            prep["U"],
+            prep["V"],
+            prep["W"],
+            prep["T"],
+            prep["kappa"],
+            prep["Ma"],
         )
         stage["nnz"] = _matrix_nnz(L0)
 
@@ -953,6 +1048,7 @@ def _assemble_from_prepared_petsc(
 ) -> "PETSc.Mat":
     """Assemble the LNSE operator from precomputed data directly into PETSc."""
     from petsc4py import PETSc
+
     from ..utils.petsc_core import _use_distributed_matrix, assemble_matrix, ownership_range
 
     ngp = prep["ngp"]
@@ -986,8 +1082,13 @@ def _assemble_from_prepared_petsc(
             L0_petsc,
             model,
             ngp,
-            prep["RHO"], prep["U"], prep["V"], prep["W"], prep["T"],
-            prep["kappa"], prep["Ma"],
+            prep["RHO"],
+            prep["U"],
+            prep["V"],
+            prep["W"],
+            prep["T"],
+            prep["kappa"],
+            prep["Ma"],
         )
         stage["nnz"] = _matrix_nnz(L0_petsc)
 
@@ -1125,6 +1226,7 @@ def _assemble_block_operator_petsc(
 ) -> "PETSc.Mat":
     """Assemble the LNSE block operator directly into PETSc via row insertion."""
     from petsc4py import PETSc
+
     from ..utils.petsc_core import (
         _use_distributed_matrix,
         assemble_matrix,
@@ -1203,7 +1305,11 @@ def _assemble_block_operator_petsc(
                 )
                 row_parts.append(block[row_start:row_stop, :])
 
-            local_rows = sp.hstack(row_parts, format="csr") if row_parts else sp.csr_matrix((0, total_size), dtype=complex)
+            local_rows = (
+                sp.hstack(row_parts, format="csr")
+                if row_parts
+                else sp.csr_matrix((0, total_size), dtype=complex)
+            )
             if local_rows.shape[0] > 0:
                 insert_local_csr_rows(matrix, local_rows, row_start=i * ngp + row_start)
         return assemble_matrix(matrix)
@@ -1367,7 +1473,9 @@ def _apply_floquet_shift(
     d2z_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(D2Z, ngp)]
     I = sp.eye(ngp, format="csc")
     shifted_dz = [mat + i_alpha * I for mat in dz_blocks]
-    shifted_d2z = [d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)]
+    shifted_d2z = [
+        d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)
+    ]
     return shifted_dz, shifted_d2z
 
 
@@ -1393,11 +1501,11 @@ def _apply_inv_B(
     if model == "2d":
         # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  inv = diag(1, 1/RHO, ...)
         inv_B_signs = np.empty(5 * ngp)
-        inv_B_signs[0*ngp:1*ngp] = 1.0
-        inv_B_signs[1*ngp:2*ngp] = 1.0 / RHO
-        inv_B_signs[2*ngp:3*ngp] = 1.0 / RHO
-        inv_B_signs[3*ngp:4*ngp] = 1.0 / RHO
-        inv_B_signs[4*ngp:5*ngp] = 1.0 / RHO
+        inv_B_signs[0 * ngp : 1 * ngp] = 1.0
+        inv_B_signs[1 * ngp : 2 * ngp] = 1.0 / RHO
+        inv_B_signs[2 * ngp : 3 * ngp] = 1.0 / RHO
+        inv_B_signs[3 * ngp : 4 * ngp] = 1.0 / RHO
+        inv_B_signs[4 * ngp : 5 * ngp] = 1.0 / RHO
         return sp.diags(inv_B_signs) @ L0
 
     # --- Cylindrical model: B/1j is lower-triangular ---
@@ -1435,15 +1543,17 @@ def _apply_inv_B(
         return sp.diags(v, format="csc")
 
     blocks = [
-        [D(np.ones(ngp)),   Z,               Z,               Z,               Z                     ],
-        [D(-U * invRHO),    D(invRHO),       Z,               Z,               Z                     ],
-        [D(-V * invRHO),    Z,               D(invRHO),       Z,               Z                     ],
-        [D(-W * invRHO),    Z,               Z,               D(invRHO),       Z                     ],
-        [D(KE_half * invRHOcv - T * invRHO),
-                            D(-U * invRHOcv),
-                                            D(-V * invRHOcv),
-                                                             D(-W * invRHOcv),
-                                                                              D(invRHOcv)           ],
+        [D(np.ones(ngp)), Z, Z, Z, Z],
+        [D(-U * invRHO), D(invRHO), Z, Z, Z],
+        [D(-V * invRHO), Z, D(invRHO), Z, Z],
+        [D(-W * invRHO), Z, Z, D(invRHO), Z],
+        [
+            D(KE_half * invRHOcv - T * invRHO),
+            D(-U * invRHOcv),
+            D(-V * invRHOcv),
+            D(-W * invRHOcv),
+            D(invRHOcv),
+        ],
     ]
     inv_B = sp.bmat(blocks, format="csc")
     return inv_B @ L0
@@ -1477,6 +1587,7 @@ def _apply_inv_B_petsc(
     ``RuntimeError`` for distributed matrices.
     """
     from petsc4py import PETSc
+
     from ..utils.petsc_core import petsc_to_scipy
 
     # Hard-fail early: the axisymmetric path falls back to petsc_to_scipy which
@@ -1492,10 +1603,10 @@ def _apply_inv_B_petsc(
 
     row_scaling = np.ones(5 * ngp, dtype=complex)
     if model == "2d":
-        row_scaling[1*ngp:2*ngp] = 1.0 / RHO
-        row_scaling[2*ngp:3*ngp] = 1.0 / RHO
-        row_scaling[3*ngp:4*ngp] = 1.0 / RHO
-        row_scaling[4*ngp:5*ngp] = 1.0 / RHO
+        row_scaling[1 * ngp : 2 * ngp] = 1.0 / RHO
+        row_scaling[2 * ngp : 3 * ngp] = 1.0 / RHO
+        row_scaling[3 * ngp : 4 * ngp] = 1.0 / RHO
+        row_scaling[4 * ngp : 5 * ngp] = 1.0 / RHO
         diag = L0.createVecLeft()
         try:
             r0, r1 = diag.getOwnershipRange()
@@ -1582,14 +1693,24 @@ def _create_axy_diff_matrices(
     D2RZ_blocks: list[sp.csc_matrix] = []
 
     for use_symmetry in parity:
-        if use_symmetry and mesh.y_symmetry and mesh.Dy_symm is not None and mesh.D2y_symm is not None:
+        if (
+            use_symmetry
+            and mesh.y_symmetry
+            and mesh.Dy_symm is not None
+            and mesh.D2y_symm is not None
+        ):
             DR_blocks.append(mesh.Dy_symm.tocsc())
             D2R_blocks.append(mesh.D2y_symm.tocsc())
             if mesh.Dyx_symm is not None:
                 D2RZ_blocks.append(mesh.Dyx_symm.tocsc())
             else:
                 D2RZ_blocks.append((mesh.Dy_symm @ Dx).tocsc())
-        elif mesh.y_symmetry and not use_symmetry and mesh.Dy_asymm is not None and mesh.D2y_asymm is not None:
+        elif (
+            mesh.y_symmetry
+            and not use_symmetry
+            and mesh.Dy_asymm is not None
+            and mesh.D2y_asymm is not None
+        ):
             DR_blocks.append(mesh.Dy_asymm.tocsc())
             D2R_blocks.append(mesh.D2y_asymm.tocsc())
             if mesh.Dyx_asymm is not None:

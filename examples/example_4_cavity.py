@@ -12,6 +12,7 @@ OUTPUTS:
   - example_4_cavity_direct.png
   - example_4_cavity_adjoint.png
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -52,7 +53,9 @@ def _load_matlab_spectra() -> tuple[np.ndarray | None, np.ndarray | None]:
     except FileNotFoundError:
         return None, None
 
-    omega_direct = np.asarray(parity_npz_get(direct_bundle, "results_Cavity_direct/omega"), dtype=complex).reshape(-1)
+    omega_direct = np.asarray(
+        parity_npz_get(direct_bundle, "results_Cavity_direct/omega"), dtype=complex
+    ).reshape(-1)
     omega_adjoint = np.asarray(
         parity_npz_get(adjoint_bundle, "results_Cavity_adjoint/omegaAdj"),
         dtype=complex,
@@ -211,16 +214,20 @@ def compute(cfg: dict):
     # l2 norm for consistency; the cavity already passes comfortably on the
     # spectrum-match criterion and these are belt-and-suspenders only.
     iL0 = 1j * L0
-    direct_residuals = np.array([
-        np.linalg.norm(iL0 @ q - om * q) / (abs(om) * max(float(np.linalg.norm(q)), 1e-300))
-        for om, q in zip(omega, direct_modes.T)
-    ])
+    direct_residuals = np.array(
+        [
+            np.linalg.norm(iL0 @ q - om * q) / (abs(om) * max(float(np.linalg.norm(q)), 1e-300))
+            for om, q in zip(omega, direct_modes.T)
+        ]
+    )
     # Adjoint operator: W^{-1} L0^H W — check via L0^H (W q) - omega (W q).
-    adjoint_residuals = np.array([
-        np.linalg.norm(L0.conj().T @ (W_diag * q) - om_adj * (W_diag * q))
-        / (abs(om_adj) * max(float(np.linalg.norm(W_diag * q)), 1e-300))
-        for om_adj, q in zip(omega_adj, adjoint_modes.T)
-    ])
+    adjoint_residuals = np.array(
+        [
+            np.linalg.norm(L0.conj().T @ (W_diag * q) - om_adj * (W_diag * q))
+            / (abs(om_adj) * max(float(np.linalg.norm(W_diag * q)), 1e-300))
+            for om_adj, q in zip(omega_adj, adjoint_modes.T)
+        ]
+    )
     print("Direct eigenvalue residuals ||iL0 q - omega q|| / (|omega| ||q||):")
     for i, (om, res) in enumerate(zip(omega, direct_residuals)):
         print(f"  [{i}]  omega={om.real:.5f}{om.imag:+.5f}j   res={res:.3e}")
@@ -263,7 +270,9 @@ def _load_baseflow_u(data) -> np.ndarray:
         return np.asarray(parity_npz_get(bundle, "results_Cavity_base/baseFlow/U"), dtype=float).T
     from linstabpy.baseflow import load_cavity
 
-    return np.asarray(load_cavity(mesh_view(data["X"], data["Y"], used_ind=data["used_ind"])).U, dtype=float)
+    return np.asarray(
+        load_cavity(mesh_view(data["X"], data["Y"], used_ind=data["used_ind"])).U, dtype=float
+    )
 
 
 def _style_cavity_axis(ax) -> None:

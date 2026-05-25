@@ -62,7 +62,9 @@ def decode_char_array(arr: np.ndarray) -> str:
 
 
 def _is_scalar_like(value: Any) -> bool:
-    return isinstance(value, (str, bytes, int, float, complex, np.integer, np.floating, np.complexfloating))
+    return isinstance(
+        value, (str, bytes, int, float, complex, np.integer, np.floating, np.complexfloating)
+    )
 
 
 def _scalarize(value: Any) -> Any:
@@ -89,7 +91,9 @@ def _decode_object_dataset(ds: h5py.Dataset, handle: h5py.File) -> Any:
     values = [_scalarize(_decode_reference(ref, handle)) for ref in raw.reshape(-1, order="F")]
 
     if all(v is None or isinstance(v, str) for v in values):
-        return np.asarray(["" if v is None else v for v in values], dtype=str).reshape(raw.shape, order="F")
+        return np.asarray(["" if v is None else v for v in values], dtype=str).reshape(
+            raw.shape, order="F"
+        )
 
     if all(v is None or _is_scalar_like(v) for v in values):
         non_null = [v for v in values if v is not None]
@@ -103,7 +107,9 @@ def _decode_object_dataset(ds: h5py.Dataset, handle: h5py.File) -> Any:
         else:
             dtype = object
         fill = "" if dtype is object else 0
-        return np.asarray([fill if v is None else v for v in values], dtype=dtype).reshape(raw.shape, order="F")
+        return np.asarray([fill if v is None else v for v in values], dtype=dtype).reshape(
+            raw.shape, order="F"
+        )
 
     return np.asarray(values, dtype=object).reshape(raw.shape, order="F")
 
@@ -120,7 +126,12 @@ def _decode_node(node: h5py.Group | h5py.Dataset, handle: h5py.File) -> Any:
     arr = compound_to_complex(np.asarray(ds))
     if arr.dtype.kind in {"S", "U"}:
         return arr
-    if arr.dtype.kind in {"u", "i"} and arr.ndim >= 1 and arr.size > 0 and int(np.max(arr)) <= 65535:
+    if (
+        arr.dtype.kind in {"u", "i"}
+        and arr.ndim >= 1
+        and arr.size > 0
+        and int(np.max(arr)) <= 65535
+    ):
         if ds.name.startswith("/#refs#/"):
             return decode_char_array(arr)
     return arr
@@ -155,9 +166,15 @@ def flatten_tree(tree: dict[str, Any]) -> tuple[dict[str, np.ndarray], list[Extr
         else:
             arr = np.asarray(value)
             if arr.dtype == object:
-                raise TypeError(f"Object-valued field cannot be written to NPZ without pickle: {prefix}")
+                raise TypeError(
+                    f"Object-valued field cannot be written to NPZ without pickle: {prefix}"
+                )
         flat[key] = arr
-        inventory.append(ExtractedField(path=prefix, shape=tuple(int(s) for s in arr.shape), dtype=str(arr.dtype)))
+        inventory.append(
+            ExtractedField(
+                path=prefix, shape=tuple(int(s) for s in arr.shape), dtype=str(arr.dtype)
+            )
+        )
 
     visit("", tree)
     return flat, inventory

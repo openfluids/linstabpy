@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import subprocess
 import sys
-import argparse
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,6 @@ from typing import Any
 import numpy as np
 
 from linstabpy.utils.jsonc import load_jsonc
-
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
@@ -171,7 +170,9 @@ def main() -> None:
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
         config_path = run_dir / "song_2023.variant.jsonc"
-        config_path.write_text(json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        config_path.write_text(
+            json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
         env = dict(**subprocess.os.environ)
         env["PYTHONPATH"] = f"{REPO / 'src'}:{REPO}"
@@ -211,7 +212,9 @@ def main() -> None:
 
     summary_json = output_root / "summary.json"
     summary_csv = output_root / "summary.csv"
-    summary_json.write_text(json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_json.write_text(
+        json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     rows = []
     for item in results:

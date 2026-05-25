@@ -48,7 +48,7 @@ def legacy_test_case1_resolvent_gains_and_modes_match_matlab() -> None:
         pytest.skip("h5py is required to run the legacy Case 1 MATLAB resolvent parity check.")
     _require_inputs()
 
-    py = np.load(PY_NPZ, allow_pickle = False)
+    py = np.load(PY_NPZ, allow_pickle=False)
     gains_py = np.asarray(py["gains"], dtype=float).reshape(-1)
     responses_py = np.asarray(py["responses"], dtype=complex)
     forcings_py = np.asarray(py["forcings"], dtype=complex)

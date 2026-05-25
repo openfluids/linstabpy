@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 REPORT_JSON = CASE_DIR / "output" / "sponge_sigma" / "case1_perf_memory_latest.json"
@@ -84,7 +83,8 @@ def _load_rows() -> list[dict]:
                 "sigma": sigma,
                 "fd_order": int(numerics.get("fd_order", -1)),
                 "elapsed_seconds": float(case.get("metrics", {}).get("elapsed_seconds") or 0.0),
-                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0) / 1024**3,
+                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0)
+                / 1024**3,
                 "residual_max": case.get("output", {}).get("stability_residual_max"),
                 "omega": omega,
                 "sponge_support_median": float(np.nanmedian(support_arr)),
@@ -100,7 +100,11 @@ def main() -> int:
     if not rows:
         raise SystemExit("No completed sigma-sensitivity cases found.")
 
-    matlab = _diag_or_flat(np.asarray(loadmat(CASE_DIR / "reference" / "matlab" / "MATLAB_exports" / "spectrum.mat")["omega"]))
+    matlab = _diag_or_flat(
+        np.asarray(
+            loadmat(CASE_DIR / "reference" / "matlab" / "MATLAB_exports" / "spectrum.mat")["omega"]
+        )
+    )
     sigmas = np.array([row["sigma"] for row in rows], dtype=float)
     residuals = np.array(
         [float(row["residual_max"]) if row["residual_max"] is not None else np.nan for row in rows],
@@ -137,7 +141,7 @@ def main() -> int:
             edgecolors=COLORS.get(sigma, "C0"),
             linewidths=1.0,
             alpha=0.8,
-            label=fr"$\sigma_{{max}}={sigma:g}$",
+            label=rf"$\sigma_{{max}}={sigma:g}$",
         )
     ax_spec.axhline(0.0, color="0.7", linewidth=0.8)
     ax_spec.set_xlabel("Re(omega)")
@@ -156,7 +160,7 @@ def main() -> int:
             np.imag(val),
             s=60,
             color=COLORS.get(sigma, "C0"),
-            label=fr"$\sigma_{{max}}={sigma:g}$",
+            label=rf"$\sigma_{{max}}={sigma:g}$",
             zorder=2,
         )
         ax_lead.annotate(
@@ -171,7 +175,9 @@ def main() -> int:
     ax_lead.set_title("Leading mode trajectory")
     ax_lead.grid(alpha=0.25)
 
-    ax_cost.plot(sigmas, 100.0 * support_median, marker="o", color="#4e79a7", label="median first-10")
+    ax_cost.plot(
+        sigmas, 100.0 * support_median, marker="o", color="#4e79a7", label="median first-10"
+    )
     ax_cost.plot(sigmas, 100.0 * support_max, marker="s", color="#e15759", label="max first-10")
     ax_cost.set_xlabel(r"$\sigma_{max}$")
     ax_cost.set_ylabel("Mode norm in sponge zone [%]")

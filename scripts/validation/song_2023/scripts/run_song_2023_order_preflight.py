@@ -7,7 +7,6 @@ import argparse
 import csv
 import json
 import subprocess
-import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,6 @@ from typing import Any
 from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
-
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
@@ -68,7 +66,11 @@ def main() -> None:
     output_root = REPO / cfg["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
     guard_cfg = cfg.get("memory_guard", {})
-    threshold_mib = float(guard_cfg["stop_on_peak_memory_mib"]) if "stop_on_peak_memory_mib" in guard_cfg else None
+    threshold_mib = (
+        float(guard_cfg["stop_on_peak_memory_mib"])
+        if "stop_on_peak_memory_mib" in guard_cfg
+        else None
+    )
 
     results: list[dict[str, Any]] = []
     for variant in cfg["variants"]:
@@ -78,7 +80,9 @@ def main() -> None:
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
         config_path = run_dir / "song_2023.variant.jsonc"
-        config_path.write_text(json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        config_path.write_text(
+            json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
         env = dict(**subprocess.os.environ)
         env["PYTHONPATH"] = f"{REPO / 'src'}:{REPO}"
@@ -128,7 +132,9 @@ def main() -> None:
 
     summary_json = output_root / "summary.json"
     summary_csv = output_root / "summary.csv"
-    summary_json.write_text(json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_json.write_text(
+        json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     rows = []
     for item in results:

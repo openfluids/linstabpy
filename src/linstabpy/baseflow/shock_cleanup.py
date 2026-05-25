@@ -85,8 +85,7 @@ def _normalize_fields(values: Any) -> list[str]:
         name = str(value)
         if name not in _VALID_FIELDS:
             raise ValueError(
-                "shock_cleanup.filter.fields must contain only "
-                + ", ".join(sorted(_VALID_FIELDS))
+                "shock_cleanup.filter.fields must contain only " + ", ".join(sorted(_VALID_FIELDS))
             )
         if name in seen:
             continue
@@ -240,14 +239,18 @@ def build_shock_sensor(
     buffer_cells = int(cfg.get("buffer_cells", 0))
     if buffer_cells < 0:
         raise ValueError("shock_cleanup.sensor.buffer_cells must be >= 0")
-    buffered_mask = binary_dilation(mask, iterations=buffer_cells) if buffer_cells > 0 else mask.copy()
+    buffered_mask = (
+        binary_dilation(mask, iterations=buffer_cells) if buffer_cells > 0 else mask.copy()
+    )
 
     blend_sigma = float(cfg.get("blend_sigma", 0.0))
     if blend_sigma < 0.0:
         raise ValueError("shock_cleanup.sensor.blend_sigma must be >= 0")
     preserve_weight = buffered_mask.astype(float)
     if blend_sigma > 0.0 and np.any(buffered_mask):
-        preserve_weight = gaussian_filter(buffered_mask.astype(float), sigma=blend_sigma, mode="nearest")
+        preserve_weight = gaussian_filter(
+            buffered_mask.astype(float), sigma=blend_sigma, mode="nearest"
+        )
         peak = float(np.max(preserve_weight))
         if peak > 0.0:
             preserve_weight /= peak
@@ -368,8 +371,12 @@ def apply_optional_shock_cleanup(
         )
     info["sensor"] = sensor_info
 
-    preserve_weight = np.asarray(sensor_info.get("preserve_weight", np.zeros_like(X, dtype=float)), dtype=float)
-    buffered_mask = np.asarray(sensor_info.get("buffered_mask", np.zeros_like(X, dtype=bool)), dtype=bool)
+    preserve_weight = np.asarray(
+        sensor_info.get("preserve_weight", np.zeros_like(X, dtype=float)), dtype=float
+    )
+    buffered_mask = np.asarray(
+        sensor_info.get("buffered_mask", np.zeros_like(X, dtype=bool)), dtype=bool
+    )
 
     field_map = {
         "rho": rho_out,
@@ -410,10 +417,7 @@ def apply_optional_shock_cleanup(
             "relative_l2_change": relative_l2_change,
             "max_abs_change": max_abs_change,
         }
-        applied.append(
-            "filter="
-            f"passes:{passes},fields:{fields},dirs:{filter_info['directions']}"
-        )
+        applied.append(f"filter=passes:{passes},fields:{fields},dirs:{filter_info['directions']}")
     info["filter"] = filter_info
 
     shock_sponge = np.zeros_like(sponge_out, dtype=float)
@@ -447,10 +451,7 @@ def apply_optional_shock_cleanup(
             "fraction_nonzero": float(np.mean(shock_sponge > 0.0)),
             "shock_sponge": shock_sponge,
         }
-        applied.append(
-            "shock_sponge="
-            f"mode:{mode},amp:{amplitude:.6g},max:{sponge_info['max']:.6g}"
-        )
+        applied.append(f"shock_sponge=mode:{mode},amp:{amplitude:.6g},max:{sponge_info['max']:.6g}")
     else:
         sponge_info["shock_sponge"] = shock_sponge
     info["sponge"] = sponge_info

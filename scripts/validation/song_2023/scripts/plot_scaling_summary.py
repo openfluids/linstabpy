@@ -8,7 +8,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
 SUMMARY_JSON = REPO / "scripts/validation/song_2023/scaling_runs/summary.json"
@@ -53,6 +52,7 @@ def main() -> None:
         raise SystemExit("No successful scaling results found.")
 
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -65,7 +65,10 @@ def main() -> None:
         ranks = np.asarray([int(item["ranks"]) for item in series], dtype=int)
         times = np.asarray([float(item["summary"]["total_time_s"]) for item in series], dtype=float)
         peak_sum = np.asarray(
-            [float(item["summary"].get("peak_memory_mib_sum_ranks", np.nan)) / 1024.0 for item in series],
+            [
+                float(item["summary"].get("peak_memory_mib_sum_ranks", np.nan)) / 1024.0
+                for item in series
+            ],
             dtype=float,
         )
         all_ranks.update(int(r) for r in ranks)
@@ -90,7 +93,7 @@ def main() -> None:
         )
         for x, y in zip(ranks, times):
             axes[0].annotate(
-                f"{y/60.0:.1f}m",
+                f"{y / 60.0:.1f}m",
                 (x, y),
                 xytext=(0, 6),
                 textcoords="offset points",

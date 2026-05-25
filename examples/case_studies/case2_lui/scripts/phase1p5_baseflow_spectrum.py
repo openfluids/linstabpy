@@ -21,7 +21,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -86,15 +85,16 @@ def energy_above_nyquist(profile: np.ndarray, stride_eta_physical: int) -> tuple
     return spec, frac
 
 
-def plot_field_with_stations(X: np.ndarray, Y: np.ndarray, U: np.ndarray,
-                              stations: list[int], path: Path) -> None:
+def plot_field_with_stations(
+    X: np.ndarray, Y: np.ndarray, U: np.ndarray, stations: list[int], path: Path
+) -> None:
     fig, ax = plt.subplots(figsize=(10, 4.5), constrained_layout=True)
     pc = ax.pcolormesh(X, Y, U, shading="auto", cmap="viridis")
     fig.colorbar(pc, ax=ax, label=r"$\bar{u}/U_\infty$")
     for i, s in enumerate(stations):
         ax.plot(X[:, s], Y[:, s], color="white", lw=0.8, ls="--")
         ax.annotate(
-            f"S{i+1}\nξ-idx={s}\nx≈{X[0, s]:.3f}",
+            f"S{i + 1}\nξ-idx={s}\nx≈{X[0, s]:.3f}",
             xy=(X[0, s], Y[0, s]),
             xytext=(0, -18),
             textcoords="offset points",
@@ -110,13 +110,14 @@ def plot_field_with_stations(X: np.ndarray, Y: np.ndarray, U: np.ndarray,
     plt.close(fig)
 
 
-def plot_spectra(specs: list[np.ndarray], stations: list[int],
-                 X: np.ndarray, N: int, stride: int, path: Path) -> None:
+def plot_spectra(
+    specs: list[np.ndarray], stations: list[int], X: np.ndarray, N: int, stride: int, path: Path
+) -> None:
     fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
     k_nyq_dec = (N // stride) // 2
     ks = np.arange(specs[0].size)
     for i, (spec, s) in enumerate(zip(specs, stations)):
-        ax.semilogy(ks, spec / spec.sum(), label=f"S{i+1} (x≈{X[0, s]:.3f})", lw=1.2)
+        ax.semilogy(ks, spec / spec.sum(), label=f"S{i + 1} (x≈{X[0, s]:.3f})", lw=1.2)
     ax.axvline(k_nyq_dec, color="k", ls="--", lw=1, label=f"M2 η-Nyquist (k={k_nyq_dec})")
     ax.axvline(N // 2, color="gray", ls=":", lw=1, label=f"M1 η-Nyquist (k={N // 2})")
     ax.set_xlabel("wall-normal wavenumber index (η)")
@@ -151,7 +152,7 @@ def plot_spectra_multi(
                 spec / spec.sum(),
                 color=colors[i],
                 lw=1.1,
-                label=f"S{i+1}" if name == list(fields)[0] else None,
+                label=f"S{i + 1}" if name == list(fields)[0] else None,
             )
         ax.axvline(k_nyq_dec, color="k", ls="--", lw=1)
         ax.axvline(N // 2, color="gray", ls=":", lw=1)
@@ -161,9 +162,7 @@ def plot_spectra_multi(
         ax.grid(True, which="both", alpha=0.3)
     axes[0].set_ylabel(r"normalized |$\hat{\phi}$|²")
     axes[0].legend(loc="lower left", fontsize=8)
-    fig.suptitle(
-        f"Qraw wall-normal spectra, 4 variables × 4 stations (M2 η-Nyquist k={k_nyq_dec})"
-    )
+    fig.suptitle(f"Qraw wall-normal spectra, 4 variables × 4 stations (M2 η-Nyquist k={k_nyq_dec})")
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
@@ -242,23 +241,27 @@ def main() -> None:
     print(f"  T range: [{T.min():.4f}, {T.max():.4f}]")
 
     stations = pick_stations(nx)
-    print(f"\nStation ξ-indices (out of {nx-1}): {stations}")
+    print(f"\nStation ξ-indices (out of {nx - 1}): {stations}")
     for i, s in enumerate(stations):
-        print(f"  S{i+1}  idx={s:3d}  x(wall)≈{X[0, s]:.4f}  "
-              f"x(free)≈{X[-1, s]:.4f}  y-range=[{Y[0, s]:.4f},{Y[-1, s]:.4f}]")
+        print(
+            f"  S{i + 1}  idx={s:3d}  x(wall)≈{X[0, s]:.4f}  "
+            f"x(free)≈{X[-1, s]:.4f}  y-range=[{Y[0, s]:.4f},{Y[-1, s]:.4f}]"
+        )
 
     stride = 2  # wall-normal decimation factor for M2 (and M21 in code)
     fields = {"rho": RHO, "u": U, "v": V, "T": T}
 
-    print(f"\nWall-normal FFT (N={ny}, decimated N={ny//stride}, "
-          f"M2 η-Nyquist k={(ny//stride)//2}).")
+    print(
+        f"\nWall-normal FFT (N={ny}, decimated N={ny // stride}, "
+        f"M2 η-Nyquist k={(ny // stride) // 2})."
+    )
     header = "  station | " + " | ".join(f"{n:>9s}" for n in fields) + " | "
     header += " | ".join(f"plat-{n}" for n in fields)
     print(header)
     fracs_by_field: dict[str, list[float]] = {n: [] for n in fields}
     plats_by_field: dict[str, list[float]] = {n: [] for n in fields}
     for i, s in enumerate(stations):
-        row = f"   S{i+1}     |"
+        row = f"   S{i + 1}     |"
         plat_row = ""
         for name, field in fields.items():
             _, frac = energy_above_nyquist(field[:, s], stride)
@@ -270,8 +273,7 @@ def main() -> None:
         print(row + "   " + plat_row)
 
     print("\nplateau = median of normalized |FFT|^2 over top 30% of wavenumbers")
-    print("(flat high-k noise floor; should be many decades below peak for a "
-          "clean field)")
+    print("(flat high-k noise floor; should be many decades below peak for a clean field)")
 
     verdict_frac = max(max(v) for v in fracs_by_field.values())
     verdict_plat = max(max(v) for v in plats_by_field.values())
@@ -279,13 +281,14 @@ def main() -> None:
     print(f"max frac above M2 Nyquist (any var, any station) = {verdict_frac:.3e}")
     print(f"max plateau level (any var, any station)        = {verdict_plat:.3e}")
     if verdict_frac > 1e-3 or verdict_plat > 1e-5:
-        print("-> Qraw has broadband wall-normal content that the M2 grid "
-              "cannot resolve AND/OR a noise-floor plateau well above "
-              "machine-precision.")
+        print(
+            "-> Qraw has broadband wall-normal content that the M2 grid "
+            "cannot resolve AND/OR a noise-floor plateau well above "
+            "machine-precision."
+        )
         print("-> Qfilt (Lele 1992 2nd-order compact) is worth pursuing.")
     else:
-        print("-> Qraw already effectively band-limited; Qfilt unlikely to "
-              "move the EVP spectrum.")
+        print("-> Qraw already effectively band-limited; Qfilt unlikely to move the EVP spectrum.")
 
     field_path = OUT_DIR / "qraw_u_with_stations.png"
     spec_path = OUT_DIR / "qraw_u_wall_normal_spectrum.png"
@@ -306,20 +309,18 @@ def main() -> None:
         f.write("=" * 60 + "\n\n")
         f.write(f"Array shape: (ny=η={ny}, nx=ξ={nx})\n")
         f.write(f"Wall-normal decimation factor (M2 / M21 in code): {stride}\n")
-        f.write(f"Decimated Nyquist k = {(ny//stride)//2} (native M1 k = {ny//2})\n\n")
+        f.write(f"Decimated Nyquist k = {(ny // stride) // 2} (native M1 k = {ny // 2})\n\n")
         f.write("Fraction of wall-normal |FFT|^2 energy above M2 η-Nyquist:\n\n")
-        f.write(f"{'station':>8s} {'x(wall)':>8s}  " +
-                " ".join(f"{n:>10s}" for n in fields) + "\n")
+        f.write(f"{'station':>8s} {'x(wall)':>8s}  " + " ".join(f"{n:>10s}" for n in fields) + "\n")
         for i, s in enumerate(stations):
-            row = f"     S{i+1} {X[0, s]:8.4f}  "
+            row = f"     S{i + 1} {X[0, s]:8.4f}  "
             for name in fields:
                 row += f" {fracs_by_field[name][i]:10.3e}"
             f.write(row + "\n")
         f.write("\nPlateau level (median of normalized |FFT|^2 over top 30% of k):\n\n")
-        f.write(f"{'station':>8s} {'x(wall)':>8s}  " +
-                " ".join(f"{n:>10s}" for n in fields) + "\n")
+        f.write(f"{'station':>8s} {'x(wall)':>8s}  " + " ".join(f"{n:>10s}" for n in fields) + "\n")
         for i, s in enumerate(stations):
-            row = f"     S{i+1} {X[0, s]:8.4f}  "
+            row = f"     S{i + 1} {X[0, s]:8.4f}  "
             for name in fields:
                 row += f" {plats_by_field[name][i]:10.3e}"
             f.write(row + "\n")

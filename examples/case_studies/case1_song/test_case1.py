@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.mesh import Mesh
 from linstabpy.baseflow import BaseFlow, sutherland_air
-from linstabpy.operators.coefficients import compute_cartesian_coefficients
-from linstabpy.operators.assembly import build_lnse_operator
-from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
 from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator
+from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.solvers.eigenvalue import temporal_eigenvalues
 from linstabpy.solvers.resolvent import resolvent_analysis
-from linstabpy.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
-from linstabpy.utils.plotting import plot_flow
-
-from examples._helpers import to_grid
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -26,7 +22,7 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 
 
 def compute():
-    
+
     # ---- Physical parameters ----
     Re = 395000
     Ma = 2.0
@@ -38,8 +34,8 @@ def compute():
     St = 0.1
     ratio_Uinfty_to_characVelocity = 1.0
     ratio_L_to_Lx = 0.1
-    freq = St*ratio_Uinfty_to_characVelocity/ratio_L_to_Lx
-    omega =  freq*2*np.pi
+    freq = St * ratio_Uinfty_to_characVelocity / ratio_L_to_Lx
+    omega = freq * 2 * np.pi
 
     n_modes = 100
     n_modes_resolvent = 10
@@ -50,7 +46,7 @@ def compute():
     nx = np.shape(x)[0]
     ny = np.shape(x)[1]
     print(f"Grid: nx={nx}, ny={ny}")
-    
+
     # ---- Create computational mesh ----
     xrange = (0.0, 1.0)
     yrange = (0.0, 0.5)
@@ -59,7 +55,7 @@ def compute():
     cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order)
 
     # ---- Mesh deformation ----
-    mesh = cmesh.deform(X_new=x.T,Y_new=y.T)
+    mesh = cmesh.deform(X_new=x.T, Y_new=y.T)
 
     # ---- Load base flow ----
     RHO = np.load("rho.npy")
@@ -68,18 +64,8 @@ def compute():
     T = np.load("T.npy")
     W = np.zeros_like(U)
 
-    bf = BaseFlow(
-        Re=Re,
-        Ma=Ma,
-        Pr=Pr,
-        kappa=kappa,
-        T_0=T_0,
-        RHO=RHO,
-        U=U,
-        V=V,
-        W=W,
-        T=T)
-    
+    bf = BaseFlow(Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0, RHO=RHO, U=U, V=V, W=W, T=T)
+
     sutherland_air(bf)
 
     # ---- Sponge function ----
@@ -133,20 +119,13 @@ def compute():
         L0, omega, n_modes_resolvent, W_diag, B_mat=B_mat, C_mat=C_mat
     )
     t_resolvent = time.perf_counter() - t_resolvent
-    print(
-        f"build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
-    )
+    print(f"build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s")
 
     print(f"Resolvent gains: {gains}")
 
     L0 /= -1.0j
     # Direct and adjoint temporal spectra
-    eigenvalues, direct_modes = temporal_eigenvalues(
-        L0,
-        n_modes,
-        omega
-    )
-
+    eigenvalues, direct_modes = temporal_eigenvalues(L0, n_modes, omega)
 
     np.savez_compressed(
         OUTPUT_NPZ,
@@ -168,9 +147,10 @@ def compute():
         idx_u_j=idx["u_j"],
         idx_v_j=idx["v_j"],
         idx_w_j=idx["w_j"],
-        idx_T_j=idx["T_j"]
+        idx_T_j=idx["T_j"],
     )
     print(f"Results saved to {OUTPUT_NPZ}")
+
 
 def main():
     try:

@@ -7,8 +7,6 @@ Adapted from resolvent4py's MatrixLinearOperator (Padovan et al.).
 
 from __future__ import annotations
 
-from typing import Optional, Union
-
 from ..utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
@@ -33,14 +31,12 @@ class MatrixOperator(LinearOperator):
     def __init__(
         self,
         A: PETSc.Mat,
-        ksp: Optional[Union[PETSc.KSP, None]] = None,
-        nblocks: Optional[Union[int, None]] = None,
+        ksp: PETSc.KSP | None | None = None,
+        nblocks: int | None | None = None,
     ) -> None:
         self.A = A
         self.ksp = ksp
-        super().__init__(
-            A.getComm(), "MatrixOperator", A.getSizes(), nblocks
-        )
+        super().__init__(A.getComm(), "MatrixOperator", A.getSizes(), nblocks)
 
     # -- Forward application -------------------------------------------------
 
@@ -60,9 +56,7 @@ class MatrixOperator(LinearOperator):
 
     def solve(self, x, y=None):
         if self.ksp is None:
-            raise RuntimeError(
-                f"{self.name}.solve() requires a KSP; none was provided"
-            )
+            raise RuntimeError(f"{self.name}.solve() requires a KSP; none was provided")
         if y is None:
             y = self.create_left_vector()
         self.ksp.solve(x, y)
@@ -74,9 +68,7 @@ class MatrixOperator(LinearOperator):
         Uses ``A^{-H} x = conj(A^{-T} conj(x))``.
         """
         if self.ksp is None:
-            raise RuntimeError(
-                f"{self.name}.solve_adjoint() requires a KSP; none was provided"
-            )
+            raise RuntimeError(f"{self.name}.solve_adjoint() requires a KSP; none was provided")
         if y is None:
             y = self.create_right_vector()
         x.conjugate()

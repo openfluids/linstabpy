@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.mesh import Mesh
 from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
 from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
 
 
 def my_bc_setup(
     mesh: Mesh,
-    idx: Dict[str, np.ndarray],
+    idx: dict[str, np.ndarray],
     L0: sp.csc_matrix,
     penalty: float,
-) -> Tuple[sp.csc_matrix, np.ndarray]:
+) -> tuple[sp.csc_matrix, np.ndarray]:
     """
     Boundary-condition recipe matching the Song (2023) MATLAB setup.
 
@@ -74,4 +72,3 @@ def my_bc_setup(
         np.concatenate((idx_dirichlet_lt, idx_dirichlet_b, idx_neumann_b, idx_neumann_r))
     )
     return L0, bc_all
-

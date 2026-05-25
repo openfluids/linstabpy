@@ -14,6 +14,7 @@ OUTPUTS:
   - example_3_streaky_bl_spatial.png
   - example_3_streaky_bl_spectra.png
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,8 +25,8 @@ from linstabpy.utils.jsonc import load_jsonc, parse_complex_list, parse_int_list
 
 from ._helpers import (
     apply_figure_layout,
-    format_complex,
     format_cache_recompute_message,
+    format_complex,
     format_scientific_ticks,
     label_axes,
     leading_mode_real_frequency,
@@ -34,8 +35,8 @@ from ._helpers import (
     plot_scalar_panel,
     plot_signed_panel,
     save_figure,
-    smallest_abs_indices,
     set_suptitle,
+    smallest_abs_indices,
     top_imag_indices,
 )
 
@@ -55,7 +56,9 @@ def _load_matlab_temporal_omega() -> np.ndarray | None:
         bundle = load_parity_npz(MATLAB_TEMPORAL_STEM)
     except FileNotFoundError:
         return None
-    return np.asarray(parity_npz_get(bundle, "results_StreakyBL_temporal/omega"), dtype=complex).reshape(-1)
+    return np.asarray(
+        parity_npz_get(bundle, "results_StreakyBL_temporal/omega"), dtype=complex
+    ).reshape(-1)
 
 
 def _load_matlab_spatial_alpha() -> np.ndarray | None:
@@ -64,7 +67,9 @@ def _load_matlab_spatial_alpha() -> np.ndarray | None:
         bundle = load_parity_npz(MATLAB_SPATIAL_STEM)
     except FileNotFoundError:
         return None
-    return np.asarray(parity_npz_get(bundle, "results_StreakyBL_spatial/alphas"), dtype=complex).reshape(-1)
+    return np.asarray(
+        parity_npz_get(bundle, "results_StreakyBL_spatial/alphas"), dtype=complex
+    ).reshape(-1)
 
 
 def _load_existing_npz() -> dict[str, np.ndarray]:
@@ -189,9 +194,14 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
 
     # Minimal cfg for mesh/sponge reconstruction from cached data shape
     mini_cfg: dict = {
-        "nx": 0, "ny": 0, "Lx": np.pi, "Ly": 5.0,
-        "fd_order": 4, "alpha_filter": 0.0,
-        "x_periodicity": True, "y_stretch_yi": 2.0,
+        "nx": 0,
+        "ny": 0,
+        "Lx": np.pi,
+        "Ly": 5.0,
+        "fd_order": 4,
+        "alpha_filter": 0.0,
+        "x_periodicity": True,
+        "y_stretch_yi": 2.0,
         "sponge": {"amplitude": 0.1, "ys_offset": 1.0, "ys_trans": 0.5},
     }
 
@@ -338,9 +348,7 @@ def _compute(cfg: dict) -> None:
     temporal_targets = parse_complex_list(cfg["temporal_targets"])
     temporal_quotas = parse_int_list(cfg["temporal_quotas"])
     if len(temporal_targets) != len(temporal_quotas):
-        raise ValueError(
-            "temporal_targets and temporal_quotas must have the same length."
-        )
+        raise ValueError("temporal_targets and temporal_quotas must have the same length.")
     omega_tar = temporal_targets[0]
     alpha_target = float(alpha_temp)
     n_modes = cfg["n_modes"]
@@ -350,9 +358,7 @@ def _compute(cfg: dict) -> None:
     run_spatial = cfg["run_spatial"]
     dedupe_tol = cfg.get("dedupe_tol", 1e-4)
     if not run_temporal and not run_spatial:
-        raise ValueError(
-            "At least one of run_temporal or run_spatial must be true."
-        )
+        raise ValueError("At least one of run_temporal or run_spatial must be true.")
 
     baseflow = load_streaky_bl(mesh)
     _apply_streaky_sponge(mesh, cfg)
@@ -677,7 +683,9 @@ def _plot(data: dict[str, np.ndarray]) -> None:
                 ax_mode.set_xlabel(r"$x$")
             else:
                 ax_mode.set_xticklabels([])
-        set_suptitle(fig_temporal, r"Temporal streaky-boundary-layer summary at $\beta = 0.6283$", y=0.972)
+        set_suptitle(
+            fig_temporal, r"Temporal streaky-boundary-layer summary at $\beta = 0.6283$", y=0.972
+        )
         apply_figure_layout(fig_temporal, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
         save_figure(fig_temporal, OUTPUT_PNG)
 
@@ -793,7 +801,9 @@ def _plot(data: dict[str, np.ndarray]) -> None:
             ms=5,
             label="Python",
         )
-        axes_support[0].set_title(f"Temporal spectrum, max r = {np.max(temporal_residuals):.1e}", pad=4.0)
+        axes_support[0].set_title(
+            f"Temporal spectrum, max r = {np.max(temporal_residuals):.1e}", pad=4.0
+        )
         axes_support[0].set_xlabel(r"$\Re(\omega)$")
         axes_support[0].set_ylabel(r"$\Im(\omega)$")
         axes_support[0].grid(True, alpha=0.3)
@@ -826,7 +836,9 @@ def _plot(data: dict[str, np.ndarray]) -> None:
             ms=5,
             label="Python",
         )
-        axes_support[1].set_title(f"Spatial spectrum, max r = {np.max(spatial_residuals):.1e}", pad=4.0)
+        axes_support[1].set_title(
+            f"Spatial spectrum, max r = {np.max(spatial_residuals):.1e}", pad=4.0
+        )
         axes_support[1].set_xlabel(r"$\Re(\alpha)$")
         axes_support[1].set_ylabel(r"$\Im(\alpha)$")
         axes_support[1].grid(True, alpha=0.3)

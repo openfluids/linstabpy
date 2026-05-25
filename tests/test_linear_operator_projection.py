@@ -18,10 +18,10 @@ from petsc4py import PETSc
 
 from linstabpy.linear_operators import ProjectionOperator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _np_to_vec(v: np.ndarray) -> PETSc.Vec:
     return PETSc.Vec().createWithArray(np.ascontiguousarray(v, dtype=complex))
@@ -34,6 +34,7 @@ def _vec_to_np(v: PETSc.Vec) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # A4: Projection operator tests
 # ---------------------------------------------------------------------------
+
 
 class TestProjectionOperator:
     """Test oblique and orthogonal projection operators."""
@@ -151,8 +152,7 @@ class TestProjectionOperator:
         y2 = op.apply(y1)
 
         np.testing.assert_allclose(
-            _vec_to_np(y2), _vec_to_np(y1), atol=1e-13,
-            err_msg="Projector is not idempotent"
+            _vec_to_np(y2), _vec_to_np(y1), atol=1e-13, err_msg="Projector is not idempotent"
         )
         y1.destroy()
         y2.destroy()
@@ -174,8 +174,10 @@ class TestProjectionOperator:
         y2 = op.apply(y1)
 
         np.testing.assert_allclose(
-            _vec_to_np(y2), _vec_to_np(y1), atol=1e-13,
-            err_msg="Complement projector is not idempotent"
+            _vec_to_np(y2),
+            _vec_to_np(y1),
+            atol=1e-13,
+            err_msg="Complement projector is not idempotent",
         )
         y1.destroy()
         y2.destroy()
@@ -228,8 +230,10 @@ class TestProjectionOperator:
         PHx = op.apply_adjoint(x)
 
         np.testing.assert_allclose(
-            _vec_to_np(Px), _vec_to_np(PHx), atol=1e-13,
-            err_msg="Orthogonal projector should be self-adjoint"
+            _vec_to_np(Px),
+            _vec_to_np(PHx),
+            atol=1e-13,
+            err_msg="Orthogonal projector should be self-adjoint",
         )
         Px.destroy()
         PHx.destroy()

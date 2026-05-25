@@ -21,7 +21,9 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SUMMARY_JSON = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+SUMMARY_JSON = (
+    REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+)
 SUPP_TEX = REPO / "paper/supp.tex"
 
 

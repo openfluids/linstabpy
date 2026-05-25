@@ -57,6 +57,14 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
+from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from ._eps_helpers import (
+    _install_eps_monitor,
+    _monitor_state_details,
+    _resolve_eps_convergence_test,
+    _resolve_eps_error_type,
+    _resolve_solver_cfg_subsection,
+)
 from .petsc_utils import (
     _is_petsc_matrix,
     _operator_shape,
@@ -67,14 +75,6 @@ from .petsc_utils import (
     scipy_to_petsc_distributed_from_root,
     vec_to_numpy,
 )
-from ._eps_helpers import (
-    _install_eps_monitor,
-    _monitor_state_details,
-    _resolve_eps_convergence_test,
-    _resolve_eps_error_type,
-    _resolve_solver_cfg_subsection,
-)
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,7 @@ def _apply_ksp_jsonc_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
             _set_opt("ksp_gmres_classicalgramschmidt", "true")
         else:
             raise ValueError(
-                f"Invalid gmres_orthogonalization={orth!r}; "
-                "expected modified|mgs|classical|cgs"
+                f"Invalid gmres_orthogonalization={orth!r}; expected modified|mgs|classical|cgs"
             )
 
     refinement = cfg.get("gmres_cgs_refinement_type")
@@ -190,7 +189,9 @@ def _nearest_order(values: np.ndarray, target: complex) -> np.ndarray:
     return np.lexsort((np.imag(values), np.real(values), distance_buckets))
 
 
-def _sort_nearest(values: np.ndarray, vectors: np.ndarray, target: complex) -> tuple[np.ndarray, np.ndarray]:
+def _sort_nearest(
+    values: np.ndarray, vectors: np.ndarray, target: complex
+) -> tuple[np.ndarray, np.ndarray]:
     """Sort eigenpairs by distance to ``target`` with deterministic tie-breaking."""
     order = _nearest_order(values, target)
     return values[order], vectors[:, order]
@@ -211,7 +212,9 @@ def _warn_if_shifted_operator_is_ill_conditioned(
         return
 
     max_n = _scfg_int(_ecfg, "cond_warn_max_n", "LINSTABPY_EIGEN_COND_WARN_MAX_N", 1500)
-    threshold = _scfg_float(_ecfg, "cond_warn_threshold", "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12)
+    threshold = _scfg_float(
+        _ecfg, "cond_warn_threshold", "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12
+    )
     ndof = _operator_shape(operator)[0]
     if ndof > max_n:
         return
@@ -323,7 +326,9 @@ def _raise_eps_setup_failure(
         if infog2 not in {None, "?"}:
             details.append(f"mumps_infog2={infog2}")
 
-    raise RuntimeError("SLEPc EPS.setUp failed: " + ", ".join(str(item) for item in details)) from exc
+    raise RuntimeError(
+        "SLEPc EPS.setUp failed: " + ", ".join(str(item) for item in details)
+    ) from exc
 
 
 def _raise_eps_solve_failure(
@@ -345,7 +350,9 @@ def _raise_eps_solve_failure(
         f"ksp_reason={_safe_petsc_info(ksp.getConvergedReason)}",
     ]
     details.extend(_monitor_state_details(monitor_state))
-    raise RuntimeError("SLEPc EPS.solve failed: " + ", ".join(str(item) for item in details)) from exc
+    raise RuntimeError(
+        "SLEPc EPS.solve failed: " + ", ".join(str(item) for item in details)
+    ) from exc
 
 
 def _reorder_info_residuals(info: dict[str, object], order: np.ndarray) -> None:
@@ -359,7 +366,6 @@ def _reorder_info_residuals(info: dict[str, object], order: np.ndarray) -> None:
         arr = np.asarray(info.get(key, np.array([], dtype=float)), dtype=float)
         if arr.size == order.size:
             info[key] = arr[order]
-
 
 
 def _configure_st_for_eigenvalue(
@@ -390,7 +396,8 @@ def _configure_st_for_eigenvalue(
 
     if st_solver in {"mumps", "direct", "lu"}:
         ignored_iterative_keys = sorted(
-            key for key in (
+            key
+            for key in (
                 "ksp_type",
                 "pc_type",
                 "pc_factor_solver_type",
@@ -442,8 +449,7 @@ def _configure_st_for_eigenvalue(
             ksp.setPCSide(PETSc.PC.Side.SYMMETRIC)
         else:
             raise ValueError(
-                "Invalid LINSTABPY_EIGEN_KSP_PC_SIDE "
-                f"'{pc_side}'; expected left|right|symmetric"
+                f"Invalid LINSTABPY_EIGEN_KSP_PC_SIDE '{pc_side}'; expected left|right|symmetric"
             )
         if pc_type in {"fieldsplit", "fs"}:
             pc.setType(PETSc.PC.Type.FIELDSPLIT)
@@ -490,6 +496,7 @@ def _configure_st_for_eigenvalue(
         pc.setType(pc_type)
         if pc_type in {"asm", "gasm"}:
             pc.setASMOverlap(asm_overlap)
+
             # Sub-KSP configuration (type and sub-PC) must be deferred until after
             # the matrix is available (i.e. after eps.setUp()).  We store the
             # desired sub-PC settings on the helper object so _eigs_near_target
@@ -506,8 +513,10 @@ def _configure_st_for_eigenvalue(
                         sk.setType("preonly")
                 except PETSc.Error:
                     pass
+
             _apply_asm_sub_pc()
         elif pc_type == "bjacobi":
+
             def _apply_bjacobi_sub_pc(pc_obj=pc):
                 try:
                     sub_ksps = pc_obj.getBJacobiSubKSP()
@@ -519,6 +528,7 @@ def _configure_st_for_eigenvalue(
                         sk.setType("preonly")
                 except PETSc.Error:
                     pass
+
             _apply_bjacobi_sub_pc()
 
     else:
@@ -696,7 +706,9 @@ def _eigs_near_target(
     # "inexact" inner solves can satisfy the preconditioned residual while
     # the true residual remains large; default true_residual=True for that path.
     true_residual_default = st_solver == "inexact"
-    true_residual = _scfg_bool(_ecfg, "true_residual", "LINSTABPY_EIGEN_TRUE_RESIDUAL", true_residual_default)
+    true_residual = _scfg_bool(
+        _ecfg, "true_residual", "LINSTABPY_EIGEN_TRUE_RESIDUAL", true_residual_default
+    )
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
 
@@ -723,7 +735,11 @@ def _eigs_near_target(
 
     logger.info(
         "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s ...",
-        np.real(target), np.imag(target), n_modes, ncv, eps_tol,
+        np.real(target),
+        np.imag(target),
+        n_modes,
+        ncv,
+        eps_tol,
         conv_test_name or "default",
         true_residual,
     )
@@ -756,17 +772,19 @@ def _eigs_near_target(
             f"conv_test={conv_test_name or 'default'}",
         ]
         details.extend(_monitor_state_details(monitor_state))
-        raise RuntimeError(
-            "SLEPc EPS did not converge for any eigenpair: " + ", ".join(details)
-        )
+        raise RuntimeError("SLEPc EPS did not converge for any eigenpair: " + ", ".join(details))
     if nconv < n_modes:
         logger.warning(
             "SLEPc EPS converged %d/%d eigenpairs; returning partial result",
-            nconv, n_modes,
+            nconv,
+            n_modes,
         )
 
     extract_all_converged = _scfg_bool(
-        _ecfg, "extract_all_converged", "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False,
+        _ecfg,
+        "extract_all_converged",
+        "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED",
+        False,
     )
     n_extract = int(nconv) if extract_all_converged else min(int(nconv), int(n_modes))
     eigenvalues = np.empty(n_extract, dtype=complex)
@@ -928,7 +946,10 @@ def temporal_eigenvalues(
             v0 = eigenvectors[:, 0]
             weighted_norm_error = np.abs(np.vdot(v0, np.asarray(W_diag) * v0) - 1.0)
             weighted_norm_tol = _scfg_float(
-                _ecfg, "weighted_norm_tol", "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL", 1e-12,
+                _ecfg,
+                "weighted_norm_tol",
+                "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL",
+                1e-12,
             )
             if weighted_norm_error > weighted_norm_tol:
                 logger.warning(

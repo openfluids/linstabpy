@@ -37,7 +37,10 @@ def main() -> None:
 
     n_modes = modes.shape[1]
     fig, axes = plt.subplots(
-        n_modes, 2, figsize=(12, 4.5 * n_modes), constrained_layout=True,
+        n_modes,
+        2,
+        figsize=(12, 4.5 * n_modes),
+        constrained_layout=True,
         squeeze=False,
     )
     for j in range(n_modes):
@@ -48,8 +51,7 @@ def main() -> None:
         phase = np.angle(u_grid)
 
         ax = axes[j, 0]
-        pc = ax.pcolormesh(X, Y, mag_norm, shading="auto", cmap="magma",
-                            vmin=0, vmax=1)
+        pc = ax.pcolormesh(X, Y, mag_norm, shading="auto", cmap="magma", vmin=0, vmax=1)
         fig.colorbar(pc, ax=ax, label=r"$|u|/\max|u|$")
         ax.set_aspect("equal")
         ax.set_xlabel("x")
@@ -60,8 +62,9 @@ def main() -> None:
         # Mask phase where |u| < 2% of peak — phase undefined in near-zero regions
         mask = mag_norm < 0.02
         phase_masked = np.ma.array(phase, mask=mask)
-        pc = ax.pcolormesh(X, Y, phase_masked, shading="auto",
-                           cmap="twilight", vmin=-np.pi, vmax=np.pi)
+        pc = ax.pcolormesh(
+            X, Y, phase_masked, shading="auto", cmap="twilight", vmin=-np.pi, vmax=np.pi
+        )
         fig.colorbar(pc, ax=ax, label=r"arg$(u)$ [rad]")
         ax.set_aspect("equal")
         ax.set_xlabel("x")

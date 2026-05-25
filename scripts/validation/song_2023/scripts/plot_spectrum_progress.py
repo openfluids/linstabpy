@@ -8,11 +8,12 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
 SCALING_RUNS = REPO / "scripts/validation/song_2023/scaling_runs"
-MATLAB_SPECTRUM = REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+MATLAB_SPECTRUM = (
+    REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+)
 OUTPUT_PNG = SCRIPT.with_name("song_spectrum_progress.png")
 
 
@@ -65,11 +66,14 @@ def main() -> None:
         raise SystemExit("No completed Song scaling spectra found yet.")
 
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8.5, 6.5))
-    ax.scatter(np.real(matlab), np.imag(matlab), c="k", marker="x", s=18, alpha=0.6, label="MATLAB ref")
+    ax.scatter(
+        np.real(matlab), np.imag(matlab), c="k", marker="x", s=18, alpha=0.6, label="MATLAB ref"
+    )
 
     fd_styles = {
         2: ("#1f77b4", "o"),

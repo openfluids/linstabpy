@@ -5,8 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.baseflow import BaseFlow
-from linstabpy.baseflow import sutherland_air
+from linstabpy.baseflow import BaseFlow, sutherland_air
 
 
 def _binomial5_filter(arr: np.ndarray, axis: int) -> np.ndarray:
@@ -92,7 +91,17 @@ def _apply_preprocessing(
     T: np.ndarray,
     sponge: np.ndarray,
     preprocess_cfg: dict[str, Any] | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    dict[str, Any],
+]:
     """Apply optional Song baseflow preprocessing.
 
     This deliberately starts with the least invasive controls:
@@ -148,7 +157,9 @@ def _apply_preprocessing(
     boundary_enabled = bool(boundary_cfg.get("enabled", False))
     info["sponge"]["boundary"] = {"enabled": boundary_enabled}
     if boundary_enabled:
-        points = _as_four_numbers(boundary_cfg.get("points"), cast=int, name="boundary sponge points")
+        points = _as_four_numbers(
+            boundary_cfg.get("points"), cast=int, name="boundary sponge points"
+        )
         amplitudes = _as_four_numbers(
             boundary_cfg.get("amplitudes"), cast=float, name="boundary sponge amplitudes"
         )

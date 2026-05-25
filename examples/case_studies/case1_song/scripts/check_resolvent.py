@@ -58,7 +58,7 @@ def _rel_l2(reference: np.ndarray, candidate: np.ndarray) -> float:
 
 
 def run(args: argparse.Namespace) -> dict:
-    py = np.load(args.python_npz, allow_pickle = False)
+    py = np.load(args.python_npz, allow_pickle=False)
     gains_py = np.asarray(py["gains"], dtype=float).reshape(-1)
     responses_py = np.asarray(py["responses"], dtype=complex)
     forcings_py = np.asarray(py["forcings"], dtype=complex)
@@ -146,7 +146,11 @@ def main() -> int:
     parser.add_argument(
         "--matlab-resolvent",
         type=Path,
-        default=CASE_DIR / "reference" / "matlab" / "MATLAB_exports_resolvent" / "res_svd_final.mat",
+        default=CASE_DIR
+        / "reference"
+        / "matlab"
+        / "MATLAB_exports_resolvent"
+        / "res_svd_final.mat",
     )
     parser.add_argument("--n-compare", type=int, default=10)
     parser.add_argument("--tol-gain-abs", type=float, default=1e-8)
@@ -162,13 +166,16 @@ def main() -> int:
 
     if args.config.exists():
         cfg = load_jsonc(args.config)
-        args.matlab_resolvent = _case_path(
-            _cfg_get(
-                cfg,
-                "paths.matlab_exports_resolvent_dir",
-                str(args.matlab_resolvent.parent),
+        args.matlab_resolvent = (
+            _case_path(
+                _cfg_get(
+                    cfg,
+                    "paths.matlab_exports_resolvent_dir",
+                    str(args.matlab_resolvent.parent),
+                )
             )
-        ) / "res_svd_final.mat"
+            / "res_svd_final.mat"
+        )
 
     report = run(args)
     args.artifact.parent.mkdir(parents=True, exist_ok=True)

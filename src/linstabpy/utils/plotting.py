@@ -192,7 +192,9 @@ def _resolve_color_scale(
     if finite.size == 0:
         finite = np.array([0.0], dtype=float)
 
-    use_explicit_scale = symmetric or robust_percentile is not None or vmin is not None or vmax is not None
+    use_explicit_scale = (
+        symmetric or robust_percentile is not None or vmin is not None or vmax is not None
+    )
     if not use_explicit_scale:
         return levels, vmin, vmax
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import scipy.io
@@ -57,7 +56,7 @@ def _load_matlab_L0(path: Path) -> sp.csc_matrix:
     return sp.csc_matrix(L0_mat.astype(complex))
 
 
-def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> Tuple[float, float, float]:
+def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> tuple[float, float, float]:
     """Return (max_abs, max_rel, frob_rel) for py_mat - ref_mat."""
     delta = (py_mat - ref_mat).tocoo()
     if delta.nnz == 0:

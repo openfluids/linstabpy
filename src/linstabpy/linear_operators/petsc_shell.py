@@ -34,15 +34,11 @@ class PetscShellOperator:
         """PETSc callback: y = L x."""
         self.L.apply(x, y)
 
-    def multHermitian(
-        self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec
-    ) -> None:
+    def multHermitian(self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec) -> None:
         """PETSc callback: y = L^H x."""
         self.L.apply_adjoint(x, y)
 
-    def multTranspose(
-        self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec
-    ) -> None:
+    def multTranspose(self, mat: PETSc.Mat, x: PETSc.Vec, y: PETSc.Vec) -> None:
         r"""PETSc callback: y = L^T x.
 
         SLEPc SVD with ``setImplicitTranspose(True)`` calls ``multTranspose``

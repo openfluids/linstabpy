@@ -150,8 +150,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         roots = [Path(d) for d in args.dirs]
     else:
         roots = [
-            _case_path(_cfg_get(config, "paths.matlab_exports_stability_dir", "reference/matlab/MATLAB_exports")),
-            _case_path(_cfg_get(config, "paths.matlab_exports_resolvent_dir", "reference/matlab/MATLAB_exports_resolvent")),
+            _case_path(
+                _cfg_get(
+                    config, "paths.matlab_exports_stability_dir", "reference/matlab/MATLAB_exports"
+                )
+            ),
+            _case_path(
+                _cfg_get(
+                    config,
+                    "paths.matlab_exports_resolvent_dir",
+                    "reference/matlab/MATLAB_exports_resolvent",
+                )
+            ),
         ]
 
     files: list[Path] = []

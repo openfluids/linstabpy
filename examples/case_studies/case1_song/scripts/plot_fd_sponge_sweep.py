@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 REPORT_JSON = CASE_DIR / "output" / "fd_sponge" / "case1_perf_memory_latest.json"
@@ -51,7 +50,8 @@ def _load_rows() -> list[dict]:
                 "case_id": case["case_id"],
                 "fd_order": int(numerics.get("fd_order", -1)),
                 "elapsed_seconds": float(case.get("metrics", {}).get("elapsed_seconds") or 0.0),
-                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0) / 1024**3,
+                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0)
+                / 1024**3,
                 "residual_max": case.get("output", {}).get("stability_residual_max"),
                 "omega": omega,
             }
@@ -65,7 +65,11 @@ def main() -> int:
     if not rows:
         raise SystemExit("No completed fd-order sponge cases found.")
 
-    matlab = _diag_or_flat(np.asarray(loadmat(CASE_DIR / "reference" / "matlab" / "MATLAB_exports" / "spectrum.mat")["omega"]))
+    matlab = _diag_or_flat(
+        np.asarray(
+            loadmat(CASE_DIR / "reference" / "matlab" / "MATLAB_exports" / "spectrum.mat")["omega"]
+        )
+    )
     fig = plt.figure(figsize=(13.5, 8.2))
     gs = fig.add_gridspec(2, 2, height_ratios=[1.2, 1.0])
     ax_spec = fig.add_subplot(gs[0, :])

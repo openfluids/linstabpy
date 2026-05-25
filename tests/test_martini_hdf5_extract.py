@@ -6,7 +6,6 @@ from __future__ import annotations
 import pytest
 
 from scripts.validation.martini2024.tools.matlab_hdf5 import extract_file
-
 from tests._paths import martini_export
 
 

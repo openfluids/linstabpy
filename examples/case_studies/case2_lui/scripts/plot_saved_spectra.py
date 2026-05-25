@@ -10,7 +10,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 DEFAULT_RUN_DIR = CASE_DIR / "output" / "evp_stride2x1_oscillatory_target_ncv500_tol1e4" / "runs"
@@ -29,7 +28,7 @@ def _case_label(path: Path) -> str:
     stem = path.stem
     prefix = "case2_perf_"
     if stem.startswith(prefix):
-        stem = stem[len(prefix):]
+        stem = stem[len(prefix) :]
     return stem
 
 
@@ -97,7 +96,9 @@ def main() -> int:
                 dtype=np.int32,
             ).reshape(-1)
             accepted_mask = np.zeros(omega.size, dtype=bool)
-            accepted_mask[accepted_indices[(accepted_indices >= 0) & (accepted_indices < omega.size)]] = True
+            accepted_mask[
+                accepted_indices[(accepted_indices >= 0) & (accepted_indices < omega.size)]
+            ] = True
             residual_rel = np.asarray(
                 data.get("stability_postcheck_residual_rel", np.array([], dtype=float)),
                 dtype=float,

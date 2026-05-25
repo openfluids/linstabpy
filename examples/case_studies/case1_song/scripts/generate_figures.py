@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
-
 
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
@@ -60,7 +60,11 @@ def main() -> int:
     parser.add_argument(
         "--matlab-resolvent",
         type=Path,
-        default=CASE_DIR / "reference" / "matlab" / "MATLAB_exports_resolvent" / "res_svd_final.mat",
+        default=CASE_DIR
+        / "reference"
+        / "matlab"
+        / "MATLAB_exports_resolvent"
+        / "res_svd_final.mat",
     )
     parser.add_argument(
         "--parity-config",
@@ -70,16 +74,14 @@ def main() -> int:
     args = parser.parse_args()
 
     root = CASE_DIR
-    data = np.load(args.python_npz, allow_pickle = False)
+    data = np.load(args.python_npz, allow_pickle=False)
     stability_metrics: dict[str, float] = {}
     resolvent_metrics: dict[str, float] = {}
 
     use_matlab_sponge_aux = False
     if args.parity_config.exists():
         cfg = _load_jsonc(args.parity_config)
-        use_matlab_sponge_aux = bool(
-            cfg.get("physics", {}).get("use_matlab_sponge_aux", False)
-        )
+        use_matlab_sponge_aux = bool(cfg.get("physics", {}).get("use_matlab_sponge_aux", False))
 
     omega_py = np.asarray(data["omega"], dtype=complex).reshape(-1)
     omega_target = complex(np.asarray(data["omega_target"]).reshape(-1)[0])
@@ -268,10 +270,7 @@ def main() -> int:
                 vmax=vmax,
             )
             om = omega_py[mode_idx]
-            ax.set_title(
-                f"Python mode {mode_idx + 1}\n"
-                f"Re={om.real:.5f}, Im={om.imag:.5f}"
-            )
+            ax.set_title(f"Python mode {mode_idx + 1}\nRe={om.real:.5f}, Im={om.imag:.5f}")
             ax.set_xlabel("x")
             ax.set_ylabel("y")
             fig.colorbar(c, ax=ax, shrink=0.86)
@@ -284,7 +283,12 @@ def main() -> int:
         fig.savefig(modes2d_png, dpi=220)
         plt.close(fig)
 
-    if has_stability and "X" in data and "Y" in data and mode_mat.size == int(np.asarray(data["X"]).size):
+    if (
+        has_stability
+        and "X" in data
+        and "Y" in data
+        and mode_mat.size == int(np.asarray(data["X"]).size)
+    ):
         X = np.asarray(data["X"], dtype=float)
         Y = np.asarray(data["Y"], dtype=float)
         u_mat_grid = u_mat_n.reshape(X.shape, order="F")
@@ -294,32 +298,58 @@ def main() -> int:
 
         fig, axes = plt.subplots(2, 2, figsize=(10, 7))
 
-        axes[0, 0].plot(X[iy, :], np.real(u_mat_grid[iy, :]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB")
-        axes[0, 0].plot(X[iy, :], np.real(u_py_grid[iy, :]), "o-", markersize=2.7, linewidth=0.8, label="Python")
+        axes[0, 0].plot(
+            X[iy, :],
+            np.real(u_mat_grid[iy, :]),
+            "x-",
+            markersize=5.0,
+            linewidth=0.9,
+            label="MATLAB",
+        )
+        axes[0, 0].plot(
+            X[iy, :], np.real(u_py_grid[iy, :]), "o-", markersize=2.7, linewidth=0.8, label="Python"
+        )
         axes[0, 0].set_title("centerline cut in x: Re(u)")
         axes[0, 0].set_xlabel("x")
         axes[0, 0].set_ylabel("Re(u)")
         axes[0, 0].grid(alpha=0.25)
         axes[0, 0].legend()
 
-        axes[0, 1].plot(Y[:, ix], np.real(u_mat_grid[:, ix]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB")
-        axes[0, 1].plot(Y[:, ix], np.real(u_py_grid[:, ix]), "o-", markersize=2.7, linewidth=0.8, label="Python")
+        axes[0, 1].plot(
+            Y[:, ix],
+            np.real(u_mat_grid[:, ix]),
+            "x-",
+            markersize=5.0,
+            linewidth=0.9,
+            label="MATLAB",
+        )
+        axes[0, 1].plot(
+            Y[:, ix], np.real(u_py_grid[:, ix]), "o-", markersize=2.7, linewidth=0.8, label="Python"
+        )
         axes[0, 1].set_title("centerline cut in y: Re(u)")
         axes[0, 1].set_xlabel("y")
         axes[0, 1].set_ylabel("Re(u)")
         axes[0, 1].grid(alpha=0.25)
         axes[0, 1].legend()
 
-        axes[1, 0].plot(X[iy, :], np.abs(u_mat_grid[iy, :]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB")
-        axes[1, 0].plot(X[iy, :], np.abs(u_py_grid[iy, :]), "o-", markersize=2.7, linewidth=0.8, label="Python")
+        axes[1, 0].plot(
+            X[iy, :], np.abs(u_mat_grid[iy, :]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB"
+        )
+        axes[1, 0].plot(
+            X[iy, :], np.abs(u_py_grid[iy, :]), "o-", markersize=2.7, linewidth=0.8, label="Python"
+        )
         axes[1, 0].set_title("centerline cut in x: |u|")
         axes[1, 0].set_xlabel("x")
         axes[1, 0].set_ylabel("|u|")
         axes[1, 0].grid(alpha=0.25)
         axes[1, 0].legend()
 
-        axes[1, 1].plot(Y[:, ix], np.abs(u_mat_grid[:, ix]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB")
-        axes[1, 1].plot(Y[:, ix], np.abs(u_py_grid[:, ix]), "o-", markersize=2.7, linewidth=0.8, label="Python")
+        axes[1, 1].plot(
+            Y[:, ix], np.abs(u_mat_grid[:, ix]), "x-", markersize=5.0, linewidth=0.9, label="MATLAB"
+        )
+        axes[1, 1].plot(
+            Y[:, ix], np.abs(u_py_grid[:, ix]), "o-", markersize=2.7, linewidth=0.8, label="Python"
+        )
         axes[1, 1].set_title("centerline cut in y: |u|")
         axes[1, 1].set_xlabel("y")
         axes[1, 1].set_ylabel("|u|")
@@ -383,7 +413,9 @@ def main() -> int:
         abs_err_log = np.log10(np.maximum(abs_err, 1e-30))
         rel_err_clip = np.clip(rel_err, 0.0, np.percentile(rel_err, 99.5))
         abs_ref_log = np.log10(np.maximum(abs_ref, 1e-30))
-        mode7_rel_l2 = float(np.linalg.norm(u_py_grid - u_mat_grid) / max(np.linalg.norm(u_mat_grid), 1e-30))
+        mode7_rel_l2 = float(
+            np.linalg.norm(u_py_grid - u_mat_grid) / max(np.linalg.norm(u_mat_grid), 1e-30)
+        )
         mode7_rel_max = float(np.max(rel_err))
         mode7_rel_p95 = float(np.percentile(rel_err, 95.0))
         phase_abs = np.abs(phase_plot[energetic_mask])
@@ -404,7 +436,9 @@ def main() -> int:
         axes[0, 1].set_title("mode7 |u_py - u_mat| (log10)")
         c10 = axes[1, 0].pcolormesh(X, Y, rel_err_clip, shading="auto", cmap="viridis")
         axes[1, 0].set_title("mode7 relative error")
-        c11 = axes[1, 1].pcolormesh(X, Y, phase_plot, shading="auto", cmap="twilight", vmin=-np.pi, vmax=np.pi)
+        c11 = axes[1, 1].pcolormesh(
+            X, Y, phase_plot, shading="auto", cmap="twilight", vmin=-np.pi, vmax=np.pi
+        )
         axes[1, 1].set_title("mode7 phase error (energetic mask)")
         for ax in axes.ravel():
             ax.set_xlabel("x")
@@ -452,8 +486,18 @@ def main() -> int:
         # Stability dashboard: one compact view for quick report sharing.
         fig, axes = plt.subplots(2, 2, figsize=(12, 8))
         if spectrum_png is not None:
-            axes[0, 0].scatter(mat_sel.real, mat_sel.imag, s=40, marker="x", label="MATLAB", alpha=0.8)
-            axes[0, 0].scatter(py_sel.real, py_sel.imag, s=20, marker="o", facecolors="none", label="Python", alpha=0.9)
+            axes[0, 0].scatter(
+                mat_sel.real, mat_sel.imag, s=40, marker="x", label="MATLAB", alpha=0.8
+            )
+            axes[0, 0].scatter(
+                py_sel.real,
+                py_sel.imag,
+                s=20,
+                marker="o",
+                facecolors="none",
+                label="Python",
+                alpha=0.9,
+            )
             axes[0, 0].axhline(0.0, color="0.45", linewidth=0.8)
             axes[0, 0].set_xlabel("Re(omega)")
             axes[0, 0].set_ylabel("Im(omega)")
@@ -502,9 +546,25 @@ def main() -> int:
         axes[1, 0].set_ylabel("y")
         fig.colorbar(c, ax=axes[1, 0], shrink=0.9)
 
-        axes[1, 1].plot(X[iy, :], np.real(u_mat_grid[iy, :]), "x-", markersize=4.2, linewidth=0.9, label="MATLAB Re(u)")
-        axes[1, 1].plot(X[iy, :], np.real(u_py_grid[iy, :]), "o-", markersize=2.4, linewidth=0.8, label="Python Re(u)")
-        axes[1, 1].plot(X[iy, :], np.abs(u_mat_grid[iy, :]), "--", linewidth=1.0, label="MATLAB |u|")
+        axes[1, 1].plot(
+            X[iy, :],
+            np.real(u_mat_grid[iy, :]),
+            "x-",
+            markersize=4.2,
+            linewidth=0.9,
+            label="MATLAB Re(u)",
+        )
+        axes[1, 1].plot(
+            X[iy, :],
+            np.real(u_py_grid[iy, :]),
+            "o-",
+            markersize=2.4,
+            linewidth=0.8,
+            label="Python Re(u)",
+        )
+        axes[1, 1].plot(
+            X[iy, :], np.abs(u_mat_grid[iy, :]), "--", linewidth=1.0, label="MATLAB |u|"
+        )
         axes[1, 1].plot(X[iy, :], np.abs(u_py_grid[iy, :]), "-", linewidth=0.9, label="Python |u|")
         axes[1, 1].set_title("mode7 centerline-x cuts")
         axes[1, 1].set_xlabel("x")
@@ -540,7 +600,11 @@ def main() -> int:
         import h5py
 
         def _as_complex(values: np.ndarray) -> np.ndarray:
-            if values.dtype.fields and "real" in values.dtype.fields and "imag" in values.dtype.fields:
+            if (
+                values.dtype.fields
+                and "real" in values.dtype.fields
+                and "imag" in values.dtype.fields
+            ):
                 return values["real"] + 1j * values["imag"]
             return values.astype(complex)
 
@@ -560,8 +624,12 @@ def main() -> int:
         if n_gain > 0:
             rank = np.arange(1, n_gain + 1)
             fig, ax = plt.subplots(figsize=(8, 5))
-            ax.semilogy(rank, gains_mat[:n_gain], "x-", markersize=6.0, linewidth=1.0, label="MATLAB")
-            ax.semilogy(rank, gains_py[:n_gain], "o-", markersize=3.2, linewidth=0.9, label="Python")
+            ax.semilogy(
+                rank, gains_mat[:n_gain], "x-", markersize=6.0, linewidth=1.0, label="MATLAB"
+            )
+            ax.semilogy(
+                rank, gains_py[:n_gain], "o-", markersize=3.2, linewidth=0.9, label="Python"
+            )
             ax.set_xlabel("mode rank")
             ax.set_ylabel("gain")
             ax.set_title(f"Case 1 resolvent gains parity (n={n_gain})")
@@ -592,7 +660,9 @@ def main() -> int:
 
             responses_py = np.asarray(data["responses"], dtype=complex)
             forcings_py = np.asarray(data["forcings"], dtype=complex)
-            n_mode = int(min(responses_py.shape[1], forcings_py.shape[1], U_mat.shape[1], V_mat.shape[1]))
+            n_mode = int(
+                min(responses_py.shape[1], forcings_py.shape[1], U_mat.shape[1], V_mat.shape[1])
+            )
 
             if n_mode > 0:
                 # Mode-1 comparison with best complex scaling (amplitude + phase).
@@ -768,33 +838,57 @@ def main() -> int:
                     iy0, iy1, ix0, ix1 = 0, X.shape[0] - 1, 0, X.shape[1] - 1
 
                 # Zoomed linear maps (MATLAB vs Python) for response/forcing mode 1.
-                x_zoom_min = float(np.min(X[iy0:iy1 + 1, ix0:ix1 + 1]))
-                x_zoom_max = float(np.max(X[iy0:iy1 + 1, ix0:ix1 + 1]))
-                y_zoom_min = float(np.min(Y[iy0:iy1 + 1, ix0:ix1 + 1]))
-                y_zoom_max = float(np.max(Y[iy0:iy1 + 1, ix0:ix1 + 1]))
+                x_zoom_min = float(np.min(X[iy0 : iy1 + 1, ix0 : ix1 + 1]))
+                x_zoom_max = float(np.max(X[iy0 : iy1 + 1, ix0 : ix1 + 1]))
+                y_zoom_min = float(np.min(Y[iy0 : iy1 + 1, ix0 : ix1 + 1]))
+                y_zoom_max = float(np.max(Y[iy0 : iy1 + 1, ix0 : ix1 + 1]))
 
-                r_ref_zoom = r_ref_u[iy0:iy1 + 1, ix0:ix1 + 1]
-                r_py_zoom = r_py_u[iy0:iy1 + 1, ix0:ix1 + 1]
-                f_ref_zoom = f_ref_u[iy0:iy1 + 1, ix0:ix1 + 1]
-                f_py_zoom = f_py_u[iy0:iy1 + 1, ix0:ix1 + 1]
+                r_ref_zoom = r_ref_u[iy0 : iy1 + 1, ix0 : ix1 + 1]
+                r_py_zoom = r_py_u[iy0 : iy1 + 1, ix0 : ix1 + 1]
+                f_ref_zoom = f_ref_u[iy0 : iy1 + 1, ix0 : ix1 + 1]
+                f_py_zoom = f_py_u[iy0 : iy1 + 1, ix0 : ix1 + 1]
                 vmax_r_zoom = _robust_vmax(r_ref_zoom, r_py_zoom)
                 vmax_f_zoom = _robust_vmax(f_ref_zoom, f_py_zoom)
 
                 fig, axes = plt.subplots(2, 2, figsize=(11, 7), sharex=True, sharey=True)
                 axes[0, 0].pcolormesh(
-                    X, Y, np.real(r_ref_u), shading="auto", cmap="RdBu_r", vmin=-vmax_r_zoom, vmax=vmax_r_zoom
+                    X,
+                    Y,
+                    np.real(r_ref_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_r_zoom,
+                    vmax=vmax_r_zoom,
                 )
                 axes[0, 0].set_title("MATLAB response mode 1: Re(u), zoom")
                 axes[0, 1].pcolormesh(
-                    X, Y, np.real(r_py_u), shading="auto", cmap="RdBu_r", vmin=-vmax_r_zoom, vmax=vmax_r_zoom
+                    X,
+                    Y,
+                    np.real(r_py_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_r_zoom,
+                    vmax=vmax_r_zoom,
                 )
                 axes[0, 1].set_title("Python response mode 1: Re(u), zoom")
                 axes[1, 0].pcolormesh(
-                    X, Y, np.real(f_ref_u), shading="auto", cmap="RdBu_r", vmin=-vmax_f_zoom, vmax=vmax_f_zoom
+                    X,
+                    Y,
+                    np.real(f_ref_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_f_zoom,
+                    vmax=vmax_f_zoom,
                 )
                 axes[1, 0].set_title("MATLAB forcing mode 1: Re(u), zoom")
                 axes[1, 1].pcolormesh(
-                    X, Y, np.real(f_py_u), shading="auto", cmap="RdBu_r", vmin=-vmax_f_zoom, vmax=vmax_f_zoom
+                    X,
+                    Y,
+                    np.real(f_py_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_f_zoom,
+                    vmax=vmax_f_zoom,
                 )
                 axes[1, 1].set_title("Python forcing mode 1: Re(u), zoom")
                 for ax in axes.ravel():
@@ -834,32 +928,88 @@ def main() -> int:
                 iy = X.shape[0] // 2
                 ix = X.shape[1] // 2
                 fig, axes = plt.subplots(2, 2, figsize=(11, 7))
-                axes[0, 0].plot(X[iy, :], np.real(r_ref_u[iy, :]), "x-", linewidth=0.9, markersize=5.0, label="MATLAB")
-                axes[0, 0].plot(X[iy, :], np.real(r_py_u[iy, :]), "o-", linewidth=0.8, markersize=2.8, label="Python")
+                axes[0, 0].plot(
+                    X[iy, :],
+                    np.real(r_ref_u[iy, :]),
+                    "x-",
+                    linewidth=0.9,
+                    markersize=5.0,
+                    label="MATLAB",
+                )
+                axes[0, 0].plot(
+                    X[iy, :],
+                    np.real(r_py_u[iy, :]),
+                    "o-",
+                    linewidth=0.8,
+                    markersize=2.8,
+                    label="Python",
+                )
                 axes[0, 0].set_title("response mode 1, centerline-x: Re(u)")
                 axes[0, 0].set_xlabel("x")
                 axes[0, 0].set_ylabel("Re(u)")
                 axes[0, 0].grid(alpha=0.25)
                 axes[0, 0].legend()
 
-                axes[0, 1].plot(Y[:, ix], np.real(r_ref_u[:, ix]), "x-", linewidth=0.9, markersize=5.0, label="MATLAB")
-                axes[0, 1].plot(Y[:, ix], np.real(r_py_u[:, ix]), "o-", linewidth=0.8, markersize=2.8, label="Python")
+                axes[0, 1].plot(
+                    Y[:, ix],
+                    np.real(r_ref_u[:, ix]),
+                    "x-",
+                    linewidth=0.9,
+                    markersize=5.0,
+                    label="MATLAB",
+                )
+                axes[0, 1].plot(
+                    Y[:, ix],
+                    np.real(r_py_u[:, ix]),
+                    "o-",
+                    linewidth=0.8,
+                    markersize=2.8,
+                    label="Python",
+                )
                 axes[0, 1].set_title("response mode 1, centerline-y: Re(u)")
                 axes[0, 1].set_xlabel("y")
                 axes[0, 1].set_ylabel("Re(u)")
                 axes[0, 1].grid(alpha=0.25)
                 axes[0, 1].legend()
 
-                axes[1, 0].plot(X[iy, :], np.abs(f_ref_u[iy, :]), "x-", linewidth=0.9, markersize=5.0, label="MATLAB")
-                axes[1, 0].plot(X[iy, :], np.abs(f_py_u[iy, :]), "o-", linewidth=0.8, markersize=2.8, label="Python")
+                axes[1, 0].plot(
+                    X[iy, :],
+                    np.abs(f_ref_u[iy, :]),
+                    "x-",
+                    linewidth=0.9,
+                    markersize=5.0,
+                    label="MATLAB",
+                )
+                axes[1, 0].plot(
+                    X[iy, :],
+                    np.abs(f_py_u[iy, :]),
+                    "o-",
+                    linewidth=0.8,
+                    markersize=2.8,
+                    label="Python",
+                )
                 axes[1, 0].set_title("forcing mode 1, centerline-x: |u|")
                 axes[1, 0].set_xlabel("x")
                 axes[1, 0].set_ylabel("|u|")
                 axes[1, 0].grid(alpha=0.25)
                 axes[1, 0].legend()
 
-                axes[1, 1].plot(Y[:, ix], np.abs(f_ref_u[:, ix]), "x-", linewidth=0.9, markersize=5.0, label="MATLAB")
-                axes[1, 1].plot(Y[:, ix], np.abs(f_py_u[:, ix]), "o-", linewidth=0.8, markersize=2.8, label="Python")
+                axes[1, 1].plot(
+                    Y[:, ix],
+                    np.abs(f_ref_u[:, ix]),
+                    "x-",
+                    linewidth=0.9,
+                    markersize=5.0,
+                    label="MATLAB",
+                )
+                axes[1, 1].plot(
+                    Y[:, ix],
+                    np.abs(f_py_u[:, ix]),
+                    "o-",
+                    linewidth=0.8,
+                    markersize=2.8,
+                    label="Python",
+                )
                 axes[1, 1].set_title("forcing mode 1, centerline-y: |u|")
                 axes[1, 1].set_xlabel("y")
                 axes[1, 1].set_ylabel("|u|")
@@ -874,7 +1024,9 @@ def main() -> int:
                 # Gallery of Python response modes (first 3), useful to assess
                 # smoothness/structure and physical coherence.
                 n_gallery = int(min(3, n_mode))
-                fig, axes = plt.subplots(1, n_gallery, figsize=(5.2 * n_gallery, 4.2), sharex=True, sharey=True)
+                fig, axes = plt.subplots(
+                    1, n_gallery, figsize=(5.2 * n_gallery, 4.2), sharex=True, sharey=True
+                )
                 if n_gallery == 1:
                     axes = np.array([axes])
                 for j, ax in enumerate(axes):
@@ -901,22 +1053,36 @@ def main() -> int:
                 print(f"generated: {gallery_png}")
 
                 # Mode-wise parity error summary (gains + forcing/response L2 errors).
-                gain_rel = np.abs(gains_py[:n_mode] - gains_mat[:n_mode]) / np.maximum(np.abs(gains_mat[:n_mode]), 1e-30)
+                gain_rel = np.abs(gains_py[:n_mode] - gains_mat[:n_mode]) / np.maximum(
+                    np.abs(gains_mat[:n_mode]), 1e-30
+                )
                 forcing_rel = np.zeros(n_mode, dtype=float)
                 response_rel = np.zeros(n_mode, dtype=float)
                 for j in range(n_mode):
                     f_ref_j = V_mat[:, j]
                     r_ref_j = U_mat[:, j]
                     f_py_j = forcings_py[:, j] * _best_complex_scale_res(f_ref_j, forcings_py[:, j])
-                    r_py_j = responses_py[:, j] * _best_complex_scale_res(r_ref_j, responses_py[:, j])
-                    forcing_rel[j] = np.linalg.norm(f_py_j - f_ref_j) / max(np.linalg.norm(f_ref_j), 1e-30)
-                    response_rel[j] = np.linalg.norm(r_py_j - r_ref_j) / max(np.linalg.norm(r_ref_j), 1e-30)
+                    r_py_j = responses_py[:, j] * _best_complex_scale_res(
+                        r_ref_j, responses_py[:, j]
+                    )
+                    forcing_rel[j] = np.linalg.norm(f_py_j - f_ref_j) / max(
+                        np.linalg.norm(f_ref_j), 1e-30
+                    )
+                    response_rel[j] = np.linalg.norm(r_py_j - r_ref_j) / max(
+                        np.linalg.norm(r_ref_j), 1e-30
+                    )
 
                 rank = np.arange(1, n_mode + 1)
                 fig, ax = plt.subplots(figsize=(8.5, 5.0))
-                ax.semilogy(rank, gain_rel, "o-", markersize=3.5, linewidth=0.9, label="gain rel error")
-                ax.semilogy(rank, forcing_rel, "s-", markersize=3.2, linewidth=0.9, label="forcing rel L2")
-                ax.semilogy(rank, response_rel, "^-", markersize=3.2, linewidth=0.9, label="response rel L2")
+                ax.semilogy(
+                    rank, gain_rel, "o-", markersize=3.5, linewidth=0.9, label="gain rel error"
+                )
+                ax.semilogy(
+                    rank, forcing_rel, "s-", markersize=3.2, linewidth=0.9, label="forcing rel L2"
+                )
+                ax.semilogy(
+                    rank, response_rel, "^-", markersize=3.2, linewidth=0.9, label="response rel L2"
+                )
                 ax.set_xlabel("mode rank")
                 ax.set_ylabel("relative error")
                 ax.set_title("resolvent parity errors by mode")
@@ -935,17 +1101,27 @@ def main() -> int:
 
                 # Resolvent dashboard: compact summary for reporting.
                 fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-                axes[0, 0].semilogy(rank, gains_mat[:n_mode], "x-", markersize=5.2, linewidth=0.9, label="MATLAB")
-                axes[0, 0].semilogy(rank, gains_py[:n_mode], "o-", markersize=3.2, linewidth=0.85, label="Python")
+                axes[0, 0].semilogy(
+                    rank, gains_mat[:n_mode], "x-", markersize=5.2, linewidth=0.9, label="MATLAB"
+                )
+                axes[0, 0].semilogy(
+                    rank, gains_py[:n_mode], "o-", markersize=3.2, linewidth=0.85, label="Python"
+                )
                 axes[0, 0].set_title("gains parity")
                 axes[0, 0].set_xlabel("mode rank")
                 axes[0, 0].set_ylabel("gain")
                 axes[0, 0].grid(alpha=0.2, which="both")
                 axes[0, 0].legend()
 
-                axes[0, 1].semilogy(rank, gain_rel, "o-", markersize=3.2, linewidth=0.9, label="gain rel")
-                axes[0, 1].semilogy(rank, forcing_rel, "s-", markersize=3.0, linewidth=0.9, label="forcing rel L2")
-                axes[0, 1].semilogy(rank, response_rel, "^-", markersize=3.0, linewidth=0.9, label="response rel L2")
+                axes[0, 1].semilogy(
+                    rank, gain_rel, "o-", markersize=3.2, linewidth=0.9, label="gain rel"
+                )
+                axes[0, 1].semilogy(
+                    rank, forcing_rel, "s-", markersize=3.0, linewidth=0.9, label="forcing rel L2"
+                )
+                axes[0, 1].semilogy(
+                    rank, response_rel, "^-", markersize=3.0, linewidth=0.9, label="response rel L2"
+                )
                 axes[0, 1].set_title("mode-wise parity errors")
                 axes[0, 1].set_xlabel("mode rank")
                 axes[0, 1].set_ylabel("relative error")
@@ -954,7 +1130,15 @@ def main() -> int:
 
                 vmax_rsp = max(float(np.percentile(np.abs(np.real(r_py_zoom)), 99.5)), 1e-12)
                 vmax_frc = max(float(np.percentile(np.abs(np.real(f_py_zoom)), 99.5)), 1e-12)
-                c0 = axes[1, 0].pcolormesh(X, Y, np.real(r_py_u), shading="auto", cmap="RdBu_r", vmin=-vmax_rsp, vmax=vmax_rsp)
+                c0 = axes[1, 0].pcolormesh(
+                    X,
+                    Y,
+                    np.real(r_py_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_rsp,
+                    vmax=vmax_rsp,
+                )
                 axes[1, 0].set_xlim(x_zoom_min, x_zoom_max)
                 axes[1, 0].set_ylim(y_zoom_min, y_zoom_max)
                 axes[1, 0].set_title("Python response mode1 (zoom)")
@@ -962,7 +1146,15 @@ def main() -> int:
                 axes[1, 0].set_ylabel("y")
                 fig.colorbar(c0, ax=axes[1, 0], shrink=0.9)
 
-                c1 = axes[1, 1].pcolormesh(X, Y, np.real(f_py_u), shading="auto", cmap="RdBu_r", vmin=-vmax_frc, vmax=vmax_frc)
+                c1 = axes[1, 1].pcolormesh(
+                    X,
+                    Y,
+                    np.real(f_py_u),
+                    shading="auto",
+                    cmap="RdBu_r",
+                    vmin=-vmax_frc,
+                    vmax=vmax_frc,
+                )
                 axes[1, 1].set_xlim(x_zoom_min, x_zoom_max)
                 axes[1, 1].set_ylim(y_zoom_min, y_zoom_max)
                 axes[1, 1].set_title("Python forcing mode1 (zoom)")
@@ -1001,7 +1193,15 @@ def main() -> int:
             f"matlab spectrum ref: {args.matlab_spectrum}",
             f"matlab resolvent ref: {args.matlab_resolvent}",
         ]
-        axes[0].text(0.02, 0.98, "\n".join(lines), va="top", ha="left", fontsize=10, transform=axes[0].transAxes)
+        axes[0].text(
+            0.02,
+            0.98,
+            "\n".join(lines),
+            va="top",
+            ha="left",
+            fontsize=10,
+            transform=axes[0].transAxes,
+        )
 
         y = np.arange(len(values))
         axes[1].barh(y, values, color=colors, alpha=0.85)

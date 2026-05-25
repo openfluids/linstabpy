@@ -9,12 +9,15 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
 SCALING_SUMMARY = REPO / "scripts/validation/song_2023/scaling_runs/summary.json"
-ORDER_SUMMARY = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
-MATLAB_SPECTRUM = REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+ORDER_SUMMARY = (
+    REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+)
+MATLAB_SPECTRUM = (
+    REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+)
 OUTPUT_PNG = SCRIPT.with_name("song_fd_spectrum_sensitivity.png")
 
 FD_STYLES = {
@@ -77,11 +80,14 @@ def main() -> None:
         raise SystemExit("Need at least two successful FD-order spectra before plotting.")
 
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8.5, 6.5))
-    ax.scatter(np.real(matlab), np.imag(matlab), s=18, c="k", marker="x", alpha=0.65, label="MATLAB ref")
+    ax.scatter(
+        np.real(matlab), np.imag(matlab), s=18, c="k", marker="x", alpha=0.65, label="MATLAB ref"
+    )
 
     for fd in sorted(npz_by_fd):
         with np.load(npz_by_fd[fd], allow_pickle=False) as data:

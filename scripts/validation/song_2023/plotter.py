@@ -16,17 +16,20 @@ import argparse
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Font settings
-matplotlib.rcParams.update({
-    "font.size": 22,
-    "font.family": "serif",
-    "font.serif": ["Computer Modern"],
-    "text.usetex": True,
-})
+matplotlib.rcParams.update(
+    {
+        "font.size": 22,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern"],
+        "text.usetex": True,
+    }
+)
 
 
 # Contour levels for scalar fields (symmetric about 0)
@@ -137,7 +140,15 @@ def plot_spectrum(
         ax31.set_ylabel(r"$R(T/T_{max})$")
 
         fig.suptitle(rf"$\beta = {beta}$, $St = {St}$")
-        cbar = fig.colorbar(cf, ax=axes_list, orientation="vertical", location="right", shrink=0.6, pad=0.02, aspect=30)
+        cbar = fig.colorbar(
+            cf,
+            ax=axes_list,
+            orientation="vertical",
+            location="right",
+            shrink=0.6,
+            pad=0.02,
+            aspect=30,
+        )
         cbar.set_label("Scale - real part, normalized by max(real)")
 
         fig.savefig(save_dir / f"eig_{i}.png", dpi=dpi, bbox_inches="tight")
@@ -168,7 +179,7 @@ def plot_resolvent(
     sponge = np.asarray(data["sponge"])
     sponge_flag = float(np.max(sponge)) >= SPONGE_CONTOUR
 
-    forcings = np.asarray(data["forcings"]).T   # (n_modes, ndof)
+    forcings = np.asarray(data["forcings"]).T  # (n_modes, ndof)
     responses = np.asarray(data["responses"]).T
     ndof = forcings.shape[1]
     idx = _build_idx(ndof)
@@ -219,6 +230,7 @@ def plot_resolvent(
 
         def reshape_f(v):
             return v.reshape((ny, nx), order="F")
+
         rho_f = reshape_f(rho_f)
         u_f = reshape_f(u_f)
         v_f = reshape_f(v_f)
@@ -230,7 +242,9 @@ def plot_resolvent(
         w_r = reshape_f(w_r)
         T_r = reshape_f(T_r)
 
-        fig, ((ax1, ax11), (ax2, ax21), (ax3, ax31), (ax4, ax41), (ax5, ax51)) = plt.subplots(5, 2, sharey=True, figsize=(12, 16))
+        fig, ((ax1, ax11), (ax2, ax21), (ax3, ax31), (ax4, ax41), (ax5, ax51)) = plt.subplots(
+            5, 2, sharey=True, figsize=(12, 16)
+        )
         axes_list = [ax1, ax11, ax2, ax21, ax3, ax31, ax4, ax41, ax5, ax51]
 
         def add_contours(ax, field):
@@ -261,10 +275,15 @@ def plot_resolvent(
         ax51.set_xlabel("Response")
 
         pct = gains_norm[i] * 100 if gain_total > 0 else 0.0
-        fig.suptitle(rf"$\beta = {beta}$, $St = {St}$ — {pct:.3f}% of total gain, {gains_orig[i]:.7e}", y=0.925)
+        fig.suptitle(
+            rf"$\beta = {beta}$, $St = {St}$ — {pct:.3f}% of total gain, {gains_orig[i]:.7e}",
+            y=0.925,
+        )
         # Leave right margin for colorbar so it does not overlap the response column
         plt.subplots_adjust(hspace=0.1, wspace=0.1, right=0.82)
-        cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])  # [left, bottom, width, height] in figure coords
+        cbar_ax = fig.add_axes(
+            [0.85, 0.15, 0.02, 0.7]
+        )  # [left, bottom, width, height] in figure coords
         cbar = fig.colorbar(cf, cax=cbar_ax)
         cbar.set_label("Scale - real part, normalized by max(forcing,response)")
         fig.savefig(save_dir / f"mode_{i}.png", dpi=dpi, bbox_inches="tight")
@@ -276,7 +295,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Plot eigenvalues and resolvent modes from a run_case .npz file.",
     )
-    parser.add_argument("--npz", type=str, required=True, help="Path to the .npz file (e.g. song_2023.npz)")
+    parser.add_argument(
+        "--npz", type=str, required=True, help="Path to the .npz file (e.g. song_2023.npz)"
+    )
     parser.add_argument(
         "--output-dir",
         type=str,
@@ -286,7 +307,12 @@ def main() -> None:
     parser.add_argument("--dpi", type=int, default=600, help="Figure DPI (default: 600)")
     parser.add_argument("--no-spectrum", action="store_true", help="Skip eigenvalue/spectrum plots")
     parser.add_argument("--no-resolvent", action="store_true", help="Skip resolvent mode plots")
-    parser.add_argument("--beta", type=float, default=None, help="Spanwise wavenumber (overrides npz; use if npz was saved before beta was stored)")
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=None,
+        help="Spanwise wavenumber (overrides npz; use if npz was saved before beta was stored)",
+    )
     parser.add_argument("--St", type=float, default=None, help="Strouhal number (overrides npz)")
     args = parser.parse_args()
 
@@ -301,7 +327,15 @@ def main() -> None:
 
     data = np.load(npz_path, allow_pickle=False)
     beta = args.beta if args.beta is not None else (float(data["beta"]) if "beta" in data else 0.0)
-    St = args.St if args.St is not None else (float(data["St"]) if "St" in data else (float(data["omega_target"]) / (2 * np.pi) if "omega_target" in data else 0.0))
+    St = (
+        args.St
+        if args.St is not None
+        else (
+            float(data["St"])
+            if "St" in data
+            else (float(data["omega_target"]) / (2 * np.pi) if "omega_target" in data else 0.0)
+        )
+    )
 
     if not args.no_spectrum:
         plot_spectrum(data, out_root / "eigvals", beta=beta, St=St, dpi=args.dpi)

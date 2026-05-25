@@ -46,17 +46,17 @@ from ..utils.petsc_init import init_slepc_from_argv
 init_slepc_from_argv()
 from slepc4py import SLEPc
 
-from ..utils.petsc_core import scipy_to_petsc, petsc_vec, vec_to_numpy
+from ..utils.petsc_core import petsc_vec, scipy_to_petsc, vec_to_numpy
+from .adapters import DiagonalOperator, scipy_to_solve_operator
 from .matrix import MatrixOperator
-from .product import ProductOperator
 from .petsc_shell import PetscShellOperator
-from .adapters import scipy_to_solve_operator, DiagonalOperator
+from .product import ProductOperator
 from .projection import ProjectionOperator
-
 
 # ---------------------------------------------------------------------------
 # C1: Harmonic layout / indexing
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class HarmonicLayout:
@@ -136,6 +136,7 @@ class HarmonicLayout:
 # C2: Harmonic weight builder
 # ---------------------------------------------------------------------------
 
+
 def build_harmonic_weights(
     layout: HarmonicLayout,
     W_diag: np.ndarray,
@@ -162,9 +163,7 @@ def build_harmonic_weights(
     """
     W_diag = np.asarray(W_diag, dtype=float)
     if W_diag.size != layout.n:
-        raise ValueError(
-            f"W_diag has {W_diag.size} entries but layout.n={layout.n}"
-        )
+        raise ValueError(f"W_diag has {W_diag.size} entries but layout.n={layout.n}")
     W_harm = np.tile(W_diag, layout.nblocks)
     invW_harm = 1.0 / W_harm
     return W_harm, invW_harm
@@ -173,6 +172,7 @@ def build_harmonic_weights(
 # ---------------------------------------------------------------------------
 # C3: Harmonic block assembly
 # ---------------------------------------------------------------------------
+
 
 def assemble_harmonic_operator(
     layout: HarmonicLayout,
@@ -231,9 +231,7 @@ def assemble_harmonic_operator(
             full_harmonics[k] = operator_harmonics[idx]
 
     if Nf > Nh:
-        raise ValueError(
-            f"Number of operator harmonics Nf={Nf} exceeds layout Nh={Nh}"
-        )
+        raise ValueError(f"Number of operator harmonics Nf={Nf} exceeds layout Nh={Nh}")
 
     # Build block-Toeplitz matrix A_hat.
     # Block (i,j) = L_{k_i - k_j} where k_i = i - Nh.
@@ -266,6 +264,7 @@ def assemble_harmonic_operator(
 # ---------------------------------------------------------------------------
 # C4: Harmonic BC application
 # ---------------------------------------------------------------------------
+
 
 def apply_harmonic_bcs(
     T: sp.spmatrix,
@@ -304,9 +303,7 @@ def apply_harmonic_bcs(
         return sp.csc_matrix(T)
 
     # Lift base BC indices to every harmonic block.
-    lifted = np.concatenate([
-        layout.lift_indices(bc_indices, k) for k in layout.harmonics
-    ])
+    lifted = np.concatenate([layout.lift_indices(bc_indices, k) for k in layout.harmonics])
     lifted = np.unique(lifted)
 
     # Zero rows (CSR) then columns (CSC).
@@ -373,6 +370,7 @@ def assemble_harmonic_operator_petsc(
 # ---------------------------------------------------------------------------
 # C5: Harmonic resolvent analysis
 # ---------------------------------------------------------------------------
+
 
 def harmonic_resolvent_analysis(
     T: sp.spmatrix,
@@ -503,6 +501,7 @@ def harmonic_resolvent_analysis(
 # C6: Projected harmonic resolvent analysis
 # ---------------------------------------------------------------------------
 
+
 def projected_harmonic_resolvent_analysis(
     T: sp.spmatrix,
     layout: HarmonicLayout,
@@ -565,9 +564,7 @@ def projected_harmonic_resolvent_analysis(
     N = layout.N
     dQdt = np.asarray(dQdt, dtype=complex).ravel()
     if dQdt.size != N:
-        raise ValueError(
-            f"dQdt has {dQdt.size} entries but layout.N={N}"
-        )
+        raise ValueError(f"dQdt has {dQdt.size} entries but layout.N={N}")
 
     # Build harmonic weights.
     W_harm, invW_harm = build_harmonic_weights(layout, W_diag)
@@ -599,8 +596,16 @@ def projected_harmonic_resolvent_analysis(
 
     htrh = ProductOperator(
         [Pd, T_op, Pr, W_op, Pr, T_op, Pd, invW_op],
-        [Pd.apply, T_op.solve, Pr.apply, W_op.apply,
-         Pr.apply_adjoint, T_op.solve_adjoint, Pd.apply_adjoint, invW_op.apply],
+        [
+            Pd.apply,
+            T_op.solve,
+            Pr.apply,
+            W_op.apply,
+            Pr.apply_adjoint,
+            T_op.solve_adjoint,
+            Pd.apply_adjoint,
+            invW_op.apply,
+        ],
     )
     htrh_shell = PetscShellOperator.as_mat(htrh)
 
@@ -617,9 +622,7 @@ def projected_harmonic_resolvent_analysis(
 
     nconv = eps.getConverged()
     if nconv == 0:
-        raise RuntimeError(
-            "SLEPc EPS did not converge for any projected HtrH eigenpair"
-        )
+        raise RuntimeError("SLEPc EPS did not converge for any projected HtrH eigenpair")
     n_extract = min(nconv, n_modes)
 
     # Extract gains, forcings, responses.

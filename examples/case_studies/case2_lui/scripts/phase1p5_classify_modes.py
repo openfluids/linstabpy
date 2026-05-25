@@ -84,7 +84,7 @@ def classify_one(d: dict, j: int) -> dict:
     # Shock-foot circle
     xsf, ysf = SHOCK_FOOT
     r2 = (X - xsf) ** 2 + (Y - ysf) ** 2
-    sf_mask = r2 < R_SHOCK ** 2
+    sf_mask = r2 < R_SHOCK**2
     sf_frac = grid[sf_mask].sum() / total
 
     # Spatial extent — fraction of cells with ec > 1% of peak
@@ -126,10 +126,12 @@ def classify_file(npz: Path) -> list[dict]:
         rows.append(r)
         w = r["omega"]
         px, py = r["peak_xy"]
-        print(f"{j:3d}  {w.real:+.3f} {w.imag:+.3f}j  "
-              f"{r['wall_frac']*100:6.1f}  {r['shock_foot_frac']*100:7.1f}  "
-              f"{r['global_extent']*100:7.1f}  "
-              f"({px:+.3f}, {py:+.3f})  {r['klass']:>12s}")
+        print(
+            f"{j:3d}  {w.real:+.3f} {w.imag:+.3f}j  "
+            f"{r['wall_frac'] * 100:6.1f}  {r['shock_foot_frac'] * 100:7.1f}  "
+            f"{r['global_extent'] * 100:7.1f}  "
+            f"({px:+.3f}, {py:+.3f})  {r['klass']:>12s}"
+        )
 
     # CSV
     out_csv = OUT_DIR / f"{npz.stem}_chu_class.csv"
@@ -138,10 +140,12 @@ def classify_file(npz: Path) -> list[dict]:
         for r in rows:
             w = r["omega"]
             px, py = r["peak_xy"]
-            f.write(f"{r['j']},{w.real:.6f},{w.imag:.6f},"
-                    f"{r['wall_frac']:.6f},{r['shock_foot_frac']:.6f},"
-                    f"{r['global_extent']:.6f},{px:.6f},{py:.6f},"
-                    f"{r['klass']}\n")
+            f.write(
+                f"{r['j']},{w.real:.6f},{w.imag:.6f},"
+                f"{r['wall_frac']:.6f},{r['shock_foot_frac']:.6f},"
+                f"{r['global_extent']:.6f},{px:.6f},{py:.6f},"
+                f"{r['klass']}\n"
+            )
     print(f"wrote {out_csv}")
     return rows
 

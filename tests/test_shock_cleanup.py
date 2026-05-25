@@ -14,7 +14,9 @@ def _regular_grid(nx: int = 81, ny: int = 41) -> tuple[np.ndarray, np.ndarray]:
     return np.meshgrid(x, y)
 
 
-def _shock_like_fields(X: np.ndarray, Y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _shock_like_fields(
+    X: np.ndarray, Y: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     u = 1.0 - 0.5 * (1.0 + np.tanh((X - 0.55) / 0.02))
     v = np.zeros_like(u)
     rho = 1.0 + 0.02 * np.sin(24.0 * np.pi * X) * np.cos(8.0 * np.pi * Y)
@@ -126,8 +128,12 @@ def test_shock_sponge_merge_modes_are_isolated() -> None:
         "sponge": {"enabled": True, "amplitude": 1.0, "mode": "max"},
     }
 
-    *_add_fields, sponge_add, info_add = apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, base_sponge, cfg_add)
-    *_max_fields, sponge_max, info_max = apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, base_sponge, cfg_max)
+    *_add_fields, sponge_add, info_add = apply_optional_shock_cleanup(
+        X, Y, rho, u, v, w, T, base_sponge, cfg_add
+    )
+    *_max_fields, sponge_max, info_max = apply_optional_shock_cleanup(
+        X, Y, rho, u, v, w, T, base_sponge, cfg_max
+    )
 
     assert info_add["sponge"]["enabled"] is True
     assert info_max["sponge"]["enabled"] is True

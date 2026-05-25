@@ -55,10 +55,9 @@ def main() -> None:
     for i, r in enumerate(runs):
         gain_matrix[i, : len(r["gains"])] = r["gains"]
 
-    print(f"{'ω':>8s}  {'St=ω/2π':>8s}  " +
-          "  ".join(f"σ_{k+1}" for k in range(max_modes)))
+    print(f"{'ω':>8s}  {'St=ω/2π':>8s}  " + "  ".join(f"σ_{k + 1}" for k in range(max_modes)))
     for i, r in enumerate(runs):
-        row = f"{omegas[i]:8.3f}  {omegas[i]/(2*np.pi):8.4f}  "
+        row = f"{omegas[i]:8.3f}  {omegas[i] / (2 * np.pi):8.4f}  "
         row += "  ".join(f"{g:7.3e}" for g in r["gains"])
         print(row)
 
@@ -69,9 +68,14 @@ def main() -> None:
     for k in range(max_modes):
         mask = ~np.isnan(gain_matrix[:, k])
         if mask.any():
-            ax.plot(omegas[mask], gain_matrix[mask, k], marker="o",
-                     color=colors[k % len(colors)], lw=1.5,
-                     label=f"σ_{k+1}")
+            ax.plot(
+                omegas[mask],
+                gain_matrix[mask, k],
+                marker="o",
+                color=colors[k % len(colors)],
+                lw=1.5,
+                label=f"σ_{k + 1}",
+            )
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"singular value $\sigma_k$")
     ax.set_yscale("log")
@@ -83,20 +87,27 @@ def main() -> None:
     sigma1 = gain_matrix[:, 0]
     peak_idx = int(np.nanargmax(sigma1))
     ax.axvline(omegas[peak_idx], color="k", ls="--", lw=0.8, alpha=0.5)
-    ax.annotate(f"σ₁ peak:\nω={omegas[peak_idx]:.3f}\nσ={sigma1[peak_idx]:.3g}",
-                xy=(omegas[peak_idx], sigma1[peak_idx]),
-                xytext=(10, -40), textcoords="offset points",
-                fontsize=9,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
-                          edgecolor="k", alpha=0.8))
+    ax.annotate(
+        f"σ₁ peak:\nω={omegas[peak_idx]:.3f}\nσ={sigma1[peak_idx]:.3g}",
+        xy=(omegas[peak_idx], sigma1[peak_idx]),
+        xytext=(10, -40),
+        textcoords="offset points",
+        fontsize=9,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="k", alpha=0.8),
+    )
 
     # Also mark Dussauge SWBLI low-frequency range for context
-    ax.axvspan(0.2 * 2*np.pi, 0.05 * 2*np.pi, alpha=0.1, color="green",
-                label="_nolegend_")
+    ax.axvspan(0.2 * 2 * np.pi, 0.05 * 2 * np.pi, alpha=0.1, color="green", label="_nolegend_")
     # Dussauge St 0.02–0.05 → ω 0.126–0.314
-    ax.axvspan(0.02 * 2*np.pi, 0.05 * 2*np.pi, alpha=0.15, color="green")
-    ax.text(0.03 * 2*np.pi, ax.get_ylim()[0] * 2, "Dussauge\nSWBLI range",
-             fontsize=8, color="darkgreen", alpha=0.8)
+    ax.axvspan(0.02 * 2 * np.pi, 0.05 * 2 * np.pi, alpha=0.15, color="green")
+    ax.text(
+        0.03 * 2 * np.pi,
+        ax.get_ylim()[0] * 2,
+        "Dussauge\nSWBLI range",
+        fontsize=8,
+        color="darkgreen",
+        alpha=0.8,
+    )
 
     out = OUT_DIR / f"resolvent_{campaign}_gain_curve.png"
     fig.savefig(out, dpi=150)
@@ -108,15 +119,20 @@ def main() -> None:
     with tbl.open("w") as f:
         f.write(f"Resolvent gain curve — {campaign}\n")
         f.write("=" * 60 + "\n\n")
-        f.write(f"{'ω':>8s}  {'St=ω/2π':>8s}  " +
-                "  ".join(f"σ_{k+1:<8d}" for k in range(max_modes)) + "\n")
+        f.write(
+            f"{'ω':>8s}  {'St=ω/2π':>8s}  "
+            + "  ".join(f"σ_{k + 1:<8d}" for k in range(max_modes))
+            + "\n"
+        )
         for i, r in enumerate(runs):
-            row = f"{omegas[i]:8.3f}  {omegas[i]/(2*np.pi):8.4f}  "
+            row = f"{omegas[i]:8.3f}  {omegas[i] / (2 * np.pi):8.4f}  "
             row += "  ".join(f"{g:9.3e}" for g in r["gains"])
             f.write(row + "\n")
-        f.write(f"\nσ₁ peak at ω = {omegas[peak_idx]:.4f}  "
-                f"(St = {omegas[peak_idx]/(2*np.pi):.4f})  "
-                f"σ₁ = {sigma1[peak_idx]:.4e}\n")
+        f.write(
+            f"\nσ₁ peak at ω = {omegas[peak_idx]:.4f}  "
+            f"(St = {omegas[peak_idx] / (2 * np.pi):.4f})  "
+            f"σ₁ = {sigma1[peak_idx]:.4e}\n"
+        )
     print(f"Wrote {tbl}")
 
 

@@ -74,8 +74,7 @@ class ProjectionOperator(LinearOperator):
 
         if Phi.shape[0] != Psi.shape[0]:
             raise ValueError(
-                f"Phi and Psi must have the same number of rows: "
-                f"{Phi.shape[0]} != {Psi.shape[0]}"
+                f"Phi and Psi must have the same number of rows: {Phi.shape[0]} != {Psi.shape[0]}"
             )
         if Phi.shape[1] != Psi.shape[1]:
             raise ValueError(
@@ -84,13 +83,13 @@ class ProjectionOperator(LinearOperator):
             )
 
         N = Phi.shape[0]
-        self._Phi = Phi           # (N, r)
-        self._Psi = Psi           # (N, r)
+        self._Phi = Phi  # (N, r)
+        self._Psi = Psi  # (N, r)
         self._complement = complement
 
         # Gram matrix S = Ψ* Φ  (r × r), precompute its inverse.
-        S = Psi.conj().T @ Phi    # (r, r)
-        self._Sinv = la.inv(S)    # (r, r)
+        S = Psi.conj().T @ Phi  # (r, r)
+        self._Sinv = la.inv(S)  # (r, r)
         # For adjoint: (P)^H = Ψ S^{-H} Φ*
         self._Sinv_H = self._Sinv.conj().T  # (r, r)
 
@@ -109,7 +108,7 @@ class ProjectionOperator(LinearOperator):
         arr = np.array(x.array_r, copy=True)
 
         # P x = Φ S^{-1} (Ψ* x)
-        Psi_x = self._Psi.conj().T @ arr    # (r,)
+        Psi_x = self._Psi.conj().T @ arr  # (r,)
         Px = self._Phi @ (self._Sinv @ Psi_x)  # (N,)
 
         if self._complement:
@@ -128,7 +127,7 @@ class ProjectionOperator(LinearOperator):
         arr = np.array(x.array_r, copy=True)
 
         # P^H x = Ψ S^{-H} (Φ* x)
-        Phi_x = self._Phi.conj().T @ arr    # (r,)
+        Phi_x = self._Phi.conj().T @ arr  # (r,)
         PHx = self._Psi @ (self._Sinv_H @ Phi_x)  # (N,)
 
         if self._complement:

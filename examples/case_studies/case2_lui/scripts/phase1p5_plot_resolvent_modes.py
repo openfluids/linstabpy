@@ -43,8 +43,9 @@ def main() -> None:
         sys.exit(1)
 
     n_modes = min(responses.shape[1], 3)
-    fig, axes = plt.subplots(n_modes, 2, figsize=(12, 4 * n_modes),
-                              constrained_layout=True, squeeze=False)
+    fig, axes = plt.subplots(
+        n_modes, 2, figsize=(12, 4 * n_modes), constrained_layout=True, squeeze=False
+    )
     for j in range(n_modes):
         resp_u = np.abs(responses[idx_u, j]).reshape((ny, nx), order="F")
         resp_u /= resp_u.max()
@@ -52,20 +53,18 @@ def main() -> None:
         force_u /= force_u.max()
 
         ax = axes[j, 0]
-        pc = ax.pcolormesh(X, Y, force_u, cmap="magma", shading="auto",
-                            vmin=0, vmax=1)
+        pc = ax.pcolormesh(X, Y, force_u, cmap="magma", shading="auto", vmin=0, vmax=1)
         fig.colorbar(pc, ax=ax, label=r"$|u|$ forcing / max")
         ax.set_aspect("equal")
-        ax.set_title(f"Mode {j+1}: σ = {gains[j]:.3e} — forcing")
+        ax.set_title(f"Mode {j + 1}: σ = {gains[j]:.3e} — forcing")
         ax.set_xlabel("x")
         ax.set_ylabel("y")
 
         ax = axes[j, 1]
-        pc = ax.pcolormesh(X, Y, resp_u, cmap="viridis", shading="auto",
-                            vmin=0, vmax=1)
+        pc = ax.pcolormesh(X, Y, resp_u, cmap="viridis", shading="auto", vmin=0, vmax=1)
         fig.colorbar(pc, ax=ax, label=r"$|u|$ response / max")
         ax.set_aspect("equal")
-        ax.set_title(f"Mode {j+1}: σ = {gains[j]:.3e} — response")
+        ax.set_title(f"Mode {j + 1}: σ = {gains[j]:.3e} — response")
         ax.set_xlabel("x")
         ax.set_ylabel("y")
 

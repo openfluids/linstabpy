@@ -18,10 +18,10 @@ from petsc4py import PETSc
 
 from linstabpy.linear_operators import MatrixOperator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _random_complex_matrix(n: int, rng: np.random.Generator) -> np.ndarray:
     """Invertible n×n complex matrix."""
@@ -36,9 +36,7 @@ def _numpy_to_petsc_mat(A: np.ndarray) -> PETSc.Mat:
     import scipy.sparse as sp
 
     csr = sp.csr_matrix(A)
-    mat = PETSc.Mat().createAIJ(
-        size=csr.shape, csr=(csr.indptr, csr.indices, csr.data)
-    )
+    mat = PETSc.Mat().createAIJ(size=csr.shape, csr=(csr.indptr, csr.indices, csr.data))
     mat.assemble()
     return mat
 
@@ -67,6 +65,7 @@ def _create_ksp(A_petsc: PETSc.Mat) -> PETSc.KSP:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def random_system():
     """Return (A_numpy, A_petsc, ksp, x_numpy, x_petsc) for a small problem."""
@@ -83,6 +82,7 @@ def random_system():
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestMatrixOperatorApply:
     """Test forward and adjoint application."""

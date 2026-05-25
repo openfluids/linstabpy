@@ -143,7 +143,9 @@ def _load_reference_spectra(base_dir: Path) -> tuple[np.ndarray, np.ndarray]:
     omega_mat = np.diag(mat) if mat.ndim == 2 and mat.shape[0] == mat.shape[1] else mat.reshape(-1)
     omega_mat = np.asarray(omega_mat, dtype=complex).reshape(-1)
 
-    song_vals = np.loadtxt(base_dir / "reference" / "matlab" / "ref_results" / "eigenvalues_Ziming.dat")
+    song_vals = np.loadtxt(
+        base_dir / "reference" / "matlab" / "ref_results" / "eigenvalues_Ziming.dat"
+    )
     omega_song = 80.0 * (song_vals[:, 0] + 1j * song_vals[:, 1])
     return omega_mat, np.asarray(omega_song, dtype=complex).reshape(-1)
 
@@ -169,8 +171,12 @@ def _load_case_metrics(npz_path: Path, log_path: Path, omega_target: complex) ->
         shape = X.shape
         ngp = shape[0] * shape[1]
         u0 = modes[ngp : 2 * ngp, 0].reshape(shape, order="F")
-        rough_x = np.linalg.norm(np.diff(np.real(u0), axis=1)) / max(np.linalg.norm(np.real(u0)), 1e-30)
-        rough_y = np.linalg.norm(np.diff(np.real(u0), axis=0)) / max(np.linalg.norm(np.real(u0)), 1e-30)
+        rough_x = np.linalg.norm(np.diff(np.real(u0), axis=1)) / max(
+            np.linalg.norm(np.real(u0)), 1e-30
+        )
+        rough_y = np.linalg.norm(np.diff(np.real(u0), axis=0)) / max(
+            np.linalg.norm(np.real(u0)), 1e-30
+        )
         preprocess_summary = str(data["preprocess_summary"])
 
     peak_memory_mib, total_time_s = _parse_log_metrics(log_path)
@@ -252,7 +258,9 @@ def run_scan(
     stride_eta: int,
     n_modes: int,
 ) -> list[CaseResult]:
-    case_dir = config_path.parent.parent if config_path.parent.name == "configs" else config_path.parent
+    case_dir = (
+        config_path.parent.parent if config_path.parent.name == "configs" else config_path.parent
+    )
     cfg = load_jsonc(config_path)
     omega_target, _ = _resolve_frequency_target(cfg)
     omega_mat, omega_song = _load_reference_spectra(case_dir)
@@ -319,7 +327,9 @@ def run_scan(
                     name=spec.name,
                     description=spec.description,
                     success=False,
-                    preprocess_summary=spec.preprocess_cfg.get("enabled") and "failed during solve" or "disabled",
+                    preprocess_summary=spec.preprocess_cfg.get("enabled")
+                    and "failed during solve"
+                    or "disabled",
                     error_type=type(exc).__name__,
                     error_message=str(exc),
                     output_npz=str(out_path),
@@ -340,7 +350,9 @@ def _print_report(results: list[CaseResult]) -> None:
     ranked = sorted(results, key=lambda result: (not result.success, result.score(raw)))
 
     print("Song reduced preprocessing scan")
-    print("name                     status   score   mean|d_mat|  mean|d_song|  rough_x  rough_y  peakMiB  t[s]    lead_omega")
+    print(
+        "name                     status   score   mean|d_mat|  mean|d_song|  rough_x  rough_y  peakMiB  t[s]    lead_omega"
+    )
     for result in ranked:
         status = "ok" if result.success else "fail"
         score = result.score(raw)
@@ -379,7 +391,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--stride-ksi", type=int, default=12, help="Reduced streamwise stride.")
     parser.add_argument("--stride-eta", type=int, default=12, help="Reduced wall-normal stride.")
-    parser.add_argument("--n-modes", type=int, default=6, help="Number of temporal modes to extract.")
+    parser.add_argument(
+        "--n-modes", type=int, default=6, help="Number of temporal modes to extract."
+    )
     return parser.parse_args()
 
 

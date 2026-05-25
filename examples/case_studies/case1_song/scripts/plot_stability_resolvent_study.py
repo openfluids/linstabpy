@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 OUTPUT_DIR = CASE_DIR / "output"
@@ -63,7 +62,8 @@ def _rows_from_report(path: Path, *, stability: bool) -> list[dict]:
                 "case_id": case.get("case_id"),
                 "fd_order": fd_order,
                 "elapsed_seconds": float(case.get("metrics", {}).get("elapsed_seconds") or 0.0),
-                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0) / 1024**3,
+                "peak_rss_gib": float(case.get("metrics", {}).get("peak_rss_bytes") or 0.0)
+                / 1024**3,
                 "stage_timings": dict(case.get("parsed", {}).get("stage_timings_seconds", {})),
                 "sponge_enabled": bool(sponge_cfg.get("enabled", False)),
                 "omega": np.asarray(data["omega"], dtype=complex).reshape(-1),
@@ -160,7 +160,9 @@ def _plot_resolvent(rows: list[dict]) -> None:
 def _plot_perf(stability_rows: list[dict], resolvent_rows: list[dict]) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(11.5, 8.0), sharex="col")
 
-    for col, (title, rows) in enumerate((("Stability", stability_rows), ("Resolvent", resolvent_rows))):
+    for col, (title, rows) in enumerate(
+        (("Stability", stability_rows), ("Resolvent", resolvent_rows))
+    ):
         fd_vals = np.array([row["fd_order"] for row in rows], dtype=int)
         times = np.array([row["elapsed_seconds"] / 60.0 for row in rows], dtype=float)
         memory = np.array([row["peak_rss_gib"] for row in rows], dtype=float)
@@ -173,14 +175,28 @@ def _plot_perf(stability_rows: list[dict], resolvent_rows: list[dict]) -> None:
         ax_t.set_ylabel("Wall time [min]")
         ax_t.grid(alpha=0.25)
         for fd, tmin in zip(fd_vals, times, strict=True):
-            ax_t.annotate(f"{tmin:.2f}", (fd, tmin), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=8)
+            ax_t.annotate(
+                f"{tmin:.2f}",
+                (fd, tmin),
+                textcoords="offset points",
+                xytext=(0, 7),
+                ha="center",
+                fontsize=8,
+            )
 
         ax_m.plot(fd_vals, memory, marker="s", linewidth=1.5, color="#e15759")
         ax_m.set_xlabel("FD order")
         ax_m.set_ylabel("Peak RSS [GiB]")
         ax_m.grid(alpha=0.25)
         for fd, mem in zip(fd_vals, memory, strict=True):
-            ax_m.annotate(f"{mem:.2f}", (fd, mem), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=8)
+            ax_m.annotate(
+                f"{mem:.2f}",
+                (fd, mem),
+                textcoords="offset points",
+                xytext=(0, 7),
+                ha="center",
+                fontsize=8,
+            )
 
     fig.suptitle(r"Case 1 cost summary, sponge on, $\sigma_{max}=0.5$", fontsize=14)
     fig.tight_layout(rect=(0, 0, 1, 0.96))

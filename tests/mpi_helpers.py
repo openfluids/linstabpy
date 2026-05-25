@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Shared MPI subprocess helpers for test harnesses."""
+
 from __future__ import annotations
 
 import json

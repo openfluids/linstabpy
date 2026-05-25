@@ -6,7 +6,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Parametrize helpers
 # ---------------------------------------------------------------------------
@@ -14,6 +13,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Mesh fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def small_mesh_2d():
@@ -44,11 +44,10 @@ def small_mesh_periodic():
     )
 
 
-
-
 # ---------------------------------------------------------------------------
 # Base flow fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def uniform_baseflow(small_mesh_2d):
@@ -59,9 +58,16 @@ def uniform_baseflow(small_mesh_2d):
     ones = np.ones((ny, nx))
     zeros = np.zeros((ny, nx))
     bf = BaseFlow(
-        Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
-        RHO=ones.copy(), U=ones.copy(), V=zeros.copy(),
-        W=zeros.copy(), T=ones.copy(),
+        Re=1e4,
+        Ma=0.3,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=ones.copy(),
+        U=ones.copy(),
+        V=zeros.copy(),
+        W=zeros.copy(),
+        T=ones.copy(),
     )
     sutherland_air(bf)
     return bf
@@ -81,8 +87,13 @@ def blasius_baseflow_small():
         fd_order=4,
     )
     bf = load_blasius(
-        mesh.X, mesh.Y,
-        Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15,
+        mesh.X,
+        mesh.Y,
+        Re=1e4,
+        Ma=0.3,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
     )
     sutherland_air(bf)
     return mesh, bf
@@ -93,10 +104,10 @@ def blasius_baseflow_small():
 # ---------------------------------------------------------------------------
 
 
-
 # ---------------------------------------------------------------------------
 # Synthetic jet builder (cylindrical / axy model)
 # ---------------------------------------------------------------------------
+
 
 def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
     """Build a synthetic axisymmetric sech² jet problem.
@@ -113,15 +124,26 @@ def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
     from linstabpy.operators import build_lnse_operator, compute_chu_norm
 
     mesh = Mesh.create(
-        xrange=(0.0, 10.0), yrange=(0.0, 3.0),
-        nx=nx, ny=ny, fd_order=4, y_symmetry=True,
+        xrange=(0.0, 10.0),
+        yrange=(0.0, 3.0),
+        nx=nx,
+        ny=ny,
+        fd_order=4,
+        y_symmetry=True,
     )
     R = mesh.Y
-    U_axial = 0.9 / np.cosh(R)**2
+    U_axial = 0.9 / np.cosh(R) ** 2
     bf = BaseFlow(
-        Re=1e4, Ma=0.9, Pr=0.7, kappa=1.4, T_0=288.15,
-        RHO=np.ones_like(R), U=U_axial,
-        V=np.zeros_like(R), W=np.zeros_like(R), T=np.ones_like(R),
+        Re=1e4,
+        Ma=0.9,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=np.ones_like(R),
+        U=U_axial,
+        V=np.zeros_like(R),
+        W=np.zeros_like(R),
+        T=np.ones_like(R),
     )
     sutherland_air(bf)
 
@@ -135,10 +157,22 @@ def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
     R_p = mesh.Y.ravel(order="F")[p]
     W_int = mesh.W.ravel(order="F")[p]
     W_diag, invW_diag = compute_chu_norm(
-        W_int, RHO_p, T_p, bf.kappa, bf.Ma, ngp, model="axy", R=R_p,
+        W_int,
+        RHO_p,
+        T_p,
+        bf.kappa,
+        bf.Ma,
+        ngp,
+        model="axy",
+        R=R_p,
     )
     return {
-        "mesh": mesh, "bf": bf, "L0": L0, "idx": idx,
-        "ngp": ngp, "W_diag": W_diag, "invW_diag": invW_diag,
+        "mesh": mesh,
+        "bf": bf,
+        "L0": L0,
+        "idx": idx,
+        "ngp": ngp,
+        "W_diag": W_diag,
+        "invW_diag": invW_diag,
         "bc_indices": bc_indices,
     }

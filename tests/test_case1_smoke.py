@@ -16,16 +16,19 @@ from linstabpy.solvers.eigenvalue import temporal_eigenvalues
 from linstabpy.utils.petsc_core import compare_petsc_against_scipy, petsc_matvec_residual
 from tests._paths import case_fixture
 
-
 CASE_DIR = case_fixture("case1")
 BASEFLOW_DIR = CASE_DIR / "data" / "baseflow"
 
-pytestmark = pytest.mark.skipif(not BASEFLOW_DIR.exists(), reason=f"Case 1 data is not present: {BASEFLOW_DIR}")
+pytestmark = pytest.mark.skipif(
+    not BASEFLOW_DIR.exists(), reason=f"Case 1 data is not present: {BASEFLOW_DIR}"
+)
 
 
 def test_load_hamada_case_shapes() -> None:
     X, Y, bf, sponge = load_hamada_case(BASEFLOW_DIR, stride_ksi=25, stride_eta=25)
-    assert X.shape == Y.shape == bf.RHO.shape == bf.U.shape == bf.V.shape == bf.W.shape == bf.T.shape
+    assert (
+        X.shape == Y.shape == bf.RHO.shape == bf.U.shape == bf.V.shape == bf.W.shape == bf.T.shape
+    )
     assert sponge.shape == X.shape
     assert X.ndim == 2
     assert X.shape[0] >= 4 and X.shape[1] >= 4

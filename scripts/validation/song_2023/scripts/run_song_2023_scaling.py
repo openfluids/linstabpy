@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import time
 import re
 import subprocess
 import sys
+import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -17,7 +17,6 @@ from typing import Any
 from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
-
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
@@ -65,7 +64,9 @@ def _read_swap_used_mib() -> float | None:
         return (swap_total - swap_free) / 1024.0
 
     try:
-        out = subprocess.check_output(["sysctl", "vm.swapusage"], text=True, stderr=subprocess.STDOUT)
+        out = subprocess.check_output(
+            ["sysctl", "vm.swapusage"], text=True, stderr=subprocess.STDOUT
+        )
     except Exception:
         return None
     match = SWAP_RE.search(out)
@@ -87,7 +88,9 @@ def _read_free_percent() -> float | None:
         return 100.0 * available / total
 
     try:
-        out = subprocess.check_output(["memory_pressure", "-Q"], text=True, stderr=subprocess.STDOUT)
+        out = subprocess.check_output(
+            ["memory_pressure", "-Q"], text=True, stderr=subprocess.STDOUT
+        )
     except Exception:
         return None
     match = FREE_RE.search(out)
@@ -147,7 +150,9 @@ def _parse_log_metrics(log_path: Path) -> dict[str, Any]:
         total_time = metrics.get("total_time_s")
         if isinstance(total_time, (int, float)) and float(total_time) > 0.0:
             for step_name, step_metrics in step_summary.items():
-                step_metrics["time_share_total"] = float(step_metrics["time_max"]) / float(total_time)
+                step_metrics["time_share_total"] = float(step_metrics["time_max"]) / float(
+                    total_time
+                )
         metrics["step_summary"] = step_summary
     return metrics
 
@@ -248,18 +253,29 @@ def _should_stop(result: dict[str, Any], guard_cfg: dict[str, Any]) -> str | Non
     swap_delta = result.get("swap_delta_mib")
 
     stop_peak_max = guard_cfg.get("stop_on_peak_memory_mib_max_rank")
-    if stop_peak_max is not None and peak_max is not None and float(peak_max) >= float(stop_peak_max):
+    if (
+        stop_peak_max is not None
+        and peak_max is not None
+        and float(peak_max) >= float(stop_peak_max)
+    ):
         return f"peak_memory_mib={peak_max} >= stop_on_peak_memory_mib_max_rank={stop_peak_max}"
 
     stop_peak_sum = guard_cfg.get("stop_on_peak_memory_mib_sum_ranks")
-    if stop_peak_sum is not None and peak_sum is not None and float(peak_sum) >= float(stop_peak_sum):
+    if (
+        stop_peak_sum is not None
+        and peak_sum is not None
+        and float(peak_sum) >= float(stop_peak_sum)
+    ):
         return f"peak_memory_mib_sum_ranks={peak_sum} >= stop_on_peak_memory_mib_sum_ranks={stop_peak_sum}"
 
     stop_swap = guard_cfg.get("stop_on_swap_delta_mib")
     if stop_swap is not None and swap_delta is not None and float(swap_delta) >= float(stop_swap):
         return f"swap_delta_mib={swap_delta} >= stop_on_swap_delta_mib={stop_swap}"
 
-    if result.get("ranks", 1) > 1 and str(summary.get("distributed_matrix", "")).lower() not in {"true", "1"}:
+    if result.get("ranks", 1) > 1 and str(summary.get("distributed_matrix", "")).lower() not in {
+        "true",
+        "1",
+    }:
         return "distributed proof missing for ranks > 1"
 
     return None
@@ -311,16 +327,33 @@ def main() -> None:
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
         config_path = run_dir / "song_2023.variant.jsonc"
-        config_path.write_text(json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        config_path.write_text(
+            json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
         env = dict(**subprocess.os.environ)
         env["PYTHONPATH"] = f"{REPO / 'src'}:{REPO}"
 
         python_bin = str(REPO / ".venv" / "bin" / "python")
         if ranks == 1:
-            cmd = [python_bin, "-m", "scripts.validation.song_2023.song_2023", "--config", str(config_path)]
+            cmd = [
+                python_bin,
+                "-m",
+                "scripts.validation.song_2023.song_2023",
+                "--config",
+                str(config_path),
+            ]
         else:
-            cmd = ["mpiexec", "-n", str(ranks), python_bin, "-m", "scripts.validation.song_2023.song_2023", "--config", str(config_path)]
+            cmd = [
+                "mpiexec",
+                "-n",
+                str(ranks),
+                python_bin,
+                "-m",
+                "scripts.validation.song_2023.song_2023",
+                "--config",
+                str(config_path),
+            ]
 
         swap_before = _read_swap_used_mib()
         free_before = _read_free_percent()
@@ -353,7 +386,11 @@ def main() -> None:
             "swap_before_mib": swap_before,
             "swap_after_mib": swap_after,
             "swap_peak_mib": swap_peak_mib,
-            "swap_delta_mib": (None if swap_before is None or swap_after is None else float(swap_after - swap_before)),
+            "swap_delta_mib": (
+                None
+                if swap_before is None or swap_after is None
+                else float(swap_after - swap_before)
+            ),
             "free_before_percent": free_before,
             "free_after_percent": free_after,
         }
@@ -371,8 +408,7 @@ def main() -> None:
             result["error"] = (proc.stderr or proc.stdout).splitlines()[:30]
             results.append(result)
             print(
-                f"[song-scaling] stopping after {name}: "
-                f"{result.get('stop_reason', 'run failed')}"
+                f"[song-scaling] stopping after {name}: {result.get('stop_reason', 'run failed')}"
             )
             break
 
@@ -380,7 +416,9 @@ def main() -> None:
 
     summary_json = output_root / "summary.json"
     summary_csv = output_root / "summary.csv"
-    summary_json.write_text(json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_json.write_text(
+        json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     rows = []
     for item in results:

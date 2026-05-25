@@ -51,17 +51,13 @@ def sutherland_air(bf: BaseFlow) -> None:
 
     dmudT = (
         -mu_ref * (T_ref + S1) / (Tstar + S1) ** 2 * (Tstar / T_ref) ** 1.5
-        + 1.5 * mu_ref * (T_ref + S1) / (Tstar + S1)
-        * np.sqrt(Tstar / T_ref) / T_ref
+        + 1.5 * mu_ref * (T_ref + S1) / (Tstar + S1) * np.sqrt(Tstar / T_ref) / T_ref
     )
 
     d2mudT2 = (
-        2.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 3
-        * (Tstar / T_ref) ** 1.5
-        - 3.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 2
-        * np.sqrt(Tstar / T_ref) / T_ref
-        + 0.75 * mu_ref * (T_ref + S1) / (Tstar + S1)
-        * (Tstar / T_ref) ** (-0.5) / T_ref**2
+        2.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 3 * (Tstar / T_ref) ** 1.5
+        - 3.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 2 * np.sqrt(Tstar / T_ref) / T_ref
+        + 0.75 * mu_ref * (T_ref + S1) / (Tstar + S1) * (Tstar / T_ref) ** (-0.5) / T_ref**2
     )
 
     # -- Non-dimensionalize ---------------------------------------------

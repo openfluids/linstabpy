@@ -10,6 +10,7 @@ Three checks:
 Mesh is imported lazily inside each test method to match the conftest.py pattern
 and avoid module-level petsc4py import failures on machines without PETSc.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -110,13 +111,13 @@ class TestMeshDissipationEnabled:
         # Reconstruct H_norm for the same n and h used inside Mesh.create.
         hx_ref = 1.0 / (_NX - 1)
         _, H_norm = build_sbp_dissipation_matrices(
-            n=_NX, h=hx_ref, order_interior=4,
+            n=_NX,
+            h=hx_ref,
+            order_interior=4,
         )
         M = (H_norm @ mesh.Q_diss_x).toarray()
         sym_err = np.max(np.abs(M - M.T))
-        assert sym_err < 1e-10, (
-            f"H * Q_diss_x not symmetric: max|M - M.T| = {sym_err:.2e}"
-        )
+        assert sym_err < 1e-10, f"H * Q_diss_x not symmetric: max|M - M.T| = {sym_err:.2e}"
 
 
 class TestMeshDissipationExplicitOrder:

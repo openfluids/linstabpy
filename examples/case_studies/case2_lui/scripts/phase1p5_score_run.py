@@ -30,8 +30,16 @@ def score_run(npz_path: Path) -> dict:
         omegas = d["omega"] if "omega" in d.files else np.array([])
         postcheck = d.get("stability_postcheck_residual_rel", np.array([]))
         tardist = d.get("stability_postcheck_target_distance", np.array([]))
-        nconv = int(d.get("stability_eps_nconv", np.array([0]))[()]) if "stability_eps_nconv" in d.files else None
-        niter = int(d.get("stability_eps_iterations", np.array([0]))[()]) if "stability_eps_iterations" in d.files else None
+        nconv = (
+            int(d.get("stability_eps_nconv", np.array([0]))[()])
+            if "stability_eps_nconv" in d.files
+            else None
+        )
+        niter = (
+            int(d.get("stability_eps_iterations", np.array([0]))[()])
+            if "stability_eps_iterations" in d.files
+            else None
+        )
     cfg = {}
     if cfg_path.exists():
         with cfg_path.open() as f:
@@ -73,13 +81,18 @@ def pretty_score(r: dict) -> None:
     pc_med = float(np.median(r["postcheck"])) if len(r["postcheck"]) else float("nan")
     td_med = float(np.median(r["target_distance"])) if len(r["target_distance"]) else float("nan")
     tgt_mag = abs(tgt) if tgt is not None else float("nan")
-    print(f"    postcheck median ({pc_med:.2e})  <= 1e-4 ?   "
-          f"{'PASS' if pc_med <= 1e-4 else 'FAIL'}")
-    print(f"    target-dist median ({td_med:.3e}) <= 0.1*|ω_target|={0.1*tgt_mag:.3f}?   "
-          f"{'PASS' if td_med <= 0.1 * tgt_mag else 'FAIL'}")
+    print(
+        f"    postcheck median ({pc_med:.2e})  <= 1e-4 ?   {'PASS' if pc_med <= 1e-4 else 'FAIL'}"
+    )
+    print(
+        f"    target-dist median ({td_med:.3e}) <= 0.1*|ω_target|={0.1 * tgt_mag:.3f}?   "
+        f"{'PASS' if td_med <= 0.1 * tgt_mag else 'FAIL'}"
+    )
     osc_re = float(np.max(np.abs(omegas.real))) if len(omegas) else 0.0
-    print(f"    max |Re ω| = {osc_re:.3f}  >= 0.2 ?   "
-          f"{'PASS (osc family localised)' if osc_re >= 0.2 else 'FAIL (stationary-only return)'}")
+    print(
+        f"    max |Re ω| = {osc_re:.3f}  >= 0.2 ?   "
+        f"{'PASS (osc family localised)' if osc_re >= 0.2 else 'FAIL (stationary-only return)'}"
+    )
 
 
 def main() -> None:

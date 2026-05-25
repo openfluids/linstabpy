@@ -69,19 +69,21 @@ from pathlib import Path
 # --- grid definition ----------------------------------------------
 
 BETA_VALUES: tuple[float, ...] = (0.0, 1.0, 2.0, 4.0, 8.0, 12.0, 16.0, 24.0)
-ST_VALUES:   tuple[float, ...] = (0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0)
+ST_VALUES: tuple[float, ...] = (0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0)
 
 # Deliberately dropped high-(beta, St) cells (least scientific interest;
 # OM-1 lives at moderate St, LU-S at low St / high beta, neither expects
 # a peak at (beta>=8, St>=5) or (beta>=16, St>=2)). Six total -> 50 cells.
-DROPS: frozenset[tuple[float, float]] = frozenset({
-    (24.0, 5.0),
-    (24.0, 2.0),
-    (16.0, 5.0),
-    (16.0, 2.0),
-    (12.0, 5.0),
-    (8.0,  5.0),
-})
+DROPS: frozenset[tuple[float, float]] = frozenset(
+    {
+        (24.0, 5.0),
+        (24.0, 2.0),
+        (16.0, 5.0),
+        (16.0, 2.0),
+        (12.0, 5.0),
+        (8.0, 5.0),
+    }
+)
 
 # --- output path --------------------------------------------------
 
@@ -136,9 +138,9 @@ def build_config(cases: list[dict]) -> dict:
         "$include": "../_defaults.jsonc",
         "outputs": {
             "report_json": "output/resolvent_grid_50pt_fd6_stride4/report_latest.json",
-            "report_csv":  "output/resolvent_grid_50pt_fd6_stride4/report_table.csv",
-            "log_dir":     "output/resolvent_grid_50pt_fd6_stride4/logs",
-            "run_dir":     "output/resolvent_grid_50pt_fd6_stride4/runs",
+            "report_csv": "output/resolvent_grid_50pt_fd6_stride4/report_table.csv",
+            "log_dir": "output/resolvent_grid_50pt_fd6_stride4/logs",
+            "run_dir": "output/resolvent_grid_50pt_fd6_stride4/runs",
         },
         "defaults": {
             # Override _defaults.jsonc launcher to pin Phase 3 to socket1,

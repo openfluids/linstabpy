@@ -39,7 +39,7 @@ def _display_path(path: Path) -> str:
 
 
 def _load_npz_dict(path: Path) -> dict[str, np.ndarray]:
-    with np.load(path, allow_pickle = False) as data:
+    with np.load(path, allow_pickle=False) as data:
         return {key: data[key] for key in data.files}
 
 
@@ -94,7 +94,9 @@ def _mode_matrix(values: np.ndarray) -> np.ndarray:
     return arr
 
 
-def _spectrum_metrics(reference: np.ndarray, candidate: np.ndarray) -> tuple[np.ndarray, float, float]:
+def _spectrum_metrics(
+    reference: np.ndarray, candidate: np.ndarray
+) -> tuple[np.ndarray, float, float]:
     cost = np.abs(reference[:, None] - candidate[None, :])
     ridx, cidx = linear_sum_assignment(cost)
     abs_err = cost[ridx, cidx]
@@ -269,7 +271,9 @@ def compare_curvilinear_protocol_case(
         for metrics in field_reports.values()
     )
 
-    timing_total = float(np.asarray(_npz_get(matlab_logs, "timing_total"), dtype=float).reshape(-1)[0])
+    timing_total = float(
+        np.asarray(_npz_get(matlab_logs, "timing_total"), dtype=float).reshape(-1)[0]
+    )
     return {
         "python_protocol_pass": python_pass,
         "matlab_df_linf": matlab_linf,
@@ -446,12 +450,18 @@ def _compare_streaky_bl_case(
         spatial_block = {
             "n_compare": len(spatial_rows),
             "selection_strategy": "global_best_match",
-            "spectrum_max_abs_error": float(max(row["eigenvalue_abs_error"] for row in spatial_rows)),
-            "spectrum_max_rel_error": float(max(row["eigenvalue_rel_error"] for row in spatial_rows)),
+            "spectrum_max_abs_error": float(
+                max(row["eigenvalue_abs_error"] for row in spatial_rows)
+            ),
+            "spectrum_max_rel_error": float(
+                max(row["eigenvalue_rel_error"] for row in spatial_rows)
+            ),
             "per_mode": spatial_rows,
         }
         if "spatial_residuals" in python_npz:
-            residuals_py = [float(r) for r in np.asarray(python_npz["spatial_residuals"]).reshape(-1)]
+            residuals_py = [
+                float(r) for r in np.asarray(python_npz["spatial_residuals"]).reshape(-1)
+            ]
             for row in spatial_rows:
                 py_i = row["python_mode_index_1based"] - 1
                 if py_i < len(residuals_py):
@@ -520,11 +530,13 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             matlab_npz = _load_npz_dict(matlab_results_path)
             svd_res_fwd = (
                 np.asarray(python_npz["svd_residuals_fwd"]).reshape(-1)
-                if "svd_residuals_fwd" in python_npz else None
+                if "svd_residuals_fwd" in python_npz
+                else None
             )
             svd_res_adj = (
                 np.asarray(python_npz["svd_residuals_adj"]).reshape(-1)
-                if "svd_residuals_adj" in python_npz else None
+                if "svd_residuals_adj" in python_npz
+                else None
             )
             report = compare_resolvent_case(
                 gains_py=python_npz["gains"],
@@ -580,13 +592,19 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             tol = dict(case.get("tolerances", {}))
             passed = (
                 report["direct"]["spectrum_max_abs_error"] <= float(tol.get("spectrum_abs", np.inf))
-                and report["direct"]["spectrum_max_rel_error"] <= float(tol.get("spectrum_rel", np.inf))
+                and report["direct"]["spectrum_max_rel_error"]
+                <= float(tol.get("spectrum_rel", np.inf))
                 and report["direct"]["mode_max_rel_l2"] <= float(tol.get("mode_rel", np.inf))
-                and report["adjoint"]["spectrum_max_abs_error"] <= float(tol.get("spectrum_abs", np.inf))
-                and report["adjoint"]["spectrum_max_rel_error"] <= float(tol.get("spectrum_rel", np.inf))
+                and report["adjoint"]["spectrum_max_abs_error"]
+                <= float(tol.get("spectrum_abs", np.inf))
+                and report["adjoint"]["spectrum_max_rel_error"]
+                <= float(tol.get("spectrum_rel", np.inf))
                 and report["adjoint"]["mode_max_rel_l2"] <= float(tol.get("mode_rel", np.inf))
             )
-            base["matlab_npz"] = [str(direct_path.relative_to(ROOT)), str(adjoint_path.relative_to(ROOT))]
+            base["matlab_npz"] = [
+                str(direct_path.relative_to(ROOT)),
+                str(adjoint_path.relative_to(ROOT)),
+            ]
             base["status"] = "PASS" if passed else "SOFT_FAIL"
             base["metrics"] = report
             return base
@@ -623,14 +641,17 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             # checks; they are skipped when residual_max is present.
             temporal_residual_ok: bool
             if "residual_max" in report["temporal"] and "temporal_residual_max" in tol:
-                temporal_residual_ok = (
-                    report["temporal"]["residual_max"] <= float(tol["temporal_residual_max"])
+                temporal_residual_ok = report["temporal"]["residual_max"] <= float(
+                    tol["temporal_residual_max"]
                 )
             else:
                 temporal_residual_ok = (
-                    report["temporal"]["spectrum_max_abs_error"] <= float(tol.get("temporal_spectrum_abs", np.inf))
-                    and report["temporal"]["spectrum_max_rel_error"] <= float(tol.get("temporal_spectrum_rel", np.inf))
-                    and report["temporal"]["mode_max_rel_l2"] <= float(tol.get("temporal_mode_rel", np.inf))
+                    report["temporal"]["spectrum_max_abs_error"]
+                    <= float(tol.get("temporal_spectrum_abs", np.inf))
+                    and report["temporal"]["spectrum_max_rel_error"]
+                    <= float(tol.get("temporal_spectrum_rel", np.inf))
+                    and report["temporal"]["mode_max_rel_l2"]
+                    <= float(tol.get("temporal_mode_rel", np.inf))
                 )
             if "residual_max" in report["spatial"] and "spatial_residual_max" in tol:
                 spatial_ok = report["spatial"]["residual_max"] <= float(tol["spatial_residual_max"])
@@ -642,12 +663,11 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
                 return base
             else:
                 spatial_present = "spectrum_max_abs_error" in report["spatial"]
-                spatial_ok = (
-                    not spatial_present
-                    or (
-                        report["spatial"]["spectrum_max_abs_error"] <= float(tol.get("spatial_spectrum_abs", np.inf))
-                        and report["spatial"]["spectrum_max_rel_error"] <= float(tol.get("spatial_spectrum_rel", np.inf))
-                    )
+                spatial_ok = not spatial_present or (
+                    report["spatial"]["spectrum_max_abs_error"]
+                    <= float(tol.get("spatial_spectrum_abs", np.inf))
+                    and report["spatial"]["spectrum_max_rel_error"]
+                    <= float(tol.get("spatial_spectrum_rel", np.inf))
                 )
             passed = temporal_residual_ok and spatial_ok
             base["matlab_npz"] = [str(path.relative_to(ROOT)) for path in paths]

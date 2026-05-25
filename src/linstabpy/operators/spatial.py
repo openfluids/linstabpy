@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
-from ..mesh.mesh import Mesh
 from ..baseflow.baseflow import BaseFlow
+from ..mesh.mesh import Mesh
 from .assembly import (
-    _prepare_coefficients,
     _assemble_from_prepared,
     _assemble_from_prepared_petsc,
     _build_index_structure,
+    _prepare_coefficients,
     _validate_direct_petsc_backend,
 )
 
@@ -156,6 +156,7 @@ def _create_identity_petsc(
 def _assemble_block_matrix_petsc(blocks: list[list["PETSc.Mat | None"]]) -> "PETSc.Mat":
     """Assemble a PETSc AIJ matrix from PETSc sub-blocks by CSR row insertion."""
     from petsc4py import PETSc
+
     from ..utils.petsc_core import assemble_matrix, create_distributed_aij
 
     if not blocks or not blocks[0]:
@@ -199,7 +200,9 @@ def _assemble_block_matrix_petsc(blocks: list[list["PETSc.Mat | None"]]) -> "PET
         row_sizes = [fill_row if size is None else size for size in row_sizes]
     if any(size is None for size in col_sizes):
         if len(known_col_sizes) != 1:
-            raise ValueError("Cannot infer missing PETSc block column sizes from non-uniform blocks")
+            raise ValueError(
+                "Cannot infer missing PETSc block column sizes from non-uniform blocks"
+            )
         fill_col = next(iter(known_col_sizes))
         col_sizes = [fill_col if size is None else size for size in col_sizes]
 
@@ -231,4 +234,3 @@ def _assemble_block_matrix_petsc(blocks: list[list["PETSc.Mat | None"]]) -> "PET
                 )
 
     return assemble_matrix(matrix)
-

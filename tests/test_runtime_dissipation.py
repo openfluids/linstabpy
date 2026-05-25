@@ -105,7 +105,6 @@ _install_optional_petsc_stubs()
 
 from linstabpy import results_runtime
 
-
 DISSIPATION_KEYS = (
     "numerics_operator_dissipation_enabled",
     "numerics_operator_dissipation_epsilon",

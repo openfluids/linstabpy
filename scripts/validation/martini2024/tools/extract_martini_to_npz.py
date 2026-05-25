@@ -86,7 +86,10 @@ def main() -> int:
             "__meta_field_paths": np.asarray([field.path for field in inventory], dtype=str),
             "__meta_field_dtypes": np.asarray([field.dtype for field in inventory], dtype=str),
             "__meta_field_shapes": np.asarray(
-                ["x".join(str(dim) for dim in field.shape) if field.shape else "scalar" for field in inventory],
+                [
+                    "x".join(str(dim) for dim in field.shape) if field.shape else "scalar"
+                    for field in inventory
+                ],
                 dtype=str,
             ),
         }
@@ -110,7 +113,9 @@ def main() -> int:
         "files": entries,
         "notes": _expected_case_notes(config_path),
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     print(
         "Martini extraction:",

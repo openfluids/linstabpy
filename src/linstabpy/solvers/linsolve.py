@@ -9,8 +9,8 @@ MUMPS factorisation.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 import scipy.sparse as sp
@@ -20,9 +20,16 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from .petsc_utils import _is_petsc_matrix, _matrix_nnz, _operator_shape, require_complex, scipy_to_petsc, vec_to_numpy
-from ._eps_helpers import _resolve_solver_cfg_subsection
 from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from ._eps_helpers import _resolve_solver_cfg_subsection
+from .petsc_utils import (
+    _is_petsc_matrix,
+    _matrix_nnz,
+    _operator_shape,
+    require_complex,
+    scipy_to_petsc,
+    vec_to_numpy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +100,8 @@ def make_linear_solver(
 
     if solver_type in {"mumps", "direct", "lu"}:
         ignored_iterative_keys = sorted(
-            key for key in (
+            key
+            for key in (
                 "ksp_type",
                 "pc_type",
                 "ksp_pc_side",

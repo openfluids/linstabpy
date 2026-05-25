@@ -27,8 +27,9 @@ OUT_DIR.mkdir(exist_ok=True)
 
 
 def main() -> None:
-    X, Y, bf, _ = load_hamada_case(SCRIPT.parents[1] / "data" / "baseflow",
-                                    stride_ksi=2, stride_eta=1)
+    X, Y, bf, _ = load_hamada_case(
+        SCRIPT.parents[1] / "data" / "baseflow", stride_ksi=2, stride_eta=1
+    )
     U = bf.U
     dUdx = np.gradient(U, axis=1) / np.gradient(X, axis=1)
     dUdy = np.gradient(U, axis=0) / np.gradient(Y, axis=0)
@@ -46,8 +47,7 @@ def main() -> None:
         for j in range(modes.shape[1]):
             amp = np.abs(modes[idx_u, j])
             pi = int(np.argmax(amp))
-            mode_peaks.append((f"Mode {j}", float(Xf[pi]), float(Yf[pi]),
-                               complex(omegas[j])))
+            mode_peaks.append((f"Mode {j}", float(Xf[pi]), float(Yf[pi]), complex(omegas[j])))
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 5.5), constrained_layout=True)
 
@@ -55,20 +55,23 @@ def main() -> None:
         (axes[0], np.log10(np.abs(dUdx) + 1e-12), r"$\log_{10}|\partial \bar U/\partial x|$"),
         (axes[1], np.log10(np.abs(dUdy) + 1e-12), r"$\log_{10}|\partial \bar U/\partial y|$"),
     ]:
-        pc = ax.pcolormesh(X, Y, field, shading="auto", cmap="magma",
-                            vmin=-2, vmax=3.5)
+        pc = ax.pcolormesh(X, Y, field, shading="auto", cmap="magma", vmin=-2, vmax=3.5)
         fig.colorbar(pc, ax=ax, label=name)
         ax.set_aspect("equal")
-        ax.set_xlabel("x"); ax.set_ylabel("y")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
         ax.set_title(name)
         for label, xp, yp, w in mode_peaks:
             ax.plot(xp, yp, marker="x", mew=2.5, ms=14, color="cyan")
-            ax.annotate(f"{label}\nω={w.imag:+.2f}j",
-                        xy=(xp, yp), xytext=(10, 10),
-                        textcoords="offset points",
-                        color="cyan", fontsize=8,
-                        bbox=dict(boxstyle="round,pad=0.3",
-                                  facecolor="black", edgecolor="cyan", alpha=0.7))
+            ax.annotate(
+                f"{label}\nω={w.imag:+.2f}j",
+                xy=(xp, yp),
+                xytext=(10, 10),
+                textcoords="offset points",
+                color="cyan",
+                fontsize=8,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="black", edgecolor="cyan", alpha=0.7),
+            )
 
     title = "Mean-flow gradient magnitudes on M21, with contaminated-mode peaks"
     if npz_path:

@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 
 from linstabpy.utils.jsonc import load_jsonc
-
 from scripts.validation.song_2023.baseflow_loader import load_my_case
 from scripts.validation.song_2023.scripts import run_song_2023_matrix
 from scripts.validation.song_2023.scripts.run_song_2023_order_preflight import _memory_limit_hit
@@ -20,7 +19,6 @@ from scripts.validation.song_2023.song_2023 import (
     _stability_archive_fields,
     _summarize_rank_metrics,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SONG_CASE_DIR = REPO_ROOT / "scripts" / "validation" / "song_2023"
@@ -99,19 +97,25 @@ def test_song2023_matrix_runner_clears_and_collects_outputs(tmp_path, monkeypatc
 
 
 def test_song2023_reference_mode_selection_prefers_steady_and_oscillatory_pair() -> None:
-    matlab_omega = np.asarray([
-        0.0 + 0.0589j,
-        0.0 - 0.1158j,
-        -0.3282 - 0.2984j,
-        0.3282 - 0.2984j,
-        0.0 - 0.5426j,
-    ], dtype=complex)
-    python_omega = np.asarray([
-        0.0 + 0.0573j,
-        0.0 - 0.1085j,
-        -0.3265 - 0.2924j,
-        0.3265 - 0.2924j,
-    ], dtype=complex)
+    matlab_omega = np.asarray(
+        [
+            0.0 + 0.0589j,
+            0.0 - 0.1158j,
+            -0.3282 - 0.2984j,
+            0.3282 - 0.2984j,
+            0.0 - 0.5426j,
+        ],
+        dtype=complex,
+    )
+    python_omega = np.asarray(
+        [
+            0.0 + 0.0573j,
+            0.0 - 0.1085j,
+            -0.3265 - 0.2924j,
+            0.3265 - 0.2924j,
+        ],
+        dtype=complex,
+    )
 
     selected = _select_reference_mode_indices(matlab_omega)
     assert selected == [0, 3]

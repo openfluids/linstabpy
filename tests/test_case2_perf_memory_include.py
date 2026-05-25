@@ -10,8 +10,9 @@ import pytest
 
 from tests._paths import case_fixture, require_existing
 
-
-PERF_MEMORY_PATH = require_existing(case_fixture("case2") / "perf_memory.py", "Case 2 perf_memory module")
+PERF_MEMORY_PATH = require_existing(
+    case_fixture("case2") / "perf_memory.py", "Case 2 perf_memory module"
+)
 
 
 def _load_perf_memory_module():

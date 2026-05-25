@@ -10,7 +10,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parents[1]
 DEFAULT_RUN_DIR = CASE_DIR / "output" / "evp_stride2x1_oscillatory_target_ncv500_tol1e4" / "runs"
@@ -29,7 +28,7 @@ def _case_label(path: Path) -> str:
     stem = path.stem
     prefix = "case2_perf_"
     if stem.startswith(prefix):
-        stem = stem[len(prefix):]
+        stem = stem[len(prefix) :]
     return stem
 
 
@@ -101,8 +100,12 @@ def main() -> int:
             Y = np.asarray(data["Y"])
             direct_modes = np.asarray(data["direct_modes"])
             target = complex(np.asarray(data["omega_target"]).reshape(-1)[0])
-            post_dist = np.asarray(data.get("stability_postcheck_target_distance", np.array([])), dtype=float).reshape(-1)
-            post_rel = np.asarray(data.get("stability_postcheck_residual_rel", np.array([])), dtype=float).reshape(-1)
+            post_dist = np.asarray(
+                data.get("stability_postcheck_target_distance", np.array([])), dtype=float
+            ).reshape(-1)
+            post_rel = np.asarray(
+                data.get("stability_postcheck_residual_rel", np.array([])), dtype=float
+            ).reshape(-1)
             post_rel_norm = _log_residual_norm(post_rel)
             residual_cmap = plt.get_cmap("gray")
             label = _case_label(path)

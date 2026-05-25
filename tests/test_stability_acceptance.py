@@ -83,8 +83,8 @@ def test_reject_reason_code_bitmask() -> None:
     # Mode 1: postcheck fails only -> code 1 (bit 0)
     # Mode 2: postcheck AND target both fail -> code 3 (bits 0+1)
     omega = np.array([0.1 - 0.2j, 0.1 - 0.2j, 0.1 - 0.2j], dtype=complex)
-    post_rel = np.array([1.0e-6, 1.0e-3, 1.0e-3], dtype=float)   # mode 1,2 fail threshold 1e-5
-    target_dist = np.array([0.05, 0.05, 0.8], dtype=float)        # mode 2 fails threshold 0.3
+    post_rel = np.array([1.0e-6, 1.0e-3, 1.0e-3], dtype=float)  # mode 1,2 fail threshold 1e-5
+    target_dist = np.array([0.05, 0.05, 0.8], dtype=float)  # mode 2 fails threshold 0.3
 
     result = evaluate_stability_acceptance(
         omega,

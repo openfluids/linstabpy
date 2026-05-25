@@ -43,15 +43,14 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.mesh.mesh import Mesh
 from linstabpy.baseflow.baseflow import BaseFlow
 from linstabpy.baseflow.viscosity import sutherland_air
+from linstabpy.mesh.mesh import Mesh
 from linstabpy.operators.assembly import (
-    _prepare_coefficients,
     _assemble_block_operator,
+    _prepare_coefficients,
 )
 from linstabpy.operators.coefficients import compute_cartesian_coefficients
-
 
 # =====================================================================
 # Sutherland viscosity — complex-step compatible
@@ -78,22 +77,18 @@ def _sutherland_complex(T_nondim, T_0):
 
     dmudT_dim = (
         -mu_ref * (T_ref + S1) / (Tstar + S1) ** 2 * (Tstar / T_ref) ** 1.5
-        + 1.5 * mu_ref * (T_ref + S1) / (Tstar + S1)
-        * (Tstar / T_ref) ** 0.5 / T_ref
+        + 1.5 * mu_ref * (T_ref + S1) / (Tstar + S1) * (Tstar / T_ref) ** 0.5 / T_ref
     )
 
     d2mudT2_dim = (
-        2.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 3
-        * (Tstar / T_ref) ** 1.5
-        - 3.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 2
-        * (Tstar / T_ref) ** 0.5 / T_ref
-        + 0.75 * mu_ref * (T_ref + S1) / (Tstar + S1)
-        * (Tstar / T_ref) ** (-0.5) / T_ref ** 2
+        2.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 3 * (Tstar / T_ref) ** 1.5
+        - 3.0 * mu_ref * (T_ref + S1) / (Tstar + S1) ** 2 * (Tstar / T_ref) ** 0.5 / T_ref
+        + 0.75 * mu_ref * (T_ref + S1) / (Tstar + S1) * (Tstar / T_ref) ** (-0.5) / T_ref**2
     )
 
     MU = mu / mu_0
     dmudT_nd = dmudT_dim / mu_0 * T_0
-    d2mudT2_nd = d2mudT2_dim / mu_0 * T_0 ** 2
+    d2mudT2_nd = d2mudT2_dim / mu_0 * T_0**2
 
     return MU, dmudT_nd, d2mudT2_nd
 
@@ -142,11 +137,11 @@ def _ns_residual(q_flat, mesh, bf_params):
     kx = bf_params["kx"]
 
     # Unpack state
-    rho = q_flat[0 * ngp:1 * ngp]
-    u = q_flat[1 * ngp:2 * ngp]
-    v = q_flat[2 * ngp:3 * ngp]
-    w = q_flat[3 * ngp:4 * ngp]
-    T = q_flat[4 * ngp:5 * ngp]
+    rho = q_flat[0 * ngp : 1 * ngp]
+    u = q_flat[1 * ngp : 2 * ngp]
+    v = q_flat[2 * ngp : 3 * ngp]
+    w = q_flat[3 * ngp : 4 * ngp]
+    T = q_flat[4 * ngp : 5 * ngp]
 
     Dx = mesh.Dx
     Dy = mesh.Dy
@@ -154,35 +149,49 @@ def _ns_residual(q_flat, mesh, bf_params):
     D2y = mesh.D2y
 
     # -- Spatial derivatives in x and y (FD matrices) -------------------------
-    drhodx = Dx @ rho;   drhody = Dy @ rho
-    dudx = Dx @ u;       dudy = Dy @ u
-    dvdx = Dx @ v;       dvdy = Dy @ v
-    dwdx = Dx @ w;       dwdy = Dy @ w
-    dTdx = Dx @ T;       dTdy = Dy @ T
+    drhodx = Dx @ rho
+    drhody = Dy @ rho
+    dudx = Dx @ u
+    dudy = Dy @ u
+    dvdx = Dx @ v
+    dvdy = Dy @ v
+    dwdx = Dx @ w
+    dwdy = Dy @ w
+    dTdx = Dx @ T
+    dTdy = Dy @ T
 
-    d2udx2 = D2x @ u;    d2udy2 = D2y @ u
-    d2vdx2 = D2x @ v;    d2vdy2 = D2y @ v
-    d2wdx2 = D2x @ w;    d2wdy2 = D2y @ w
-    d2Tdx2 = D2x @ T;    d2Tdy2 = D2y @ T
+    d2udx2 = D2x @ u
+    d2udy2 = D2y @ u
+    d2vdx2 = D2x @ v
+    d2vdy2 = D2y @ v
+    d2wdx2 = D2x @ w
+    d2wdy2 = D2y @ w
+    d2Tdx2 = D2x @ T
+    d2Tdy2 = D2y @ T
 
     d2udxdy = Dx @ dudy
     d2vdxdy = Dx @ dvdy
 
     # -- Spanwise (z) Fourier mode: d/dz = ikx, d²/dz² = -kx² ----------------
     ikx = 1j * kx
-    ikx2 = ikx ** 2
+    ikx2 = ikx**2
 
-    dudz = ikx * u;      dvdz = ikx * v;      dwdz = ikx * w
-    dTdz = ikx * T;      drhodz = ikx * rho
+    dudz = ikx * u
+    dvdz = ikx * v
+    dwdz = ikx * w
+    dTdz = ikx * T
+    drhodz = ikx * rho
 
-    d2udz2 = ikx2 * u;   d2vdz2 = ikx2 * v;   d2wdz2 = ikx2 * w
+    d2udz2 = ikx2 * u
+    d2vdz2 = ikx2 * v
+    d2wdz2 = ikx2 * w
     d2Tdz2 = ikx2 * T
 
     # Mixed z-derivatives
     d2wdxdz = ikx * dwdx
 
     # -- Thermodynamic quantities ----------------------------------------------
-    gM2 = kappa * Ma ** 2
+    gM2 = kappa * Ma**2
     p = rho * T / gM2
     dpdx = (drhodx * T + rho * dTdx) / gM2
     dpdy = (drhody * T + rho * dTdy) / gM2
@@ -212,35 +221,44 @@ def _ns_residual(q_flat, mesh, bf_params):
 
     # -- Divergence of stress tensor rows --------------------------------------
     # x-row: d(tau_xx)/dx + d(tau_xy)/dy + d(tau_xz)/dz
-    dtau_xx_dx = dmudx * (2.0 * dudx - (2.0 / 3.0) * div_u) \
-        + MU * (2.0 * d2udx2 - (2.0 / 3.0) * d_div_u_dx)
+    dtau_xx_dx = dmudx * (2.0 * dudx - (2.0 / 3.0) * div_u) + MU * (
+        2.0 * d2udx2 - (2.0 / 3.0) * d_div_u_dx
+    )
     dtau_xy_dy = dmudy * (dudy + dvdx) + MU * (d2udy2 + Dx @ dvdy)
     dtau_xz_dz = dmudz * (dudz + dwdx) + MU * (d2udz2 + d2wdxdz)
     div_tau_x = dtau_xx_dx + dtau_xy_dy + dtau_xz_dz
 
     # y-row: d(tau_yx)/dx + d(tau_yy)/dy + d(tau_yz)/dz
     dtau_yx_dx = dmudx * (dudy + dvdx) + MU * (Dx @ dudy + d2vdx2)
-    dtau_yy_dy = dmudy * (2.0 * dvdy - (2.0 / 3.0) * div_u) \
-        + MU * (2.0 * D2y @ v - (2.0 / 3.0) * d_div_u_dy)
+    dtau_yy_dy = dmudy * (2.0 * dvdy - (2.0 / 3.0) * div_u) + MU * (
+        2.0 * D2y @ v - (2.0 / 3.0) * d_div_u_dy
+    )
     dtau_yz_dz = dmudz * (dvdz + dwdy) + MU * (d2vdz2 + ikx * dwdy)
     div_tau_y = dtau_yx_dx + dtau_yy_dy + dtau_yz_dz
 
     # z-row: d(tau_zx)/dx + d(tau_zy)/dy + d(tau_zz)/dz
     dtau_zx_dx = dmudx * (dwdx + dudz) + MU * (d2wdx2 + ikx * dudx)
     dtau_zy_dy = dmudy * (dwdy + dvdz) + MU * (D2y @ w + ikx * dvdy)
-    dtau_zz_dz = dmudz * (2.0 * dwdz - (2.0 / 3.0) * div_u) \
-        + MU * (2.0 * ikx2 * w - (2.0 / 3.0) * d_div_u_dz)
+    dtau_zz_dz = dmudz * (2.0 * dwdz - (2.0 / 3.0) * div_u) + MU * (
+        2.0 * ikx2 * w - (2.0 / 3.0) * d_div_u_dz
+    )
     div_tau_z = dtau_zx_dx + dtau_zy_dy + dtau_zz_dz
 
     # -- Viscous dissipation: Phi = tau_ij * du_i/dx_j -------------------------
-    Phi = (tau_xx * dudx + tau_xy * dudy + tau_xz * dudz
-           + tau_xy * dvdx + tau_yy * dvdy + tau_yz * dvdz
-           + tau_xz * dwdx + tau_yz * dwdy + tau_zz * dwdz)
+    Phi = (
+        tau_xx * dudx
+        + tau_xy * dudy
+        + tau_xz * dudz
+        + tau_xy * dvdx
+        + tau_yy * dvdy
+        + tau_yz * dvdz
+        + tau_xz * dwdx
+        + tau_yz * dwdy
+        + tau_zz * dwdz
+    )
 
     # -- Heat conduction: div(mu * grad(T)) ------------------------------------
-    heat_cond = (dmudx * dTdx + MU * d2Tdx2
-                 + dmudy * dTdy + MU * d2Tdy2
-                 + dmudz * dTdz + MU * d2Tdz2)
+    heat_cond = dmudx * dTdx + MU * d2Tdx2 + dmudy * dTdy + MU * d2Tdy2 + dmudz * dTdz + MU * d2Tdz2
 
     # -- Assemble equations ----------------------------------------------------
     # Eq 1: Continuity (drho/dt = f1)
@@ -260,20 +278,22 @@ def _ns_residual(q_flat, mesh, bf_params):
     # Pressure-dilatation: -(kappa-1)*p*div_u / cv = -(kappa-1)*rho*T*div_u
     # Viscous dissipation: Phi/(Re*cv) = kappa*(kappa-1)*Ma^2 * Phi/Re
     # Heat conduction: kappa*div(mu*grad(T))/(Re*Pr) stays as-is
-    f5 = (-(kappa - 1.0) * rho * T * div_u
-          - rho * (u * dTdx + v * dTdy + w * dTdz)
-          + kappa * (kappa - 1.0) * Ma ** 2 * Phi / Re
-          + kappa * heat_cond / (Re * Pr))
+    f5 = (
+        -(kappa - 1.0) * rho * T * div_u
+        - rho * (u * dTdx + v * dTdy + w * dTdz)
+        + kappa * (kappa - 1.0) * Ma**2 * Phi / Re
+        + kappa * heat_cond / (Re * Pr)
+    )
 
     # When kx != 0, Fourier terms (ikx) make the residual complex even
     # for real-valued state vectors.
     out_dtype = np.result_type(q_flat.dtype, complex if kx != 0 else float)
     R = np.empty(5 * ngp, dtype=out_dtype)
-    R[0 * ngp:1 * ngp] = f1
-    R[1 * ngp:2 * ngp] = f2
-    R[2 * ngp:3 * ngp] = f3
-    R[3 * ngp:4 * ngp] = f4
-    R[4 * ngp:5 * ngp] = f5
+    R[0 * ngp : 1 * ngp] = f1
+    R[1 * ngp : 2 * ngp] = f2
+    R[2 * ngp : 3 * ngp] = f3
+    R[3 * ngp : 4 * ngp] = f4
+    R[4 * ngp : 5 * ngp] = f5
     return R
 
 
@@ -346,19 +366,23 @@ def _build_base_state_vector(mesh, bf):
     p = mesh.used_ind
     ngp = mesh.ngp
     q = np.empty(5 * ngp)
-    q[0 * ngp:1 * ngp] = bf.RHO.ravel(order="F")[p]
-    q[1 * ngp:2 * ngp] = bf.U.ravel(order="F")[p]
-    q[2 * ngp:3 * ngp] = bf.V.ravel(order="F")[p]
-    q[3 * ngp:4 * ngp] = bf.W.ravel(order="F")[p]
-    q[4 * ngp:5 * ngp] = bf.T.ravel(order="F")[p]
+    q[0 * ngp : 1 * ngp] = bf.RHO.ravel(order="F")[p]
+    q[1 * ngp : 2 * ngp] = bf.U.ravel(order="F")[p]
+    q[2 * ngp : 3 * ngp] = bf.V.ravel(order="F")[p]
+    q[3 * ngp : 4 * ngp] = bf.W.ravel(order="F")[p]
+    q[4 * ngp : 5 * ngp] = bf.T.ravel(order="F")[p]
     return q
 
 
 def _make_bf_params(bf, kx):
     """Extract parameter dict for _ns_residual from a BaseFlow."""
     return {
-        "Re": bf.Re, "Ma": bf.Ma, "Pr": bf.Pr,
-        "kappa": bf.kappa, "T_0": bf.T_0, "kx": kx,
+        "Re": bf.Re,
+        "Ma": bf.Ma,
+        "Pr": bf.Pr,
+        "kappa": bf.kappa,
+        "T_0": bf.T_0,
+        "kx": kx,
     }
 
 
@@ -376,11 +400,12 @@ def _report_mismatch(J, L_raw_dense, label, nvars=5):
     for i in range(nvars):
         row = []
         for j_idx in range(nvars):
-            block = diff[i * ngp:(i + 1) * ngp, j_idx * ngp:(j_idx + 1) * ngp]
+            block = diff[i * ngp : (i + 1) * ngp, j_idx * ngp : (j_idx + 1) * ngp]
             row.append(f"{block.max():.2e}")
-        lines.append(f"  eq={names[i]:>3s}: " + "  ".join(
-            f"{names[j_idx]}={v}" for j_idx, v in enumerate(row)
-        ))
+        lines.append(
+            f"  eq={names[i]:>3s}: "
+            + "  ".join(f"{names[j_idx]}={v}" for j_idx, v in enumerate(row))
+        )
     return "\n".join(lines)
 
 
@@ -403,15 +428,24 @@ class TestComplexStepUniform:
         mesh = Mesh.create(
             xrange=(0.0, 2 * np.pi),
             yrange=(-1.0, 1.0),
-            nx=nx, ny=ny, fd_order=2,
+            nx=nx,
+            ny=ny,
+            fd_order=2,
             x_periodicity=True,
         )
         ones = np.ones((ny, nx))
         zeros = np.zeros((ny, nx))
         bf = BaseFlow(
-            Re=1000.0, Ma=0.3, Pr=0.72, kappa=1.4, T_0=288.15,
-            RHO=ones.copy(), U=0.5 * ones, V=zeros.copy(),
-            W=zeros.copy(), T=ones.copy(),
+            Re=1000.0,
+            Ma=0.3,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=ones.copy(),
+            U=0.5 * ones,
+            V=zeros.copy(),
+            W=zeros.copy(),
+            T=ones.copy(),
         )
         sutherland_air(bf)
         return mesh, bf
@@ -424,18 +458,17 @@ class TestComplexStepUniform:
         L_raw = _build_L_raw(mesh, bf, kx=kx)
         q_bar = _build_base_state_vector(mesh, bf)
 
-        J = _complex_step_jacobian(
-            lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar
-        )
+        J = _complex_step_jacobian(lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar)
 
         L_raw_dense = L_raw.toarray()
 
         # L_raw should be real for kx=0 with real base flow
-        assert np.max(np.abs(L_raw_dense.imag)) < 1e-12, \
-            "L_raw should be real for kx=0"
+        assert np.max(np.abs(L_raw_dense.imag)) < 1e-12, "L_raw should be real for kx=0"
 
         np.testing.assert_allclose(
-            J, L_raw_dense.real, atol=1e-10,
+            J,
+            L_raw_dense.real,
+            atol=1e-10,
             err_msg=_report_mismatch(J, L_raw_dense.real, "uniform kx=0"),
         )
 
@@ -459,15 +492,24 @@ class TestComplexStepPoiseuille:
         mesh = Mesh.create(
             xrange=(0.0, 2 * np.pi),
             yrange=(-1.0, 1.0),
-            nx=nx, ny=ny, fd_order=2,
+            nx=nx,
+            ny=ny,
+            fd_order=2,
             x_periodicity=True,
         )
         ones = np.ones((ny, nx))
         zeros = np.zeros((ny, nx))
         bf = BaseFlow(
-            Re=1000.0, Ma=0.3, Pr=0.72, kappa=1.4, T_0=288.15,
-            RHO=ones.copy(), U=1.0 - mesh.Y ** 2, V=zeros.copy(),
-            W=zeros.copy(), T=ones.copy(),
+            Re=1000.0,
+            Ma=0.3,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=ones.copy(),
+            U=1.0 - mesh.Y**2,
+            V=zeros.copy(),
+            W=zeros.copy(),
+            T=ones.copy(),
         )
         sutherland_air(bf)
         return mesh, bf
@@ -480,15 +522,15 @@ class TestComplexStepPoiseuille:
         L_raw = _build_L_raw(mesh, bf, kx=kx)
         q_bar = _build_base_state_vector(mesh, bf)
 
-        J = _complex_step_jacobian(
-            lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar
-        )
+        J = _complex_step_jacobian(lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar)
 
         L_raw_dense = L_raw.toarray()
         assert np.max(np.abs(L_raw_dense.imag)) < 1e-12
 
         np.testing.assert_allclose(
-            J, L_raw_dense.real, atol=1e-10,
+            J,
+            L_raw_dense.real,
+            atol=1e-10,
             err_msg=_report_mismatch(J, L_raw_dense.real, "Poiseuille kx=0"),
         )
 
@@ -518,15 +560,24 @@ class TestComplexStepCompressible:
         mesh = Mesh.create(
             xrange=(0.0, 2 * np.pi),
             yrange=(-1.0, 1.0),
-            nx=nx, ny=ny, fd_order=2,
+            nx=nx,
+            ny=ny,
+            fd_order=2,
             x_periodicity=True,
         )
         zeros = np.zeros((ny, nx))
         T_field = 1.0 + 0.5 * np.cos(np.pi * mesh.Y)
         bf = BaseFlow(
-            Re=500.0, Ma=0.5, Pr=0.72, kappa=1.4, T_0=288.15,
-            RHO=1.0 / T_field, U=1.0 - mesh.Y ** 2,
-            V=zeros.copy(), W=zeros.copy(), T=T_field,
+            Re=500.0,
+            Ma=0.5,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=1.0 / T_field,
+            U=1.0 - mesh.Y**2,
+            V=zeros.copy(),
+            W=zeros.copy(),
+            T=T_field,
         )
         sutherland_air(bf)
         return mesh, bf
@@ -536,9 +587,7 @@ class TestComplexStepCompressible:
         """Max |J - L_raw| over interior points (excluding boundaries)."""
         L_raw = _build_L_raw(mesh, bf, kx=kx)
         q_bar = _build_base_state_vector(mesh, bf)
-        J = _complex_step_jacobian(
-            lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar
-        )
+        J = _complex_step_jacobian(lambda q: _ns_residual(q, mesh, _make_bf_params(bf, kx)), q_bar)
         L_dense = L_raw.toarray().real
         return np.max(np.abs(J - L_dense))
 
@@ -569,9 +618,7 @@ class TestComplexStepCompressible:
         mesh, bf = self._make_case(32)
         L_raw = _build_L_raw(mesh, bf, kx=0.0)
         q_bar = _build_base_state_vector(mesh, bf)
-        J = _complex_step_jacobian(
-            lambda q: _ns_residual(q, mesh, _make_bf_params(bf, 0.0)), q_bar
-        )
+        J = _complex_step_jacobian(lambda q: _ns_residual(q, mesh, _make_bf_params(bf, 0.0)), q_bar)
         L_dense = L_raw.toarray().real
         rel_err = np.max(np.abs(J - L_dense)) / np.max(np.abs(L_dense))
         assert rel_err < 0.01, f"Relative error {rel_err:.4e} > 1%"
@@ -611,9 +658,9 @@ class TestLinearizedResidualKxNonzero:
         Pr = bf_params["Pr"]
         kappa = bf_params["kappa"]
         kx = bf_params["kx"]
-        gM2 = kappa * Ma ** 2
+        gM2 = kappa * Ma**2
         ikx = 1j * kx
-        ikx2 = ikx ** 2
+        ikx2 = ikx**2
 
         # Base flow (frozen, from bf_params)
         rho_b = bf_params["RHO"]
@@ -630,31 +677,54 @@ class TestLinearizedResidualKxNonzero:
         D2y = mesh.D2y
 
         # Base flow gradients (2D, no z-derivatives)
-        du_b_dx = Dx @ u_b;    du_b_dy = Dy @ u_b
-        dv_b_dx = Dx @ v_b;    dv_b_dy = Dy @ v_b
-        dw_b_dx = Dx @ w_b;    dw_b_dy = Dy @ w_b
-        drho_b_dx = Dx @ rho_b;  drho_b_dy = Dy @ rho_b
-        dT_b_dx = Dx @ T_b;    dT_b_dy = Dy @ T_b
+        du_b_dx = Dx @ u_b
+        du_b_dy = Dy @ u_b
+        dv_b_dx = Dx @ v_b
+        dv_b_dy = Dy @ v_b
+        dw_b_dx = Dx @ w_b
+        dw_b_dy = Dy @ w_b
+        drho_b_dx = Dx @ rho_b
+        drho_b_dy = Dy @ rho_b
+        dT_b_dx = Dx @ T_b
+        dT_b_dy = Dy @ T_b
 
         # Perturbation fields
-        rp = q_prime[0 * ngp:1 * ngp]  # rho'
-        up = q_prime[1 * ngp:2 * ngp]  # u'
-        vp = q_prime[2 * ngp:3 * ngp]  # v'
-        wp = q_prime[3 * ngp:4 * ngp]  # w'
-        Tp = q_prime[4 * ngp:5 * ngp]  # T'
+        rp = q_prime[0 * ngp : 1 * ngp]  # rho'
+        up = q_prime[1 * ngp : 2 * ngp]  # u'
+        vp = q_prime[2 * ngp : 3 * ngp]  # v'
+        wp = q_prime[3 * ngp : 4 * ngp]  # w'
+        Tp = q_prime[4 * ngp : 5 * ngp]  # T'
 
         # Perturbation gradients (d/dz -> ikx for perturbation only)
-        drp_dx = Dx @ rp;    drp_dy = Dy @ rp;    drp_dz = ikx * rp
-        dup_dx = Dx @ up;    dup_dy = Dy @ up;    dup_dz = ikx * up
-        dvp_dx = Dx @ vp;    dvp_dy = Dy @ vp;    dvp_dz = ikx * vp
-        dwp_dx = Dx @ wp;    dwp_dy = Dy @ wp;    dwp_dz = ikx * wp
-        dTp_dx = Dx @ Tp;    dTp_dy = Dy @ Tp;    dTp_dz = ikx * Tp
+        drp_dx = Dx @ rp
+        drp_dy = Dy @ rp
+        drp_dz = ikx * rp
+        dup_dx = Dx @ up
+        dup_dy = Dy @ up
+        dup_dz = ikx * up
+        dvp_dx = Dx @ vp
+        dvp_dy = Dy @ vp
+        dvp_dz = ikx * vp
+        dwp_dx = Dx @ wp
+        dwp_dy = Dy @ wp
+        dwp_dz = ikx * wp
+        dTp_dx = Dx @ Tp
+        dTp_dy = Dy @ Tp
+        dTp_dz = ikx * Tp
 
         # Second derivatives of perturbation
-        d2up_dx2 = D2x @ up;  d2up_dy2 = D2y @ up;  d2up_dz2 = ikx2 * up
-        d2vp_dx2 = D2x @ vp;  d2vp_dy2 = D2y @ vp;  d2vp_dz2 = ikx2 * vp
-        d2wp_dx2 = D2x @ wp;  d2wp_dy2 = D2y @ wp;  d2wp_dz2 = ikx2 * wp
-        d2Tp_dx2 = D2x @ Tp;  d2Tp_dy2 = D2y @ Tp;  d2Tp_dz2 = ikx2 * Tp
+        d2up_dx2 = D2x @ up
+        d2up_dy2 = D2y @ up
+        d2up_dz2 = ikx2 * up
+        d2vp_dx2 = D2x @ vp
+        d2vp_dy2 = D2y @ vp
+        d2vp_dz2 = ikx2 * vp
+        d2wp_dx2 = D2x @ wp
+        d2wp_dy2 = D2y @ wp
+        d2wp_dz2 = ikx2 * wp
+        d2Tp_dx2 = D2x @ Tp
+        d2Tp_dy2 = D2y @ Tp
+        d2Tp_dz2 = ikx2 * Tp
 
         d2up_dxdy = Dx @ dup_dy
         d2vp_dxdy = Dx @ dvp_dy
@@ -673,18 +743,20 @@ class TestLinearizedResidualKxNonzero:
         # d(rho')/dt = -(u_bar·grad(rho') + u'·grad(rho_bar)
         #               + rho'·div(u_bar) + rho_bar·div(u'))
         f1 = -(
-            u_b * drp_dx + v_b * drp_dy + w_b * drp_dz
-            + up * drho_b_dx + vp * drho_b_dy + wp * ikx * 0  # drho_b/dz = 0
+            u_b * drp_dx
+            + v_b * drp_dy
+            + w_b * drp_dz
+            + up * drho_b_dx
+            + vp * drho_b_dy
+            + wp * ikx * 0  # drho_b/dz = 0
             + rp * (du_b_dx + dv_b_dy)  # div(u_bar), no dw_b/dz (2D)
             + rho_b * div_up
         )
 
         # -- Linearized pressure perturbation: p' = (rho'*T_b + rho_b*T')/gM2
         pp = (rp * T_b + rho_b * Tp) / gM2
-        dpp_dx = (drp_dx * T_b + rp * dT_b_dx + drho_b_dx * Tp
-                  + rho_b * dTp_dx) / gM2
-        dpp_dy = (drp_dy * T_b + rp * dT_b_dy + drho_b_dy * Tp
-                  + rho_b * dTp_dy) / gM2
+        dpp_dx = (drp_dx * T_b + rp * dT_b_dx + drho_b_dx * Tp + rho_b * dTp_dx) / gM2
+        dpp_dy = (drp_dy * T_b + rp * dT_b_dy + drho_b_dy * Tp + rho_b * dTp_dy) / gM2
         dpp_dz = ikx * pp  # perturbation z-derivative
 
         # -- Eq 2-4: Momentum (linearized) ----------------------------------
@@ -695,15 +767,15 @@ class TestLinearizedResidualKxNonzero:
         # Since du_bar/dt = 0 and we work with the RHS only:
 
         # Linearized convective terms for each momentum equation
-        conv_u = (rho_b * (u_b * dup_dx + v_b * dup_dy + w_b * dup_dz
-                           + up * du_b_dx + vp * du_b_dy)
-                  + rp * (u_b * du_b_dx + v_b * du_b_dy))
-        conv_v = (rho_b * (u_b * dvp_dx + v_b * dvp_dy + w_b * dvp_dz
-                           + up * dv_b_dx + vp * dv_b_dy)
-                  + rp * (u_b * dv_b_dx + v_b * dv_b_dy))
-        conv_w = (rho_b * (u_b * dwp_dx + v_b * dwp_dy + w_b * dwp_dz
-                           + up * dw_b_dx + vp * dw_b_dy)
-                  + rp * (u_b * dw_b_dx + v_b * dw_b_dy))
+        conv_u = rho_b * (
+            u_b * dup_dx + v_b * dup_dy + w_b * dup_dz + up * du_b_dx + vp * du_b_dy
+        ) + rp * (u_b * du_b_dx + v_b * du_b_dy)
+        conv_v = rho_b * (
+            u_b * dvp_dx + v_b * dvp_dy + w_b * dvp_dz + up * dv_b_dx + vp * dv_b_dy
+        ) + rp * (u_b * dv_b_dx + v_b * dv_b_dy)
+        conv_w = rho_b * (
+            u_b * dwp_dx + v_b * dwp_dy + w_b * dwp_dz + up * dw_b_dx + vp * dw_b_dy
+        ) + rp * (u_b * dw_b_dx + v_b * dw_b_dy)
 
         # Linearized viscous stress divergence
         # tau'_ij = mu_bar*(du'_i/dx_j + du'_j/dx_i - 2/3*div(u')*delta_ij)
@@ -719,9 +791,9 @@ class TestLinearizedResidualKxNonzero:
         # x-momentum viscous: div(tau'_x)
         # From base viscosity on perturbation velocity gradients:
         visc_u_base = (
-            MU_b * (2 * d2up_dx2 - (2 / 3) * d_div_up_dx)     # d(tau'_xx)/dx
-            + MU_b * (d2up_dy2 + d2vp_dxdy)                    # d(tau'_xy)/dy
-            + MU_b * (d2up_dz2 + d2wp_dxdz)                    # d(tau'_xz)/dz
+            MU_b * (2 * d2up_dx2 - (2 / 3) * d_div_up_dx)  # d(tau'_xx)/dx
+            + MU_b * (d2up_dy2 + d2vp_dxdy)  # d(tau'_xy)/dy
+            + MU_b * (d2up_dz2 + d2wp_dxdz)  # d(tau'_xz)/dz
         )
         # From perturbation viscosity on base velocity gradients:
         #   Part 1: grad(mu') dot base strain rate S_bar
@@ -731,35 +803,36 @@ class TestLinearizedResidualKxNonzero:
             + dmu_p_dz * dw_b_dx  # du_b/dz = 0 for 2D base
         )
         #   Part 2: mu' * divergence of base strain rate
-        d2u_b_dx2 = D2x @ u_b;  d2u_b_dy2 = D2y @ u_b
-        d2v_b_dx2 = D2x @ v_b;  d2v_b_dy2 = D2y @ v_b
-        d2w_b_dx2 = D2x @ w_b;  d2w_b_dy2 = D2y @ w_b
+        d2u_b_dx2 = D2x @ u_b
+        d2u_b_dy2 = D2y @ u_b
+        d2v_b_dx2 = D2x @ v_b
+        d2v_b_dy2 = D2y @ v_b
+        d2w_b_dx2 = D2x @ w_b
+        d2w_b_dy2 = D2y @ w_b
         d2u_b_dxdy = Dx @ du_b_dy
         d2v_b_dxdy = Dx @ dv_b_dy
         d2w_b_dxdy = Dx @ dw_b_dy
         d_div_ub_dx = D2x @ u_b + Dx @ dv_b_dy  # d(du_b/dx+dv_b/dy)/dx
-        d_div_ub_dy = Dx @ du_b_dy + D2y @ v_b   # d(du_b/dx+dv_b/dy)/dy
+        d_div_ub_dy = Dx @ du_b_dy + D2y @ v_b  # d(du_b/dx+dv_b/dy)/dy
         visc_u_pert_div = mu_p * (
             (2 * d2u_b_dx2 - (2 / 3) * d_div_ub_dx)  # d(S_bar_xx)/dx
-            + (d2u_b_dy2 + d2v_b_dxdy)                 # d(S_bar_xy)/dy
+            + (d2u_b_dy2 + d2v_b_dxdy)  # d(S_bar_xy)/dy
             # d(S_bar_xz)/dz = 0 (2D base, dz terms vanish)
         )
         # From base dmudx on perturbation velocity gradients:
         dmub_dx = dmudT_b * dT_b_dx
         dmub_dy = dmudT_b * dT_b_dy
         visc_u_cross = (
-            dmub_dx * (2 * dup_dx - (2 / 3) * div_up)
-            + dmub_dy * (dup_dy + dvp_dx)
+            dmub_dx * (2 * dup_dx - (2 / 3) * div_up) + dmub_dy * (dup_dy + dvp_dx)
             # dmub_dz = 0 for 2D base
         )
-        div_tau_up_x = (visc_u_base + visc_u_pert_grad + visc_u_pert_div
-                        + visc_u_cross)
+        div_tau_up_x = visc_u_base + visc_u_pert_grad + visc_u_pert_div + visc_u_cross
 
         # y-momentum viscous: div(tau'_y)
         visc_v_base = (
-            MU_b * (d2vp_dx2 + Dx @ dup_dy)                     # d(tau'_yx)/dx
-            + MU_b * (2 * D2y @ vp - (2 / 3) * d_div_up_dy)    # d(tau'_yy)/dy
-            + MU_b * (d2vp_dz2 + ikx * dwp_dy)                  # d(tau'_yz)/dz
+            MU_b * (d2vp_dx2 + Dx @ dup_dy)  # d(tau'_yx)/dx
+            + MU_b * (2 * D2y @ vp - (2 / 3) * d_div_up_dy)  # d(tau'_yy)/dy
+            + MU_b * (d2vp_dz2 + ikx * dwp_dy)  # d(tau'_yz)/dz
         )
         visc_v_pert_grad = (
             dmu_p_dx * (du_b_dy + dv_b_dx)
@@ -767,39 +840,30 @@ class TestLinearizedResidualKxNonzero:
             + dmu_p_dz * dw_b_dy  # dv_b/dz = 0
         )
         visc_v_pert_div = mu_p * (
-            (d2u_b_dxdy + d2v_b_dx2)                    # d(S_bar_yx)/dx
+            (d2u_b_dxdy + d2v_b_dx2)  # d(S_bar_yx)/dx
             + (2 * d2v_b_dy2 - (2 / 3) * d_div_ub_dy)  # d(S_bar_yy)/dy
             # d(S_bar_yz)/dz = 0
         )
-        visc_v_cross = (
-            dmub_dx * (dvp_dx + dup_dy)
-            + dmub_dy * (2 * dvp_dy - (2 / 3) * div_up)
-        )
-        div_tau_up_y = (visc_v_base + visc_v_pert_grad + visc_v_pert_div
-                        + visc_v_cross)
+        visc_v_cross = dmub_dx * (dvp_dx + dup_dy) + dmub_dy * (2 * dvp_dy - (2 / 3) * div_up)
+        div_tau_up_y = visc_v_base + visc_v_pert_grad + visc_v_pert_div + visc_v_cross
 
         # z-momentum viscous: div(tau'_z)
         visc_w_base = (
-            MU_b * (d2wp_dx2 + ikx * dup_dx)                    # d(tau'_zx)/dx
-            + MU_b * (D2y @ wp + ikx * dvp_dy)                  # d(tau'_zy)/dy
-            + MU_b * (2 * ikx2 * wp - (2 / 3) * d_div_up_dz)   # d(tau'_zz)/dz
+            MU_b * (d2wp_dx2 + ikx * dup_dx)  # d(tau'_zx)/dx
+            + MU_b * (D2y @ wp + ikx * dvp_dy)  # d(tau'_zy)/dy
+            + MU_b * (2 * ikx2 * wp - (2 / 3) * d_div_up_dz)  # d(tau'_zz)/dz
         )
         visc_w_pert_grad = (
-            dmu_p_dx * dw_b_dx
-            + dmu_p_dy * dw_b_dy
+            dmu_p_dx * dw_b_dx + dmu_p_dy * dw_b_dy
             # dmu_p_dz * (2*dw_b/dz - 2/3*div_ub) = 0 (dw_b/dz = 0)
         )
         visc_w_pert_div = mu_p * (
-            d2w_b_dx2               # d(S_bar_zx)/dx = d(dw_b/dx)/dx
-            + d2w_b_dy2             # d(S_bar_zy)/dy = d(dw_b/dy)/dy
+            d2w_b_dx2  # d(S_bar_zx)/dx = d(dw_b/dx)/dx
+            + d2w_b_dy2  # d(S_bar_zy)/dy = d(dw_b/dy)/dy
             # d(S_bar_zz)/dz = 0 (dw_b/dz = 0, div_ub doesn't have z)
         )
-        visc_w_cross = (
-            dmub_dx * (dwp_dx + dup_dz)
-            + dmub_dy * (dwp_dy + dvp_dz)
-        )
-        div_tau_up_z = (visc_w_base + visc_w_pert_grad + visc_w_pert_div
-                        + visc_w_cross)
+        visc_w_cross = dmub_dx * (dwp_dx + dup_dz) + dmub_dy * (dwp_dy + dvp_dz)
+        div_tau_up_z = visc_w_base + visc_w_pert_grad + visc_w_pert_div + visc_w_cross
 
         f2 = -conv_u - dpp_dx + div_tau_up_x / Re
         f3 = -conv_v - dpp_dy + div_tau_up_y / Re
@@ -815,11 +879,7 @@ class TestLinearizedResidualKxNonzero:
         km1 = kappa - 1.0
 
         # Linearized pressure-dilatation (temperature form)
-        pres_dil = (
-            km1 * rho_b * T_b * div_up
-            + km1 * rp * T_b * div_ub
-            + km1 * rho_b * Tp * div_ub
-        )
+        pres_dil = km1 * rho_b * T_b * div_up + km1 * rp * T_b * div_ub + km1 * rho_b * Tp * div_ub
 
         # Linearized temperature convection
         temp_conv = (
@@ -843,9 +903,15 @@ class TestLinearizedResidualKxNonzero:
         tau_b_yz = MU_b * dw_b_dy  # dv_b/dz = 0
 
         Phi_base = (
-            tau_b_xx * dup_dx + tau_b_xy * dup_dy + tau_b_xz * dup_dz
-            + tau_b_xy * dvp_dx + tau_b_yy * dvp_dy + tau_b_yz * dvp_dz
-            + tau_b_xz * dwp_dx + tau_b_yz * dwp_dy + tau_b_zz * dwp_dz
+            tau_b_xx * dup_dx
+            + tau_b_xy * dup_dy
+            + tau_b_xz * dup_dz
+            + tau_b_xy * dvp_dx
+            + tau_b_yy * dvp_dy
+            + tau_b_yz * dvp_dz
+            + tau_b_xz * dwp_dx
+            + tau_b_yz * dwp_dy
+            + tau_b_zz * dwp_dz
         )
         # mu' * S_bar_ij * du_bar_i/dx_j (only non-zero base gradients)
         Phi_mu_pert = (
@@ -860,29 +926,31 @@ class TestLinearizedResidualKxNonzero:
 
         # Linearized heat conduction: div(mu'*grad(T_b) + mu_b*grad(T'))
         heat_pert_of_base = (
-            dmu_p_dx * dT_b_dx + mu_p * (D2x @ T_b)
-            + dmu_p_dy * dT_b_dy + mu_p * (D2y @ T_b)
+            dmu_p_dx * dT_b_dx + mu_p * (D2x @ T_b) + dmu_p_dy * dT_b_dy + mu_p * (D2y @ T_b)
             # dmu_p_dz * dT_b_dz = 0 (T_b is 2D)
         )
         heat_base_of_pert = (
-            dmub_dx * dTp_dx + MU_b * d2Tp_dx2
-            + dmub_dy * dTp_dy + MU_b * d2Tp_dy2
+            dmub_dx * dTp_dx
+            + MU_b * d2Tp_dx2
+            + dmub_dy * dTp_dy
+            + MU_b * d2Tp_dy2
             + MU_b * d2Tp_dz2  # dmub_dz = 0
         )
         heat_cond_p = heat_pert_of_base + heat_base_of_pert
 
         f5 = (
-            -pres_dil - temp_conv
-            + kappa * km1 * Ma ** 2 * Phi_p / Re
+            -pres_dil
+            - temp_conv
+            + kappa * km1 * Ma**2 * Phi_p / Re
             + kappa * heat_cond_p / (Re * Pr)
         )
 
         R = np.empty(5 * ngp, dtype=complex)
-        R[0 * ngp:1 * ngp] = f1
-        R[1 * ngp:2 * ngp] = f2
-        R[2 * ngp:3 * ngp] = f3
-        R[3 * ngp:4 * ngp] = f4
-        R[4 * ngp:5 * ngp] = f5
+        R[0 * ngp : 1 * ngp] = f1
+        R[1 * ngp : 2 * ngp] = f2
+        R[2 * ngp : 3 * ngp] = f3
+        R[3 * ngp : 4 * ngp] = f4
+        R[4 * ngp : 5 * ngp] = f5
         return R
 
     @staticmethod
@@ -890,8 +958,12 @@ class TestLinearizedResidualKxNonzero:
         """Make bf_params dict with full base-flow fields for linearized residual."""
         p = mesh.used_ind
         return {
-            "Re": bf.Re, "Ma": bf.Ma, "Pr": bf.Pr,
-            "kappa": bf.kappa, "T_0": bf.T_0, "kx": kx,
+            "Re": bf.Re,
+            "Ma": bf.Ma,
+            "Pr": bf.Pr,
+            "kappa": bf.kappa,
+            "T_0": bf.T_0,
+            "kx": kx,
             "RHO": bf.RHO.ravel(order="F")[p],
             "U": bf.U.ravel(order="F")[p],
             "V": bf.V.ravel(order="F")[p],
@@ -923,15 +995,24 @@ class TestLinearizedResidualKxNonzero:
         mesh = Mesh.create(
             xrange=(0.0, 2 * np.pi),
             yrange=(-1.0, 1.0),
-            nx=nx, ny=ny, fd_order=2,
+            nx=nx,
+            ny=ny,
+            fd_order=2,
             x_periodicity=True,
         )
         ones = np.ones((ny, nx))
         zeros = np.zeros((ny, nx))
         bf = BaseFlow(
-            Re=1000.0, Ma=0.3, Pr=0.72, kappa=1.4, T_0=288.15,
-            RHO=ones.copy(), U=0.5 * ones, V=zeros.copy(),
-            W=zeros.copy(), T=ones.copy(),
+            Re=1000.0,
+            Ma=0.3,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=ones.copy(),
+            U=0.5 * ones,
+            V=zeros.copy(),
+            W=zeros.copy(),
+            T=ones.copy(),
         )
         sutherland_air(bf)
         kx = 1.5
@@ -946,7 +1027,9 @@ class TestLinearizedResidualKxNonzero:
         L_raw_dense = L_raw.toarray()
 
         np.testing.assert_allclose(
-            J, L_raw_dense, atol=1e-10,
+            J,
+            L_raw_dense,
+            atol=1e-10,
             err_msg=_report_mismatch(J, L_raw_dense, "uniform kx=1.5"),
         )
 
@@ -956,15 +1039,24 @@ class TestLinearizedResidualKxNonzero:
         mesh = Mesh.create(
             xrange=(0.0, 2 * np.pi),
             yrange=(-1.0, 1.0),
-            nx=nx, ny=ny, fd_order=2,
+            nx=nx,
+            ny=ny,
+            fd_order=2,
             x_periodicity=True,
         )
         ones = np.ones((ny, nx))
         zeros = np.zeros((ny, nx))
         bf = BaseFlow(
-            Re=1000.0, Ma=0.3, Pr=0.72, kappa=1.4, T_0=288.15,
-            RHO=ones.copy(), U=1.0 - mesh.Y ** 2, V=zeros.copy(),
-            W=zeros.copy(), T=ones.copy(),
+            Re=1000.0,
+            Ma=0.3,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=288.15,
+            RHO=ones.copy(),
+            U=1.0 - mesh.Y**2,
+            V=zeros.copy(),
+            W=zeros.copy(),
+            T=ones.copy(),
         )
         sutherland_air(bf)
         kx = 2.0
@@ -979,7 +1071,9 @@ class TestLinearizedResidualKxNonzero:
         L_raw_dense = L_raw.toarray()
 
         np.testing.assert_allclose(
-            J, L_raw_dense, atol=1e-10,
+            J,
+            L_raw_dense,
+            atol=1e-10,
             err_msg=_report_mismatch(J, L_raw_dense, "Poiseuille kx=2.0"),
         )
 
@@ -1005,30 +1099,63 @@ class TestSymPyCoefficients:
         I = np.ones(1)
 
         bf = BaseFlow(
-            Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0,
-            RHO=np.ones((1, 1)), U=U_val * np.ones((1, 1)),
-            V=np.zeros((1, 1)), W=np.zeros((1, 1)),
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            T_0=T_0,
+            RHO=np.ones((1, 1)),
+            U=U_val * np.ones((1, 1)),
+            V=np.zeros((1, 1)),
+            W=np.zeros((1, 1)),
             T=np.ones((1, 1)),
         )
         sutherland_air(bf)
         MU_val = bf.MU.ravel()
         dmudT_val = bf.dmudT.ravel()
         d2mudT2_val = bf.d2mudT2.ravel()
-        P_val = I * I / (Ma ** 2 * kappa)
+        P_val = I * I / (Ma**2 * kappa)
 
         coeffs = compute_cartesian_coefficients(
-            U=U_val * I, V=Z, W=Z, RHO=I, T=I, MU=MU_val, P=P_val,
-            kx=kx, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
-            dUdx=Z, dVdx=Z, dWdx=Z, dRHOdx=Z, dTdx=Z, dPdx=Z,
-            dUdy=Z, dVdy=Z, dWdy=Z, dRHOdy=Z, dTdy=Z, dPdy=Z,
-            d2Udx2=Z, d2Vdx2=Z, d2Wdx2=Z,
-            d2Udy2=Z, d2Vdy2=Z, d2Wdy2=Z,
-            d2Tdx2=Z, d2Tdy2=Z,
-            d2Udxdy=Z, d2Vdxdy=Z, d2Wdxdy=Z,
-            dmudT=dmudT_val, d2mudT2=d2mudT2_val,
+            U=U_val * I,
+            V=Z,
+            W=Z,
+            RHO=I,
+            T=I,
+            MU=MU_val,
+            P=P_val,
+            kx=kx,
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            dUdx=Z,
+            dVdx=Z,
+            dWdx=Z,
+            dRHOdx=Z,
+            dTdx=Z,
+            dPdx=Z,
+            dUdy=Z,
+            dVdy=Z,
+            dWdy=Z,
+            dRHOdy=Z,
+            dTdy=Z,
+            dPdy=Z,
+            d2Udx2=Z,
+            d2Vdx2=Z,
+            d2Wdx2=Z,
+            d2Udy2=Z,
+            d2Vdy2=Z,
+            d2Wdy2=Z,
+            d2Tdx2=Z,
+            d2Tdy2=Z,
+            d2Udxdy=Z,
+            d2Vdxdy=Z,
+            d2Wdxdy=Z,
+            dmudT=dmudT_val,
+            d2mudT2=d2mudT2_val,
         )
-        return coeffs, {"Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa,
-                        "mu": MU_val[0], "U": U_val}
+        return coeffs, {"Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa, "mu": MU_val[0], "U": U_val}
 
     def test_B_matrix(self):
         """B matrix diagonal: B = 1j * diag(1, rho, rho, rho, rho)."""
@@ -1104,25 +1231,17 @@ class TestSymPyCoefficients:
         np.testing.assert_allclose(
             coeffs.Axx[1, 1, 0], (4.0 / 3.0) * mu / Re, atol=1e-14, rtol=1e-12
         )
-        np.testing.assert_allclose(
-            coeffs.Ayy[1, 1, 0], mu / Re, atol=1e-14, rtol=1e-12
-        )
+        np.testing.assert_allclose(coeffs.Ayy[1, 1, 0], mu / Re, atol=1e-14, rtol=1e-12)
 
         # y-momentum: Axx[2,2] = mu/Re, Ayy[2,2] = (4/3)*mu/Re
-        np.testing.assert_allclose(
-            coeffs.Axx[2, 2, 0], mu / Re, atol=1e-14, rtol=1e-12
-        )
+        np.testing.assert_allclose(coeffs.Axx[2, 2, 0], mu / Re, atol=1e-14, rtol=1e-12)
         np.testing.assert_allclose(
             coeffs.Ayy[2, 2, 0], (4.0 / 3.0) * mu / Re, atol=1e-14, rtol=1e-12
         )
 
         # z-momentum: Axx[3,3] = mu/Re, Ayy[3,3] = mu/Re
-        np.testing.assert_allclose(
-            coeffs.Axx[3, 3, 0], mu / Re, atol=1e-14, rtol=1e-12
-        )
-        np.testing.assert_allclose(
-            coeffs.Ayy[3, 3, 0], mu / Re, atol=1e-14, rtol=1e-12
-        )
+        np.testing.assert_allclose(coeffs.Axx[3, 3, 0], mu / Re, atol=1e-14, rtol=1e-12)
+        np.testing.assert_allclose(coeffs.Ayy[3, 3, 0], mu / Re, atol=1e-14, rtol=1e-12)
 
     def test_momentum_pressure_gradient(self):
         """Pressure gradient coefficients in x and y momentum.
@@ -1154,14 +1273,18 @@ class TestSymPyCoefficients:
         # For x-momentum, Ax[1,0] = -T/(gamma*Ma^2) = -1/gM2
         # (pressure contribution from drho'/dx)
         np.testing.assert_allclose(
-            coeffs.Ax[1, 0, 0], -1.0 / gM2, atol=1e-14,
+            coeffs.Ax[1, 0, 0],
+            -1.0 / gM2,
+            atol=1e-14,
             err_msg="Ax[1,0] pressure-gradient coefficient",
         )
 
         # For y-momentum, Ay[2,0] = -T/(gamma*Ma^2) = -1/gM2
         # (pressure contribution from drho'/dy)
         np.testing.assert_allclose(
-            coeffs.Ay[2, 0, 0], -1.0 / gM2, atol=1e-14,
+            coeffs.Ay[2, 0, 0],
+            -1.0 / gM2,
+            atol=1e-14,
             err_msg="Ay[2,0] pressure-gradient coefficient",
         )
 
@@ -1175,12 +1298,8 @@ class TestSymPyCoefficients:
         mu, Re, Pr, kappa = p["mu"], p["Re"], p["Pr"], p["kappa"]
         expected = kappa * mu / (Re * Pr)
 
-        np.testing.assert_allclose(
-            coeffs.Axx[4, 4, 0], expected, atol=1e-14, rtol=1e-12
-        )
-        np.testing.assert_allclose(
-            coeffs.Ayy[4, 4, 0], expected, atol=1e-14, rtol=1e-12
-        )
+        np.testing.assert_allclose(coeffs.Axx[4, 4, 0], expected, atol=1e-14, rtol=1e-12)
+        np.testing.assert_allclose(coeffs.Ayy[4, 4, 0], expected, atol=1e-14, rtol=1e-12)
 
     def test_momentum_convective_A0(self):
         """Convective A0 entries for uniform flow.
@@ -1229,18 +1348,24 @@ class TestSymPyCoefficients:
 
         # x and y momentum: plain mu*kx²/Re
         np.testing.assert_allclose(
-            coeffs.A0[1, 1, 0].real, -mu * kx ** 2 / Re,
-            atol=1e-12, rtol=1e-10,
+            coeffs.A0[1, 1, 0].real,
+            -mu * kx**2 / Re,
+            atol=1e-12,
+            rtol=1e-10,
         )
         np.testing.assert_allclose(
-            coeffs.A0[2, 2, 0].real, -mu * kx ** 2 / Re,
-            atol=1e-12, rtol=1e-10,
+            coeffs.A0[2, 2, 0].real,
+            -mu * kx**2 / Re,
+            atol=1e-12,
+            rtol=1e-10,
         )
 
         # z-momentum: (4/3)*mu*kx²/Re (bulk viscosity factor)
         np.testing.assert_allclose(
-            coeffs.A0[3, 3, 0].real, -(4.0 / 3.0) * mu * kx ** 2 / Re,
-            atol=1e-12, rtol=1e-10,
+            coeffs.A0[3, 3, 0].real,
+            -(4.0 / 3.0) * mu * kx**2 / Re,
+            atol=1e-12,
+            rtol=1e-10,
         )
 
     def test_symmetry_of_second_derivatives(self):
@@ -1254,6 +1379,8 @@ class TestSymPyCoefficients:
 
         # z-momentum: Axx[3,3] = Ayy[3,3] = mu/Re
         np.testing.assert_allclose(
-            coeffs.Axx[3, 3, 0], coeffs.Ayy[3, 3, 0], atol=1e-15,
+            coeffs.Axx[3, 3, 0],
+            coeffs.Ayy[3, 3, 0],
+            atol=1e-15,
             err_msg="z-momentum should have equal Axx and Ayy for the w-w block",
         )

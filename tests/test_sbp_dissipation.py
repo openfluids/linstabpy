@@ -10,6 +10,7 @@ at unit-test time. The original Phase 1 step 7 integration test caught a
 factor-of-h^{-2} bug that the previous loose T3/T4 gates did not — these
 tighter forms are designed not to repeat that.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -100,7 +101,7 @@ class TestSBPDissipationSawtoothDamping:
         "order_interior, lo, hi",
         [
             (4, 5.0, 100.0),  # corrected ~27; buggy ~67500
-            (6, 1.0, 50.0),   # corrected ~6.4; buggy ~16000
+            (6, 1.0, 50.0),  # corrected ~6.4; buggy ~16000
             (8, 500.0, 1600.0),  # corrected ~1028; buggy ~2.6e6
         ],
         ids=["fd4", "fd6", "fd8"],
@@ -136,8 +137,8 @@ class TestSBPDissipationSmoothBound:
     @pytest.mark.parametrize(
         "order_interior, c",
         [
-            (4, 1.0e5),   # corrected damp ~ 1.3e-3; buggy ~ 3.2 (would fail)
-            (6, 1.0e9),   # corrected damp ~ 9.4e-3; buggy ~ 24    (would fail)
+            (4, 1.0e5),  # corrected damp ~ 1.3e-3; buggy ~ 3.2 (would fail)
+            (6, 1.0e9),  # corrected damp ~ 9.4e-3; buggy ~ 24    (would fail)
             (8, 1.0e13),
         ],
         ids=["fd4", "fd6", "fd8"],

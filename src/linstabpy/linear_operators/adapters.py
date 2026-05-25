@@ -18,14 +18,14 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from ..utils.petsc_core import scipy_to_petsc, petsc_vec, vec_to_numpy
-from .base import LinearOperator, _not_implemented
+from ..utils.petsc_core import scipy_to_petsc
+from .base import LinearOperator
 from .matrix import MatrixOperator
-
 
 # ---------------------------------------------------------------------------
 # SciPy sparse → MatrixOperator
 # ---------------------------------------------------------------------------
+
 
 def scipy_to_operator(
     mat: sp.spmatrix,
@@ -102,6 +102,7 @@ def build_shifted_operator(
 # Diagonal scaling operator
 # ---------------------------------------------------------------------------
 
+
 class DiagonalOperator(LinearOperator):
     """Linear operator representing diagonal scaling: y = diag(d) @ x.
 
@@ -155,6 +156,7 @@ class DiagonalOperator(LinearOperator):
 # Numpy callable operator
 # ---------------------------------------------------------------------------
 
+
 class NumpyCallableOperator(LinearOperator):
     """Wrap numpy-level callables as a LinearOperator.
 
@@ -192,9 +194,7 @@ class NumpyCallableOperator(LinearOperator):
 
     def apply_adjoint(self, x, y=None):
         if self._fn_adj is None:
-            raise NotImplementedError(
-                f"'{self.name}' has no adjoint callable"
-            )
+            raise NotImplementedError(f"'{self.name}' has no adjoint callable")
         if y is None:
             y = self.create_right_vector()
         arr = np.array(x.array_r, copy=True)

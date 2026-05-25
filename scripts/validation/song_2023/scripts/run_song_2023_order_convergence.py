@@ -15,7 +15,6 @@ import argparse
 import csv
 import json
 import subprocess
-import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -26,7 +25,6 @@ from linstabpy.utils.jsonc import load_jsonc
 
 from . import run_song_2023_matrix as matrix_runner
 from .run_song_2023_order_preflight import _memory_limit_hit
-
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
@@ -58,11 +56,14 @@ def _json_safe(value: Any) -> Any:
 
 def _compare_with_matlab(npz_path: Path) -> dict[str, Any]:
     """Compare eigenvalues from an NPZ with the MATLAB reference spectrum."""
-    matlab_ref = REPO / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+    matlab_ref = (
+        REPO
+        / "scripts/validation/song_2023/reference/matlab/matlab_reference/EigModes/spectrum.mat"
+    )
     if not npz_path.exists():
         return {"status": "missing_npz"}
 
-    data = np.load(npz_path, allow_pickle = False)
+    data = np.load(npz_path, allow_pickle=False)
     if "omega" not in data:
         return {"status": "no_omega_in_npz"}
 
@@ -70,6 +71,7 @@ def _compare_with_matlab(npz_path: Path) -> dict[str, Any]:
 
     try:
         import scipy.io as sio
+
         mat = sio.loadmat(str(matlab_ref))
         omega_ml = mat["omega"].ravel()
     except Exception as exc:
@@ -78,6 +80,7 @@ def _compare_with_matlab(npz_path: Path) -> dict[str, Any]:
     # Nearest-neighbour distance: for each Python eigenvalue, distance to
     # the closest MATLAB eigenvalue (and vice versa)
     from scipy.spatial.distance import cdist
+
     pts_py = np.column_stack([omega_py.real, omega_py.imag])
     pts_ml = np.column_stack([omega_ml.real, omega_ml.imag])
     dist_py2ml = cdist(pts_py, pts_ml).min(axis=1)

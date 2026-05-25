@@ -12,6 +12,7 @@ OUTPUTS:
 USAGE:   python example_2_jet.py                       # .npz exists → plot only
          rm example_2_jet.npz && python example_2_jet.py  # recompute
 """
+
 from __future__ import annotations
 
 import time
@@ -42,6 +43,7 @@ OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_components.png")
 REFERENCE_MAT = SCRIPT.with_name("example_2_reference.mat")
 MATLAB_RESULTS_STEM = "example_2_Jet_results"
+
 
 def _load_matlab_gains() -> np.ndarray | None:
     """Load MATLAB gain references when the extracted parity bundle is available."""
@@ -240,7 +242,9 @@ def compute(cfg: dict):
     )
     t_resolvent = time.perf_counter() - t_resolvent
     print(f"Resolvent gains: {gains}")
-    print(f"Stage 1C timing: build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s")
+    print(
+        f"Stage 1C timing: build_lnse_operator={t_lnse:.2f}s, resolvent_analysis={t_resolvent:.2f}s"
+    )
 
     if REFERENCE_MAT.exists():
         _reference_or_warn("resolvent gains", gains, "gains")
@@ -320,7 +324,9 @@ def _read_field_components(
     idx: np.ndarray,
     shape: tuple[int, int],
 ) -> np.ndarray:
-    return np.asarray(field_data[idx, :], dtype=complex).reshape((shape[0], shape[1], -1), order="F")
+    return np.asarray(field_data[idx, :], dtype=complex).reshape(
+        (shape[0], shape[1], -1), order="F"
+    )
 
 
 def plot(data: np.lib.npyio.NpzFile) -> None:

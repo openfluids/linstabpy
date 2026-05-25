@@ -18,9 +18,9 @@ Usage from repo root:
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 from scipy.io import loadmat
@@ -206,9 +206,9 @@ def build_audit_report(
 def _parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[3]
     base_dir = repo_root / "validation" / "song_2023"
-    return argparse.ArgumentParser(description="Audit Song/Ziming spectrum conventions.").parse_args(
-        []
-    )
+    return argparse.ArgumentParser(
+        description="Audit Song/Ziming spectrum conventions."
+    ).parse_args([])
 
 
 def main() -> None:
@@ -219,7 +219,12 @@ def main() -> None:
     parser.add_argument(
         "--matlab-spectrum",
         type=Path,
-        default=base_dir / "reference" / "matlab" / "matlab_reference" / "EigModes" / "spectrum.mat",
+        default=base_dir
+        / "reference"
+        / "matlab"
+        / "matlab_reference"
+        / "EigModes"
+        / "spectrum.mat",
         help="Path to MATLAB spectrum.mat file.",
     )
     parser.add_argument(

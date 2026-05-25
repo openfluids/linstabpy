@@ -17,7 +17,6 @@ from petsc4py import PETSc
 
 from ._solver_cfg import _mumps_petsc_options, _scfg
 
-
 _petsc_configured = False
 
 
@@ -187,9 +186,7 @@ def create_distributed_aij(
                 o_arr = o_arr[r0:r1]
             np.clip(d_arr, 0, local_ncols, out=d_arr)
             np.clip(o_arr, 0, max(offdiag_ncols, 1), out=o_arr)
-            matrix.setPreallocationNNZ(
-                (d_arr.astype(PETSc.IntType), o_arr.astype(PETSc.IntType))
-            )
+            matrix.setPreallocationNNZ((d_arr.astype(PETSc.IntType), o_arr.astype(PETSc.IntType)))
             # Per-row counts are upper-bound estimates; allow PETSc to
             # dynamically reallocate the few rows where the estimate is
             # slightly low rather than aborting on insertion.
@@ -277,8 +274,7 @@ def insert_local_csr_rows(
     row_stop = int(row_start) + int(csr.shape[0])
     if row_start < r0 or row_stop > r1:
         raise ValueError(
-            f"Row block [{row_start}, {row_stop}) is outside local ownership "
-            f"[{r0}, {r1})"
+            f"Row block [{row_start}, {row_stop}) is outside local ownership [{r0}, {r1})"
         )
 
     for local_i in range(csr.shape[0]):
@@ -360,7 +356,9 @@ def scipy_to_petsc_distributed_from_root(
         root_csr = sp.csr_matrix(mat, dtype=complex)
         root_shape = root_csr.shape
         if shape is not None and root_shape != shape:
-            raise ValueError(f"Provided shape {shape} does not match root matrix shape {root_shape}")
+            raise ValueError(
+                f"Provided shape {shape} does not match root matrix shape {root_shape}"
+            )
     else:
         root_shape = shape
         if root_shape is None:
@@ -423,7 +421,9 @@ def petsc_to_scipy(mat: PETSc.Mat, *, format: str = "csr") -> sp.csr_matrix | sp
 
     comm = mat.getComm()
     if comm.getSize() != 1:
-        raise NotImplementedError("petsc_to_scipy currently supports only sequential PETSc matrices")
+        raise NotImplementedError(
+            "petsc_to_scipy currently supports only sequential PETSc matrices"
+        )
 
     try:
         indptr, indices, data = mat.getValuesCSR()
@@ -539,9 +539,7 @@ def compare_sparse_matrices(
     max_rel_residual = float(max_abs_residual / max(ref_scale, 1e-30))
     frob_rel_residual = float(delta_norm / max(ref_norm, 1e-30))
     threshold = float(abs_tol + rel_tol * ref_scale)
-    passed = bool(
-        max_abs_residual <= threshold and (structure_match or not check_structure)
-    )
+    passed = bool(max_abs_residual <= threshold and (structure_match or not check_structure))
 
     return {
         "shape_match": True,
@@ -677,7 +675,9 @@ def vec_to_numpy(v: PETSc.Vec) -> np.ndarray:
         gathered.destroy()
 
 
-def numpy_columns_to_petsc_vecs(template: PETSc.Mat | PETSc.Vec, modes: np.ndarray) -> list[PETSc.Vec]:
+def numpy_columns_to_petsc_vecs(
+    template: PETSc.Mat | PETSc.Vec, modes: np.ndarray
+) -> list[PETSc.Vec]:
     """Convert dense full-state mode columns into ownership-compatible PETSc Vecs."""
     arr = np.asarray(modes, dtype=complex)
     if arr.ndim == 1:
@@ -685,7 +685,9 @@ def numpy_columns_to_petsc_vecs(template: PETSc.Mat | PETSc.Vec, modes: np.ndarr
     if arr.ndim != 2:
         raise ValueError("modes must be a 1-D vector or a 2-D column matrix")
 
-    make_vec = template.createVecRight if hasattr(template, "createVecRight") else template.duplicate
+    make_vec = (
+        template.createVecRight if hasattr(template, "createVecRight") else template.duplicate
+    )
     probe = make_vec()
     try:
         r0, r1 = probe.getOwnershipRange()

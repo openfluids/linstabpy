@@ -47,11 +47,20 @@ def _apply_bc_recipe_impl(
 
         if bc_type == "dirichlet":
             L0, bc_idx = dirichlet_fn(
-                L0, idx, borders, variables, mesh.ngp, penalty=penalty,
+                L0,
+                idx,
+                borders,
+                variables,
+                mesh.ngp,
+                penalty=penalty,
             )
         elif bc_type == "neumann":
             L0, bc_idx = neumann_fn(
-                L0, mesh, idx, borders, variables,
+                L0,
+                mesh,
+                idx,
+                borders,
+                variables,
                 penalty=penalty,
                 exclude_corners=exclude_corners,
                 curvilinear_normals=curvilinear_normals,
@@ -176,7 +185,11 @@ def analyze_bc_recipe(
             dirichlet_union.update(int(val) for val in bc_idx)
         elif bc_type == "neumann":
             bc_idx, _, _ = _collect_neumann_indices(
-                idx, borders, variables, mesh.ngp, exclude_corners=exclude_corners,
+                idx,
+                borders,
+                variables,
+                mesh.ngp,
+                exclude_corners=exclude_corners,
             )
             neumann_union.update(int(val) for val in bc_idx)
         else:

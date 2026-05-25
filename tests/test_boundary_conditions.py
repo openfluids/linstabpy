@@ -2,10 +2,9 @@
 """Tests for Dirichlet boundary condition enforcement."""
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 
-from linstabpy.operators import build_lnse_operator
 from linstabpy.boundary_conditions import (
     analyze_bc_recipe,
     apply_dirichlet,
@@ -14,7 +13,7 @@ from linstabpy.boundary_conditions import (
     apply_neumann,
     build_dirichlet_restriction_matrices,
 )
-from linstabpy.operators import build_spatial_operator
+from linstabpy.operators import build_lnse_operator, build_spatial_operator
 
 
 class TestDirichletBC:
@@ -35,14 +34,12 @@ class TestDirichletBC:
     def test_bc_rows_diagonal_equals_penalty(self, operator_setup):
         L0, idx, ngp = operator_setup
         penalty = 1e4
-        L0_bc, bc_indices = apply_dirichlet(
-            L0.copy(), idx, "bt", "uvwT", ngp, penalty=penalty
-        )
+        L0_bc, bc_indices = apply_dirichlet(L0.copy(), idx, "bt", "uvwT", ngp, penalty=penalty)
         L0_bc_csc = L0_bc.tocsc()
         for i in bc_indices:
-            assert L0_bc_csc[i, i] == pytest.approx(
-                penalty, rel=1e-12
-            ), f"Diagonal at BC index {i} should be {penalty}"
+            assert L0_bc_csc[i, i] == pytest.approx(penalty, rel=1e-12), (
+                f"Diagonal at BC index {i} should be {penalty}"
+            )
 
     # ------------------------------------------------------------------ #
     # 2. BC rows: off-diagonal ≈ 0
@@ -54,9 +51,7 @@ class TestDirichletBC:
         for i in bc_indices:
             row = L0_bc_csr.getrow(i).toarray().ravel()
             row[i] = 0.0  # exclude diagonal
-            assert np.sum(np.abs(row)) < 1e-10, (
-                f"Off-diagonal entries in BC row {i} should be zero"
-            )
+            assert np.sum(np.abs(row)) < 1e-10, f"Off-diagonal entries in BC row {i} should be zero"
 
     # ------------------------------------------------------------------ #
     # 3. BC columns: off-diagonal ≈ 0
@@ -80,9 +75,7 @@ class TestDirichletBC:
         _, bc_indices = apply_dirichlet(L0.copy(), idx, "bt", "uvwT", ngp)
         assert isinstance(bc_indices, np.ndarray)
         # Sorted
-        assert np.all(bc_indices[:-1] <= bc_indices[1:]), (
-            "bc_indices should be sorted"
-        )
+        assert np.all(bc_indices[:-1] <= bc_indices[1:]), "bc_indices should be sorted"
         # Unique
         assert len(bc_indices) == len(np.unique(bc_indices)), (
             "bc_indices should contain unique values"
@@ -97,9 +90,7 @@ class TestDirichletBC:
         # Count expected: unique grid pts from bi ∪ ti × 4 variables
         n_boundary_pts = len(np.unique(np.concatenate([idx["bi"], idx["ti"]])))
         expected = 4 * n_boundary_pts
-        assert len(bc_indices) == expected, (
-            f"Expected {expected} BC indices, got {len(bc_indices)}"
-        )
+        assert len(bc_indices) == expected, f"Expected {expected} BC indices, got {len(bc_indices)}"
 
     # ------------------------------------------------------------------ #
     # 6. Interior rows/columns unchanged
@@ -202,9 +193,7 @@ class TestDirichletAdapters:
         n_dofs = 6
         dirichlet_indices = np.array([1, 4], dtype=int)
 
-        t_cont, t_exp, free = build_dirichlet_restriction_matrices(
-            n_dofs, dirichlet_indices
-        )
+        t_cont, t_exp, free = build_dirichlet_restriction_matrices(n_dofs, dirichlet_indices)
 
         np.testing.assert_array_equal(free, np.array([0, 2, 3, 5], dtype=int))
         assert t_cont.shape == (4, 6)
@@ -300,9 +289,7 @@ class TestNeumannBC:
         ngp = mesh.ngp
         penalty = 3.0
 
-        L0_bc, bc_indices = apply_neumann(
-            L0.copy(), mesh, idx, "l", "u", penalty=penalty
-        )
+        L0_bc, bc_indices = apply_neumann(L0.copy(), mesh, idx, "l", "u", penalty=penalty)
 
         dof = ngp + idx["li"][0]  # first left-border u-dof
         assert dof in set(bc_indices)
@@ -352,9 +339,7 @@ class TestNeumannBC:
         mesh_id = int(idx[border_key][0])
         dof = ngp + mesh_id  # u-block
 
-        L0_bc, bc_indices = apply_neumann(
-            L0.copy(), mesh, idx, border, "u", penalty=penalty
-        )
+        L0_bc, bc_indices = apply_neumann(L0.copy(), mesh, idx, border, "u", penalty=penalty)
         assert dof in set(bc_indices)
 
         x_flat = mesh.X.ravel(order="F")[mesh.used_ind]
@@ -443,9 +428,7 @@ class TestNeumannBC:
         _, idx = build_lnse_operator(mesh, bf, kx=0.0)
         ngp = mesh.ngp
         penalty = 5.0
-        index_set, index_mesh, border_tags = _collect_neumann_indices(
-            idx, "b", "u", ngp
-        )
+        index_set, index_mesh, border_tags = _collect_neumann_indices(idx, "b", "u", ngp)
         rows_off = _build_neumann_rows(
             mesh,
             index_set,
@@ -465,9 +448,7 @@ class TestNeumannBC:
             curvilinear_normals=True,
         )
         assert len(rows_off) == len(rows_on)
-        for (dof_off, cols_off, vals_off), (dof_on, cols_on, vals_on) in zip(
-            rows_off, rows_on
-        ):
+        for (dof_off, cols_off, vals_off), (dof_on, cols_on, vals_on) in zip(rows_off, rows_on):
             assert dof_off == dof_on
             off = dict(zip(cols_off.astype(int), vals_off))
             on = dict(zip(cols_on.astype(int), vals_on))
@@ -481,11 +462,11 @@ class TestNeumannBC:
 
     def test_neumann_sheared_mesh_correct_normal(self):
         """Sheared mesh X=xi+0.3*eta Y=eta. Right boundary curvilinear normal differs from axis-aligned by J21=0.3."""
-        from linstabpy.mesh.mesh import Mesh
         from linstabpy.boundary_conditions.neumann import (
             _build_neumann_rows,
             _collect_neumann_indices,
         )
+        from linstabpy.mesh.mesh import Mesh
 
         n = 20
         mesh = Mesh.create((0.0, 1.0), (0.0, 1.0), n, n, fd_order=2)
@@ -500,9 +481,7 @@ class TestNeumannBC:
         # Right boundary (constant-xi): curvilinear uses J22=1 J21=0.3 -> scale_y=-0.3
         # Axis-aligned uses gradY_y=1 gradY_x=0 -> scale_y=0
         # They differ by the J21=0.3 shear component
-        index_set_r, index_mesh_r, border_tags_r = _collect_neumann_indices(
-            idx, "r", "u", ngp
-        )
+        index_set_r, index_mesh_r, border_tags_r = _collect_neumann_indices(idx, "r", "u", ngp)
         rows_curv_r = _build_neumann_rows(
             mesh_def,
             index_set_r,
@@ -523,20 +502,13 @@ class TestNeumannBC:
         )
         assert len(rows_curv_r) > 0, "No right-boundary rows found"
         diffs = []
-        for (dof_c, cols_c, vals_c), (dof_a, cols_a, vals_a) in zip(
-            rows_curv_r, rows_axis_r
-        ):
+        for (dof_c, cols_c, vals_c), (dof_a, cols_a, vals_a) in zip(rows_curv_r, rows_axis_r):
             assert dof_c == dof_a
             curv = dict(zip(cols_c.astype(int), vals_c))
             axis = dict(zip(cols_a.astype(int), vals_a))
             cols = sorted(set(curv) | set(axis))
             diffs.append(
-                float(
-                    max(
-                        abs(curv.get(int(col), 0.0) - axis.get(int(col), 0.0))
-                        for col in cols
-                    )
-                )
+                float(max(abs(curv.get(int(col), 0.0) - axis.get(int(col), 0.0)) for col in cols))
             )
         assert max(diffs) > 0.1, (
             f"Curvilinear and axis-aligned must differ on sheared mesh (J21=0.3), "
@@ -551,6 +523,7 @@ class TestNeumannBC:
         """scipy and PETSc paths must produce identical rows with curvilinear_normals=True."""
         pytest.importorskip("petsc4py")
         from petsc4py import PETSc
+
         from linstabpy.boundary_conditions import apply_neumann
         from linstabpy.boundary_conditions.neumann import apply_neumann_petsc
 
@@ -673,15 +646,13 @@ class TestDissipationBCInteraction:
         from linstabpy.boundary_conditions.recipe import apply_bc_recipe
 
         L0, idx = build_lnse_operator(mesh, baseflow, kx=0.0, dissipation_epsilon=0.0)
-        L_bc, bc_indices = apply_bc_recipe(
-            L0, mesh, idx, self._BC_RECIPE, penalty=self._BC_PENALTY
-        )
+        L_bc, bc_indices = apply_bc_recipe(L0, mesh, idx, self._BC_RECIPE, penalty=self._BC_PENALTY)
         return L_bc, bc_indices, idx
 
     def _build_with_dissipation(self, baseflow):
         """Build L0 with dissipation and apply same BC recipe; return (L_bc, bc_indices)."""
-        from linstabpy.mesh import Mesh
         from linstabpy.boundary_conditions.recipe import apply_bc_recipe
+        from linstabpy.mesh import Mesh
 
         mesh_diss = Mesh.create(
             xrange=(0.0, 2.0),
@@ -722,17 +693,14 @@ class TestDissipationBCInteraction:
             off_diag_A = row_A.copy()
             off_diag_A[i] = 0.0
             assert row_A[i] == pytest.approx(self._BC_PENALTY, rel=1e-12), (
-                f"Baseline: diagonal at BC DOF {i} should be {self._BC_PENALTY}, "
-                f"got {row_A[i]}"
+                f"Baseline: diagonal at BC DOF {i} should be {self._BC_PENALTY}, got {row_A[i]}"
             )
             assert np.sum(np.abs(off_diag_A)) < 1e-10, (
                 f"Baseline: off-diagonal entries at BC DOF {i} should be zero, "
                 f"got sum_abs={np.sum(np.abs(off_diag_A))}"
             )
             nnz_A = int(L_A_csr.getrow(int(i)).nnz)
-            assert nnz_A == 1, (
-                f"Baseline: BC row {i} should have exactly 1 nonzero, got {nnz_A}"
-            )
+            assert nnz_A == 1, f"Baseline: BC row {i} should have exactly 1 nonzero, got {nnz_A}"
 
             # --- variant B (with dissipation) ---
             row_B = L_B_csr.getrow(int(i)).toarray().ravel()

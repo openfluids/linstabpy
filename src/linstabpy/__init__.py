@@ -8,18 +8,18 @@ __version__ = "0.1.0"
 # installed. Names below are resolved on first attribute access and cached on
 # the module for subsequent lookups.
 _LAZY_EXPORTS = {
-    "build_lnse_system":    "linstabpy.operators.assembly",
-    "build_lnse_operator":  "linstabpy.operators.assembly",
-    "compute_chu_norm":     "linstabpy.operators.energy_norm",
+    "build_lnse_system": "linstabpy.operators.assembly",
+    "build_lnse_operator": "linstabpy.operators.assembly",
+    "compute_chu_norm": "linstabpy.operators.energy_norm",
     "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
-    "adjoint_eigenvalues":  "linstabpy.solvers.eigenvalue",
-    "resolvent_analysis":   "linstabpy.solvers.resolvent",
-    "BaseFlow":             "linstabpy.baseflow",
-    "load_blasius":         "linstabpy.baseflow",
-    "load_cavity":          "linstabpy.baseflow",
-    "load_jet":             "linstabpy.baseflow",
-    "load_paraboloid":      "linstabpy.baseflow",
-    "load_streaky_bl":      "linstabpy.baseflow",
+    "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
+    "resolvent_analysis": "linstabpy.solvers.resolvent",
+    "BaseFlow": "linstabpy.baseflow",
+    "load_blasius": "linstabpy.baseflow",
+    "load_cavity": "linstabpy.baseflow",
+    "load_jet": "linstabpy.baseflow",
+    "load_paraboloid": "linstabpy.baseflow",
+    "load_streaky_bl": "linstabpy.baseflow",
 }
 
 __all__ = sorted(_LAZY_EXPORTS)

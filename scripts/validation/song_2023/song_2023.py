@@ -3,6 +3,7 @@
 Usage (from repo root):
     .venv/bin/python -m scripts.validation.song_2023.song_2023
 """
+
 from __future__ import annotations
 
 import argparse
@@ -11,7 +12,6 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 import scipy.sparse as sp
@@ -23,6 +23,13 @@ init_petsc_from_argv()
 from mpi4py import MPI  # noqa: E402
 from petsc4py import PETSc  # noqa: E402
 
+from examples._helpers import (  # noqa: E402
+    format_complex,
+    plot_gain_bars,
+    plot_scalar_panel,
+    plot_signed_panel,
+    save_figure,
+)
 from linstabpy.mesh import Mesh  # noqa: E402
 from linstabpy.operators.assembly import build_lnse_system  # noqa: E402
 from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
@@ -32,16 +39,7 @@ from linstabpy.solvers.resolvent import resolvent_analysis  # noqa: E402
 from linstabpy.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
-from examples._helpers import (  # noqa: E402
-    format_complex,
-    plot_gain_bars,
-    plot_scalar_panel,
-    plot_signed_panel,
-    save_figure,
-)
-
 from .baseflow_loader import load_my_case  # noqa: E402
-
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -270,7 +268,7 @@ def run_case(
 
     t0 = time.perf_counter()
     mem0 = _get_memory_mb()
-    step_stats: List[Tuple[str, float, float]] = []
+    step_stats: list[tuple[str, float, float]] = []
     matrix_mode = _petsc_matrix_mode(solver_cfg)
     distributed_matrix = _use_distributed_matrix(solver_cfg)
     matrix_type = "scipy"
@@ -369,12 +367,11 @@ def run_case(
     operator_nnz = nnz
     if hasattr(L0, "getOwnershipRange"):
         matrix_type = str(L0.getType())
-        ownership_ranges = list(MPI.COMM_WORLD.allgather(tuple(int(v) for v in L0.getOwnershipRange())))
+        ownership_ranges = list(
+            MPI.COMM_WORLD.allgather(tuple(int(v) for v in L0.getOwnershipRange()))
+        )
         if rank == 0:
-            _status(
-                "PETSc operator "
-                f"(type={matrix_type}, ownership_ranges={ownership_ranges})"
-            )
+            _status(f"PETSc operator (type={matrix_type}, ownership_ranges={ownership_ranges})")
     _status(f"assembled operator shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
 
     # 4) Chu energy norm
@@ -396,7 +393,9 @@ def run_case(
     forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
 
     if run_resolvent:
-        _status(f"starting resolvent solve for {n_modes_resolvent} modes at omega_target={omega_target:.6g}")
+        _status(
+            f"starting resolvent solve for {n_modes_resolvent} modes at omega_target={omega_target:.6g}"
+        )
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
@@ -430,7 +429,9 @@ def run_case(
     )
 
     if run_stability:
-        _status(f"starting stability eigensolve for {n_modes_stability} modes at omega_target={omega_target:.6g}")
+        _status(
+            f"starting stability eigensolve for {n_modes_stability} modes at omega_target={omega_target:.6g}"
+        )
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         omega, direct_modes, stability_info = temporal_eigenvalues(
@@ -449,7 +450,9 @@ def run_case(
         step_stats.append(("stability", t_end - t_start, mem_end - mem_start))
         if rank == 0 and omega.size:
             lead = omega[np.argmin(np.abs(omega - omega_target))]
-            _status(f"finished stability eigensolve; nearest eigenvalue to target is {lead.real:+.6e}{lead.imag:+.6e}j")
+            _status(
+                f"finished stability eigensolve; nearest eigenvalue to target is {lead.real:+.6e}{lead.imag:+.6e}j"
+            )
         else:
             _status("finished stability eigensolve")
 
@@ -537,8 +540,10 @@ def run_case(
         # Write timing and memory stats to .log for comparison with other codes
         log_file = out_path.with_suffix(".log")
         with open(log_file, "w") as f:
-            f.write(f"# linstabpy template run log\n")
-            f.write(f"# generated {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} UTC\n")
+            f.write("# linstabpy template run log\n")
+            f.write(
+                f"# generated {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')} UTC\n"
+            )
             f.write(f"case_dir={case_dir}\n")
             f.write(f"output_npz={out_path}\n")
             f.write(f"Re={Re} Ma={Ma} Pr={Pr} kappa={kappa} T_0={T_0}\n")
@@ -595,10 +600,22 @@ def run_case(
                     f"stability_residual_error_type={str(stability_archive['stability_residual_error_type'])}\n"
                 )
                 for name, values in (
-                    ("stability_residual_estimates", np.asarray(stability_archive["stability_residual_estimates"], dtype=float)),
-                    ("stability_residual_absolute", np.asarray(stability_archive["stability_residual_absolute"], dtype=float)),
-                    ("stability_residual_relative", np.asarray(stability_archive["stability_residual_relative"], dtype=float)),
-                    ("stability_residual_backward", np.asarray(stability_archive["stability_residual_backward"], dtype=float)),
+                    (
+                        "stability_residual_estimates",
+                        np.asarray(stability_archive["stability_residual_estimates"], dtype=float),
+                    ),
+                    (
+                        "stability_residual_absolute",
+                        np.asarray(stability_archive["stability_residual_absolute"], dtype=float),
+                    ),
+                    (
+                        "stability_residual_relative",
+                        np.asarray(stability_archive["stability_residual_relative"], dtype=float),
+                    ),
+                    (
+                        "stability_residual_backward",
+                        np.asarray(stability_archive["stability_residual_backward"], dtype=float),
+                    ),
                 ):
                     if values.size:
                         f.write(
@@ -645,7 +662,9 @@ def _load_existing_npz(path: Path) -> dict[str, np.ndarray]:
         return {}
 
 
-def _component(matrix: np.ndarray, ngp: int, component: int, mode_index: int, shape: tuple[int, int]) -> np.ndarray:
+def _component(
+    matrix: np.ndarray, ngp: int, component: int, mode_index: int, shape: tuple[int, int]
+) -> np.ndarray:
     """Extract one primitive-variable block from a flattened mode matrix."""
     start = component * ngp
     stop = (component + 1) * ngp
@@ -767,11 +786,13 @@ def _load_matlab_u_mode(index_1based: int, shape: tuple[int, int]) -> np.ndarray
         ngp = int(np.prod(shape))
         direct_mode = np.asarray(np.load(split_path), dtype=complex).reshape(-1)
         if direct_mode.size == 5 * ngp:
-            return direct_mode[ngp:2 * ngp].reshape(shape, order="F")
+            return direct_mode[ngp : 2 * ngp].reshape(shape, order="F")
     return None
 
 
-def _select_reference_mode_indices(omega_ref: np.ndarray, target: complex = 0.0 + 0.0j) -> list[int]:
+def _select_reference_mode_indices(
+    omega_ref: np.ndarray, target: complex = 0.0 + 0.0j
+) -> list[int]:
     """Pick the steady and oscillatory reference modes for summary plots.
 
     Mode 1:
@@ -880,7 +901,16 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
     ax_base.contour(X, Y, U, levels=[0.0], colors=["white"], linewidths=[1.1], alpha=0.9)
     if song_baseflow is not None:
         X_song, Y_song, U_song = song_baseflow
-        ax_base.contour(X_song, Y_song, U_song, levels=[0.0], colors=["black"], linewidths=[0.9], linestyles=["--"], alpha=0.85)
+        ax_base.contour(
+            X_song,
+            Y_song,
+            U_song,
+            levels=[0.0],
+            colors=["black"],
+            linewidths=[0.9],
+            linestyles=["--"],
+            alpha=0.85,
+        )
     ax_base.set_xlabel("x")
     ax_base.set_ylabel("y")
     save_figure(fig_base, OUTPUT_BASEFLOW)
@@ -983,9 +1013,8 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
             loc="left",
         )
         ax_spec.grid(True, alpha=0.3)
-        if (
-            (matlab_omega is not None and matlab_omega.size)
-            or (song_omega is not None and song_omega.size)
+        if (matlab_omega is not None and matlab_omega.size) or (
+            song_omega is not None and song_omega.size
         ):
             ax_spec.legend(loc="lower right", frameon=False, fontsize=9)
 
@@ -1021,7 +1050,9 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
                     robust_percentile=99.0,
                 )
                 if float(np.nanmax(sponge)) > 0.0:
-                    ax_mat.contour(X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7)
+                    ax_mat.contour(
+                        X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7
+                    )
                 ax_mat.set_title(rf"({subplot_labels[col][0]}) MATLAB $u$", loc="left")
             else:
                 ax_mat.set_title(rf"({subplot_labels[col][0]}) MATLAB mode unavailable", loc="left")
@@ -1057,7 +1088,9 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
                 robust_percentile=99.0,
             )
             if float(np.nanmax(sponge)) > 0.0:
-                ax_py.contour(X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7)
+                ax_py.contour(
+                    X, Y, sponge, levels=[1e-8], colors="black", linewidths=0.8, alpha=0.7
+                )
             ax_py.set_title(rf"({subplot_labels[col][1]}) Python $u$", loc="left")
             ax_py.text(
                 0.02,
@@ -1088,9 +1121,14 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
 
             panels = [
                 (np.real(py_aligned), rf"Python $u$, mode {py_i + 1}"),
-                (np.real(mat_field) if mat_field is not None else None, rf"MATLAB $u$, mode {mat_i + 1}"),
                 (
-                    np.asarray(song_mode1[2], dtype=float) if (song_mode1 is not None and row == 0) else None,
+                    np.real(mat_field) if mat_field is not None else None,
+                    rf"MATLAB $u$, mode {mat_i + 1}",
+                ),
+                (
+                    np.asarray(song_mode1[2], dtype=float)
+                    if (song_mode1 is not None and row == 0)
+                    else None,
                     "Song original $u$, mode 1" if row == 0 else "Song original",
                 ),
                 (diff, r"$u_{\mathrm{py}}-u_{\mathrm{mat}}$"),
@@ -1108,8 +1146,16 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
                         fontsize=10,
                     )
                 else:
-                    X_plot = X if not (song_mode1 is not None and row == 0 and col == 2) else np.asarray(song_mode1[0], dtype=float)
-                    Y_plot = Y if not (song_mode1 is not None and row == 0 and col == 2) else np.asarray(song_mode1[1], dtype=float)
+                    X_plot = (
+                        X
+                        if not (song_mode1 is not None and row == 0 and col == 2)
+                        else np.asarray(song_mode1[0], dtype=float)
+                    )
+                    Y_plot = (
+                        Y
+                        if not (song_mode1 is not None and row == 0 and col == 2)
+                        else np.asarray(song_mode1[1], dtype=float)
+                    )
                     plot_signed_panel(
                         axes[row, col],
                         X_plot,
@@ -1124,7 +1170,9 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
                     )
                 axes[row, col].set_xlabel("x")
                 axes[row, col].set_ylabel("y")
-        fig_support.suptitle("Song 2023 direct-mode comparison: Python vs MATLAB vs Song", fontsize=14)
+        fig_support.suptitle(
+            "Song 2023 direct-mode comparison: Python vs MATLAB vs Song", fontsize=14
+        )
         fig_support.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
         save_figure(fig_support, OUTPUT_SUPPORT)
 
@@ -1134,7 +1182,9 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
     if gains.size:
         n_plot = min(3, gains.size)
         fig_res = plt.figure(figsize=(12.8, 7.8))
-        grid = fig_res.add_gridspec(n_plot, 3, width_ratios=(1.0, 1.4, 1.4), hspace=0.22, wspace=0.18)
+        grid = fig_res.add_gridspec(
+            n_plot, 3, width_ratios=(1.0, 1.4, 1.4), hspace=0.22, wspace=0.18
+        )
         ax_gain = fig_res.add_subplot(grid[:, 0])
         plot_gain_bars(ax_gain, gains[:n_plot])
 

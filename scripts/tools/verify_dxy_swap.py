@@ -33,8 +33,8 @@ This script:
   4. Prints the summary table requested.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -43,56 +43,113 @@ import numpy as np
 from linstabpy.mesh.mesh import Mesh, _transform_second_block
 
 
-def _transform_second_derivatives_matlab_swap(
-    a, b, c, d, D2x, D2y, Dxy, Dyx, Dx, Dy, x, y
-):
+def _transform_second_derivatives_matlab_swap(a, b, c, d, D2x, D2y, Dxy, Dyx, Dx, Dy, x, y):
     """Same as mesh.py but with c12/c21 swapped in Dxy_new's _transform_second_block call.
 
     Python Dxy_new: c11=a*c, c12=a*d, c21=b*c, c22=b*d
     MATLAB-swap:    c11=a*c, c12=b*c, c21=a*d, c22=b*d
     """
-    D2x_x = D2x @ x;  D2x_y = D2x @ y
-    Dxy_x = Dx @ (Dy @ x);  Dxy_y = Dx @ (Dy @ y)
-    Dyx_x = Dy @ (Dx @ x);  Dyx_y = Dy @ (Dx @ y)
-    D2y_x = D2y @ x;  D2y_y = D2y @ y
+    D2x_x = D2x @ x
+    D2x_y = D2x @ y
+    Dxy_x = Dx @ (Dy @ x)
+    Dxy_y = Dx @ (Dy @ y)
+    Dyx_x = Dy @ (Dx @ x)
+    Dyx_y = Dy @ (Dx @ y)
+    D2y_x = D2y @ x
+    D2y_y = D2y @ y
 
-    dJ11_xi  = D2x_x;  dJ12_xi  = D2x_y
-    dJ21_xi  = Dxy_x;  dJ22_xi  = Dxy_y
-    dJ11_eta = Dyx_x;  dJ12_eta = Dyx_y
-    dJ21_eta = D2y_x;  dJ22_eta = D2y_y
+    dJ11_xi = D2x_x
+    dJ12_xi = D2x_y
+    dJ21_xi = Dxy_x
+    dJ22_xi = Dxy_y
+    dJ11_eta = Dyx_x
+    dJ12_eta = Dyx_y
+    dJ21_eta = D2y_x
+    dJ22_eta = D2y_y
 
-    p11_xi  = dJ11_xi*a  + dJ12_xi*c;   p12_xi  = dJ11_xi*b  + dJ12_xi*d
-    p21_xi  = dJ21_xi*a  + dJ22_xi*c;   p22_xi  = dJ21_xi*b  + dJ22_xi*d
-    p11_eta = dJ11_eta*a + dJ12_eta*c;  p12_eta = dJ11_eta*b + dJ12_eta*d
-    p21_eta = dJ21_eta*a + dJ22_eta*c;  p22_eta = dJ21_eta*b + dJ22_eta*d
+    p11_xi = dJ11_xi * a + dJ12_xi * c
+    p12_xi = dJ11_xi * b + dJ12_xi * d
+    p21_xi = dJ21_xi * a + dJ22_xi * c
+    p22_xi = dJ21_xi * b + dJ22_xi * d
+    p11_eta = dJ11_eta * a + dJ12_eta * c
+    p12_eta = dJ11_eta * b + dJ12_eta * d
+    p21_eta = dJ21_eta * a + dJ22_eta * c
+    p22_eta = dJ21_eta * b + dJ22_eta * d
 
-    dJi11_xi  = -(a*p11_xi  + b*p21_xi);   dJi12_xi  = -(a*p12_xi  + b*p22_xi)
-    dJi21_xi  = -(c*p11_xi  + d*p21_xi);   dJi22_xi  = -(c*p12_xi  + d*p22_xi)
-    dJi11_eta = -(a*p11_eta + b*p21_eta);  dJi12_eta = -(a*p12_eta + b*p22_eta)
-    dJi21_eta = -(c*p11_eta + d*p21_eta);  dJi22_eta = -(c*p12_eta + d*p22_eta)
+    dJi11_xi = -(a * p11_xi + b * p21_xi)
+    dJi12_xi = -(a * p12_xi + b * p22_xi)
+    dJi21_xi = -(c * p11_xi + d * p21_xi)
+    dJi22_xi = -(c * p12_xi + d * p22_xi)
+    dJi11_eta = -(a * p11_eta + b * p21_eta)
+    dJi12_eta = -(a * p12_eta + b * p22_eta)
+    dJi21_eta = -(c * p11_eta + d * p21_eta)
+    dJi22_eta = -(c * p12_eta + d * p22_eta)
 
-    q11_x = a*dJi11_xi + b*dJi11_eta;  q11_y = a*dJi12_xi + b*dJi12_eta
-    q12_x = c*dJi11_xi + d*dJi11_eta;  q12_y = c*dJi12_xi + d*dJi12_eta
-    q21_x = a*dJi21_xi + b*dJi21_eta;  q21_y = a*dJi22_xi + b*dJi22_eta
-    q22_x = c*dJi21_xi + d*dJi21_eta;  q22_y = c*dJi22_xi + d*dJi22_eta
+    q11_x = a * dJi11_xi + b * dJi11_eta
+    q11_y = a * dJi12_xi + b * dJi12_eta
+    q12_x = c * dJi11_xi + d * dJi11_eta
+    q12_y = c * dJi12_xi + d * dJi12_eta
+    q21_x = a * dJi21_xi + b * dJi21_eta
+    q21_y = a * dJi22_xi + b * dJi22_eta
+    q22_x = c * dJi21_xi + d * dJi21_eta
+    q22_y = c * dJi22_xi + d * dJi22_eta
 
     D2x_new = _transform_second_block(
-        a*a, a*b, b*a, b*b, q11_x, q11_y,
-        D2x, D2y, Dxy, Dyx, Dx, Dy,
+        a * a,
+        a * b,
+        b * a,
+        b * b,
+        q11_x,
+        q11_y,
+        D2x,
+        D2y,
+        Dxy,
+        Dyx,
+        Dx,
+        Dy,
     )
     # MATLAB-swap: b*c on Dxy (c12), a*d on Dyx (c21)
     Dxy_new = _transform_second_block(
-        a*c, b*c, a*d, b*d,  # c12=b*c, c21=a*d  [swapped vs python: a*d, b*c]
-        q12_x, q12_y,
-        D2x, D2y, Dxy, Dyx, Dx, Dy,
+        a * c,
+        b * c,
+        a * d,
+        b * d,  # c12=b*c, c21=a*d  [swapped vs python: a*d, b*c]
+        q12_x,
+        q12_y,
+        D2x,
+        D2y,
+        Dxy,
+        Dyx,
+        Dx,
+        Dy,
     )
     Dyx_new = _transform_second_block(
-        c*a, c*b, d*a, d*b, q21_x, q21_y,
-        D2x, D2y, Dxy, Dyx, Dx, Dy,
+        c * a,
+        c * b,
+        d * a,
+        d * b,
+        q21_x,
+        q21_y,
+        D2x,
+        D2y,
+        Dxy,
+        Dyx,
+        Dx,
+        Dy,
     )
     D2y_new = _transform_second_block(
-        c*c, c*d, d*c, d*d, q22_x, q22_y,
-        D2x, D2y, Dxy, Dyx, Dx, Dy,
+        c * c,
+        c * d,
+        d * c,
+        d * d,
+        q22_x,
+        q22_y,
+        D2x,
+        D2y,
+        Dxy,
+        Dyx,
+        Dx,
+        Dy,
     )
     return D2x_new, Dxy_new, Dyx_new, D2y_new
 
@@ -103,7 +160,8 @@ def run_for_order(fd_order, nx=40, ny=40):
     yrange = (0.2, 1.2)
 
     mesh = Mesh.create(xrange, yrange, nx, ny, fd_order)
-    xi_2d = mesh.X;  eta_2d = mesh.Y
+    xi_2d = mesh.X
+    eta_2d = mesh.Y
 
     # Shear mapping
     X_new = xi_2d + 0.3 * eta_2d
@@ -120,33 +178,45 @@ def run_for_order(fd_order, nx=40, ny=40):
     f = x_flat**2 * y_flat**3
     f_xy_analytic = 6.0 * x_flat * y_flat**2
 
-    f_xy_py  = m.Dxy @ f
-    f_yx_py  = m.Dyx @ f
+    f_xy_py = m.Dxy @ f
+    f_yx_py = m.Dyx @ f
 
     # Boundary and interior masks
-    bi = m.idx["bi"]; ti = m.idx["ti"]; li = m.idx["li"]; ri = m.idx["ri"]
+    bi = m.idx["bi"]
+    ti = m.idx["ti"]
+    li = m.idx["li"]
+    ri = m.idx["ri"]
     bnd = np.zeros(m.ngp, dtype=bool)
     for idx_arr in [bi, ti, li, ri]:
         bnd[idx_arr] = True
     interior = ~bnd
 
     err_py_int = np.abs(f_xy_py[interior] - f_xy_analytic[interior]).max()
-    err_py_bnd = np.abs(f_xy_py[bnd]      - f_xy_analytic[bnd]).max()
-    err_dyx_bnd = np.abs(f_yx_py[bnd]     - f_xy_analytic[bnd]).max()
+    err_py_bnd = np.abs(f_xy_py[bnd] - f_xy_analytic[bnd]).max()
+    err_dyx_bnd = np.abs(f_yx_py[bnd] - f_xy_analytic[bnd]).max()
 
     # Build MATLAB-swap Dxy manually from computational operators
     p = mesh.used_ind
-    Dx = mesh.Dx; D2x = mesh.D2x
-    Dy = mesh.Dy; D2y = mesh.D2y
-    Dxy_comp = mesh.Dxy; Dyx_comp = mesh.Dyx
+    Dx = mesh.Dx
+    D2x = mesh.D2x
+    Dy = mesh.Dy
+    D2y = mesh.D2y
+    Dxy_comp = mesh.Dxy
+    Dyx_comp = mesh.Dyx
 
     x_comp = X_new.ravel(order="F")[p]
     y_comp = Y_new.ravel(order="F")[p]
 
-    J11 = Dx @ x_comp; J12 = Dx @ y_comp
-    J21 = Dy @ x_comp; J22 = Dy @ y_comp
-    detJ = J11*J22 - J12*J21; inv_det = 1.0/detJ
-    a = J22*inv_det; b = -J12*inv_det; c = -J21*inv_det; d = J11*inv_det
+    J11 = Dx @ x_comp
+    J12 = Dx @ y_comp
+    J21 = Dy @ x_comp
+    J22 = Dy @ y_comp
+    detJ = J11 * J22 - J12 * J21
+    inv_det = 1.0 / detJ
+    a = J22 * inv_det
+    b = -J12 * inv_det
+    c = -J21 * inv_det
+    d = J11 * inv_det
 
     _, Dxy_ml, _, _ = _transform_second_derivatives_matlab_swap(
         a, b, c, d, D2x, D2y, Dxy_comp, Dyx_comp, Dx, Dy, x_comp, y_comp
@@ -154,7 +224,7 @@ def run_for_order(fd_order, nx=40, ny=40):
 
     f_xy_ml = Dxy_ml @ f
     err_ml_int = np.abs(f_xy_ml[interior] - f_xy_analytic[interior]).max()
-    err_ml_bnd = np.abs(f_xy_ml[bnd]      - f_xy_analytic[bnd]).max()
+    err_ml_bnd = np.abs(f_xy_ml[bnd] - f_xy_analytic[bnd]).max()
 
     # Are the two matrices identical (expected: yes, because Dxy_comp = Dyx_comp)
     matrices_identical = np.allclose(m.Dxy.toarray(), Dxy_ml.toarray(), atol=1e-14)
@@ -167,7 +237,8 @@ def run_for_order(fd_order, nx=40, ny=40):
         "order": fd_order,
         "dxy_dyx_comp_diff": dxy_dyx_diff,
         "matrices_identical": matrices_identical,
-        "ad": ad, "bc": bc,
+        "ad": ad,
+        "bc": bc,
         "err_py_int": err_py_int,
         "err_py_bnd": err_py_bnd,
         "err_ml_bnd": err_ml_bnd,
@@ -186,7 +257,9 @@ if __name__ == "__main__":
     print("Domain: [0.1,1.1] x [0.2,1.2], shear X=xi+0.3*eta, Y=eta+0.1*xi, nx=ny=40")
     print()
 
-    print(f"{'order':>5}  {'py Dxy @ interior':>18}  {'py Dxy @ boundary':>18}  {'ml-swap Dxy @ bnd':>18}")
+    print(
+        f"{'order':>5}  {'py Dxy @ interior':>18}  {'py Dxy @ boundary':>18}  {'ml-swap Dxy @ bnd':>18}"
+    )
     print("-" * 68)
     for r in results:
         print(
@@ -198,7 +271,9 @@ if __name__ == "__main__":
 
     print()
     print("Algebraic checks:")
-    print(f"{'order':>5}  {'||Dxy-Dyx||_comp':>18}  {'matrices_equal':>14}  {'a*d (Python coef)':>18}  {'b*c (MATLAB coef)':>18}")
+    print(
+        f"{'order':>5}  {'||Dxy-Dyx||_comp':>18}  {'matrices_equal':>14}  {'a*d (Python coef)':>18}  {'b*c (MATLAB coef)':>18}"
+    )
     print("-" * 80)
     for r in results:
         print(
@@ -214,7 +289,7 @@ if __name__ == "__main__":
     r4 = results[0]
     print(f"  a*d (Python Ji11*Ji22) = {r4['ad']:.6f}")
     print(f"  b*c (MATLAB Ji12*Ji21) = {r4['bc']:.6f}")
-    print(f"  Ratio a*d / b*c        = {r4['ad']/r4['bc']:.2f}x")
+    print(f"  Ratio a*d / b*c        = {r4['ad'] / r4['bc']:.2f}x")
     print()
     print("  On full rectangular tensor-product meshes, Dxy_comp = Dyx_comp EXACTLY")
     print("  (Kronecker product identity; SBP closure does not break this).")
@@ -225,8 +300,9 @@ if __name__ == "__main__":
     print("  for full grids: boundary closure is absorbed into D1x and D1y")
     print("  but Dxy = D1x (kron) D1y = Dyx holds regardless of closure scheme.")
     print()
-    all_tied = all(abs(r["err_py_bnd"] - r["err_ml_bnd"]) / (r["err_py_bnd"] + 1e-30) < 1e-10
-                   for r in results)
+    all_tied = all(
+        abs(r["err_py_bnd"] - r["err_ml_bnd"]) / (r["err_py_bnd"] + 1e-30) < 1e-10 for r in results
+    )
     if all_tied:
         print("  CONCLUSION: Python code is CORRECT for its use case (full rectangular")
         print("  grids). The MATLAB/Python coefficient difference (Ji11*Ji22 vs Ji12*Ji21)")

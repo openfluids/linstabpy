@@ -7,19 +7,19 @@ and/or call iterative solvers.
 """
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 
-from linstabpy.mesh import Mesh
 from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
-from linstabpy.operators import build_lnse_operator, compute_chu_norm
 from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.mesh import Mesh
+from linstabpy.operators import build_lnse_operator, compute_chu_norm
 from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _build_blasius_problem(nx, ny, Re=6e5, Ma=0.3, borders="lrbt"):
     """Build a Blasius LNSE problem using MATLAB reference parameters.
@@ -33,8 +33,12 @@ def _build_blasius_problem(nx, ny, Re=6e5, Ma=0.3, borders="lrbt"):
     y_i, y_max_phys = 0.01, 0.05
 
     mesh = Mesh.create(
-        xrange=(x_min, x_max), yrange=(-1.0, 1.0), nx=nx, ny=ny,
-        fd_order=4, alpha_filter="none",
+        xrange=(x_min, x_max),
+        yrange=(-1.0, 1.0),
+        nx=nx,
+        ny=ny,
+        fd_order=4,
+        alpha_filter="none",
     )
 
     # Hanifi 1996 deformation
@@ -108,6 +112,7 @@ def blasius_small():
 # TestBlasiusResolventReference
 # ---------------------------------------------------------------------------
 
+
 class TestBlasiusResolventReference:
     """Gold-standard resolvent validation against known Blasius gains."""
 
@@ -121,30 +126,30 @@ class TestBlasiusResolventReference:
         """
         d = blasius_large
         gains, _, _ = resolvent_analysis(
-            d["L0"], omega=60.0, n_modes=3, W_diag=d["W_diag"],
-            B_mat=d["B_mat"], C_mat=d["C_mat"],
+            d["L0"],
+            omega=60.0,
+            n_modes=3,
+            W_diag=d["W_diag"],
+            B_mat=d["B_mat"],
+            C_mat=d["C_mat"],
         )
 
         # All gains must be positive
         assert np.all(gains > 0), f"Expected positive gains, got {gains}"
 
         # Monotonically decreasing (sigma_1 >= sigma_2 >= sigma_3)
-        assert np.all(np.diff(gains) <= 0), (
-            f"Gains should be monotonically decreasing, got {gains}"
-        )
+        assert np.all(np.diff(gains) <= 0), f"Gains should be monotonically decreasing, got {gains}"
 
         # Coarse-grid, fully constrained Blasius still should amplify above unity.
         # TODO: tighten to > 5.0 once BCs use the full non-reflecting treatment
         # instead of the current `lrbt` Dirichlet-everywhere constraint.
-        assert gains[0] > 1.0, (
-            f"Leading gain suspiciously small: {gains[0]:.2f} (expected > 1)"
-        )
-
+        assert gains[0] > 1.0, f"Leading gain suspiciously small: {gains[0]:.2f} (expected > 1)"
 
 
 # ---------------------------------------------------------------------------
 # TestOperatorSymmetryConsistency
 # ---------------------------------------------------------------------------
+
 
 class TestOperatorSymmetryConsistency:
     """Verify adjoint and energy-norm properties of the LNSE operator."""
@@ -181,7 +186,6 @@ class TestOperatorSymmetryConsistency:
         )
 
 
-
 # ---------------------------------------------------------------------------
 # TestCylindricalIntegration
 # ---------------------------------------------------------------------------
@@ -191,6 +195,7 @@ class TestOperatorSymmetryConsistency:
 def synthetic_jet():
     """Module-scoped synthetic sech² jet problem (axy, m=0, 15×10)."""
     from tests.conftest import build_synthetic_jet
+
     return build_synthetic_jet()
 
 
@@ -221,6 +226,8 @@ class TestCylindricalIntegration:
         # TODO: tighten to rtol=1e-6 once the axy cylindrical path is
         # validated against a higher-resolution reference.
         np.testing.assert_allclose(
-            closest.imag, omega_ref_imag, rtol=5e-3,
+            closest.imag,
+            omega_ref_imag,
+            rtol=5e-3,
             err_msg=f"Least-damped eigenvalue shifted: {closest} vs reference {omega_ref_imag}j",
         )

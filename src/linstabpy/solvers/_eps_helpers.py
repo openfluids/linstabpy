@@ -11,7 +11,6 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-
 _CONV_TEST_MAPPING = {
     "abs": SLEPc.EPS.Conv.ABS,
     "absolute": SLEPc.EPS.Conv.ABS,
@@ -36,9 +35,7 @@ def _resolve_eps_convergence_test(name: str) -> SLEPc.EPS.Conv:
     try:
         return _CONV_TEST_MAPPING[key]
     except KeyError as exc:
-        raise ValueError(
-            f"Invalid EPS convergence test {name!r}; expected abs|rel|norm"
-        ) from exc
+        raise ValueError(f"Invalid EPS convergence test {name!r}; expected abs|rel|norm") from exc
 
 
 def _resolve_eps_error_type(name: str) -> SLEPc.EPS.ErrorType:
@@ -80,11 +77,7 @@ def _install_eps_monitor(
         errs: list[float],
     ) -> None:
         if state is not None:
-            should_log = (
-                iteration == 1
-                or iteration % interval == 0
-                or nconv != state["last_nconv"]
-            )
+            should_log = iteration == 1 or iteration % interval == 0 or nconv != state["last_nconv"]
         else:
             should_log = iteration == 1 or iteration % interval == 0
         if not should_log:

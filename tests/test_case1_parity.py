@@ -127,8 +127,8 @@ def legacy_test_case1_mode7_u_field_parity() -> None:
         and rel_err_real <= tol_rel_real
         and corr_real >= tol_corr_real
     ), (
-        f"Mode-u mismatch: matlab_mode={mode_idx_mat+1}, python_mode={mode_idx_py+1}, "
-        f"|Δω|={abs(omega_py[mode_idx_py]-omega_ref):.6e}, "
+        f"Mode-u mismatch: matlab_mode={mode_idx_mat + 1}, python_mode={mode_idx_py + 1}, "
+        f"|Δω|={abs(omega_py[mode_idx_py] - omega_ref):.6e}, "
         f"rel_complex={rel_err_complex:.6e}, rel_real={rel_err_real:.6e}, corr_real={corr_real:.6f}, "
         f"tols=(rel_complex<={tol_rel_complex:.6e}, rel_real<={tol_rel_real:.6e}, corr_real>={tol_corr_real:.6f})"
     )

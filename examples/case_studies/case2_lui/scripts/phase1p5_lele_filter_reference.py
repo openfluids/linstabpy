@@ -41,7 +41,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import sparse
@@ -59,7 +58,9 @@ OUT_DIR = CASE_DIR / "artifacts" / "phase1p5"
 OUT_DIR.mkdir(exist_ok=True)
 
 
-def lele_compact_filter_matrix(n: int, alpha: float, order: int = 2) -> tuple[sparse.csc_matrix, sparse.csc_matrix]:
+def lele_compact_filter_matrix(
+    n: int, alpha: float, order: int = 2
+) -> tuple[sparse.csc_matrix, sparse.csc_matrix]:
     """Build LHS (A, tridiagonal) and RHS (B) matrices for the Lele 1992
     compact filter on a 1D line of length n.
 
@@ -124,9 +125,9 @@ class LeleFilter:
         self.order = order
 
     def __call__(self, field: np.ndarray) -> np.ndarray:
-        rhs = self._B_y @ field              # axis 0 = η
+        rhs = self._B_y @ field  # axis 0 = η
         filt = self._solve_y.solve(rhs)
-        rhs = self._B_x @ filt.T             # axis 1 = ξ
+        rhs = self._B_x @ filt.T  # axis 1 = ξ
         filt = self._solve_x.solve(rhs).T
         return filt
 
@@ -151,26 +152,31 @@ def plateau_level(profile: np.ndarray, tail_frac: float = 0.3) -> float:
     return float(np.median(tail))
 
 
-def plot_2d_fft_comparison(raw: np.ndarray, filt: np.ndarray, stride: int,
-                            name: str, path: Path) -> None:
+def plot_2d_fft_comparison(
+    raw: np.ndarray, filt: np.ndarray, stride: int, name: str, path: Path
+) -> None:
     ny, nx = raw.shape
     kx_m2 = (nx // stride) // 2
     ky_m2 = (ny // stride) // 2
     kx_max = nx // 2
     ky_max = ny // 2
     extent = [-kx_max, kx_max, -ky_max, ky_max]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5), constrained_layout=True,
-                              sharex=True, sharey=True)
+    fig, axes = plt.subplots(
+        1, 2, figsize=(12, 5.5), constrained_layout=True, sharex=True, sharey=True
+    )
     vmin, vmax = -20, 4
     for ax, field, title in zip(axes, (raw, filt), ("Qraw", "Qfilt (Lele-2)")):
         F = field - field.mean()
         Fft = np.fft.fftshift(np.fft.fft2(F))
         power = np.log10(np.abs(Fft) ** 2 + 1e-30)
-        im = ax.imshow(power, extent=extent, origin="lower", aspect="auto",
-                        cmap="magma", vmin=vmin, vmax=vmax)
+        im = ax.imshow(
+            power, extent=extent, origin="lower", aspect="auto", cmap="magma", vmin=vmin, vmax=vmax
+        )
         from matplotlib.patches import Rectangle
-        ax.add_patch(Rectangle((-kx_m2, -ky_m2), 2 * kx_m2, 2 * ky_m2,
-                                fill=False, edgecolor="cyan", lw=1.5))
+
+        ax.add_patch(
+            Rectangle((-kx_m2, -ky_m2), 2 * kx_m2, 2 * ky_m2, fill=False, edgecolor="cyan", lw=1.5)
+        )
         ax.set_xlabel(r"$k_\xi$")
         ax.set_title(f"{title}: {name}")
     axes[0].set_ylabel(r"$k_\eta$")
@@ -180,11 +186,15 @@ def plot_2d_fft_comparison(raw: np.ndarray, filt: np.ndarray, stride: int,
 
 
 def plot_wall_normal_comparison(
-    raw: np.ndarray, filt: np.ndarray, stations: list[int], X: np.ndarray,
-    stride: int, name: str, path: Path,
+    raw: np.ndarray,
+    filt: np.ndarray,
+    stations: list[int],
+    X: np.ndarray,
+    stride: int,
+    name: str,
+    path: Path,
 ) -> None:
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4.5), constrained_layout=True,
-                              sharey=True)
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4.5), constrained_layout=True, sharey=True)
     N = raw.shape[0]
     k_nyq_dec = (N // stride) // 2
     ks = np.arange(N // 2 + 1)
@@ -206,8 +216,15 @@ def plot_wall_normal_comparison(
     plt.close(fig)
 
 
-def plot_shock_profile(raw: np.ndarray, filt: np.ndarray, X: np.ndarray,
-                        Y: np.ndarray, y_idx: int, name: str, path: Path) -> None:
+def plot_shock_profile(
+    raw: np.ndarray,
+    filt: np.ndarray,
+    X: np.ndarray,
+    Y: np.ndarray,
+    y_idx: int,
+    name: str,
+    path: Path,
+) -> None:
     """Compare along one wall-normal index line (freestream side) to
     show how shocks are thickened."""
     fig, ax = plt.subplots(figsize=(9, 4.5), constrained_layout=True)
@@ -248,8 +265,7 @@ def main() -> None:
     for name, field in fields.items():
         fracs_ref[name] = max(energy_above_nyquist(field[:, s], stride) for s in stations)
         plats_ref[name] = max(plateau_level(field[:, s]) for s in stations)
-    print(f"{'Qraw':>12s}   {max(fracs_ref.values()):18.3e}   "
-          f"{max(plats_ref.values()):14.3e}")
+    print(f"{'Qraw':>12s}   {max(fracs_ref.values()):18.3e}   {max(plats_ref.values()):14.3e}")
     for label, order, alpha in configs:
         flt = LeleFilter((ny, nx), alpha=alpha, order=order)
         max_frac = 0.0
@@ -268,24 +284,39 @@ def main() -> None:
         filt_field = flt(field)
         if name in ("u", "T"):
             plot_2d_fft_comparison(
-                field, filt_field, stride, name,
+                field,
+                filt_field,
+                stride,
+                name,
                 OUT_DIR / f"qfilt_ref_{name}_2d_fft.png",
             )
         plot_wall_normal_comparison(
-            field, filt_field, stations, X, stride, name,
+            field,
+            filt_field,
+            stations,
+            X,
+            stride,
+            name,
             OUT_DIR / f"qfilt_ref_{name}_wall_normal.png",
         )
     y_idx_for_shock = ny // 2
     for name in ("rho", "u", "T"):
         filt_field = flt(fields[name])
         plot_shock_profile(
-            fields[name], filt_field, X, Y, y_idx_for_shock, name,
+            fields[name],
+            filt_field,
+            X,
+            Y,
+            y_idx_for_shock,
+            name,
             OUT_DIR / f"qfilt_ref_{name}_shock_profile_yidx{y_idx_for_shock}.png",
         )
 
     print(f"\nPlots written to {OUT_DIR}")
-    print("\nThis is a *reference* Qfilt built inside this script. The "
-          "production Qfilt must still come from the upstream delivery.")
+    print(
+        "\nThis is a *reference* Qfilt built inside this script. The "
+        "production Qfilt must still come from the upstream delivery."
+    )
 
 
 if __name__ == "__main__":

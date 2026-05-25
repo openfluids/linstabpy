@@ -11,9 +11,8 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
-from .dirichlet import _BORDER_MAP, _VARIABLE_MAP, _zero_rows_csr
 from ..mesh.mesh import Mesh
-
+from .dirichlet import _BORDER_MAP, _VARIABLE_MAP, _zero_rows_csr
 
 _NEUMANN_BORDER_SIGNS: dict[str, float] = {
     "l": -1.0,
@@ -44,15 +43,11 @@ def _collect_neumann_indices(
 
     for b in borders:
         if b not in _NEUMANN_BORDER_SIGNS:
-            raise ValueError(
-                "Neumann B.C. are currently only supported for b, t, l and r."
-            )
+            raise ValueError("Neumann B.C. are currently only supported for b, t, l and r.")
 
         border_key = _BORDER_MAP.get(b)
         if border_key is None:
-            raise ValueError(
-                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't'"
-            )
+            raise ValueError(f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't'")
         boundary_points = np.asarray(idx[border_key], dtype=int)
         if exclude_corners and boundary_points.size:
             if b in ("l", "r"):

@@ -51,11 +51,14 @@ def main() -> None:
     for i, (label, run) in enumerate(runs.items()):
         w = run["omegas"]
         ax.scatter(
-            w.real, w.imag,
+            w.real,
+            w.imag,
             marker=markers[i % len(markers)],
             color=colors[i % len(colors)],
-            s=80, edgecolor="k", lw=0.6,
-            label=f"{label}  ({len(w)} mode{'s' if len(w)!=1 else ''})",
+            s=80,
+            edgecolor="k",
+            lw=0.6,
+            label=f"{label}  ({len(w)} mode{'s' if len(w) != 1 else ''})",
         )
         if run["target"] is not None:
             t = run["target"]
@@ -63,19 +66,31 @@ def main() -> None:
             if key not in targets_seen:
                 targets_seen.add(key)
                 ax.scatter(
-                    t.real, t.imag,
-                    marker="x", color=colors[i % len(colors)],
-                    s=150, lw=2.0, label=f"target ({label})",
+                    t.real,
+                    t.imag,
+                    marker="x",
+                    color=colors[i % len(colors)],
+                    s=150,
+                    lw=2.0,
+                    label=f"target ({label})",
                 )
                 # circle of radius 0.1*|target|
                 r = 0.1 * abs(t)
                 theta = np.linspace(0, 2 * np.pi, 128)
-                ax.plot(t.real + r * np.cos(theta), t.imag + r * np.sin(theta),
-                        color=colors[i % len(colors)], lw=0.8, ls="--", alpha=0.6)
+                ax.plot(
+                    t.real + r * np.cos(theta),
+                    t.imag + r * np.sin(theta),
+                    color=colors[i % len(colors)],
+                    lw=0.8,
+                    ls="--",
+                    alpha=0.6,
+                )
     ax.set_xlabel(r"Re $\omega$")
     ax.set_ylabel(r"Im $\omega$")
-    ax.set_title("Case 2 EVP spectra — target vs returned modes\n"
-                 "(dashed circle = PLAN target-distance gate: 0.1·|ω_target|)")
+    ax.set_title(
+        "Case 2 EVP spectra — target vs returned modes\n"
+        "(dashed circle = PLAN target-distance gate: 0.1·|ω_target|)"
+    )
     ax.legend(loc="best", fontsize=8)
     ax.grid(True, alpha=0.3)
     out = OUT_DIR / "evp_spectra_overview.png"

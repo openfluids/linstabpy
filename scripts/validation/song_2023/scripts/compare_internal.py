@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import numpy as np
 import scipy.io
@@ -45,7 +45,7 @@ def _load_matlab_sparse_from_mat(data: dict, key: str) -> sp.csc_matrix:
     raise TypeError(f"Unexpected type for {key}: {type(mat)}")
 
 
-def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> Tuple[float, float, float]:
+def _parity_metrics(py_mat: sp.csc_matrix, ref_mat: sp.csc_matrix) -> tuple[float, float, float]:
     """Return (max_abs, max_rel, frob_rel) for py_mat - ref_mat."""
     delta = (py_mat - ref_mat).tocoo()
     if delta.nnz == 0:
@@ -158,6 +158,7 @@ def compare_derivatives(
 
     # 5-block operators: DR,D2R,DZ,D2Z,D2RZ
     ngp = mesh.ngp
+
     def _blk(name: str, op: sp.spmatrix) -> None:
         ref = op.tocsc()
         # Python: build 5×5 block as in assembly._assemble_from_prepared

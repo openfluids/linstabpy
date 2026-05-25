@@ -4,27 +4,29 @@
 import shutil
 import textwrap
 
-from tests.mpi_helpers import run_mpi_python, parse_mpi_reports
-
 import matplotlib
+
+from tests.mpi_helpers import parse_mpi_reports, run_mpi_python
+
 matplotlib.use("Agg")
 
 import numpy as np
 import pytest
 import scipy.sparse as sp
-from linstabpy.mesh import Mesh
+
 from examples._helpers import leading_mode_real_frequency
 from examples.example_3_streaky_bl import (
     _merge_temporal_target_batches,
     _resolve_baseflow_plot_field,
 )
-from linstabpy.utils import reconstruct_floquet, plot_flow
+from linstabpy.mesh import Mesh
+from linstabpy.utils import plot_flow, reconstruct_floquet
 from linstabpy.utils.petsc_core import (
+    compact_petsc_matrix,
     compare_petsc_against_scipy,
     compare_sparse_matrices,
-    compact_petsc_matrix,
-    petsc_owned_rows,
     petsc_matvec_residual,
+    petsc_owned_rows,
     petsc_to_scipy,
     scipy_to_petsc,
 )
@@ -38,9 +40,7 @@ class TestFloquetReconstruction:
 
     @pytest.fixture(autouse=True)
     def _setup(self):
-        mesh = Mesh.create(
-            xrange=(0, 2 * np.pi), yrange=(0, 1), nx=16, ny=20, fd_order=4
-        )
+        mesh = Mesh.create(xrange=(0, 2 * np.pi), yrange=(0, 1), nx=16, ny=20, fd_order=4)
         self.X = mesh.X
         self.Y = mesh.Y
         self.used_ind = mesh.used_ind
@@ -50,36 +50,28 @@ class TestFloquetReconstruction:
     def test_zero_floquet_exp(self):
         """floquet_exp=0 applies no phase shift; output equals V on full grid."""
         V = np.ones(self.ngp, dtype=complex)
-        result = reconstruct_floquet(
-            self.X, V, self.used_ind, floquet_exp=0.0
-        )
+        result = reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=0.0)
         np.testing.assert_allclose(result, 1.0 + 0j, atol=1e-14)
 
     def test_nonzero_floquet_exp(self):
         """floquet_exp=beta multiplies by exp(i*beta*X)."""
         beta = 1.0
         V = np.ones(self.ngp, dtype=complex)
-        result = reconstruct_floquet(
-            self.X, V, self.used_ind, floquet_exp=beta
-        )
+        result = reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=beta)
         expected = np.exp(1j * beta * self.X)
         np.testing.assert_allclose(result, expected, atol=1e-12)
 
     def test_1d_input_shape(self):
         """1-D V produces output with shape (ny, nx)."""
         V = np.ones(self.ngp, dtype=complex)
-        result = reconstruct_floquet(
-            self.X, V, self.used_ind, floquet_exp=0.0
-        )
+        result = reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=0.0)
         assert result.shape == self.X.shape
 
     def test_2d_input_shape(self):
         """2-D V (ngp, n_fields) produces output with shape (n_fields, ny, nx)."""
         ones = np.ones(self.ngp, dtype=complex)
         V = np.column_stack([ones, 2 * ones])
-        result = reconstruct_floquet(
-            self.X, V, self.used_ind, floquet_exp=0.0
-        )
+        result = reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=0.0)
         n_fields = V.shape[1]
         assert result.shape == (n_fields, *self.X.shape)
 
@@ -87,9 +79,7 @@ class TestFloquetReconstruction:
         """V with wrong length raises ValueError."""
         V = np.zeros(self.ngp + 5, dtype=complex)
         with pytest.raises(ValueError):
-            reconstruct_floquet(
-            self.X, V, self.used_ind, floquet_exp=0.0
-            )
+            reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -100,9 +90,7 @@ class TestPlotFlow:
 
     @pytest.fixture(autouse=True)
     def _setup(self):
-        mesh = Mesh.create(
-            xrange=(0, 1), yrange=(0, 1), nx=10, ny=10, fd_order=4
-        )
+        mesh = Mesh.create(xrange=(0, 1), yrange=(0, 1), nx=10, ny=10, fd_order=4)
         self.X = mesh.X
         self.Y = mesh.Y
         rng = np.random.default_rng(42)
@@ -122,16 +110,16 @@ class TestPlotFlow:
     def test_masked_field_uses_tricontourf(self):
         """NaN-holed fields should use tricontourf, not pcolormesh."""
         import matplotlib.tri as mtri
+
         field = self.field.copy()
         field[4:6, 4:6] = np.nan
         ax = plot_flow(self.X, self.Y, field, component="real", colorbar=False)
         # Check that the drawn artist is a TriContourSet (from tricontourf)
-        has_tri = any(
-            isinstance(c, mtri.TriContourSet) for c in ax.collections
-        )
+        has_tri = any(isinstance(c, mtri.TriContourSet) for c in ax.collections)
         # tricontourf produces QuadContourSet-like objects stored differently
         # in recent Matplotlib; at minimum, no pcolormesh QuadMesh should exist
         from matplotlib.collections import QuadMesh
+
         has_quadmesh = any(isinstance(c, QuadMesh) for c in ax.collections)
         assert not has_quadmesh, "NaN field fell back to pcolormesh"
 
@@ -341,7 +329,9 @@ def test_merge_temporal_target_batches_preserves_target_quotas() -> None:
         ),
         (
             0.626 - 0.005j,
-            np.array([0.624 - 0.003j, 0.626 - 0.004j, 0.629 - 0.005j, 0.632 - 0.004j], dtype=complex),
+            np.array(
+                [0.624 - 0.003j, 0.626 - 0.004j, 0.629 - 0.005j, 0.632 - 0.004j], dtype=complex
+            ),
             np.eye(4, dtype=complex),
         ),
     ]

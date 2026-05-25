@@ -18,7 +18,6 @@ import numpy as np
 
 from linstabpy.utils.jsonc import load_jsonc, parse_complex
 
-
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
 REPO = SCRIPT.parents[3]
@@ -62,10 +61,10 @@ def _json_safe(value: Any) -> Any:
 def _worker_run(cfg: dict[str, Any], backend: str, trial_name: str) -> int:
     from petsc4py import PETSc
 
-    from scripts.validation.song_2023.baseflow_loader import load_my_case
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system
     from linstabpy.solvers.petsc_utils import scipy_to_petsc
+    from scripts.validation.song_2023.baseflow_loader import load_my_case
 
     output_root = REPO / cfg["output_root"]
     run_dir = output_root / backend / trial_name
@@ -143,7 +142,9 @@ def _worker_run(cfg: dict[str, Any], backend: str, trial_name: str) -> int:
         if kcfg["pc_type"] == "lu":
             pc.setFactorSolverType(kcfg.get("pc_factor_solver_type", "mumps"))
         if kcfg["type"] != "preonly":
-            ksp.setTolerances(rtol=float(kcfg.get("rtol", 1e-8)), max_it=int(kcfg.get("max_it", 20000)))
+            ksp.setTolerances(
+                rtol=float(kcfg.get("rtol", 1e-8)), max_it=int(kcfg.get("max_it", 20000))
+            )
             ksp.setErrorIfNotConverged(True)
         ksp.setUp()
 
@@ -172,7 +173,9 @@ def _worker_run(cfg: dict[str, Any], backend: str, trial_name: str) -> int:
         result["ksp_its"] = int(ksp.getIterationNumber())
         result["true_residual"] = true_residual
         result["matrix_nnz"] = int(A.getInfo()["nz_used"])
-        result["zero_diag_count"] = int(np.count_nonzero(np.abs(np.array(A.getDiagonal().array_r, copy=True)) == 0))
+        result["zero_diag_count"] = int(
+            np.count_nonzero(np.abs(np.array(A.getDiagonal().array_r, copy=True)) == 0)
+        )
 
         b.destroy()
         x.destroy()
@@ -184,7 +187,9 @@ def _worker_run(cfg: dict[str, Any], backend: str, trial_name: str) -> int:
         result["error"] = str(exc)
         result["traceback"] = traceback.format_exc()
 
-    result_path.write_text(json.dumps(_json_safe(result), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    result_path.write_text(
+        json.dumps(_json_safe(result), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(_json_safe(result)))
     return 0
 
@@ -193,7 +198,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend", default="", help="Optional single assembly backend to run.")
     parser.add_argument("--trials", default="", help="Comma-separated trial names to run.")
-    parser.add_argument("--worker-backend", default="", help="Internal subprocess backend selector.")
+    parser.add_argument(
+        "--worker-backend", default="", help="Internal subprocess backend selector."
+    )
     parser.add_argument("--worker-trial", default="", help="Internal subprocess trial selector.")
     args = parser.parse_args()
 
@@ -247,7 +254,9 @@ def main() -> None:
 
     summary_json = output_root / "summary.json"
     summary_csv = output_root / "summary.csv"
-    summary_json.write_text(json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_json.write_text(
+        json.dumps(_json_safe(results), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     rows = []
     for item in results:

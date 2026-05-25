@@ -15,10 +15,10 @@ import argparse
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parents[1]
@@ -51,7 +51,8 @@ def main() -> None:
         help="Directory containing x.npy, y.npy, rho.npy, u.npy, v.npy, w.npy, T.npy, sponge.npy",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default="baseflow_plot.png",
         help="Output filename (default: baseflow_plot.png)",
     )

@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import importlib
 import json
 import sys
 import time
 import traceback
-import argparse
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -18,7 +18,6 @@ from typing import Any
 import numpy as np
 
 from linstabpy.utils.jsonc import load_jsonc
-
 
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[1]
@@ -76,7 +75,9 @@ def _patched_output_paths(module: Any, run_dir: Path):
             setattr(module, name, value)
 
 
-def _nearest_reference_stats(candidate: np.ndarray, reference: np.ndarray) -> dict[str, float] | None:
+def _nearest_reference_stats(
+    candidate: np.ndarray, reference: np.ndarray
+) -> dict[str, float] | None:
     cand = np.asarray(candidate, dtype=complex).reshape(-1)
     ref = np.asarray(reference, dtype=complex).reshape(-1)
     if cand.size == 0 or ref.size == 0:
@@ -109,9 +110,13 @@ def _summarize_resolvent(module: Any, data: dict[str, np.ndarray]) -> dict[str, 
         "gain_monotone": bool(np.all(np.diff(gains) <= 1e-12)),
     }
     if "svd_residuals_fwd" in data:
-        summary["svd_residual_fwd_max"] = float(np.max(np.asarray(data["svd_residuals_fwd"], dtype=float)))
+        summary["svd_residual_fwd_max"] = float(
+            np.max(np.asarray(data["svd_residuals_fwd"], dtype=float))
+        )
     if "svd_residuals_adj" in data:
-        summary["svd_residual_adj_max"] = float(np.max(np.asarray(data["svd_residuals_adj"], dtype=float)))
+        summary["svd_residual_adj_max"] = float(
+            np.max(np.asarray(data["svd_residuals_adj"], dtype=float))
+        )
 
     ref_loader = getattr(module, "_load_matlab_gains", None)
     if callable(ref_loader):
@@ -134,7 +139,9 @@ def _summarize_temporal_spatial(module: Any, data: dict[str, np.ndarray]) -> dic
         summary["temporal_count"] = int(temporal.size)
         summary["temporal_head"] = [complex(v) for v in temporal[:5]]
         if "temporal_residuals" in data:
-            summary["temporal_residual_max"] = float(np.max(np.asarray(data["temporal_residuals"], dtype=float)))
+            summary["temporal_residual_max"] = float(
+                np.max(np.asarray(data["temporal_residuals"], dtype=float))
+            )
         loader = getattr(module, "_load_matlab_temporal_omega", None)
         if callable(loader):
             ref = loader()
@@ -148,7 +155,9 @@ def _summarize_temporal_spatial(module: Any, data: dict[str, np.ndarray]) -> dic
         summary["spatial_count"] = int(spatial.size)
         summary["spatial_head"] = [complex(v) for v in spatial[:5]]
         if "spatial_residuals" in data:
-            summary["spatial_residual_max"] = float(np.max(np.asarray(data["spatial_residuals"], dtype=float)))
+            summary["spatial_residual_max"] = float(
+                np.max(np.asarray(data["spatial_residuals"], dtype=float))
+            )
         loader = getattr(module, "_load_matlab_spatial_alpha", None)
         if callable(loader):
             ref = loader()
@@ -195,7 +204,9 @@ def _summarize(kind: str, module: Any, npz_path: Path) -> dict[str, Any]:
     raise ValueError(f"Unsupported example kind: {kind}")
 
 
-def _run_one(example: dict[str, Any], variant_name: str, variant_overrides: dict[str, Any], output_root: Path) -> dict[str, Any]:
+def _run_one(
+    example: dict[str, Any], variant_name: str, variant_overrides: dict[str, Any], output_root: Path
+) -> dict[str, Any]:
     module = importlib.import_module(example["module"])
     compute = getattr(module, example["compute_fn"])
     base_cfg = load_jsonc(REPO / example["config_path"])
@@ -271,12 +282,8 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     variants = cfg["variants"]
-    selected_examples = {
-        item.strip() for item in args.examples.split(",") if item.strip()
-    }
-    selected_variants = {
-        item.strip() for item in args.variants.split(",") if item.strip()
-    }
+    selected_examples = {item.strip() for item in args.examples.split(",") if item.strip()}
+    selected_variants = {item.strip() for item in args.variants.split(",") if item.strip()}
     results: list[dict[str, Any]] = []
     for example in cfg["examples"]:
         if selected_examples and example["name"] not in selected_examples:

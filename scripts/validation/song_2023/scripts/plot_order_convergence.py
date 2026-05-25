@@ -17,11 +17,11 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
-
 SCRIPT = Path(__file__).resolve()
 REPO = SCRIPT.parents[3]
-SUMMARY_JSON = REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+SUMMARY_JSON = (
+    REPO / "scripts/validation/song_2023/order_convergence_runs/order_convergence_summary.json"
+)
 OUTPUT_PNG = SCRIPT.with_name("order_convergence.png")
 
 
@@ -65,6 +65,7 @@ def main() -> None:
         sys.exit(1)
 
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -94,12 +95,20 @@ def main() -> None:
     ax = axes[2]
     ax_mem = ax.twinx()
     bars_time = ax.bar(
-        [x - 0.2 for x in fd_orders], total_times, width=0.4,
-        color="steelblue", alpha=0.8, label="Time [s]",
+        [x - 0.2 for x in fd_orders],
+        total_times,
+        width=0.4,
+        color="steelblue",
+        alpha=0.8,
+        label="Time [s]",
     )
     bars_mem = ax_mem.bar(
-        [x + 0.2 for x in fd_orders], [m / 1024 for m in peak_mems], width=0.4,
-        color="coral", alpha=0.8, label="Peak [GB]",
+        [x + 0.2 for x in fd_orders],
+        [m / 1024 for m in peak_mems],
+        width=0.4,
+        color="coral",
+        alpha=0.8,
+        label="Peak [GB]",
     )
     ax.set_xlabel("FD order")
     ax.set_ylabel("Wall time [s]", color="steelblue")
