@@ -22,7 +22,7 @@
     },
     "launcher": {
       "mpi_procs": 10,
-      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/studies/case2/socket0.rankfile --bind-to core"
+      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/examples/case_studies/case2_lui/socket0.rankfile --bind-to core"
     },
     "case_defaults": {
       "config_overrides": {

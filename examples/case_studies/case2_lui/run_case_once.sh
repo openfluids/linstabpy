@@ -7,34 +7,34 @@ usage: run_case_once.sh <config-jsonc> <output-npz> [case-module]
 
 Examples:
   LINSTAB2D_MPI_PROCS=1 \
-  studies/case2/run_case_once.sh \
-    studies/case2/configs/parity_config.jsonc \
-    studies/case2/output/runs/case2_smoke.npz
+  examples/case_studies/case2_lui/run_case_once.sh \
+    examples/case_studies/case2_lui/configs/parity_config.jsonc \
+    examples/case_studies/case2_lui/output/runs/case2_smoke.npz
 
   LINSTAB2D_MPI_PROCS=4 \
   LINSTAB2D_MPI_PRESET=none \
-  studies/case2/run_case_once.sh \
-    studies/case2/configs/parity_config.jsonc \
-    studies/case2/output/runs/case2_socket_single.npz
+  examples/case_studies/case2_lui/run_case_once.sh \
+    examples/case_studies/case2_lui/configs/parity_config.jsonc \
+    examples/case_studies/case2_lui/output/runs/case2_socket_single.npz
 
   # Otimização específica desta máquina:
-  studies/case2/run_case_once.sh \
-    studies/case2/configs/parity_config.jsonc \
-    studies/case2/output/runs/case2_manual.npz
+  examples/case_studies/case2_lui/run_case_once.sh \
+    examples/case_studies/case2_lui/configs/parity_config.jsonc \
+    examples/case_studies/case2_lui/output/runs/case2_manual.npz
 
   LINSTAB2D_MPI_PROCS=10 \
   LINSTAB2D_MPI_PRESET=socket0 \
   LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
-  studies/case2/run_case_once.sh \
-    studies/case2/configs/parity_config.jsonc \
-    studies/case2/output/runs/case2_manual.npz
+  examples/case_studies/case2_lui/run_case_once.sh \
+    examples/case_studies/case2_lui/configs/parity_config.jsonc \
+    examples/case_studies/case2_lui/output/runs/case2_manual.npz
 EOF
   exit 2
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-CASE_DIR="$ROOT/studies/case2"
+CASE_DIR="$ROOT/examples/case_studies/case2_lui"
 PYTHON_EXE="$ROOT/.venv/bin/python"
 
 CONFIG_JSONC="$(realpath "$1")"

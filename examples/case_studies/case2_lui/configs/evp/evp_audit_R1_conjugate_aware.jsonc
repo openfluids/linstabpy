@@ -11,7 +11,7 @@
   // conjugate ω ≈ -0.56-1.11j should be accepted if ARPACK converges
   // them. Without Front B (old behavior), only the primary survives.
   //
-  // Run: from studies/case2 on c8 with:
+  // Run: from examples/case_studies/case2_lui on c8 with:
   //   .venv/bin/python perf_memory.py evp_audit_R1_conjugate_aware.jsonc
   "$include": "../_defaults.jsonc",
   "outputs": {

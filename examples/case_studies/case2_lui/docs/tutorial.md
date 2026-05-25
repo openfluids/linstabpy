@@ -1,6 +1,6 @@
 # Tutorial de Execução do Case 2
 
-Este é o guia prático para quem quer rodar `studies/case2/` sem ter que
+Este é o guia prático para quem quer rodar `examples/case_studies/case2_lui/` sem ter que
 adivinhar o fluxo. O objetivo aqui é explicar:
 
 - como rodar **um caso só**
@@ -88,9 +88,9 @@ Caso portátil, sem depender de `rankfile`:
 ```bash
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
-studies/case2/run_case_once.sh \
-  studies/case2/configs/parity_config.jsonc \
-  studies/case2/output/runs/case2_manual.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/configs/parity_config.jsonc \
+  examples/case_studies/case2_lui/output/runs/case2_manual.npz
 ```
 
 Caso com pinagem local desta máquina:
@@ -98,9 +98,9 @@ Caso com pinagem local desta máquina:
 ```bash
 LINSTAB2D_MPI_PROCS=10 \
 LINSTAB2D_MPI_PRESET=socket0 \
-studies/case2/run_case_once.sh \
-  studies/case2/configs/parity_config.jsonc \
-  studies/case2/output/runs/case2_manual.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/configs/parity_config.jsonc \
+  examples/case_studies/case2_lui/output/runs/case2_manual.npz
 ```
 
 ### Errado
@@ -108,7 +108,7 @@ studies/case2/run_case_once.sh \
 Não faça isso se a intenção é rodar **um caso só**:
 
 ```bash
-mpiexec -n 10 ./.venv/bin/python studies/case2/perf_memory.py
+mpiexec -n 10 ./.venv/bin/python examples/case_studies/case2_lui/perf_memory.py
 ```
 
 Isso lança **10 harnesses**, não 1 caso com 10 ranks.
@@ -117,7 +117,7 @@ Também é errado fazer loop manual:
 
 ```bash
 for i in $(seq 1 10); do
-  ./.venv/bin/python studies/case2/case2.py
+  ./.venv/bin/python examples/case_studies/case2_lui/case2.py
 done
 ```
 
@@ -128,7 +128,7 @@ Isso lança **10 execuções seriais independentes**.
 ### Passo 1. Copie a configuração-base
 
 ```bash
-cp studies/case2/configs/parity_config.jsonc studies/case2/meu_caso_stride2.jsonc
+cp examples/case_studies/case2_lui/configs/parity_config.jsonc examples/case_studies/case2_lui/meu_caso_stride2.jsonc
 ```
 
 ### Passo 2. Edite o novo JSONC
@@ -182,9 +182,9 @@ Teste rápido serial:
 
 ```bash
 LINSTAB2D_MPI_PROCS=1 \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 Execução paralela portátil numa máquina com 1 socket:
@@ -192,9 +192,9 @@ Execução paralela portátil numa máquina com 1 socket:
 ```bash
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 Com heartbeat:
@@ -203,9 +203,9 @@ Com heartbeat:
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 ### Passo 4. Veja onde saiu
@@ -213,7 +213,7 @@ studies/case2/run_case_once.sh \
 No modo “um caso só”, o principal artefato é o `.npz` que você passou:
 
 ```text
-studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 ## 6. Como escolher o MPI no wrapper
@@ -245,9 +245,9 @@ Teste rápido serial:
 
 ```bash
 LINSTAB2D_MPI_PROCS=1 \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 4 ranks numa máquina simples com 1 socket:
@@ -255,9 +255,9 @@ studies/case2/run_case_once.sh \
 ```bash
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 10 ranks no `socket0` desta máquina:
@@ -265,9 +265,9 @@ studies/case2/run_case_once.sh \
 ```bash
 LINSTAB2D_MPI_PROCS=10 \
 LINSTAB2D_MPI_PRESET=socket0 \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 Comando MPI customizado:
@@ -276,9 +276,9 @@ Comando MPI customizado:
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=custom \
 LINSTAB2D_MPI_LAUNCHER="mpiexec --bind-to core" \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 ```
 
 Observação importante:
@@ -301,9 +301,9 @@ Exemplo:
 LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
-studies/case2/run_case_once.sh \
-  studies/case2/configs/parity_config.jsonc \
-  studies/case2/output/runs/case2_socket_unico.npz
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/configs/parity_config.jsonc \
+  examples/case_studies/case2_lui/output/runs/case2_socket_unico.npz
 ```
 
 Depois disso, subir gradualmente:
@@ -341,9 +341,9 @@ LINSTAB2D_MPI_PROCS=4 \
 LINSTAB2D_MPI_PRESET=none \
 LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
 PETSC_OPTIONS="-eps_monitor -log_view" \
-studies/case2/run_case_once.sh \
-  studies/case2/meu_caso_stride2.jsonc \
-  studies/case2/output/runs/meu_caso_stride2.npz \
+examples/case_studies/case2_lui/run_case_once.sh \
+  examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
+  examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz \
   2>&1 | tee meu_caso_stride2.log
 ```
 
@@ -406,8 +406,8 @@ Estrutura mínima de um JSONC de campanha:
 Para rodar a campanha:
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
-./.venv/bin/python studies/case2/perf_memory.py
+LINSTAB2D_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+./.venv/bin/python examples/case_studies/case2_lui/perf_memory.py
 ```
 
 Importante:
@@ -446,15 +446,15 @@ Na prática:
 Espectro salvo de uma campanha:
 
 ```bash
-./.venv/bin/python studies/case2/scripts/plot_saved_spectra.py \
-  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python examples/case_studies/case2_lui/scripts/plot_saved_spectra.py \
+  --run-dir examples/case_studies/case2_lui/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Modos salvos:
 
 ```bash
-./.venv/bin/python studies/case2/scripts/plot_saved_modes.py \
-  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python examples/case_studies/case2_lui/scripts/plot_saved_modes.py \
+  --run-dir examples/case_studies/case2_lui/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 ## 12. Solução de problemas

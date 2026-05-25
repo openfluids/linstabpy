@@ -30,7 +30,7 @@ ROOT = SCRIPT.parents[3]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from linstab2d.baseflow.case1 import load_hamada_case  # noqa: E402
+from linstabpy.baseflow.case1 import load_hamada_case  # noqa: E402
 
 CASE_DIR = SCRIPT.parents[1]
 OUT_DIR = CASE_DIR / "artifacts" / "phase1p5"

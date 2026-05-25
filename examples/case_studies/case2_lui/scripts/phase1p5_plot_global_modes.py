@@ -21,13 +21,13 @@ OUT_DIR.mkdir(exist_ok=True)
 # Each entry: (label, npz_path, mode_index)
 SELECTION = [
     ("GLOBAL ω≈(+0.235, -7.129)  St=0.037",
-     "studies/case2/output/evp_stride2_m2_topology_probe_qraw/runs/case2_perf_probe_m2_0p4_m6p2_20260419T080329Z.npz",
+     "examples/case_studies/case2_lui/output/evp_stride2_m2_topology_probe_qraw/runs/case2_perf_probe_m2_0p4_m6p2_20260419T080329Z.npz",
      13),
     ("GLOBAL ω≈(+0.333, -7.270)  St=0.053",
-     "studies/case2/output/evp_stride2_m2_topology_probe_qraw/runs/case2_perf_probe_m2_0p4_m6p2_20260419T080329Z.npz",
+     "examples/case_studies/case2_lui/output/evp_stride2_m2_topology_probe_qraw/runs/case2_perf_probe_m2_0p4_m6p2_20260419T080329Z.npz",
      18),
     ("GLOBAL ω≈(+1.742, -6.317)  St=0.277",
-     "studies/case2/output/evp_stride2_m2_screening_qraw/runs/case2_perf_bstat_m2_qraw_nev20_ncv500_tol5em3_20260418T164130Z.npz",
+     "examples/case_studies/case2_lui/output/evp_stride2_m2_screening_qraw/runs/case2_perf_bstat_m2_qraw_nev20_ncv500_tol5em3_20260418T164130Z.npz",
      17),
 ]
 

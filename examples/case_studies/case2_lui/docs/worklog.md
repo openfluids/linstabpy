@@ -22,7 +22,7 @@ coordinates.
   `numerics.stride_ksi = stride_eta = 1`, `fd_order = 4`, `beta = 0`,
   `alpha_filter = 0.0` (consistent with PLAN screening defaults when
   interpreted as "none" at config layer).
-- `case2.py` — thin wrapper over `linstab2d.results_runtime`. No
+- `case2.py` — thin wrapper over `linstabpy.results_runtime`. No
   mesh-aware logic lives here; the stride lives in `numerics.*`.
 - `REFERENCE.md` Framing §3 — confirms the expected contamination
   signature of a DNS operator on an LES-filtered mean: (i) energy
@@ -100,7 +100,7 @@ defend physically.
    pre-processed field (e.g., already mapped to the curvilinear mesh
    with specific boundary handling) rather than raw LES sample points.
    This would affect what "high-k content" means. — Will check
-   `linstab2d.results_runtime` / baseflow loader in Entry 2.
+   `linstabpy.results_runtime` / baseflow loader in Entry 2.
 2. Whether the `y` coordinate being non-monotonic along axis 0 at a
    fixed η (curvilinear mesh following a curved surface) introduces
    artefacts when doing a streamwise FFT at fixed η-index. Expected
@@ -136,7 +136,7 @@ diagnostic on `Qraw`, and record the decision.
 
 ### Finding A — Post-load axis convention
 
-Confirmed by reading `src/linstab2d/baseflow/case1.py` + `Mesh.create`
+Confirmed by reading `src/linstabpy/baseflow/case1.py` + `Mesh.create`
 + one `.venv/bin/python` inspection call:
 
 - `load_hamada_case("baseflow")` loads the eight `.npy` files, transposes
@@ -186,7 +186,7 @@ until the call is made.
 
 ### Phase 1.5 diagnostic — method and results
 
-**Script.** `studies/case2/scripts/phase1p5_baseflow_spectrum.py`. Loads
+**Script.** `examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py`. Loads
 `baseflow/` via `load_hamada_case` (stride=1, so native `(679, 599)`),
 picks 4 streamwise stations, takes `U[:, ξ_station]` (a 679-point
 wall-normal profile at each), mean-subtracts, computes `|rfft|²` along
@@ -249,10 +249,10 @@ signature for "DNS operator on LES-filtered mean".
 
 ### Outputs
 
-- `studies/case2/artifacts/phase1p5/qraw_u_with_stations.png` — field with stations
-- `studies/case2/artifacts/phase1p5/qraw_u_wall_normal_spectrum.png` — spectra
-- `studies/case2/artifacts/phase1p5/summary.txt` — numbers
-- `studies/case2/scripts/phase1p5_baseflow_spectrum.py` — the diagnostic
+- `examples/case_studies/case2_lui/artifacts/phase1p5/qraw_u_with_stations.png` — field with stations
+- `examples/case_studies/case2_lui/artifacts/phase1p5/qraw_u_wall_normal_spectrum.png` — spectra
+- `examples/case_studies/case2_lui/artifacts/phase1p5/summary.txt` — numbers
+- `examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py` — the diagnostic
 
 ### Blockers and next steps
 
@@ -341,7 +341,7 @@ station.
 ## 2026-04-18 — Entry 4. Lele-filter reference built; 1D plateau metric debunked.
 
 **Plan for this entry.** Build a Python Lele compact filter in
-`studies/case2/scripts/phase1p5_lele_filter_reference.py` (diagnostic only,
+`examples/case_studies/case2_lui/scripts/phase1p5_lele_filter_reference.py` (diagnostic only,
 outside linstabpy core per REFERENCE §3), apply it to `Qraw`, and show
 what `Qfilt` should look like. Use to validate the upstream delivery
 once it arrives.
@@ -1678,6 +1678,6 @@ priority of:
 
 ### Artefacts
 
-- Log: `studies/case2/output/evp_m2_qraw_tight_certify/logs/case2_perf_stationary_m0p6948_20260420T090005Z.log`
+- Log: `examples/case_studies/case2_lui/output/evp_m2_qraw_tight_certify/logs/case2_perf_stationary_m0p6948_20260420T090005Z.log`
 - No NPZ (killed before solve output).
-- Config: `studies/case2/configs/evp/evp_m2_qraw_tight_certify.jsonc` (kept as-is).
+- Config: `examples/case_studies/case2_lui/configs/evp/evp_m2_qraw_tight_certify.jsonc` (kept as-is).

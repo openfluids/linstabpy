@@ -26,7 +26,7 @@ Cada campanha grava em `output/<campanha>/`:
 - `plots/spectra/`, `plots/modes/` — figuras
 - arquivos-resumo no topo (JSON latest, CSV table)
 
-## Arquivos ativos em `studies/case2/`
+## Arquivos ativos em `examples/case_studies/case2_lui/`
 
 - `../case2.py` — entrada de um caso só
 - `../perf_memory.py` — orquestrador de campanha
@@ -40,26 +40,26 @@ Cada campanha grava em `output/<campanha>/`:
 Rodar a campanha ativa (exemplo: M21 com target oscilatório):
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=studies/case2/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
-./.venv/bin/python studies/case2/perf_memory.py
+LINSTAB2D_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+./.venv/bin/python examples/case_studies/case2_lui/perf_memory.py
 ```
 
 Plotar o espectro salvo:
 
 ```bash
-./.venv/bin/python studies/case2/scripts/plot_saved_spectra.py \
-  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python examples/case_studies/case2_lui/scripts/plot_saved_spectra.py \
+  --run-dir examples/case_studies/case2_lui/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 Plotar os modos salvos:
 
 ```bash
-./.venv/bin/python studies/case2/scripts/plot_saved_modes.py \
-  --run-dir studies/case2/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
+./.venv/bin/python examples/case_studies/case2_lui/scripts/plot_saved_modes.py \
+  --run-dir examples/case_studies/case2_lui/output/evp_stride2x1_oscillatory_target_ncv500_tol1e4/runs
 ```
 
 ## Delete Policy
 
-O topo de `studies/case2` deve continuar pequeno. Configs ou saídas que
+O topo de `examples/case_studies/case2_lui` deve continuar pequeno. Configs ou saídas que
 saírem do caminho ativo devem ser apagados, não movidos para um `legacy/`
 permanente. Histórico fica no git.

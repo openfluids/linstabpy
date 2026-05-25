@@ -2,7 +2,7 @@
 """Paper-ready spectrum plot with modes color-coded by Chu-energy class.
 
 Usage:
-    .venv/bin/python studies/case2/phase1p5_plot_classified_spectrum.py \\
+    .venv/bin/python examples/case_studies/case2_lui/phase1p5_plot_classified_spectrum.py \\
         <npz> [<npz> ...]
 Writes phase1p5/<basename>_classified_spectrum.png per input and a
 combined overlay if multiple inputs are passed.

@@ -3,8 +3,8 @@
 # at fd6 stride-4 (paper section 6).
 #
 # Bead: resolvent-25o
-# Config: studies/case2/configs/resolvent/resolvent_grid_50pt_fd6_stride4.jsonc
-# Generator: studies/case2/scripts/gen_resolvent_grid_50pt.py
+# Config: examples/case_studies/case2_lui/configs/resolvent/resolvent_grid_50pt_fd6_stride4.jsonc
+# Generator: examples/case_studies/case2_lui/scripts/gen_resolvent_grid_50pt.py
 #
 # DEVIATION FROM plan_c8_campaign.md: the plan called for 50 individual
 # .jsonc files run through run_case_once.sh in a bash loop. The actual
@@ -27,7 +27,7 @@
 #   ssh c8 'cat /tmp/launch_resolvent_50pt.sh | bash'
 # where the launcher does:
 #   cd ~/linstabpy
-#   nohup ./studies/case2/run_resolvent_50pt.sh > /tmp/case2_resolvent_50pt.nohup 2>&1 &
+#   nohup ./examples/case_studies/case2_lui/run_resolvent_50pt.sh > /tmp/case2_resolvent_50pt.nohup 2>&1 &
 #   echo $! > /tmp/case2_resolvent_50pt.pid
 
 set -u
@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 PYTHON_EXE="$ROOT/.venv/bin/python"
 
-CONFIG_REL="studies/case2/configs/resolvent/resolvent_grid_50pt_fd6_stride4.jsonc"
+CONFIG_REL="examples/case_studies/case2_lui/configs/resolvent/resolvent_grid_50pt_fd6_stride4.jsonc"
 CONFIG="$ROOT/$CONFIG_REL"
 
 LOG="${LINSTAB2D_PHASE3_LOG:-/tmp/case2_resolvent_50pt.log}"
@@ -49,11 +49,11 @@ if [ ! -x "$PYTHON_EXE" ]; then
 fi
 if [ ! -f "$CONFIG" ]; then
   echo "[case2-50pt] FATAL config not found at $CONFIG" >&2
-  echo "[case2-50pt] regenerate via $ROOT/studies/case2/scripts/gen_resolvent_grid_50pt.py" >&2
+  echo "[case2-50pt] regenerate via $ROOT/examples/case_studies/case2_lui/scripts/gen_resolvent_grid_50pt.py" >&2
   exit 2
 fi
 
-cd "$ROOT/studies/case2"
+cd "$ROOT/examples/case_studies/case2_lui"
 
 start=$(date +%s)
 sha=$(git -C "$ROOT" rev-parse --short HEAD)
@@ -73,7 +73,7 @@ n_cases=$(grep -c '"case_id"' "$CONFIG")
   while true; do
     elapsed=$(( $(date +%s) - start ))
     # Count completed cases by scanning the output dir for written NPZs
-    out_dir="$ROOT/studies/case2/output/resolvent_grid_50pt_fd6_stride4/runs"
+    out_dir="$ROOT/examples/case_studies/case2_lui/output/resolvent_grid_50pt_fd6_stride4/runs"
     if [ -d "$out_dir" ]; then
       ok_npz=$(find "$out_dir" -maxdepth 2 -name "*.npz" -type f 2>/dev/null | wc -l | tr -d ' ')
     else
@@ -105,7 +105,7 @@ rc=$?
 {
   echo "[case2-50pt] DONE rc=$rc elapsed=$(( $(date +%s) - start ))s date=$(date -Iseconds)"
   # Final accounting from the report json if present
-  report_json="$ROOT/studies/case2/output/resolvent_grid_50pt_fd6_stride4/report_latest.json"
+  report_json="$ROOT/examples/case_studies/case2_lui/output/resolvent_grid_50pt_fd6_stride4/report_latest.json"
   if [ -f "$report_json" ]; then
     echo "[case2-50pt] report=$report_json"
     "$PYTHON_EXE" - <<PY 2>&1 || true

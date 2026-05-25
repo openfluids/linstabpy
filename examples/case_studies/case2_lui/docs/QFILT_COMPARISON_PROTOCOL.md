@@ -8,7 +8,7 @@ stays honest and reproducible.
 ## Prerequisites
 
 1. `Qfilt` arrives as a dataset sibling to `data/baseflow/` — e.g.
-   `studies/case2/data/baseflow_filt/` — with identical shape `(599, 679)`
+   `examples/case_studies/case2_lui/data/baseflow_filt/` — with identical shape `(599, 679)`
    (pre-transpose), same grid, same `sponge.npy`.
 2. Record the filter provenance inside `data/baseflow_filt/`:
    - source (upstream pipeline, filter name, α value, number of
@@ -24,11 +24,11 @@ Run these scripts, first on `Qraw` (done), then on `Qfilt`:
 
 ```bash
 # Already done for Qraw:
-.venv/bin/python studies/case2/scripts/phase1p5_baseflow_spectrum.py
+.venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py
 
 # To run for Qfilt (after copy/point paths):
-LINSTAB2D_QFILT_DIR=studies/case2/data/baseflow_filt \
-  .venv/bin/python studies/case2/scripts/phase1p5_baseflow_spectrum.py
+LINSTAB2D_QFILT_DIR=examples/case_studies/case2_lui/data/baseflow_filt \
+  .venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py
 #  (script would need a --case-dir flag added; currently hard-coded)
 ```
 
@@ -58,11 +58,11 @@ Exactly the same three EVP configs, pointed at `data/baseflow_filt/`:
 For each run, score with:
 
 ```bash
-.venv/bin/python studies/case2/scripts/phase1p5_score_run.py <npz>
-.venv/bin/python studies/case2/scripts/phase1p5_plot_spectrum.py \
+.venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_score_run.py <npz>
+.venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_plot_spectrum.py \
     "Qraw osc"=<qraw_osc_npz> "Qfilt osc"=<qfilt_osc_npz>
-.venv/bin/python studies/case2/scripts/phase1p5_plot_modes.py <qfilt_osc_npz>
-.venv/bin/python studies/case2/scripts/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
+.venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_plot_modes.py <qfilt_osc_npz>
+.venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_gradient_vs_modes.py <qfilt_osc_npz>
 ```
 
 ### Track C — direct comparison figure

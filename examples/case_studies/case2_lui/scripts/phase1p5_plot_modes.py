@@ -2,9 +2,9 @@
 """Plot |u| component of returned eigenmodes over the (x,y) domain.
 
 Usage:
-    .venv/bin/python studies/case2/phase1p5_plot_modes.py <npz_path> [<out_name>]
+    .venv/bin/python examples/case_studies/case2_lui/phase1p5_plot_modes.py <npz_path> [<out_name>]
 
-Writes to studies/case2/phase1p5/<out_name>.png
+Writes to examples/case_studies/case2_lui/phase1p5/<out_name>.png
 """
 
 from __future__ import annotations

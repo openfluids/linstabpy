@@ -12,7 +12,7 @@ CASE_MODULE="${3:-case2}"
 
 ROOT="/home/ghamada/linstabpy"
 PYTHON_EXE="$ROOT/.venv/bin/python"
-HARNESS="$ROOT/studies/case2/perf_memory.py"
+HARNESS="$ROOT/examples/case_studies/case2_lui/perf_memory.py"
 EXIT_FILE="$OUTPUT_DIR/queue_exit_code.txt"
 
 mkdir -p "$OUTPUT_DIR"
