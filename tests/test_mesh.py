@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Comprehensive tests for the linstab2d.mesh module.
+"""Comprehensive tests for the linstabpy.mesh module.
 
 Covers SBP stencils, 1-D derivative operators, integration, mesh creation,
 deformation, masking, pole stencils, and periodic operators.
@@ -33,14 +33,14 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from linstab2d.mesh import (
+from linstabpy.mesh import (
     Mesh,
     build_sbp_matrix,
     build_sbp_pole_matrices,
     min_points,
     sbp_stencils,
 )
-from linstab2d.mesh.mesh import _build_periodic_1d_operators
+from linstabpy.mesh.mesh import _build_periodic_1d_operators
 
 
 # ===================================================================

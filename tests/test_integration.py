@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """
-End-to-end integration tests for linstab2d.
+End-to-end integration tests for linstabpy.
 
 All tests are marked @pytest.mark.slow since they assemble large operators
 and/or call iterative solvers.
@@ -10,11 +10,11 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, load_blasius, sutherland_air
-from linstab2d.operators import build_lnse_operator, compute_chu_norm
-from linstab2d.boundary_conditions import apply_dirichlet
-from linstab2d.solvers import resolvent_analysis, temporal_eigenvalues
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
+from linstabpy.operators import build_lnse_operator, compute_chu_norm
+from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
 
 
 # ---------------------------------------------------------------------------

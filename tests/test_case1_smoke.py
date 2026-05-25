@@ -6,14 +6,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstab2d.baseflow import load_hamada_case, sutherland_air
-from linstab2d.boundary_conditions.dirichlet import apply_dirichlet
-from linstab2d.boundary_conditions.neumann import apply_neumann
-from linstab2d.mesh import Mesh
-from linstab2d.operators.assembly import build_lnse_operator, build_lnse_system
-from linstab2d.operators.energy_norm import compute_chu_norm
-from linstab2d.solvers.eigenvalue import temporal_eigenvalues
-from linstab2d.utils.petsc_core import compare_petsc_against_scipy, petsc_matvec_residual
+from linstabpy.baseflow import load_hamada_case, sutherland_air
+from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
+from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh import Mesh
+from linstabpy.operators.assembly import build_lnse_operator, build_lnse_system
+from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+from linstabpy.utils.petsc_core import compare_petsc_against_scipy, petsc_matvec_residual
 from tests._paths import case_fixture
 
 

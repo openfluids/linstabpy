@@ -12,12 +12,12 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air
-from linstab2d.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
-from linstab2d.operators.assembly import _apply_inv_B
-from linstab2d.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
-from linstab2d.solvers import temporal_eigenvalues, resolvent_analysis
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, sutherland_air
+from linstabpy.operators import build_lnse_operator, compute_chu_norm, build_spatial_operator
+from linstabpy.operators.assembly import _apply_inv_B
+from linstabpy.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
+from linstabpy.solvers import temporal_eigenvalues, resolvent_analysis
 
 from tests.conftest import build_synthetic_jet
 
@@ -105,7 +105,7 @@ class TestResolventNumerics:
         # Build resolvent H(ω) = (iωI - L0)^{-1}
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstab2d.solvers.linsolve import make_linear_solver
+        from linstabpy.solvers.linsolve import make_linear_solver
         solver = make_linear_solver(L_sigma.tocsc())
 
         rng = np.random.default_rng(42)
@@ -128,7 +128,7 @@ class TestResolventNumerics:
 
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstab2d.solvers.linsolve import make_linear_solver
+        from linstabpy.solvers.linsolve import make_linear_solver
         solver = make_linear_solver(L_sigma.tocsc())
 
         f1 = forcings[:, 0]

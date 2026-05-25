@@ -4,8 +4,8 @@
 import numpy as np
 import pytest
 
-from linstab2d.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
-from linstab2d.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
+from linstabpy.mesh import Mesh
 from tests._paths import martini_fixture
 
 

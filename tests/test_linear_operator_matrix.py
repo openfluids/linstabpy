@@ -11,12 +11,12 @@ import numpy as np
 import pytest
 import scipy.linalg as la
 
-from linstab2d.utils.petsc_init import init_petsc_from_argv
+from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from linstab2d.linear_operators import MatrixOperator
+from linstabpy.linear_operators import MatrixOperator
 
 
 # ---------------------------------------------------------------------------

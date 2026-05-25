@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from linstab2d.operators.coefficients import compute_cylindrical_coefficients
+from linstabpy.operators.coefficients import compute_cylindrical_coefficients
 
 
 def test_cylindrical_singularity_bounded() -> None:

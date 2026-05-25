@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from linstab2d.utils._solver_cfg import _mumps_petsc_options
+from linstabpy.utils._solver_cfg import _mumps_petsc_options
 
 
 def test_mumps_petsc_options_enable_hardened_defaults() -> None:

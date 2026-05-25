@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Shared fixtures for linstab2d test suite."""
+"""Shared fixtures for linstabpy test suite."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import pytest
 @pytest.fixture
 def small_mesh_2d():
     """20x30 mesh on [0,2]x[0,1], order 4."""
-    from linstab2d.mesh import Mesh
+    from linstabpy.mesh import Mesh
 
     return Mesh.create(
         xrange=(0.0, 2.0),
@@ -32,7 +32,7 @@ def small_mesh_2d():
 @pytest.fixture
 def small_mesh_periodic():
     """32x20 mesh with x-periodicity."""
-    from linstab2d.mesh import Mesh
+    from linstabpy.mesh import Mesh
 
     return Mesh.create(
         xrange=(0.0, 2 * np.pi),
@@ -53,7 +53,7 @@ def small_mesh_periodic():
 @pytest.fixture
 def uniform_baseflow(small_mesh_2d):
     """Uniform base flow: U=1, V=W=0, RHO=T=1, MU=1."""
-    from linstab2d.baseflow import BaseFlow, sutherland_air
+    from linstabpy.baseflow import BaseFlow, sutherland_air
 
     ny, nx = small_mesh_2d.X.shape
     ones = np.ones((ny, nx))
@@ -70,8 +70,8 @@ def uniform_baseflow(small_mesh_2d):
 @pytest.fixture
 def blasius_baseflow_small():
     """Blasius on a 30x20 mesh, Re=1e4, Ma=0.3."""
-    from linstab2d.baseflow import load_blasius, sutherland_air
-    from linstab2d.mesh import Mesh
+    from linstabpy.baseflow import load_blasius, sutherland_air
+    from linstabpy.mesh import Mesh
 
     mesh = Mesh.create(
         xrange=(200.0, 300.0),
@@ -107,10 +107,10 @@ def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
     Returns dict with:
         mesh, bf, L0, idx, ngp, W_diag, invW_diag, bc_indices
     """
-    from linstab2d.baseflow import BaseFlow, sutherland_air
-    from linstab2d.boundary_conditions import apply_dirichlet
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators import build_lnse_operator, compute_chu_norm
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.boundary_conditions import apply_dirichlet
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator, compute_chu_norm
 
     mesh = Mesh.create(
         xrange=(0.0, 10.0), yrange=(0.0, 3.0),

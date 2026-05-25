@@ -16,9 +16,9 @@ import pytest
 import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
-from linstab2d.mesh import Mesh
-from linstab2d.baseflow import BaseFlow, sutherland_air, load_blasius
-from linstab2d.operators import (
+from linstabpy.mesh import Mesh
+from linstabpy.baseflow import BaseFlow, sutherland_air, load_blasius
+from linstabpy.operators import (
     build_lnse_operator,
     build_lnse_operator_petsc,
     build_lnse_system,
@@ -26,7 +26,7 @@ from linstab2d.operators import (
     build_spatial_operator,
     build_spatial_operator_petsc,
 )
-from linstab2d.boundary_conditions import (
+from linstabpy.boundary_conditions import (
     apply_bc_recipe,
     apply_bc_recipe_petsc,
     apply_dirichlet,
@@ -34,20 +34,20 @@ from linstab2d.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
-from linstab2d.solvers import (
+from linstabpy.solvers import (
     resolvent_analysis,
     temporal_eigenvalues,
     adjoint_eigenvalues,
     spatial_eigenvalues,
 )
-from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals
-from linstab2d.solvers.eigenvalue import (
+from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals
+from linstabpy.solvers.eigenvalue import (
     _resolve_ncv as _resolve_temporal_ncv,
     _sort_nearest as _sort_temporal_nearest,
 )
-from linstab2d.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
-from linstab2d.solvers.linsolve import make_linear_solver
-from linstab2d.solvers.petsc_utils import scipy_to_petsc
+from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
+from linstabpy.solvers.linsolve import make_linear_solver
+from linstabpy.solvers.petsc_utils import scipy_to_petsc
 
 
 def _assert_temporal_spectrum_allclose(
@@ -80,11 +80,11 @@ def _build_linsolve_mpi_script() -> str:
         """
         import json
         import numpy as np
-        from linstab2d.mesh import Mesh
-        from linstab2d.baseflow import BaseFlow, sutherland_air
-        from linstab2d.operators import build_lnse_system
-        from linstab2d.solvers.linsolve import make_linear_solver
-        import linstab2d.utils.petsc_core as petsc_core
+        from linstabpy.mesh import Mesh
+        from linstabpy.baseflow import BaseFlow, sutherland_air
+        from linstabpy.operators import build_lnse_system
+        from linstabpy.solvers.linsolve import make_linear_solver
+        import linstabpy.utils.petsc_core as petsc_core
 
         mesh = Mesh.create(
             xrange=(0.0, 2.0),
@@ -521,7 +521,7 @@ class TestTemporalEigenvalues:
         omega_petsc, _ = _sort_temporal_nearest(
             omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
         )
-        np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+        _assert_temporal_spectrum_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
 
     def test_n_modes_zero_raises(self, blasius_problem):
         """n_modes <= 0 must raise ValueError."""
@@ -622,7 +622,7 @@ class TestDistributedPetscFallbackSolverInputs:
             omega_petsc, _ = _sort_temporal_nearest(
                 omega_petsc, np.eye(omega_petsc.size, dtype=complex), target
             )
-            np.testing.assert_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
+            _assert_temporal_spectrum_allclose(omega_petsc, omega_sp, atol=1e-8, rtol=1e-8)
         finally:
             L0_petsc.destroy()
 

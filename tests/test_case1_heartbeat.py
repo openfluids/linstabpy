@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 
-from linstab2d import results_runtime
+from linstabpy import results_runtime
 
 
 def test_stage_heartbeat_emits_periodic_logs(monkeypatch):

@@ -8,9 +8,9 @@ import json
 import numpy as np
 import pytest
 
-from linstab2d.utils.jsonc import load_jsonc
-from validation.martini2024.tools import compare_martini_examples
-from validation.martini2024.tools.compare_martini_examples import (
+from linstabpy.utils.jsonc import load_jsonc
+from scripts.validation.martini2024.tools import compare_martini_examples
+from scripts.validation.martini2024.tools.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
     compare_curvilinear_protocol_case,
@@ -20,14 +20,14 @@ from tests._paths import MARTINI_FIXTURE_ROOT, REPO_ROOT as repo, martini_fixtur
 
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
-    manifest = json.loads((repo / "validation/martini2024/tools/martini_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((repo / "scripts/validation/martini2024/tools/martini_manifest.json").read_text(encoding="utf-8"))
 
     assert manifest["input_dir"] == "martini_examples"
-    assert manifest["output_dir"] == "validation/martini2024/fixtures"
+    assert manifest["output_dir"] == "scripts/validation/martini2024/fixtures"
     assert not manifest["input_dir"].startswith("/")
     assert not manifest["output_dir"].startswith("/")
     assert all(
-        entry["npz_file"].startswith("validation/martini2024/fixtures/")
+        entry["npz_file"].startswith("scripts/validation/martini2024/fixtures/")
         for entry in manifest["files"]
     )
 

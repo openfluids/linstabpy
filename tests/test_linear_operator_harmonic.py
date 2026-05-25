@@ -15,7 +15,7 @@ import pytest
 import scipy.linalg as la
 import scipy.sparse as sp
 
-from linstab2d.linear_operators import (
+from linstabpy.linear_operators import (
     HarmonicLayout,
     build_harmonic_weights,
     assemble_harmonic_operator,

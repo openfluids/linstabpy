@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from linstab2d.baseflow.baseflow import BaseFlow
-from linstab2d.baseflow.viscosity import sutherland_air
+from linstabpy.baseflow.baseflow import BaseFlow
+from linstabpy.baseflow.viscosity import sutherland_air
 
 
 def _sutherland_mu_dimensional(temperature: np.ndarray | float) -> np.ndarray:

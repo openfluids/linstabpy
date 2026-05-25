@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from linstab2d.mesh import Mesh
-from linstab2d.mesh.filters import filter_O10_diffMat, build_mesh_filters
+from linstabpy.mesh import Mesh
+from linstabpy.mesh.filters import filter_O10_diffMat, build_mesh_filters
 
 
 # ---------------------------------------------------------------------------

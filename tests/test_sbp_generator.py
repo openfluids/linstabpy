@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstab2d.mesh.sbp import sbp_stencils, build_sbp_matrix
-from linstab2d.mesh.sbp_generator import (
+from linstabpy.mesh.sbp import sbp_stencils, build_sbp_matrix
+from linstabpy.mesh.sbp_generator import (
     fornberg_interior,
     generate_sbp_stencils,
     _sbp_norm_weights,

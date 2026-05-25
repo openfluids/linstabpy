@@ -43,14 +43,14 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstab2d.mesh.mesh import Mesh
-from linstab2d.baseflow.baseflow import BaseFlow
-from linstab2d.baseflow.viscosity import sutherland_air
-from linstab2d.operators.assembly import (
+from linstabpy.mesh.mesh import Mesh
+from linstabpy.baseflow.baseflow import BaseFlow
+from linstabpy.baseflow.viscosity import sutherland_air
+from linstabpy.operators.assembly import (
     _prepare_coefficients,
     _assemble_block_operator,
 )
-from linstab2d.operators.coefficients import compute_cartesian_coefficients
+from linstabpy.operators.coefficients import compute_cartesian_coefficients
 
 
 # =====================================================================
@@ -326,7 +326,7 @@ def _finite_diff_jacobian(residual_fn, q0, h=1e-7):
 
 def _build_L_raw(mesh, bf, kx=0.0, floquet_exp=0.0):
     """Build L_raw = _assemble_block_operator (before inv(B))."""
-    from linstab2d.operators.assembly import _apply_floquet_shift
+    from linstabpy.operators.assembly import _apply_floquet_shift
 
     prep = _prepare_coefficients(mesh, bf, kx=kx)
     ngp = prep["ngp"]

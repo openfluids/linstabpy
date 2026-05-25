@@ -13,13 +13,13 @@ import pytest
 import scipy.linalg as la
 import scipy.sparse as sp
 
-from linstab2d.utils.petsc_init import init_petsc_from_argv
+from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 init_petsc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from linstab2d.linear_operators import (
+from linstabpy.linear_operators import (
     MatrixOperator,
     ProductOperator,
     PetscShellOperator,
@@ -29,7 +29,7 @@ from linstab2d.linear_operators import (
     DiagonalOperator,
     NumpyCallableOperator,
 )
-from linstab2d.utils.petsc_core import petsc_vec, vec_to_numpy
+from linstabpy.utils.petsc_core import petsc_vec, vec_to_numpy
 
 
 # ---------------------------------------------------------------------------

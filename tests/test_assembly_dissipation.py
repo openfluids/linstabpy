@@ -28,7 +28,7 @@ _FD_ORDER = 4
 
 
 def _make_mesh(enabled: bool = False):
-    from linstab2d.mesh import Mesh
+    from linstabpy.mesh import Mesh
     od = {"enabled": enabled, "order_diss": _FD_ORDER} if enabled else None
     return Mesh.create(
         xrange=(0.0, 1.0),
@@ -41,7 +41,7 @@ def _make_mesh(enabled: bool = False):
 
 
 def _make_baseflow(mesh):
-    from linstab2d.baseflow import BaseFlow, sutherland_air
+    from linstabpy.baseflow import BaseFlow, sutherland_air
     ny, nx = mesh.X.shape
     ones = np.ones((ny, nx))
     zeros = np.zeros((ny, nx))
@@ -59,7 +59,7 @@ class TestDissipationT1FlagOff:
 
     def test_no_kwarg_identical_to_explicit_zero(self) -> None:
         """build_lnse_operator with no dissipation_epsilon kwarg equals epsilon=0.0 explicitly."""
-        from linstab2d.operators import build_lnse_operator
+        from linstabpy.operators import build_lnse_operator
         mesh = _make_mesh(enabled=False)
         bf = _make_baseflow(mesh)
         L_no_kwarg, _ = build_lnse_operator(mesh, bf)
@@ -78,7 +78,7 @@ class TestDissipationT1FlagOff:
         and the operator is bitwise identical to the baseline path.
         Both meshes have identical grid parameters so the LNSE operators must match.
         """
-        from linstab2d.operators import build_lnse_operator
+        from linstabpy.operators import build_lnse_operator
         mesh_nodiss = _make_mesh(enabled=False)
         mesh_diss = _make_mesh(enabled=True)
         bf_nodiss = _make_baseflow(mesh_nodiss)
@@ -106,7 +106,7 @@ class TestDissipationPositiveCorrectness:
         Q_diss_y (ny,ny) is the inner factor — matching the Dx_g = kron(D1x, I_ny)
         convention used in _build_operators_kron.
         """
-        from linstab2d.operators import build_lnse_operator
+        from linstabpy.operators import build_lnse_operator
         epsilon = 0.1
         mesh = _make_mesh(enabled=True)
         bf = _make_baseflow(mesh)
@@ -135,7 +135,7 @@ class TestDissipationPositiveCorrectness:
 
     def test_epsilon_nonzero_changes_operator(self) -> None:
         """Sanity: epsilon=0.1 with Q_diss populated must change the operator."""
-        from linstab2d.operators import build_lnse_operator
+        from linstabpy.operators import build_lnse_operator
         mesh = _make_mesh(enabled=True)
         bf = _make_baseflow(mesh)
 
@@ -149,7 +149,7 @@ class TestDissipationPositiveCorrectness:
 
     def test_epsilon_positive_no_dissipation_matrices_unchanged(self) -> None:
         """If mesh has no Q_diss (flag off), epsilon > 0 must not change the operator."""
-        from linstab2d.operators import build_lnse_operator
+        from linstabpy.operators import build_lnse_operator
         mesh_nodiss = _make_mesh(enabled=False)
         bf = _make_baseflow(mesh_nodiss)
 
@@ -167,9 +167,9 @@ class TestDissipationPositiveCorrectness:
 def test_petsc_backend_rejects_dissipation():
     """build_lnse_operator_petsc must raise NotImplementedError when dissipation_epsilon > 0."""
     pytest.importorskip("petsc4py", reason="petsc4py not available")
-    from linstab2d.operators.assembly import build_lnse_operator_petsc
-    from linstab2d.mesh import Mesh
-    from linstab2d.baseflow import BaseFlow, sutherland_air
+    from linstabpy.operators.assembly import build_lnse_operator_petsc
+    from linstabpy.mesh import Mesh
+    from linstabpy.baseflow import BaseFlow, sutherland_air
     import pytest as _pytest
 
     mesh = Mesh.create(

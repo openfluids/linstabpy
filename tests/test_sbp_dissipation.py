@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstab2d.mesh.sbp import build_sbp_dissipation_matrices
+from linstabpy.mesh.sbp import build_sbp_dissipation_matrices
 
 _N = 51
 _H = 1.0 / (_N - 1)

@@ -36,7 +36,7 @@ _SCRIPT = textwrap.dedent("""\
     mat.assemblyBegin()
     mat.assemblyEnd()
 
-    from linstab2d.operators.assembly import _apply_inv_B_petsc
+    from linstabpy.operators.assembly import _apply_inv_B_petsc
 
     # Dummy base-flow arrays (values don't matter for the guard)
     ngp = n // 5 if n >= 5 else 1
