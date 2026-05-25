@@ -1,1 +1,1 @@
-"""Study workflows built around the reusable ``linstab2d`` package."""
+"""Study workflows built around the reusable ``linstabpy`` package."""

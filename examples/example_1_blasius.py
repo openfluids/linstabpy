@@ -20,7 +20,7 @@ import time
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from ._helpers import (
     apply_figure_layout,
@@ -58,11 +58,11 @@ def compute(cfg: dict):
     """Run the full Blasius resolvent analysis."""
     import scipy.sparse as sp
 
-    from linstab2d.baseflow import load_blasius, sutherland_air
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_system
-    from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+    from linstabpy.baseflow import load_blasius, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.energy_norm import compute_chu_norm
+    from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
     solver_cfg = cfg.get("solver")
 
@@ -230,7 +230,7 @@ def _load_baseflow_u(data) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Blasius/baseFlow/U"), dtype=float).T
-    from linstab2d.baseflow import load_blasius
+    from linstabpy.baseflow import load_blasius
 
     return np.asarray(
         load_blasius(

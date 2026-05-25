@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from ._helpers import (
     apply_figure_layout,
@@ -90,7 +90,7 @@ def _load_sponge(mesh, r_1D: np.ndarray, z_1D: np.ndarray) -> np.ndarray:
     from scipy.interpolate import RegularGridInterpolator
     from scipy.io import loadmat
 
-    from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
+    from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
 
     mat = loadmat(_BASEFLOW_DATA_DIR / "M09jet.mat")
     source_shape = (int(r_1D.size), int(z_1D.size))
@@ -133,13 +133,13 @@ def compute(cfg: dict):
     import scipy.sparse as sp
     from scipy.io import loadmat
 
-    from linstab2d.baseflow import load_jet, sutherland_air
-    from linstab2d.baseflow.loaders import _BASEFLOW_DATA_DIR
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_system
-    from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.solvers.petsc_utils import scipy_to_petsc
-    from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+    from linstabpy.baseflow import load_jet, sutherland_air
+    from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.energy_norm import compute_chu_norm
+    from linstabpy.solvers.petsc_utils import scipy_to_petsc
+    from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
     solver_cfg = cfg.get("solver")
 
@@ -297,7 +297,7 @@ def _load_baseflow_u(data: np.lib.npyio.NpzFile) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Jet/baseFlow/U"), dtype=float).T
-    from linstab2d.baseflow import load_jet
+    from linstabpy.baseflow import load_jet
 
     return np.asarray(load_jet(mesh_view(data["X"], data["Y"])).U, dtype=float)
 

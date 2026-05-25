@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc, parse_complex_list, parse_int_list
+from linstabpy.utils.jsonc import load_jsonc, parse_complex_list, parse_int_list
 
 from ._helpers import (
     apply_figure_layout,
@@ -122,7 +122,7 @@ def _merge_temporal_target_batches(
 
 def _build_streaky_mesh(cfg: dict) -> tuple[Mesh, float, float]:
     """Build the Example 3 mesh and mapped physical coordinates."""
-    from linstab2d.mesh import Mesh
+    from linstabpy.mesh import Mesh
 
     nx = cfg["nx"]
     ny = cfg["ny"]
@@ -198,7 +198,7 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
     def ensure_problem() -> tuple[Mesh, object]:
         nonlocal mesh, baseflow
         if mesh is None or baseflow is None:
-            from linstab2d.baseflow import load_streaky_bl
+            from linstabpy.baseflow import load_streaky_bl
 
             ny, nx = np.asarray(results["X"]).shape
             mini_cfg["nx"] = nx
@@ -222,8 +222,8 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
         and "omega_spatial" in results
         and "spatial_residuals" not in results
     ):
-        from linstab2d.boundary_conditions.dirichlet import apply_dirichlet_spatial
-        from linstab2d.operators.spatial import build_spatial_operator
+        from linstabpy.boundary_conditions.dirichlet import apply_dirichlet_spatial
+        from linstabpy.operators.spatial import build_spatial_operator
 
         mesh, baseflow = ensure_problem()
         _apply_streaky_sponge(mesh, mini_cfg)
@@ -259,7 +259,7 @@ def _reconstruct_mode_field(
     floquet_exp: float,
 ) -> np.ndarray:
     """Reconstruct one Floquet mode component on the physical mesh."""
-    from linstab2d.utils.floquet import reconstruct_floquet
+    from linstabpy.utils.floquet import reconstruct_floquet
 
     return reconstruct_floquet(
         X,
@@ -307,19 +307,19 @@ def _resolve_baseflow_plot_field(data: dict[str, np.ndarray]) -> tuple[np.ndarra
 
 def _compute(cfg: dict) -> None:
     """Run temporal and spatial eigensolutions."""
-    from linstab2d.baseflow import load_streaky_bl
-    from linstab2d.boundary_conditions.dirichlet import (
+    from linstabpy.baseflow import load_streaky_bl
+    from linstabpy.boundary_conditions.dirichlet import (
         apply_dirichlet,
         apply_dirichlet_petsc,
         apply_dirichlet_spatial,
         apply_dirichlet_spatial_petsc,
     )
-    from linstab2d.operators.assembly import build_lnse_operator, build_lnse_operator_petsc
-    from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.operators.spatial import build_spatial_operator, build_spatial_operator_petsc
-    from linstab2d.solvers.eigenvalue import temporal_eigenvalues
-    from linstab2d.solvers.petsc_utils import petsc_to_scipy
-    from linstab2d.solvers.spatial_eig import spatial_eigenvalues
+    from linstabpy.operators.assembly import build_lnse_operator, build_lnse_operator_petsc
+    from linstabpy.operators.energy_norm import compute_chu_norm
+    from linstabpy.operators.spatial import build_spatial_operator, build_spatial_operator_petsc
+    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+    from linstabpy.solvers.petsc_utils import petsc_to_scipy
+    from linstabpy.solvers.spatial_eig import spatial_eigenvalues
 
     solver_cfg = cfg.get("solver")
     assembly_backend = str(cfg.get("assembly_backend", "scipy")).lower()

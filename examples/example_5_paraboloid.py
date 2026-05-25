@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 from ._helpers import (
     apply_figure_layout,
@@ -57,12 +57,12 @@ def compute(cfg: dict):
     """
     import scipy.sparse as sp
 
-    from linstab2d.baseflow import load_paraboloid, sutherland_air
-    from linstab2d.mesh import Mesh
-    from linstab2d.operators.assembly import build_lnse_system
-    from linstab2d.operators.energy_norm import compute_chu_norm
-    from linstab2d.solvers.petsc_utils import scipy_to_petsc
-    from linstab2d.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+    from linstabpy.baseflow import load_paraboloid, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.energy_norm import compute_chu_norm
+    from linstabpy.solvers.petsc_utils import scipy_to_petsc
+    from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
     solver_cfg = cfg.get("solver")
 
@@ -288,7 +288,7 @@ def _load_baseflow_fields(data) -> tuple[np.ndarray, np.ndarray]:
         base_u = np.asarray(parity_npz_get(bundle, "results_Paraboloid/baseFlow/U"), dtype=float).T
         base_v = np.asarray(parity_npz_get(bundle, "results_Paraboloid/baseFlow/V"), dtype=float).T
         return base_u, base_v
-    from linstab2d.baseflow import load_paraboloid
+    from linstabpy.baseflow import load_paraboloid
 
     baseflow = load_paraboloid(mesh_view(data["X"], data["Y"]))
     return np.asarray(baseflow.U, dtype=float), np.asarray(baseflow.V, dtype=float)
