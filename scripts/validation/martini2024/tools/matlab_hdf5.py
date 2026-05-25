@@ -28,7 +28,7 @@ def _require_h5py():
         raise ModuleNotFoundError(
             "MATLAB HDF5 parity tooling requires optional dependency 'h5py'. "
             "Install the 'linstabpy[hdf5]' extra or rerun install.sh with "
-            "LINSTAB2D_WITH_H5PY=1."
+            "LINSTABPY_WITH_H5PY=1."
         ) from exc
     return h5py
 

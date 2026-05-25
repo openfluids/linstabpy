@@ -1194,7 +1194,7 @@ def _resolve_config_path(cli_config_path: Path | None = None) -> Path:
     """
     if cli_config_path is not None:
         return cli_config_path.expanduser().resolve()
-    raw = os.getenv("LINSTAB2D_SONG2023_CONFIG")
+    raw = os.getenv("LINSTABPY_SONG2023_CONFIG")
     if raw is None or raw.strip() == "":
         return DEFAULT_CONFIG_PATH
     return Path(raw).expanduser().resolve()

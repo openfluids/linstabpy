@@ -10,9 +10,9 @@ set -euo pipefail
 #
 # Usage:
 #   bash install.sh                    # full install (no h5py by default)
-#   LINSTAB2D_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
-#   LINSTAB2D_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
-#   LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
+#   LINSTABPY_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
+#   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
+#   LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
 #
 # On Linux, missing system packages do not trigger sudo/package-manager calls by
@@ -20,19 +20,19 @@ set -euo pipefail
 # environments can load the right toolchain first.
 #
 # If PETSc source configure fails with "Unable to run MPI program with /usr/bin/mpiexec":
-#   LINSTAB2D_PETSC_MPIEXEC=/usr/bin/mpiexec.mpich bash install.sh
+#   LINSTABPY_PETSC_MPIEXEC=/usr/bin/mpiexec.mpich bash install.sh
 #
 # If mpi4py fails to import (e.g. ImportError: libmpi.so.40 while the system has MPICH):
 #   The installer tries a wheel first, then rebuilds mpi4py from source automatically.
-#   To force a source build: LINSTAB2D_MPI4PY_NO_BINARY=1 bash install.sh
+#   To force a source build: LINSTABPY_MPI4PY_NO_BINARY=1 bash install.sh
 #
 # If verification hangs after "mpi4py.MPI …" on MPICH: plain ``python`` can block in MPI_Init.
-#   The script runs checks under ``mpiexec -n 1``. Override with LINSTAB2D_VERIFY_MPIEXEC=/path/to/mpiexec.
+#   The script runs checks under ``mpiexec -n 1``. Override with LINSTABPY_VERIFY_MPIEXEC=/path/to/mpiexec.
 #
 # HYDRA_BOOTSTRAP=exec avoids some PETSc configure stalls but is not supported by all MPICH builds
 # (error: unrecognized launcher: exec). This script applies it only while installing PETSc/SLEPc
-# (not for mpiexec verification). Override with LINSTAB2D_HYDRA_BOOTSTRAP=fork or
-# LINSTAB2D_HYDRA_BOOTSTRAP=  (empty, unset) if PETSc configure still misbehaves.
+# (not for mpiexec verification). Override with LINSTABPY_HYDRA_BOOTSTRAP=fork or
+# LINSTABPY_HYDRA_BOOTSTRAP=  (empty, unset) if PETSc configure still misbehaves.
 #
 # The PETSc/SLEPc PyPI wheels embed absolute build-time paths in their config
 # files and dylibs.  This script patches them automatically.
@@ -41,7 +41,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 OS_NAME=$(uname -s)
-PYTHON_VERSION="${LINSTAB2D_PYTHON_VERSION:-3.13}"
+PYTHON_VERSION="${LINSTABPY_PYTHON_VERSION:-3.13}"
 PETSC_VERSION="3.24.2"
 SLEPC_VERSION="3.24.2"
 PETSC4PY_VERSION="3.24.2"
@@ -368,7 +368,7 @@ darwin_append_petsc_linalg_options() {
 
 darwin_wrap_venv_python() {
     [ "${OS_NAME}" = "Darwin" ] || return 0
-    [ "${LINSTAB2D_DARWIN_INSERT_OPENBLAS:-1}" = "1" ] || return 0
+    [ "${LINSTABPY_DARWIN_INSERT_OPENBLAS:-1}" = "1" ] || return 0
 
     local py_bin="${VENV_DIR}/bin/python"
     local py_real="${VENV_DIR}/bin/python-real"
@@ -483,13 +483,13 @@ linux_cmd_looks_intel_mpi() {
 }
 
 linux_mpi_stack_preference() {
-    case "${LINSTAB2D_MPI_STACK:-}" in
+    case "${LINSTABPY_MPI_STACK:-}" in
         intel|intelmpi|impi)
             printf 'intelmpi\n'
             return 0
             ;;
         openmpi|mpich)
-            printf '%s\n' "${LINSTAB2D_MPI_STACK}"
+            printf '%s\n' "${LINSTABPY_MPI_STACK}"
             return 0
             ;;
     esac
@@ -560,17 +560,17 @@ linux_resolve_mpi_tool() {
 }
 
 linux_mpi_compile_available() {
-    LINSTAB2D_MPI_COMPILE_ERROR=""
+    LINSTABPY_MPI_COMPILE_ERROR=""
     local mpicc_bin
     mpicc_bin="$(linux_resolve_mpi_tool mpicc mpiicc mpiicx || true)"
     [ -n "${mpicc_bin}" ] || {
-        LINSTAB2D_MPI_COMPILE_ERROR="mpicc not found"
+        LINSTABPY_MPI_COMPILE_ERROR="mpicc not found"
         return 1
     }
 
     local tmpdir src bin err rc
     tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/linstabpy-mpi-compile.XXXXXX")" || {
-        LINSTAB2D_MPI_COMPILE_ERROR="could not create temporary compile directory"
+        LINSTABPY_MPI_COMPILE_ERROR="could not create temporary compile directory"
         return 1
     }
     src="${tmpdir}/mpi_probe.c"
@@ -587,8 +587,8 @@ EOF
     if "${mpicc_bin}" "${src}" -o "${bin}" >"${err}" 2>&1; then
         rc=0
     else
-        LINSTAB2D_MPI_COMPILE_ERROR="$(sed -n '1,3p' "${err}" | tr '\n' ' ' | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //g' -e 's/ $//g')"
-        [ -n "${LINSTAB2D_MPI_COMPILE_ERROR}" ] || LINSTAB2D_MPI_COMPILE_ERROR="${mpicc_bin} failed to compile a program including mpi.h"
+        LINSTABPY_MPI_COMPILE_ERROR="$(sed -n '1,3p' "${err}" | tr '\n' ' ' | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //g' -e 's/ $//g')"
+        [ -n "${LINSTABPY_MPI_COMPILE_ERROR}" ] || LINSTABPY_MPI_COMPILE_ERROR="${mpicc_bin} failed to compile a program including mpi.h"
         rc=1
     fi
     rm -rf "${tmpdir}"
@@ -597,8 +597,8 @@ EOF
 
 linux_install_system_deps() {
     [ "${OS_NAME}" = "Linux" ] || return 0
-    [ "${LINSTAB2D_SKIP_SYS_DEPS:-0}" = "1" ] && {
-        warn "Skipping Linux system dependency installation (LINSTAB2D_SKIP_SYS_DEPS=1)."
+    [ "${LINSTABPY_SKIP_SYS_DEPS:-0}" = "1" ] && {
+        warn "Skipping Linux system dependency installation (LINSTABPY_SKIP_SYS_DEPS=1)."
         return 0
     }
 
@@ -613,9 +613,9 @@ linux_install_system_deps() {
     linux_resolve_mpi_tool mpifort mpif90 mpiifort mpiifx >/dev/null || missing+=("mpifort")
     if linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null && ! linux_mpi_compile_available; then
         missing+=("mpi-dev")
-        mpi_compile_error="${LINSTAB2D_MPI_COMPILE_ERROR}"
+        mpi_compile_error="${LINSTABPY_MPI_COMPILE_ERROR}"
     fi
-    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
+    if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
         missing+=("hdf5-dev")
     fi
 
@@ -677,10 +677,10 @@ linux_install_system_deps() {
         hdf5_pkg="hdf5-devel"
     else
         err "Unsupported Linux distro/package manager. Install manually: curl make cmake gcc g++ gfortran pkg-config MPI dev tools (mpicc/mpicxx/mpifort) and X11 headers."
-        warn "HDF5 dev tools are optional and needed only when LINSTAB2D_WITH_H5PY=1."
+        warn "HDF5 dev tools are optional and needed only when LINSTABPY_WITH_H5PY=1."
         exit 1
     fi
-    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
+    if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
         install_cmd="${install_cmd} ${hdf5_pkg}"
     fi
     if [ "${mpi_stack}" = "intelmpi" ]; then
@@ -701,17 +701,17 @@ linux_install_system_deps() {
                 install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates libX11-devel"
                 ;;
         esac
-        if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
+        if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
             install_cmd="${install_cmd} ${hdf5_pkg}"
         fi
     fi
 
-    if [ "${LINSTAB2D_AUTO_INSTALL_SYS_DEPS:-0}" != "1" ]; then
+    if [ "${LINSTABPY_AUTO_INSTALL_SYS_DEPS:-0}" != "1" ]; then
         err "Refusing to install system packages automatically."
         err "This is intentional so cluster/module environments do not trigger unexpected sudo/package-manager calls."
         warn "Run 'bash diagnose.sh' first, load the required modules or install the packages manually, then re-run install.sh."
-        warn "If you really want the installer to call the package manager, re-run with LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1."
-        if [ "${LINSTAB2D_WITH_H5PY:-0}" != "1" ]; then
+        warn "If you really want the installer to call the package manager, re-run with LINSTABPY_AUTO_INSTALL_SYS_DEPS=1."
+        if [ "${LINSTABPY_WITH_H5PY:-0}" != "1" ]; then
             warn "HDF5/h5cc is optional and is not required for the default install path."
         fi
         warn "Suggested commands:"
@@ -720,8 +720,8 @@ linux_install_system_deps() {
         if [ "${mpi_stack}" != "intelmpi" ] && linux_intel_mpi_available; then
             warn "Alternative: Intel MPI appears to be available but is not active."
             warn "  source /opt/intel/oneapi/setvars.sh --force"
-            warn "  LINSTAB2D_MPI_STACK=intelmpi bash diagnose.sh"
-            warn "  LINSTAB2D_MPI_STACK=intelmpi bash install.sh"
+            warn "  LINSTABPY_MPI_STACK=intelmpi bash diagnose.sh"
+            warn "  LINSTABPY_MPI_STACK=intelmpi bash install.sh"
         fi
         if [ "${mpi_stack}" = "intelmpi" ]; then
             warn "Intel MPI is not installed by this script. Load oneAPI first, for example:"
@@ -730,7 +730,7 @@ linux_install_system_deps() {
         fi
         exit 1
     fi
-    log "Installing Linux system dependencies via ${pm} (LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1)..."
+    log "Installing Linux system dependencies via ${pm} (LINSTABPY_AUTO_INSTALL_SYS_DEPS=1)..."
     if [ "$(id -u)" -eq 0 ]; then
         [ -n "${update_cmd}" ] && bash -lc "${update_cmd}"
         bash -lc "${install_cmd}"
@@ -752,7 +752,7 @@ linux_install_system_deps() {
     if linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null && ! linux_mpi_compile_available; then
         missing+=("mpi-dev")
     fi
-    if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
+    if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && ! linux_hdf5_available; then
         missing+=("hdf5-dev")
     fi
     if [ ${#missing[@]} -gt 0 ]; then
@@ -854,15 +854,15 @@ configure_petsc_build_mpiexec() {
     # launcher that hangs or times out on single-node builds while ``mpiexec.mpich``
     # works. PETSc honors the MPIEXEC environment variable for this probe.
     [ "${OS_NAME}" = "Linux" ] || return 0
-    if [[ -n "${LINSTAB2D_PETSC_MPIEXEC:-}" ]]; then
-        export MPIEXEC="${LINSTAB2D_PETSC_MPIEXEC}"
-        log "PETSc/SLEPc configure: using LINSTAB2D_PETSC_MPIEXEC=${MPIEXEC}"
+    if [[ -n "${LINSTABPY_PETSC_MPIEXEC:-}" ]]; then
+        export MPIEXEC="${LINSTABPY_PETSC_MPIEXEC}"
+        log "PETSc/SLEPc configure: using LINSTABPY_PETSC_MPIEXEC=${MPIEXEC}"
         return 0
     fi
     local resolved
     if ! resolved="$(linstabpy_find_mpiexec_for_n1)"; then
         err "No working mpiexec for PETSc configure. Try: mpiexec.mpich -n 1 /bin/true"
-        err "Or set LINSTAB2D_PETSC_MPIEXEC=/path/to/mpiexec and re-run install.sh"
+        err "Or set LINSTABPY_PETSC_MPIEXEC=/path/to/mpiexec and re-run install.sh"
         exit 1
     fi
     export MPIEXEC="${resolved}"
@@ -876,7 +876,7 @@ linstabpy_prepare_verify_mpiwrap() {
     [ "${OS_NAME}" = "Linux" ] || return 0
     # Drop inherited HYDRA_BOOTSTRAP (e.g. conda / old shells): Hydra \"exec\" is unsupported on many distros.
     unset HYDRA_BOOTSTRAP 2>/dev/null || true
-    local mx="${LINSTAB2D_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
+    local mx="${LINSTABPY_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
     if [ -z "${mx}" ]; then
         mx="$(linstabpy_find_mpiexec_for_n1 || true)"
     fi
@@ -884,7 +884,7 @@ linstabpy_prepare_verify_mpiwrap() {
         LINSTAB_VERIFY_MPIWRAP=( "${mx}" -n 1 )
         log "Verification will use: ${mx} -n 1 (avoids MPICH singleton hang on mpi4py import)"
     else
-        warn "No mpiexec found for verification. If the verify step hangs at mpi4py, set LINSTAB2D_VERIFY_MPIEXEC=/usr/bin/mpiexec.mpich"
+        warn "No mpiexec found for verification. If the verify step hangs at mpi4py, set LINSTABPY_VERIFY_MPIEXEC=/usr/bin/mpiexec.mpich"
     fi
 }
 
@@ -894,7 +894,7 @@ linstabpy_prepare_multirank_verify_mpiwrap() {
     LINSTAB_VERIFY_MULTIENV=()
     [ "${OS_NAME}" = "Linux" ] || return 1
     unset HYDRA_BOOTSTRAP 2>/dev/null || true
-    local mx="${LINSTAB2D_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
+    local mx="${LINSTABPY_VERIFY_MPIEXEC:-${MPIEXEC:-}}"
     if [ -z "${mx}" ]; then
         mx="$(linstabpy_find_mpiexec_for_n1 || true)"
     fi
@@ -937,8 +937,8 @@ install_mpi4py_compat() {
         ${PIP_INSTALL} "mpi4py>=3.1"
         return 0
     fi
-    if [[ "${LINSTAB2D_MPI4PY_NO_BINARY:-0}" = "1" ]]; then
-        log "Installing mpi4py from source (LINSTAB2D_MPI4PY_NO_BINARY=1)..."
+    if [[ "${LINSTABPY_MPI4PY_NO_BINARY:-0}" = "1" ]]; then
+        log "Installing mpi4py from source (LINSTABPY_MPI4PY_NO_BINARY=1)..."
         ${PIP_INSTALL} --no-binary mpi4py "mpi4py>=3.1"
         return 0
     fi
@@ -1200,8 +1200,8 @@ unset PETSC_DIR PETSC_ARCH SLEPC_DIR 2>/dev/null || true
 configure_linux_petsc_toolchain
 configure_petsc_build_mpiexec
 # Optional Hydra bootstrap for PETSc/SLEPc configure only (not exported — breaks some mpiexec).
-if [ "${LINSTAB2D_HYDRA_BOOTSTRAP+x}" = x ]; then
-    _PETSC_HYDRA_BOOTSTRAP="${LINSTAB2D_HYDRA_BOOTSTRAP}"
+if [ "${LINSTABPY_HYDRA_BOOTSTRAP+x}" = x ]; then
+    _PETSC_HYDRA_BOOTSTRAP="${LINSTABPY_HYDRA_BOOTSTRAP}"
 else
     _PETSC_HYDRA_BOOTSTRAP=exec
 fi
@@ -1229,7 +1229,7 @@ if [ -n "${_PETSC_HYDRA_BOOTSTRAP}" ]; then
     log "PETSc pip: HYDRA_BOOTSTRAP=${_PETSC_HYDRA_BOOTSTRAP} (PETSc/SLEPc configure only)"
     env HYDRA_BOOTSTRAP="${_PETSC_HYDRA_BOOTSTRAP}" ${PIP_INSTALL} "petsc==${PETSC_VERSION}"
 else
-    log "PETSc pip: HYDRA_BOOTSTRAP unset (LINSTAB2D_HYDRA_BOOTSTRAP is empty — use on MPICH without \"exec\" bootstrap)"
+    log "PETSc pip: HYDRA_BOOTSTRAP unset (LINSTABPY_HYDRA_BOOTSTRAP is empty — use on MPICH without \"exec\" bootstrap)"
     ${PIP_INSTALL} "petsc==${PETSC_VERSION}"
 fi
 # Avoid leaking HYDRA_BOOTSTRAP into later mpiexec / Python (many MPICH builds reject launcher \"exec\").
@@ -1475,17 +1475,17 @@ else
 fi
 
 # h5py is optional (older distro HDF5, Song2023 LNSE, and many workflows do not need it).
-if [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ]; then
-    log "Installing h5py (LINSTAB2D_WITH_H5PY=1)..."
+if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ]; then
+    log "Installing h5py (LINSTABPY_WITH_H5PY=1)..."
     configure_linux_hdf5_env
     if ${PIP_INSTALL} "h5py>=3.16"; then
         ok "h5py installed."
     else
         warn "h5py installation failed; continuing without it."
-        warn "Install a newer HDF5 or build h5py against HDF5 >= 1.10.7, then re-run with LINSTAB2D_WITH_H5PY=1."
+        warn "Install a newer HDF5 or build h5py against HDF5 >= 1.10.7, then re-run with LINSTABPY_WITH_H5PY=1."
     fi
 else
-    log "Skipping h5py (set LINSTAB2D_WITH_H5PY=1 for MATLAB v7.3 / HDF5 tooling and related tests)."
+    log "Skipping h5py (set LINSTABPY_WITH_H5PY=1 for MATLAB v7.3 / HDF5 tooling and related tests)."
 fi
 
 # Record DSO search path for mpi4py + PETSc wheels. sitecustomize prepends this
@@ -1546,17 +1546,17 @@ ${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"
 # Persist runtime library paths in the venv activation script.
 _mpi_activate=""
 _mpi_activate="$(linstabpy_resolve_mpi_libdir 2>/dev/null || true)"
-if ! grep -q "LINSTAB2D_RUNTIME_LD" "${VENV_DIR}/bin/activate" 2>/dev/null; then
+if ! grep -q "LINSTABPY_RUNTIME_LD" "${VENV_DIR}/bin/activate" 2>/dev/null; then
     {
         echo ""
-        echo "# LINSTAB2D_RUNTIME_LD (added by install.sh; MPI + PETSc for mpi4py / PETSc wheels)"
+        echo "# LINSTABPY_RUNTIME_LD (added by install.sh; MPI + PETSc for mpi4py / PETSc wheels)"
         echo "export LD_LIBRARY_PATH=\"${_mpi_activate:+${_mpi_activate}:}${PETSC_DIR}/lib:\${LD_LIBRARY_PATH}\""
     } >> "${VENV_DIR}/bin/activate"
 fi
 # ── Verification ─────────────────────────────────────────────────────────────
 echo
-if [[ "${LINSTAB2D_INSTALL_SKIP_VERIFY:-0}" = "1" ]]; then
-    warn "Skipping post-install verification (LINSTAB2D_INSTALL_SKIP_VERIFY=1)."
+if [[ "${LINSTABPY_INSTALL_SKIP_VERIFY:-0}" = "1" ]]; then
+    warn "Skipping post-install verification (LINSTABPY_INSTALL_SKIP_VERIFY=1)."
     warn "Run manually: ${PY_BIN} -c \"import mpi4py.MPI; from petsc4py import PETSc; print(PETSc.Sys.getVersion())\""
 else
 log "Verifying installation..."

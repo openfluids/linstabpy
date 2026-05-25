@@ -28,8 +28,8 @@ def test_mumps_petsc_options_allow_jsonc_override_and_opt_out() -> None:
 
 
 def test_mumps_petsc_options_allow_environment_override(monkeypatch) -> None:
-    monkeypatch.setenv("LINSTAB2D_PETSC_MUMPS_ICNTL_14", "300")
-    monkeypatch.setenv("LINSTAB2D_PETSC_MUMPS_ICNTL_24", "none")
+    monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_14", "300")
+    monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_24", "none")
 
     assert _mumps_petsc_options(None) == {
         "mat_mumps_icntl_14": "300",

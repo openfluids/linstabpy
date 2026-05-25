@@ -2,16 +2,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${LINSTAB2D_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
-RUN_ID="${LINSTAB2D_INSTALL_RUN_ID:-preflight}"
-LOG_DIR="${LINSTAB2D_INSTALL_LOG_DIR:-${SCRIPT_DIR}/install_runs}"
+REPO_ROOT="${LINSTABPY_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+RUN_ID="${LINSTABPY_INSTALL_RUN_ID:-preflight}"
+LOG_DIR="${LINSTABPY_INSTALL_LOG_DIR:-${SCRIPT_DIR}/install_runs}"
 
 err() { printf '[install_tester] ERROR: %s\n' "$1" >&2; }
 
 require_repo_root() {
     if [ ! -f "${REPO_ROOT}/pyproject.toml" ] || [ ! -d "${REPO_ROOT}/src/linstabpy" ]; then
-        err "LINSTAB2D_REPO_ROOT does not point at a LinStabPy checkout: ${REPO_ROOT}"
-        err "Run from a full checkout or export LINSTAB2D_REPO_ROOT=/path/to/linstabpy."
+        err "LINSTABPY_REPO_ROOT does not point at a LinStabPy checkout: ${REPO_ROOT}"
+        err "Run from a full checkout or export LINSTABPY_REPO_ROOT=/path/to/linstabpy."
         exit 1
     fi
     if [ ! -f "${REPO_ROOT}/install.sh" ]; then

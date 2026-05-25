@@ -287,9 +287,9 @@ INTELMPI_FOUND=0
 PREFER_INTELMPI=0
 MPI_EXECUTORS=()
 
-if [ -n "${LINSTAB2D_MPI_STACK:-}" ]; then
-    printf "  Requested:   %s (LINSTAB2D_MPI_STACK)\n" "${LINSTAB2D_MPI_STACK}"
-    case "${LINSTAB2D_MPI_STACK}" in
+if [ -n "${LINSTABPY_MPI_STACK:-}" ]; then
+    printf "  Requested:   %s (LINSTABPY_MPI_STACK)\n" "${LINSTABPY_MPI_STACK}"
+    case "${LINSTABPY_MPI_STACK}" in
         intel|intelmpi|impi) INTELMPI_FOUND=1; PREFER_INTELMPI=1 ;;
         openmpi) OPENMPI_FOUND=1 ;;
         mpich) MPICH_FOUND=1 ;;
@@ -441,7 +441,7 @@ elif has_cmd pkg-config && pkg-config --exists hdf5-serial 2>/dev/null; then
     h5ver="$(pkg-config --modversion hdf5-serial 2>/dev/null || echo "?")"
     printf "  hdf5-serial: ${COL_OK}OK${COL_RST}   via pkg-config  (%s)\n" "${h5ver}"
 else
-    printf "  hdf5:        ${COL_WARN}MISS${COL_RST} (not required unless LINSTAB2D_WITH_H5PY=1)\n"
+    printf "  hdf5:        ${COL_WARN}MISS${COL_RST} (not required unless LINSTABPY_WITH_H5PY=1)\n"
 fi
 echo ""
 
@@ -501,7 +501,7 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
                 else
                     printf "    sudo apt install -y mpich libmpich-dev\n"
                 fi
-                [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && printf "    sudo apt install -y libhdf5-dev\n"
+                [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && printf "    sudo apt install -y libhdf5-dev\n"
                 ;;
             dnf)
                 printf "    sudo dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates libX11-devel\n"
@@ -512,7 +512,7 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
                 else
                     printf "    sudo dnf install -y mpich mpich-devel\n"
                 fi
-                [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && printf "    sudo dnf install -y hdf5-devel\n"
+                [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && printf "    sudo dnf install -y hdf5-devel\n"
                 ;;
             yum)
                 printf "    sudo yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates libX11-devel\n"
@@ -523,7 +523,7 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
                 else
                     printf "    sudo yum install -y mpich mpich-devel\n"
                 fi
-                [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && printf "    sudo yum install -y hdf5-devel\n"
+                [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && printf "    sudo yum install -y hdf5-devel\n"
                 ;;
             pacman)
                 printf "    sudo pacman -S --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates libx11\n"
@@ -534,7 +534,7 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
                 else
                     printf "    sudo pacman -S mpich\n"
                 fi
-                [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && printf "    sudo pacman -S hdf5\n"
+                [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && printf "    sudo pacman -S hdf5\n"
                 ;;
             zypper)
                 printf "    sudo zypper install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates libX11-devel\n"
@@ -545,20 +545,20 @@ if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
                 else
                     printf "    sudo zypper install mpich mpich-devel\n"
                 fi
-                [ "${LINSTAB2D_WITH_H5PY:-0}" = "1" ] && printf "    sudo zypper install hdf5-devel\n"
+                [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && printf "    sudo zypper install hdf5-devel\n"
                 ;;
             *)
                 printf "    Install manually: curl make cmake gcc g++ gfortran pkg-config, MPI dev tools, X11 headers\n"
                 ;;
         esac
-        if [ "${LINSTAB2D_WITH_H5PY:-0}" != "1" ]; then
-            printf "  ${COL_INFO}Note:${COL_RST} HDF5/h5cc is optional; install HDF5 only when LINSTAB2D_WITH_H5PY=1.\n"
+        if [ "${LINSTABPY_WITH_H5PY:-0}" != "1" ]; then
+            printf "  ${COL_INFO}Note:${COL_RST} HDF5/h5cc is optional; install HDF5 only when LINSTABPY_WITH_H5PY=1.\n"
         fi
         if [ "${PREFER_INTELMPI}" -eq 0 ] && [ "${INTELMPI_FOUND}" -eq 0 ] && intel_mpi_available; then
             printf "  ${COL_INFO}Alternative:${COL_RST} Intel MPI is available but not active. To use it instead:\n"
             printf "    source /opt/intel/oneapi/setvars.sh --force\n"
-            printf "    LINSTAB2D_MPI_STACK=intelmpi bash diagnose.sh\n"
-            printf "    LINSTAB2D_MPI_STACK=intelmpi bash install.sh\n"
+            printf "    LINSTABPY_MPI_STACK=intelmpi bash diagnose.sh\n"
+            printf "    LINSTABPY_MPI_STACK=intelmpi bash install.sh\n"
         fi
         echo ""
     fi
@@ -567,7 +567,7 @@ else
     printf "  Ready to run: bash install.sh\n"
     if [ -n "${WORKING_MPIEXEC}" ]; then
         printf "  Working mpiexec: %s\n" "${WORKING_MPIEXEC}"
-        printf "  Hint: LINSTAB2D_PETSC_MPIEXEC=%s bash install.sh\n" "${WORKING_MPIEXEC}"
+        printf "  Hint: LINSTABPY_PETSC_MPIEXEC=%s bash install.sh\n" "${WORKING_MPIEXEC}"
     fi
     echo ""
 fi

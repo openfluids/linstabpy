@@ -74,7 +74,7 @@ def legacy_test_case1_spectrum_parity() -> None:
     omega_target = complex(np.asarray(py["omega_target"]).reshape(-1)[0])
     omega_mat = _diag_or_flat(loadmat(MAT_SPEC)["omega"])
 
-    n_compare = int(os.getenv("LINSTAB2D_CASE1_SPEC_N", "100"))
+    n_compare = int(os.getenv("LINSTABPY_CASE1_SPEC_N", "100"))
     n = min(max(1, n_compare), omega_py.size, omega_mat.size)
 
     py_sel = omega_py[np.argsort(np.abs(omega_py - omega_target))[:n]]
@@ -84,8 +84,8 @@ def legacy_test_case1_spectrum_parity() -> None:
     max_abs = float(np.max(abs_err))
     rms_abs = float(np.sqrt(np.mean(abs_err**2)))
 
-    tol_max_abs = float(os.getenv("LINSTAB2D_CASE1_SPEC_TOL_MAX_ABS", "1.0"))
-    tol_rms_abs = float(os.getenv("LINSTAB2D_CASE1_SPEC_TOL_RMS_ABS", "0.5"))
+    tol_max_abs = float(os.getenv("LINSTABPY_CASE1_SPEC_TOL_MAX_ABS", "1.0"))
+    tol_rms_abs = float(os.getenv("LINSTABPY_CASE1_SPEC_TOL_RMS_ABS", "0.5"))
 
     assert max_abs <= tol_max_abs and rms_abs <= tol_rms_abs, (
         f"Spectrum mismatch: n={n}, max_abs={max_abs:.6e}, rms_abs={rms_abs:.6e}, "
@@ -103,7 +103,7 @@ def legacy_test_case1_mode7_u_field_parity() -> None:
     omega_mat = _diag_or_flat(loadmat(MAT_SPEC)["omega"])
     u_mat = np.asarray(loadmat(MAT_MODE7)["u"], dtype=complex).reshape(-1)
 
-    mode_idx_mat = int(os.getenv("LINSTAB2D_CASE1_MODE_INDEX", "7")) - 1
+    mode_idx_mat = int(os.getenv("LINSTABPY_CASE1_MODE_INDEX", "7")) - 1
     mode_idx_mat = max(0, min(mode_idx_mat, omega_mat.size - 1))
     omega_ref = omega_mat[mode_idx_mat]
     mode_idx_py = int(np.argmin(np.abs(omega_py - omega_ref)))
@@ -118,9 +118,9 @@ def legacy_test_case1_mode7_u_field_parity() -> None:
     rel_err_real = _rel_l2(np.real(u_mat_n), np.real(u_py_n))
     corr_real = float(np.corrcoef(np.real(u_mat_n), np.real(u_py_n))[0, 1])
 
-    tol_rel_complex = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_REL_COMPLEX", "0.8"))
-    tol_rel_real = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_REL_REAL", "0.8"))
-    tol_corr_real = float(os.getenv("LINSTAB2D_CASE1_MODE_TOL_CORR_REAL", "0.5"))
+    tol_rel_complex = float(os.getenv("LINSTABPY_CASE1_MODE_TOL_REL_COMPLEX", "0.8"))
+    tol_rel_real = float(os.getenv("LINSTABPY_CASE1_MODE_TOL_REL_REAL", "0.8"))
+    tol_corr_real = float(os.getenv("LINSTABPY_CASE1_MODE_TOL_CORR_REAL", "0.5"))
 
     assert (
         rel_err_complex <= tol_rel_complex

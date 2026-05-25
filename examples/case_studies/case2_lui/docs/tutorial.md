@@ -18,8 +18,8 @@ Se você estiver em dúvida, use estas regras:
 
 - quer rodar **um caso só**: use `run_case_once.sh`
 - quer rodar **vários casos com CSV/JSON final**: use `perf_memory.py`
-- quer portabilidade para outra máquina: use `LINSTAB2D_MPI_PRESET=none`
-- quer um teste rápido seguro: use `LINSTAB2D_MPI_PROCS=1`
+- quer portabilidade para outra máquina: use `LINSTABPY_MPI_PRESET=none`
+- quer um teste rápido seguro: use `LINSTABPY_MPI_PROCS=1`
 - só use `socket0`, `socket1` ou `socket01` se souber que os `rankfile`s desta
   pasta batem com a máquina atual
 
@@ -86,8 +86,8 @@ Se você quer **um caso com 10 ranks MPI**, o `mpiexec` deve envolver o
 Caso portátil, sem depender de `rankfile`:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/configs/parity_config.jsonc \
   examples/case_studies/case2_lui/output/runs/case2_manual.npz
@@ -96,8 +96,8 @@ examples/case_studies/case2_lui/run_case_once.sh \
 Caso com pinagem local desta máquina:
 
 ```bash
-LINSTAB2D_MPI_PROCS=10 \
-LINSTAB2D_MPI_PRESET=socket0 \
+LINSTABPY_MPI_PROCS=10 \
+LINSTABPY_MPI_PRESET=socket0 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/configs/parity_config.jsonc \
   examples/case_studies/case2_lui/output/runs/case2_manual.npz
@@ -181,7 +181,7 @@ Para estudos de EVP, vale a pena explicitar `omega_target` no JSONC.
 Teste rápido serial:
 
 ```bash
-LINSTAB2D_MPI_PROCS=1 \
+LINSTABPY_MPI_PROCS=1 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -190,8 +190,8 @@ examples/case_studies/case2_lui/run_case_once.sh \
 Execução paralela portátil numa máquina com 1 socket:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -200,9 +200,9 @@ examples/case_studies/case2_lui/run_case_once.sh \
 Com heartbeat:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
-LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
+LINSTABPY_STAGE_HEARTBEAT_SECONDS=30 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -220,12 +220,12 @@ examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
 
 O wrapper [run_case_once.sh](../run_case_once.sh) usa estas variáveis:
 
-- `LINSTAB2D_MPI_PROCS`
+- `LINSTABPY_MPI_PROCS`
   Número de ranks MPI.
-- `LINSTAB2D_MPI_PRESET`
+- `LINSTABPY_MPI_PRESET`
   Preset do comando MPI.
 
-Valores aceitos por `LINSTAB2D_MPI_PRESET`:
+Valores aceitos por `LINSTABPY_MPI_PRESET`:
 
 - `none`
   Usa `mpiexec` genérico, sem `rankfile`.
@@ -237,14 +237,14 @@ Valores aceitos por `LINSTAB2D_MPI_PRESET`:
 - `socket01`
   Usa [socket01.rankfile](socket01.rankfile).
 - `custom`
-  Usa a string em `LINSTAB2D_MPI_LAUNCHER`.
+  Usa a string em `LINSTABPY_MPI_LAUNCHER`.
 
 Exemplos:
 
 Teste rápido serial:
 
 ```bash
-LINSTAB2D_MPI_PROCS=1 \
+LINSTABPY_MPI_PROCS=1 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -253,8 +253,8 @@ examples/case_studies/case2_lui/run_case_once.sh \
 4 ranks numa máquina simples com 1 socket:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -263,8 +263,8 @@ examples/case_studies/case2_lui/run_case_once.sh \
 10 ranks no `socket0` desta máquina:
 
 ```bash
-LINSTAB2D_MPI_PROCS=10 \
-LINSTAB2D_MPI_PRESET=socket0 \
+LINSTABPY_MPI_PROCS=10 \
+LINSTABPY_MPI_PRESET=socket0 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -273,9 +273,9 @@ examples/case_studies/case2_lui/run_case_once.sh \
 Comando MPI customizado:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=custom \
-LINSTAB2D_MPI_LAUNCHER="mpiexec --bind-to core" \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=custom \
+LINSTABPY_MPI_LAUNCHER="mpiexec --bind-to core" \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
   examples/case_studies/case2_lui/output/runs/meu_caso_stride2.npz
@@ -284,7 +284,7 @@ examples/case_studies/case2_lui/run_case_once.sh \
 Observação importante:
 
 - os `rankfile`s desta pasta são específicos da máquina atual
-- em outra máquina, comece com `LINSTAB2D_MPI_PRESET=none`
+- em outra máquina, comece com `LINSTABPY_MPI_PRESET=none`
 - só mude para `custom` se realmente precisar de um launcher específico
 
 ## 7. Máquina simples com 1 socket
@@ -298,9 +298,9 @@ Se outra pessoa for rodar isso em uma máquina simples, a recomendação é:
 Exemplo:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
-LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
+LINSTABPY_STAGE_HEARTBEAT_SECONDS=30 \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/configs/parity_config.jsonc \
   examples/case_studies/case2_lui/output/runs/case2_socket_unico.npz
@@ -320,7 +320,7 @@ o número de cores que você quer dedicar ao caso, não o número usado neste ho
 Para runs longos, use:
 
 ```bash
-LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30
+LINSTABPY_STAGE_HEARTBEAT_SECONDS=30
 ```
 
 Isso faz o solver imprimir linhas do tipo:
@@ -337,9 +337,9 @@ PETSC_OPTIONS="-eps_monitor -log_view"
 Exemplo:
 
 ```bash
-LINSTAB2D_MPI_PROCS=4 \
-LINSTAB2D_MPI_PRESET=none \
-LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
+LINSTABPY_MPI_PROCS=4 \
+LINSTABPY_MPI_PRESET=none \
+LINSTABPY_STAGE_HEARTBEAT_SECONDS=30 \
 PETSC_OPTIONS="-eps_monitor -log_view" \
 examples/case_studies/case2_lui/run_case_once.sh \
   examples/case_studies/case2_lui/meu_caso_stride2.jsonc \
@@ -406,7 +406,7 @@ Estrutura mínima de um JSONC de campanha:
 Para rodar a campanha:
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+LINSTABPY_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python examples/case_studies/case2_lui/perf_memory.py
 ```
 
@@ -471,7 +471,7 @@ compatível com o `mpi4py`/PETSc do ambiente.
 Provavelmente o problema é `rankfile` absoluto. Na outra máquina, comece com:
 
 ```bash
-LINSTAB2D_MPI_PRESET=none
+LINSTABPY_MPI_PRESET=none
 ```
 
 **Não sei se devo começar por campanha ou caso único.**

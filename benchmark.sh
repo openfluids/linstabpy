@@ -10,8 +10,8 @@
 # Example 0 (curvilinear validation) is pure NumPy — runs single-process.
 # Example 1 defaults to the small Blasius smoke case so install-time profiling
 # stays practical even on slower nodes. Override to the full case with:
-#   LINSTAB2D_BENCHMARK_EX1_MODULE=examples.example_1_blasius
-#   LINSTAB2D_BENCHMARK_EX1_LABEL=example_1_blasius
+#   LINSTABPY_BENCHMARK_EX1_MODULE=examples.example_1_blasius
+#   LINSTABPY_BENCHMARK_EX1_LABEL=example_1_blasius
 # ────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
 trap 'printf "\n[benchmark] interrupted\n"; exit 130' INT TERM
@@ -92,8 +92,8 @@ printf "  Half cores:      %d\n" "${HALF_CORES}"
 printf "  Results dir:     %s\n" "${RESULTS_DIR}"
 echo ""
 
-EX1_MODULE="${LINSTAB2D_BENCHMARK_EX1_MODULE:-examples.example_1_blasius_smoke}"
-EX1_LABEL="${LINSTAB2D_BENCHMARK_EX1_LABEL:-example_1_blasius_smoke}"
+EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.example_1_blasius_smoke}"
+EX1_LABEL="${LINSTABPY_BENCHMARK_EX1_LABEL:-example_1_blasius_smoke}"
 printf "  Example 1 case:  %s (%s)\n\n" "${EX1_LABEL}" "${EX1_MODULE}"
 
 # ── Find mpiexec ────────────────────────────────────────────────────────────
@@ -113,8 +113,8 @@ if [ -z "${MPIEXEC}" ]; then
     exit 1
 fi
 printf "  mpiexec:         %s\n\n" "${MPIEXEC}"
-export LINSTAB2D_MPIEXEC="${MPIEXEC}"
-export LINSTAB2D_PYTHON_BIN="${PY_BIN}"
+export LINSTABPY_MPIEXEC="${MPIEXEC}"
+export LINSTABPY_PYTHON_BIN="${PY_BIN}"
 
 # ── Thread pinning (single thread per rank) ─────────────────────────────────
 export OMP_NUM_THREADS=1

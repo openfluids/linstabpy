@@ -27,7 +27,7 @@ Run these scripts, first on `Qraw` (done), then on `Qfilt`:
 .venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py
 
 # To run for Qfilt (after copy/point paths):
-LINSTAB2D_QFILT_DIR=examples/case_studies/case2_lui/data/baseflow_filt \
+LINSTABPY_QFILT_DIR=examples/case_studies/case2_lui/data/baseflow_filt \
   .venv/bin/python examples/case_studies/case2_lui/scripts/phase1p5_baseflow_spectrum.py
 #  (script would need a --case-dir flag added; currently hard-coded)
 ```

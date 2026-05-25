@@ -18,8 +18,8 @@
       "name": "blasius_resolvent_high_penalty",
       "module": "examples.example_1_blasius",
       "env": {
-        "LINSTAB2D_BLASIUS_BC_PENALTY": "1e6",
-        "LINSTAB2D_EIGEN_ST_SOLVER": "mumps"
+        "LINSTABPY_BLASIUS_BC_PENALTY": "1e6",
+        "LINSTABPY_EIGEN_ST_SOLVER": "mumps"
       },
       "artifacts": [
         "examples/example_1_blasius.npz"

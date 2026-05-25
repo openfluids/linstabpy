@@ -39,8 +39,8 @@ PYTHON_EXE="$ROOT/.venv/bin/python"
 CONFIG_REL="examples/case_studies/case2_lui/configs/resolvent/resolvent_grid_50pt_fd6_stride4.jsonc"
 CONFIG="$ROOT/$CONFIG_REL"
 
-LOG="${LINSTAB2D_PHASE3_LOG:-/tmp/case2_resolvent_50pt.log}"
-HEARTBEAT="${LINSTAB2D_PHASE3_HEARTBEAT:-/tmp/case2_resolvent_50pt.heartbeat}"
+LOG="${LINSTABPY_PHASE3_LOG:-/tmp/case2_resolvent_50pt.log}"
+HEARTBEAT="${LINSTABPY_PHASE3_HEARTBEAT:-/tmp/case2_resolvent_50pt.heartbeat}"
 
 # Pre-flight
 if [ ! -x "$PYTHON_EXE" ]; then
@@ -95,7 +95,7 @@ export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 
 # Point perf_memory.py at the generated 50-case jsonc.
-export LINSTAB2D_CASE2_PERF_CONFIG="$CONFIG"
+export LINSTABPY_CASE2_PERF_CONFIG="$CONFIG"
 
 # Run.
 "$PYTHON_EXE" perf_memory.py >> "$LOG" 2>&1

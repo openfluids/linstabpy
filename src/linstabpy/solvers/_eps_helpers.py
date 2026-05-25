@@ -134,8 +134,8 @@ def _resolve_solver_cfg_subsection(
     """Return the JSONC subsection matching ``env_prefix`` (resolvent falls back to linsolve)."""
     if solver_cfg is None:
         return None
-    if env_prefix == "LINSTAB2D_RESOLVENT":
+    if env_prefix == "LINSTABPY_RESOLVENT":
         return solver_cfg.get("resolvent", solver_cfg.get("linsolve", {}))
-    if env_prefix == "LINSTAB2D_EIGEN":
+    if env_prefix == "LINSTABPY_EIGEN":
         return solver_cfg.get("eigen", {})
     return solver_cfg.get("linsolve", {})

@@ -40,7 +40,7 @@ Cada campanha grava em `output/<campanha>/`:
 Rodar a campanha ativa (exemplo: M21 com target oscilatório):
 
 ```bash
-LINSTAB2D_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
+LINSTABPY_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/evp/evp_stride2x1_oscillatory_target_ncv500_tol1e4.jsonc \
 ./.venv/bin/python examples/case_studies/case2_lui/perf_memory.py
 ```
 

@@ -72,8 +72,8 @@ def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
         def getInfo(self):
             return {"nz_used": 0}
 
-    monkeypatch.setenv("LINSTAB2D_CASE_CONFIG", str(config_path))
-    monkeypatch.setenv("LINSTAB2D_CASE_OUTPUT_NPZ", str(output_path))
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
+    monkeypatch.setenv("LINSTABPY_CASE_OUTPUT_NPZ", str(output_path))
     monkeypatch.setattr(results_runtime, "_log", lambda message: None)
     monkeypatch.setattr(results_runtime, "_log_stage", lambda stage, start: None)
     monkeypatch.setattr(

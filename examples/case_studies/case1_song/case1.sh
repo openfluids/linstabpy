@@ -11,9 +11,9 @@ set -euo pipefail
 #
 # Design choices:
 # - Single case directory by default: `examples/case_studies/case1_song/`
-# - MPI rank count is user-configurable (`LINSTAB2D_MPI_PROCS`).
-# - Threading per rank is configurable (`LINSTAB2D_THREADS_PER_RANK`).
-# - PETSc matrix conversion mode is configurable (`LINSTAB2D_PETSC_MATRIX_MODE`).
+# - MPI rank count is user-configurable (`LINSTABPY_MPI_PROCS`).
+# - Threading per rank is configurable (`LINSTABPY_THREADS_PER_RANK`).
+# - PETSc matrix conversion mode is configurable (`LINSTABPY_PETSC_MATRIX_MODE`).
 # - Every run writes a timestamped log under `logs/`.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,10 +24,10 @@ export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 # -------------------------------------------------------------------
 # 0) Logging/session metadata
 # -------------------------------------------------------------------
-LOG_DIR="${LINSTAB2D_LOG_DIR:-output/logs}"
+LOG_DIR="${LINSTABPY_LOG_DIR:-output/logs}"
 mkdir -p "$LOG_DIR"
 TS="$(date +"%Y%m%d_%H%M%S")"
-LOG_FILE="${LINSTAB2D_LOG_FILE:-$LOG_DIR/case1_${TS}.log}"
+LOG_FILE="${LINSTABPY_LOG_FILE:-$LOG_DIR/case1_${TS}.log}"
 exec > >(tee -a "$LOG_FILE") 2>&1
 echo "[case1] log file: $LOG_FILE"
 SCRIPT_START_TS="$(date +%s)"
@@ -35,8 +35,8 @@ SCRIPT_START_HUMAN="$(date +"%Y-%m-%d %H:%M:%S %Z")"
 echo "[case1] start: $SCRIPT_START_HUMAN"
 
 # Basic runtime prerequisite: use the repo-root venv shared by the whole repo.
-# Allow an explicit override via LINSTAB2D_PYTHON_BIN when needed.
-PYTHON_BIN="${LINSTAB2D_PYTHON_BIN:-}"
+# Allow an explicit override via LINSTABPY_PYTHON_BIN when needed.
+PYTHON_BIN="${LINSTABPY_PYTHON_BIN:-}"
 if [[ -z "$PYTHON_BIN" ]]; then
   if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
     PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
@@ -50,12 +50,12 @@ echo "[case1] python: $PYTHON_BIN"
 # -------------------------------------------------------------------
 # 1) Verbosity and monitor options
 # -------------------------------------------------------------------
-# LINSTAB2D_VERBOSE levels:
+# LINSTABPY_VERBOSE levels:
 # 0 = heartbeat only
 # 1 = SLEPc EPS monitor + converged reason (default)
 # 2 = add ST/KSP converged reasons and shorter heartbeat interval
-VERBOSE="${LINSTAB2D_VERBOSE:-1}"
-HEARTBEAT_SEC="${LINSTAB2D_HEARTBEAT_SEC:-20}"
+VERBOSE="${LINSTABPY_VERBOSE:-1}"
+HEARTBEAT_SEC="${LINSTABPY_HEARTBEAT_SEC:-20}"
 declare -a PETSC_VERBOSE_OPTS=()
 if [[ "$VERBOSE" -ge 1 ]]; then
   PETSC_VERBOSE_OPTS+=(
@@ -143,8 +143,8 @@ if [[ -n "$MPI_LAUNCHER" ]]; then
   MPI_VERSION="$("$MPI_LAUNCHER" --version 2>&1 | head -n 1 || true)"
 fi
 
-if [[ -n "${LINSTAB2D_MPI_PROCS:-}" ]]; then
-  MPI_PROCS="${LINSTAB2D_MPI_PROCS}"
+if [[ -n "${LINSTABPY_MPI_PROCS:-}" ]]; then
+  MPI_PROCS="${LINSTABPY_MPI_PROCS}"
 else
   if [[ "$IS_LINUX" -eq 1 ]]; then
     MPI_PROCS="$PHYSICAL_CORES"
@@ -153,12 +153,12 @@ else
   fi
 fi
 if ! [[ "$MPI_PROCS" =~ ^[0-9]+$ ]] || [[ "$MPI_PROCS" -lt 1 ]]; then
-  echo "[case1] invalid LINSTAB2D_MPI_PROCS=${MPI_PROCS}; expected positive integer."
+  echo "[case1] invalid LINSTABPY_MPI_PROCS=${MPI_PROCS}; expected positive integer."
   exit 1
 fi
 
-if [[ -n "${LINSTAB2D_THREADS_PER_RANK:-}" ]]; then
-  THREADS_PER_RANK="${LINSTAB2D_THREADS_PER_RANK}"
+if [[ -n "${LINSTABPY_THREADS_PER_RANK:-}" ]]; then
+  THREADS_PER_RANK="${LINSTABPY_THREADS_PER_RANK}"
 else
   if [[ "$IS_LINUX" -eq 1 ]]; then
     THREADS_PER_RANK=1
@@ -177,7 +177,7 @@ fi
 if [[ "$MPI_PROCS" -eq 1 && "$THREADS_PER_RANK" -eq 1 ]]; then
   echo "[case1] serial configuration detected (MPI_PROCS=1 and THREADS_PER_RANK=1)."
   echo "[case1] refusing to run in serial mode."
-  echo "[case1] set LINSTAB2D_MPI_PROCS>1 and/or LINSTAB2D_THREADS_PER_RANK>1."
+  echo "[case1] set LINSTABPY_MPI_PROCS>1 and/or LINSTABPY_THREADS_PER_RANK>1."
   exit 1
 fi
 
@@ -197,60 +197,60 @@ export MKL_NUM_THREADS="$THREADS_PER_RANK"
 export NUMEXPR_NUM_THREADS="$THREADS_PER_RANK"
 export VECLIB_MAXIMUM_THREADS="$THREADS_PER_RANK"
 export PYTHONPATH="$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
-LINSTAB2D_CASE1_CONFIG_BASE="${LINSTAB2D_CASE1_CONFIG:-configs/parity_config.jsonc}"
-export LINSTAB2D_CASE1_CONFIG="$LINSTAB2D_CASE1_CONFIG_BASE"
-export LINSTAB2D_CASE1_CASE_DIR="${LINSTAB2D_CASE1_CASE_DIR:-"data/baseflow"}"
+LINSTABPY_CASE1_CONFIG_BASE="${LINSTABPY_CASE1_CONFIG:-configs/parity_config.jsonc}"
+export LINSTABPY_CASE1_CONFIG="$LINSTABPY_CASE1_CONFIG_BASE"
+export LINSTABPY_CASE1_CASE_DIR="${LINSTABPY_CASE1_CASE_DIR:-"data/baseflow"}"
 # MATLAB export uses baseFlow.kappa=1.4 in case_inputs_used.mat.
-export LINSTAB2D_CASE1_KAPPA="${LINSTAB2D_CASE1_KAPPA:-1.4}"
+export LINSTABPY_CASE1_KAPPA="${LINSTABPY_CASE1_KAPPA:-1.4}"
 # MATLAB export path uses uppercase dMUdT/d2MUdT2 fields (stored as zeros).
-export LINSTAB2D_CASE1_ZERO_MU_T_DERIVS="${LINSTAB2D_CASE1_ZERO_MU_T_DERIVS:-1}"
-export LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX="${LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX:-1}"
-export LINSTAB2D_CASE1_CASE_INPUTS_MAT="${LINSTAB2D_CASE1_CASE_INPUTS_MAT:-reference/matlab/MATLAB_exports_resolvent/case_inputs_used.mat}"
+export LINSTABPY_CASE1_ZERO_MU_T_DERIVS="${LINSTABPY_CASE1_ZERO_MU_T_DERIVS:-1}"
+export LINSTABPY_CASE1_USE_MATLAB_SPONGE_AUX="${LINSTABPY_CASE1_USE_MATLAB_SPONGE_AUX:-1}"
+export LINSTABPY_CASE1_CASE_INPUTS_MAT="${LINSTABPY_CASE1_CASE_INPUTS_MAT:-reference/matlab/MATLAB_exports_resolvent/case_inputs_used.mat}"
 # Matrix conversion mode:
 #   auto         -> distributed when MPI_PROCS > 1
 #   distributed  -> force ownership-aware PETSc AIJ path
 #   local        -> force legacy local CSR->AIJ path
-if [[ -n "${LINSTAB2D_PETSC_MATRIX_MODE:-}" ]]; then
-  export LINSTAB2D_PETSC_MATRIX_MODE="${LINSTAB2D_PETSC_MATRIX_MODE}"
+if [[ -n "${LINSTABPY_PETSC_MATRIX_MODE:-}" ]]; then
+  export LINSTABPY_PETSC_MATRIX_MODE="${LINSTABPY_PETSC_MATRIX_MODE}"
 else
   if [[ "$IS_LINUX" -eq 1 ]]; then
-    export LINSTAB2D_PETSC_MATRIX_MODE="distributed"
+    export LINSTABPY_PETSC_MATRIX_MODE="distributed"
   else
-    export LINSTAB2D_PETSC_MATRIX_MODE="auto"
+    export LINSTABPY_PETSC_MATRIX_MODE="auto"
   fi
 fi
-EIGEN_ST_SOLVER="${LINSTAB2D_EIGEN_ST_SOLVER:-mumps}"
+EIGEN_ST_SOLVER="${LINSTABPY_EIGEN_ST_SOLVER:-mumps}"
 # Resolvent linear solve mode:
 #   mumps      -> robust direct baseline
 #   iterative  -> scalable PETSc Krylov route
-export LINSTAB2D_RESOLVENT_TYPE="${LINSTAB2D_RESOLVENT_TYPE:-mumps}"
-if [[ "${LINSTAB2D_RESOLVENT_TYPE}" == "iterative" || "${LINSTAB2D_RESOLVENT_TYPE}" == "krylov" || "${LINSTAB2D_RESOLVENT_TYPE}" == "petsc" ]]; then
-  export LINSTAB2D_RESOLVENT_KSP_TYPE="${LINSTAB2D_RESOLVENT_KSP_TYPE:-fgmres}"
-  export LINSTAB2D_RESOLVENT_PC_TYPE="${LINSTAB2D_RESOLVENT_PC_TYPE:-asm}"
-  export LINSTAB2D_RESOLVENT_KSP_RTOL="${LINSTAB2D_RESOLVENT_KSP_RTOL:-1e-10}"
-  export LINSTAB2D_RESOLVENT_KSP_ATOL="${LINSTAB2D_RESOLVENT_KSP_ATOL:-1e-14}"
-  export LINSTAB2D_RESOLVENT_KSP_MAX_IT="${LINSTAB2D_RESOLVENT_KSP_MAX_IT:-20000}"
-  export LINSTAB2D_RESOLVENT_SUB_KSP_TYPE="${LINSTAB2D_RESOLVENT_SUB_KSP_TYPE:-preonly}"
-  export LINSTAB2D_RESOLVENT_SUB_PC_TYPE="${LINSTAB2D_RESOLVENT_SUB_PC_TYPE:-lu}"
+export LINSTABPY_RESOLVENT_TYPE="${LINSTABPY_RESOLVENT_TYPE:-mumps}"
+if [[ "${LINSTABPY_RESOLVENT_TYPE}" == "iterative" || "${LINSTABPY_RESOLVENT_TYPE}" == "krylov" || "${LINSTABPY_RESOLVENT_TYPE}" == "petsc" ]]; then
+  export LINSTABPY_RESOLVENT_KSP_TYPE="${LINSTABPY_RESOLVENT_KSP_TYPE:-fgmres}"
+  export LINSTABPY_RESOLVENT_PC_TYPE="${LINSTABPY_RESOLVENT_PC_TYPE:-asm}"
+  export LINSTABPY_RESOLVENT_KSP_RTOL="${LINSTABPY_RESOLVENT_KSP_RTOL:-1e-10}"
+  export LINSTABPY_RESOLVENT_KSP_ATOL="${LINSTABPY_RESOLVENT_KSP_ATOL:-1e-14}"
+  export LINSTABPY_RESOLVENT_KSP_MAX_IT="${LINSTABPY_RESOLVENT_KSP_MAX_IT:-20000}"
+  export LINSTABPY_RESOLVENT_SUB_KSP_TYPE="${LINSTABPY_RESOLVENT_SUB_KSP_TYPE:-preonly}"
+  export LINSTABPY_RESOLVENT_SUB_PC_TYPE="${LINSTABPY_RESOLVENT_SUB_PC_TYPE:-lu}"
 fi
 # Root-owned SciPy->PETSc transfer mode for MPI iterative eigensolve.
 # When MPI>1, default to assembling the SciPy operator only on rank 0 and
 # scattering row-block CSR payloads to owning ranks inside PETSc conversion.
 if [[ "$MPI_PROCS" -gt 1 ]]; then
   if [[ "$EIGEN_ST_SOLVER" == "slepc" || "$EIGEN_ST_SOLVER" == "iterative" || "$EIGEN_ST_SOLVER" == "krylov" ]]; then
-    export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-1}"
-    export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-1}"
+    export LINSTABPY_CASE1_ROOT_ASSEMBLY="${LINSTABPY_CASE1_ROOT_ASSEMBLY:-1}"
+    export LINSTABPY_PETSC_ROOT_SCATTER="${LINSTABPY_PETSC_ROOT_SCATTER:-1}"
   else
-    export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-0}"
-    export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-0}"
+    export LINSTABPY_CASE1_ROOT_ASSEMBLY="${LINSTABPY_CASE1_ROOT_ASSEMBLY:-0}"
+    export LINSTABPY_PETSC_ROOT_SCATTER="${LINSTABPY_PETSC_ROOT_SCATTER:-0}"
   fi
 else
-  export LINSTAB2D_CASE1_ROOT_ASSEMBLY="${LINSTAB2D_CASE1_ROOT_ASSEMBLY:-0}"
-  export LINSTAB2D_PETSC_ROOT_SCATTER="${LINSTAB2D_PETSC_ROOT_SCATTER:-0}"
+  export LINSTABPY_CASE1_ROOT_ASSEMBLY="${LINSTABPY_CASE1_ROOT_ASSEMBLY:-0}"
+  export LINSTABPY_PETSC_ROOT_SCATTER="${LINSTABPY_PETSC_ROOT_SCATTER:-0}"
 fi
 # Keep MATLAB convention by default: omega = eig(i*L0). Set to 1 only for
 # diagnostics on the raw operator eig(L0).
-export LINSTAB2D_CASE1_USE_RAW_EIGS="${LINSTAB2D_CASE1_USE_RAW_EIGS:-0}"
+export LINSTABPY_CASE1_USE_RAW_EIGS="${LINSTABPY_CASE1_USE_RAW_EIGS:-0}"
 
 echo "[case1] using logical cores: $CORES"
 echo "[case1] host: ${HOST_NAME}"
@@ -270,28 +270,28 @@ else
 fi
 echo "[case1] using MPI processes: $MPI_PROCS"
 echo "[case1] using threaded cores per rank (OMP/BLAS): $THREADS_PER_RANK"
-echo "[case1] case dir: ${LINSTAB2D_CASE1_CASE_DIR}"
-echo "[case1] config: ${LINSTAB2D_CASE1_CONFIG}"
-echo "[case1] kappa: ${LINSTAB2D_CASE1_KAPPA}"
-echo "[case1] zero_mu_t_derivs: ${LINSTAB2D_CASE1_ZERO_MU_T_DERIVS}"
-echo "[case1] use_matlab_sponge_aux: ${LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX}"
-echo "[case1] case_inputs_mat: ${LINSTAB2D_CASE1_CASE_INPUTS_MAT}"
-echo "[case1] resolvent_linear_solver: ${LINSTAB2D_RESOLVENT_TYPE}"
-echo "[case1] petsc_matrix_mode: ${LINSTAB2D_PETSC_MATRIX_MODE}"
-echo "[case1] root_assembly_mode: ${LINSTAB2D_CASE1_ROOT_ASSEMBLY}"
-echo "[case1] petsc_root_scatter: ${LINSTAB2D_PETSC_ROOT_SCATTER}"
+echo "[case1] case dir: ${LINSTABPY_CASE1_CASE_DIR}"
+echo "[case1] config: ${LINSTABPY_CASE1_CONFIG}"
+echo "[case1] kappa: ${LINSTABPY_CASE1_KAPPA}"
+echo "[case1] zero_mu_t_derivs: ${LINSTABPY_CASE1_ZERO_MU_T_DERIVS}"
+echo "[case1] use_matlab_sponge_aux: ${LINSTABPY_CASE1_USE_MATLAB_SPONGE_AUX}"
+echo "[case1] case_inputs_mat: ${LINSTABPY_CASE1_CASE_INPUTS_MAT}"
+echo "[case1] resolvent_linear_solver: ${LINSTABPY_RESOLVENT_TYPE}"
+echo "[case1] petsc_matrix_mode: ${LINSTABPY_PETSC_MATRIX_MODE}"
+echo "[case1] root_assembly_mode: ${LINSTABPY_CASE1_ROOT_ASSEMBLY}"
+echo "[case1] petsc_root_scatter: ${LINSTABPY_PETSC_ROOT_SCATTER}"
 
 # -------------------------------------------------------------------
 # 3) Two-pass run plan and reference mapping
 # -------------------------------------------------------------------
-RUN_PLAN="${LINSTAB2D_CASE1_RUN_PLAN:-both}"
-STABILITY_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_STABILITY_DIR:-reference/matlab/MATLAB_exports}"
-RESOLVENT_MATLAB_DIR="${LINSTAB2D_CASE1_MATLAB_RESOLVENT_DIR:-reference/matlab/MATLAB_exports_resolvent}"
+RUN_PLAN="${LINSTABPY_CASE1_RUN_PLAN:-both}"
+STABILITY_MATLAB_DIR="${LINSTABPY_CASE1_MATLAB_STABILITY_DIR:-reference/matlab/MATLAB_exports}"
+RESOLVENT_MATLAB_DIR="${LINSTABPY_CASE1_MATLAB_RESOLVENT_DIR:-reference/matlab/MATLAB_exports_resolvent}"
 STABILITY_SPECTRUM_REF="${STABILITY_MATLAB_DIR}/spectrum.mat"
 STABILITY_MODE7_REF="${STABILITY_MATLAB_DIR}/eigenvector_7.mat"
 RESOLVENT_SVD_REF="${RESOLVENT_MATLAB_DIR}/res_svd_final.mat"
 
-echo "[case1] base config: ${LINSTAB2D_CASE1_CONFIG_BASE}"
+echo "[case1] base config: ${LINSTABPY_CASE1_CONFIG_BASE}"
 echo "[case1] run plan: ${RUN_PLAN}"
 echo "[case1] stability reference: ${STABILITY_SPECTRUM_REF}"
 echo "[case1] stability mode reference: ${STABILITY_MODE7_REF}"
@@ -308,7 +308,7 @@ mkdir -p output/parity output/runs output/figures output/tmp
 
 if [[ "$MPI_PROCS" -gt 1 && -z "$MPI_LAUNCHER" ]]; then
   echo "[case1] requested MPI_PROCS=${MPI_PROCS}, but no mpiexec/mpirun found."
-  echo "[case1] install MPI launcher (OpenMPI/Intel MPI) or set LINSTAB2D_MPI_PROCS=1."
+  echo "[case1] install MPI launcher (OpenMPI/Intel MPI) or set LINSTABPY_MPI_PROCS=1."
   exit 1
 fi
 
@@ -346,7 +346,7 @@ prepare_run_config() {
   local use_sponge_aux="$4"
   local out_cfg="output/tmp/case1_${pass_name}_config.json"
 
-  "$PYTHON_BIN" - "$LINSTAB2D_CASE1_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
+  "$PYTHON_BIN" - "$LINSTABPY_CASE1_CONFIG_BASE" "$out_cfg" "$run_stability" "$run_resolvent" "$use_sponge_aux" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -420,10 +420,10 @@ run_solver_pass() {
   clean_generated_outputs
 
   pass_cfg_path="$(prepare_run_config "$pass_name" "$pass_run_stability" "$pass_run_resolvent" "$pass_use_sponge_aux")"
-  export LINSTAB2D_CASE1_CONFIG="$pass_cfg_path"
-  export LINSTAB2D_CASE1_RUN_STABILITY="$pass_run_stability"
-  export LINSTAB2D_CASE1_RUN_RESOLVENT="$pass_run_resolvent"
-  export LINSTAB2D_CASE1_USE_MATLAB_SPONGE_AUX="$pass_use_sponge_aux"
+  export LINSTABPY_CASE1_CONFIG="$pass_cfg_path"
+  export LINSTABPY_CASE1_RUN_STABILITY="$pass_run_stability"
+  export LINSTABPY_CASE1_RUN_RESOLVENT="$pass_run_resolvent"
+  export LINSTABPY_CASE1_USE_MATLAB_SPONGE_AUX="$pass_use_sponge_aux"
 
   echo "[case1] pass config: ${pass_cfg_path}"
   echo "[case1] launching solver (heartbeat every ${HEARTBEAT_SEC}s)"
@@ -441,7 +441,7 @@ run_solver_pass() {
     solver_cmd+=("${PETSC_VERBOSE_OPTS[@]}")
   fi
   if [[ "$EIGEN_ST_SOLVER" == "slepc" || "$EIGEN_ST_SOLVER" == "iterative" || "$EIGEN_ST_SOLVER" == "krylov" ]]; then
-    ST_OPTS_STRING="${LINSTAB2D_SLEPC_ST_OPTS:--st_ksp_type gmres -st_pc_type asm -st_pc_asm_overlap 2 -st_sub_ksp_type preonly -st_sub_pc_type lu -st_ksp_rtol 1e-8 -st_ksp_max_it 20000 -st_ksp_error_if_not_converged}"
+    ST_OPTS_STRING="${LINSTABPY_SLEPC_ST_OPTS:--st_ksp_type gmres -st_pc_type asm -st_pc_asm_overlap 2 -st_sub_ksp_type preonly -st_sub_pc_type lu -st_ksp_rtol 1e-8 -st_ksp_max_it 20000 -st_ksp_error_if_not_converged}"
     IFS=' ' read -r -a ST_OPTS <<< "$ST_OPTS_STRING"
     if [[ "${#ST_OPTS[@]}" -gt 0 ]]; then
       solver_cmd+=("${ST_OPTS[@]}")
@@ -637,7 +637,7 @@ case "$RUN_PLAN" in
     RESOLVENT_ELAPSED="$LAST_PASS_ELAPSED"
     ;;
   *)
-    echo "[case1] invalid LINSTAB2D_CASE1_RUN_PLAN=${RUN_PLAN} (expected: both|stability|resolvent)"
+    echo "[case1] invalid LINSTABPY_CASE1_RUN_PLAN=${RUN_PLAN} (expected: both|stability|resolvent)"
     exit 1
     ;;
 esac

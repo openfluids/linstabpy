@@ -93,13 +93,13 @@ system tools are missing, it prints the commands and stops. On a normal
 workstation, opt in to package-manager installation explicitly:
 
 ```bash
-LINSTAB2D_AUTO_INSTALL_SYS_DEPS=1 bash install.sh
+LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh
 ```
 
 On a provisioned workstation or cluster node, skip the system dependency check:
 
 ```bash
-LINSTAB2D_SKIP_SYS_DEPS=1 bash install.sh
+LINSTABPY_SKIP_SYS_DEPS=1 bash install.sh
 ```
 
 ### 2.3 macOS
@@ -160,7 +160,7 @@ Intel MPI / oneAPI workflow:
 
 ```bash
 source /opt/intel/oneapi/setvars.sh --force
-export LINSTAB2D_MPI_STACK=intelmpi
+export LINSTABPY_MPI_STACK=intelmpi
 export I_MPI_CC=gcc
 export I_MPI_CXX=g++
 export I_MPI_F90=gfortran
@@ -180,13 +180,13 @@ bindings.
 
 | Variable | Default | Use |
 |---|---:|---|
-| `LINSTAB2D_WITH_H5PY` | `0` | Set to `1` to install `h5py` for MATLAB v7.3 / HDF5 parity tooling. Leave unset for the normal solver install. |
-| `LINSTAB2D_MPI_STACK` | auto | Set to `intelmpi` when an Intel MPI environment is already loaded and should be used. Otherwise the scripts infer the active stack. |
-| `LINSTAB2D_AUTO_INSTALL_SYS_DEPS` | `0` | Set to `1` to allow `install.sh` to call the system package manager for missing Linux dependencies. |
-| `LINSTAB2D_PETSC_MPIEXEC` | auto | Path to the `mpiexec` PETSc/SLEPc configure should use. Set this when the default launcher hangs or is not the runtime launcher you want. |
-| `LINSTAB2D_MPI4PY_NO_BINARY` | `0` | Set to `1` to force `mpi4py` to build from source against the active MPI stack. |
-| `LINSTAB2D_VERIFY_MPIEXEC` | auto | Path to the `mpiexec` used by `install.sh --check` for MPI import/probe checks. |
-| `LINSTAB2D_SKIP_SYS_DEPS` | `0` | Set to `1` to skip Linux system dependency detection and package-manager advice. |
+| `LINSTABPY_WITH_H5PY` | `0` | Set to `1` to install `h5py` for MATLAB v7.3 / HDF5 parity tooling. Leave unset for the normal solver install. |
+| `LINSTABPY_MPI_STACK` | auto | Set to `intelmpi` when an Intel MPI environment is already loaded and should be used. Otherwise the scripts infer the active stack. |
+| `LINSTABPY_AUTO_INSTALL_SYS_DEPS` | `0` | Set to `1` to allow `install.sh` to call the system package manager for missing Linux dependencies. |
+| `LINSTABPY_PETSC_MPIEXEC` | auto | Path to the `mpiexec` PETSc/SLEPc configure should use. Set this when the default launcher hangs or is not the runtime launcher you want. |
+| `LINSTABPY_MPI4PY_NO_BINARY` | `0` | Set to `1` to force `mpi4py` to build from source against the active MPI stack. |
+| `LINSTABPY_VERIFY_MPIEXEC` | auto | Path to the `mpiexec` used by `install.sh --check` for MPI import/probe checks. |
+| `LINSTABPY_SKIP_SYS_DEPS` | `0` | Set to `1` to skip Linux system dependency detection and package-manager advice. |
 
 ### 2.6 Known-good reference stacks
 
@@ -964,14 +964,14 @@ Environment overrides:
 
 | Variable | Default | Use |
 |---|---:|---|
-| `LINSTAB2D_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `examples/case_studies/case1_song/` unless absolute. |
-| `LINSTAB2D_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
-| `LINSTAB2D_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
-| `LINSTAB2D_CASE1_N_MODES` | `100` | Number of stability modes requested. |
-| `LINSTAB2D_CASE1_N_MODES_RESOLVENT` | `10` | Number of resolvent modes requested. |
-| `LINSTAB2D_CASE1_STRIDE_KSI` | `1` | Mesh stride in the first computational coordinate. |
-| `LINSTAB2D_CASE1_STRIDE_ETA` | `1` | Mesh stride in the second computational coordinate. |
-| `LINSTAB2D_CASE1_BC_PENALTY` | `1e8` | Boundary-condition penalty used by the case driver. |
+| `LINSTABPY_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `examples/case_studies/case1_song/` unless absolute. |
+| `LINSTABPY_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
+| `LINSTABPY_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
+| `LINSTABPY_CASE1_N_MODES` | `100` | Number of stability modes requested. |
+| `LINSTABPY_CASE1_N_MODES_RESOLVENT` | `10` | Number of resolvent modes requested. |
+| `LINSTABPY_CASE1_STRIDE_KSI` | `1` | Mesh stride in the first computational coordinate. |
+| `LINSTABPY_CASE1_STRIDE_ETA` | `1` | Mesh stride in the second computational coordinate. |
+| `LINSTABPY_CASE1_BC_PENALTY` | `1e8` | Boundary-condition penalty used by the case driver. |
 
 Spectrum comparison from the repository root:
 
@@ -1074,7 +1074,7 @@ If `mpi4py` imports fail after switching MPI stacks:
 ```bash
 rm -rf .venv
 uv cache clean
-LINSTAB2D_MPI4PY_NO_BINARY=1 bash install.sh
+LINSTABPY_MPI4PY_NO_BINARY=1 bash install.sh
 ```
 
 ### PETSc configure hang
@@ -1082,13 +1082,13 @@ LINSTAB2D_MPI4PY_NO_BINARY=1 bash install.sh
 If PETSc configure hangs or fails on the wrong launcher:
 
 ```bash
-LINSTAB2D_PETSC_MPIEXEC=/path/to/working/mpiexec bash install.sh
+LINSTABPY_PETSC_MPIEXEC=/path/to/working/mpiexec bash install.sh
 ```
 
 Use the same launcher for verification when needed:
 
 ```bash
-LINSTAB2D_VERIFY_MPIEXEC=/path/to/working/mpiexec bash install.sh --check
+LINSTABPY_VERIFY_MPIEXEC=/path/to/working/mpiexec bash install.sh --check
 ```
 
 ### Intel MPI
@@ -1099,7 +1099,7 @@ Python bindings.
 
 ```bash
 source /opt/intel/oneapi/setvars.sh --force
-export LINSTAB2D_MPI_STACK=intelmpi
+export LINSTABPY_MPI_STACK=intelmpi
 bash diagnose.sh
 bash install.sh
 ```

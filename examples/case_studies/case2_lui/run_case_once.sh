@@ -6,13 +6,13 @@ if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
 usage: run_case_once.sh <config-jsonc> <output-npz> [case-module]
 
 Examples:
-  LINSTAB2D_MPI_PROCS=1 \
+  LINSTABPY_MPI_PROCS=1 \
   examples/case_studies/case2_lui/run_case_once.sh \
     examples/case_studies/case2_lui/configs/parity_config.jsonc \
     examples/case_studies/case2_lui/output/runs/case2_smoke.npz
 
-  LINSTAB2D_MPI_PROCS=4 \
-  LINSTAB2D_MPI_PRESET=none \
+  LINSTABPY_MPI_PROCS=4 \
+  LINSTABPY_MPI_PRESET=none \
   examples/case_studies/case2_lui/run_case_once.sh \
     examples/case_studies/case2_lui/configs/parity_config.jsonc \
     examples/case_studies/case2_lui/output/runs/case2_socket_single.npz
@@ -22,9 +22,9 @@ Examples:
     examples/case_studies/case2_lui/configs/parity_config.jsonc \
     examples/case_studies/case2_lui/output/runs/case2_manual.npz
 
-  LINSTAB2D_MPI_PROCS=10 \
-  LINSTAB2D_MPI_PRESET=socket0 \
-  LINSTAB2D_STAGE_HEARTBEAT_SECONDS=30 \
+  LINSTABPY_MPI_PROCS=10 \
+  LINSTABPY_MPI_PRESET=socket0 \
+  LINSTABPY_STAGE_HEARTBEAT_SECONDS=30 \
   examples/case_studies/case2_lui/run_case_once.sh \
     examples/case_studies/case2_lui/configs/parity_config.jsonc \
     examples/case_studies/case2_lui/output/runs/case2_manual.npz
@@ -46,9 +46,9 @@ if [ ! -f "$CONFIG_JSONC" ]; then
   exit 2
 fi
 
-MPI_PROCS="${LINSTAB2D_MPI_PROCS:-1}"
-MPI_PRESET="${LINSTAB2D_MPI_PRESET:-none}"
-HEARTBEAT_SECONDS="${LINSTAB2D_STAGE_HEARTBEAT_SECONDS:-30}"
+MPI_PROCS="${LINSTABPY_MPI_PROCS:-1}"
+MPI_PRESET="${LINSTABPY_MPI_PRESET:-none}"
+HEARTBEAT_SECONDS="${LINSTABPY_STAGE_HEARTBEAT_SECONDS:-30}"
 
 mkdir -p "$(dirname "$OUTPUT_NPZ")"
 
@@ -57,12 +57,12 @@ export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 
-export LINSTAB2D_CASE_MODULE="$CASE_MODULE"
-export LINSTAB2D_CASE2_CONFIG="$CONFIG_JSONC"
-export LINSTAB2D_CASE_CONFIG="$CONFIG_JSONC"
-export LINSTAB2D_CASE2_OUTPUT_NPZ="$OUTPUT_NPZ"
-export LINSTAB2D_CASE_OUTPUT_NPZ="$OUTPUT_NPZ"
-export LINSTAB2D_STAGE_HEARTBEAT_SECONDS="$HEARTBEAT_SECONDS"
+export LINSTABPY_CASE_MODULE="$CASE_MODULE"
+export LINSTABPY_CASE2_CONFIG="$CONFIG_JSONC"
+export LINSTABPY_CASE_CONFIG="$CONFIG_JSONC"
+export LINSTABPY_CASE2_OUTPUT_NPZ="$OUTPUT_NPZ"
+export LINSTABPY_CASE_OUTPUT_NPZ="$OUTPUT_NPZ"
+export LINSTABPY_STAGE_HEARTBEAT_SECONDS="$HEARTBEAT_SECONDS"
 
 echo "[case2-run] config=$CONFIG_JSONC"
 echo "[case2-run] output=$OUTPUT_NPZ"
@@ -91,14 +91,14 @@ case "$MPI_PRESET" in
     launcher=(mpiexec)
     ;;
   custom)
-    if [ -z "${LINSTAB2D_MPI_LAUNCHER:-}" ]; then
-      echo "set LINSTAB2D_MPI_LAUNCHER when LINSTAB2D_MPI_PRESET=custom" >&2
+    if [ -z "${LINSTABPY_MPI_LAUNCHER:-}" ]; then
+      echo "set LINSTABPY_MPI_LAUNCHER when LINSTABPY_MPI_PRESET=custom" >&2
       exit 2
     fi
-    read -r -a launcher <<< "${LINSTAB2D_MPI_LAUNCHER}"
+    read -r -a launcher <<< "${LINSTABPY_MPI_LAUNCHER}"
     ;;
   *)
-    echo "unknown LINSTAB2D_MPI_PRESET: $MPI_PRESET" >&2
+    echo "unknown LINSTABPY_MPI_PRESET: $MPI_PRESET" >&2
     echo "valid values: socket0, socket1, socket01, none, custom" >&2
     exit 2
     ;;
