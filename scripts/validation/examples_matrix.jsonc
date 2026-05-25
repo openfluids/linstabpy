@@ -104,7 +104,7 @@
     // JSONC-only Krylov option that converged reliably on the reduced
     // Example 3 and Example 4 tuning runs.  Lighter PCs (none, jacobi, ilu,
     // asm, bjacobi, current fieldsplit attempts) remain in
-    // validation/krylov_evp_tuning.jsonc as unresolved experiments.
+    // scripts/validation/krylov_evp_tuning.jsonc as unresolved experiments.
     "scipy_assembly__krylov_lu_pc": {
       "assembly_backend": "scipy",
       "solver": {

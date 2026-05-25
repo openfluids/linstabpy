@@ -7,7 +7,7 @@ documentation.
 
 ## Related paths in this repo
 
-- [`install_tester/README.md`](../install_tester/README.md) — how to run diagnose, install, benchmark
+- [`scripts/ci/README.md`](../scripts/ci/README.md) — how to run diagnose, install, benchmark
 - [`PROGRESS.md`](../PROGRESS.md) — workflow steps and checklist
 - [`installations_problems.md`](../installations_problems.md) — known install issues and workarounds maintained in-repo
 
@@ -31,7 +31,7 @@ If the PETSc line completes in **seconds** after you changed system MPI, you may
 
 On some systems, `mpiexec` for one vendor **hangs** or times out on `mpiexec -n 1 /bin/true` while another launcher works (this showed up with older Open MPI on one host while MPICH was fine).
 
-The `install_tester/diagnose.sh` script uses short timeouts and force-kill so a broken stack does not wedge an interactive shell. Prefer the launcher that passes the probe when setting `LINSTAB2D_PETSC_MPIEXEC` / `LINSTAB2D_VERIFY_MPIEXEC` if the installer doc suggests it.
+The `scripts/ci/diagnose.sh` script uses short timeouts and force-kill so a broken stack does not wedge an interactive shell. Prefer the launcher that passes the probe when setting `LINSTAB2D_PETSC_MPIEXEC` / `LINSTAB2D_VERIFY_MPIEXEC` if the installer doc suggests it.
 
 ## GNU toolchain vs Intel MPI on `PATH`
 
@@ -49,7 +49,7 @@ copied `src/` and `examples/` bundle. The harness defaults to the parent
 directory as the checkout root; set `LINSTAB2D_REPO_ROOT=/path/to/linstabpy`
 when the harness is copied elsewhere.
 
-This keeps `src/linstab2d/` as the only importable library source tree. The
+This keeps `src/linstabpy/` as the only importable library source tree. The
 repository-root `install.sh` still performs the editable install from the real
 checkout.
 
@@ -74,7 +74,7 @@ After checks under `mpiexec -n 1`, lines such as `write_line error` / `Bad file 
 
 ## Benchmarks: what is being measured
 
-The `install_tester/benchmark.sh` wrapper delegates to the repository-root
+The `scripts/ci/benchmark.sh` wrapper delegates to the repository-root
 `benchmark.sh` harness:
 
 - **Example 0** (curvilinear validation): mostly **NumPy**; it is run **single-process**. MPI rank sweeps do not accelerate that path.
@@ -100,7 +100,7 @@ Always treat machine-specific numbers as **samples**; compare using your own `be
 
 ## Artifact locations
 
-- Install logs and snapshots: `install_tester/install_runs/<run_id>/` (`install_tester.log`, `machine_versions.txt`)
+- Install logs and snapshots: `scripts/ci/install_runs/<run_id>/` (`install_tester.log`, `machine_versions.txt`)
 - Benchmark outputs: `benchmark_runs/<bench_id>/` at the repository root (`benchmark_results.json`, per-case `.log` and `/usr/bin/time -v` files where available)
 
 ## Multi-machine workflow (higher level)

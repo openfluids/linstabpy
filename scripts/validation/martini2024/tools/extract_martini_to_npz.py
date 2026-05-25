@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstab2d.utils.jsonc import load_jsonc
-from validation.martini2024.tools.matlab_hdf5 import extract_file
+from linstabpy.utils.jsonc import load_jsonc
+from scripts.validation.martini2024.tools.matlab_hdf5 import extract_file
 
 DEFAULT_INPUT_DIR = ROOT / "martini_examples"
 DEFAULT_OUTPUT_DIR = ROOT / "validation" / "martini2024" / "fixtures"

@@ -19,9 +19,9 @@ echo "[install_tester] run_id=${RUN_ID}"
 echo "[install_tester] logs_dir=${LINSTAB2D_INSTALL_LOG_DIR}/${RUN_ID}"
 echo "[install_tester] repo_root=${REPO_ROOT}"
 
-if [ ! -f "${REPO_ROOT}/pyproject.toml" ] || [ ! -d "${REPO_ROOT}/src/linstab2d" ] || [ ! -d "${REPO_ROOT}/examples" ]; then
+if [ ! -f "${REPO_ROOT}/pyproject.toml" ] || [ ! -d "${REPO_ROOT}/src/linstabpy" ] || [ ! -d "${REPO_ROOT}/examples" ]; then
     echo "[install_tester] ERROR: repository checkout incomplete at ${REPO_ROOT}"
-    echo "[install_tester] Required: pyproject.toml + src/linstab2d/ + examples/"
+    echo "[install_tester] Required: pyproject.toml + src/linstabpy/ + examples/"
     echo "[install_tester] Export LINSTAB2D_REPO_ROOT=/path/to/linstabpy if the harness was copied elsewhere."
     exit 1
 fi

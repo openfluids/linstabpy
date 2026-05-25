@@ -363,7 +363,7 @@ def main() -> int:
     parser.add_argument("--max-case-runtime-seconds", type=float, default=None)
     parser.add_argument("--max-rss-bytes-per-mnnz", type=float, default=None)
     parser.add_argument("--max-rss-growth-bytes", type=float, default=None)
-    parser.add_argument("--output", type=Path, default=Path("validation/martini2024/output/operator_perf_memory.json"))
+    parser.add_argument("--output", type=Path, default=Path("scripts/validation/martini2024/output/operator_perf_memory.json"))
     parser.add_argument(
         "--allow-failures",
         action="store_true",
@@ -377,18 +377,18 @@ def main() -> int:
         from petsc4py import PETSc  # type: ignore
         from slepc4py import SLEPc  # type: ignore
 
-        from linstab2d.baseflow import BaseFlow, sutherland_air
-        from linstab2d.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
-        from linstab2d.mesh import Mesh
-        from linstab2d.operators import build_lnse_operator, build_spatial_operator, compute_chu_norm
-        from linstab2d.solvers import resolvent_analysis, spatial_eigenvalues, temporal_eigenvalues
-        from linstab2d.solvers.linsolve import make_linear_solver
+        from linstabpy.baseflow import BaseFlow, sutherland_air
+        from linstabpy.boundary_conditions import apply_dirichlet, apply_dirichlet_spatial
+        from linstabpy.mesh import Mesh
+        from linstabpy.operators import build_lnse_operator, build_spatial_operator, compute_chu_norm
+        from linstabpy.solvers import resolvent_analysis, spatial_eigenvalues, temporal_eigenvalues
+        from linstabpy.solvers.linsolve import make_linear_solver
     except Exception as exc:  # pragma: no cover - environment dependent
         report = {
             "generated_at_utc": _now_utc(),
             "status": "blocked",
             "error": str(exc),
-            "message": "PETSc/SLEPc or linstab2d imports unavailable",
+            "message": "PETSc/SLEPc or linstabpy imports unavailable",
         }
         _write_json(args.output, report)
         print(report["message"], report["error"])

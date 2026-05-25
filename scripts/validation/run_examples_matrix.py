@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 
-from linstab2d.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_jsonc
 
 
 SCRIPT = Path(__file__).resolve()

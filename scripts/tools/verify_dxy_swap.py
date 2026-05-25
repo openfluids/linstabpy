@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import numpy as np
 
-from linstab2d.mesh.mesh import Mesh, _transform_second_block
+from linstabpy.mesh.mesh import Mesh, _transform_second_block
 
 
 def _transform_second_derivatives_matlab_swap(

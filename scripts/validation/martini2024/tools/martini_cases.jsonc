@@ -1,7 +1,7 @@
 {
   // Martini MATLAB/Python parity registry.
   // Paths are repo-relative. The extractor writes one NPZ per MATLAB .mat stem
-  // into validation/martini2024/fixtures/, and the comparator consumes those
+  // into scripts/validation/martini2024/fixtures/, and the comparator consumes those
   // bundles together with the Python example outputs listed here.
   "schema_version": "martini_cases_v1",
   "cases": [
