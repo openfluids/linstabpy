@@ -14,12 +14,11 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
-from ..utils.petsc_init import init_petsc_from_argv
-
-init_petsc_from_argv()
-from petsc4py import PETSc
-
-from ..utils.petsc_core import require_complex
+# PETSc/SLEPc are only used inside ``_build_filter_solver`` (the MUMPS LU on
+# the implicit 10th-order filter matrix). The init + import are deferred to
+# that function so ``import linstabpy.mesh.filters`` is pure-numpy at module
+# load — keeps the lazy contract from ``src/linstabpy/__init__.py`` honest
+# for pure-math test jobs that build ``Mesh`` instances without PETSc.
 
 
 @dataclass(frozen=True)
@@ -380,6 +379,16 @@ def _make_filter_ksp(
     solve_transpose : callable
         Transpose solve ``M^T x = rhs``, handles 2D arrays column-wise.
     """
+    # Lazy PETSc init: keep ``import linstabpy.mesh.filters`` pure-numpy at
+    # module load. PETSc is only needed when a filter solver is actually
+    # constructed (e.g. inside Mesh.create with filters enabled).
+    from ..utils.petsc_init import init_petsc_from_argv
+
+    init_petsc_from_argv()
+    from petsc4py import PETSc
+
+    from ..utils.petsc_core import require_complex
+
     require_complex()
     # Filter application currently works on gathered full-state vectors
     # inside Python callbacks (e.g. resolvent MatShell multiplies). The
