@@ -24,9 +24,10 @@ _petsc_configured = False
 
 
 # Lazy PETSc accessor: ``import linstabpy.utils.petsc_core`` stays PETSc-free.
-# Functions inside this module use ``PETSc.X`` at call time; the first such
-# reference triggers ``__getattr__`` which initializes PETSc once and caches
-# the bound name in module globals so subsequent lookups are O(1).
+# External callers get ``PETSc`` via PEP 562 ``__getattr__`` below. Internal
+# functions in this module must bind ``PETSc`` locally via ``_get_petsc()``:
+# PEP 562 module ``__getattr__`` only fires for external attribute access, not
+# for ``LOAD_GLOBAL`` lookups inside the same module's function bodies.
 def __getattr__(name):
     if name == "PETSc":
         from .petsc_init import init_petsc_from_argv
@@ -37,6 +38,16 @@ def __getattr__(name):
         globals()["PETSc"] = _imp_PETSc
         return _imp_PETSc
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _get_petsc():
+    """Return PETSc, triggering PEP 562 lazy init on first call.
+
+    Required because bare ``PETSc`` references inside this module's own
+    function bodies do NOT fire ``__getattr__`` (PEP 562 limitation). Each
+    function that touches PETSc must start with ``PETSc = _get_petsc()``.
+    """
+    return globals().get("PETSc") or __getattr__("PETSc")
 
 
 def _is_petsc_matrix(operator) -> bool:
@@ -83,11 +94,13 @@ def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
     if mode in {"local", "serial"}:
         return False
     # auto
+    PETSc = _get_petsc()
     return PETSc.COMM_WORLD.getSize() > 1
 
 
 def require_complex(solver_cfg: dict | None = None) -> None:
     """Assert PETSc was built with complex scalar type and set defaults."""
+    PETSc = _get_petsc()
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
         raise RuntimeError(
             "PETSc must be built with --with-scalar-type=complex for stability analysis. "
@@ -110,6 +123,7 @@ def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Ma
     - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ
     - ``auto`` (default): distributed when MPI size > 1, else local
     """
+    PETSc = _get_petsc()
     if _use_distributed_matrix(solver_cfg):
         return scipy_to_petsc_distributed(mat, comm=PETSc.COMM_WORLD)
 
@@ -131,6 +145,7 @@ def compact_petsc_matrix(mat: PETSc.Mat, solver_cfg: dict | None = None) -> PETS
     duplicate allocation patterns that do not affect the algebraic operator but
     can perturb downstream direct factorization.
     """
+    PETSc = _get_petsc()
     csr = petsc_to_scipy(mat, format="csr")
     compact = scipy_to_petsc(csr, solver_cfg)
 
@@ -181,6 +196,7 @@ def create_distributed_aij(
     block. Per-row arrays are automatically clipped to the local block
     widths so that PETSc's preallocation check does not reject them.
     """
+    PETSc = _get_petsc()
     if len(shape) != 2:
         raise ValueError(f"shape must be 2D, got {shape}")
     nrows, ncols = int(shape[0]), int(shape[1])
@@ -286,6 +302,7 @@ def insert_local_csr_rows(
     This function only inserts values; caller must assemble with
     ``assemble_matrix`` after all insertions.
     """
+    PETSc = _get_petsc()
     csr = sp.csr_matrix(local_rows, dtype=complex)
     if csr.shape[1] != matrix.getSize()[1]:
         raise ValueError(
@@ -364,6 +381,7 @@ def scipy_to_petsc_distributed_from_root(
     This helper avoids requiring a full SciPy matrix on every rank and is
     intended for MPI shift-invert paths where root-owned assembly is preferred.
     """
+    PETSc = _get_petsc()
     petsc_comm = comm or PETSc.COMM_WORLD
     mpi_comm = petsc_comm.tompi4py()
     rank = int(mpi_comm.Get_rank())
@@ -670,6 +688,7 @@ def petsc_matvec_residual(
 
 def petsc_vec(arr: np.ndarray) -> PETSc.Vec:
     """Convert a 1-D numpy array to a PETSc Vec."""
+    PETSc = _get_petsc()
     v = PETSc.Vec().createWithArray(np.ascontiguousarray(arr, dtype=complex))
     return v
 
@@ -682,6 +701,7 @@ def vec_to_numpy(v: PETSc.Vec) -> np.ndarray:
     For distributed vectors, gathers local slices from all ranks in
     ownership order and returns a global 1-D array.
     """
+    PETSc = _get_petsc()
     local = np.array(v.array_r, copy=True)
     comm = v.getComm()
     if comm.getSize() == 1:
@@ -704,6 +724,7 @@ def numpy_columns_to_petsc_vecs(
     template: PETSc.Mat | PETSc.Vec, modes: np.ndarray
 ) -> list[PETSc.Vec]:
     """Convert dense full-state mode columns into ownership-compatible PETSc Vecs."""
+    PETSc = _get_petsc()
     arr = np.asarray(modes, dtype=complex)
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)
