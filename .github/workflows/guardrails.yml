@@ -87,12 +87,14 @@ jobs:
           -v
 
       - name: Run broader non-PETSc tests
-        # Strict: subpackage __init__.py files (linear_operators, solvers,
-        # boundary_conditions) now use PEP 562 __getattr__ to defer the
-        # PETSc-touching imports, matching the lazy contract from
-        # src/linstabpy/__init__.py. Pure-math tests that don't touch
-        # PETSc-needing names must pass here. The Docker petsc-tests job
-        # below covers the seven test files that genuinely require PETSc.
+        # Strict on both ubuntu and macos. Most Mesh/numerics tests now
+        # collect without PETSc since ``mesh/filters.py`` defers its
+        # ``init_petsc_from_argv()`` into ``_build_filter_solver``. Tests
+        # that import linear_operators or solvers symbols directly still
+        # need PETSc; those stay --ignore'd here and run in the Docker
+        # petsc-tests job. If a test surfaces an eager-init regression in
+        # results_runtime.py or linear_operators/* / solvers/linsolve.py,
+        # defer that file's PETSc init the same way and re-run.
         run: >
           PYTHONPATH=src python -m pytest --tb=short -q tests/
           -m "not slow"
