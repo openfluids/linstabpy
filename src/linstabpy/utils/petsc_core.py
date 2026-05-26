@@ -7,22 +7,47 @@ dependencies between the mesh and solver layers.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.sparse as sp
 
-from .petsc_init import init_petsc_from_argv
-
-init_petsc_from_argv()
-from petsc4py import PETSc
-
 from ._solver_cfg import _mumps_petsc_options, _scfg
+
+if TYPE_CHECKING:
+    # Type-only import so ruff/mypy/pyright see ``PETSc`` names; at runtime,
+    # ``TYPE_CHECKING`` is ``False`` so this never fires and PETSc stays
+    # un-initialized until the lazy ``__getattr__`` below is hit.
+    from petsc4py import PETSc  # noqa: F401
 
 _petsc_configured = False
 
 
+# Lazy PETSc accessor: ``import linstabpy.utils.petsc_core`` stays PETSc-free.
+# Functions inside this module use ``PETSc.X`` at call time; the first such
+# reference triggers ``__getattr__`` which initializes PETSc once and caches
+# the bound name in module globals so subsequent lookups are O(1).
+def __getattr__(name):
+    if name == "PETSc":
+        from .petsc_init import init_petsc_from_argv
+
+        init_petsc_from_argv()
+        from petsc4py import PETSc as _imp_PETSc
+
+        globals()["PETSc"] = _imp_PETSc
+        return _imp_PETSc
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _is_petsc_matrix(operator) -> bool:
-    """Return ``True`` when ``operator`` is already a PETSc matrix."""
-    return isinstance(operator, PETSc.Mat)
+    """Return ``True`` when ``operator`` is already a PETSc matrix.
+
+    Uses a duck-type check on ``type(operator).__module__`` so callers do not
+    need PETSc to be importable. Pure-numpy / SciPy operators return ``False``
+    without ever loading ``petsc4py``.
+    """
+    cls = type(operator)
+    return cls.__module__.startswith("petsc4py") and cls.__name__ == "Mat"
 
 
 def _operator_shape(operator) -> tuple[int, int]:
