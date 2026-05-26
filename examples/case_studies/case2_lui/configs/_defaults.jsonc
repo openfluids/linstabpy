@@ -13,7 +13,6 @@
     "base_config": "parity_config.jsonc",
     "case_workdir": "../..",
     "monitor_interval_seconds": 0.5,
-    "python_exe": "../../.venv/bin/python",
     "env": {
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",
