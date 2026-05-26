@@ -87,17 +87,16 @@ jobs:
           -v
 
       - name: Run broader non-PETSc tests
-        # Advisory: chain inventory after mesh/filters.py deferral —
-        # ``from linstabpy.operators import build_lnse_operator`` still
-        # pulls petsc4py because ``operators/assembly.py`` imports
-        # ``_matrix_nnz`` from ``utils/petsc_core`` at module top, and
-        # ``petsc_core`` runs ``init_petsc_from_argv()`` at module load.
-        # Same pattern in solvers/linsolve.py, results_runtime.py, and
-        # 7 modules under linear_operators/. Each needs the same
-        # defer-into-function refactor that mesh/filters.py received.
-        # Flip back to strict (drop continue-on-error) when the eager
-        # PETSc init at module-top is gone from all remaining files.
-        continue-on-error: true
+        # Strict on both ubuntu and macos. The chain
+        # ``operators -> assembly -> utils/petsc_core`` no longer triggers
+        # PETSc at module load (petsc_core uses PEP 562 ``__getattr__``
+        # for the ``PETSc`` name + a duck-type ``_is_petsc_matrix``).
+        # Tests that touch linear_operators or solvers symbols directly
+        # are still --ignore'd here and run strictly in the Docker
+        # petsc-tests job; if a regression surfaces in
+        # solvers/linsolve.py, results_runtime.py, or
+        # linear_operators/* (which still init PETSc at module top),
+        # apply the same defer pattern and re-run.
         run: >
           PYTHONPATH=src python -m pytest --tb=short -q tests/
           -m "not slow"
