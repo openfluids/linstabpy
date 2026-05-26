@@ -5,12 +5,15 @@ set -euo pipefail
 # linstabpy bootstrap installer
 # =============================================================================
 #
-# Creates a Python 3.13 virtual environment and installs all dependencies
+# Creates a Python virtual environment and installs all dependencies
 # including PETSc/SLEPc with complex-scalar support and MUMPS direct solver.
 #
 # Usage:
 #   bash install.sh                    # full install (no h5py by default)
+#   bash install.sh --force            # remove .venv first, then reinstall everything
+#   bash install.sh --force --latest   # reinstall with latest package releases
 #   LINSTABPY_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
+#   LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest  # Python 3.14 + latest packages
 #   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
 #   LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
@@ -42,10 +45,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 OS_NAME=$(uname -s)
 PYTHON_VERSION="${LINSTABPY_PYTHON_VERSION:-3.13}"
-PETSC_VERSION="3.24.2"
-SLEPC_VERSION="3.24.2"
-PETSC4PY_VERSION="3.24.2"
-SLEPC4PY_VERSION="3.24.2"
+INSTALL_MODE="install"
+FORCE_REINSTALL=0
+LATEST_PACKAGES=0
+PETSC_VERSION="${LINSTABPY_PETSC_VERSION:-3.24.2}"
+SLEPC_VERSION="${LINSTABPY_SLEPC_VERSION:-3.24.2}"
+PETSC4PY_VERSION="${LINSTABPY_PETSC4PY_VERSION:-3.24.2}"
+SLEPC4PY_VERSION="${LINSTABPY_SLEPC4PY_VERSION:-3.24.2}"
 
 log()  { printf '\033[1;34m[install]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$1"; }
@@ -53,6 +59,36 @@ err()  { printf '\033[1;31m[error]\033[0m %s\n' "$1"; }
 ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$1"; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 mktemp_py() { mktemp "${TMPDIR:-/tmp}/linstabpy.XXXXXX"; }
+
+usage() {
+    sed -n '/^# Usage:$/,/^#[[:space:]]*$/p' "${BASH_SOURCE[0]}" | sed -e 's/^# //' -e 's/^#[[:space:]]*$//'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --check)
+            INSTALL_MODE="check"
+            shift
+            ;;
+        --force)
+            FORCE_REINSTALL=1
+            shift
+            ;;
+        --latest)
+            LATEST_PACKAGES=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            err "Unknown option: $1"
+            usage
+            exit 2
+            ;;
+    esac
+done
 
 # Print a directory containing libmpi.so* / libmpich.so* (Open MPI, MPICH, Intel MPI)
 # or return non-zero.
@@ -929,21 +965,102 @@ linstabpy_cpu_count() {
     printf '1\n'
 }
 
+linstabpy_tool_summary() {
+    local tool="$1"
+    local resolved=""
+    if [ -x "${tool}" ]; then
+        resolved="${tool}"
+    elif has_cmd "${tool}"; then
+        resolved="$(command -v "${tool}")"
+    else
+        printf 'not found\n'
+        return 0
+    fi
+
+    local first_line=""
+    first_line="$("${resolved}" --version 2>&1 | head -n1 || true)"
+    if [ -z "${first_line}" ]; then
+        first_line="$("${resolved}" -V 2>&1 | head -n1 || true)"
+    fi
+    if [ -n "${first_line}" ]; then
+        printf '%s  [%s]\n' "${resolved}" "${first_line}"
+    else
+        printf '%s\n' "${resolved}"
+    fi
+}
+
+linstabpy_mpi_family() {
+    local tool="${1:-}"
+    local text=""
+    if [ -n "${tool}" ] && [ -x "${tool}" ]; then
+        text="$("${tool}" --version 2>&1 | head -n5 || true)"
+        text="${text}"$'\n'"$("${tool}" -V 2>&1 | head -n5 || true)"
+    fi
+    if printf '%s\n' "${tool} ${text}" | grep -qi 'Intel.*MPI\|Intel(R).*MPI\|oneapi'; then
+        printf 'Intel MPI\n'
+    elif printf '%s\n' "${tool} ${text}" | grep -qi 'Open MPI\|OpenRTE\|ORTE'; then
+        printf 'Open MPI\n'
+    elif printf '%s\n' "${tool} ${text}" | grep -qi 'MPICH\|HYDRA'; then
+        printf 'MPICH\n'
+    else
+        printf 'unknown MPI family\n'
+    fi
+}
+
+linstabpy_report_runtime_environment() {
+    log "MPI runtime summary:"
+    local mpicc_bin=""
+    mpicc_bin="$(linux_resolve_mpi_tool mpicc mpiicc mpiicx 2>/dev/null || true)"
+    [ -n "${mpicc_bin}" ] && log "  mpicc   = $(linstabpy_tool_summary "${mpicc_bin}")"
+    local report_mpiexec="${MPIEXEC:-}"
+    if [ -z "${report_mpiexec}" ] && declare -p LINSTAB_VERIFY_MPIWRAP >/dev/null 2>&1 && [ "${#LINSTAB_VERIFY_MPIWRAP[@]}" -gt 0 ]; then
+        report_mpiexec="${LINSTAB_VERIFY_MPIWRAP[0]}"
+    fi
+    if [ -n "${report_mpiexec}" ]; then
+        log "  mpiexec = $(linstabpy_tool_summary "${report_mpiexec}")"
+        log "  family  = $(linstabpy_mpi_family "${report_mpiexec}")"
+    else
+        warn "  mpiexec = not selected yet"
+    fi
+    local _mpi_ld_report=""
+    if _mpi_ld_report="$(linstabpy_resolve_mpi_libdir 2>/dev/null)"; then
+        log "  libdir  = ${_mpi_ld_report}"
+    fi
+
+    log "Threading environment for MPI runs:"
+    local var val
+    for var in OMP_NUM_THREADS OPENBLAS_NUM_THREADS MKL_NUM_THREADS NUMEXPR_NUM_THREADS; do
+        val="${!var:-unset}"
+        if [ "${val}" = "1" ]; then
+            ok "  ${var}=1"
+        elif [ "${val}" = "unset" ]; then
+            warn "  ${var} is unset; recommended: export ${var}=1"
+        else
+            warn "  ${var}=${val}; recommended: export ${var}=1 for MPI PETSc/SLEPc runs"
+        fi
+    done
+    log "Recommended ~/.bashrc block for MPI PETSc/SLEPc runs:"
+    printf '  export OMP_NUM_THREADS=1\n'
+    printf '  export OPENBLAS_NUM_THREADS=1\n'
+    printf '  export MKL_NUM_THREADS=1\n'
+    printf '  export NUMEXPR_NUM_THREADS=1\n'
+}
+
 install_mpi4py_compat() {
     # PyPI wheels often link libmpi.so.40 (Open MPI 4) while Debian/Ubuntu defaults
     # are MPICH (libmpi.so.12). Building from source with system mpicc fixes imports.
     if [ "${OS_NAME}" != "Linux" ]; then
         log "Installing mpi4py..."
-        ${PIP_INSTALL} "mpi4py>=3.1"
+        ${PIP_INSTALL} "${MPI4PY_SPEC}"
         return 0
     fi
     if [[ "${LINSTABPY_MPI4PY_NO_BINARY:-0}" = "1" ]]; then
         log "Installing mpi4py from source (LINSTABPY_MPI4PY_NO_BINARY=1)..."
-        ${PIP_INSTALL} --no-binary mpi4py "mpi4py>=3.1"
+        ${PIP_INSTALL} --no-binary mpi4py "${MPI4PY_SPEC}"
         return 0
     fi
     log "Installing mpi4py (binary wheel; falls back to source build if it does not match system MPI)..."
-    ${PIP_INSTALL} "mpi4py>=3.1"
+    ${PIP_INSTALL} "${MPI4PY_SPEC}"
     # MPICH: plain python can hang in MPI_Init; prefer mpiexec -n 1 (MPIEXEC is set for PETSc).
     _mpi4_import_ok=0
     if [ -n "${MPIEXEC:-}" ] && "${MPIEXEC}" -n 1 "${PY_BIN}" -c "import mpi4py.MPI" 2>/dev/null; then
@@ -956,7 +1073,7 @@ install_mpi4py_compat() {
         return 0
     fi
     warn "mpi4py wheel failed to import (MPI ABI mismatch). Rebuilding mpi4py from source with mpicc..."
-    ${PIP_INSTALL} --force-reinstall --no-binary mpi4py "mpi4py>=3.1"
+    ${PIP_INSTALL} --force-reinstall --no-binary mpi4py "${MPI4PY_SPEC}"
 }
 
 configure_linux_hdf5_env() {
@@ -1070,12 +1187,13 @@ configure_linux_hdf5_env() {
 ensure_reference_submodule
 
 # ── Quick verification mode ──────────────────────────────────────────────────
-if [[ "${1:-}" == "--check" ]]; then
+if [[ "${INSTALL_MODE}" == "check" ]]; then
     if [ ! -d "${VENV_DIR}" ]; then
         err "No virtual environment found at ${VENV_DIR}"
         exit 1
     fi
     linstabpy_prepare_verify_mpiwrap
+    linstabpy_report_runtime_environment
     _check_snippet="$(mktemp_py)"
     cat >"${_check_snippet}" <<'PY'
 import sys, numpy as np
@@ -1135,9 +1253,45 @@ petsc_size = PETSc.COMM_WORLD.getSize()
 assert size == 2, f"expected mpi4py COMM_WORLD size 2, got {size}"
 assert petsc_size == 2, f"expected PETSc COMM_WORLD size 2, got {petsc_size}"
 
+vec = PETSc.Vec().createMPI(4, comm=PETSc.COMM_WORLD)
+start, end = vec.getOwnershipRange()
+for idx in range(start, end):
+    vec.setValue(idx, rank + 1)
+vec.assemble()
+expected_vec_sum = MPI.COMM_WORLD.allreduce((end - start) * (rank + 1), op=MPI.SUM)
+actual_vec_sum = vec.sum()
+assert abs(actual_vec_sum - expected_vec_sum) < 1e-12, (
+    f"PETSc distributed Vec sum mismatch: got {actual_vec_sum}, expected {expected_vec_sum}"
+)
+vec.destroy()
+
+mat = PETSc.Mat().createAIJ([4, 4], nnz=1, comm=PETSc.COMM_WORLD)
+mat.setUp()
+row_start, row_end = mat.getOwnershipRange()
+for idx in range(row_start, row_end):
+    mat.setValue(idx, idx, 1.0)
+mat.assemble()
+b = PETSc.Vec().createMPI(4, comm=PETSc.COMM_WORLD)
+b.set(1.0)
+b.assemble()
+x = b.duplicate()
+ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
+ksp.setOperators(mat)
+ksp.setType(PETSc.KSP.Type.PREONLY)
+ksp.getPC().setType(PETSc.PC.Type.JACOBI)
+ksp.solve(b, x)
+assert ksp.getConvergedReason() > 0, f"PETSc KSP did not converge: {ksp.getConvergedReason()}"
+assert abs(x.sum() - 4.0) < 1e-12, f"PETSc distributed KSP solution sum mismatch: {x.sum()}"
+ksp.destroy()
+x.destroy()
+b.destroy()
+mat.destroy()
+
 if rank == 0:
     print(f"mpi4py_multirank=size={size}")
     print(f"petsc4py_multirank=size={petsc_size}")
+    print(f"petsc4py_multirank_vec_sum={actual_vec_sum}")
+    print("petsc4py_multirank_ksp=OK")
 PY
         linstabpy_run_verify_wrapped \
             "${VENV_DIR}/bin/python" \
@@ -1168,7 +1322,12 @@ fi
 UV_BIN="$(command -v uv)"
 log "Using uv at: ${UV_BIN}"
 
-# ── Create/validate venv with Python 3.13 ────────────────────────────────────
+# ── Create/validate venv with the requested Python version ───────────────────
+if [ "${FORCE_REINSTALL}" = "1" ] && [ -d "${VENV_DIR}" ]; then
+    warn "Removing existing virtual environment at ${VENV_DIR} (--force)"
+    rm -rf "${VENV_DIR}"
+fi
+
 if [ -d "${VENV_DIR}" ]; then
     EXISTING_PY="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
     if [ "${EXISTING_PY}" != "${PYTHON_VERSION}" ]; then
@@ -1188,17 +1347,42 @@ linux_wrap_venv_python
 darwin_wrap_venv_python
 
 PY_BIN="${VENV_DIR}/bin/python"
-PIP_INSTALL="${UV_BIN} pip install --python ${PY_BIN}"
+PIP_UPGRADE_ARGS=()
+if [ "${LATEST_PACKAGES}" = "1" ]; then
+    PIP_UPGRADE_ARGS=(--upgrade)
+    CORE_DEPS=(numpy scipy matplotlib)
+    MPI4PY_SPEC="mpi4py"
+    PETSC_SPEC="petsc"
+    SLEPC_SPEC="slepc"
+    PETSC4PY_SPEC="petsc4py"
+    SLEPC4PY_SPEC="slepc4py"
+    BUILD_DEPS=(Cython setuptools)
+    H5PY_SPEC="h5py"
+    DEV_DEPS=(pytest pytest-cov sympy)
+    log "Latest-package mode enabled: uv will request newest compatible releases."
+else
+    CORE_DEPS=("numpy>=1.23" "scipy>=1.10" "matplotlib>=3.7")
+    MPI4PY_SPEC="mpi4py>=3.1"
+    PETSC_SPEC="petsc==${PETSC_VERSION}"
+    SLEPC_SPEC="slepc==${SLEPC_VERSION}"
+    PETSC4PY_SPEC="petsc4py==${PETSC4PY_VERSION}"
+    SLEPC4PY_SPEC="slepc4py==${SLEPC4PY_VERSION}"
+    BUILD_DEPS=("Cython>=3.0" "setuptools<72")
+    H5PY_SPEC="h5py>=3.16"
+    DEV_DEPS=(pytest pytest-cov "sympy>=1.13")
+fi
+PIP_INSTALL="${UV_BIN} pip install --python ${PY_BIN} ${PIP_UPGRADE_ARGS[*]}"
 
 # ── Step 1: Core dependencies ────────────────────────────────────────────────
 log "Installing core dependencies..."
-${PIP_INSTALL} "numpy>=1.23" "scipy>=1.10" "matplotlib>=3.7"
+${PIP_INSTALL} "${CORE_DEPS[@]}"
 
 # ── Step 2: MPI + PETSc + SLEPc C libraries ─────────────────────────────────
 log "Installing PETSc (sdist) then mpi4py..."
 unset PETSC_DIR PETSC_ARCH SLEPC_DIR 2>/dev/null || true
 configure_linux_petsc_toolchain
 configure_petsc_build_mpiexec
+linstabpy_report_runtime_environment
 # Optional Hydra bootstrap for PETSc/SLEPc configure only (not exported — breaks some mpiexec).
 if [ "${LINSTABPY_HYDRA_BOOTSTRAP+x}" = x ]; then
     _PETSC_HYDRA_BOOTSTRAP="${LINSTABPY_HYDRA_BOOTSTRAP}"
@@ -1227,10 +1411,10 @@ fi
 export PETSC_CONFIGURE_OPTIONS="${_PETSC_CONF_OPTS[*]}"
 if [ -n "${_PETSC_HYDRA_BOOTSTRAP}" ]; then
     log "PETSc pip: HYDRA_BOOTSTRAP=${_PETSC_HYDRA_BOOTSTRAP} (PETSc/SLEPc configure only)"
-    env HYDRA_BOOTSTRAP="${_PETSC_HYDRA_BOOTSTRAP}" ${PIP_INSTALL} "petsc==${PETSC_VERSION}"
+    env HYDRA_BOOTSTRAP="${_PETSC_HYDRA_BOOTSTRAP}" ${PIP_INSTALL} "${PETSC_SPEC}"
 else
     log "PETSc pip: HYDRA_BOOTSTRAP unset (LINSTABPY_HYDRA_BOOTSTRAP is empty — use on MPICH without \"exec\" bootstrap)"
-    ${PIP_INSTALL} "petsc==${PETSC_VERSION}"
+    ${PIP_INSTALL} "${PETSC_SPEC}"
 fi
 # Avoid leaking HYDRA_BOOTSTRAP into later mpiexec / Python (many MPICH builds reject launcher \"exec\").
 unset HYDRA_BOOTSTRAP 2>/dev/null || true
@@ -1312,9 +1496,9 @@ fi
 log "Installing SLEPc wheel..."
 export SLEPC_CONFIGURE_OPTIONS="--with-clean"
 if [ -n "${_PETSC_HYDRA_BOOTSTRAP}" ]; then
-    env HYDRA_BOOTSTRAP="${_PETSC_HYDRA_BOOTSTRAP}" ${PIP_INSTALL} "slepc==${SLEPC_VERSION}"
+    env HYDRA_BOOTSTRAP="${_PETSC_HYDRA_BOOTSTRAP}" ${PIP_INSTALL} "${SLEPC_SPEC}"
 else
-    ${PIP_INSTALL} "slepc==${SLEPC_VERSION}"
+    ${PIP_INSTALL} "${SLEPC_SPEC}"
 fi
 unset HYDRA_BOOTSTRAP 2>/dev/null || true
 SLEPC_DIR=$("${PY_BIN}" -c "import slepc; print(slepc.get_slepc_dir())")
@@ -1390,14 +1574,14 @@ fi
 
 # ── Step 5: Install petsc4py and slepc4py ────────────────────────────────────
 log "Installing build dependencies for petsc4py/slepc4py..."
-${PIP_INSTALL} "Cython>=3.0" "setuptools<72"
+${PIP_INSTALL} "${BUILD_DEPS[@]}"
 
 log "Installing petsc4py..."
-${PIP_INSTALL} --no-build-isolation "petsc4py==${PETSC4PY_VERSION}"
+${PIP_INSTALL} --no-build-isolation "${PETSC4PY_SPEC}"
 
 log "Installing slepc4py..."
 export SLEPC_DIR
-${PIP_INSTALL} --no-build-isolation "slepc4py==${SLEPC4PY_VERSION}"
+${PIP_INSTALL} --no-build-isolation "${SLEPC4PY_SPEC}"
 
 # Make sure the linker can find ScaLAPACK and other PETSc/SLEPc libraries
 export LD_LIBRARY_PATH="${PETSC_DIR}/lib:${SLEPC_DIR}/lib:${LD_LIBRARY_PATH:-}"
@@ -1478,7 +1662,7 @@ fi
 if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ]; then
     log "Installing h5py (LINSTABPY_WITH_H5PY=1)..."
     configure_linux_hdf5_env
-    if ${PIP_INSTALL} "h5py>=3.16"; then
+    if ${PIP_INSTALL} "${H5PY_SPEC}"; then
         ok "h5py installed."
     else
         warn "h5py installation failed; continuing without it."
@@ -1541,7 +1725,7 @@ done
 
 # ── Step 8: Install dev dependencies ─────────────────────────────────────────
 log "Installing dev dependencies (pytest, sympy)..."
-${PIP_INSTALL} pytest pytest-cov "sympy>=1.13"
+${PIP_INSTALL} "${DEV_DEPS[@]}"
 
 # Persist runtime library paths in the venv activation script.
 _mpi_activate=""
@@ -1645,9 +1829,45 @@ petsc_size = PETSc.COMM_WORLD.getSize()
 assert size == 2, f"expected mpi4py COMM_WORLD size 2, got {size}"
 assert petsc_size == 2, f"expected PETSc COMM_WORLD size 2, got {petsc_size}"
 
+vec = PETSc.Vec().createMPI(4, comm=PETSc.COMM_WORLD)
+start, end = vec.getOwnershipRange()
+for idx in range(start, end):
+    vec.setValue(idx, rank + 1)
+vec.assemble()
+expected_vec_sum = MPI.COMM_WORLD.allreduce((end - start) * (rank + 1), op=MPI.SUM)
+actual_vec_sum = vec.sum()
+assert abs(actual_vec_sum - expected_vec_sum) < 1e-12, (
+    f"PETSc distributed Vec sum mismatch: got {actual_vec_sum}, expected {expected_vec_sum}"
+)
+vec.destroy()
+
+mat = PETSc.Mat().createAIJ([4, 4], nnz=1, comm=PETSc.COMM_WORLD)
+mat.setUp()
+row_start, row_end = mat.getOwnershipRange()
+for idx in range(row_start, row_end):
+    mat.setValue(idx, idx, 1.0)
+mat.assemble()
+b = PETSc.Vec().createMPI(4, comm=PETSc.COMM_WORLD)
+b.set(1.0)
+b.assemble()
+x = b.duplicate()
+ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
+ksp.setOperators(mat)
+ksp.setType(PETSc.KSP.Type.PREONLY)
+ksp.getPC().setType(PETSc.PC.Type.JACOBI)
+ksp.solve(b, x)
+assert ksp.getConvergedReason() > 0, f"PETSc KSP did not converge: {ksp.getConvergedReason()}"
+assert abs(x.sum() - 4.0) < 1e-12, f"PETSc distributed KSP solution sum mismatch: {x.sum()}"
+ksp.destroy()
+x.destroy()
+b.destroy()
+mat.destroy()
+
 if rank == 0:
     print(f"  mpi4py multirank = OK  (size={size})", flush=True)
     print(f"  petsc4py multirank = OK  (size={petsc_size})", flush=True)
+    print(f"  petsc4py distributed Vec = OK  (sum={actual_vec_sum})", flush=True)
+    print("  petsc4py distributed KSP = OK", flush=True)
 PY
     linstabpy_run_verify_wrapped \
         "${PY_BIN}" \
@@ -1666,5 +1886,6 @@ fi
 
 echo
 ok "Setup complete. Activate with: source .venv/bin/activate"
+ok "Optional alias: echo \"alias linstabpy-activate='source ${VENV_DIR}/bin/activate'\" >> ~/.bashrc"
 ok "Quick check:  bash install.sh --check"
 ok "Run tests:    .venv/bin/python -m pytest tests/ -v"
