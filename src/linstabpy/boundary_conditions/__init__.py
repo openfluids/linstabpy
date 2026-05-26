@@ -1,27 +1,39 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Boundary condition enforcement."""
+"""Boundary condition enforcement.
 
-from .dirichlet import (
-    apply_dirichlet,
-    apply_dirichlet_identity_pair,
-    apply_dirichlet_petsc,
-    apply_dirichlet_spatial,
-    apply_dirichlet_spatial_petsc,
-    build_dirichlet_restriction_matrices,
-)
-from .neumann import apply_neumann, apply_neumann_petsc
-from .recipe import analyze_bc_recipe, apply_bc_recipe, apply_bc_recipe_petsc
+Public names are resolved lazily via PEP 562 ``__getattr__``. The submodules
+(``dirichlet``, ``neumann``, ``recipe``) eagerly import ``petsc4py`` at
+module load to support the ``*_petsc`` variants, so eager re-exports here
+would force PETSc on every consumer of pure-math entry points like
+``apply_dirichlet`` or ``analyze_bc_recipe``.
+"""
 
-__all__ = [
-    "apply_dirichlet",
-    "apply_dirichlet_petsc",
-    "apply_dirichlet_spatial",
-    "apply_dirichlet_spatial_petsc",
-    "build_dirichlet_restriction_matrices",
-    "apply_dirichlet_identity_pair",
-    "apply_neumann",
-    "apply_neumann_petsc",
-    "analyze_bc_recipe",
-    "apply_bc_recipe",
-    "apply_bc_recipe_petsc",
-]
+_LAZY_EXPORTS = {
+    "apply_dirichlet": "linstabpy.boundary_conditions.dirichlet",
+    "apply_dirichlet_petsc": "linstabpy.boundary_conditions.dirichlet",
+    "apply_dirichlet_spatial": "linstabpy.boundary_conditions.dirichlet",
+    "apply_dirichlet_spatial_petsc": "linstabpy.boundary_conditions.dirichlet",
+    "apply_dirichlet_identity_pair": "linstabpy.boundary_conditions.dirichlet",
+    "build_dirichlet_restriction_matrices": "linstabpy.boundary_conditions.dirichlet",
+    "apply_neumann": "linstabpy.boundary_conditions.neumann",
+    "apply_neumann_petsc": "linstabpy.boundary_conditions.neumann",
+    "analyze_bc_recipe": "linstabpy.boundary_conditions.recipe",
+    "apply_bc_recipe": "linstabpy.boundary_conditions.recipe",
+    "apply_bc_recipe_petsc": "linstabpy.boundary_conditions.recipe",
+}
+
+__all__ = sorted(_LAZY_EXPORTS)
+
+
+def __getattr__(name):
+    if name in _LAZY_EXPORTS:
+        import importlib
+
+        attr = getattr(importlib.import_module(_LAZY_EXPORTS[name]), name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_LAZY_EXPORTS))
