@@ -98,6 +98,32 @@ def _number_payload(array: np.ndarray) -> dict[str, Any]:
     }
 
 
+def _complex_vector_payload(array: np.ndarray) -> dict[str, Any]:
+    arr = np.asarray(array, dtype=np.complex128)
+    return {
+        "count": int(arr.size),
+        "sha256": _array_digest(arr),
+        "real_min": float(np.min(arr.real)) if arr.size else 0.0,
+        "real_max": float(np.max(arr.real)) if arr.size else 0.0,
+        "imag_min": float(np.min(arr.imag)) if arr.size else 0.0,
+        "imag_max": float(np.max(arr.imag)) if arr.size else 0.0,
+        "first_values": [[float(z.real), float(z.imag)] for z in arr[:10]],
+    }
+
+
+def _float_vector_payload(array: np.ndarray) -> dict[str, Any]:
+    arr = np.asarray(array, dtype=float)
+    finite = arr[np.isfinite(arr)]
+    return {
+        "count": int(arr.size),
+        "sha256": _array_digest(arr),
+        "finite_count": int(finite.size),
+        "finite_max": float(np.max(finite)) if finite.size else None,
+        "finite_median": float(np.median(finite)) if finite.size else None,
+        "first_values": [float(x) for x in arr[:10]],
+    }
+
+
 def _row_payload(rows: list[tuple[int, np.ndarray, np.ndarray]]) -> dict[str, Any]:
     h = hashlib.sha256()
     max_abs = 0.0
@@ -340,6 +366,144 @@ def _coefficient_characterization() -> list[dict[str, Any]]:
     return reports
 
 
+def _energy_weights(mesh, baseflow, *, model: str) -> np.ndarray:
+    from linstabpy.operators import compute_chu_norm
+
+    p = mesh.used_ind
+    w_int = mesh.W.ravel(order="F")[p]
+    rho = baseflow.RHO.ravel(order="F")[p]
+    temp = baseflow.T.ravel(order="F")[p]
+    if model.lower() == "axy":
+        radius = mesh.Y.ravel(order="F")[p]
+        weights, _ = compute_chu_norm(
+            w_int,
+            rho,
+            temp,
+            baseflow.kappa,
+            baseflow.Ma,
+            mesh.ngp,
+            model=model,
+            R=radius,
+        )
+    else:
+        weights, _ = compute_chu_norm(
+            w_int,
+            rho,
+            temp,
+            baseflow.kappa,
+            baseflow.Ma,
+            mesh.ngp,
+        )
+    return weights
+
+
+def _high_mode_case(
+    *,
+    label: str,
+    with_boundary_conditions: bool,
+    n_modes: int,
+    ncv: int,
+    target: complex,
+) -> dict[str, Any]:
+    from linstabpy.operators import build_lnse_operator, build_lnse_system
+    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+
+    mesh = _mesh("cartesian", model="2D")
+    baseflow = _uniform_baseflow(mesh)
+    bc_recipe = [
+        {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+        {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+        {"type": "neumann", "borders": "b", "variables": "T"},
+        {"type": "neumann", "borders": "r", "variables": "ruvwT"},
+    ]
+    if with_boundary_conditions:
+        operator, idx, bc_indices = build_lnse_system(
+            mesh,
+            baseflow,
+            kx=0.2,
+            model="2D",
+            bc_recipe=bc_recipe,
+            bc_penalty=1.0e4,
+            backend="scipy",
+        )
+    else:
+        operator, idx = build_lnse_operator(mesh, baseflow, kx=0.2, model="2D")
+        bc_indices = np.array([], dtype=np.int64)
+
+    w_diag = _energy_weights(mesh, baseflow, model="2D")
+    solver_cfg = {
+        "eigen": {
+            "eps_tol": 1.0e-8,
+            "eps_max_it": 500,
+            "cond_warn": False,
+        }
+    }
+    (omega, _, info), solve_stage = _stage(
+        lambda: temporal_eigenvalues(
+            operator,
+            n_modes=n_modes,
+            target=target,
+            W_diag=w_diag,
+            ncv=ncv,
+            solver_cfg=solver_cfg,
+            return_info=True,
+        )
+    )
+    return {
+        "label": label,
+        "model": "2D",
+        "mesh": "cartesian",
+        "ngp": int(mesh.ngp),
+        "ndof": int(operator.shape[0]),
+        "operator_nnz": int(operator.nnz),
+        "with_boundary_conditions": bool(with_boundary_conditions),
+        "bc_indices": _index_payload(np.asarray(bc_indices, dtype=np.int64)),
+        "target": [float(target.real), float(target.imag)],
+        "n_modes_requested": int(n_modes),
+        "ncv_requested": int(ncv),
+        "solve_stage": solve_stage,
+        "eigenvalues": _complex_vector_payload(omega),
+        "solver_info": {
+            "method": str(info.get("method")),
+            "nev_requested": int(info.get("nev_requested", n_modes)),
+            "ncv_used": int(info.get("ncv_used", ncv)),
+            "nconv": int(info.get("nconv", 0)),
+            "eps_iterations": int(info.get("eps_iterations", 0)),
+            "eps_reason": str(info.get("eps_reason")),
+            "ksp_reason": str(info.get("ksp_reason")),
+            "eps_tol": float(info.get("eps_tol", np.nan)),
+            "eps_setup_seconds": float(info.get("eps_setup_seconds", np.nan)),
+            "eps_solve_seconds": float(info.get("eps_solve_seconds", np.nan)),
+            "residual_relative": _float_vector_payload(
+                np.asarray(info.get("residual_relative", []), dtype=float)
+            ),
+            "residual_backward": _float_vector_payload(
+                np.asarray(info.get("residual_backward", []), dtype=float)
+            ),
+            "leading_weighted_norm_error": float(info.get("leading_weighted_norm_error", np.nan)),
+        },
+    }
+
+
+def _high_mode_baseline(*, n_modes: int, ncv: int) -> list[dict[str, Any]]:
+    return [
+        _high_mode_case(
+            label="interior_target_100mode",
+            with_boundary_conditions=False,
+            n_modes=n_modes,
+            ncv=ncv,
+            target=0.8 - 1.0j,
+        ),
+        _high_mode_case(
+            label="boundary_influenced_100mode",
+            with_boundary_conditions=True,
+            n_modes=n_modes,
+            ncv=ncv,
+            target=0.5 - 1.0j,
+        ),
+    ]
+
+
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
@@ -350,6 +514,15 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--high-mode-output",
+        type=Path,
+        default=None,
+        help="Write the high-mode baseline as a separate artifact.",
+    )
+    parser.add_argument("--include-high-mode", action="store_true")
+    parser.add_argument("--high-mode-count", type=int, default=100)
+    parser.add_argument("--high-mode-ncv", type=int, default=140)
     args = parser.parse_args(argv)
 
     report = {
@@ -359,8 +532,26 @@ def main(argv: list[str] | None = None) -> int:
         "bc_characterization": _bc_characterization(),
         "coefficient_characterization": _coefficient_characterization(),
     }
+    if args.include_high_mode:
+        report["high_mode_baseline"] = _high_mode_baseline(
+            n_modes=args.high_mode_count,
+            ncv=args.high_mode_ncv,
+        )
     _write_json(args.output, report)
+    if args.high_mode_output is not None:
+        high_mode_report = {
+            "generated_at_utc": _now(),
+            "git_sha": _git_sha(),
+            "status": "pass",
+            "high_mode_baseline": _high_mode_baseline(
+                n_modes=args.high_mode_count,
+                ncv=args.high_mode_ncv,
+            ),
+        }
+        _write_json(args.high_mode_output, high_mode_report)
     print(f"Phase 0 characterization: status=pass output={args.output}")
+    if args.high_mode_output is not None:
+        print(f"Phase 0 high-mode baseline: status=pass output={args.high_mode_output}")
     return 0
 
 
