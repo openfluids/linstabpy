@@ -22,6 +22,7 @@ Use the matrix runner from the repository root:
 ```bash
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --list
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-expanded-local
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local --skip-long
 ```
 
@@ -54,6 +55,20 @@ production refactor.
 | `example-blasius-smoke` | `bash run_all_examples.sh --example 1s --skip-parity --fresh` | `examples/example_1_blasius_smoke.npz` |
 | `parity-matrix-status` | `.venv/bin/python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete --artifacts-dir artifacts/architecture_refactor/architecture_refactor_phase0` | `artifacts/architecture_refactor/architecture_refactor_phase0/parity_gate_summary.json` |
 | `operator-perf-memory` | `.venv/bin/python scripts/validation/martini2024/tools/perf_memory_operator_parity.py --meshes 24x16,32x24 --output artifacts/architecture_refactor/architecture_refactor_phase0/operator_perf_memory.json` | `artifacts/architecture_refactor/architecture_refactor_phase0/operator_perf_memory.json` |
+
+## Phase 0 Expanded Local Matrix
+
+These checks produce the first local "golden" artifacts used by later dual-path
+and kernel-equivalence work. They are still local-workstation checks; c8 jobs
+remain a later gate.
+
+| ID | Command | Artifact |
+|---|---|---|
+| `phase0-characterization` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json` | BC index sets, coefficient tensor hashes, and coefficient/assembly timing sidecars |
+| `operator-construction-parity` | `.venv/bin/python scripts/validation/martini2024/tools/compare_operator_construction.py --strict --output artifacts/architecture_refactor/architecture_refactor_phase0/operator_numeric_parity.json` | operator rebuild and PETSc matvec parity report |
+| `assembly-pair-2d` | `.venv/bin/python scripts/validation/martini2024/tools/assembly_parity.py pair --model 2D --backend-before scipy --backend-after petsc --skip-eigs --artifact-before artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_2d_scipy.npz --artifact-after artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_2d_petsc.npz --output artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_2d.json` | deterministic 2-D SciPy/PETSc sparse parity |
+| `assembly-pair-axy` | `.venv/bin/python scripts/validation/martini2024/tools/assembly_parity.py pair --model axy --backend-before scipy --backend-after petsc --skip-eigs --artifact-before artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy_scipy.npz --artifact-after artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy_petsc.npz --output artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy.json` | deterministic axisymmetric SciPy/PETSc sparse parity |
+| `curvilinear-example0` | `bash run_all_examples.sh --example 0 --skip-parity --fresh` | `examples/example_0_curvilinear_validation.npz` |
 
 ## Expanded Baseline Matrix
 
