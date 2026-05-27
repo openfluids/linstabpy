@@ -373,7 +373,6 @@ still letting the case file document why each parameter exists.
 |   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
 |   |-- config/                    Runtime validation metadata
 |   |-- data/baseflows/            MATLAB reference assets as a git submodule
-|   |-- linear_operators/          Operator adapters for resolvent workflows
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
