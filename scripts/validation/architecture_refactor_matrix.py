@@ -193,6 +193,20 @@ def _checks() -> list[Check]:
             ),
             artifact=phase0_dir / "phase0_high_mode_baseline.json",
         ),
+        Check(
+            id="coefficient-tensor-snapshot",
+            group="phase0-expanded-local",
+            description="Exact selected coefficient tensor snapshots for P1 equivalence checks.",
+            command=(
+                py,
+                "scripts/validation/phase0_characterization.py",
+                "--output",
+                str((phase0_dir / "phase0_characterization.json").relative_to(ROOT)),
+                "--coefficient-snapshot-output",
+                str((phase0_dir / "phase0_coefficient_tensors.npz").relative_to(ROOT)),
+            ),
+            artifact=phase0_dir / "phase0_coefficient_tensors.npz",
+        ),
     ]
 
 

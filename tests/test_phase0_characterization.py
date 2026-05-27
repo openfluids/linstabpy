@@ -1,5 +1,7 @@
 import json
 
+import numpy as np
+
 from scripts.validation import phase0_characterization as phase0
 
 
@@ -62,3 +64,36 @@ def test_include_high_mode_embeds_baseline(monkeypatch, tmp_path):
     assert rc == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["high_mode_baseline"] == [{"label": "embedded", "n_modes": 100, "ncv": 140}]
+
+
+def test_coefficient_snapshot_output_writes_npz(monkeypatch, tmp_path):
+    monkeypatch.setattr(phase0, "_git_sha", lambda: "test-sha")
+    monkeypatch.setattr(phase0, "_bc_characterization", lambda: [])
+    monkeypatch.setattr(phase0, "_coefficient_characterization", lambda: [])
+    monkeypatch.setattr(
+        phase0,
+        "_coefficient_snapshot_arrays",
+        lambda: (
+            {"cases": [{"label": "case", "arrays": {"A0": {"npz_key": "case/A0"}}}]},
+            {"case/A0": np.array([[1.0, 2.0]])},
+        ),
+    )
+
+    output = tmp_path / "phase0.json"
+    snapshot = tmp_path / "coefficients.npz"
+    rc = phase0.main(
+        [
+            "--output",
+            str(output),
+            "--coefficient-snapshot-output",
+            str(snapshot),
+        ]
+    )
+
+    assert rc == 0
+    with np.load(snapshot) as data:
+        metadata = json.loads(str(data["__metadata_json__"].item()))
+        np.testing.assert_allclose(data["case/A0"], [[1.0, 2.0]])
+    assert metadata["git_sha"] == "test-sha"
+    assert metadata["artifact_kind"] == "phase0_coefficient_tensor_snapshot"
+    assert metadata["cases"][0]["arrays"]["A0"]["npz_key"] == "case/A0"
