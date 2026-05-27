@@ -287,11 +287,8 @@ bash install.sh --check
 bash benchmark.sh
 ```
 
-If the repository was cloned without submodules:
-
-```bash
-git submodule update --init --recursive
-```
+This repository has no required submodules. Reference Martini base flows are
+handled separately in section 2.8.
 
 Run the smallest Blasius example:
 
@@ -372,7 +369,7 @@ still letting the case file document why each parameter exists.
 |   |-- baseflow/                  Base-flow loaders and viscosity helpers
 |   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
 |   |-- config/                    Runtime validation metadata
-|   |-- data/baseflows/            MATLAB reference assets as a git submodule
+|   |-- data/baseflows/            Optional local MATLAB reference assets
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
@@ -413,9 +410,9 @@ case-specific campaigns under `studies/`, and validation reference data under
 runtime caches, and build metadata are ignored rather than represented as
 tracked layout.
 
-The reference MATLAB code and `.mat` base-flow files live in the submodule
-`src/linstabpy/data/baseflows`. Treat that directory as reference input unless
-you intentionally update the submodule.
+Optional reference MATLAB code and `.mat` base-flow files may be placed under
+`src/linstabpy/data/baseflows`, or supplied through `LINSTABPY_BASEFLOW_DATA_DIR`.
+Treat that directory as local reference input, not production package code.
 
 ### 4.1 Data and file-size policy
 
@@ -1172,7 +1169,7 @@ Reference MATLAB source boundary:
   and repository scripts;
 - MATLAB reference source and `.mat` assets:
   `src/linstabpy/data/baseflows`;
-- update the submodule only with explicit intent;
+- update or replace reference assets only with explicit intent;
 - do not edit reference MATLAB files while trying to fix Python parity.
 
 Roadmap:
