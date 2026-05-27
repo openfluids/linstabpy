@@ -179,6 +179,20 @@ def _checks() -> list[Check]:
             command=("bash", "run_all_examples.sh", "--example", "0", "--skip-parity", "--fresh"),
             artifact=ROOT / "examples/example_0_curvilinear_validation.npz",
         ),
+        Check(
+            id="high-mode-local-baseline",
+            group="phase0-expanded-local",
+            description="100-mode local stability baseline for interior and boundary-influenced targets.",
+            command=(
+                py,
+                "scripts/validation/phase0_characterization.py",
+                "--output",
+                str((phase0_dir / "phase0_characterization.json").relative_to(ROOT)),
+                "--high-mode-output",
+                str((phase0_dir / "phase0_high_mode_baseline.json").relative_to(ROOT)),
+            ),
+            artifact=phase0_dir / "phase0_high_mode_baseline.json",
+        ),
     ]
 
 
