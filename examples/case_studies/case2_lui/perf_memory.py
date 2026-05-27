@@ -17,6 +17,7 @@ import re
 import shlex
 import shutil
 import socket
+import string
 import subprocess
 import sys
 import threading
@@ -451,6 +452,64 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
         return result
 
 
+def _read_assembly_metrics(template: Path) -> list[dict[str, Any]]:
+    pattern_parts: list[str] = []
+    for literal, field_name, _, _ in string.Formatter().parse(template.name):
+        pattern_parts.append(literal)
+        if field_name is not None:
+            pattern_parts.append("*" if field_name in {"rank", "size"} else f"{{{field_name}}}")
+    pattern = "".join(pattern_parts)
+    candidates = sorted(template.parent.glob(pattern))
+    if not candidates and template.exists():
+        candidates = [template]
+
+    reports: list[dict[str, Any]] = []
+    for path in candidates:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            reports.append({"path": str(path), "status": "error", "error": str(exc)})
+            continue
+        if not isinstance(payload, dict):
+            reports.append(
+                {
+                    "path": str(path),
+                    "status": "error",
+                    "error": f"expected JSON object, got {type(payload).__name__}",
+                }
+            )
+            continue
+        payload["path"] = str(path)
+        reports.append(payload)
+    return reports
+
+
+def _metric_rank(payload: dict[str, Any]) -> int | None:
+    try:
+        return int(payload.get("rank", -1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _rank0_assembly_metrics(case: dict[str, Any]) -> dict[str, Any]:
+    metrics = case.get("assembly_metrics", [])
+    if not isinstance(metrics, list):
+        return {}
+    for payload in metrics:
+        if isinstance(payload, dict) and _metric_rank(payload) == 0:
+            return payload
+    return {}
+
+
+def _assembly_stage(case: dict[str, Any], name: str) -> dict[str, Any]:
+    rank0 = _rank0_assembly_metrics(case)
+    stages = rank0.get("stages", {})
+    if not isinstance(stages, dict):
+        return {}
+    stage = stages.get(name, {})
+    return stage if isinstance(stage, dict) else {}
+
+
 def _cfg_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
     node: Any = cfg
     for key in path.split("."):
@@ -598,6 +657,9 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
     effective = dict(case.get("effective_case", {}))
     resolved_cfg = dict(case.get("resolved_config", {}))
     stage_timings = dict(parsed.get("stage_timings_seconds", {}))
+    prepare_metrics = _assembly_stage(case, "prepare_coefficients")
+    raw_metrics = _assembly_stage(case, "assemble_raw_blocks")
+    bc_metrics = _assembly_stage(case, "apply_bc")
     return {
         "case_id": case["case_id"],
         "status": case["status"],
@@ -731,6 +793,11 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "build_mesh_seconds": stage_timings.get("build_mesh"),
         "assemble_operator_seconds": stage_timings.get("assemble_operator_bc"),
         "assemble_operator_bc_seconds": stage_timings.get("assemble_operator_bc"),
+        "prepare_coefficients_seconds": prepare_metrics.get("seconds"),
+        "prepare_coefficients_rss_delta_bytes": prepare_metrics.get("rss_peak_delta_bytes"),
+        "assemble_raw_blocks_seconds": raw_metrics.get("seconds"),
+        "assemble_raw_blocks_rss_delta_bytes": raw_metrics.get("rss_peak_delta_bytes"),
+        "apply_bc_rss_delta_bytes": bc_metrics.get("rss_peak_delta_bytes"),
         "apply_bc_seconds": stage_timings.get("apply_bc"),
         "compute_chu_norm_seconds": stage_timings.get("compute_chu_norm"),
         "stability_seconds": stage_timings.get("stability"),
@@ -834,6 +901,11 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "build_mesh_seconds",
         "assemble_operator_seconds",
         "assemble_operator_bc_seconds",
+        "prepare_coefficients_seconds",
+        "prepare_coefficients_rss_delta_bytes",
+        "assemble_raw_blocks_seconds",
+        "assemble_raw_blocks_rss_delta_bytes",
+        "apply_bc_rss_delta_bytes",
         "apply_bc_seconds",
         "compute_chu_norm_seconds",
         "stability_seconds",
@@ -951,9 +1023,13 @@ def main() -> int:
         case_log = log_dir / f"case2_perf_{case_id}_{timestamp}.log"
         case_npz = run_dir / f"case2_perf_{case_id}_{timestamp}.npz"
         case_cfg_path = run_dir / f"case2_perf_{case_id}_{timestamp}.config.json"
+        assembly_metrics_template = run_dir / (
+            f"case2_perf_{case_id}_{timestamp}.assembly_metrics_rank{{rank}}.json"
+        )
         case_report["log_path"] = str(case_log)
         case_report["artifact_npz"] = str(case_npz)
         case_report["case_config_path"] = str(case_cfg_path)
+        case_report["assembly_metrics_template"] = str(assembly_metrics_template)
         case_workdir = _resolve_input_path(
             config_dir,
             effective_case.get("case_workdir", str(default_case_workdir)),
@@ -978,6 +1054,8 @@ def main() -> int:
         env["LINSTABPY_CASE_CONFIG"] = str(case_cfg_path)
         env["LINSTABPY_CASE2_OUTPUT_NPZ"] = str(case_npz)
         env["LINSTABPY_CASE_OUTPUT_NPZ"] = str(case_npz)
+        env["LINSTABPY_ASSEMBLY_METRICS_OUTPUT"] = str(assembly_metrics_template)
+        env.setdefault("LINSTABPY_ASSEMBLY_METRICS_LOG", "0")
         pythonpath_entries = [str(ROOT / "src"), str(ROOT)]
         existing_pythonpath = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = os.pathsep.join(
@@ -1003,6 +1081,7 @@ def main() -> int:
                 "returncode": metrics["returncode"],
             }
             case_report["parsed"] = _parse_log_metrics(metrics["stdout_lines"])
+            case_report["assembly_metrics"] = _read_assembly_metrics(assembly_metrics_template)
 
             output_npz = case_npz if case_npz.exists() else DEFAULT_OUTPUT_NPZ
             if metrics["returncode"] == 0 and output_npz.exists():
