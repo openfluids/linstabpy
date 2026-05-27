@@ -70,6 +70,7 @@ remain a later gate.
 | `assembly-pair-axy` | `.venv/bin/python scripts/validation/martini2024/tools/assembly_parity.py pair --model axy --backend-before scipy --backend-after petsc --skip-eigs --artifact-before artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy_scipy.npz --artifact-after artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy_petsc.npz --output artifacts/architecture_refactor/architecture_refactor_phase0/assembly_pair_axy.json` | deterministic axisymmetric SciPy/PETSc sparse parity |
 | `curvilinear-example0` | `bash run_all_examples.sh --example 0 --skip-parity --fresh` | `examples/example_0_curvilinear_validation.npz` |
 | `high-mode-local-baseline` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --high-mode-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_high_mode_baseline.json` | 100-mode stability baseline for one interior target and one boundary-influenced target |
+| `coefficient-tensor-snapshot` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --coefficient-snapshot-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_coefficient_tensors.npz` | exact selected coefficient tensors for P1 before/after equivalence checks |
 
 ## Expanded Baseline Matrix
 

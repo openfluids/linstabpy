@@ -366,6 +366,58 @@ def _coefficient_characterization() -> list[dict[str, Any]]:
     return reports
 
 
+def _coefficient_snapshot_arrays() -> tuple[dict[str, Any], dict[str, np.ndarray]]:
+    from linstabpy.operators.assembly import _prepare_coefficients
+
+    coeff_names = ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
+    metadata: dict[str, Any] = {"cases": []}
+    arrays: dict[str, np.ndarray] = {}
+    for model, mesh_label, kwargs in (
+        ("2D", "cartesian", {"kx": 0.2, "m": 0.0}),
+        ("axy", "axisymmetric", {"kx": 0.0, "m": 1.0}),
+    ):
+        mesh = _mesh(mesh_label, model=model)
+        baseflow = _uniform_baseflow(mesh)
+        prep = _prepare_coefficients(
+            mesh,
+            baseflow,
+            kx=float(kwargs["kx"]),
+            model=model,
+            m=float(kwargs["m"]),
+        )
+        coeffs = prep["coeffs"]
+        label = f"{model}_uniform"
+        case_meta = {
+            "label": label,
+            "model": model,
+            "mesh": mesh_label,
+            "ngp": int(mesh.ngp),
+            "parameters": {"kx": float(kwargs["kx"]), "m": float(kwargs["m"])},
+            "arrays": {},
+        }
+        for name in coeff_names:
+            key = f"{label}/{name}"
+            arr = np.asarray(getattr(coeffs, name))
+            arrays[key] = arr
+            case_meta["arrays"][name] = {
+                "npz_key": key,
+                "shape": list(arr.shape),
+                "dtype": str(arr.dtype),
+                "sha256": _array_digest(arr),
+            }
+        metadata["cases"].append(case_meta)
+    return metadata, arrays
+
+
+def _write_npz(path: Path, metadata: dict[str, Any], arrays: dict[str, np.ndarray]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "__metadata_json__": np.array(json.dumps(metadata, sort_keys=True), dtype=np.str_),
+        **arrays,
+    }
+    np.savez_compressed(path, **payload)
+
+
 def _energy_weights(mesh, baseflow, *, model: str) -> np.ndarray:
     from linstabpy.operators import compute_chu_norm
 
@@ -523,6 +575,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-high-mode", action="store_true")
     parser.add_argument("--high-mode-count", type=int, default=100)
     parser.add_argument("--high-mode-ncv", type=int, default=140)
+    parser.add_argument(
+        "--coefficient-snapshot-output",
+        type=Path,
+        default=None,
+        help="Write selected raw coefficient tensors as a compressed NPZ baseline.",
+    )
     args = parser.parse_args(argv)
 
     report = {
@@ -549,9 +607,24 @@ def main(argv: list[str] | None = None) -> int:
             ),
         }
         _write_json(args.high_mode_output, high_mode_report)
+    if args.coefficient_snapshot_output is not None:
+        snapshot_metadata, snapshot_arrays = _coefficient_snapshot_arrays()
+        snapshot_metadata.update(
+            {
+                "generated_at_utc": _now(),
+                "git_sha": _git_sha(),
+                "status": "pass",
+                "artifact_kind": "phase0_coefficient_tensor_snapshot",
+            }
+        )
+        _write_npz(args.coefficient_snapshot_output, snapshot_metadata, snapshot_arrays)
     print(f"Phase 0 characterization: status=pass output={args.output}")
     if args.high_mode_output is not None:
         print(f"Phase 0 high-mode baseline: status=pass output={args.high_mode_output}")
+    if args.coefficient_snapshot_output is not None:
+        print(
+            f"Phase 0 coefficient snapshots: status=pass output={args.coefficient_snapshot_output}"
+        )
     return 0
 
 
