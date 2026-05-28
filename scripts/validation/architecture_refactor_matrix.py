@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -23,6 +25,7 @@ DEFAULT_REPORT = (
 GIT_TIMEOUT_SECONDS = 10.0
 DEFAULT_CHECK_TIMEOUT_SECONDS = 900.0
 LONG_CHECK_TIMEOUT_SECONDS = 7200.0
+ARTIFACT_INVENTORY_TIMEOUT_SECONDS = 60.0
 GROUP_ALIASES = {
     "phase0-golden-local": (
         "phase0-local",
@@ -301,6 +304,93 @@ def _timeout_seconds(check: Check) -> float:
     return DEFAULT_CHECK_TIMEOUT_SECONDS
 
 
+def _path_for_report(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _check_inventory_deadline(deadline: float | None) -> None:
+    if deadline is not None and time.monotonic() > deadline:
+        raise TimeoutError("artifact inventory timed out")
+
+
+def _hash_file(path: Path, deadline: float | None = None) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            _check_inventory_deadline(deadline)
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _path_exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _artifact_inventory(
+    path: Path | None, timeout_seconds: float = ARTIFACT_INVENTORY_TIMEOUT_SECONDS
+) -> dict[str, object] | None:
+    if path is None:
+        return None
+    deadline = time.monotonic() + timeout_seconds if timeout_seconds > 0 else None
+    try:
+        if not _path_exists(path):
+            return {"kind": "missing", "path": _path_for_report(path), "exists": False}
+        if path.is_file():
+            sha256, size = _hash_file(path, deadline)
+            return {
+                "kind": "file",
+                "path": _path_for_report(path),
+                "exists": True,
+                "size_bytes": size,
+                "sha256": sha256,
+            }
+        if path.is_dir():
+            digest = hashlib.sha256()
+            file_count = 0
+            total_size = 0
+            for file_path in sorted(item for item in path.rglob("*") if item.is_file()):
+                _check_inventory_deadline(deadline)
+                relative = file_path.relative_to(path).as_posix()
+                file_sha256, size = _hash_file(file_path, deadline)
+                digest.update(relative.encode("utf-8"))
+                digest.update(b"\0")
+                digest.update(str(size).encode("ascii"))
+                digest.update(b"\0")
+                digest.update(file_sha256.encode("ascii"))
+                digest.update(b"\n")
+                file_count += 1
+                total_size += size
+            return {
+                "kind": "directory",
+                "path": _path_for_report(path),
+                "exists": True,
+                "file_count": file_count,
+                "total_size_bytes": total_size,
+                "sha256": digest.hexdigest(),
+            }
+        return {
+            "kind": "other",
+            "path": _path_for_report(path),
+            "exists": True,
+        }
+    except (OSError, TimeoutError) as exc:
+        return {
+            "kind": "error",
+            "path": _path_for_report(path),
+            "exists": _path_exists(path),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
+
+
 def _selected_groups(group: str | None) -> set[str] | None:
     if group is None:
         return None
@@ -326,7 +416,7 @@ def _run_check(check: Check, *, dry_run: bool) -> dict[str, object]:
         "group": check.group,
         "description": check.description,
         "command": list(check.command),
-        "artifact": str(check.artifact.relative_to(ROOT)) if check.artifact else None,
+        "artifact": _path_for_report(check.artifact) if check.artifact else None,
         "timeout_seconds": timeout_seconds,
         "started_at_utc": _now(),
         "dry_run": dry_run,
@@ -355,7 +445,8 @@ def _run_check(check: Check, *, dry_run: bool) -> dict[str, object]:
                 "returncode": None,
                 "status": "timeout",
                 "output_tail": lines[-80:],
-                "artifact_exists": bool(check.artifact and check.artifact.exists()),
+                "artifact_exists": bool(check.artifact and _path_exists(check.artifact)),
+                "artifact_inventory": _artifact_inventory(check.artifact),
             }
         )
         return payload
@@ -365,7 +456,8 @@ def _run_check(check: Check, *, dry_run: bool) -> dict[str, object]:
             "returncode": result.returncode,
             "status": "pass" if result.returncode == 0 else "fail",
             "output_tail": result.stdout.splitlines()[-80:],
-            "artifact_exists": bool(check.artifact and check.artifact.exists()),
+            "artifact_exists": bool(check.artifact and _path_exists(check.artifact)),
+            "artifact_inventory": _artifact_inventory(check.artifact),
         }
     )
     return payload
