@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from linstabpy.utils.jsonc import load_jsonc
-from scripts.validation.martini2024.tools import compare_martini_examples
+from scripts.validation.martini2024.tools import compare_martini_examples, extract_martini_to_npz
 from scripts.validation.martini2024.tools.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
@@ -38,7 +38,18 @@ def test_martini_manifest_paths_are_repo_relative() -> None:
 
 
 def test_martini_npz_default_uses_validation_fixture_root() -> None:
+    assert compare_martini_examples.ROOT == repo
+    assert (
+        compare_martini_examples.DEFAULT_CONFIG
+        == repo / "scripts/validation/martini2024/tools/martini_cases.jsonc"
+    )
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
+    assert extract_martini_to_npz.ROOT == repo
+    assert extract_martini_to_npz.DEFAULT_OUTPUT_DIR == MARTINI_FIXTURE_ROOT
+    assert (
+        extract_martini_to_npz.DEFAULT_MANIFEST
+        == repo / "scripts/validation/martini2024/tools/martini_manifest.json"
+    )
 
 
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:
