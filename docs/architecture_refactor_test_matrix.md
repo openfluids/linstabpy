@@ -28,6 +28,7 @@ Use the matrix runner from the repository root:
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local --skip-long
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-golden-local
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-golden-all
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group safety-infrastructure
 ```
 
 The runner writes a JSON report with the current git SHA, selected checks,
@@ -46,6 +47,8 @@ The `phase0-golden-local` virtual group runs `phase0-local`,
 The `phase0-golden-all` virtual group also includes
 `phase0-external-assets`; it is the intended Phase 0 signoff suite once the
 optional Martini assets and fixture bundles are present.
+The `safety-infrastructure` virtual group runs the equivalence gates and the
+documentation gate that protect later seam and kernel work.
 
 Non-long checks have a 15 minute timeout. Checks marked `long` have a 2 hour
 timeout. A timeout is reported as its own check status in the JSON report and
@@ -140,6 +143,16 @@ same inputs and fail on unapproved drift:
 The default tolerance is the existing parity tolerance for that artifact. Any
 new tolerance must be documented in the bead review note with the failing
 baseline, observed candidate, and reason.
+
+The first harness slice is:
+
+| ID | Command | Artifact |
+|---|---|---|
+| `lnse-equivalence-harness` | `.venv/bin/python scripts/validation/lnse_equivalence_harness.py --case 2D --case axy --output artifacts/architecture_refactor/safety_infrastructure/lnse_equivalence_harness.json` | coefficient tensor, raw-operator, pre-BC operator, post-BC operator, BC-index, and eigen-sanity comparison report |
+
+Before the P1/P2/P3 candidate paths exist, this command runs the current path as
+both baseline and candidate. That establishes the report schema and the exact
+zero-drift contract future paths must satisfy.
 
 ## Documentation Gate
 

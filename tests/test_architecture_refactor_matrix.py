@@ -42,6 +42,22 @@ def test_phase0_golden_all_keeps_external_asset_checks_explicit() -> None:
     assert "case2-local-assembly-baseline" in ids
 
 
+def test_safety_infrastructure_selects_equivalence_and_documentation_gates() -> None:
+    checks = architecture_refactor_matrix._select(
+        architecture_refactor_matrix._checks(),
+        group="safety-infrastructure",
+        ids=set(),
+    )
+
+    groups = {check.group for check in checks}
+    ids = {check.id for check in checks}
+
+    assert groups == {"equivalence-gates", "documentation-gates"}
+    assert "lnse-equivalence-harness" in ids
+    assert "docstring-inventory" in ids
+    assert "pytest-full" not in ids
+
+
 def test_explicit_check_filter_still_applies_inside_virtual_group() -> None:
     checks = architecture_refactor_matrix._select(
         architecture_refactor_matrix._checks(),
