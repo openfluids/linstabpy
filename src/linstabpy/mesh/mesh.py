@@ -14,6 +14,11 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
+try:
+    from scipy.sparse import _sparsetools as _sparse_tools
+except ImportError:  # pragma: no cover - fallback for SciPy internals moving
+    _sparse_tools = None
+
 from .filters import MeshFilters, build_mesh_filters
 from .sbp import (
     DISSIPATION_DEFAULTS,
@@ -1524,7 +1529,31 @@ def _build_periodic_1d_operators(
 
 def _axm_diag(a: np.ndarray, m: sp.spmatrix) -> sp.csr_matrix:
     """Apply a diagonal vector on the left of a sparse matrix."""
-    return sp.diags(a, offsets=0, shape=(m.shape[0], m.shape[1]), format="csr") @ m
+    scale = np.asarray(a)
+    if scale.ndim != 1:
+        scale = scale.reshape(-1)
+    if scale.shape[0] != m.shape[0]:
+        raise ValueError("left diagonal length must match matrix row count")
+    result = m.tocsr(copy=True)
+    dtype = np.result_type(result.dtype, scale.dtype)
+    if result.dtype != dtype:
+        result = result.astype(dtype)
+    scale = scale.astype(dtype, copy=False)
+    # Deformation applies this row scaling many times.  Calling the CSR kernel
+    # avoids materialising an explicit diagonal matrix for every transformed
+    # derivative block.
+    if _sparse_tools is not None:
+        _sparse_tools.csr_scale_rows(
+            result.shape[0],
+            result.shape[1],
+            result.indptr,
+            result.indices,
+            result.data,
+            scale,
+        )
+    else:
+        result.data *= np.repeat(scale, np.diff(result.indptr))
+    return result
 
 
 def _transform_second_derivatives(
