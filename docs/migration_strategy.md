@@ -39,9 +39,9 @@ Use narrow wrappers rather than parallel implementations:
   matrix ownership, and MPI assumptions.
 - `build_lnse_system(...)` is the natural bridge to the richer internal system
   object because it already returns the operator plus boundary-condition data.
-- JSONC boundary-condition recipe lists remain valid input. A future BCRecipe
-  object may be constructed internally from those dicts, but users should not
-  need to change existing configs during the compatibility window.
+- JSONC boundary-condition recipe lists remain valid input. `BCRecipe` is
+  constructed internally from those dicts, so users do not need to change
+  existing configs during the compatibility window.
 
 Wrappers should be thin enough that the new seam owns policy. If a wrapper
 starts duplicating boundary-condition ordering, backend selection, PETSc/SLEPc

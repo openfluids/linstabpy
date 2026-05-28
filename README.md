@@ -328,9 +328,9 @@ cache cleanup, parity checks, and MPI launches. Direct module execution with
 `.venv/bin/python -m ...` is still useful for focused debugging, but the runner
 is the documented path for full example validation and MPI-safe launches.
 For a figure-by-figure walkthrough of the Martini examples, see
-`tutorial/tutorial.pdf`, Section 5. That section also explains how to read the
-generated baseflow, gain/spectrum, and support-component figures, and records
-the plotting improvements proposed for the next figure pass.
+`docs/tutorial/tutorial.pdf`, Section 5. That section also explains how to read
+the generated baseflow, gain/spectrum, and support-component figures, and
+records the plotting improvements proposed for the next figure pass.
 
 | Task | Command |
 |---|---|
@@ -363,6 +363,9 @@ still letting the case file document why each parameter exists.
 
 ## 4. Repository layout
 
+For a maintainer map of where numerical policy belongs, see
+`docs/architecture.md`.
+
 ```text
 .
 |-- src/linstabpy/                 Importable Python package
@@ -375,29 +378,18 @@ still letting the case file document why each parameter exists.
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
 |   |-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
 |   `-- results_runtime.py         Package runtime used by case study drivers
-|-- examples/                      Runnable Martini examples; generated .npz/.png ignored
-|-- studies/                       Active research workflows, not importable library code
-|   |-- case1/                     SWBLI parity/performance study
-|   |   |-- configs/
-|   |   |-- data/baseflow/
-|   |   |-- reference/matlab/
-|   |   `-- scripts/
-|   `-- case2/                     TCFD campaign configs, logs, figures, notes
-|       |-- configs/               Base, EVP, resolvent, and perf JSONC configs
-|       |-- data/baseflow/         Active mean-flow arrays
-|       |-- scripts/               Plotting and campaign helper scripts
-|       |-- artifacts/phase1p5/    Curated phase artifacts
-|       `-- docs/                  Case-local plan, reference, and tutorial docs
-|-- validation/                    Reproducibility harnesses and compact fixtures
-|   |-- martini2024/               Martini parity fixtures, tools, and reports
-|   |-- operator_fixtures/         Compact operator-parity fixtures and schema
-|   `-- song_2023/                 Song 2023 configs, data, reference, and scripts
-|-- tools/                         Developer tools
-|   `-- debug/                     Platform/debug probes
-|-- scripts/                       Repository guardrails and maintenance utilities
+|-- examples/                      Runnable examples; generated .npz/.png ignored
+|   |-- case_studies/              Larger validation and SWBLI case workflows
+|   |   |-- case1_song/            Song/Robinet-style case with MATLAB parity assets
+|   |   `-- case2_lui/             Larger curvilinear SWBLI configs and docs
+|   `-- example_*.py               Martini-style compact examples
+|-- scripts/                       Repository guardrails and validation utilities
+|   |-- ci/                        Thin install/diagnose/benchmark harness
+|   `-- validation/                Reproducibility harnesses and compact fixtures
+|       |-- martini2024/           Martini parity fixtures, tools, and reports
+|       `-- operator_fixtures/     Compact operator-parity fixtures and schema
+|-- docs/                          Architecture, install, audit, and tutorial docs
 |-- tests/                         Pytest suite and shared path helpers
-|-- scripts/ci/                Thin install/diagnose/benchmark harness
-|-- tutorial/                      Tutorial source and generated PDF
 |-- install.sh                     Main installer
 |-- diagnose.sh                    Read-only environment preflight
 |-- benchmark.sh                   Smoke benchmark
@@ -405,10 +397,10 @@ still letting the case file document why each parameter exists.
 ```
 
 Keep reusable code under `src/linstabpy/`, runnable examples under `examples/`,
-case-specific campaigns under `studies/`, and validation reference data under
-`validation/`. Generated example outputs, campaign `output/` directories,
-runtime caches, and build metadata are ignored rather than represented as
-tracked layout.
+case-study workflows under `examples/case_studies/`, and validation harnesses
+under `scripts/validation/`. Generated example outputs, campaign `output/`
+directories, runtime caches, and build metadata are ignored rather than
+represented as tracked layout.
 
 Optional reference MATLAB code and `.mat` base-flow files may be placed under
 `src/linstabpy/data/baseflows`, or supplied through `LINSTABPY_BASEFLOW_DATA_DIR`.
@@ -1165,8 +1157,8 @@ bash install.sh
 
 Reference MATLAB source boundary:
 
-- Python implementation: `src/linstabpy/`, `tests/`, `examples/`, `tools/`,
-  and repository scripts;
+- Python implementation: `src/linstabpy/`, `tests/`, `examples/`, `scripts/`,
+  and repository docs;
 - MATLAB reference source and `.mat` assets:
   `src/linstabpy/data/baseflows`;
 - update or replace reference assets only with explicit intent;

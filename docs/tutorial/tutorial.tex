@@ -265,18 +265,18 @@ The top-level directories have distinct roles. Keep reusable package code, runna
 
 \begin{outputbox}
 src/linstabpy/      importable Python package
-examples/           runnable Martini examples; generated .npz/.png ignored
+examples/           runnable examples; generated .npz/.png ignored
 examples/case_studies/case1_song/      SWBLI study: configs, data/baseflow, reference, scripts
 examples/case_studies/case2_lui/      TCFD campaign: configs, data/baseflow, scripts, docs
-validation/         reproducibility harnesses, fixtures, reports, references
+scripts/validation/ reproducibility harnesses, fixtures, reports, references
 scripts/validation/martini2024/tools/
                     MATLAB-to-Python conversion and parity tooling
 scripts/            repository guardrails and maintenance utilities
 scripts/ci/     thin install/diagnose/benchmark harness
-tutorial/           tutorial source and generated PDF
+docs/tutorial/      tutorial source and generated PDF
 \end{outputbox}
 
-Do not put reusable solver code under \path{studies/} or \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{studies/}, and reference/validation assets under \path{validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
+Do not put reusable solver code under \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{examples/case_studies/}, and validation assets under \path{scripts/validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, case-study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
 
 \subsection*{Use one example runner}
 
@@ -844,21 +844,21 @@ scripts/validation/martini2024/tools/martini_cases.jsonc
 The tutorial source and Makefile live together:
 
 \begin{outputbox}
-tutorial/tutorial.tex
-tutorial/Makefile
+docs/tutorial/tutorial.tex
+docs/tutorial/Makefile
 \end{outputbox}
 
 Build from inside the tutorial directory:
 
 \begin{commandbox}
-cd tutorial
+cd docs/tutorial
 make
 \end{commandbox}
 
 The build writes:
 
 \begin{outputbox}
-tutorial/tutorial.pdf
+docs/tutorial/tutorial.pdf
 \end{outputbox}
 
 \end{document}
