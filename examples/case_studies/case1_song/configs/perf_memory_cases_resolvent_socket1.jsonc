@@ -2,7 +2,7 @@
   // Case 1 resolvent study pinned to socket 1 physical cores only.
   //
   // Run with:
-  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_resolvent_socket1.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
+  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/configs/perf_memory_cases_resolvent_socket1.jsonc .venv/bin/python examples/case_studies/case1_song/scripts/perf_memory.py
 
   "outputs": {
     "report_json": "output/resolvent_socket1/case1_perf_memory_latest.json",
@@ -14,7 +14,7 @@
   "defaults": {
     "base_config": "parity_config.jsonc",
     "monitor_interval_seconds": 0.5,
-    "python_exe": "../../.venv/bin/python",
+    "python_exe": "../../../../.venv/bin/python",
     "env": {
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",

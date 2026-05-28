@@ -2,7 +2,7 @@
   // Case 1 sponge-magnitude sensitivity at matched fd4 settings.
   //
   // Run with:
-  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_sponge_sigma.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
+  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/configs/perf_memory_cases_sponge_sigma.jsonc .venv/bin/python examples/case_studies/case1_song/scripts/perf_memory.py
   //
   // Purpose:
   // - isolate the effect of sponge magnitude alone
@@ -19,7 +19,7 @@
   "defaults": {
     "base_config": "parity_config.jsonc",
     "monitor_interval_seconds": 0.5,
-    "python_exe": "../../.venv/bin/python",
+    "python_exe": "../../../../.venv/bin/python",
     "env": {
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",

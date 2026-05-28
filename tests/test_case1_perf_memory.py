@@ -9,6 +9,7 @@ import pytest
 
 from tests._paths import case_fixture, require_existing
 
+REPO_ROOT = require_existing(case_fixture("case1").parents[2], "repository root")
 PERF_MEMORY_PATH = require_existing(
     case_fixture("case1") / "scripts" / "perf_memory.py",
     "Case 1 perf_memory module",
@@ -25,6 +26,21 @@ def _load_perf_memory_module():
 perf_memory = _load_perf_memory_module()
 parse_log_metrics = perf_memory._parse_log_metrics
 case_row = perf_memory._case_row
+
+
+def test_harness_resolves_paths_from_repository_root():
+    config_dir = case_fixture("case1") / "configs"
+
+    assert perf_memory.ROOT == REPO_ROOT
+    assert (
+        perf_memory._resolve_executable(
+            config_dir,
+            "../../../../.venv/bin/python",
+            perf_memory.CASE_DIR,
+            perf_memory.ROOT,
+        )
+        == str(REPO_ROOT / ".venv" / "bin" / "python")
+    )
 
 
 def test_parse_log_metrics_extracts_runtime_stage_rss_delta():
