@@ -502,7 +502,7 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
 
     python_npz_path = ROOT / str(case["python_npz"])
     if not python_npz_path.exists():
-        base["note"] = f"Missing Python artifact: {python_npz_path}"
+        base["note"] = f"Missing Python artifact: {_display_path(python_npz_path)}"
         return base
     python_npz = _load_npz_dict(python_npz_path)
     base["python_npz"] = str(python_npz_path.relative_to(ROOT))
@@ -530,7 +530,9 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
         if comparison_kind == "resolvent":
             matlab_results_path = npz_dir / f"{case['matlab_results_stem']}.npz"
             if not matlab_results_path.exists():
-                raise FileNotFoundError(f"Missing MATLAB NPZ bundle: {matlab_results_path}")
+                raise FileNotFoundError(
+                    f"Missing MATLAB NPZ bundle: {_display_path(matlab_results_path)}"
+                )
             matlab_npz = _load_npz_dict(matlab_results_path)
             svd_res_fwd = (
                 np.asarray(python_npz["svd_residuals_fwd"]).reshape(-1)
@@ -625,7 +627,7 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             if missing:
                 raise FileNotFoundError(
                     f"Missing MATLAB NPZ bundle(s) for {base['case_id']}: "
-                    + ", ".join(str(path) for path in missing)
+                    + ", ".join(_display_path(path) for path in missing)
                 )
             report = _compare_streaky_bl_case(
                 python_npz=python_npz,
@@ -739,12 +741,23 @@ def _csv_row(case: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _exit_code_from_counts(counts: dict[str, int], *, fail_on_hard_fail: bool) -> int:
+    if fail_on_hard_fail and counts.get("HARD_FAIL", 0):
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--npz-dir", type=Path, default=DEFAULT_NPZ_DIR)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--table", type=Path, default=DEFAULT_TABLE)
+    parser.add_argument(
+        "--fail-on-hard-fail",
+        action="store_true",
+        help="Return nonzero when any case is a HARD_FAIL.",
+    )
     args = parser.parse_args()
 
     cfg = load_jsonc(args.config)
@@ -781,7 +794,7 @@ def main() -> int:
         f"report={report_path}",
         f"table={table_path}",
     )
-    return 0
+    return _exit_code_from_counts(counts, fail_on_hard_fail=args.fail_on_hard_fail)
 
 
 if __name__ == "__main__":

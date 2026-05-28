@@ -23,6 +23,7 @@ Use the matrix runner from the repository root:
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --list
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-expanded-local
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-external-assets
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group documentation-gates
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local --skip-long
 ```
@@ -72,6 +73,18 @@ remain a later gate.
 | `curvilinear-example0` | `bash run_all_examples.sh --example 0 --skip-parity --fresh` | `examples/example_0_curvilinear_validation.npz` |
 | `high-mode-local-baseline` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --high-mode-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_high_mode_baseline.json` | 100-mode stability baseline for one interior target and one boundary-influenced target |
 | `coefficient-tensor-snapshot` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --coefficient-snapshot-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_coefficient_tensors.npz` | exact selected coefficient tensors for P1 before/after equivalence checks |
+
+## Phase 0 External-Asset Matrix
+
+These checks require optional upstream Martini/LinStab2D assets that are not
+committed to the package repository. Provide them through
+`LINSTABPY_BASEFLOW_DATA_DIR` or `src/linstabpy/data/baseflows`, and restore or
+extract the MATLAB fixture NPZ bundles under
+`scripts/validation/martini2024/fixtures`.
+
+| ID | Command | Artifact |
+|---|---|---|
+| `martini-full-examples` | `bash run_all_examples.sh --fresh` | regenerated `examples/*.npz` files plus `scripts/validation/martini2024/reports/martini_parity_latest.json` |
 
 ## Expanded Baseline Matrix
 

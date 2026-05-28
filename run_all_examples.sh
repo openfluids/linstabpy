@@ -639,7 +639,7 @@ if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 && $MPI_MODE -eq 0 ]]; then
   echo "══════════════════════════════════════════════════════"
   echo "  Parity comparison (Python vs MATLAB)"
   echo "══════════════════════════════════════════════════════"
-  if "$PYTHON" "$PARITY_SCRIPT"; then
+  if "$PYTHON" "$PARITY_SCRIPT" --fail-on-hard-fail; then
     echo "Status: PASS"
   else
     rc=$?
