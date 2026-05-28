@@ -85,7 +85,7 @@ each timed run so timings are not dominated by "plot only" reuse.
 
 ### Example: one 20-core Ubuntu 18.04 host
 
-On one machine (“supermicro”), after aligning on MPICH and a clean rebuild, benchmark JSON showed roughly:
+On one lab workstation, after aligning on MPICH and a clean rebuild, benchmark JSON showed roughly:
 
 - Example 0: on the order of **8 s** wall time (single process).
 - Example 1: about **70 s** with 20 ranks vs **72 s** with 10 ranks for the **same** JSON-fixed case — **little speed-up** when doubling ranks at this problem size, consistent with communication and serial phases dominating or ordering differences in the direct sparse solver.
