@@ -370,6 +370,28 @@ class _LNSEAssemblyResult:
     resolvent_operator_data: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class _LNSEBackendDecision:
+    """Resolved backend choice plus the reason for any fallback path."""
+
+    requested_backend: str
+    resolved_backend: str
+    distributed_requested: bool
+    direct_petsc_supported: bool
+    use_petsc_fallback: bool
+    reason: str
+
+    def as_metadata(self) -> dict[str, Any]:
+        return {
+            "requested_backend": self.requested_backend,
+            "resolved_backend": self.resolved_backend,
+            "distributed_requested": self.distributed_requested,
+            "direct_petsc_supported": self.direct_petsc_supported,
+            "use_petsc_fallback": self.use_petsc_fallback,
+            "backend_reason": self.reason,
+        }
+
+
 def _make_csr_derivative_cache(op: sp.spmatrix) -> _CSRDerivativeCache:
     """Convert a derivative operator into a canonical CSR cache."""
     if not sp.issparse(op):
@@ -616,6 +638,45 @@ def _resolve_lnse_backend(
     return "scipy"
 
 
+def _decide_lnse_backend(request: _LNSEAssemblyRequest) -> _LNSEBackendDecision:
+    """Resolve backend selection once and keep the fallback reason inspectable."""
+    from ..utils.petsc_core import _use_distributed_matrix
+
+    requested_backend = _requested_lnse_backend(request.backend, solver_cfg=request.solver_cfg)
+    resolved_backend = _resolve_lnse_backend(
+        request.backend, model=request.model, solver_cfg=request.solver_cfg
+    )
+    distributed_requested = _use_distributed_matrix(request.solver_cfg)
+    direct_supported = _direct_petsc_backend_supported(
+        model=request.model, solver_cfg=request.solver_cfg
+    )
+    use_petsc_fallback = (
+        requested_backend in {"petsc", "auto"}
+        and distributed_requested
+        and resolved_backend == "scipy"
+    )
+
+    if requested_backend == "scipy":
+        reason = "requested_scipy"
+    elif requested_backend == "petsc":
+        reason = "requested_petsc" if direct_supported else "requested_petsc_direct_unsupported"
+    elif direct_supported:
+        reason = "auto_direct_petsc_supported"
+    else:
+        reason = "auto_fallback_scipy_direct_petsc_unsupported"
+    if use_petsc_fallback:
+        reason = f"{reason}_distributed_conversion"
+
+    return _LNSEBackendDecision(
+        requested_backend=requested_backend,
+        resolved_backend=resolved_backend,
+        distributed_requested=distributed_requested,
+        direct_petsc_supported=direct_supported,
+        use_petsc_fallback=use_petsc_fallback,
+        reason=reason,
+    )
+
+
 def _build_lnse_system_scipy(
     mesh: Mesh,
     baseflow: BaseFlow,
@@ -659,44 +720,27 @@ def _build_lnse_system_scipy(
 
 def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssemblyResult:
     """Build an LNSE system from the normalized internal request object."""
-    from ..utils.petsc_core import _use_distributed_matrix, compact_petsc_matrix, scipy_to_petsc
+    from ..utils.petsc_core import compact_petsc_matrix, scipy_to_petsc
 
-    requested_backend = _requested_lnse_backend(request.backend, solver_cfg=request.solver_cfg)
-    resolved_backend = _resolve_lnse_backend(
-        request.backend, model=request.model, solver_cfg=request.solver_cfg
-    )
-    distributed_requested = _use_distributed_matrix(request.solver_cfg)
-    direct_supported = _direct_petsc_backend_supported(
-        model=request.model, solver_cfg=request.solver_cfg
-    )
-    use_petsc_fallback = (
-        requested_backend in {"petsc", "auto"}
-        and distributed_requested
-        and resolved_backend == "scipy"
-    )
-    backend_metadata = {
-        "requested_backend": requested_backend,
-        "resolved_backend": resolved_backend,
-        "distributed_requested": distributed_requested,
-        "direct_petsc_supported": direct_supported,
-        "use_petsc_fallback": use_petsc_fallback,
-    }
+    backend_decision = _decide_lnse_backend(request)
+    backend_metadata = backend_decision.as_metadata()
 
     with _assembly_metrics_session(
         solver_cfg=request.solver_cfg,
         path_kind="system",
-        requested_backend=requested_backend,
-        resolved_backend=resolved_backend,
-        distributed_requested=distributed_requested,
-        direct_petsc_supported=direct_supported,
-        use_petsc_fallback=use_petsc_fallback,
+        requested_backend=backend_decision.requested_backend,
+        resolved_backend=backend_decision.resolved_backend,
+        distributed_requested=backend_decision.distributed_requested,
+        direct_petsc_supported=backend_decision.direct_petsc_supported,
+        use_petsc_fallback=backend_decision.use_petsc_fallback,
+        backend_reason=backend_decision.reason,
         model=request.model_name,
         kx=float(request.kx),
         m=float(request.m),
         floquet_exp=float(request.floquet_exp),
         bc_recipe_enabled=request.has_bc_recipe,
     ):
-        if use_petsc_fallback:
+        if backend_decision.use_petsc_fallback:
             L0_sp, idx, bc_indices = _build_lnse_system_scipy(
                 request.mesh,
                 request.baseflow,
@@ -729,7 +773,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssem
                 backend_metadata={**backend_metadata, "matrix_type": "petsc"},
             )
 
-        if resolved_backend == "petsc":
+        if backend_decision.resolved_backend == "petsc":
             from ..boundary_conditions.recipe import apply_bc_recipe_petsc
 
             L0, idx = build_lnse_operator_petsc(
@@ -760,7 +804,10 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssem
             with _assembly_stage("scipy_to_petsc") as stage:
                 stage["skipped"] = True
             with _assembly_stage("petsc_compaction") as stage:
-                if not distributed_requested and direct_supported:
+                if (
+                    not backend_decision.distributed_requested
+                    and backend_decision.direct_petsc_supported
+                ):
                     L0 = compact_petsc_matrix(L0, request.solver_cfg)
                     stage["nnz"] = _matrix_nnz(L0)
                 else:

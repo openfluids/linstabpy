@@ -35,6 +35,7 @@ from linstabpy.operators.assembly import (
     _build_block_csr,
     _build_lnse_system_from_request,
     _create_axy_diff_matrices,
+    _decide_lnse_backend,
     _LNSEAssemblyRequest,
     _LNSEAssemblyResult,
     _make_csr_derivative_cache,
@@ -639,6 +640,52 @@ class TestOperatorAssembly:
         delta = (result.operator - public_L0).tocsr()
         if delta.nnz != 0 and np.max(np.abs(delta.data)) >= 1e-12:
             raise AssertionError("Internal assembly result differs from public wrapper tuple")
+
+    def test_lnse_backend_decision_records_fallback_reason(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        request = _LNSEAssemblyRequest(
+            mesh=small_mesh_2d,
+            baseflow=uniform_baseflow,
+            model="axy",
+            backend="auto",
+            solver_cfg={"petsc_matrix_mode": "distributed"},
+        )
+
+        decision = _decide_lnse_backend(request)
+
+        if decision.requested_backend != "auto":
+            raise AssertionError("Backend decision did not preserve the raw request")
+        if decision.resolved_backend != "scipy":
+            raise AssertionError("Unsupported distributed axy auto backend should resolve to scipy")
+        if not decision.distributed_requested:
+            raise AssertionError("Backend decision lost distributed PETSc request metadata")
+        if decision.direct_petsc_supported:
+            raise AssertionError("Distributed axy direct PETSc should not be reported as supported")
+        if not decision.use_petsc_fallback:
+            raise AssertionError("Distributed auto fallback should still return a PETSc matrix")
+        if decision.reason != "auto_fallback_scipy_direct_petsc_unsupported_distributed_conversion":
+            raise AssertionError(f"Unexpected backend fallback reason: {decision.reason!r}")
+
+    def test_lnse_backend_decision_records_explicit_unsupported_petsc_reason(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        request = _LNSEAssemblyRequest(
+            mesh=small_mesh_2d,
+            baseflow=uniform_baseflow,
+            model="axy",
+            backend="petsc",
+            solver_cfg={"petsc_matrix_mode": "distributed"},
+        )
+
+        decision = _decide_lnse_backend(request)
+
+        if decision.resolved_backend != "petsc":
+            raise AssertionError("Explicit PETSc request should preserve PETSc resolution")
+        if decision.direct_petsc_supported:
+            raise AssertionError("Unsupported direct PETSc request lost validation metadata")
+        if decision.reason != "requested_petsc_direct_unsupported":
+            raise AssertionError(f"Unexpected explicit PETSc reason: {decision.reason!r}")
 
     def test_continuity_block_no_viscous(self, small_mesh_2d, uniform_baseflow):
         """First ngp rows (continuity) should have no second-derivative viscous entries.
