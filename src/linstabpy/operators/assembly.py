@@ -1516,7 +1516,6 @@ def _assemble_block_operator_petsc(
         _use_distributed_matrix,
         assemble_matrix,
         create_distributed_aij,
-        insert_local_csr_rows,
         ownership_range,
     )
 
@@ -1560,7 +1559,7 @@ def _assemble_block_operator_petsc(
     )
 
     if distributed_matrix:
-        _note_assembly_metadata(raw_block_assembly_mode="petsc_distributed_owned_rows")
+        _note_assembly_metadata(raw_block_assembly_mode="petsc_distributed_owned_rows_direct")
         r0, r1 = ownership_range(matrix)
         owned_blocks = []
         for i in range(5):
@@ -1571,32 +1570,19 @@ def _assemble_block_operator_petsc(
             owned_blocks.append((i, row_start, row_stop))
 
         for i, row_start, row_stop in owned_blocks:
-            # Build each (i,j) block ONCE and slice the owned rows.
-            row_parts: list[sp.csr_matrix] = []
-            for j in range(5):
-                block = _build_block_csr(
-                    ngp,
-                    coeffs.A0[i, j, :],
-                    coeffs.Ax[i, j, :],
-                    coeffs.Ay[i, j, :],
-                    coeffs.Axx[i, j, :],
-                    coeffs.Ayy[i, j, :],
-                    coeffs.Axy[i, j, :],
-                    DR_blocks[j],
-                    D2R_blocks[j],
-                    DZ_blocks[j],
-                    D2Z_blocks[j],
-                    D2RZ_blocks[j],
-                )
-                row_parts.append(block[row_start:row_stop, :])
-
-            local_rows = (
-                sp.hstack(row_parts, format="csr")
-                if row_parts
-                else sp.csr_matrix((0, total_size), dtype=complex)
+            _insert_owned_block_rows_petsc(
+                matrix,
+                ngp,
+                coeffs,
+                i,
+                row_start,
+                row_stop,
+                DR_blocks,
+                D2R_blocks,
+                DZ_blocks,
+                D2Z_blocks,
+                D2RZ_blocks,
             )
-            if local_rows.shape[0] > 0:
-                insert_local_csr_rows(matrix, local_rows, row_start=i * ngp + row_start)
         return assemble_matrix(matrix)
 
     _note_assembly_metadata(raw_block_assembly_mode="petsc_local_row_insert_fallback")
@@ -1634,6 +1620,58 @@ def _assemble_block_operator_petsc(
                 )
 
     return assemble_matrix(matrix)
+
+
+def _insert_owned_block_rows_petsc(
+    matrix: "PETSc.Mat",
+    ngp: int,
+    coeffs: LNSECoefficients,
+    row_block: int,
+    row_start: int,
+    row_stop: int,
+    DR: list[_CSRDerivativeCache],
+    D2R: list[_CSRDerivativeCache],
+    DZ: list[_CSRDerivativeCache],
+    D2Z: list[_CSRDerivativeCache],
+    D2RZ: list[_CSRDerivativeCache],
+) -> None:
+    """Insert owned PETSc rows without building throw-away SciPy block slices."""
+    from petsc4py import PETSc
+
+    # Keep this order paired with _build_block_csr: Ay*DR, Ax*DZ,
+    # Ayy*D2R, Axx*D2Z, Axy*D2RZ.  PETSc ADD_VALUES performs the same
+    # duplicate-column summation that CSR sum_duplicates does in the SciPy path.
+    caches_by_term = (DR, DZ, D2R, D2Z, D2RZ)
+    coeff_arrays = (coeffs.Ay, coeffs.Ax, coeffs.Ayy, coeffs.Axx, coeffs.Axy)
+
+    for local_row in range(row_start, row_stop):
+        global_row = row_block * ngp + local_row
+        for col_block in range(5):
+            col_offset = col_block * ngp
+            a0 = coeffs.A0[row_block, col_block, local_row]
+            if a0 != 0:
+                matrix.setValue(
+                    global_row,
+                    col_offset + local_row,
+                    a0,
+                    addv=PETSc.InsertMode.ADD_VALUES,
+                )
+
+            for coeff_tensor, caches in zip(coeff_arrays, caches_by_term, strict=True):
+                coeff = coeff_tensor[row_block, col_block, local_row]
+                if coeff == 0:
+                    continue
+                cache = caches[col_block]
+                p0 = int(cache.csr.indptr[local_row])
+                p1 = int(cache.csr.indptr[local_row + 1])
+                if p0 == p1:
+                    continue
+                matrix.setValues(
+                    global_row,
+                    col_offset + cache.csr.indices[p0:p1],
+                    coeff * cache.csr.data[p0:p1],
+                    addv=PETSc.InsertMode.ADD_VALUES,
+                )
 
 
 def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
