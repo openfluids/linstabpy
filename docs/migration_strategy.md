@@ -80,6 +80,18 @@ itself. After a seam adds a candidate path, the same report schema must compare
 old versus new. A tolerance change is not a normal migration tool; record the
 baseline, candidate, and numerical reason in the bead before accepting it.
 
+The same harness can be enabled by environment for migration runs:
+
+```bash
+LINSTABPY_DUAL_PATH=1 \
+LINSTABPY_DUAL_PATH_REPORT=artifacts/architecture_refactor/safety_infrastructure/lnse_dual_path_env.json \
+.venv/bin/python scripts/validation/lnse_equivalence_harness.py --case 2D --case axy
+```
+
+The report marks `dual_path_enabled=true` and records that the gate was enabled
+through `LINSTABPY_DUAL_PATH`. Matrix check `lnse-dual-path-env` exercises this
+path so future candidate implementations cannot rely only on a hand-run script.
+
 ## Deprecation Policy
 
 Deprecation warnings are allowed only after replacement APIs are documented and

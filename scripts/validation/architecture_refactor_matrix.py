@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 import shlex
-import subprocess
+import subprocess  # nosec B404 - validation runner executes fixed local commands.
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -319,6 +319,23 @@ def _checks() -> list[Check]:
             artifact=ROOT / "artifacts/architecture_refactor/safety_infrastructure/"
             "lnse_equivalence_harness.json",
         ),
+        Check(
+            id="lnse-dual-path-env",
+            group="equivalence-gates",
+            description="Environment-enabled dual-path LNSE migration safety gate.",
+            command=(
+                "bash",
+                "-lc",
+                "LINSTABPY_DUAL_PATH=1 "
+                "LINSTABPY_DUAL_PATH_REPORT="
+                "artifacts/architecture_refactor/safety_infrastructure/"
+                "lnse_dual_path_env.json "
+                f"{shlex.quote(py)} scripts/validation/lnse_equivalence_harness.py "
+                "--case 2D --case axy",
+            ),
+            artifact=ROOT / "artifacts/architecture_refactor/safety_infrastructure/"
+            "lnse_dual_path_env.json",
+        ),
     ]
 
 
@@ -328,7 +345,7 @@ def _now() -> str:
 
 def _git_sha() -> str | None:
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607 - fixed git command, bounded timeout.
             ["git", "rev-parse", "HEAD"],
             cwd=ROOT,
             check=True,
@@ -470,7 +487,7 @@ def _run_check(check: Check, *, dry_run: bool) -> dict[str, object]:
         payload.update({"returncode": None, "status": "dry-run"})
         return payload
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - commands come from checked-in matrix definitions.
             check.command,
             cwd=ROOT,
             text=True,
