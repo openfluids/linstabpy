@@ -24,6 +24,58 @@ from .sbp import (
 )
 
 
+@dataclass(frozen=True)
+class MeshGeometry:
+    """Coordinate and active-point state for a structured mesh."""
+
+    X: np.ndarray
+    Y: np.ndarray
+    ngp: int
+    used_ind: np.ndarray
+    idx: dict
+    y_symmetry: bool
+    x_periodicity: bool
+
+
+@dataclass(frozen=True)
+class MeshOperators:
+    """Derivative, quadrature, and optional dissipation operators."""
+
+    fd_order: int
+    Dx: sp.csr_matrix
+    D2x: sp.csr_matrix
+    Dy: sp.csr_matrix
+    D2y: sp.csr_matrix
+    Dxy: sp.csr_matrix
+    Dyx: sp.csr_matrix
+    W: np.ndarray
+    Dy_symm: sp.csr_matrix | None
+    D2y_symm: sp.csr_matrix | None
+    Dy_asymm: sp.csr_matrix | None
+    D2y_asymm: sp.csr_matrix | None
+    Dxy_symm: sp.csr_matrix | None
+    Dyx_symm: sp.csr_matrix | None
+    Dxy_asymm: sp.csr_matrix | None
+    Dyx_asymm: sp.csr_matrix | None
+    W_symm: np.ndarray | None
+    W_asymm: np.ndarray | None
+    Q_diss_x: sp.csr_matrix | None
+    Q_diss_y: sp.csr_matrix | None
+
+
+@dataclass(frozen=True)
+class MeshRuntimeState:
+    """Optional mesh-attached state that is not part of the derivative basis."""
+
+    sponge: np.ndarray | None
+    alpha_filter: float | str
+    filters: MeshFilters | None
+    J11: np.ndarray | None
+    J12: np.ndarray | None
+    J21: np.ndarray | None
+    J22: np.ndarray | None
+
+
 @dataclass
 class Mesh:
     """Two-dimensional structured mesh with differentiation operators.
@@ -135,6 +187,58 @@ class Mesh:
     J22: np.ndarray | None = None  # dY_phys/deta_comp, shape (ngp,)
     Q_diss_x: sp.csr_matrix | None = None  # 1-D SBP dissipation along ksi (x), shape (nx, nx)
     Q_diss_y: sp.csr_matrix | None = None  # 1-D SBP dissipation along eta (y), shape (ny, ny)
+
+    @property
+    def geometry(self) -> MeshGeometry:
+        """Return the coordinate and active-index view of this mesh."""
+        return MeshGeometry(
+            X=self.X,
+            Y=self.Y,
+            ngp=self.ngp,
+            used_ind=self.used_ind,
+            idx=self.idx,
+            y_symmetry=self.y_symmetry,
+            x_periodicity=self.x_periodicity,
+        )
+
+    @property
+    def operators(self) -> MeshOperators:
+        """Return the derivative/quadrature operator view of this mesh."""
+        return MeshOperators(
+            fd_order=self.fd_order,
+            Dx=self.Dx,
+            D2x=self.D2x,
+            Dy=self.Dy,
+            D2y=self.D2y,
+            Dxy=self.Dxy,
+            Dyx=self.Dyx,
+            W=self.W,
+            Dy_symm=self.Dy_symm,
+            D2y_symm=self.D2y_symm,
+            Dy_asymm=self.Dy_asymm,
+            D2y_asymm=self.D2y_asymm,
+            Dxy_symm=self.Dxy_symm,
+            Dyx_symm=self.Dyx_symm,
+            Dxy_asymm=self.Dxy_asymm,
+            Dyx_asymm=self.Dyx_asymm,
+            W_symm=self.W_symm,
+            W_asymm=self.W_asymm,
+            Q_diss_x=self.Q_diss_x,
+            Q_diss_y=self.Q_diss_y,
+        )
+
+    @property
+    def runtime_state(self) -> MeshRuntimeState:
+        """Return filter, sponge, and Jacobian state carried with the mesh."""
+        return MeshRuntimeState(
+            sponge=self.sponge,
+            alpha_filter=self.alpha_filter,
+            filters=self.filters,
+            J11=self.J11,
+            J12=self.J12,
+            J21=self.J21,
+            J22=self.J22,
+        )
 
     # ------------------------------------------------------------------
     # Construction
@@ -381,10 +485,6 @@ class Mesh:
         Y_out = Y_new if Y_new is not None else self.Y
 
         p = self.used_ind
-        Dx = self.Dx
-        D2x = self.D2x
-        Dy = self.Dy
-        D2y = self.D2y
 
         if x_only:
             (
