@@ -22,6 +22,8 @@ _LAZY_EXPORTS = {
     "analyze_bc_recipe": "linstabpy.boundary_conditions.recipe",
     "apply_bc_recipe": "linstabpy.boundary_conditions.recipe",
     "apply_bc_recipe_petsc": "linstabpy.boundary_conditions.recipe",
+    "apply_bc_recipe_spatial": "linstabpy.boundary_conditions.recipe",
+    "apply_bc_recipe_spatial_petsc": "linstabpy.boundary_conditions.recipe",
 }
 
 __all__ = sorted(_LAZY_EXPORTS)

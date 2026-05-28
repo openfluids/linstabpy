@@ -20,6 +20,8 @@ from .dirichlet import (
     _BORDER_MAP,
     _VARIABLE_MAP,
     _collect_dirichlet_indices,
+    _zero_cols_csc,
+    _zero_rows_csr,
     apply_dirichlet,
     apply_dirichlet_petsc,
 )
@@ -114,6 +116,46 @@ class BCRecipe:
             penalty=penalty,
             dirichlet_fn=apply_dirichlet_petsc,
             neumann_fn=apply_neumann_petsc,
+        )
+
+    def apply_to_spatial(
+        self,
+        Lc: sp.csc_matrix,
+        R: sp.csc_matrix,
+        mesh: Mesh,
+        idx: dict[str, np.ndarray],
+        *,
+        penalty: float = 1e4,
+    ) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
+        """Apply Dirichlet recipe rows to doubled SciPy spatial EVP matrices."""
+        analysis = self.analyze(mesh, idx)
+        _require_spatial_dirichlet_recipe(analysis)
+        return _apply_spatial_dirichlet_indices(
+            Lc,
+            R,
+            np.asarray(analysis["column_zeroed_dirichlet_indices"], dtype=np.int64),
+            mesh.ngp,
+            penalty=penalty,
+        )
+
+    def apply_to_spatial_petsc(
+        self,
+        Lc: "PETSc.Mat",
+        R: "PETSc.Mat",
+        mesh: Mesh,
+        idx: dict[str, np.ndarray],
+        *,
+        penalty: float = 1e4,
+    ) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
+        """Apply Dirichlet recipe rows to doubled PETSc spatial EVP matrices."""
+        analysis = self.analyze(mesh, idx)
+        _require_spatial_dirichlet_recipe(analysis)
+        return _apply_spatial_dirichlet_indices_petsc(
+            Lc,
+            R,
+            np.asarray(analysis["column_zeroed_dirichlet_indices"], dtype=np.int64),
+            mesh.ngp,
+            penalty=penalty,
         )
 
     def analyze(self, mesh: Mesh, idx: dict[str, np.ndarray]) -> dict[str, object]:
@@ -238,6 +280,30 @@ def apply_bc_recipe_petsc(
     return BCRecipe.from_config(recipe).apply_to_petsc(L0, mesh, idx, penalty=penalty)
 
 
+def apply_bc_recipe_spatial(
+    Lc: sp.csc_matrix,
+    R: sp.csc_matrix,
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: BCRecipe | Sequence[Mapping[str, Any]],
+    penalty: float = 1e4,
+) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
+    """Apply a declarative Dirichlet recipe to doubled SciPy spatial matrices."""
+    return BCRecipe.from_config(recipe).apply_to_spatial(Lc, R, mesh, idx, penalty=penalty)
+
+
+def apply_bc_recipe_spatial_petsc(
+    Lc: "PETSc.Mat",
+    R: "PETSc.Mat",
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: BCRecipe | Sequence[Mapping[str, Any]],
+    penalty: float = 1e4,
+) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
+    """Apply a declarative Dirichlet recipe to doubled PETSc spatial matrices."""
+    return BCRecipe.from_config(recipe).apply_to_spatial_petsc(Lc, R, mesh, idx, penalty=penalty)
+
+
 def analyze_bc_recipe(
     mesh: Mesh,
     idx: dict[str, np.ndarray],
@@ -349,3 +415,79 @@ def _analyze_bc_recipe_impl(
         "total_bc_indices": total_bc,
         "row_owner_rule": row_owner_rule,
     }
+
+
+def _require_spatial_dirichlet_recipe(analysis: dict[str, object]) -> None:
+    """Reject spatial recipes that need a boundary type not implemented there."""
+    if any(report["type"] == "neumann" for report in analysis["rule_reports"]):
+        raise ValueError("Spatial BC recipes currently support Dirichlet rules only.")
+
+
+def _spatial_doubled_indices(base_indices: np.ndarray, ngp: int) -> np.ndarray:
+    """Lift single-half boundary indices into both halves of the spatial EVP."""
+    base_indices = np.unique(np.asarray(base_indices, dtype=np.int64))
+    if base_indices.size == 0:
+        return np.array([], dtype=np.int64)
+    n = ngp * 5
+    return np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
+
+
+def _apply_spatial_dirichlet_indices(
+    Lc: sp.csc_matrix,
+    R: sp.csc_matrix,
+    base_indices: np.ndarray,
+    ngp: int,
+    *,
+    penalty: float,
+) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
+    bc_indices = _spatial_doubled_indices(base_indices, ngp)
+    if bc_indices.size == 0:
+        return Lc, R, np.array([], dtype=np.int64)
+
+    def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
+        mat = mat.tocsr()
+        _zero_rows_csr(mat, bc_indices)
+        mat = mat.tocsc()
+        _zero_cols_csc(mat, bc_indices)
+        mat.eliminate_zeros()
+        return mat
+
+    Lc = _zero_rows_cols(Lc)
+    Lc = Lc + sp.csc_matrix(
+        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
+        shape=Lc.shape,
+    )
+    Lc.eliminate_zeros()
+    R = _zero_rows_cols(R)
+    return Lc, R, bc_indices
+
+
+def _apply_spatial_dirichlet_indices_petsc(
+    Lc: "PETSc.Mat",
+    R: "PETSc.Mat",
+    base_indices: np.ndarray,
+    ngp: int,
+    *,
+    penalty: float,
+) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
+    from petsc4py import PETSc
+
+    bc_indices = _spatial_doubled_indices(base_indices, ngp)
+    if bc_indices.size == 0:
+        return Lc, R, np.array([], dtype=np.int64)
+
+    if Lc.getSize()[0] != Lc.getSize()[1] or R.getSize()[0] != R.getSize()[1]:
+        raise ValueError("Lc and R must be square")
+    if Lc.getSize() != R.getSize():
+        raise ValueError("Lc and R must have identical shapes")
+    if bc_indices.min() < 0 or bc_indices.max() >= Lc.getSize()[0]:
+        raise ValueError("Dirichlet indices are out of bounds for the spatial PETSc matrices")
+
+    bc_idx = np.asarray(bc_indices, dtype=np.int32)
+    Lc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    R.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    Lc.zeroRowsColumns(bc_idx, diag=complex(penalty))
+    R.zeroRowsColumns(bc_idx, diag=0.0)
+    Lc.assemble()
+    R.assemble()
+    return Lc, R, bc_indices

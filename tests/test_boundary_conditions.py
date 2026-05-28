@@ -10,6 +10,8 @@ from linstabpy.boundary_conditions import (
     analyze_bc_recipe,
     apply_bc_recipe,
     apply_bc_recipe_petsc,
+    apply_bc_recipe_spatial,
+    apply_bc_recipe_spatial_petsc,
     apply_dirichlet,
     apply_dirichlet_identity_pair,
     apply_dirichlet_spatial,
@@ -686,6 +688,74 @@ class TestRecipeAnalysis:
             BCRecipe.from_config([{"type": "dirichlet", "borders": "b", "variables": "q"}])
         with pytest.raises(ValueError, match="Neumann B.C."):
             BCRecipe.from_config([{"type": "neumann", "borders": "m", "variables": "u"}])
+
+    def test_bc_recipe_spatial_matches_legacy_dirichlet_application(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        penalty = 29.0
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+        Lc, R, _, idx = build_spatial_operator(mesh, bf)
+
+        Lc_legacy, R_legacy, idx_legacy = apply_dirichlet_spatial(
+            Lc.copy(), R.copy(), idx, "bt", "uvwT", mesh.ngp, penalty=penalty
+        )
+        Lc_recipe, R_recipe, idx_recipe = apply_bc_recipe_spatial(
+            Lc.copy(), R.copy(), mesh, idx, recipe, penalty=penalty
+        )
+
+        np.testing.assert_array_equal(idx_recipe, idx_legacy)
+        assert (Lc_recipe - Lc_legacy).nnz == 0
+        assert (R_recipe - R_legacy).nnz == 0
+
+    def test_bc_recipe_spatial_petsc_matches_scipy_recipe(self, small_mesh_2d, uniform_baseflow):
+        pytest.importorskip("petsc4py")
+        from petsc4py import PETSc
+
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        penalty = 31.0
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+        Lc, R, _, idx = build_spatial_operator(mesh, bf)
+        Lc_scipy, R_scipy, idx_scipy = apply_bc_recipe_spatial(
+            Lc.copy(), R.copy(), mesh, idx, recipe, penalty=penalty
+        )
+
+        def make_petsc(mat: sp.csc_matrix) -> "PETSc.Mat":
+            csr = mat.tocsr()
+            out = PETSc.Mat().createAIJ(
+                size=csr.shape,
+                csr=(csr.indptr, csr.indices, csr.data.astype(complex)),
+            )
+            out.setUp()
+            out.assemble()
+            return out
+
+        Lc_petsc, R_petsc, idx_petsc = apply_bc_recipe_spatial_petsc(
+            make_petsc(Lc), make_petsc(R), mesh, idx, recipe, penalty=penalty
+        )
+
+        np.testing.assert_array_equal(np.sort(idx_scipy), np.sort(idx_petsc))
+        Lc_rows = Lc_scipy.tocsr()
+        R_rows = R_scipy.tocsr()
+        check = np.array([idx_scipy[0], idx_scipy[len(idx_scipy) // 2], idx_scipy[-1]], dtype=int)
+        for dof in check:
+            for scipy_mat, petsc_mat in ((Lc_rows, Lc_petsc), (R_rows, R_petsc)):
+                row_scipy = scipy_mat.getrow(int(dof)).toarray().ravel()
+                cols_petsc_raw, vals_petsc_raw = petsc_mat.getRow(int(dof))
+                row_petsc = np.zeros(row_scipy.shape, dtype=complex)
+                row_petsc[np.asarray(cols_petsc_raw, dtype=int)] = np.asarray(vals_petsc_raw)
+                np.testing.assert_allclose(row_petsc, row_scipy, atol=1e-12)
+
+    def test_bc_recipe_spatial_rejects_neumann_rules(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        recipe = [{"type": "neumann", "borders": "", "variables": "T"}]
+        Lc, R, _, idx = build_spatial_operator(mesh, bf)
+
+        with pytest.raises(ValueError, match="Dirichlet rules only"):
+            apply_bc_recipe_spatial(Lc.copy(), R.copy(), mesh, idx, recipe)
 
     def test_case1_recipe_overlap_and_effective_sets(self, small_mesh_2d, uniform_baseflow):
         mesh = small_mesh_2d
