@@ -72,7 +72,7 @@ bash benchmark.sh
 
 The reference MATLAB base flows (`M09jet.mat`, `BL_BF.mat`, `Step_BF.mat`,
 `Paraboloid_BF.mat`) used by the Martini example loaders are not bundled.
-See section 2.8 for how to point linstabpy at a local clone of LinStab2D.
+See section 2.10 for how to point linstabpy at a local clone of LinStab2D.
 
 `diagnose.sh` is read-only. It checks compilers, MPI launchers, development
 headers, dual-MPI conflicts, and whether `mpiexec -n 1 /bin/true` works.
@@ -80,6 +80,33 @@ headers, dual-MPI conflicts, and whether `mpiexec -n 1 /bin/true` works.
 `install.sh` creates `.venv`, builds or installs the Python/PETSc/SLEPc stack,
 repairs `mpi4py` when the wheel ABI does not match the selected MPI stack, and
 installs this repository in editable mode.
+
+Use `--force` when you want a clean reinstall. It removes the existing `.venv`
+first, then rebuilds the full Python, PETSc/SLEPc, `mpi4py`, `petsc4py`, and
+`slepc4py` environment:
+
+```bash
+bash install.sh --force
+```
+
+Use `--latest` only when you deliberately want the newest compatible package
+releases instead of the pinned PETSc/SLEPc family used by the default installer:
+
+```bash
+bash install.sh --force --latest
+```
+
+Python 3.13 is the default tested interpreter class. Python 3.14 can be tried
+when your `uv` installation can resolve it and all PETSc/SLEPc bindings have
+compatible releases:
+
+```bash
+LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest
+```
+
+Treat Python 3.14 as a freshness test until `install.sh --check`, the pytest
+suite, and the examples pass on your machine. For reproducible comparisons,
+record the Python version printed by `install.sh --check`.
 
 `install.sh --check` verifies that `petsc4py` and `slepc4py` import, that PETSc
 uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
@@ -188,7 +215,71 @@ bindings.
 | `LINSTABPY_VERIFY_MPIEXEC` | auto | Path to the `mpiexec` used by `install.sh --check` for MPI import/probe checks. |
 | `LINSTABPY_SKIP_SYS_DEPS` | `0` | Set to `1` to skip Linux system dependency detection and package-manager advice. |
 
-### 2.6 Known-good reference stacks
+### 2.6 Activation and shell aliases
+
+You can run everything through `.venv/bin/python` without activating the
+environment:
+
+```bash
+.venv/bin/python -m pytest tests/
+```
+
+For interactive work, activation is still convenient:
+
+```bash
+source .venv/bin/activate
+```
+
+If you use the project often, add a small alias or shell function to your
+`~/.bashrc` / `~/.zshrc` so you do not have to remember the activation path:
+
+```bash
+alias linstabpy-activate='cd /path/to/linstabpy && source .venv/bin/activate'
+```
+
+Keep the path local to your machine. The alias is optional and should not be
+used in scripts; scripts should call `.venv/bin/python` directly so logs show
+which interpreter ran.
+
+### 2.7 MPI stack verification
+
+The installer chooses one active MPI stack from the shell environment. The same
+stack must own all of these pieces:
+
+- `mpicc`, `mpicxx`, and `mpifort`;
+- `mpiexec` used by PETSc/SLEPc configure;
+- `mpi4py`;
+- `petsc4py` / `slepc4py`;
+- the `mpiexec` used for runtime examples and tests.
+
+Read the install log rather than guessing. A healthy install prints the MPI
+launcher used for PETSc/SLEPc configure, the launcher used for verification,
+the resolved MPI library directory, and the result of single-rank and multi-rank
+checks. If those paths point to different MPI families, rebuild from a clean
+environment:
+
+```bash
+rm -rf .venv
+bash diagnose.sh
+bash install.sh --force
+bash install.sh --check
+```
+
+For clusters with Intel MPI, source oneAPI or the site module first and make
+that choice explicit:
+
+```bash
+source /opt/intel/oneapi/setvars.sh --force
+export LINSTABPY_MPI_STACK=intelmpi
+bash diagnose.sh
+bash install.sh --force
+bash install.sh --check
+```
+
+Do not repair a mixed MPI install by editing `LD_LIBRARY_PATH` until it happens
+to import. Reinstall with the intended MPI stack visible from the start.
+
+### 2.8 Known-good reference stacks
 
 A healthy Linux install should satisfy this sequence:
 
@@ -219,7 +310,7 @@ manifest from a working machine with:
   --redact-local-details
 ```
 
-### 2.7 MPI runtime rules
+### 2.9 MPI runtime rules
 
 Use one MPI stack per install and one thread per rank unless you are measuring a
 different layout on purpose.
@@ -233,6 +324,12 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 ```
+
+These defaults prevent every MPI rank from also starting a full BLAS/OpenMP
+thread pool. They are the right starting point for sparse direct solves and
+postcheck-heavy runs. Increase them only for a controlled benchmark, and record
+the changed values with the run log because they affect wall time, memory
+pressure, and reproducibility.
 
 Prefer the canonical example runner for MPI examples:
 
@@ -248,7 +345,7 @@ default rank count with `LINSTABPY_MPI_RANKS` when the target machine needs an
 explicit MPI runtime. For sparse direct factorization, more ranks are not
 automatically faster; compare rank counts on the target machine.
 
-### 2.8 Fetching reference base flows
+### 2.10 Fetching reference base flows
 
 The Martini example loaders (`example_1_blasius`, `example_2_jet`,
 `example_4_cavity`, `example_5_paraboloid`) consume four `.mat` base
@@ -288,7 +385,7 @@ bash benchmark.sh
 ```
 
 This repository has no required submodules. Reference Martini base flows are
-handled separately in section 2.8.
+handled separately in section 2.10.
 
 Run the smallest Blasius example:
 
