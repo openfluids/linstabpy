@@ -23,6 +23,7 @@ def test_phase0_golden_local_selects_local_and_documentation_checks() -> None:
     assert groups == {"phase0-local", "phase0-expanded-local", "documentation-gates"}
     assert "martini-fixture-preflight" not in ids
     assert "martini-full-examples" not in ids
+    assert "case2-local-assembly-baseline" in ids
     assert "docstring-inventory" in ids
 
 
@@ -38,6 +39,7 @@ def test_phase0_golden_all_keeps_external_asset_checks_explicit() -> None:
     assert "martini-fixture-preflight" in ids
     assert "martini-full-examples" in ids
     assert "coefficient-tensor-snapshot" in ids
+    assert "case2-local-assembly-baseline" in ids
 
 
 def test_explicit_check_filter_still_applies_inside_virtual_group() -> None:

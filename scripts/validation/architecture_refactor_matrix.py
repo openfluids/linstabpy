@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import time
 from collections.abc import Iterable
@@ -239,6 +240,24 @@ def _checks() -> list[Check]:
                 str((phase0_dir / "phase0_coefficient_tensors.npz").relative_to(ROOT)),
             ),
             artifact=phase0_dir / "phase0_coefficient_tensors.npz",
+        ),
+        Check(
+            id="case2-local-assembly-baseline",
+            group="phase0-expanded-local",
+            description="Case 2 assembly-only timing and memory baseline for P1/P2/P8.",
+            command=(
+                "bash",
+                "-lc",
+                "LINSTABPY_CASE2_PERF_CONFIG="
+                "examples/case_studies/case2_lui/configs/perf/"
+                "phase0_local_assembly_baseline.jsonc "
+                "LINSTABPY_STAGE_HEARTBEAT_SECONDS=60 "
+                f"{shlex.quote(py)} examples/case_studies/case2_lui/perf_memory.py",
+            ),
+            artifact=ROOT
+            / "examples/case_studies/case2_lui/output/phase0_local_assembly_baseline"
+            / "case2_phase0_local_assembly_baseline_latest.json",
+            timeout_seconds=600.0,
         ),
         Check(
             id="martini-fixture-preflight",
