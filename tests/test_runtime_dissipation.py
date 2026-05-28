@@ -256,6 +256,29 @@ def test_default_off_provenance(monkeypatch, tmp_path):
     assert build_lnse_kwargs[0]["dissipation_epsilon"] == 0.0
 
 
+def test_runtime_npz_contract_keys_are_written(monkeypatch, tmp_path):
+    """The mocked runtime still writes the keys used by validators and campaign tools."""
+    output_path, _, _ = _run_compute(monkeypatch, tmp_path, stem="contract")
+
+    with np.load(output_path, allow_pickle=False) as data:
+        missing = sorted(set(results_runtime.RUNTIME_NPZ_CONTRACT_KEYS) - set(data.files))
+        assert not missing, f"Missing runtime NPZ contract keys: {missing}"
+
+        assert data["provenance_config_hash"].shape == ()
+        assert data["provenance_linstabpy_git_sha"].shape == ()
+        np.testing.assert_array_equal(
+            data["stability_accepted_indices"], np.array([], dtype=np.int32)
+        )
+        np.testing.assert_array_equal(
+            data["stability_rejected_indices"], np.array([], dtype=np.int32)
+        )
+        np.testing.assert_array_equal(
+            data["stability_all_reject_reason_code"], np.array([], dtype=np.int32)
+        )
+        assert data["resolvent_rho_fwd"].shape == (0,)
+        assert data["resolvent_rho_adj"].shape == (0,)
+
+
 def test_enabled_provenance(monkeypatch, tmp_path):
     output_path, mesh_create_kwargs, build_lnse_kwargs = _run_compute(
         monkeypatch,
