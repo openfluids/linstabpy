@@ -13,6 +13,7 @@ import pytest
 import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
+import linstabpy.solvers.resolvent as resolvent_module
 from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
@@ -45,7 +46,10 @@ from linstabpy.solvers.eigenvalue import (
 )
 from linstabpy.solvers.linsolve import make_linear_solver
 from linstabpy.solvers.petsc_utils import scipy_to_petsc
-from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals
+from linstabpy.solvers.resolvent import (
+    compute_resolvent_svd_residuals,
+    resolvent_analysis_with_residuals,
+)
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
@@ -328,6 +332,69 @@ def test_resolvent_svd_residual_norm() -> None:
     assert np.all(np.isfinite(rho_fwd))
     assert np.all(np.isfinite(rho_adj))
     assert np.all(rho_fwd < 1e-10), f"rho_fwd unexpectedly large: {rho_fwd}"
+    assert np.all(rho_adj < 1e-6), f"rho_adj unexpectedly large: {rho_adj}"
+
+
+def test_resolvent_analysis_with_residuals_matches_postcheck() -> None:
+    """Combined resolvent/postcheck path must preserve the residual values."""
+    diag = -np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
+    L0 = sp.diags(diag, format="csc", dtype=complex)
+    W_diag = np.array([1.0, 2.0, 0.5, 1.5, 3.0])
+    solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+
+    gains, responses, forcings, rho_fwd_reused, rho_adj_reused = resolvent_analysis_with_residuals(
+        L0,
+        omega=0.25,
+        n_modes=2,
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+    rho_fwd_post, rho_adj_post = compute_resolvent_svd_residuals(
+        L0,
+        omega=0.25,
+        B_mat=None,
+        C_mat=None,
+        gains=gains,
+        forcings=forcings,
+        responses=responses,
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+
+    np.testing.assert_allclose(rho_fwd_reused, rho_fwd_post, atol=1e-14, rtol=1e-12)
+    np.testing.assert_allclose(rho_adj_reused, rho_adj_post, atol=1e-14, rtol=1e-12)
+
+
+def test_resolvent_analysis_with_residuals_uses_one_factorization(monkeypatch) -> None:
+    """Residual reuse must not build a second shifted linear solver."""
+    diag = -np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
+    L0 = sp.diags(diag, format="csc", dtype=complex)
+    W_diag = np.ones(5)
+    solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+
+    n_builds = 0
+    original_make_linear_solver = resolvent_module.make_linear_solver
+
+    def counted_make_linear_solver(*args, **kwargs):
+        nonlocal n_builds
+        n_builds += 1
+        return original_make_linear_solver(*args, **kwargs)
+
+    monkeypatch.setattr(resolvent_module, "make_linear_solver", counted_make_linear_solver)
+
+    gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis_with_residuals(
+        L0,
+        omega=0.25,
+        n_modes=2,
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+
+    assert gains.shape == (2,)
+    assert responses.shape == forcings.shape == (5, 2)
+    assert np.all(np.isfinite(rho_fwd))
+    assert np.all(np.isfinite(rho_adj))
+    assert n_builds == 1
     assert np.all(rho_adj < 1e-6), f"rho_adj unexpectedly large: {rho_adj}"
 
 

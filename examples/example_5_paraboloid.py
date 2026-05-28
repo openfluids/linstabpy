@@ -63,7 +63,7 @@ def compute(cfg: dict):
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
     from linstabpy.solvers.petsc_utils import scipy_to_petsc
-    from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+    from linstabpy.solvers.resolvent import resolvent_analysis_with_residuals
 
     solver_cfg = cfg.get("solver")
 
@@ -182,7 +182,13 @@ def compute(cfg: dict):
 
     for candidate in solve_freqs:
         try:
-            gains, responses, forcings = resolvent_analysis(
+            (
+                gains,
+                responses,
+                forcings,
+                svd_residuals_fwd,
+                svd_residuals_adj,
+            ) = resolvent_analysis_with_residuals(
                 L0,
                 candidate,
                 n_modes,
@@ -219,21 +225,8 @@ def compute(cfg: dict):
     # default subspace opts.p = 2*nEig+1.  Python uses MUMPS/METIS + SLEPc EPS
     # at tol=1e-12, ncv = max(2*n_modes+3, 20).  Different fill-reducing
     # orderings yield gain mismatch ~0.04% for this case; structurally
-    # unavoidable.  omega_used (not the nominal omega=0) is passed so the
-    # correct shifted operator is rebuilt for the residual check.
-    svd_residuals_fwd, svd_residuals_adj = compute_resolvent_svd_residuals(
-        L0,
-        omega_used,
-        B_mat,
-        C_mat,
-        gains,
-        forcings,
-        responses,
-        W_diag,
-        filter_fn=mesh.filters.filter if mesh.filters is not None else None,
-        filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
-        solver_cfg=solver_cfg,
-    )
+    # unavoidable.  The residuals above are computed with the same shifted
+    # factorization used for the accepted candidate frequency.
 
     np.savez_compressed(
         OUTPUT_NPZ,

@@ -11,6 +11,7 @@ eager re-exports here would defeat the lazy contract from
 
 _LAZY_EXPORTS = {
     "resolvent_analysis": "linstabpy.solvers.resolvent",
+    "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
     "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
     "spatial_eigenvalues": "linstabpy.solvers.spatial_eig",
