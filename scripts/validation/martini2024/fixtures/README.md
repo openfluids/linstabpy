@@ -73,9 +73,10 @@ and saves only the result/log variables needed by the parity comparator:
 ```
 
 Use `--matlab /path/to/matlab` when MATLAB is not on `PATH`. Add `--dry-run` to
-inspect the generated runner and command without invoking MATLAB. The public
-repository does not bundle MATLAB, the upstream checkout, or heavyweight raw
-exports.
+inspect the generated runner and command without invoking MATLAB. For long
+reference solves, use `--only example4 --only example5` or another selected
+case block to avoid repeating completed exports. The public repository does not
+bundle MATLAB, the upstream checkout, or heavyweight raw exports.
 
 After extraction, run the parity gate:
 

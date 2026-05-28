@@ -22,6 +22,7 @@ from scripts.validation.martini2024.tools.extract_martini_to_npz import (  # noq
 
 DEFAULT_SCRIPT = ROOT / "artifacts" / "martini2024" / "export_martini_reference.m"
 ENV_OUTPUT_DIR = "LINSTABPY_MARTINI_EXPORT_DIR"
+ALL_CASES = ("example0", "example1", "example2", "example3_temporal", "example3_spatial", "example4", "example5")
 
 
 def _display_path(path: Path) -> str:
@@ -106,88 +107,95 @@ def _save_log(filename: str) -> str:
     )
 
 
-def build_matlab_export_script(source_dir: Path, output_dir: Path) -> str:
-    """Return a MATLAB script that exports the expected Martini reference files."""
+def _case_blocks() -> dict[str, list[str]]:
     quiet = {"verbose     = true;": "verbose     = false;"}
+    return {
+        "example0": _run_case("example_0_TestCurvilinearDerivative.m")
+        + [
+            "results_TestCurv = struct('x', x, 'y', y, 'f', f, 'df', df, 'df_an', df_an);",
+            _save_result(
+                "example_0_TestCurvilinearDerivative_results.mat", "results_TestCurv"
+            ),
+            _save_log("example_0_TestCurvilinearDerivative_logs.mat"),
+            "close all;",
+            "",
+        ],
+        "example1": _run_case("example_1_Blasius.m", quiet)
+        + [
+            "results_Blasius = struct('gains', gains, 'responses', responses, 'forces', forces);",
+            _save_result("example_1_Blasius_results.mat", "results_Blasius"),
+            _save_log("example_1_Blasius_logs.mat"),
+            "close all;",
+            "",
+        ],
+        "example2": _run_case("example_2_Jet.m", quiet)
+        + [
+            "results_Jet = struct('S', S, 'U', U, 'V', V);",
+            _save_result("example_2_Jet_results.mat", "results_Jet"),
+            _save_log("example_2_Jet_logs.mat"),
+            "close all;",
+            "",
+        ],
+        "example3_temporal": _run_case("example_3_Streaky_BL.m", quiet)
+        + [
+            "results_StreakyBL_base = struct('mesh', mesh, 'baseFlow', baseFlow);",
+            "results_StreakyBL_temporal = struct('omega', omega, 'V', V);",
+            _save_result("example_3_Streaky_BL_results_base.mat", "results_StreakyBL_base"),
+            _save_result(
+                "example_3_Streaky_BL_results_temporal.mat", "results_StreakyBL_temporal"
+            ),
+            _save_log("example_3_Streaky_BL_logs.mat"),
+            "close all;",
+            "",
+        ],
+        "example3_spatial": _run_case(
+            "example_3_Streaky_BL.m",
+            {
+                **quiet,
+                "temporalAna = true;": "temporalAna = false;",
+                "spatialAna  = false;": "spatialAna  = true;",
+                "if exists(omega)": "if exist('omega','var')",
+            },
+        )
+        + [
+            "results_StreakyBL_spatial = struct('alphas', alphas);",
+            _save_result(
+                "example_3_Streaky_BL_results_spatial.mat", "results_StreakyBL_spatial"
+            ),
+            "close all;",
+            "",
+        ],
+        "example4": _run_case("example_4_Cavity.m", quiet)
+        + [
+            "results_Cavity_base = struct('mesh', mesh, 'baseFlow', baseFlow);",
+            "results_Cavity_direct = struct('omega', omega, 'V', V);",
+            "results_Cavity_adjoint = struct('omegaAdj', omega_adj, 'VAdj', V_adj);",
+            _save_result("example_4_Cavity_results_base.mat", "results_Cavity_base"),
+            _save_result("example_4_Cavity_results_direct.mat", "results_Cavity_direct"),
+            _save_result("example_4_Cavity_results_adjoint.mat", "results_Cavity_adjoint"),
+            "close all;",
+            "",
+        ],
+        "example5": _run_case("example_5_Paraboloid.m", quiet)
+        + [
+            "results_Paraboloid = struct('gains', gains, 'responses', responses, 'forces', forces);",
+            _save_result("example_5_Paraboloid_results.mat", "results_Paraboloid"),
+            _save_log("example_5_Paraboloid_logs.mat"),
+            "close all;",
+            "",
+        ],
+    }
+
+
+def build_matlab_export_script(
+    source_dir: Path, output_dir: Path, only: tuple[str, ...] = ALL_CASES
+) -> str:
+    """Return a MATLAB script that exports the expected Martini reference files."""
     lines = _script_header(source_dir.resolve(), output_dir.resolve())
-
-    lines += _run_case("example_0_TestCurvilinearDerivative.m")
-    lines += [
-        "results_TestCurv = struct('x', x, 'y', y, 'f', f, 'df', df, 'df_an', df_an);",
-        _save_result("example_0_TestCurvilinearDerivative_results.mat", "results_TestCurv"),
-        _save_log("example_0_TestCurvilinearDerivative_logs.mat"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case("example_1_Blasius.m", quiet)
-    lines += [
-        "results_Blasius = struct('gains', gains, 'responses', responses, 'forces', forces);",
-        _save_result("example_1_Blasius_results.mat", "results_Blasius"),
-        _save_log("example_1_Blasius_logs.mat"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case("example_2_Jet.m", quiet)
-    lines += [
-        "results_Jet = struct('S', S, 'U', U, 'V', V);",
-        _save_result("example_2_Jet_results.mat", "results_Jet"),
-        _save_log("example_2_Jet_logs.mat"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case("example_3_Streaky_BL.m", quiet)
-    lines += [
-        "results_StreakyBL_base = struct('mesh', mesh, 'baseFlow', baseFlow);",
-        "results_StreakyBL_temporal = struct('omega', omega, 'V', V);",
-        _save_result("example_3_Streaky_BL_results_base.mat", "results_StreakyBL_base"),
-        _save_result(
-            "example_3_Streaky_BL_results_temporal.mat", "results_StreakyBL_temporal"
-        ),
-        _save_log("example_3_Streaky_BL_logs.mat"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case(
-        "example_3_Streaky_BL.m",
-        {
-            **quiet,
-            "temporalAna = true;": "temporalAna = false;",
-            "spatialAna  = false;": "spatialAna  = true;",
-            "if exists(omega)": "if exist('omega','var')",
-        },
-    )
-    lines += [
-        "results_StreakyBL_spatial = struct('alphas', alphas);",
-        _save_result("example_3_Streaky_BL_results_spatial.mat", "results_StreakyBL_spatial"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case("example_4_Cavity.m", quiet)
-    lines += [
-        "results_Cavity_base = struct('mesh', mesh, 'baseFlow', baseFlow);",
-        "results_Cavity_direct = struct('omega', omega, 'V', V);",
-        "results_Cavity_adjoint = struct('omegaAdj', omega_adj, 'VAdj', V_adj);",
-        _save_result("example_4_Cavity_results_base.mat", "results_Cavity_base"),
-        _save_result("example_4_Cavity_results_direct.mat", "results_Cavity_direct"),
-        _save_result("example_4_Cavity_results_adjoint.mat", "results_Cavity_adjoint"),
-        "close all;",
-        "",
-    ]
-
-    lines += _run_case("example_5_Paraboloid.m", quiet)
-    lines += [
-        "results_Paraboloid = struct('gains', gains, 'responses', responses, 'forces', forces);",
-        _save_result("example_5_Paraboloid_results.mat", "results_Paraboloid"),
-        _save_log("example_5_Paraboloid_logs.mat"),
-        "close all;",
-        "",
-        "disp('[martini-export] complete');",
-    ]
+    blocks = _case_blocks()
+    for case_id in only:
+        lines += blocks[case_id]
+    lines.append("disp('[martini-export] complete');")
 
     return "\n".join(lines) + "\n"
 
@@ -225,6 +233,15 @@ def main() -> int:
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument(
+        "--only",
+        choices=ALL_CASES,
+        action="append",
+        help=(
+            "Generate only one case block. Repeat for multiple blocks. "
+            "Default: all blocks in registry order."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Write the MATLAB runner and print the command without invoking MATLAB.",
@@ -235,7 +252,8 @@ def main() -> int:
     output_dir = args.output_dir.resolve()
     script_path = args.script.resolve()
 
-    content = build_matlab_export_script(source_dir, output_dir)
+    selected_cases = tuple(args.only) if args.only else ALL_CASES
+    content = build_matlab_export_script(source_dir, output_dir, selected_cases)
     _write_script(script_path, content)
 
     expected = [f"{stem}.mat" for stem in expected_export_stems(args.config.resolve())]
@@ -244,6 +262,7 @@ def main() -> int:
         "script": _display_path(script_path),
         "source_dir": _display_path(source_dir),
         "output_dir": _display_path(output_dir),
+        "selected_cases": selected_cases,
         "expected_exports": expected,
         "command": " ".join(shlex.quote(part) for part in command),
     }

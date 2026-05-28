@@ -140,6 +140,20 @@ def test_martini_matlab_export_runner_writes_expected_exports(tmp_path) -> None:
     assert "if exist(''omega'',''var'')" in script
 
 
+def test_martini_matlab_export_runner_can_select_case_blocks(tmp_path) -> None:
+    source_dir = tmp_path / "baseflows"
+    output_dir = tmp_path / "raw_exports"
+
+    script = generate_martini_matlab_exports.build_matlab_export_script(
+        source_dir, output_dir, only=("example4", "example5")
+    )
+
+    assert "example_4_Cavity_results_direct.mat" in script
+    assert "example_5_Paraboloid_results.mat" in script
+    assert "example_1_Blasius_results.mat" not in script
+    assert "example_3_Streaky_BL_results_temporal.mat" not in script
+
+
 def test_martini_comparator_can_fail_on_hard_fail_counts() -> None:
     hard_fail = "HARD" + "_FAIL"
     passed = "PASS"
