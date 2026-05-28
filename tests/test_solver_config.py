@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from linstabpy.utils import petsc_core
-from linstabpy.utils._solver_cfg import _mumps_petsc_options, _scfg, _scfg_bool
+from linstabpy.utils._solver_cfg import SolverConfig, _mumps_petsc_options, _scfg, _scfg_bool
 
 
 def test_mumps_petsc_options_enable_hardened_defaults() -> None:
@@ -58,6 +58,35 @@ def test_solver_config_bool_resolution(monkeypatch) -> None:
     assert _scfg_bool({"root_scatter": False}, "root_scatter", "LINSTABPY_BOOL_KEY", True) is False
     assert _scfg_bool(None, "root_scatter", "LINSTABPY_BOOL_KEY", False) is True
     assert _scfg_bool(None, "root_scatter", "LINSTABPY_MISSING_BOOL", False) is False
+
+
+def test_solver_config_wrapper_preserves_mapping_behavior() -> None:
+    raw = {"petsc_matrix_mode": "local", "eigen": {"eps_tol": 1e-9}}
+    cfg = SolverConfig.from_config(raw)
+
+    assert isinstance(cfg, SolverConfig)
+    assert SolverConfig.from_config(cfg) is cfg
+    assert cfg["petsc_matrix_mode"] == "local"
+    assert cfg.get("eigen") == {"eps_tol": 1e-9}
+    assert dict(cfg) == raw
+    assert cfg.setting("petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto") == "local"
+
+
+def test_solver_config_wrapper_resolves_existing_subsection_policy() -> None:
+    cfg = SolverConfig(
+        {
+            "linsolve": {"type": "mumps"},
+            "resolvent": {"type": "iterative"},
+            "eigen": {"eps_tol": 1e-9},
+        }
+    )
+
+    assert cfg.subsection("LINSTABPY_EIGEN") == {"eps_tol": 1e-9}
+    assert cfg.subsection("LINSTABPY_RESOLVENT") == {"type": "iterative"}
+    assert cfg.subsection("LINSTABPY_LINSOLVE") == {"type": "mumps"}
+    assert SolverConfig({"linsolve": {"type": "mumps"}}).subsection("LINSTABPY_RESOLVENT") == {
+        "type": "mumps"
+    }
 
 
 def test_petsc_matrix_mode_accepts_current_aliases(monkeypatch) -> None:

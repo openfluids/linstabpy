@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..utils._solver_cfg import SolverConfig
 from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
@@ -125,10 +126,5 @@ def _resolve_solver_cfg_subsection(
     env_prefix: str,
 ) -> dict | None:
     """Return the JSONC subsection matching ``env_prefix`` (resolvent falls back to linsolve)."""
-    if solver_cfg is None:
-        return None
-    if env_prefix == "LINSTABPY_RESOLVENT":
-        return solver_cfg.get("resolvent", solver_cfg.get("linsolve", {}))
-    if env_prefix == "LINSTABPY_EIGEN":
-        return solver_cfg.get("eigen", {})
-    return solver_cfg.get("linsolve", {})
+    config = SolverConfig.from_config(solver_cfg)
+    return None if config is None else config.subsection(env_prefix)
