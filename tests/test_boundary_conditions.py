@@ -7,6 +7,7 @@ import scipy.sparse as sp
 
 from linstabpy.boundary_conditions import (
     analyze_bc_recipe,
+    apply_bc_recipe,
     apply_dirichlet,
     apply_dirichlet_identity_pair,
     apply_dirichlet_spatial,
@@ -611,6 +612,48 @@ class TestRecipeAnalysis:
         assert len(analysis["rule_reports"]) == 4
         assert analysis["rule_reports"][2]["cross_type_overlap"].size == 1
         assert analysis["rule_reports"][3]["cross_type_overlap"].size == 9
+
+    def test_later_neumann_rule_owns_overlap_rows(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 17.0
+
+        recipe = [
+            {"type": "dirichlet", "borders": "b", "variables": "T"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+        analysis = analyze_bc_recipe(mesh, idx, recipe)
+        overlap = 4 * ngp + np.asarray(idx["bi"], dtype=int)
+
+        np.testing.assert_array_equal(analysis["overlap_indices"], overlap)
+        np.testing.assert_array_equal(analysis["column_zeroed_dirichlet_indices"], overlap)
+        np.testing.assert_array_equal(analysis["effective_neumann_indices"], overlap)
+        np.testing.assert_equal(analysis["effective_dirichlet_indices"].size, 0)
+        np.testing.assert_equal(
+            analysis["rule_reports"][1]["cross_type_overlap"].size, overlap.size
+        )
+        np.testing.assert_array_equal(
+            [analysis["row_owner_rule"][int(dof)] for dof in overlap],
+            np.ones(overlap.size, dtype=int),
+        )
+
+        L_recipe, bc_indices = apply_bc_recipe(L0.copy(), mesh, idx, recipe, penalty=penalty)
+        np.testing.assert_array_equal(bc_indices, overlap)
+
+        L_neumann, neumann_indices = apply_neumann(L0.copy(), mesh, idx, "b", "T", penalty=penalty)
+        np.testing.assert_array_equal(neumann_indices, overlap)
+
+        recipe_rows = L_recipe.tocsr()
+        neumann_rows = L_neumann.tocsr()
+        check = overlap[: min(3, overlap.size)]
+        for dof in check:
+            row_recipe = recipe_rows.getrow(int(dof)).toarray().ravel()
+            row_neumann = neumann_rows.getrow(int(dof)).toarray().ravel()
+            np.testing.assert_allclose(row_recipe, row_neumann, atol=1e-12)
+            if row_recipe[int(dof)] == pytest.approx(penalty):
+                pytest.fail(f"overlap row {dof} kept the earlier Dirichlet penalty")
 
     def test_case1_recipe_neumann_exclude_corners_removes_cross_type_overlap(
         self,
