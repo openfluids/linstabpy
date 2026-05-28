@@ -12,6 +12,7 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet,
     apply_dirichlet_identity_pair,
     apply_dirichlet_spatial,
+    apply_dirichlet_spatial_petsc,
     apply_neumann,
     build_dirichlet_restriction_matrices,
 )
@@ -186,6 +187,52 @@ class TestDirichletBC:
             upper_half - ndof,
             err_msg="BC indices in upper half should mirror lower half shifted by ndof",
         )
+
+    def test_spatial_petsc_matches_scipy_dirichlet_rows(self, small_mesh_2d, uniform_baseflow):
+        pytest.importorskip("petsc4py")
+        from petsc4py import PETSc
+
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        ngp = mesh.ngp
+        penalty = 19.0
+
+        Lc, R, _, idx = build_spatial_operator(mesh, bf)
+        Lc_scipy, R_scipy, idx_scipy = apply_dirichlet_spatial(
+            Lc.copy(), R.copy(), idx, "bt", "uvwT", ngp, penalty=penalty
+        )
+
+        def make_petsc(mat: sp.csc_matrix) -> "PETSc.Mat":
+            csr = mat.tocsr()
+            out = PETSc.Mat().createAIJ(
+                size=csr.shape,
+                csr=(csr.indptr, csr.indices, csr.data.astype(complex)),
+            )
+            out.setUp()
+            out.assemble()
+            return out
+
+        Lc_petsc, R_petsc, idx_petsc = apply_dirichlet_spatial_petsc(
+            make_petsc(Lc),
+            make_petsc(R),
+            idx,
+            "bt",
+            "uvwT",
+            ngp,
+            penalty=penalty,
+        )
+
+        np.testing.assert_array_equal(np.sort(idx_scipy), np.sort(idx_petsc))
+        Lc_rows = Lc_scipy.tocsr()
+        R_rows = R_scipy.tocsr()
+        check = np.array([idx_scipy[0], idx_scipy[len(idx_scipy) // 2], idx_scipy[-1]], dtype=int)
+        for dof in check:
+            for scipy_mat, petsc_mat in ((Lc_rows, Lc_petsc), (R_rows, R_petsc)):
+                row_scipy = scipy_mat.getrow(int(dof)).toarray().ravel()
+                cols_petsc_raw, vals_petsc_raw = petsc_mat.getRow(int(dof))
+                row_petsc = np.zeros(row_scipy.shape, dtype=complex)
+                row_petsc[np.asarray(cols_petsc_raw, dtype=int)] = np.asarray(vals_petsc_raw)
+                np.testing.assert_allclose(row_petsc, row_scipy, atol=1e-12)
 
 
 class TestDirichletAdapters:
@@ -721,6 +768,52 @@ class TestRecipeAnalysis:
         assert analysis["overlap_indices"].size == 0
         assert analysis["rule_reports"][2]["cross_type_overlap"].size == 0
         assert analysis["rule_reports"][3]["cross_type_overlap"].size == 0
+
+    def test_recipe_curvilinear_neumann_delegates_normal_choice(self):
+        from linstabpy.mesh.mesh import Mesh
+
+        n = 20
+        mesh = Mesh.create((0.0, 1.0), (0.0, 1.0), n, n, fd_order=2)
+        mesh_def = mesh.deform(X_new=mesh.X + 0.3 * mesh.Y, Y_new=mesh.Y.copy())
+        idx = mesh_def.idx
+        ngp = mesh_def.ngp
+        penalty = 2.0
+        shape = (5 * ngp, 5 * ngp)
+        L0 = sp.csc_matrix(shape)
+
+        recipe = [
+            {
+                "type": "neumann",
+                "borders": "r",
+                "variables": "u",
+                "curvilinear_normals": True,
+            }
+        ]
+        L_recipe, idx_recipe = apply_bc_recipe(L0.copy(), mesh_def, idx, recipe, penalty=penalty)
+        L_direct, idx_direct = apply_neumann(
+            L0.copy(),
+            mesh_def,
+            idx,
+            "r",
+            "u",
+            penalty=penalty,
+            curvilinear_normals=True,
+        )
+        L_axis, _ = apply_neumann(
+            L0.copy(),
+            mesh_def,
+            idx,
+            "r",
+            "u",
+            penalty=penalty,
+            curvilinear_normals=False,
+        )
+
+        np.testing.assert_array_equal(idx_recipe, idx_direct)
+        np.testing.assert_allclose((L_recipe - L_direct).data, 0.0, atol=1e-12)
+        diff = (L_recipe - L_axis).tocsr()
+        assert diff.nnz > 0
+        assert np.max(np.abs(diff.data)) > 0.1
 
 
 class TestDissipationBCInteraction:
