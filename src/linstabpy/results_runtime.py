@@ -23,7 +23,7 @@ from mpi4py import MPI
 from petsc4py import PETSc
 
 from linstabpy.baseflow import load_hamada_case, sutherland_air
-from linstabpy.boundary_conditions import analyze_bc_recipe, build_dirichlet_restriction_matrices
+from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system
@@ -198,7 +198,7 @@ def _restrict_operator_for_stability(
 ) -> tuple[sp.spmatrix | PETSc.Mat, np.ndarray, np.ndarray]:
     """Remove constrained DOFs from the stability EVP."""
     ndof = int(operator.getSize()[0]) if _is_petsc_matrix(operator) else int(operator.shape[0])
-    _, _, free_dofs = build_dirichlet_restriction_matrices(ndof, constrained_indices)
+    free_dofs = dirichlet_free_dofs(ndof, constrained_indices)
     W_reduced = np.asarray(W_diag, dtype=float)[free_dofs]
     if _is_petsc_matrix(operator):
         r0, r1 = operator.getOwnershipRange()
