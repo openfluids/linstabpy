@@ -57,7 +57,16 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from ..utils._solver_cfg import (
+    DIRECT_SOLVER_TYPES,
+    INEXACT_EIGEN_SOLVER_TYPES,
+    ITERATIVE_EIGEN_SOLVER_TYPES,
+    SolverConfig,
+    _scfg,
+    _scfg_bool,
+    _scfg_float,
+    _scfg_int,
+)
 from ._eps_helpers import (
     _install_eps_monitor,
     _monitor_state_details,
@@ -394,7 +403,7 @@ def _configure_st_for_eigenvalue(
     if ecfg is None:
         ecfg = {}
 
-    if st_solver in {"mumps", "direct", "lu"}:
+    if st_solver in DIRECT_SOLVER_TYPES:
         ignored_iterative_keys = sorted(
             key
             for key in (
@@ -425,7 +434,7 @@ def _configure_st_for_eigenvalue(
         if st_solver == "mumps":
             pc.setFactorSolverType("mumps")
 
-    elif st_solver in {"iterative", "krylov", "slepc"}:
+    elif st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         ksp_type = _scfg(ecfg, "ksp_type", "LINSTABPY_EIGEN_KSP_TYPE", "gmres")
         pc_type = _scfg(ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")
         pc_factor_solver_type = _scfg(
@@ -475,7 +484,7 @@ def _configure_st_for_eigenvalue(
             except PETSc.Error:
                 pass
 
-    elif st_solver == "inexact":
+    elif st_solver in INEXACT_EIGEN_SOLVER_TYPES:
         # Inexact shift-invert: FGMRES outer + ASM subdomain + local ILU.
         # Memory scales with preconditioner storage, not with the LU factor.
         # All parameters are read from the nested "inexact" sub-dict to avoid
@@ -581,12 +590,21 @@ def _eigs_near_target(
         return eigenvalues, eigenvectors, dense_info
 
     _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_EIGEN")
-    st_solver = _scfg(_ecfg, "st_solver", "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
+    config = SolverConfig.from_config(solver_cfg)
+    st_solver = (
+        config.eigen_st_solver()
+        if config is not None
+        else _scfg(None, "st_solver", "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
+    )
     use_root_scatter = (
         not _is_petsc_matrix(operator)
         and PETSc.COMM_WORLD.getSize() > 1
-        and st_solver in {"iterative", "krylov", "slepc"}
-        and _scfg_bool(solver_cfg, "root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False)
+        and st_solver in ITERATIVE_EIGEN_SOLVER_TYPES
+        and (
+            config.root_scatter_enabled()
+            if config is not None
+            else _scfg_bool(None, "root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False)
+        )
     )
     if _is_petsc_matrix(operator):
         A = operator.copy()
@@ -671,7 +689,7 @@ def _eigs_near_target(
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
     # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
     # Re-apply FieldSplit IS setup here since the helper cannot access ndof/A.
-    if st_solver in {"iterative", "krylov", "slepc"}:
+    if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         pc_type_used = _scfg(_ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")
         if pc_type_used in {"fieldsplit", "fs"} and ndof % 5 == 0:
             ngp = ndof // 5

@@ -8,6 +8,11 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+DIRECT_SOLVER_TYPES = frozenset({"mumps", "direct", "lu"})
+ITERATIVE_LINEAR_SOLVER_TYPES = frozenset({"iterative", "krylov", "petsc"})
+ITERATIVE_EIGEN_SOLVER_TYPES = frozenset({"iterative", "krylov", "slepc"})
+INEXACT_EIGEN_SOLVER_TYPES = frozenset({"inexact"})
+
 
 @dataclass(frozen=True)
 class SolverConfig(Mapping[str, Any]):
@@ -45,8 +50,34 @@ class SolverConfig(Mapping[str, Any]):
             return self.get("eigen", {})
         return self.get("linsolve", {})
 
+    def linear_solver_type(self, env_prefix: str) -> str:
+        """Resolve the KSP solver family for a linsolve/resolvent prefix."""
+        return self.setting_from_subsection(env_prefix, "type", f"{env_prefix}_TYPE", "mumps")
+
+    def eigen_st_solver(self) -> str:
+        """Resolve the SLEPc shift-transform backend family."""
+        return self.setting_from_subsection(
+            "LINSTABPY_EIGEN",
+            "st_solver",
+            "LINSTABPY_EIGEN_ST_SOLVER",
+            "mumps",
+        )
+
+    def root_scatter_enabled(self) -> bool:
+        """Resolve the top-level PETSc root-scatter policy."""
+        return self.setting_bool("root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False)
+
     def setting(self, key: str, env_var: str, default: str) -> str:
         return _scfg(self, key, env_var, default)
+
+    def setting_from_subsection(
+        self,
+        env_prefix: str,
+        key: str,
+        env_var: str,
+        default: str,
+    ) -> str:
+        return _scfg(self.subsection(env_prefix), key, env_var, default)
 
     def setting_bool(self, key: str, env_var: str, default: bool) -> bool:
         return _scfg_bool(self, key, env_var, default)
