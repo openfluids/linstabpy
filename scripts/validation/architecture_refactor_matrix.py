@@ -20,6 +20,19 @@ DEFAULT_REPORT = (
     / "architecture_refactor_phase0"
     / "matrix_run_latest.json"
 )
+GROUP_ALIASES = {
+    "phase0-golden-local": (
+        "phase0-local",
+        "phase0-expanded-local",
+        "documentation-gates",
+    ),
+    "phase0-golden-all": (
+        "phase0-local",
+        "phase0-expanded-local",
+        "phase0-external-assets",
+        "documentation-gates",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -275,12 +288,19 @@ def _git_sha() -> str | None:
     return result.stdout.strip()
 
 
+def _selected_groups(group: str | None) -> set[str] | None:
+    if group is None:
+        return None
+    return set(GROUP_ALIASES.get(group, (group,)))
+
+
 def _select(checks: Iterable[Check], *, group: str | None, ids: set[str]) -> list[Check]:
+    groups = _selected_groups(group)
     selected = []
     for check in checks:
         if ids and check.id not in ids:
             continue
-        if group is not None and check.group != group:
+        if groups is not None and check.group not in groups:
             continue
         selected.append(check)
     return selected
@@ -344,6 +364,9 @@ def main(argv: list[str] | None = None) -> int:
         for check in checks:
             marker = " long" if check.long_running else ""
             print(f"{check.id:24s} {check.group:14s}{marker:6s} {' '.join(check.command)}")
+        print("\nVirtual groups:")
+        for name, groups in GROUP_ALIASES.items():
+            print(f"{name:24s} {'+'.join(groups)}")
         return 0
 
     selected = _select(checks, group=args.group, ids=set(args.check))
