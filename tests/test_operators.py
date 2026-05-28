@@ -44,7 +44,9 @@ from linstabpy.operators.assembly import (
     _prepare_coefficients,
 )
 from linstabpy.operators.coefficients import (
+    _expected_coefficient_keys,
     _pack_coefficients_in_physical_order,
+    _PhysicalCoefficientBuilder,
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
@@ -344,6 +346,45 @@ class TestCartesianCoefficients:
                 c2p_idx=[0, 1, 2, 3, 4],
                 c2p_sgn=np.ones(5),
             )
+
+    def test_physical_coefficient_builder_matches_legacy_packer(self):
+        """Direct coefficient writes preserve the legacy source/sign mapping."""
+        ngp = 4
+        local_vars = {
+            name: np.arange(ngp, dtype=float) + n + 1j * (n + 0.5)
+            for n, name in enumerate(_expected_coefficient_keys())
+        }
+        c2p_idx = [0, 3, 2, 1, 4]
+        c2p_sgn = np.array([1.0, -1.0, 1.0, 1.0, 1.0])
+        source_signs = {
+            "A0": -1.0,
+            "Ar": -1.0,
+            "Az": -1.0,
+            "Arr": -1.0,
+            "Azz": -1.0,
+            "Arz": -1.0,
+        }
+
+        packed = _pack_coefficients_in_physical_order(
+            local_vars,
+            ngp=ngp,
+            c2p_idx=c2p_idx,
+            c2p_sgn=c2p_sgn,
+            source_signs=source_signs,
+        )
+        builder = _PhysicalCoefficientBuilder(
+            ngp=ngp,
+            c2p_idx=c2p_idx,
+            c2p_sgn=c2p_sgn,
+            source_signs=source_signs,
+        )
+        for name, value in local_vars.items():
+            _, source_name, ij = name.split("_")
+            builder.set(source_name, int(ij[0]), int(ij[1]), value)
+        built = builder.finish()
+
+        for attr in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+            np.testing.assert_array_equal(getattr(built, attr), getattr(packed, attr))
 
     def test_zero_baseflow_A0(self):
         """With U=V=W=0, A0 should simplify (no advection contributions)."""

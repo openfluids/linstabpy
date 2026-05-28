@@ -147,6 +147,57 @@ def _pack_coefficients_in_physical_order(
     )
 
 
+class _PhysicalCoefficientBuilder:
+    """Write coefficient entries directly into final physical-order tensors.
+
+    The public coefficient functions keep the MATLAB-derived formula order, but
+    the assembly seam should not keep hundreds of ``c_<block>_<ij>`` vectors
+    alive until ``locals()`` is packed.  This builder applies the same source
+    block mapping, variable permutation, and sign convention as
+    ``_pack_coefficients_in_physical_order`` while each formula is evaluated.
+    """
+
+    def __init__(
+        self,
+        *,
+        ngp: int,
+        c2p_idx: list[int],
+        c2p_sgn: np.ndarray,
+        source_signs: dict[str, complex] | None = None,
+    ) -> None:
+        self._out = {
+            name: np.zeros((5, 5, ngp), dtype=complex)
+            for name in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
+        }
+        self._c2p_idx = c2p_idx
+        self._c2p_sgn = c2p_sgn
+        self._source_signs = source_signs or {}
+
+    def set(self, source_name: str, row: int, col: int, value: np.ndarray) -> None:
+        dest_name = _SOURCE_TO_DEST[source_name]
+        row_idx = row - 1
+        col_idx = col - 1
+        row_phys = self._c2p_idx[row_idx]
+        col_phys = self._c2p_idx[col_idx]
+        sign = (
+            complex(self._source_signs.get(source_name, 1.0))
+            * complex(self._c2p_sgn[row_idx])
+            * complex(self._c2p_sgn[col_idx])
+        )
+        self._out[dest_name][row_phys, col_phys, :] = sign * value
+
+    def finish(self) -> LNSECoefficients:
+        return LNSECoefficients(
+            A0=self._out["A0"],
+            Ax=self._out["Ax"],
+            Ay=self._out["Ay"],
+            Axx=self._out["Axx"],
+            Ayy=self._out["Ayy"],
+            Axy=self._out["Axy"],
+            B=self._out["B"],
+        )
+
+
 def compute_cartesian_coefficients(
     U: np.ndarray,
     V: np.ndarray,
@@ -250,7 +301,6 @@ def compute_cartesian_coefficients(
     dUdz = -dWdx
     d2Udr2 = -d2Wdy2
     d2Udz2 = -d2Wdx2
-    d2Udrz = -d2Wdxdy
 
     # V_c = V_phys (no sign flip)
     dVdr = dVdy
@@ -291,384 +341,483 @@ def compute_cartesian_coefficients(
     # ------------------------------------------------------------------
     Z = np.zeros(ngp)
     I = np.ones(ngp)
+    _coeffs = _PhysicalCoefficientBuilder(
+        ngp=ngp,
+        c2p_idx=[0, 3, 2, 1, 4],
+        c2p_sgn=np.array([1.0, -1.0, 1.0, 1.0, 1.0]),
+        source_signs={
+            "A0": -1.0,
+            "Ar": -1.0,
+            "Az": -1.0,
+            "Arr": -1.0,
+            "Azz": -1.0,
+            "Arz": -1.0,
+        },
+    )
+    _set_coeff = _coeffs.set
 
     # ---- Row 1: continuity equation ------------------------------------
-    c_A0_11 = 1j * kz * Uc + dVdr + dWdz
-    c_A0_12 = 1j * kz * RHO
-    c_A0_13 = dRHOdr
-    c_A0_14 = dRHOdz
-    c_A0_15 = Z
-    c_Ar_11 = Vc
-    c_Ar_12 = Z
-    c_Ar_13 = RHO
-    c_Ar_14 = Z
-    c_Ar_15 = Z
-    c_Az_11 = Wc  # C=0, so -C+W = W
-    c_Az_12 = Z
-    c_Az_13 = Z
-    c_Az_14 = RHO
-    c_Az_15 = Z
-    c_Arz_11 = Z
-    c_Arz_12 = Z
-    c_Arz_13 = Z
-    c_Arz_14 = Z
-    c_Arz_15 = Z
-    c_Arr_11 = Z
-    c_Arr_12 = Z
-    c_Arr_13 = Z
-    c_Arr_14 = Z
-    c_Arr_15 = Z
-    c_Azz_11 = Z
-    c_Azz_12 = Z
-    c_Azz_13 = Z
-    c_Azz_14 = Z
-    c_Azz_15 = Z
-    c_B_11 = 1j * I
-    c_B_12 = Z
-    c_B_13 = Z
-    c_B_14 = Z
-    c_B_15 = Z
+    _set_coeff("A0", 1, 1, 1j * kz * Uc + dVdr + dWdz)
+    _set_coeff("A0", 1, 2, 1j * kz * RHO)
+    _set_coeff("A0", 1, 3, dRHOdr)
+    _set_coeff("A0", 1, 4, dRHOdz)
+    _set_coeff("A0", 1, 5, Z)
+    _set_coeff("Ar", 1, 1, Vc)
+    _set_coeff("Ar", 1, 2, Z)
+    _set_coeff("Ar", 1, 3, RHO)
+    _set_coeff("Ar", 1, 4, Z)
+    _set_coeff("Ar", 1, 5, Z)
+    _set_coeff("Az", 1, 1, Wc)  # C=0, so -C+W = W
+    _set_coeff("Az", 1, 2, Z)
+    _set_coeff("Az", 1, 3, Z)
+    _set_coeff("Az", 1, 4, RHO)
+    _set_coeff("Az", 1, 5, Z)
+    _set_coeff("Arz", 1, 1, Z)
+    _set_coeff("Arz", 1, 2, Z)
+    _set_coeff("Arz", 1, 3, Z)
+    _set_coeff("Arz", 1, 4, Z)
+    _set_coeff("Arz", 1, 5, Z)
+    _set_coeff("Arr", 1, 1, Z)
+    _set_coeff("Arr", 1, 2, Z)
+    _set_coeff("Arr", 1, 3, Z)
+    _set_coeff("Arr", 1, 4, Z)
+    _set_coeff("Arr", 1, 5, Z)
+    _set_coeff("Azz", 1, 1, Z)
+    _set_coeff("Azz", 1, 2, Z)
+    _set_coeff("Azz", 1, 3, Z)
+    _set_coeff("Azz", 1, 4, Z)
+    _set_coeff("Azz", 1, 5, Z)
+    _set_coeff("B", 1, 1, 1j * I)
+    _set_coeff("B", 1, 2, Z)
+    _set_coeff("B", 1, 3, Z)
+    _set_coeff("B", 1, 4, Z)
+    _set_coeff("B", 1, 5, Z)
 
     # ---- Row 2: U_c momentum (spanwise in physical space, flipped) -----
     # C = 0 throughout
-    c_A0_21 = -(RHO * 0 * dUdz - RHO * Vc * dUdr - RHO * Wc * dUdz - 1j * P * kz) / RHO
-    c_A0_22 = (kz * (4.0 * MU * kz + 3.0 * 1j * RHO * Uc * Re) / Re) / 3.0
-    c_A0_23 = (RHO * dUdr * Re - 1j * dMUdT * dTdr * kz) / Re
-    c_A0_24 = (RHO * dUdz * Re - 1j * dMUdT * dTdz * kz) / Re
-    c_A0_25 = (
-        -(
-            (
-                3.0 * dMUdT * d2Udr2 * T
-                + 3.0 * dMUdT * d2Udz2 * T
-                - 3.0 * 1j * P * kz * Re
-                + 3.0 * d2MUdT2 * dTdr * dUdr * T
-                + 3.0 * d2MUdT2 * dTdz * dUdz * T
-                - 2.0 * 1j * dMUdT * kz * dVdr * T
-                - 2.0 * 1j * dMUdT * kz * dWdz * T
+    _set_coeff(
+        "A0", 2, 1, -(RHO * 0 * dUdz - RHO * Vc * dUdr - RHO * Wc * dUdz - 1j * P * kz) / RHO
+    )
+    _set_coeff("A0", 2, 2, (kz * (4.0 * MU * kz + 3.0 * 1j * RHO * Uc * Re) / Re) / 3.0)
+    _set_coeff("A0", 2, 3, (RHO * dUdr * Re - 1j * dMUdT * dTdr * kz) / Re)
+    _set_coeff("A0", 2, 4, (RHO * dUdz * Re - 1j * dMUdT * dTdz * kz) / Re)
+    _set_coeff(
+        "A0",
+        2,
+        5,
+        (
+            -(
+                (
+                    3.0 * dMUdT * d2Udr2 * T
+                    + 3.0 * dMUdT * d2Udz2 * T
+                    - 3.0 * 1j * P * kz * Re
+                    + 3.0 * d2MUdT2 * dTdr * dUdr * T
+                    + 3.0 * d2MUdT2 * dTdz * dUdz * T
+                    - 2.0 * 1j * dMUdT * kz * dVdr * T
+                    - 2.0 * 1j * dMUdT * kz * dWdz * T
+                )
+                / Re
+                / T
             )
-            / Re
-            / T
-        )
-        / 3.0
+            / 3.0
+        ),
     )
 
-    c_Ar_21 = Z
-    c_Ar_22 = (-dMUdT * dTdr + RHO * Vc * Re) / Re
-    c_Ar_23 = -1j * kz * MU / Re / 3.0
-    c_Ar_24 = Z
-    c_Ar_25 = -1.0 / Re * dMUdT * dUdr
+    _set_coeff("Ar", 2, 1, Z)
+    _set_coeff("Ar", 2, 2, (-dMUdT * dTdr + RHO * Vc * Re) / Re)
+    _set_coeff("Ar", 2, 3, -1j * kz * MU / Re / 3.0)
+    _set_coeff("Ar", 2, 4, Z)
+    _set_coeff("Ar", 2, 5, -1.0 / Re * dMUdT * dUdr)
 
-    c_Az_21 = Z
-    c_Az_22 = -(dMUdT * dTdz - RHO * Wc * Re) / Re  # C=0
-    c_Az_23 = Z
-    c_Az_24 = -1j * kz * MU / Re / 3.0
-    c_Az_25 = -1.0 / Re * dMUdT * dUdz
+    _set_coeff("Az", 2, 1, Z)
+    _set_coeff("Az", 2, 2, -(dMUdT * dTdz - RHO * Wc * Re) / Re)  # C=0
+    _set_coeff("Az", 2, 3, Z)
+    _set_coeff("Az", 2, 4, -1j * kz * MU / Re / 3.0)
+    _set_coeff("Az", 2, 5, -1.0 / Re * dMUdT * dUdz)
 
-    c_Arz_21 = Z
-    c_Arz_22 = Z
-    c_Arz_23 = Z
-    c_Arz_24 = Z
-    c_Arz_25 = Z
+    _set_coeff("Arz", 2, 1, Z)
+    _set_coeff("Arz", 2, 2, Z)
+    _set_coeff("Arz", 2, 3, Z)
+    _set_coeff("Arz", 2, 4, Z)
+    _set_coeff("Arz", 2, 5, Z)
 
-    c_Arr_21 = Z
-    c_Arr_22 = -1.0 / Re * MU
-    c_Arr_23 = Z
-    c_Arr_24 = Z
-    c_Arr_25 = Z
+    _set_coeff("Arr", 2, 1, Z)
+    _set_coeff("Arr", 2, 2, -1.0 / Re * MU)
+    _set_coeff("Arr", 2, 3, Z)
+    _set_coeff("Arr", 2, 4, Z)
+    _set_coeff("Arr", 2, 5, Z)
 
-    c_Azz_21 = Z
-    c_Azz_22 = -1.0 / Re * MU
-    c_Azz_23 = Z
-    c_Azz_24 = Z
-    c_Azz_25 = Z
+    _set_coeff("Azz", 2, 1, Z)
+    _set_coeff("Azz", 2, 2, -1.0 / Re * MU)
+    _set_coeff("Azz", 2, 3, Z)
+    _set_coeff("Azz", 2, 4, Z)
+    _set_coeff("Azz", 2, 5, Z)
 
-    c_B_21 = Z
-    c_B_22 = 1j * RHO
-    c_B_23 = Z
-    c_B_24 = Z
-    c_B_25 = Z
+    _set_coeff("B", 2, 1, Z)
+    _set_coeff("B", 2, 2, 1j * RHO)
+    _set_coeff("B", 2, 3, Z)
+    _set_coeff("B", 2, 4, Z)
+    _set_coeff("B", 2, 5, Z)
 
     # ---- Row 3: V_c momentum (wall-normal) -----------------------------
-    c_A0_31 = (
-        -(
-            P * dRHOdr
-            + 0 * dVdz * RHO**2  # C=0
-            - Vc * dVdr * RHO**2
-            - Wc * dVdz * RHO**2
-            - dPdr * RHO
-        )
-        / RHO**2
-    )
-    c_A0_32 = 2.0 / 3.0 * 1j * dTdr * kz * dMUdT / Re
-    c_A0_33 = (MU * kz**2 + RHO * dVdr * Re + 1j * RHO * kz * Uc * Re) / Re
-    c_A0_34 = RHO * dVdz
-    c_A0_35 = (
-        -(
-            (
-                3.0 * P * dTdr * Re
-                + 4.0 * dMUdT * d2Vdr2 * T**2
-                + dMUdT * d2Wdrz * T**2
-                + 3.0 * dMUdT * d2Vdz2 * T**2
-                - 3.0 * dPdr * T * Re
-                + 4.0 * d2MUdT2 * dTdr * dVdr * T**2
-                - 2.0 * d2MUdT2 * dTdr * dWdz * T**2
-                + 3.0 * d2MUdT2 * dTdz * dVdz * T**2
-                + 3.0 * d2MUdT2 * dTdz * dWdr * T**2
-                + 3.0 * 1j * dMUdT * kz * dUdr * T**2
+    _set_coeff(
+        "A0",
+        3,
+        1,
+        (
+            -(
+                P * dRHOdr
+                + 0 * dVdz * RHO**2  # C=0
+                - Vc * dVdr * RHO**2
+                - Wc * dVdz * RHO**2
+                - dPdr * RHO
             )
-            / T**2
-            / Re
-        )
-        / 3.0
+            / RHO**2
+        ),
+    )
+    _set_coeff("A0", 3, 2, 2.0 / 3.0 * 1j * dTdr * kz * dMUdT / Re)
+    _set_coeff("A0", 3, 3, (MU * kz**2 + RHO * dVdr * Re + 1j * RHO * kz * Uc * Re) / Re)
+    _set_coeff("A0", 3, 4, RHO * dVdz)
+    _set_coeff(
+        "A0",
+        3,
+        5,
+        (
+            -(
+                (
+                    3.0 * P * dTdr * Re
+                    + 4.0 * dMUdT * d2Vdr2 * T**2
+                    + dMUdT * d2Wdrz * T**2
+                    + 3.0 * dMUdT * d2Vdz2 * T**2
+                    - 3.0 * dPdr * T * Re
+                    + 4.0 * d2MUdT2 * dTdr * dVdr * T**2
+                    - 2.0 * d2MUdT2 * dTdr * dWdz * T**2
+                    + 3.0 * d2MUdT2 * dTdz * dVdz * T**2
+                    + 3.0 * d2MUdT2 * dTdz * dWdr * T**2
+                    + 3.0 * 1j * dMUdT * kz * dUdr * T**2
+                )
+                / T**2
+                / Re
+            )
+            / 3.0
+        ),
     )
 
-    c_Ar_31 = P / RHO
-    c_Ar_32 = -1j * kz * MU / Re / 3.0
-    c_Ar_33 = -((4.0 * dMUdT * dTdr - 3.0 * RHO * Vc * Re) / Re) / 3.0
-    c_Ar_34 = -1.0 / Re * dMUdT * dTdz
-    c_Ar_35 = ((-4.0 * dMUdT * dVdr * T + 2.0 * dMUdT * dWdz * T + 3.0 * P * Re) / Re / T) / 3.0
+    _set_coeff("Ar", 3, 1, P / RHO)
+    _set_coeff("Ar", 3, 2, -1j * kz * MU / Re / 3.0)
+    _set_coeff("Ar", 3, 3, -((4.0 * dMUdT * dTdr - 3.0 * RHO * Vc * Re) / Re) / 3.0)
+    _set_coeff("Ar", 3, 4, -1.0 / Re * dMUdT * dTdz)
+    _set_coeff(
+        "Ar",
+        3,
+        5,
+        ((-4.0 * dMUdT * dVdr * T + 2.0 * dMUdT * dWdz * T + 3.0 * P * Re) / Re / T) / 3.0,
+    )
 
-    c_Az_31 = Z
-    c_Az_32 = Z
-    c_Az_33 = -(dMUdT * dTdz - RHO * Wc * Re) / Re  # C=0
-    c_Az_34 = 2.0 / 3.0 * dTdr * dMUdT / Re
-    c_Az_35 = -dMUdT * (dVdz + dWdr) / Re
+    _set_coeff("Az", 3, 1, Z)
+    _set_coeff("Az", 3, 2, Z)
+    _set_coeff("Az", 3, 3, -(dMUdT * dTdz - RHO * Wc * Re) / Re)  # C=0
+    _set_coeff("Az", 3, 4, 2.0 / 3.0 * dTdr * dMUdT / Re)
+    _set_coeff("Az", 3, 5, -dMUdT * (dVdz + dWdr) / Re)
 
-    c_Arz_31 = Z
-    c_Arz_32 = Z
-    c_Arz_33 = Z
-    c_Arz_34 = -MU / Re / 3.0
-    c_Arz_35 = Z
+    _set_coeff("Arz", 3, 1, Z)
+    _set_coeff("Arz", 3, 2, Z)
+    _set_coeff("Arz", 3, 3, Z)
+    _set_coeff("Arz", 3, 4, -MU / Re / 3.0)
+    _set_coeff("Arz", 3, 5, Z)
 
-    c_Arr_31 = Z
-    c_Arr_32 = Z
-    c_Arr_33 = -4.0 / 3.0 * MU / Re
-    c_Arr_34 = Z
-    c_Arr_35 = Z
+    _set_coeff("Arr", 3, 1, Z)
+    _set_coeff("Arr", 3, 2, Z)
+    _set_coeff("Arr", 3, 3, -4.0 / 3.0 * MU / Re)
+    _set_coeff("Arr", 3, 4, Z)
+    _set_coeff("Arr", 3, 5, Z)
 
-    c_Azz_31 = Z
-    c_Azz_32 = Z
-    c_Azz_33 = -MU / Re
-    c_Azz_34 = Z
-    c_Azz_35 = Z
+    _set_coeff("Azz", 3, 1, Z)
+    _set_coeff("Azz", 3, 2, Z)
+    _set_coeff("Azz", 3, 3, -MU / Re)
+    _set_coeff("Azz", 3, 4, Z)
+    _set_coeff("Azz", 3, 5, Z)
 
-    c_B_31 = Z
-    c_B_32 = Z
-    c_B_33 = 1j * RHO
-    c_B_34 = Z
-    c_B_35 = Z
+    _set_coeff("B", 3, 1, Z)
+    _set_coeff("B", 3, 2, Z)
+    _set_coeff("B", 3, 3, 1j * RHO)
+    _set_coeff("B", 3, 4, Z)
+    _set_coeff("B", 3, 5, Z)
 
     # ---- Row 4: W_c momentum (streamwise in physical space) ------------
-    c_A0_41 = (
-        -(
-            P * dRHOdz
-            + 0 * dWdz * RHO**2  # C=0
-            - Vc * dWdr * RHO**2
-            - Wc * dWdz * RHO**2
-            - dPdz * RHO
-        )
-        / RHO**2
-    )
-    c_A0_42 = 2.0 / 3.0 * 1j * dTdz * kz * dMUdT / Re
-    c_A0_43 = RHO * dWdr
-    c_A0_44 = (1j * RHO * kz * Uc * Re + MU * kz**2 + RHO * dWdz * Re) / Re
-    c_A0_45 = (
-        -(
-            (
-                3.0 * d2MUdT2 * dTdr * dVdz * T**2
-                + 3.0 * d2MUdT2 * dTdr * dWdr * T**2
-                + 4.0 * d2MUdT2 * dTdz * dWdz * T**2
-                - 2.0 * d2MUdT2 * dTdz * dVdr * T**2
-                + 3.0 * 1j * dMUdT * kz * dUdz * T**2
-                + 3.0 * P * dTdz * Re
-                + dMUdT * d2Vdrz * T**2
-                + 3.0 * dMUdT * d2Wdr2 * T**2
-                + 4.0 * dMUdT * d2Wdz2 * T**2
-                - 3.0 * dPdz * Re * T
+    _set_coeff(
+        "A0",
+        4,
+        1,
+        (
+            -(
+                P * dRHOdz
+                + 0 * dWdz * RHO**2  # C=0
+                - Vc * dWdr * RHO**2
+                - Wc * dWdz * RHO**2
+                - dPdz * RHO
             )
-            / Re
-            / T**2
-        )
-        / 3.0
+            / RHO**2
+        ),
+    )
+    _set_coeff("A0", 4, 2, 2.0 / 3.0 * 1j * dTdz * kz * dMUdT / Re)
+    _set_coeff("A0", 4, 3, RHO * dWdr)
+    _set_coeff("A0", 4, 4, (1j * RHO * kz * Uc * Re + MU * kz**2 + RHO * dWdz * Re) / Re)
+    _set_coeff(
+        "A0",
+        4,
+        5,
+        (
+            -(
+                (
+                    3.0 * d2MUdT2 * dTdr * dVdz * T**2
+                    + 3.0 * d2MUdT2 * dTdr * dWdr * T**2
+                    + 4.0 * d2MUdT2 * dTdz * dWdz * T**2
+                    - 2.0 * d2MUdT2 * dTdz * dVdr * T**2
+                    + 3.0 * 1j * dMUdT * kz * dUdz * T**2
+                    + 3.0 * P * dTdz * Re
+                    + dMUdT * d2Vdrz * T**2
+                    + 3.0 * dMUdT * d2Wdr2 * T**2
+                    + 4.0 * dMUdT * d2Wdz2 * T**2
+                    - 3.0 * dPdz * Re * T
+                )
+                / Re
+                / T**2
+            )
+            / 3.0
+        ),
     )
 
-    c_Ar_41 = Z
-    c_Ar_42 = Z
-    c_Ar_43 = 2.0 / 3.0 * dTdz * dMUdT / Re
-    c_Ar_44 = -(dMUdT * dTdr - RHO * Vc * Re) / Re
-    c_Ar_45 = -dMUdT * (dVdz + dWdr) / Re
+    _set_coeff("Ar", 4, 1, Z)
+    _set_coeff("Ar", 4, 2, Z)
+    _set_coeff("Ar", 4, 3, 2.0 / 3.0 * dTdz * dMUdT / Re)
+    _set_coeff("Ar", 4, 4, -(dMUdT * dTdr - RHO * Vc * Re) / Re)
+    _set_coeff("Ar", 4, 5, -dMUdT * (dVdz + dWdr) / Re)
 
-    c_Az_41 = P / RHO
-    c_Az_42 = -1j * kz * MU / Re / 3.0
-    c_Az_43 = -1.0 / Re * dMUdT * dTdr
-    c_Az_44 = (
-        -(
-            (4.0 * dMUdT * dTdz - 3.0 * RHO * Wc * Re) / Re  # C=0
-        )
-        / 3.0
+    _set_coeff("Az", 4, 1, P / RHO)
+    _set_coeff("Az", 4, 2, -1j * kz * MU / Re / 3.0)
+    _set_coeff("Az", 4, 3, -1.0 / Re * dMUdT * dTdr)
+    _set_coeff(
+        "Az",
+        4,
+        4,
+        (
+            -(
+                (4.0 * dMUdT * dTdz - 3.0 * RHO * Wc * Re) / Re  # C=0
+            )
+            / 3.0
+        ),
     )
-    c_Az_45 = ((-4.0 * dMUdT * dWdz * T + 2.0 * dMUdT * dVdr * T + 3.0 * P * Re) / Re / T) / 3.0
+    _set_coeff(
+        "Az",
+        4,
+        5,
+        ((-4.0 * dMUdT * dWdz * T + 2.0 * dMUdT * dVdr * T + 3.0 * P * Re) / Re / T) / 3.0,
+    )
 
-    c_Arz_41 = Z
-    c_Arz_42 = Z
-    c_Arz_43 = -MU / Re / 3.0
-    c_Arz_44 = Z
-    c_Arz_45 = Z
+    _set_coeff("Arz", 4, 1, Z)
+    _set_coeff("Arz", 4, 2, Z)
+    _set_coeff("Arz", 4, 3, -MU / Re / 3.0)
+    _set_coeff("Arz", 4, 4, Z)
+    _set_coeff("Arz", 4, 5, Z)
 
-    c_Arr_41 = Z
-    c_Arr_42 = Z
-    c_Arr_43 = Z
-    c_Arr_44 = -MU / Re
-    c_Arr_45 = Z
+    _set_coeff("Arr", 4, 1, Z)
+    _set_coeff("Arr", 4, 2, Z)
+    _set_coeff("Arr", 4, 3, Z)
+    _set_coeff("Arr", 4, 4, -MU / Re)
+    _set_coeff("Arr", 4, 5, Z)
 
-    c_Azz_41 = Z
-    c_Azz_42 = Z
-    c_Azz_43 = Z
-    c_Azz_44 = -4.0 / 3.0 * MU / Re
-    c_Azz_45 = Z
+    _set_coeff("Azz", 4, 1, Z)
+    _set_coeff("Azz", 4, 2, Z)
+    _set_coeff("Azz", 4, 3, Z)
+    _set_coeff("Azz", 4, 4, -4.0 / 3.0 * MU / Re)
+    _set_coeff("Azz", 4, 5, Z)
 
-    c_B_41 = Z
-    c_B_42 = Z
-    c_B_43 = Z
-    c_B_44 = 1j * RHO
-    c_B_45 = Z
+    _set_coeff("B", 4, 1, Z)
+    _set_coeff("B", 4, 2, Z)
+    _set_coeff("B", 4, 3, Z)
+    _set_coeff("B", 4, 4, 1j * RHO)
+    _set_coeff("B", 4, 5, Z)
 
     # ---- Row 5: energy equation ----------------------------------------
-    c_A0_51 = (
-        -(
-            -(kappa**2) * Ma**2 * P * dVdr
-            - kappa**2 * Ma**2 * P * dWdz
-            + kappa * Ma**2 * P * dVdr
-            + kappa * Ma**2 * P * dWdz
-            - RHO * Vc * dTdr  # C=0: +C*dTdz*RHO vanishes
-            - RHO * Wc * dTdz
-        )
-        / RHO
-    )
-    c_A0_52 = (
-        1j
-        * kappa
-        * Ma**2
-        * kz
-        * (
-            3.0 * kappa * P * Re
-            - 3.0 * P * Re
-            + 4.0 * kappa * MU * dVdr
-            + 4.0 * kappa * MU * dWdz
-            - 4.0 * MU * dVdr
-            - 4.0 * MU * dWdz
-        )
-        / Re
-    ) / 3.0
-    c_A0_53 = (
-        -(
-            2.0 * 1j * kappa**2 * Ma**2 * kz * MU * dUdr
-            - 2.0 * 1j * kappa * Ma**2 * kz * MU * dUdr
-            - RHO * dTdr * Re
-        )
-        / Re
-    )
-    c_A0_54 = (
-        -(
-            2.0 * 1j * kappa**2 * Ma**2 * kz * MU * dUdz
-            - 2.0 * 1j * kappa * Ma**2 * kz * MU * dUdz
-            - RHO * dTdz * Re
-        )
-        / Re
-    )
-    c_A0_55 = (
+    _set_coeff(
+        "A0",
+        5,
+        1,
         (
-            4.0 * kappa * Ma**2 * dVdr**2 * dMUdT * T * Pr
-            - 3.0 * kappa**2 * Ma**2 * dMUdT * dWdr**2 * T * Pr
-            - 3.0 * kappa**2 * Ma**2 * dMUdT * dVdz**2 * T * Pr
-            - 3.0 * kappa**2 * Ma**2 * dMUdT * dUdr**2 * T * Pr
-            - 3.0 * kappa**2 * Ma**2 * dMUdT * dUdz**2 * T * Pr
-            - 4.0 * kappa**2 * Ma**2 * dWdz**2 * dMUdT * T * Pr
-            - 3.0 * kappa * d2MUdT2 * dTdr**2 * T
-            - 3.0 * kappa * dMUdT * d2Tdr2 * T
-            - 3.0 * kappa * d2MUdT2 * dTdz**2 * T
-            - 3.0 * kappa * dMUdT * d2Tdz2 * T
-            + 3.0 * kappa * MU * kz**2 * T
-            - 4.0 * kappa**2 * Ma**2 * dVdr**2 * dMUdT * T * Pr
-            + 3.0 * kappa * Ma**2 * dMUdT * dWdr**2 * T * Pr
-            + 3.0 * kappa * Ma**2 * dMUdT * dVdz**2 * T * Pr
-            + 3.0 * kappa * Ma**2 * dMUdT * dUdr**2 * T * Pr
-            + 3.0 * kappa * Ma**2 * dMUdT * dUdz**2 * T * Pr
-            + 3.0 * kappa**2 * Ma**2 * P * dVdr * Re * Pr
-            + 3.0 * kappa**2 * Ma**2 * P * dWdz * Re * Pr
-            - 3.0 * kappa * Ma**2 * P * dWdz * Re * Pr
-            + 4.0 * kappa * Ma**2 * dWdz**2 * dMUdT * T * Pr
-            - 3.0 * kappa * Ma**2 * P * dVdr * Re * Pr
-            - 4.0 * kappa * Ma**2 * dMUdT * dVdr * dWdz * T * Pr
-            - 6.0 * kappa**2 * Ma**2 * dMUdT * dWdr * dVdz * T * Pr
-            + 6.0 * kappa * Ma**2 * dMUdT * dWdr * dVdz * T * Pr
-            + 4.0 * kappa**2 * Ma**2 * dMUdT * dVdr * dWdz * T * Pr
-            + 3.0 * 1j * kz * RHO * Uc * Re * T * Pr
+            -(
+                -(kappa**2) * Ma**2 * P * dVdr
+                - kappa**2 * Ma**2 * P * dWdz
+                + kappa * Ma**2 * P * dVdr
+                + kappa * Ma**2 * P * dWdz
+                - RHO * Vc * dTdr  # C=0: +C*dTdz*RHO vanishes
+                - RHO * Wc * dTdz
+            )
+            / RHO
+        ),
+    )
+    _set_coeff(
+        "A0",
+        5,
+        2,
+        (
+            1j
+            * kappa
+            * Ma**2
+            * kz
+            * (
+                3.0 * kappa * P * Re
+                - 3.0 * P * Re
+                + 4.0 * kappa * MU * dVdr
+                + 4.0 * kappa * MU * dWdz
+                - 4.0 * MU * dVdr
+                - 4.0 * MU * dWdz
+            )
+            / Re
         )
-        / Pr
-        / T
-        / Re
-    ) / 3.0
-
-    c_Ar_51 = Z
-    c_Ar_52 = -2.0 * kappa * Ma**2 * MU * dUdr * (kappa - 1.0) / Re
-    c_Ar_53 = (
-        kappa
-        * Ma**2
-        * (
-            -4.0 * MU * dWdz
-            + 4.0 * kappa * MU * dWdz
-            - 3.0 * P * Re
-            + 3.0 * kappa * P * Re
-            + 8.0 * MU * dVdr
-            - 8.0 * kappa * MU * dVdr
+        / 3.0,
+    )
+    _set_coeff(
+        "A0",
+        5,
+        3,
+        (
+            -(
+                2.0 * 1j * kappa**2 * Ma**2 * kz * MU * dUdr
+                - 2.0 * 1j * kappa * Ma**2 * kz * MU * dUdr
+                - RHO * dTdr * Re
+            )
+            / Re
+        ),
+    )
+    _set_coeff(
+        "A0",
+        5,
+        4,
+        (
+            -(
+                2.0 * 1j * kappa**2 * Ma**2 * kz * MU * dUdz
+                - 2.0 * 1j * kappa * Ma**2 * kz * MU * dUdz
+                - RHO * dTdz * Re
+            )
+            / Re
+        ),
+    )
+    _set_coeff(
+        "A0",
+        5,
+        5,
+        (
+            (
+                4.0 * kappa * Ma**2 * dVdr**2 * dMUdT * T * Pr
+                - 3.0 * kappa**2 * Ma**2 * dMUdT * dWdr**2 * T * Pr
+                - 3.0 * kappa**2 * Ma**2 * dMUdT * dVdz**2 * T * Pr
+                - 3.0 * kappa**2 * Ma**2 * dMUdT * dUdr**2 * T * Pr
+                - 3.0 * kappa**2 * Ma**2 * dMUdT * dUdz**2 * T * Pr
+                - 4.0 * kappa**2 * Ma**2 * dWdz**2 * dMUdT * T * Pr
+                - 3.0 * kappa * d2MUdT2 * dTdr**2 * T
+                - 3.0 * kappa * dMUdT * d2Tdr2 * T
+                - 3.0 * kappa * d2MUdT2 * dTdz**2 * T
+                - 3.0 * kappa * dMUdT * d2Tdz2 * T
+                + 3.0 * kappa * MU * kz**2 * T
+                - 4.0 * kappa**2 * Ma**2 * dVdr**2 * dMUdT * T * Pr
+                + 3.0 * kappa * Ma**2 * dMUdT * dWdr**2 * T * Pr
+                + 3.0 * kappa * Ma**2 * dMUdT * dVdz**2 * T * Pr
+                + 3.0 * kappa * Ma**2 * dMUdT * dUdr**2 * T * Pr
+                + 3.0 * kappa * Ma**2 * dMUdT * dUdz**2 * T * Pr
+                + 3.0 * kappa**2 * Ma**2 * P * dVdr * Re * Pr
+                + 3.0 * kappa**2 * Ma**2 * P * dWdz * Re * Pr
+                - 3.0 * kappa * Ma**2 * P * dWdz * Re * Pr
+                + 4.0 * kappa * Ma**2 * dWdz**2 * dMUdT * T * Pr
+                - 3.0 * kappa * Ma**2 * P * dVdr * Re * Pr
+                - 4.0 * kappa * Ma**2 * dMUdT * dVdr * dWdz * T * Pr
+                - 6.0 * kappa**2 * Ma**2 * dMUdT * dWdr * dVdz * T * Pr
+                + 6.0 * kappa * Ma**2 * dMUdT * dWdr * dVdz * T * Pr
+                + 4.0 * kappa**2 * Ma**2 * dMUdT * dVdr * dWdz * T * Pr
+                + 3.0 * 1j * kz * RHO * Uc * Re * T * Pr
+            )
+            / Pr
+            / T
+            / Re
         )
-        / Re
-    ) / 3.0
-    c_Ar_54 = -2.0 * kappa * Ma**2 * MU * (-dVdz + kappa * dVdz - dWdr + kappa * dWdr) / Re
-    c_Ar_55 = (-2.0 * kappa * dMUdT * dTdr + RHO * Vc * Re * Pr) / Re / Pr
+        / 3.0,
+    )
 
-    c_Az_51 = Z
-    c_Az_52 = -2.0 * kappa * Ma**2 * MU * dUdz * (kappa - 1.0) / Re
-    c_Az_53 = -2.0 * kappa * Ma**2 * MU * (-dVdz + kappa * dVdz - dWdr + kappa * dWdr) / Re
-    c_Az_54 = (
-        kappa
-        * Ma**2
-        * (
-            4.0 * kappa * MU * dVdr
-            - 4.0 * MU * dVdr
-            - 3.0 * P * Re
-            + 3.0 * kappa * P * Re
-            - 8.0 * kappa * MU * dWdz
-            + 8.0 * MU * dWdz
+    _set_coeff("Ar", 5, 1, Z)
+    _set_coeff("Ar", 5, 2, -2.0 * kappa * Ma**2 * MU * dUdr * (kappa - 1.0) / Re)
+    _set_coeff(
+        "Ar",
+        5,
+        3,
+        (
+            kappa
+            * Ma**2
+            * (
+                -4.0 * MU * dWdz
+                + 4.0 * kappa * MU * dWdz
+                - 3.0 * P * Re
+                + 3.0 * kappa * P * Re
+                + 8.0 * MU * dVdr
+                - 8.0 * kappa * MU * dVdr
+            )
+            / Re
         )
-        / Re
-    ) / 3.0
-    c_Az_55 = -(2.0 * kappa * dMUdT * dTdz - RHO * Wc * Re * Pr) / Re / Pr  # C=0
+        / 3.0,
+    )
+    _set_coeff(
+        "Ar", 5, 4, -2.0 * kappa * Ma**2 * MU * (-dVdz + kappa * dVdz - dWdr + kappa * dWdr) / Re
+    )
+    _set_coeff("Ar", 5, 5, (-2.0 * kappa * dMUdT * dTdr + RHO * Vc * Re * Pr) / Re / Pr)
 
-    c_Arz_51 = Z
-    c_Arz_52 = Z
-    c_Arz_53 = Z
-    c_Arz_54 = Z
-    c_Arz_55 = Z
+    _set_coeff("Az", 5, 1, Z)
+    _set_coeff("Az", 5, 2, -2.0 * kappa * Ma**2 * MU * dUdz * (kappa - 1.0) / Re)
+    _set_coeff(
+        "Az", 5, 3, -2.0 * kappa * Ma**2 * MU * (-dVdz + kappa * dVdz - dWdr + kappa * dWdr) / Re
+    )
+    _set_coeff(
+        "Az",
+        5,
+        4,
+        (
+            kappa
+            * Ma**2
+            * (
+                4.0 * kappa * MU * dVdr
+                - 4.0 * MU * dVdr
+                - 3.0 * P * Re
+                + 3.0 * kappa * P * Re
+                - 8.0 * kappa * MU * dWdz
+                + 8.0 * MU * dWdz
+            )
+            / Re
+        )
+        / 3.0,
+    )
+    _set_coeff("Az", 5, 5, -(2.0 * kappa * dMUdT * dTdz - RHO * Wc * Re * Pr) / Re / Pr)  # C=0
 
-    c_Arr_51 = Z
-    c_Arr_52 = Z
-    c_Arr_53 = Z
-    c_Arr_54 = Z
-    c_Arr_55 = -kappa * MU / Re / Pr
+    _set_coeff("Arz", 5, 1, Z)
+    _set_coeff("Arz", 5, 2, Z)
+    _set_coeff("Arz", 5, 3, Z)
+    _set_coeff("Arz", 5, 4, Z)
+    _set_coeff("Arz", 5, 5, Z)
 
-    c_Azz_51 = Z
-    c_Azz_52 = Z
-    c_Azz_53 = Z
-    c_Azz_54 = Z
-    c_Azz_55 = -kappa * MU / Re / Pr
+    _set_coeff("Arr", 5, 1, Z)
+    _set_coeff("Arr", 5, 2, Z)
+    _set_coeff("Arr", 5, 3, Z)
+    _set_coeff("Arr", 5, 4, Z)
+    _set_coeff("Arr", 5, 5, -kappa * MU / Re / Pr)
 
-    c_B_51 = Z
-    c_B_52 = Z
-    c_B_53 = Z
-    c_B_54 = Z
-    c_B_55 = 1j * RHO
+    _set_coeff("Azz", 5, 1, Z)
+    _set_coeff("Azz", 5, 2, Z)
+    _set_coeff("Azz", 5, 3, Z)
+    _set_coeff("Azz", 5, 4, Z)
+    _set_coeff("Azz", 5, 5, -kappa * MU / Re / Pr)
+
+    _set_coeff("B", 5, 1, Z)
+    _set_coeff("B", 5, 2, Z)
+    _set_coeff("B", 5, 3, Z)
+    _set_coeff("B", 5, 4, Z)
+    _set_coeff("B", 5, 5, 1j * RHO)
 
     # ------------------------------------------------------------------
     # Pack directly into the final physical-order tensors, folding
@@ -693,22 +842,7 @@ def compute_cartesian_coefficients(
     #   coeff 3 (W_c) -> phys 1 (u),   sign +1
     #   coeff 4 (T)   -> phys 4 (T),   sign +1
     # ------------------------------------------------------------------
-    c2p_idx = [0, 3, 2, 1, 4]
-    c2p_sgn = np.array([1.0, -1.0, 1.0, 1.0, 1.0])
-    return _pack_coefficients_in_physical_order(
-        locals(),
-        ngp=ngp,
-        c2p_idx=c2p_idx,
-        c2p_sgn=c2p_sgn,
-        source_signs={
-            "A0": -1.0,
-            "Ar": -1.0,
-            "Az": -1.0,
-            "Arr": -1.0,
-            "Azz": -1.0,
-            "Arz": -1.0,
-        },
-    )
+    return _coeffs.finish()
 
 
 def compute_cylindrical_coefficients(
@@ -805,663 +939,831 @@ def compute_cylindrical_coefficients(
     # ------------------------------------------------------------------
     Z = np.zeros(ngp)
     I = np.ones(ngp)
+    _coeffs = _PhysicalCoefficientBuilder(
+        ngp=ngp,
+        c2p_idx=[0, 2, 3, 1, 4],
+        c2p_sgn=np.array([1.0, 1.0, 1.0, 1.0, 1.0]),
+    )
+    _set_coeff = _coeffs.set
 
-    c_A0_11 = -(U + R * dUdr + 1j * m * V + R * dWdz) / R
-    c_A0_12 = -(RHO + R * dRHOdr) / R
-    c_A0_13 = -1j / R * RHO * m
-    c_A0_14 = -dRHOdz
-    c_A0_15 = Z
-    c_Ar_11 = -U
-    c_Ar_12 = -RHO
-    c_Ar_13 = Z
-    c_Ar_14 = Z
-    c_Ar_15 = Z
-    c_Arr_11 = Z
-    c_Arr_12 = Z
-    c_Arr_13 = Z
-    c_Arr_14 = Z
-    c_Arr_15 = Z
-    c_Az_11 = -W
-    c_Az_12 = Z
-    c_Az_13 = Z
-    c_Az_14 = -RHO
-    c_Az_15 = Z
-    c_Azz_11 = Z
-    c_Azz_12 = Z
-    c_Azz_13 = Z
-    c_Azz_14 = Z
-    c_Azz_15 = Z
-    c_Arz_11 = Z
-    c_Arz_12 = Z
-    c_Arz_13 = Z
-    c_Arz_14 = Z
-    c_Arz_15 = Z
-    c_A0_21 = (
-        -(
-            2 * dUdr * U * R * c2
-            + W * dUdz * R * c2
-            + dWdz * U * R * c2
-            + 1j * m * U * V * c2
-            + dTdr * R
-            - V**2 * c2
-            + U**2 * c2
-        )
-        / R
-        / c2
-    )
-    c_A0_22 = (
-        -(
-            (
-                3 * MU * m**2
-                + 6 * RHO * U * Re * R
-                + 6 * dRHOdr * U * Re * R**2
-                + 6 * dUdr * RHO * Re * R**2
-                + 3 * W * dRHOdz * Re * R**2
-                + 3 * dWdz * RHO * Re * R**2
-                + 2 * dmudT * dTdr * R
-                + 3 * 1j * RHO * m * V * Re * R
-                + 4 * MU
+    _set_coeff("A0", 1, 1, -(U + R * dUdr + 1j * m * V + R * dWdz) / R)
+    _set_coeff("A0", 1, 2, -(RHO + R * dRHOdr) / R)
+    _set_coeff("A0", 1, 3, -1j / R * RHO * m)
+    _set_coeff("A0", 1, 4, -dRHOdz)
+    _set_coeff("A0", 1, 5, Z)
+    _set_coeff("Ar", 1, 1, -U)
+    _set_coeff("Ar", 1, 2, -RHO)
+    _set_coeff("Ar", 1, 3, Z)
+    _set_coeff("Ar", 1, 4, Z)
+    _set_coeff("Ar", 1, 5, Z)
+    _set_coeff("Arr", 1, 1, Z)
+    _set_coeff("Arr", 1, 2, Z)
+    _set_coeff("Arr", 1, 3, Z)
+    _set_coeff("Arr", 1, 4, Z)
+    _set_coeff("Arr", 1, 5, Z)
+    _set_coeff("Az", 1, 1, -W)
+    _set_coeff("Az", 1, 2, Z)
+    _set_coeff("Az", 1, 3, Z)
+    _set_coeff("Az", 1, 4, -RHO)
+    _set_coeff("Az", 1, 5, Z)
+    _set_coeff("Azz", 1, 1, Z)
+    _set_coeff("Azz", 1, 2, Z)
+    _set_coeff("Azz", 1, 3, Z)
+    _set_coeff("Azz", 1, 4, Z)
+    _set_coeff("Azz", 1, 5, Z)
+    _set_coeff("Arz", 1, 1, Z)
+    _set_coeff("Arz", 1, 2, Z)
+    _set_coeff("Arz", 1, 3, Z)
+    _set_coeff("Arz", 1, 4, Z)
+    _set_coeff("Arz", 1, 5, Z)
+    _set_coeff(
+        "A0",
+        2,
+        1,
+        (
+            -(
+                2 * dUdr * U * R * c2
+                + W * dUdz * R * c2
+                + dWdz * U * R * c2
+                + 1j * m * U * V * c2
+                + dTdr * R
+                - V**2 * c2
+                + U**2 * c2
             )
-            / Re
-            / R**2
-        )
-        / 0.3e1
+            / R
+            / c2
+        ),
     )
-    c_A0_23 = (
-        -(
+    _set_coeff(
+        "A0",
+        2,
+        2,
+        (
+            -(
+                (
+                    3 * MU * m**2
+                    + 6 * RHO * U * Re * R
+                    + 6 * dRHOdr * U * Re * R**2
+                    + 6 * dUdr * RHO * Re * R**2
+                    + 3 * W * dRHOdz * Re * R**2
+                    + 3 * dWdz * RHO * Re * R**2
+                    + 2 * dmudT * dTdr * R
+                    + 3 * 1j * RHO * m * V * Re * R
+                    + 4 * MU
+                )
+                / Re
+                / R**2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff(
+        "A0",
+        2,
+        3,
+        (
+            -(
+                (
+                    2 * 1j * dmudT * dTdr * m * R
+                    - 6 * RHO * V * Re * R
+                    + 7 * 1j * MU * m
+                    + 3 * 1j * RHO * U * m * Re * R
+                )
+                / Re
+                / R**2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("A0", 2, 4, -RHO * dUdz - dRHOdz * U)
+    _set_coeff(
+        "A0",
+        2,
+        5,
+        (
+            -(
+                (
+                    2 * R**2 * c2 * dWdz * d2mudT2 * dTdr
+                    + 2 * R * c2 * U * d2mudT2 * dTdr
+                    - 4 * R**2 * c2 * dUdr * d2mudT2 * dTdr
+                    - 3 * R**2 * c2 * dWdr * d2mudT2 * dTdz
+                    - 3 * R**2 * c2 * dUdz * d2mudT2 * dTdz
+                    + 3 * 1j * dmudT * m * V * c2
+                    - 3 * 1j * dmudT * m * dVdr * R * c2
+                    + 3 * Re * R**2 * dRHOdr
+                )
+                / Re
+                / R**2
+                / c2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("Ar", 2, 1, -(T + U**2 * c2) / c2)
+    _set_coeff(
+        "Ar", 2, 2, 0.2e1 / 0.3e1 * (2 * dmudT * dTdr * R - 3 * RHO * U * Re * R + 2 * MU) / Re / R
+    )
+    _set_coeff("Ar", 2, 3, 1j / Re / R * MU * m / 0.3e1)
+    _set_coeff("Ar", 2, 4, 0.1e1 / Re * dmudT * dTdz)
+    _set_coeff(
+        "Ar",
+        2,
+        5,
+        (
+            -(
+                (
+                    2 * dWdz * dmudT * R * c2
+                    + 2 * U * dmudT * c2
+                    - 4 * dUdr * dmudT * R * c2
+                    + 3 * RHO * Re * R
+                )
+                / Re
+                / R
+                / c2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("Arr", 2, 1, Z)
+    _set_coeff("Arr", 2, 2, 0.4e1 / 0.3e1 * MU / Re)
+    _set_coeff("Arr", 2, 3, Z)
+    _set_coeff("Arr", 2, 4, Z)
+    _set_coeff("Arr", 2, 5, Z)
+    _set_coeff("Az", 2, 1, -W * U)
+    _set_coeff("Az", 2, 2, -(W * RHO * Re - dmudT * dTdz) / Re)
+    _set_coeff("Az", 2, 3, Z)
+    _set_coeff("Az", 2, 4, -((2 * dmudT * dTdr + 3 * RHO * U * Re) / Re) / 0.3e1)
+    _set_coeff("Az", 2, 5, dmudT * (dWdr + dUdz) / Re)
+    _set_coeff("Azz", 2, 1, Z)
+    _set_coeff("Azz", 2, 2, MU / Re)
+    _set_coeff("Azz", 2, 3, Z)
+    _set_coeff("Azz", 2, 4, Z)
+    _set_coeff("Azz", 2, 5, Z)
+    _set_coeff("Arz", 2, 1, Z)
+    _set_coeff("Arz", 2, 2, Z)
+    _set_coeff("Arz", 2, 3, Z)
+    _set_coeff("Arz", 2, 4, MU / Re / 0.3e1)
+    _set_coeff("Arz", 2, 5, Z)
+    _set_coeff(
+        "A0",
+        3,
+        1,
+        (
+            -(
+                1j * m * V**2 * c2
+                + 2 * V * U * c2
+                + W * dVdz * R * c2
+                + dWdz * V * R * c2
+                + dVdr * U * R * c2
+                + V * dUdr * R * c2
+                + 1j * m * T
+            )
+            / R
+            / c2
+        ),
+    )
+    _set_coeff(
+        "A0",
+        3,
+        2,
+        (
             (
-                2 * 1j * dmudT * dTdr * m * R
-                - 6 * RHO * V * Re * R
+                -6 * RHO * V * Re * R
+                - 3 * V * dRHOdr * Re * R**2
+                - 3 * dVdr * RHO * Re * R**2
                 + 7 * 1j * MU * m
-                + 3 * 1j * RHO * U * m * Re * R
+                + 3 * 1j * dmudT * dTdr * m * R
             )
             / Re
             / R**2
         )
-        / 0.3e1
+        / 0.3e1,
     )
-    c_A0_24 = -RHO * dUdz - dRHOdz * U
-    c_A0_25 = (
-        -(
-            (
-                2 * R**2 * c2 * dWdz * d2mudT2 * dTdr
-                + 2 * R * c2 * U * d2mudT2 * dTdr
-                - 4 * R**2 * c2 * dUdr * d2mudT2 * dTdr
-                - 3 * R**2 * c2 * dWdr * d2mudT2 * dTdz
-                - 3 * R**2 * c2 * dUdz * d2mudT2 * dTdz
-                + 3 * 1j * dmudT * m * V * c2
-                - 3 * 1j * dmudT * m * dVdr * R * c2
-                + 3 * Re * R**2 * dRHOdr
-            )
-            / Re
-            / R**2
-            / c2
-        )
-        / 0.3e1
-    )
-    c_Ar_21 = -(T + U**2 * c2) / c2
-    c_Ar_22 = 0.2e1 / 0.3e1 * (2 * dmudT * dTdr * R - 3 * RHO * U * Re * R + 2 * MU) / Re / R
-    c_Ar_23 = 1j / Re / R * MU * m / 0.3e1
-    c_Ar_24 = 0.1e1 / Re * dmudT * dTdz
-    c_Ar_25 = (
-        -(
-            (
-                2 * dWdz * dmudT * R * c2
-                + 2 * U * dmudT * c2
-                - 4 * dUdr * dmudT * R * c2
-                + 3 * RHO * Re * R
-            )
-            / Re
-            / R
-            / c2
-        )
-        / 0.3e1
-    )
-    c_Arr_21 = Z
-    c_Arr_22 = 0.4e1 / 0.3e1 * MU / Re
-    c_Arr_23 = Z
-    c_Arr_24 = Z
-    c_Arr_25 = Z
-    c_Az_21 = -W * U
-    c_Az_22 = -(W * RHO * Re - dmudT * dTdz) / Re
-    c_Az_23 = Z
-    c_Az_24 = -((2 * dmudT * dTdr + 3 * RHO * U * Re) / Re) / 0.3e1
-    c_Az_25 = dmudT * (dWdr + dUdz) / Re
-    c_Azz_21 = Z
-    c_Azz_22 = MU / Re
-    c_Azz_23 = Z
-    c_Azz_24 = Z
-    c_Azz_25 = Z
-    c_Arz_21 = Z
-    c_Arz_22 = Z
-    c_Arz_23 = Z
-    c_Arz_24 = MU / Re / 0.3e1
-    c_Arz_25 = Z
-    c_A0_31 = (
-        -(
-            1j * m * V**2 * c2
-            + 2 * V * U * c2
-            + W * dVdz * R * c2
-            + dWdz * V * R * c2
-            + dVdr * U * R * c2
-            + V * dUdr * R * c2
-            + 1j * m * T
-        )
-        / R
-        / c2
-    )
-    c_A0_32 = (
+    _set_coeff(
+        "A0",
+        3,
+        3,
         (
-            -6 * RHO * V * Re * R
-            - 3 * V * dRHOdr * Re * R**2
-            - 3 * dVdr * RHO * Re * R**2
-            + 7 * 1j * MU * m
-            + 3 * 1j * dmudT * dTdr * m * R
-        )
-        / Re
-        / R**2
-    ) / 0.3e1
-    c_A0_33 = (
-        -(
-            (
-                3 * MU
-                + 3 * dmudT * dTdr * R
-                + 6 * RHO * U * Re * R
-                + 3 * W * dRHOdz * Re * R**2
-                + 3 * dWdz * RHO * Re * R**2
-                + 3 * dRHOdr * U * Re * R**2
-                + 3 * RHO * dUdr * Re * R**2
-                + 4 * MU * m**2
-                + 6 * 1j * RHO * V * m * Re * R
+            -(
+                (
+                    3 * MU
+                    + 3 * dmudT * dTdr * R
+                    + 6 * RHO * U * Re * R
+                    + 3 * W * dRHOdz * Re * R**2
+                    + 3 * dWdz * RHO * Re * R**2
+                    + 3 * dRHOdr * U * Re * R**2
+                    + 3 * RHO * dUdr * Re * R**2
+                    + 4 * MU * m**2
+                    + 6 * 1j * RHO * V * m * Re * R
+                )
+                / Re
+                / R**2
             )
-            / Re
-            / R**2
-        )
-        / 0.3e1
+            / 0.3e1
+        ),
     )
-    c_A0_34 = -(RHO * dVdz * Re * R + dRHOdz * V * Re * R - 1j * dmudT * dTdz * m) / Re / R
-    c_A0_35 = (
-        -(
-            (
-                3 * 1j * RHO * m * Re * R
-                + 3 * R * c2 * V * d2mudT2 * dTdr
-                - 3 * R**2 * c2 * dVdr * d2mudT2 * dTdr
-                - 3 * R**2 * c2 * dVdz * d2mudT2 * dTdz
-                - 4 * 1j * dmudT * m * U * c2
-                + 2 * 1j * dmudT * m * dUdr * R * c2
-                + 2 * 1j * dmudT * m * dWdz * R * c2
+    _set_coeff(
+        "A0", 3, 4, -(RHO * dVdz * Re * R + dRHOdz * V * Re * R - 1j * dmudT * dTdz * m) / Re / R
+    )
+    _set_coeff(
+        "A0",
+        3,
+        5,
+        (
+            -(
+                (
+                    3 * 1j * RHO * m * Re * R
+                    + 3 * R * c2 * V * d2mudT2 * dTdr
+                    - 3 * R**2 * c2 * dVdr * d2mudT2 * dTdr
+                    - 3 * R**2 * c2 * dVdz * d2mudT2 * dTdz
+                    - 4 * 1j * dmudT * m * U * c2
+                    + 2 * 1j * dmudT * m * dUdr * R * c2
+                    + 2 * 1j * dmudT * m * dWdz * R * c2
+                )
+                / Re
+                / R**2
+                / c2
             )
-            / Re
-            / R**2
-            / c2
-        )
-        / 0.3e1
+            / 0.3e1
+        ),
     )
-    c_Ar_31 = -V * U
-    c_Ar_32 = -((3 * RHO * V * Re * R - 1j * MU * m) / Re / R) / 0.3e1
-    c_Ar_33 = (MU + dmudT * dTdr * R - RHO * U * Re * R) / Re / R
-    c_Ar_34 = Z
-    c_Ar_35 = -dmudT * (V - dVdr * R) / Re / R
-    c_Arr_31 = Z
-    c_Arr_32 = Z
-    c_Arr_33 = MU / Re
-    c_Arr_34 = Z
-    c_Arr_35 = Z
-    c_Az_31 = -W * V
-    c_Az_32 = Z
-    c_Az_33 = (dmudT * dTdz - W * RHO * Re) / Re
-    c_Az_34 = -((3 * RHO * V * Re * R - 1j * MU * m) / Re / R) / 0.3e1
-    c_Az_35 = 0.1e1 / Re * dVdz * dmudT
-    c_Azz_31 = Z
-    c_Azz_32 = Z
-    c_Azz_33 = MU / Re
-    c_Azz_34 = Z
-    c_Azz_35 = Z
-    c_Arz_31 = Z
-    c_Arz_32 = Z
-    c_Arz_33 = Z
-    c_Arz_34 = Z
-    c_Arz_35 = Z
-    c_A0_41 = (
-        -(
-            dTdz * R
-            + W * U * c2
-            + W * dUdr * R * c2
-            + 2 * dWdz * W * R * c2
-            + dWdr * U * R * c2
-            + 1j * m * V * W * c2
-        )
-        / R
-        / c2
-    )
-    c_A0_42 = (
-        -(
-            (
-                2 * dmudT * dTdz
-                + 3 * W * RHO * Re
-                + 3 * dWdr * RHO * R * Re
-                + 3 * W * dRHOdr * R * Re
-            )
-            / R
-            / Re
-        )
-        / 0.3e1
-    )
-    c_A0_43 = -(1j * m * (2 * dmudT * dTdz + 3 * W * RHO * Re) / R / Re) / 0.3e1
-    c_A0_44 = (
-        -(
-            MU * m**2
-            + RHO * U * R * Re
-            + RHO * dUdr * R**2 * Re
-            + 2 * dWdz * RHO * R**2 * Re
-            + dRHOdr * U * R**2 * Re
-            + 2 * dRHOdz * W * R**2 * Re
-            + 1j * RHO * V * m * R * Re
-        )
-        / R**2
-        / Re
-    )
-    c_A0_45 = (
-        -(
-            (
-                3 * dRHOdz * R * Re
-                + 2 * dUdr * d2mudT2 * dTdz * R * c2
-                - 4 * dWdz * d2mudT2 * dTdz * R * c2
-                - 3 * dWdr * d2mudT2 * dTdr * R * c2
-                - 3 * dUdz * d2mudT2 * dTdr * R * c2
-                + 2 * U * d2mudT2 * dTdz * c2
-                - 3 * 1j * dmudT * m * dVdz * c2
-            )
-            / R
-            / Re
-            / c2
-        )
-        / 0.3e1
-    )
-    c_Ar_41 = -W * U
-    c_Ar_42 = -((2 * dmudT * dTdz + 3 * W * RHO * Re) / Re) / 0.3e1
-    c_Ar_43 = Z
-    c_Ar_44 = -(-MU - dmudT * dTdr * R + RHO * U * R * Re) / R / Re
-    c_Ar_45 = dmudT * (dWdr + dUdz) / Re
-    c_Arr_41 = Z
-    c_Arr_42 = Z
-    c_Arr_43 = Z
-    c_Arr_44 = MU / Re
-    c_Arr_45 = Z
-    c_Az_41 = -(T + W**2 * c2) / c2
-    c_Az_42 = ((MU + 3 * dmudT * dTdr * R) / R / Re) / 0.3e1
-    c_Az_43 = 1j / R / Re * MU * m / 0.3e1
-    c_Az_44 = 0.2e1 / 0.3e1 * (2 * dmudT * dTdz - 3 * W * RHO * Re) / Re
-    c_Az_45 = (
-        -(
-            (
-                3 * RHO * R * Re
-                + 2 * dUdr * dmudT * R * c2
-                - 4 * dWdz * dmudT * R * c2
-                + 2 * U * dmudT * c2
-            )
-            / R
-            / Re
-            / c2
-        )
-        / 0.3e1
-    )
-    c_Azz_41 = Z
-    c_Azz_42 = Z
-    c_Azz_43 = Z
-    c_Azz_44 = 0.4e1 / 0.3e1 * MU / Re
-    c_Azz_45 = Z
-    c_Arz_41 = Z
-    c_Arz_42 = MU / Re / 0.3e1
-    c_Arz_43 = Z
-    c_Arz_44 = Z
-    c_Arz_45 = Z
-    c_A0_51 = (
-        -(
-            (
-                1j * m * V**3 * c2
-                + 2 * cv * T * U * c2
-                + V**2 * dWdz * R * c2
-                + 3 * U**2 * dUdr * R * c2
-                + 3 * W**2 * dWdz * R * c2
-                + V**2 * dUdr * R * c2
-                + U**2 * dWdz * R * c2
-                + W**2 * dUdr * R * c2
-                + 2 * 1j * V * m * T
-                + 2 * T * U
-                + U**3 * c2
-                + 2 * 1j * V * m * cv * T * c2
-                + 2 * cv * dTdz * W * R * c2
-                + 2 * dUdz * U * W * R * c2
-                + 2 * cv * T * dWdz * R * c2
-                + 2 * dVdz * V * W * R * c2
-                + 2 * dVdr * V * U * R * c2
-                + 2 * dWdr * U * W * R * c2
-                + 2 * cv * T * dUdr * R * c2
-                + 2 * cv * dTdr * U * R * c2
-                + 1j * V * m * U**2 * c2
-                + 1j * V * m * W**2 * c2
-                + 2 * dTdz * W * R
-                + 2 * T * dUdr * R
-                + 2 * dTdr * U * R
-                + V**2 * U * c2
-                + W**2 * U * c2
-                + 2 * T * dWdz * R
+    _set_coeff("Ar", 3, 1, -V * U)
+    _set_coeff("Ar", 3, 2, -((3 * RHO * V * Re * R - 1j * MU * m) / Re / R) / 0.3e1)
+    _set_coeff("Ar", 3, 3, (MU + dmudT * dTdr * R - RHO * U * Re * R) / Re / R)
+    _set_coeff("Ar", 3, 4, Z)
+    _set_coeff("Ar", 3, 5, -dmudT * (V - dVdr * R) / Re / R)
+    _set_coeff("Arr", 3, 1, Z)
+    _set_coeff("Arr", 3, 2, Z)
+    _set_coeff("Arr", 3, 3, MU / Re)
+    _set_coeff("Arr", 3, 4, Z)
+    _set_coeff("Arr", 3, 5, Z)
+    _set_coeff("Az", 3, 1, -W * V)
+    _set_coeff("Az", 3, 2, Z)
+    _set_coeff("Az", 3, 3, (dmudT * dTdz - W * RHO * Re) / Re)
+    _set_coeff("Az", 3, 4, -((3 * RHO * V * Re * R - 1j * MU * m) / Re / R) / 0.3e1)
+    _set_coeff("Az", 3, 5, 0.1e1 / Re * dVdz * dmudT)
+    _set_coeff("Azz", 3, 1, Z)
+    _set_coeff("Azz", 3, 2, Z)
+    _set_coeff("Azz", 3, 3, MU / Re)
+    _set_coeff("Azz", 3, 4, Z)
+    _set_coeff("Azz", 3, 5, Z)
+    _set_coeff("Arz", 3, 1, Z)
+    _set_coeff("Arz", 3, 2, Z)
+    _set_coeff("Arz", 3, 3, Z)
+    _set_coeff("Arz", 3, 4, Z)
+    _set_coeff("Arz", 3, 5, Z)
+    _set_coeff(
+        "A0",
+        4,
+        1,
+        (
+            -(
+                dTdz * R
+                + W * U * c2
+                + W * dUdr * R * c2
+                + 2 * dWdz * W * R * c2
+                + dWdr * U * R * c2
+                + 1j * m * V * W * c2
             )
             / R
             / c2
-        )
-        / 0.2e1
+        ),
     )
-    c_A0_52 = (
+    _set_coeff(
+        "A0",
+        4,
+        2,
         (
-            -6 * T * RHO * Re * R
-            - 8 * MU * dWdz * c2 * R
-            + 6 * MU * d2Udz2 * R**2 * c2
-            - 6 * T * dRHOdr * Re * R**2
-            - 6 * dTdr * RHO * Re * R**2
-            + 8 * MU * d2Udr2 * R**2 * c2
-            + 2 * MU * d2Wdrz * R**2 * c2
-            - 6 * U * MU * m**2 * c2
-            - 6 * cv * T * RHO * Re * c2 * R
-            - 6 * W * dRHOdz * U * Re * R**2 * c2
-            - 18 * dUdr * RHO * U * Re * R**2 * c2
-            - 6 * dWdz * RHO * U * Re * R**2 * c2
-            - 6 * dUdz * W * RHO * Re * R**2 * c2
-            - 6 * dVdr * V * RHO * Re * R**2 * c2
-            - 6 * dWdr * W * RHO * Re * R**2 * c2
-            - 6 * cv * T * dRHOdr * Re * R**2 * c2
-            - 6 * cv * dTdr * RHO * Re * R**2 * c2
-            + 12 * 1j * dVdr * MU * m * R * c2
-            - 9 * U**2 * RHO * Re * c2 * R
-            - 3 * V**2 * RHO * Re * c2 * R
-            - 3 * W**2 * RHO * Re * c2 * R
-            - 4 * W * dmudT * dTdz * c2 * R
-            - 8 * U * dmudT * dTdr * c2 * R
-            + 2 * 1j * V * MU * m * c2
-            - 3 * W**2 * dRHOdr * Re * R**2 * c2
-            - 9 * dRHOdr * U**2 * Re * R**2 * c2
-            - 3 * V**2 * dRHOdr * Re * R**2 * c2
-            + 6 * dUdz * dmudT * dTdz * R**2 * c2
-            + 6 * dWdr * dmudT * dTdz * R**2 * c2
-            + 8 * dUdr * dmudT * dTdr * R**2 * c2
-            - 4 * dWdz * dmudT * dTdr * R**2 * c2
-            + 6 * 1j * V * dmudT * dTdr * m * R * c2
-            - 6 * 1j * U * RHO * V * m * Re * R * c2
-        )
-        / Re
-        / R**2
-        / c2
-    ) / 0.6e1
-    c_A0_53 = (
-        -(
+            -(
+                (
+                    2 * dmudT * dTdz
+                    + 3 * W * RHO * Re
+                    + 3 * dWdr * RHO * R * Re
+                    + 3 * W * dRHOdr * R * Re
+                )
+                / R
+                / Re
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("A0", 4, 3, -(1j * m * (2 * dmudT * dTdz + 3 * W * RHO * Re) / R / Re) / 0.3e1)
+    _set_coeff(
+        "A0",
+        4,
+        4,
+        (
+            -(
+                MU * m**2
+                + RHO * U * R * Re
+                + RHO * dUdr * R**2 * Re
+                + 2 * dWdz * RHO * R**2 * Re
+                + dRHOdr * U * R**2 * Re
+                + 2 * dRHOdz * W * R**2 * Re
+                + 1j * RHO * V * m * R * Re
+            )
+            / R**2
+            / Re
+        ),
+    )
+    _set_coeff(
+        "A0",
+        4,
+        5,
+        (
+            -(
+                (
+                    3 * dRHOdz * R * Re
+                    + 2 * dUdr * d2mudT2 * dTdz * R * c2
+                    - 4 * dWdz * d2mudT2 * dTdz * R * c2
+                    - 3 * dWdr * d2mudT2 * dTdr * R * c2
+                    - 3 * dUdz * d2mudT2 * dTdr * R * c2
+                    + 2 * U * d2mudT2 * dTdz * c2
+                    - 3 * 1j * dmudT * m * dVdz * c2
+                )
+                / R
+                / Re
+                / c2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("Ar", 4, 1, -W * U)
+    _set_coeff("Ar", 4, 2, -((2 * dmudT * dTdz + 3 * W * RHO * Re) / Re) / 0.3e1)
+    _set_coeff("Ar", 4, 3, Z)
+    _set_coeff("Ar", 4, 4, -(-MU - dmudT * dTdr * R + RHO * U * R * Re) / R / Re)
+    _set_coeff("Ar", 4, 5, dmudT * (dWdr + dUdz) / Re)
+    _set_coeff("Arr", 4, 1, Z)
+    _set_coeff("Arr", 4, 2, Z)
+    _set_coeff("Arr", 4, 3, Z)
+    _set_coeff("Arr", 4, 4, MU / Re)
+    _set_coeff("Arr", 4, 5, Z)
+    _set_coeff("Az", 4, 1, -(T + W**2 * c2) / c2)
+    _set_coeff("Az", 4, 2, ((MU + 3 * dmudT * dTdr * R) / R / Re) / 0.3e1)
+    _set_coeff("Az", 4, 3, 1j / R / Re * MU * m / 0.3e1)
+    _set_coeff("Az", 4, 4, 0.2e1 / 0.3e1 * (2 * dmudT * dTdz - 3 * W * RHO * Re) / Re)
+    _set_coeff(
+        "Az",
+        4,
+        5,
+        (
+            -(
+                (
+                    3 * RHO * R * Re
+                    + 2 * dUdr * dmudT * R * c2
+                    - 4 * dWdz * dmudT * R * c2
+                    + 2 * U * dmudT * c2
+                )
+                / R
+                / Re
+                / c2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("Azz", 4, 1, Z)
+    _set_coeff("Azz", 4, 2, Z)
+    _set_coeff("Azz", 4, 3, Z)
+    _set_coeff("Azz", 4, 4, 0.4e1 / 0.3e1 * MU / Re)
+    _set_coeff("Azz", 4, 5, Z)
+    _set_coeff("Arz", 4, 1, Z)
+    _set_coeff("Arz", 4, 2, MU / Re / 0.3e1)
+    _set_coeff("Arz", 4, 3, Z)
+    _set_coeff("Arz", 4, 4, Z)
+    _set_coeff("Arz", 4, 5, Z)
+    _set_coeff(
+        "A0",
+        5,
+        1,
+        (
+            -(
+                (
+                    1j * m * V**3 * c2
+                    + 2 * cv * T * U * c2
+                    + V**2 * dWdz * R * c2
+                    + 3 * U**2 * dUdr * R * c2
+                    + 3 * W**2 * dWdz * R * c2
+                    + V**2 * dUdr * R * c2
+                    + U**2 * dWdz * R * c2
+                    + W**2 * dUdr * R * c2
+                    + 2 * 1j * V * m * T
+                    + 2 * T * U
+                    + U**3 * c2
+                    + 2 * 1j * V * m * cv * T * c2
+                    + 2 * cv * dTdz * W * R * c2
+                    + 2 * dUdz * U * W * R * c2
+                    + 2 * cv * T * dWdz * R * c2
+                    + 2 * dVdz * V * W * R * c2
+                    + 2 * dVdr * V * U * R * c2
+                    + 2 * dWdr * U * W * R * c2
+                    + 2 * cv * T * dUdr * R * c2
+                    + 2 * cv * dTdr * U * R * c2
+                    + 1j * V * m * U**2 * c2
+                    + 1j * V * m * W**2 * c2
+                    + 2 * dTdz * W * R
+                    + 2 * T * dUdr * R
+                    + 2 * dTdr * U * R
+                    + V**2 * U * c2
+                    + W**2 * U * c2
+                    + 2 * T * dWdz * R
+                )
+                / R
+                / c2
+            )
+            / 0.2e1
+        ),
+    )
+    _set_coeff(
+        "A0",
+        5,
+        2,
+        (
             (
-                -6 * MU * d2Vdr2 * R**2 * c2
-                - 6 * MU * d2Vdz2 * R**2 * c2
-                + 6 * dVdr * MU * R * c2
-                + 8 * 1j * dUdr * MU * m * R * c2
-                + 3 * 1j * m * RHO * W**2 * Re * R * c2
-                + 3 * 1j * m * RHO * U**2 * Re * R * c2
-                + 6 * 1j * m * RHO * cv * T * Re * R * c2
-                + 8 * 1j * m * MU * dWdz * R * c2
-                - 2 * 1j * U * MU * m * c2
-                + 6 * 1j * m * RHO * T * Re * R
-                + 4 * 1j * W * dmudT * dTdz * m * R * c2
-                + 8 * V * MU * m**2 * c2
-                + 12 * V * dmudT * dTdr * R * c2
-                - 6 * dVdz * dmudT * dTdz * R**2 * c2
-                - 6 * dVdr * dmudT * dTdr * R**2 * c2
-                + 6 * U * RHO * V * Re * R * c2
-                + 6 * dWdz * RHO * V * Re * R**2 * c2
-                + 6 * U * dRHOdr * V * Re * R**2 * c2
-                + 6 * W * dRHOdz * V * Re * R**2 * c2
-                + 6 * dUdr * RHO * V * Re * R**2 * c2
-                + 6 * dVdz * W * RHO * Re * R**2 * c2
-                + 6 * dVdr * U * RHO * Re * R**2 * c2
-                + 4 * 1j * U * dmudT * dTdr * m * R * c2
-                + 9 * 1j * m * RHO * V**2 * Re * R * c2
+                -6 * T * RHO * Re * R
+                - 8 * MU * dWdz * c2 * R
+                + 6 * MU * d2Udz2 * R**2 * c2
+                - 6 * T * dRHOdr * Re * R**2
+                - 6 * dTdr * RHO * Re * R**2
+                + 8 * MU * d2Udr2 * R**2 * c2
+                + 2 * MU * d2Wdrz * R**2 * c2
+                - 6 * U * MU * m**2 * c2
+                - 6 * cv * T * RHO * Re * c2 * R
+                - 6 * W * dRHOdz * U * Re * R**2 * c2
+                - 18 * dUdr * RHO * U * Re * R**2 * c2
+                - 6 * dWdz * RHO * U * Re * R**2 * c2
+                - 6 * dUdz * W * RHO * Re * R**2 * c2
+                - 6 * dVdr * V * RHO * Re * R**2 * c2
+                - 6 * dWdr * W * RHO * Re * R**2 * c2
+                - 6 * cv * T * dRHOdr * Re * R**2 * c2
+                - 6 * cv * dTdr * RHO * Re * R**2 * c2
+                + 12 * 1j * dVdr * MU * m * R * c2
+                - 9 * U**2 * RHO * Re * c2 * R
+                - 3 * V**2 * RHO * Re * c2 * R
+                - 3 * W**2 * RHO * Re * c2 * R
+                - 4 * W * dmudT * dTdz * c2 * R
+                - 8 * U * dmudT * dTdr * c2 * R
+                + 2 * 1j * V * MU * m * c2
+                - 3 * W**2 * dRHOdr * Re * R**2 * c2
+                - 9 * dRHOdr * U**2 * Re * R**2 * c2
+                - 3 * V**2 * dRHOdr * Re * R**2 * c2
+                + 6 * dUdz * dmudT * dTdz * R**2 * c2
+                + 6 * dWdr * dmudT * dTdz * R**2 * c2
+                + 8 * dUdr * dmudT * dTdr * R**2 * c2
+                - 4 * dWdz * dmudT * dTdr * R**2 * c2
+                + 6 * 1j * V * dmudT * dTdr * m * R * c2
+                - 6 * 1j * U * RHO * V * m * Re * R * c2
             )
             / Re
             / R**2
             / c2
         )
-        / 0.6e1
+        / 0.6e1,
     )
-    c_A0_54 = (
+    _set_coeff(
+        "A0",
+        5,
+        3,
         (
-            6 * MU * d2Wdr2 * R**2 * c2
-            - 6 * T * dRHOdz * Re * R**2
-            - 6 * dTdz * RHO * Re * R**2
-            + 2 * MU * d2Udrz * R**2 * c2
-            + 8 * MU * d2Wdz2 * R**2 * c2
-            + 6 * MU * dWdr * R * c2
-            + 2 * MU * dUdz * R * c2
-            - 6 * W * MU * m**2 * c2
-            - 18 * dWdz * RHO * W * Re * R**2 * c2
-            - 6 * dUdr * RHO * W * Re * R**2 * c2
-            - 6 * U * dRHOdr * W * Re * R**2 * c2
-            - 6 * cv * dTdz * RHO * Re * R**2 * c2
-            - 6 * dUdz * U * RHO * Re * R**2 * c2
-            - 6 * cv * T * dRHOdz * Re * R**2 * c2
-            - 6 * dVdz * V * RHO * Re * R**2 * c2
-            - 6 * dWdr * U * RHO * Re * R**2 * c2
-            - 6 * U * RHO * W * Re * R * c2
-            + 12 * 1j * m * MU * dVdz * R * c2
-            - 9 * dRHOdz * W**2 * Re * R**2 * c2
-            - 3 * V**2 * dRHOdz * Re * R**2 * c2
-            - 3 * U**2 * dRHOdz * Re * R**2 * c2
-            + 6 * dUdz * dmudT * dTdr * R**2 * c2
-            + 6 * dWdr * dmudT * dTdr * R**2 * c2
-            - 4 * dUdr * dmudT * dTdz * R**2 * c2
-            + 8 * dWdz * dmudT * dTdz * R**2 * c2
-            - 4 * U * dmudT * dTdz * R * c2
-            + 6 * 1j * V * dmudT * dTdz * m * R * c2
-            - 6 * 1j * W * RHO * V * m * Re * R * c2
-        )
-        / Re
-        / R**2
-        / c2
-        / 0.6e1
+            -(
+                (
+                    -6 * MU * d2Vdr2 * R**2 * c2
+                    - 6 * MU * d2Vdz2 * R**2 * c2
+                    + 6 * dVdr * MU * R * c2
+                    + 8 * 1j * dUdr * MU * m * R * c2
+                    + 3 * 1j * m * RHO * W**2 * Re * R * c2
+                    + 3 * 1j * m * RHO * U**2 * Re * R * c2
+                    + 6 * 1j * m * RHO * cv * T * Re * R * c2
+                    + 8 * 1j * m * MU * dWdz * R * c2
+                    - 2 * 1j * U * MU * m * c2
+                    + 6 * 1j * m * RHO * T * Re * R
+                    + 4 * 1j * W * dmudT * dTdz * m * R * c2
+                    + 8 * V * MU * m**2 * c2
+                    + 12 * V * dmudT * dTdr * R * c2
+                    - 6 * dVdz * dmudT * dTdz * R**2 * c2
+                    - 6 * dVdr * dmudT * dTdr * R**2 * c2
+                    + 6 * U * RHO * V * Re * R * c2
+                    + 6 * dWdz * RHO * V * Re * R**2 * c2
+                    + 6 * U * dRHOdr * V * Re * R**2 * c2
+                    + 6 * W * dRHOdz * V * Re * R**2 * c2
+                    + 6 * dUdr * RHO * V * Re * R**2 * c2
+                    + 6 * dVdz * W * RHO * Re * R**2 * c2
+                    + 6 * dVdr * U * RHO * Re * R**2 * c2
+                    + 4 * 1j * U * dmudT * dTdr * m * R * c2
+                    + 9 * 1j * m * RHO * V**2 * Re * R * c2
+                )
+                / Re
+                / R**2
+                / c2
+            )
+            / 0.6e1
+        ),
     )
-    c_A0_55 = (
-        -(
+    _set_coeff(
+        "A0",
+        5,
+        4,
+        (
             (
-                2 * R * c1 * c2 * U**2 * d2mudT2 * dTdr
-                + 3 * R * c1 * c2 * V**2 * d2mudT2 * dTdr
-                - 3 * Re * R**2 * c2 * d2mudT2 * dTdr**2
-                - 3 * Re * R**2 * c2 * d2mudT2 * dTdz**2
-                + 3 * Re * R * c1 * U * RHO
-                + 3 * Re * R**2 * c1 * dUdr * RHO
-                + 3 * Re * R**2 * c1 * U * dRHOdr
-                + 3 * Re * R**2 * c1 * dWdz * RHO
-                + 3 * Re * R * c1 * c2 * U * RHO * cv
-                + 3 * Re * R**2 * c1 * c2 * W * dRHOdz * cv
-                + 3 * Re * R**2 * c1 * c2 * dWdz * RHO * cv
-                + 3 * Re * R**2 * c1 * c2 * dUdr * RHO * cv
-                + 3 * Re * R**2 * c1 * c2 * U * dRHOdr * cv
-                - 3 * R**2 * c1 * c2 * dUdz * W * d2mudT2 * dTdr
-                - 3 * R**2 * c1 * c2 * dWdr * W * d2mudT2 * dTdr
-                - 3 * R**2 * c1 * c2 * dUdz * U * d2mudT2 * dTdz
-                - 3 * R**2 * c1 * c2 * dWdr * U * d2mudT2 * dTdz
-                - 3 * R**2 * c1 * c2 * dVdz * V * d2mudT2 * dTdz
-                - 3 * R**2 * c1 * c2 * dVdr * V * d2mudT2 * dTdr
-                + 2 * R**2 * c1 * c2 * dUdr * W * d2mudT2 * dTdz
-                - 4 * R**2 * c1 * c2 * dWdz * W * d2mudT2 * dTdz
-                + 2 * R * c1 * c2 * U * W * d2mudT2 * dTdz
-                - 4 * R**2 * c1 * c2 * dUdr * U * d2mudT2 * dTdr
-                + 2 * R**2 * c1 * c2 * dWdz * U * d2mudT2 * dTdr
-                + 3 * 1j * V * RHO * m * Re * R * c1
-                - 1j * U * dmudT * m * V * c1 * c2
-                + 3 * MU * m**2 * Re * c2
-                + 3 * 1j * V * RHO * cv * m * Re * R * c1 * c2
-                - 3 * 1j * U * dmudT * m * dVdr * R * c1 * c2
-                - 3 * 1j * W * dmudT * m * dVdz * R * c1 * c2
-                + 2 * 1j * V * dmudT * m * dUdr * R * c1 * c2
-                + 2 * 1j * V * dmudT * m * dWdz * R * c1 * c2
+                6 * MU * d2Wdr2 * R**2 * c2
+                - 6 * T * dRHOdz * Re * R**2
+                - 6 * dTdz * RHO * Re * R**2
+                + 2 * MU * d2Udrz * R**2 * c2
+                + 8 * MU * d2Wdz2 * R**2 * c2
+                + 6 * MU * dWdr * R * c2
+                + 2 * MU * dUdz * R * c2
+                - 6 * W * MU * m**2 * c2
+                - 18 * dWdz * RHO * W * Re * R**2 * c2
+                - 6 * dUdr * RHO * W * Re * R**2 * c2
+                - 6 * U * dRHOdr * W * Re * R**2 * c2
+                - 6 * cv * dTdz * RHO * Re * R**2 * c2
+                - 6 * dUdz * U * RHO * Re * R**2 * c2
+                - 6 * cv * T * dRHOdz * Re * R**2 * c2
+                - 6 * dVdz * V * RHO * Re * R**2 * c2
+                - 6 * dWdr * U * RHO * Re * R**2 * c2
+                - 6 * U * RHO * W * Re * R * c2
+                + 12 * 1j * m * MU * dVdz * R * c2
+                - 9 * dRHOdz * W**2 * Re * R**2 * c2
+                - 3 * V**2 * dRHOdz * Re * R**2 * c2
+                - 3 * U**2 * dRHOdz * Re * R**2 * c2
+                + 6 * dUdz * dmudT * dTdr * R**2 * c2
+                + 6 * dWdr * dmudT * dTdr * R**2 * c2
+                - 4 * dUdr * dmudT * dTdz * R**2 * c2
+                + 8 * dWdz * dmudT * dTdz * R**2 * c2
+                - 4 * U * dmudT * dTdz * R * c2
+                + 6 * 1j * V * dmudT * dTdz * m * R * c2
+                - 6 * 1j * W * RHO * V * m * Re * R * c2
             )
             / Re
             / R**2
-            / c1
             / c2
-        )
-        / 0.3e1
+            / 0.6e1
+        ),
     )
-    c_Ar_51 = -(U * (V**2 * c2 + W**2 * c2 + 2 * T + U**2 * c2 + 2 * cv * T * c2) / c2) / 0.2e1
-    c_Ar_52 = (
+    _set_coeff(
+        "A0",
+        5,
+        5,
         (
-            16 * dUdr * MU * c2 * R
-            - 9 * U**2 * RHO * Re * c2 * R
-            - 3 * V**2 * RHO * Re * c2 * R
-            - 3 * W**2 * RHO * Re * c2 * R
-            - 6 * T * RHO * Re * R
-            - 8 * MU * dWdz * c2 * R
-            + 2 * 1j * V * MU * m * c2
-            - 6 * cv * T * RHO * Re * c2 * R
-            - 4 * W * dmudT * dTdz * c2 * R
-            + 8 * U * dmudT * dTdr * c2 * R
-        )
-        / Re
-        / c2
-        / R
-    ) / 0.6e1
-    c_Ar_53 = (
-        (
-            6 * dVdr * MU * R
-            - 3 * V * MU
-            + 1j * U * MU * m
-            + 3 * V * dmudT * dTdr * R
-            - 3 * U * RHO * V * Re * R
-        )
-        / Re
-        / R
-    ) / 0.3e1
-    c_Ar_54 = (
-        (
-            2 * dWdr * MU * R
-            + W * MU
-            + 2 * MU * dUdz * R
-            + W * dmudT * dTdr * R
-            + U * dmudT * dTdz * R
-            - W * RHO * U * Re * R
-        )
-        / Re
-        / R
+            -(
+                (
+                    2 * R * c1 * c2 * U**2 * d2mudT2 * dTdr
+                    + 3 * R * c1 * c2 * V**2 * d2mudT2 * dTdr
+                    - 3 * Re * R**2 * c2 * d2mudT2 * dTdr**2
+                    - 3 * Re * R**2 * c2 * d2mudT2 * dTdz**2
+                    + 3 * Re * R * c1 * U * RHO
+                    + 3 * Re * R**2 * c1 * dUdr * RHO
+                    + 3 * Re * R**2 * c1 * U * dRHOdr
+                    + 3 * Re * R**2 * c1 * dWdz * RHO
+                    + 3 * Re * R * c1 * c2 * U * RHO * cv
+                    + 3 * Re * R**2 * c1 * c2 * W * dRHOdz * cv
+                    + 3 * Re * R**2 * c1 * c2 * dWdz * RHO * cv
+                    + 3 * Re * R**2 * c1 * c2 * dUdr * RHO * cv
+                    + 3 * Re * R**2 * c1 * c2 * U * dRHOdr * cv
+                    - 3 * R**2 * c1 * c2 * dUdz * W * d2mudT2 * dTdr
+                    - 3 * R**2 * c1 * c2 * dWdr * W * d2mudT2 * dTdr
+                    - 3 * R**2 * c1 * c2 * dUdz * U * d2mudT2 * dTdz
+                    - 3 * R**2 * c1 * c2 * dWdr * U * d2mudT2 * dTdz
+                    - 3 * R**2 * c1 * c2 * dVdz * V * d2mudT2 * dTdz
+                    - 3 * R**2 * c1 * c2 * dVdr * V * d2mudT2 * dTdr
+                    + 2 * R**2 * c1 * c2 * dUdr * W * d2mudT2 * dTdz
+                    - 4 * R**2 * c1 * c2 * dWdz * W * d2mudT2 * dTdz
+                    + 2 * R * c1 * c2 * U * W * d2mudT2 * dTdz
+                    - 4 * R**2 * c1 * c2 * dUdr * U * d2mudT2 * dTdr
+                    + 2 * R**2 * c1 * c2 * dWdz * U * d2mudT2 * dTdr
+                    + 3 * 1j * V * RHO * m * Re * R * c1
+                    - 1j * U * dmudT * m * V * c1 * c2
+                    + 3 * MU * m**2 * Re * c2
+                    + 3 * 1j * V * RHO * cv * m * Re * R * c1 * c2
+                    - 3 * 1j * U * dmudT * m * dVdr * R * c1 * c2
+                    - 3 * 1j * W * dmudT * m * dVdz * R * c1 * c2
+                    + 2 * 1j * V * dmudT * m * dUdr * R * c1 * c2
+                    + 2 * 1j * V * dmudT * m * dWdz * R * c1 * c2
+                )
+                / Re
+                / R**2
+                / c1
+                / c2
+            )
+            / 0.3e1
+        ),
     )
-    c_Ar_55 = (
+    _set_coeff(
+        "Ar",
+        5,
+        1,
+        -(U * (V**2 * c2 + W**2 * c2 + 2 * T + U**2 * c2 + 2 * cv * T * c2) / c2) / 0.2e1,
+    )
+    _set_coeff(
+        "Ar",
+        5,
+        2,
         (
-            6 * dmudT * dTdr * Re * R * c2
-            - 3 * Re * R * c1 * U * RHO
-            - 2 * U**2 * dmudT * c1 * c2
-            - 3 * V**2 * dmudT * c1 * c2
-            + 3 * MU * Re * c2
-            + 3 * dUdz * W * dmudT * R * c1 * c2
-            + 3 * dWdr * W * dmudT * R * c1 * c2
-            - 3 * Re * R * c1 * c2 * U * RHO * cv
-            + 3 * dVdr * V * dmudT * R * c1 * c2
-            + 4 * dUdr * U * dmudT * R * c1 * c2
-            - 2 * dWdz * U * dmudT * R * c1 * c2
-        )
-        / Re
-        / R
-        / c1
-        / c2
-    ) / 0.3e1
-    c_Arr_51 = Z
-    c_Arr_52 = 0.4e1 / 0.3e1 / Re * U * MU
-    c_Arr_53 = 0.1e1 / Re * V * MU
-    c_Arr_54 = 0.1e1 / Re * W * MU
-    c_Arr_55 = 0.1e1 / c1 * MU
-    c_Az_51 = -(W * (V**2 * c2 + W**2 * c2 + 2 * T + U**2 * c2 + 2 * cv * T * c2) / c2) / 0.2e1
-    c_Az_52 = (
-        (
-            6 * MU * dUdz * R
-            + W * MU
-            + 6 * dWdr * MU * R
-            + 3 * W * dmudT * dTdr * R
-            + 3 * U * dmudT * dTdz * R
-            - 3 * W * RHO * U * Re * R
-        )
-        / Re
-        / R
-    ) / 0.3e1
-    c_Az_53 = (
-        (6 * dVdz * MU * R + 1j * W * MU * m + 3 * V * dmudT * dTdz * R - 3 * W * RHO * V * Re * R)
-        / Re
-        / R
-    ) / 0.3e1
-    c_Az_54 = (
-        (
-            16 * MU * dWdz * c2 * R
-            - 3 * V**2 * RHO * Re * c2 * R
-            - 9 * W**2 * RHO * Re * c2 * R
-            - 3 * U**2 * RHO * Re * c2 * R
-            - 8 * U * MU * c2
-            - 8 * dUdr * MU * c2 * R
-            - 6 * T * RHO * Re * R
-            + 2 * 1j * V * MU * m * c2
-            - 6 * cv * T * RHO * Re * c2 * R
-            + 8 * W * dmudT * dTdz * c2 * R
-            - 4 * U * dmudT * dTdr * c2 * R
-        )
-        / Re
-        / c2
-        / R
-    ) / 0.6e1
-    c_Az_55 = (
-        -(
             (
-                -6 * dmudT * dTdz * Re * R * c2
-                + 3 * W * RHO * Re * R * c1
-                - 3 * dUdz * U * dmudT * R * c1 * c2
-                - 3 * dWdr * U * dmudT * R * c1 * c2
-                - 3 * dVdz * V * dmudT * R * c1 * c2
-                + 3 * W * RHO * cv * Re * R * c1 * c2
-                + 2 * dUdr * W * dmudT * R * c1 * c2
-                - 4 * dWdz * W * dmudT * R * c1 * c2
-                + 2 * U * W * dmudT * c1 * c2
+                16 * dUdr * MU * c2 * R
+                - 9 * U**2 * RHO * Re * c2 * R
+                - 3 * V**2 * RHO * Re * c2 * R
+                - 3 * W**2 * RHO * Re * c2 * R
+                - 6 * T * RHO * Re * R
+                - 8 * MU * dWdz * c2 * R
+                + 2 * 1j * V * MU * m * c2
+                - 6 * cv * T * RHO * Re * c2 * R
+                - 4 * W * dmudT * dTdz * c2 * R
+                + 8 * U * dmudT * dTdr * c2 * R
+            )
+            / Re
+            / c2
+            / R
+        )
+        / 0.6e1,
+    )
+    _set_coeff(
+        "Ar",
+        5,
+        3,
+        (
+            (
+                6 * dVdr * MU * R
+                - 3 * V * MU
+                + 1j * U * MU * m
+                + 3 * V * dmudT * dTdr * R
+                - 3 * U * RHO * V * Re * R
+            )
+            / Re
+            / R
+        )
+        / 0.3e1,
+    )
+    _set_coeff(
+        "Ar",
+        5,
+        4,
+        (
+            (
+                2 * dWdr * MU * R
+                + W * MU
+                + 2 * MU * dUdz * R
+                + W * dmudT * dTdr * R
+                + U * dmudT * dTdz * R
+                - W * RHO * U * Re * R
+            )
+            / Re
+            / R
+        ),
+    )
+    _set_coeff(
+        "Ar",
+        5,
+        5,
+        (
+            (
+                6 * dmudT * dTdr * Re * R * c2
+                - 3 * Re * R * c1 * U * RHO
+                - 2 * U**2 * dmudT * c1 * c2
+                - 3 * V**2 * dmudT * c1 * c2
+                + 3 * MU * Re * c2
+                + 3 * dUdz * W * dmudT * R * c1 * c2
+                + 3 * dWdr * W * dmudT * R * c1 * c2
+                - 3 * Re * R * c1 * c2 * U * RHO * cv
+                + 3 * dVdr * V * dmudT * R * c1 * c2
+                + 4 * dUdr * U * dmudT * R * c1 * c2
+                - 2 * dWdz * U * dmudT * R * c1 * c2
             )
             / Re
             / R
             / c1
             / c2
         )
-        / 0.3e1
+        / 0.3e1,
     )
-    c_Azz_51 = Z
-    c_Azz_52 = 0.1e1 / Re * U * MU
-    c_Azz_53 = 0.1e1 / Re * V * MU
-    c_Azz_54 = 0.4e1 / 0.3e1 / Re * W * MU
-    c_Azz_55 = 0.1e1 / c1 * MU
-    c_Arz_51 = Z
-    c_Arz_52 = 0.1e1 / Re * W * MU / 0.3e1
-    c_Arz_53 = Z
-    c_Arz_54 = 0.1e1 / Re * U * MU / 0.3e1
-    c_Arz_55 = Z
-    c_B_11 = 1j * I
-    c_B_12 = Z
-    c_B_13 = Z
-    c_B_14 = Z
-    c_B_15 = Z
-    c_B_21 = 1j * U
-    c_B_22 = 1j * RHO
-    c_B_23 = Z
-    c_B_24 = Z
-    c_B_25 = Z
-    c_B_31 = 1j * V
-    c_B_32 = Z
-    c_B_33 = 1j * RHO
-    c_B_34 = Z
-    c_B_35 = Z
-    c_B_41 = 1j * W
-    c_B_42 = Z
-    c_B_43 = Z
-    c_B_44 = 1j * RHO
-    c_B_45 = Z
-    c_B_51 = (1j * (V**2 + W**2 + U**2 + 2 * cv * T)) / 0.2e1
-    c_B_52 = 1j * U * RHO
-    c_B_53 = 1j * V * RHO
-    c_B_54 = 1j * W * RHO
-    c_B_55 = 1j * RHO * cv
+    _set_coeff("Arr", 5, 1, Z)
+    _set_coeff("Arr", 5, 2, 0.4e1 / 0.3e1 / Re * U * MU)
+    _set_coeff("Arr", 5, 3, 0.1e1 / Re * V * MU)
+    _set_coeff("Arr", 5, 4, 0.1e1 / Re * W * MU)
+    _set_coeff("Arr", 5, 5, 0.1e1 / c1 * MU)
+    _set_coeff(
+        "Az",
+        5,
+        1,
+        -(W * (V**2 * c2 + W**2 * c2 + 2 * T + U**2 * c2 + 2 * cv * T * c2) / c2) / 0.2e1,
+    )
+    _set_coeff(
+        "Az",
+        5,
+        2,
+        (
+            (
+                6 * MU * dUdz * R
+                + W * MU
+                + 6 * dWdr * MU * R
+                + 3 * W * dmudT * dTdr * R
+                + 3 * U * dmudT * dTdz * R
+                - 3 * W * RHO * U * Re * R
+            )
+            / Re
+            / R
+        )
+        / 0.3e1,
+    )
+    _set_coeff(
+        "Az",
+        5,
+        3,
+        (
+            (
+                6 * dVdz * MU * R
+                + 1j * W * MU * m
+                + 3 * V * dmudT * dTdz * R
+                - 3 * W * RHO * V * Re * R
+            )
+            / Re
+            / R
+        )
+        / 0.3e1,
+    )
+    _set_coeff(
+        "Az",
+        5,
+        4,
+        (
+            (
+                16 * MU * dWdz * c2 * R
+                - 3 * V**2 * RHO * Re * c2 * R
+                - 9 * W**2 * RHO * Re * c2 * R
+                - 3 * U**2 * RHO * Re * c2 * R
+                - 8 * U * MU * c2
+                - 8 * dUdr * MU * c2 * R
+                - 6 * T * RHO * Re * R
+                + 2 * 1j * V * MU * m * c2
+                - 6 * cv * T * RHO * Re * c2 * R
+                + 8 * W * dmudT * dTdz * c2 * R
+                - 4 * U * dmudT * dTdr * c2 * R
+            )
+            / Re
+            / c2
+            / R
+        )
+        / 0.6e1,
+    )
+    _set_coeff(
+        "Az",
+        5,
+        5,
+        (
+            -(
+                (
+                    -6 * dmudT * dTdz * Re * R * c2
+                    + 3 * W * RHO * Re * R * c1
+                    - 3 * dUdz * U * dmudT * R * c1 * c2
+                    - 3 * dWdr * U * dmudT * R * c1 * c2
+                    - 3 * dVdz * V * dmudT * R * c1 * c2
+                    + 3 * W * RHO * cv * Re * R * c1 * c2
+                    + 2 * dUdr * W * dmudT * R * c1 * c2
+                    - 4 * dWdz * W * dmudT * R * c1 * c2
+                    + 2 * U * W * dmudT * c1 * c2
+                )
+                / Re
+                / R
+                / c1
+                / c2
+            )
+            / 0.3e1
+        ),
+    )
+    _set_coeff("Azz", 5, 1, Z)
+    _set_coeff("Azz", 5, 2, 0.1e1 / Re * U * MU)
+    _set_coeff("Azz", 5, 3, 0.1e1 / Re * V * MU)
+    _set_coeff("Azz", 5, 4, 0.4e1 / 0.3e1 / Re * W * MU)
+    _set_coeff("Azz", 5, 5, 0.1e1 / c1 * MU)
+    _set_coeff("Arz", 5, 1, Z)
+    _set_coeff("Arz", 5, 2, 0.1e1 / Re * W * MU / 0.3e1)
+    _set_coeff("Arz", 5, 3, Z)
+    _set_coeff("Arz", 5, 4, 0.1e1 / Re * U * MU / 0.3e1)
+    _set_coeff("Arz", 5, 5, Z)
+    _set_coeff("B", 1, 1, 1j * I)
+    _set_coeff("B", 1, 2, Z)
+    _set_coeff("B", 1, 3, Z)
+    _set_coeff("B", 1, 4, Z)
+    _set_coeff("B", 1, 5, Z)
+    _set_coeff("B", 2, 1, 1j * U)
+    _set_coeff("B", 2, 2, 1j * RHO)
+    _set_coeff("B", 2, 3, Z)
+    _set_coeff("B", 2, 4, Z)
+    _set_coeff("B", 2, 5, Z)
+    _set_coeff("B", 3, 1, 1j * V)
+    _set_coeff("B", 3, 2, Z)
+    _set_coeff("B", 3, 3, 1j * RHO)
+    _set_coeff("B", 3, 4, Z)
+    _set_coeff("B", 3, 5, Z)
+    _set_coeff("B", 4, 1, 1j * W)
+    _set_coeff("B", 4, 2, Z)
+    _set_coeff("B", 4, 3, Z)
+    _set_coeff("B", 4, 4, 1j * RHO)
+    _set_coeff("B", 4, 5, Z)
+    _set_coeff("B", 5, 1, (1j * (V**2 + W**2 + U**2 + 2 * cv * T)) / 0.2e1)
+    _set_coeff("B", 5, 2, 1j * U * RHO)
+    _set_coeff("B", 5, 3, 1j * V * RHO)
+    _set_coeff("B", 5, 4, 1j * W * RHO)
+    _set_coeff("B", 5, 5, 1j * RHO * cv)
 
     # ------------------------------------------------------------------
     # Step 3: Pack directly into the final physical-order tensors.
@@ -1473,11 +1775,4 @@ def compute_cylindrical_coefficients(
     #   coeff[3]->phys[1], coeff[4]->phys[4]
     # No sign flips for model 'axy' in GetLinProblem.m.
     # ------------------------------------------------------------------
-    c2p_idx = [0, 2, 3, 1, 4]
-    c2p_sgn = np.array([1.0, 1.0, 1.0, 1.0, 1.0])
-    return _pack_coefficients_in_physical_order(
-        locals(),
-        ngp=ngp,
-        c2p_idx=c2p_idx,
-        c2p_sgn=c2p_sgn,
-    )
+    return _coeffs.finish()
