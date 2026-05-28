@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Solver-config lookup: JSONC dict -> env var -> default."""
+"""Solver configuration policy shared by PETSc/SLEPc callers.
+
+The precedence is intentionally simple: JSONC values win, then environment
+variables, then the project default.  Keeping that rule here avoids small
+differences between eigenvalue, resolvent, and linear-solve paths.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,8 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+# Public JSONC still accepts the historical names.  These sets are the policy
+# boundary used by solver modules; adding a new family should happen here first.
 DIRECT_SOLVER_TYPES = frozenset({"mumps", "direct", "lu"})
 ITERATIVE_LINEAR_SOLVER_TYPES = frozenset({"iterative", "krylov", "petsc"})
 ITERATIVE_EIGEN_SOLVER_TYPES = frozenset({"iterative", "krylov", "slepc"})
@@ -43,7 +50,12 @@ class SolverConfig(Mapping[str, Any]):
         return len(self._data)
 
     def subsection(self, env_prefix: str) -> Mapping[str, Any] | None:
-        """Return the current solver subsection selected by an env-prefix family."""
+        """Return the solver subsection selected by an environment-prefix family.
+
+        Resolvent solves reuse the linear-solver policy by default, but may
+        override it in ``solver.resolvent``.  This preserves old JSONC files
+        while giving resolvent sweeps their own tuning surface.
+        """
         if env_prefix == "LINSTABPY_RESOLVENT":
             return self.get("resolvent", self.get("linsolve", {}))
         if env_prefix == "LINSTABPY_EIGEN":

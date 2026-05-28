@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Direct linear solver via PETSc KSP with MUMPS.
+"""Linear solves through PETSc KSP, direct by default.
 
 Provides a factorize-once, solve-many interface for the LNSE shift-invert
-workflows.  Both forward and conjugate-transpose solves reuse the same
-MUMPS factorisation.
+workflows.  The default path is KSPPREONLY + PCLU + MUMPS because the release
+tests and reference examples are calibrated against exact direct solves.  The
+iterative path is available for large memory-bound cases, but it is an explicit
+solver-policy choice rather than an automatic fallback.
 """
 
 from __future__ import annotations
@@ -55,7 +57,7 @@ class LinearSolver:
     _mat: PETSc.Mat | None = None
 
     def destroy(self) -> None:
-        """Release PETSc KSP and matrix resources."""
+        """Release PETSc KSP and matrix resources owned by this wrapper."""
         if self._ksp is not None:
             self._ksp.destroy()
             self._ksp = None
@@ -140,7 +142,9 @@ def make_linear_solver(
         pc.setFactorSolverType("mumps")
         ksp.setUp()
 
-        # Log MUMPS ordering method (one-time verification that METIS is active)
+        # This log is the cheap runtime check that the intended direct backend
+        # actually materialised. Users debugging MPI/BLAS environments can grep
+        # it without turning on verbose PETSc monitors.
         try:
             F = pc.getFactorMatrix()
             icntl7 = F.getMumpsIcntl(7)

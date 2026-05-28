@@ -125,6 +125,11 @@ def _resolve_solver_cfg_subsection(
     solver_cfg: dict | None,
     env_prefix: str,
 ) -> dict | None:
-    """Return the JSONC subsection matching ``env_prefix`` (resolvent falls back to linsolve)."""
+    """Return the JSONC subsection matching ``env_prefix``.
+
+    This is the compatibility bridge for older solver code: callers still ask
+    by environment-prefix family, while SolverConfig owns the actual subsection
+    policy and the resolvent -> linsolve fallback.
+    """
     config = SolverConfig.from_config(solver_cfg)
     return None if config is None else config.subsection(env_prefix)
