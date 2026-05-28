@@ -8,6 +8,7 @@ import scipy.sparse as sp
 from linstabpy.boundary_conditions import (
     analyze_bc_recipe,
     apply_bc_recipe,
+    apply_bc_recipe_petsc,
     apply_dirichlet,
     apply_dirichlet_identity_pair,
     apply_dirichlet_spatial,
@@ -654,6 +655,51 @@ class TestRecipeAnalysis:
             np.testing.assert_allclose(row_recipe, row_neumann, atol=1e-12)
             if row_recipe[int(dof)] == pytest.approx(penalty):
                 pytest.fail(f"overlap row {dof} kept the earlier Dirichlet penalty")
+
+    def test_mixed_recipe_petsc_matches_scipy_overlap_rows(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        pytest.importorskip("petsc4py")
+        from petsc4py import PETSc
+
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        ngp = mesh.ngp
+        penalty = 17.0
+
+        recipe = [
+            {"type": "dirichlet", "borders": "b", "variables": "T"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+        overlap = 4 * ngp + np.asarray(idx["bi"], dtype=int)
+
+        L_scipy, idx_scipy = apply_bc_recipe(L0.copy(), mesh, idx, recipe, penalty=penalty)
+        csr = L0.tocsr()
+        A = PETSc.Mat().createAIJ(
+            size=csr.shape,
+            csr=(csr.indptr, csr.indices, csr.data.astype(complex)),
+        )
+        A.setUp()
+        A.assemble()
+
+        A_petsc, idx_petsc = apply_bc_recipe_petsc(A, mesh, idx, recipe, penalty=penalty)
+        np.testing.assert_array_equal(np.sort(idx_scipy), np.sort(idx_petsc))
+        np.testing.assert_array_equal(np.sort(idx_scipy), overlap)
+
+        L_scipy_csr = L_scipy.tocsr()
+        check = overlap[: min(3, overlap.size)]
+        for dof in check:
+            row_scipy = L_scipy_csr.getrow(int(dof)).toarray().ravel()
+            cols_petsc_raw, vals_petsc_raw = A_petsc.getRow(int(dof))
+            row_petsc = np.zeros(row_scipy.shape, dtype=complex)
+            row_petsc[np.asarray(cols_petsc_raw, dtype=int)] = np.asarray(vals_petsc_raw)
+
+            np.testing.assert_allclose(row_petsc, row_scipy, atol=1e-12)
+            if row_petsc[int(dof)] == pytest.approx(penalty):
+                pytest.fail(f"PETSc overlap row {dof} kept the earlier Dirichlet penalty")
 
     def test_case1_recipe_neumann_exclude_corners_removes_cross_type_overlap(
         self,
