@@ -84,6 +84,7 @@ extract the MATLAB fixture NPZ bundles under
 
 | ID | Command | Artifact |
 |---|---|---|
+| `martini-fixture-preflight` | `.venv/bin/python scripts/validation/martini2024/tools/extract_martini_to_npz.py --check-fixtures` | explicit inventory of missing raw MATLAB exports and extracted NPZ fixtures |
 | `martini-full-examples` | `bash run_all_examples.sh --fresh` | regenerated `examples/*.npz` files plus `scripts/validation/martini2024/reports/martini_parity_latest.json` |
 
 ## Expanded Baseline Matrix

@@ -53,6 +53,68 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
     )
 
 
+def test_martini_fixture_preflight_reports_required_exports(tmp_path) -> None:
+    config_path = tmp_path / "cases.jsonc"
+    config_path.write_text(
+        """
+        {
+          "cases": [
+            {
+              "case_id": "one",
+              "matlab_results_stem": "example_1_Blasius_results",
+              "matlab_logs_stem": "example_1_Blasius_logs"
+            },
+            {
+              "case_id": "two",
+              "matlab_results_stem": "example_1_Blasius_results",
+              "matlab_direct_stem": "example_4_Cavity_results_direct"
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+    input_dir = tmp_path / "raw"
+    output_dir = tmp_path / "fixtures"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    (input_dir / "example_1_Blasius_results.mat").touch()
+    (output_dir / "example_4_Cavity_results_direct.npz").touch()
+
+    status = extract_martini_to_npz.fixture_status(input_dir, output_dir, config_path)
+
+    assert status["required_stems"] == [
+        "example_1_Blasius_results",
+        "example_1_Blasius_logs",
+        "example_4_Cavity_results_direct",
+    ]
+    assert status["raw_mat_missing"] == [
+        "example_1_Blasius_logs",
+        "example_4_Cavity_results_direct",
+    ]
+    assert status["npz_missing"] == [
+        "example_1_Blasius_results",
+        "example_1_Blasius_logs",
+    ]
+
+
+def test_martini_fixture_status_does_not_create_directories(tmp_path) -> None:
+    config_path = tmp_path / "cases.jsonc"
+    config_path.write_text(
+        '{"cases": [{"matlab_results_stem": "example_1_Blasius_results"}]}',
+        encoding="utf-8",
+    )
+    input_dir = tmp_path / "missing_raw"
+    output_dir = tmp_path / "missing_fixtures"
+
+    status = extract_martini_to_npz.fixture_status(input_dir, output_dir, config_path)
+
+    assert status["raw_mat_missing"] == ["example_1_Blasius_results"]
+    assert status["npz_missing"] == ["example_1_Blasius_results"]
+    assert not input_dir.exists()
+    assert not output_dir.exists()
+
+
 def test_martini_comparator_can_fail_on_hard_fail_counts() -> None:
     hard_fail = "HARD" + "_FAIL"
     passed = "PASS"

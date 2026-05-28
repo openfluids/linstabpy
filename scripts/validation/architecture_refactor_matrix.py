@@ -209,6 +209,17 @@ def _checks() -> list[Check]:
             artifact=phase0_dir / "phase0_coefficient_tensors.npz",
         ),
         Check(
+            id="martini-fixture-preflight",
+            group="phase0-external-assets",
+            description="Check that raw MATLAB exports and extracted Martini NPZ fixtures are present.",
+            command=(
+                py,
+                "scripts/validation/martini2024/tools/extract_martini_to_npz.py",
+                "--check-fixtures",
+            ),
+            artifact=ROOT / "scripts/validation/martini2024/fixtures",
+        ),
+        Check(
             id="martini-full-examples",
             group="phase0-external-assets",
             description="Regenerate all Martini example artifacts and require MATLAB parity to be available.",
