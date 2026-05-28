@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -482,15 +483,26 @@ def _cfg_first(cfg_fn, *paths: str) -> object:
     return None
 
 
-def compute() -> None:
-    """Run the shared case pipeline and write the requested NPZ artifact."""
-    t0 = time.perf_counter()
-    output_npz = _output_npz_path()
-    _log("starting compute")
-    comm = PETSc.COMM_WORLD
-    rank = comm.getRank()
-    size = comm.getSize()
+def _cfg_get(config: dict, path: str, default):
+    """Read a dotted JSONC path from the loaded runtime config."""
+    node = config
+    for key in path.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return node
 
+
+@dataclass(frozen=True)
+class _RuntimeConfigSource:
+    config_path: Path
+    config: dict
+    config_hash: str
+    git_sha: str
+
+
+def _stage_load_runtime_config() -> _RuntimeConfigSource:
+    """Load the JSONC runtime config and immutable provenance strings."""
     config_path = Path(
         _first_env(
             "LINSTABPY_CASE_CONFIG",
@@ -513,16 +525,235 @@ def compute() -> None:
     ):
         raise FileNotFoundError(f"case config file not found: {config_path}")
 
-    config_hash = _config_hash(config)
-    git_sha = _git_head_sha()
+    return _RuntimeConfigSource(
+        config_path=config_path,
+        config=config,
+        config_hash=_config_hash(config),
+        git_sha=_git_head_sha(),
+    )
 
-    def cfg(path: str, default):
-        node = config
-        for key in path.split("."):
-            if not isinstance(node, dict) or key not in node:
-                return default
-            node = node[key]
-        return node
+
+@dataclass(frozen=True)
+class _LoadedCase:
+    X: np.ndarray
+    Y: np.ndarray
+    baseflow: object
+    sponge: np.ndarray
+    sponge_enabled: bool
+    sponge_source: str
+
+
+def _stage_load_case(
+    *,
+    case_dir: Path,
+    Re: float,
+    Ma: float,
+    Pr: float,
+    kappa: float,
+    T_0: float,
+    stride_ksi: int,
+    stride_eta: int,
+    zero_spanwise: bool,
+    sponge_mat_path: Path,
+    prefer_matlab_sponge_aux: bool,
+    native_sponge_enabled: bool,
+    sponge_cfg: dict | None,
+    zero_mu_t_derivs: bool,
+    heartbeat_seconds: float,
+) -> _LoadedCase:
+    """Load the base-flow snapshot and apply transport-property conventions."""
+    stage_start = _stage_start()
+    with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
+        X, Y, baseflow, sponge = load_hamada_case(
+            case_dir,
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            T_0=T_0,
+            stride_ksi=stride_ksi,
+            stride_eta=stride_eta,
+            transpose_input=True,
+            zero_spanwise=zero_spanwise,
+            sponge_mat_path=sponge_mat_path,
+            prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
+            native_sponge_cfg=sponge_cfg,
+        )
+
+    sutherland_air(baseflow)
+    if zero_mu_t_derivs:
+        baseflow.dmudT[:] = 0.0
+        baseflow.d2mudT2[:] = 0.0
+    sponge_enabled = bool(np.count_nonzero(sponge))
+    if native_sponge_enabled:
+        sponge_source = "native"
+    elif prefer_matlab_sponge_aux:
+        sponge_source = "matlab_aux"
+    elif sponge_enabled:
+        sponge_source = "baseflow_file"
+    else:
+        sponge_source = "off"
+    _log(
+        f"loaded case arrays: shape={X.shape}, points={X.size}, "
+        f"sponge_source={sponge_source}, "
+        f"sponge_max={float(np.max(sponge)):.3g}, sponge_nnz={int(np.count_nonzero(sponge))}"
+    )
+    _log_stage("load_case", stage_start)
+    return _LoadedCase(X, Y, baseflow, sponge, sponge_enabled, sponge_source)
+
+
+def _stage_build_mesh(
+    *,
+    X: np.ndarray,
+    Y: np.ndarray,
+    sponge: np.ndarray,
+    fd_order: int,
+    alpha_filter: float | str,
+    od_cfg: dict,
+    od_enabled: bool,
+    heartbeat_seconds: float,
+) -> Mesh:
+    """Build the computational mesh and attach the runtime sponge field."""
+    stage_start = _stage_start()
+    ny, nx = X.shape
+    with _stage_heartbeat("build_mesh", interval_seconds=heartbeat_seconds):
+        cmesh = Mesh.create(
+            (0.0, 1.0),
+            (0.0, 0.5),
+            nx=nx,
+            ny=ny,
+            fd_order=fd_order,
+            alpha_filter=alpha_filter,
+            numerics_operator_dissipation=od_cfg if od_enabled else None,
+        )
+        mesh = cmesh.deform(X_new=X, Y_new=Y)
+        mesh.sponge = sponge
+    _log_stage("build_mesh", stage_start)
+    return mesh
+
+
+def _stage_compute_chu_norm(
+    *,
+    mesh: Mesh,
+    baseflow,
+    heartbeat_seconds: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute Chu energy weights for stability and resolvent stages."""
+    stage_start = _stage_start()
+    p = mesh.used_ind
+    W_int = mesh.W.ravel(order="F")[p]
+    RHO_p = baseflow.RHO.ravel(order="F")[p]
+    T_p = baseflow.T.ravel(order="F")[p]
+    with _stage_heartbeat("compute_chu_norm", interval_seconds=heartbeat_seconds):
+        W_diag, invW_diag = compute_chu_norm(
+            W_int, RHO_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp
+        )
+    _log_stage("compute_chu_norm", stage_start)
+    return W_diag, invW_diag
+
+
+@dataclass(frozen=True)
+class _ResolventStageResult:
+    gains: np.ndarray
+    responses: np.ndarray
+    forcings: np.ndarray
+    rho_fwd: np.ndarray
+    rho_adj: np.ndarray
+
+
+def _empty_resolvent_result(ndof: int) -> _ResolventStageResult:
+    """Return shape-stable empty arrays for runs with resolvent disabled."""
+    return _ResolventStageResult(
+        gains=np.array([], dtype=float),
+        responses=np.empty((ndof, 0), dtype=complex),
+        forcings=np.empty((ndof, 0), dtype=complex),
+        rho_fwd=np.array([], dtype=float),
+        rho_adj=np.array([], dtype=float),
+    )
+
+
+def _stage_run_resolvent(
+    *,
+    run_resolvent: bool,
+    L0_resolv,
+    mesh: Mesh,
+    W_diag: np.ndarray,
+    omega_target: complex,
+    n_modes_resolvent: int,
+    total_bc_indices: np.ndarray,
+    solver_cfg: dict,
+    heartbeat_seconds: float,
+) -> _ResolventStageResult:
+    """Run resolvent analysis and its SVD postcheck for one target frequency."""
+    ndof = mesh.ngp * 5
+    if not run_resolvent:
+        return _empty_resolvent_result(ndof)
+
+    stage_start = _stage_start()
+    _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
+    B_diag = np.ones(ndof, dtype=float)
+    B_diag[total_bc_indices] = 0.0
+    B_mat_sp = sp.diags(B_diag, format="csc")
+    B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0_resolv, "getInfo") else B_mat_sp
+    C_mat = B_mat.copy()
+    with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
+        gains, responses, forcings = resolvent_analysis(
+            L0_resolv,
+            omega_target,
+            n_modes_resolvent,
+            W_diag,
+            B_mat=B_mat,
+            C_mat=C_mat,
+            filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+            filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+            solver_cfg=solver_cfg,
+        )
+    _log("resolvent analysis finished")
+    _log_stage("resolvent", stage_start)
+
+    rho_fwd = np.array([], dtype=float)
+    rho_adj = np.array([], dtype=float)
+    if gains.size > 0:
+        stage_start = _stage_start()
+        with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
+            rho_fwd, rho_adj = compute_resolvent_svd_residuals(
+                L0_resolv,
+                omega_target,
+                B_mat,
+                C_mat,
+                gains,
+                forcings,
+                responses,
+                W_diag,
+                filter_fn=mesh.filters.filter if mesh.filters is not None else None,
+                filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
+                solver_cfg=solver_cfg,
+            )
+        _log(
+            "resolvent postcheck: "
+            f"rho_fwd_max={float(np.max(rho_fwd)):.3e} "
+            f"rho_adj_max={float(np.max(rho_adj)):.3e}"
+        )
+        _log_stage("resolvent_postcheck", stage_start)
+
+    return _ResolventStageResult(gains, responses, forcings, rho_fwd, rho_adj)
+
+
+def compute() -> None:
+    """Run the shared case pipeline and write the requested NPZ artifact."""
+    t0 = time.perf_counter()
+    output_npz = _output_npz_path()
+    _log("starting compute")
+    comm = PETSc.COMM_WORLD
+    rank = comm.getRank()
+    size = comm.getSize()
+
+    config_source = _stage_load_runtime_config()
+    config_path = config_source.config_path
+    config = config_source.config
+    config_hash = config_source.config_hash
+    git_sha = config_source.git_sha
+    cfg = lambda path, default: _cfg_get(config, path, default)
 
     heartbeat_seconds = float(
         cfg("logging.stage_heartbeat_seconds", _default_stage_heartbeat_seconds())
@@ -710,62 +941,43 @@ def compute() -> None:
     # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
     #    compute viscosity/transport via Sutherland law.
     # ------------------------------------------------------------------
-    stage_start = _stage_start()
-    with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
-        X, Y, baseflow, sponge = load_hamada_case(
-            case_dir,
-            Re=Re,
-            Ma=Ma,
-            Pr=Pr,
-            kappa=kappa,
-            T_0=T_0,
-            stride_ksi=stride_ksi,
-            stride_eta=stride_eta,
-            transpose_input=True,
-            zero_spanwise=zero_spanwise,
-            sponge_mat_path=sponge_mat_path,
-            prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
-            native_sponge_cfg=sponge_cfg,
-        )
-
-    sutherland_air(baseflow)
-    if zero_mu_t_derivs:
-        baseflow.dmudT[:] = 0.0
-        baseflow.d2mudT2[:] = 0.0
-    sponge_enabled = bool(np.count_nonzero(sponge))
-    if native_sponge_enabled:
-        sponge_source = "native"
-    elif prefer_matlab_sponge_aux:
-        sponge_source = "matlab_aux"
-    elif sponge_enabled:
-        sponge_source = "baseflow_file"
-    else:
-        sponge_source = "off"
-    _log(
-        f"loaded case arrays: shape={X.shape}, points={X.size}, "
-        f"sponge_source={sponge_source}, "
-        f"sponge_max={float(np.max(sponge)):.3g}, sponge_nnz={int(np.count_nonzero(sponge))}"
+    loaded_case = _stage_load_case(
+        case_dir=case_dir,
+        Re=Re,
+        Ma=Ma,
+        Pr=Pr,
+        kappa=kappa,
+        T_0=T_0,
+        stride_ksi=stride_ksi,
+        stride_eta=stride_eta,
+        zero_spanwise=zero_spanwise,
+        sponge_mat_path=sponge_mat_path,
+        prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
+        native_sponge_enabled=native_sponge_enabled,
+        sponge_cfg=sponge_cfg,
+        zero_mu_t_derivs=zero_mu_t_derivs,
+        heartbeat_seconds=heartbeat_seconds,
     )
-    _log_stage("load_case", stage_start)
+    X = loaded_case.X
+    Y = loaded_case.Y
+    baseflow = loaded_case.baseflow
+    sponge = loaded_case.sponge
+    sponge_enabled = loaded_case.sponge_enabled
+    sponge_source = loaded_case.sponge_source
 
     # ------------------------------------------------------------------
     # 3) Build a computational mesh, then deform it to physical X/Y.
     # ------------------------------------------------------------------
-    stage_start = _stage_start()
-    ny, nx = X.shape
-    with _stage_heartbeat("build_mesh", interval_seconds=heartbeat_seconds):
-        cmesh = Mesh.create(
-            (0.0, 1.0),
-            (0.0, 0.5),
-            nx=nx,
-            ny=ny,
-            fd_order=fd_order,
-            alpha_filter=alpha_filter,
-            numerics_operator_dissipation=od_cfg if od_enabled else None,
-        )
-        mesh = cmesh.deform(X_new=X, Y_new=Y)
-        mesh.sponge = sponge
-    _log_stage("build_mesh", stage_start)
+    mesh = _stage_build_mesh(
+        X=X,
+        Y=Y,
+        sponge=sponge,
+        fd_order=fd_order,
+        alpha_filter=alpha_filter,
+        od_cfg=od_cfg,
+        od_enabled=od_enabled,
+        heartbeat_seconds=heartbeat_seconds,
+    )
 
     # ------------------------------------------------------------------
     # 4) Assemble LNSE operator and impose boundary conditions.
@@ -901,71 +1113,31 @@ def compute() -> None:
     # 5) Build Chu energy norm weights. These weights are required for
     #    weighted analyses (resolvent and temporal formulation).
     # ------------------------------------------------------------------
-    stage_start = _stage_start()
-    p = mesh.used_ind
-    W_int = mesh.W.ravel(order="F")[p]
-    RHO_p = baseflow.RHO.ravel(order="F")[p]
-    T_p = baseflow.T.ravel(order="F")[p]
-    with _stage_heartbeat("compute_chu_norm", interval_seconds=heartbeat_seconds):
-        W_diag, invW_diag = compute_chu_norm(
-            W_int, RHO_p, T_p, baseflow.kappa, baseflow.Ma, mesh.ngp
-        )
-    _log_stage("compute_chu_norm", stage_start)
-
-    gains = np.array([], dtype=float)
-    responses = np.empty((mesh.ngp * 5, 0), dtype=complex)
-    forcings = np.empty((mesh.ngp * 5, 0), dtype=complex)
-    resolvent_rho_fwd = np.array([], dtype=float)
-    resolvent_rho_adj = np.array([], dtype=float)
+    W_diag, invW_diag = _stage_compute_chu_norm(
+        mesh=mesh,
+        baseflow=baseflow,
+        heartbeat_seconds=heartbeat_seconds,
+    )
 
     # ------------------------------------------------------------------
     # 6) Optional resolvent analysis at omega_target.
     # ------------------------------------------------------------------
-    if run_resolvent:
-        stage_start = _stage_start()
-        _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
-        B_diag = np.ones(mesh.ngp * 5, dtype=float)
-        B_diag[total_bc_indices] = 0.0
-        B_mat_sp = sp.diags(B_diag, format="csc")
-        B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0_resolv, "getInfo") else B_mat_sp
-        C_mat = B_mat.copy()
-        with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
-            gains, responses, forcings = resolvent_analysis(
-                L0_resolv,
-                omega_target,
-                n_modes_resolvent,
-                W_diag,
-                B_mat=B_mat,
-                C_mat=C_mat,
-                filter_fn=mesh.filters.filter if mesh.filters is not None else None,
-                filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
-                solver_cfg=solver_cfg,
-            )
-        _log("resolvent analysis finished")
-        _log_stage("resolvent", stage_start)
-
-        if gains.size > 0:
-            stage_start = _stage_start()
-            with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
-                resolvent_rho_fwd, resolvent_rho_adj = compute_resolvent_svd_residuals(
-                    L0_resolv,
-                    omega_target,
-                    B_mat,
-                    C_mat,
-                    gains,
-                    forcings,
-                    responses,
-                    W_diag,
-                    filter_fn=mesh.filters.filter if mesh.filters is not None else None,
-                    filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
-                    solver_cfg=solver_cfg,
-                )
-            _log(
-                "resolvent postcheck: "
-                f"rho_fwd_max={float(np.max(resolvent_rho_fwd)):.3e} "
-                f"rho_adj_max={float(np.max(resolvent_rho_adj)):.3e}"
-            )
-            _log_stage("resolvent_postcheck", stage_start)
+    resolvent_result = _stage_run_resolvent(
+        run_resolvent=run_resolvent,
+        L0_resolv=L0_resolv,
+        mesh=mesh,
+        W_diag=W_diag,
+        omega_target=omega_target,
+        n_modes_resolvent=n_modes_resolvent,
+        total_bc_indices=total_bc_indices,
+        solver_cfg=solver_cfg,
+        heartbeat_seconds=heartbeat_seconds,
+    )
+    gains = resolvent_result.gains
+    responses = resolvent_result.responses
+    forcings = resolvent_result.forcings
+    resolvent_rho_fwd = resolvent_result.rho_fwd
+    resolvent_rho_adj = resolvent_result.rho_adj
 
     omega = np.array([], dtype=complex)
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
