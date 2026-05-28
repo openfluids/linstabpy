@@ -36,7 +36,7 @@ from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
-from linstabpy.operators.assembly import build_lnse_system
+from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
@@ -722,7 +722,7 @@ def compute() -> None:
         stage_start = _stage_start()
         _log("assembling LNSE operator")
         with _stage_heartbeat("assemble_operator_bc", interval_seconds=heartbeat_seconds):
-            L0, idx, bc_indices = build_lnse_system(
+            lnse_system = build_lnse_system_result(
                 mesh,
                 baseflow,
                 kx=beta,
@@ -733,6 +733,9 @@ def compute() -> None:
                 solver_cfg=solver_cfg,
                 dissipation_epsilon=eps_stab,
             )
+            L0 = lnse_system.operator
+            idx = lnse_system.idx
+            bc_indices = lnse_system.bc_indices
         nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
         _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
         _log_stage("assemble_operator_bc", stage_start)
@@ -743,7 +746,7 @@ def compute() -> None:
                 "assemble_resolvent_operator_bc",
                 interval_seconds=heartbeat_seconds,
             ):
-                L0_resolv, _, _ = build_lnse_system(
+                resolvent_system = build_lnse_system_result(
                     mesh,
                     baseflow,
                     kx=beta,
@@ -754,6 +757,7 @@ def compute() -> None:
                     solver_cfg=solver_cfg,
                     dissipation_epsilon=eps_resolv,
                 )
+                L0_resolv = resolvent_system.operator
             nnz_resolv = (
                 int(L0_resolv.getInfo()["nz_used"])
                 if hasattr(L0_resolv, "getInfo")
@@ -773,7 +777,11 @@ def compute() -> None:
         else:
             L0_resolv = L0
 
-    bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
+    bc_analysis = (
+        lnse_system.bc_analysis
+        if "lnse_system" in locals() and lnse_system.bc_analysis is not None
+        else analyze_bc_recipe(mesh, idx, bc_recipe)
+    )
     effective_dirichlet_indices = np.asarray(
         bc_analysis.get("effective_dirichlet_indices", np.array([], dtype=np.int64)),
         dtype=np.int64,

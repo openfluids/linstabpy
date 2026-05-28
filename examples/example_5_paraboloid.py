@@ -60,7 +60,7 @@ def compute(cfg: dict):
 
     from linstabpy.baseflow import load_paraboloid, sutherland_air
     from linstabpy.mesh import Mesh
-    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
     from linstabpy.solvers.petsc_utils import scipy_to_petsc
     from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
@@ -129,7 +129,7 @@ def compute(cfg: dict):
 
     assembly_backend = cfg.get("assembly_backend")
     bc_penalty = cfg["bc"].get("penalty", 1e4)
-    L0, idx, bc_indices = build_lnse_system(
+    lnse_system = build_lnse_system_result(
         mesh,
         baseflow,
         model=cfg["model"],
@@ -139,6 +139,9 @@ def compute(cfg: dict):
         backend=assembly_backend,
         solver_cfg=solver_cfg,
     )
+    L0 = lnse_system.operator
+    idx = lnse_system.idx
+    bc_indices = lnse_system.bc_indices
 
     used_ind = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[used_ind]

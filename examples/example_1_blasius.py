@@ -62,7 +62,7 @@ def compute(cfg: dict):
 
     from linstabpy.baseflow import load_blasius, sutherland_air
     from linstabpy.mesh import Mesh
-    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
     from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
 
@@ -136,7 +136,7 @@ def compute(cfg: dict):
     kx = cfg["kx"]
     assembly_backend = cfg.get("assembly_backend")
     t_lnse = time.perf_counter()
-    L0, idx, bc_indices = build_lnse_system(
+    lnse_system = build_lnse_system_result(
         mesh,
         bf,
         kx=kx,
@@ -146,6 +146,9 @@ def compute(cfg: dict):
         backend=assembly_backend,
         solver_cfg=solver_cfg,
     )
+    L0 = lnse_system.operator
+    idx = lnse_system.idx
+    bc_indices = lnse_system.bc_indices
     t_lnse = time.perf_counter() - t_lnse
 
     # ---- Energy norm ----

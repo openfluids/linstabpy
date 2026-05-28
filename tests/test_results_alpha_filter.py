@@ -8,6 +8,7 @@ import types
 import numpy as np
 
 from linstabpy import results_runtime
+from linstabpy.operators import LNSESystem
 
 
 def test_effective_alpha_filter_keeps_filter_for_resolvent():
@@ -91,17 +92,19 @@ def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
     monkeypatch.setattr(results_runtime, "Mesh", FakeMeshClass)
     monkeypatch.setattr(
         results_runtime,
-        "build_lnse_system",
-        lambda *args, **kwargs: (
-            FakeMat(),
-            {
+        "build_lnse_system_result",
+        lambda *args, **kwargs: LNSESystem(
+            operator=FakeMat(),
+            idx={
                 "rho_j": np.arange(4, dtype=np.int64),
                 "u_j": np.arange(4, 8, dtype=np.int64),
                 "v_j": np.arange(8, 12, dtype=np.int64),
                 "w_j": np.arange(12, 16, dtype=np.int64),
                 "T_j": np.arange(16, 20, dtype=np.int64),
             },
-            np.array([], dtype=np.int64),
+            bc_indices=np.array([], dtype=np.int64),
+            bc_analysis=None,
+            backend_metadata={"matrix_type": "petsc"},
         ),
     )
     monkeypatch.setattr(

@@ -23,9 +23,11 @@ from linstabpy.boundary_conditions import (
 )
 from linstabpy.mesh import Mesh
 from linstabpy.operators import (
+    LNSESystem,
     build_lnse_operator,
     build_lnse_operator_petsc,
     build_lnse_system,
+    build_lnse_system_result,
     build_spatial_operator,
     build_spatial_operator_petsc,
     compute_chu_norm,
@@ -601,6 +603,37 @@ class TestOperatorAssembly:
         if params["bc_penalty"].default != 1e4:
             raise AssertionError("build_lnse_system bc_penalty default changed")
 
+    def test_build_lnse_system_result_returns_metadata(self, small_mesh_2d, uniform_baseflow):
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+
+        result = build_lnse_system_result(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.15,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+        public_L0, public_idx, public_bc = build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.15,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+
+        if not isinstance(result, LNSESystem):
+            raise AssertionError(f"Expected LNSESystem, got {type(result)!r}")
+        if result.backend_metadata["matrix_type"] != "scipy":
+            raise AssertionError("LNSESystem did not preserve matrix type")
+        if result.bc_analysis is None:
+            raise AssertionError("LNSESystem should carry BC analysis for recipe builds")
+        np.testing.assert_array_equal(result.bc_indices, public_bc)
+        for key, value in public_idx.items():
+            np.testing.assert_array_equal(result.idx[key], value)
+        delta = (result.operator - public_L0).tocsr()
+        if delta.nnz != 0 and np.max(np.abs(delta.data)) >= 1e-12:
+            raise AssertionError("LNSESystem result differs from compatibility tuple")
+
     def test_lnse_assembly_request_result_preserve_public_tuple(
         self, small_mesh_2d, uniform_baseflow
     ):
@@ -641,9 +674,7 @@ class TestOperatorAssembly:
         if delta.nnz != 0 and np.max(np.abs(delta.data)) >= 1e-12:
             raise AssertionError("Internal assembly result differs from public wrapper tuple")
 
-    def test_lnse_backend_decision_records_fallback_reason(
-        self, small_mesh_2d, uniform_baseflow
-    ):
+    def test_lnse_backend_decision_records_fallback_reason(self, small_mesh_2d, uniform_baseflow):
         request = _LNSEAssemblyRequest(
             mesh=small_mesh_2d,
             baseflow=uniform_baseflow,
