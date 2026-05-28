@@ -1069,6 +1069,151 @@ def _stage_run_stability(
     return _StabilityStageResult(omega, direct_modes, stability_info)
 
 
+def _stage_write_npz(
+    *,
+    output_npz: Path,
+    heartbeat_seconds: float,
+    payload: dict[str, object],
+) -> None:
+    """Persist the runtime NPZ payload under the save-results stage boundary."""
+    stage_start = _stage_start()
+    with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
+        np.savez_compressed(output_npz, **payload)
+    _log_stage("save_results", stage_start)
+
+
+@dataclass(frozen=True)
+class _StabilityAcceptanceStageResult:
+    residual_estimates: np.ndarray
+    residual_absolute: np.ndarray
+    residual_relative: np.ndarray
+    residual_backward: np.ndarray
+    postcheck_residual_abs: np.ndarray
+    postcheck_residual_rel: np.ndarray
+    postcheck_residual_interior_abs: np.ndarray
+    postcheck_residual_bc_abs: np.ndarray
+    postcheck_bc_leak_max: np.ndarray
+    postcheck_bc_leak_p99: np.ndarray
+    postcheck_dirichlet_leak_max: np.ndarray
+    postcheck_dirichlet_leak_p99: np.ndarray
+    postcheck_target_distance: np.ndarray
+    acceptance: dict
+    conjugate_diagnostic: dict
+
+
+def _stage_evaluate_stability_acceptance(
+    *,
+    omega: np.ndarray,
+    stability_info: dict[str, object],
+    stability_acceptance_postcheck_rel_max: float,
+    stability_acceptance_target_distance_max: float,
+    stability_acceptance_omega_real_abs_max: float,
+    stability_acceptance_omega_imag_abs_max: float,
+    stability_acceptance_conjugate_aware: bool,
+) -> _StabilityAcceptanceStageResult:
+    """Prepare stability postcheck arrays, acceptance verdicts, and conjugate diagnostics."""
+    stability_residual_estimates = np.asarray(
+        stability_info.get("residual_estimates", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_residual_absolute = np.asarray(
+        stability_info.get("residual_absolute", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_residual_relative = np.asarray(
+        stability_info.get("residual_relative", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_residual_backward = np.asarray(
+        stability_info.get("residual_backward", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_residual_abs = np.asarray(
+        stability_info.get("postcheck_residual_abs", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_residual_rel = np.asarray(
+        stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_residual_interior_abs = np.asarray(
+        stability_info.get("postcheck_residual_interior_abs", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_residual_bc_abs = np.asarray(
+        stability_info.get("postcheck_residual_bc_abs", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_bc_leak_max = np.asarray(
+        stability_info.get("postcheck_bc_leak_max", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_bc_leak_p99 = np.asarray(
+        stability_info.get("postcheck_bc_leak_p99", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_dirichlet_leak_max = np.asarray(
+        stability_info.get("postcheck_dirichlet_leak_max", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_dirichlet_leak_p99 = np.asarray(
+        stability_info.get("postcheck_dirichlet_leak_p99", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_postcheck_target_distance = np.asarray(
+        stability_info.get("postcheck_target_distance", np.array([], dtype=float)),
+        dtype=float,
+    )
+    stability_acceptance = evaluate_stability_acceptance(
+        omega,
+        stability_postcheck_residual_rel,
+        stability_postcheck_target_distance,
+        postcheck_rel_max=stability_acceptance_postcheck_rel_max,
+        target_distance_max=stability_acceptance_target_distance_max,
+        omega_real_abs_max=stability_acceptance_omega_real_abs_max,
+        omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
+        conjugate_aware=stability_acceptance_conjugate_aware,
+    )
+    if stability_acceptance:
+        accepted_count = int(stability_acceptance.get("accepted_count", 0))
+        _log(
+            "stability acceptance: "
+            f"accepted_modes={accepted_count} "
+            f"postcheck_rel_max={stability_acceptance_postcheck_rel_max:.3e} "
+            f"target_distance_max={stability_acceptance_target_distance_max:.3e} "
+            f"omega_real_abs_max={stability_acceptance_omega_real_abs_max:.3e} "
+            f"omega_imag_abs_max={stability_acceptance_omega_imag_abs_max:.3e}"
+        )
+    accepted_idx_for_diag = np.asarray(
+        stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+        dtype=np.int32,
+    )
+    conjugate_diagnostic = check_conjugate_pair_completeness(omega, accepted_idx_for_diag)
+    if conjugate_diagnostic["missing_partner_indices"].size > 0:
+        _log(
+            f"warning: {conjugate_diagnostic['missing_partner_indices'].size} accepted mode(s) "
+            "have no conjugate partner in returned spectrum: "
+            f"indices={conjugate_diagnostic['missing_partner_indices'].tolist()}"
+        )
+    return _StabilityAcceptanceStageResult(
+        residual_estimates=stability_residual_estimates,
+        residual_absolute=stability_residual_absolute,
+        residual_relative=stability_residual_relative,
+        residual_backward=stability_residual_backward,
+        postcheck_residual_abs=stability_postcheck_residual_abs,
+        postcheck_residual_rel=stability_postcheck_residual_rel,
+        postcheck_residual_interior_abs=stability_postcheck_residual_interior_abs,
+        postcheck_residual_bc_abs=stability_postcheck_residual_bc_abs,
+        postcheck_bc_leak_max=stability_postcheck_bc_leak_max,
+        postcheck_bc_leak_p99=stability_postcheck_bc_leak_p99,
+        postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
+        postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
+        postcheck_target_distance=stability_postcheck_target_distance,
+        acceptance=stability_acceptance,
+        conjugate_diagnostic=conjugate_diagnostic,
+    )
+
+
 def compute() -> None:
     """Run the shared case pipeline and write the requested NPZ artifact."""
     t0 = time.perf_counter()
@@ -1410,97 +1555,36 @@ def compute() -> None:
     # 8) Save full run state to one NPZ for downstream parity/plots.
     # ------------------------------------------------------------------
     if rank == 0:
-        stage_start = _stage_start()
-        stability_residual_estimates = np.asarray(
-            stability_info.get("residual_estimates", np.array([], dtype=float)),
-            dtype=float,
+        acceptance_result = _stage_evaluate_stability_acceptance(
+            omega=omega,
+            stability_info=stability_info,
+            stability_acceptance_postcheck_rel_max=stability_acceptance_postcheck_rel_max,
+            stability_acceptance_target_distance_max=stability_acceptance_target_distance_max,
+            stability_acceptance_omega_real_abs_max=stability_acceptance_omega_real_abs_max,
+            stability_acceptance_omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
+            stability_acceptance_conjugate_aware=stability_acceptance_conjugate_aware,
         )
-        stability_residual_absolute = np.asarray(
-            stability_info.get("residual_absolute", np.array([], dtype=float)),
-            dtype=float,
+        stability_residual_estimates = acceptance_result.residual_estimates
+        stability_residual_absolute = acceptance_result.residual_absolute
+        stability_residual_relative = acceptance_result.residual_relative
+        stability_residual_backward = acceptance_result.residual_backward
+        stability_postcheck_residual_abs = acceptance_result.postcheck_residual_abs
+        stability_postcheck_residual_rel = acceptance_result.postcheck_residual_rel
+        stability_postcheck_residual_interior_abs = (
+            acceptance_result.postcheck_residual_interior_abs
         )
-        stability_residual_relative = np.asarray(
-            stability_info.get("residual_relative", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_residual_backward = np.asarray(
-            stability_info.get("residual_backward", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_residual_abs = np.asarray(
-            stability_info.get("postcheck_residual_abs", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_residual_rel = np.asarray(
-            stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_residual_interior_abs = np.asarray(
-            stability_info.get("postcheck_residual_interior_abs", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_residual_bc_abs = np.asarray(
-            stability_info.get("postcheck_residual_bc_abs", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_bc_leak_max = np.asarray(
-            stability_info.get("postcheck_bc_leak_max", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_bc_leak_p99 = np.asarray(
-            stability_info.get("postcheck_bc_leak_p99", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_dirichlet_leak_max = np.asarray(
-            stability_info.get("postcheck_dirichlet_leak_max", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_dirichlet_leak_p99 = np.asarray(
-            stability_info.get("postcheck_dirichlet_leak_p99", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_postcheck_target_distance = np.asarray(
-            stability_info.get("postcheck_target_distance", np.array([], dtype=float)),
-            dtype=float,
-        )
-        stability_acceptance = evaluate_stability_acceptance(
-            omega,
-            stability_postcheck_residual_rel,
-            stability_postcheck_target_distance,
-            postcheck_rel_max=stability_acceptance_postcheck_rel_max,
-            target_distance_max=stability_acceptance_target_distance_max,
-            omega_real_abs_max=stability_acceptance_omega_real_abs_max,
-            omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
-            conjugate_aware=stability_acceptance_conjugate_aware,
-        )
-        if stability_acceptance:
-            accepted_count = int(stability_acceptance.get("accepted_count", 0))
-            _log(
-                "stability acceptance: "
-                f"accepted_modes={accepted_count} "
-                f"postcheck_rel_max={stability_acceptance_postcheck_rel_max:.3e} "
-                f"target_distance_max={stability_acceptance_target_distance_max:.3e} "
-                f"omega_real_abs_max={stability_acceptance_omega_real_abs_max:.3e} "
-                f"omega_imag_abs_max={stability_acceptance_omega_imag_abs_max:.3e}"
-            )
-        # ------------------------------------------------------------------
-        # Conjugate-pair completeness diagnostic (Fix #5).
-        # Pure diagnostic: does NOT modify accepted/rejected sets.
-        # ------------------------------------------------------------------
-        _accepted_idx_for_diag = np.asarray(
-            stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
-            dtype=np.int32,
-        )
-        _conj_diag = check_conjugate_pair_completeness(omega, _accepted_idx_for_diag)
-        if _conj_diag["missing_partner_indices"].size > 0:
-            _log(
-                f"warning: {_conj_diag['missing_partner_indices'].size} accepted mode(s) "
-                "have no conjugate partner in returned spectrum: "
-                f"indices={_conj_diag['missing_partner_indices'].tolist()}"
-            )
-        with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
-            np.savez_compressed(
-                output_npz,
+        stability_postcheck_residual_bc_abs = acceptance_result.postcheck_residual_bc_abs
+        stability_postcheck_bc_leak_max = acceptance_result.postcheck_bc_leak_max
+        stability_postcheck_bc_leak_p99 = acceptance_result.postcheck_bc_leak_p99
+        stability_postcheck_dirichlet_leak_max = acceptance_result.postcheck_dirichlet_leak_max
+        stability_postcheck_dirichlet_leak_p99 = acceptance_result.postcheck_dirichlet_leak_p99
+        stability_postcheck_target_distance = acceptance_result.postcheck_target_distance
+        stability_acceptance = acceptance_result.acceptance
+        _conj_diag = acceptance_result.conjugate_diagnostic
+        _stage_write_npz(
+            output_npz=output_npz,
+            heartbeat_seconds=heartbeat_seconds,
+            payload=dict(
                 omega=omega,
                 direct_modes=direct_modes,
                 gains=gains,
@@ -1661,8 +1745,8 @@ def compute() -> None:
                 stability_partner_rejected_indices=np.asarray(
                     _conj_diag["partner_rejected_indices"], dtype=np.int32
                 ),
-            )
-        _log_stage("save_results", stage_start)
+            ),
+        )
     elapsed = time.perf_counter() - t0
     _log(f"results saved to {output_npz}")
     _log(f"compute finished in {elapsed:.2f}s")
