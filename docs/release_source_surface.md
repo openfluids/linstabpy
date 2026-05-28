@@ -128,6 +128,33 @@ git ls-files |
 These files are not targets for docstring coverage. They are targets for the
 artifact-size, license/provenance, and regeneration-policy audits.
 
+Current artifact-size audit:
+
+```bash
+.venv/bin/python scripts/check_tracked_file_size.py
+```
+
+Result at release-audit time: no tracked file exceeds the 50 MiB policy. The
+largest tracked data files are MATLAB/Numpy reference fixtures under
+`examples/case_studies/case1_song/reference/` and
+`scripts/validation/song_2023/reference/`, with the largest entries below
+50 MiB. They remain source-repository fixtures, not package data.
+
+Current source-distribution boundary:
+
+```bash
+uv build --sdist --out-dir artifacts/release_audit/dist_check
+tar -tzf artifacts/release_audit/dist_check/linstabpy-0.1.0.tar.gz |
+  rg '(^|/)(examples|scripts|docs|artifacts|data/baseflows|\.venv)/|\.(mat|npy|npz|png|pdf|dat)$'
+```
+
+Result at release-audit time: the built sdist is about 324 KiB and the tar
+content scan above reports no examples, validation scripts, docs subtrees,
+ignored artifacts, `.venv`, optional baseflows, or binary fixture extensions.
+The public Git repository may contain validation fixtures; the installable
+package should stay code-only unless a future release intentionally adds small
+package data with a dedicated manifest and license note.
+
 ## Out Of Scope
 
 The public release surface excludes:

@@ -22,6 +22,11 @@ PATTERNS: tuple[tuple[str, str], ...] = (
     ("private-user-or-host", r"\b(?:ghamada|pa-dyf-calc|nexus|supermicro|ensam)\b"),
 )
 
+EXCLUDED_PATHS = {
+    "scripts/validation/check_public_provenance.py",
+    "tests/test_public_provenance_checker.py",
+}
+
 
 @dataclass(frozen=True)
 class Match:
@@ -74,6 +79,8 @@ def scan_paths(paths: list[Path], *, repo_root: Path) -> list[Match]:
         except UnicodeDecodeError:
             continue
         rel = _relative(path, repo_root)
+        if rel in EXCLUDED_PATHS:
+            continue
         for line_no, line in enumerate(text.splitlines(), start=1):
             for category, pattern in compiled:
                 for found in pattern.finditer(line):

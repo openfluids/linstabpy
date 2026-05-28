@@ -43,6 +43,15 @@ def test_public_provenance_checker_avoids_substring_false_positive(tmp_path):
     assert matches == []
 
 
+def test_public_provenance_checker_excludes_its_own_pattern_files(tmp_path):
+    scanner = tmp_path / "scripts" / "validation" / "check_public_provenance.py"
+    _write(scanner, 'PATTERN = "Codex /home/rfrantz"\n')
+
+    matches = check_public_provenance.scan_paths([scanner], repo_root=tmp_path)
+
+    assert matches == []
+
+
 def test_public_provenance_checker_main_writes_json(tmp_path, monkeypatch, capsys):
     repo = tmp_path / "repo"
     _write(repo / "README.md", "Plain public docs.\n")
