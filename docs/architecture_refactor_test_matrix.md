@@ -26,12 +26,20 @@ Use the matrix runner from the repository root:
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-external-assets
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group documentation-gates
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local --skip-long
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-golden-local
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-golden-all
 ```
 
 The runner writes a JSON report with the current git SHA, selected checks,
 commands, return codes, and artifact paths. A normal group run includes every
 check in that group. Use `--skip-long` only when you are doing a quick local
 smoke run that is not a Phase 0 signoff.
+
+The `phase0-golden-local` virtual group runs `phase0-local`,
+`phase0-expanded-local`, and `documentation-gates` as one local baseline suite.
+The `phase0-golden-all` virtual group also includes
+`phase0-external-assets`; it is the intended Phase 0 signoff suite once the
+optional Martini assets and fixture bundles are present.
 
 ## Required Phases
 
