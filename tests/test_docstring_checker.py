@@ -78,13 +78,29 @@ def test_docstring_checker_allowlist_requires_rationale(tmp_path):
 
 def test_docstring_checker_main_writes_json_report(tmp_path, capsys):
     root = tmp_path / "pkg"
+    repo = tmp_path / "repo"
     report = tmp_path / "report.json"
     _write(root / "__init__.py", '"""Package docs."""\n\ndef ok():\n    """Docs."""\n')
+    _write(repo / "src" / "linstabpy" / "module.py", '"""Docs."""\n')
+    _write(repo / "tests" / "test_module.py", "def test_ok():\n    pass\n")
+    _write(repo / "examples" / "example.py", "print('ok')\n")
+    _write(repo / "scripts" / "validation" / "check.py", "print('ok')\n")
+    _write(repo / "docs" / "guide.md", "# Guide\n")
 
-    rc = check_docstrings.main(["--root", str(root), "--output", str(report)])
+    rc = check_docstrings.main(
+        ["--root", str(root), "--repo-root", str(repo), "--output", str(report)]
+    )
 
     assert rc == 0
     captured = capsys.readouterr()
+    assert "File inventory:" in captured.out
     assert "missing=0" in captured.out
-    payload = json.loads(report.read_text(encoding="utf-8"))
+    with report.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    assert payload["file_inventory"]["inventory_source"] == "filesystem-fallback"
+    assert payload["file_inventory"]["source_python_files"] == 0
+    assert payload["file_inventory"]["test_python_files"] == 1
+    assert payload["file_inventory"]["example_python_files"] == 1
+    assert payload["file_inventory"]["validation_python_files"] == 1
+    assert payload["file_inventory"]["documentation_markdown_files"] == 1
     assert payload["summary"]["missing_required"] == 0
