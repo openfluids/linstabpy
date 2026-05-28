@@ -18,6 +18,7 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial_petsc,
     apply_neumann,
     build_dirichlet_restriction_matrices,
+    dirichlet_free_dofs,
 )
 from linstabpy.operators import build_lnse_operator, build_spatial_operator
 
@@ -261,6 +262,18 @@ class TestDirichletAdapters:
         np.testing.assert_allclose(x_full, expected_full)
 
         np.testing.assert_allclose((t_cont @ t_exp).toarray(), np.eye(len(free)))
+
+    def test_dirichlet_free_dofs_matches_restriction_helper(self):
+        n_dofs = 8
+        dirichlet_indices = np.array([6, 1, 1, 3], dtype=int)
+
+        _, _, free_from_matrices = build_dirichlet_restriction_matrices(
+            n_dofs, dirichlet_indices
+        )
+        free_direct = dirichlet_free_dofs(n_dofs, dirichlet_indices)
+
+        np.testing.assert_array_equal(free_direct, free_from_matrices)
+        np.testing.assert_array_equal(free_direct, np.array([0, 2, 4, 5, 7], dtype=int))
 
     def test_apply_dirichlet_identity_pair(self):
         lhs = np.arange(1.0, 17.0).reshape(4, 4)

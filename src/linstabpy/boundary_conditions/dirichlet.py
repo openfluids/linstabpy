@@ -311,16 +311,7 @@ def build_dirichlet_restriction_matrices(
     - ``T_exp``: injects reduced vectors back into full-space free dofs
     plus the sorted free-dof index array.
     """
-    if n_dofs < 0:
-        raise ValueError("n_dofs must be non-negative")
-
-    index_set = np.unique(np.asarray(dirichlet_indices, dtype=int))
-    if index_set.size:
-        if index_set.min() < 0 or index_set.max() >= n_dofs:
-            raise ValueError("dirichlet_indices must be valid 0-based dof indices")
-
-    all_dofs = np.arange(n_dofs, dtype=int)
-    free_dofs = np.setdiff1d(all_dofs, index_set, assume_unique=True)
+    free_dofs = dirichlet_free_dofs(n_dofs, dirichlet_indices)
 
     # T_cont = I with Dirichlet rows removed (shape n_free x n_full)
     t_cont = sp.csr_matrix(
@@ -339,6 +330,20 @@ def build_dirichlet_restriction_matrices(
         shape=(n_dofs, free_dofs.size),
     )
     return t_cont, t_exp, free_dofs
+
+
+def dirichlet_free_dofs(n_dofs: int, dirichlet_indices: np.ndarray) -> np.ndarray:
+    """Return sorted unconstrained DOF indices after Dirichlet elimination."""
+    if n_dofs < 0:
+        raise ValueError("n_dofs must be non-negative")
+
+    index_set = np.unique(np.asarray(dirichlet_indices, dtype=int))
+    if index_set.size:
+        if index_set.min() < 0 or index_set.max() >= n_dofs:
+            raise ValueError("dirichlet_indices must be valid 0-based dof indices")
+
+    all_dofs = np.arange(n_dofs, dtype=int)
+    return np.setdiff1d(all_dofs, index_set, assume_unique=True)
 
 
 def apply_dirichlet_identity_pair(
