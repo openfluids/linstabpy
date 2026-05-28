@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Case 2 wrapper over the shared results runtime."""
+"""Case 2 wrapper over the shared results runtime.
+
+The case file owns only working-directory and environment defaults. Numerical
+stage ordering, solver policy, postchecks, and NPZ persistence stay in
+``linstabpy.results_runtime``.
+"""
 
 from __future__ import annotations
 
