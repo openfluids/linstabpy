@@ -14,6 +14,7 @@ _LAZY_EXPORTS = {
     "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
     "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
     "resolvent_analysis": "linstabpy.solvers.resolvent",
+    "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "BaseFlow": "linstabpy.baseflow",
     "load_blasius": "linstabpy.baseflow",
     "load_cavity": "linstabpy.baseflow",

@@ -176,6 +176,68 @@ def resolvent_analysis(
     forcings : ndarray, shape (ndof, n_modes)
         Optimal forcing modes (columns), normalised in the *W*-inner product.
     """
+    gains, responses, forcings, _, _ = _resolvent_analysis_impl(
+        L0,
+        omega,
+        n_modes,
+        W_diag,
+        B_mat=B_mat,
+        C_mat=C_mat,
+        filter_fn=filter_fn,
+        filter_ct_fn=filter_ct_fn,
+        solver_cfg=solver_cfg,
+        compute_residuals=False,
+    )
+    return gains, responses, forcings
+
+
+def resolvent_analysis_with_residuals(
+    L0: sp.spmatrix | PETSc.Mat,
+    omega: float,
+    n_modes: int,
+    W_diag: np.ndarray,
+    B_mat: sp.spmatrix | PETSc.Mat | None = None,
+    C_mat: sp.spmatrix | PETSc.Mat | None = None,
+    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    solver_cfg: dict | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Compute resolvent modes and SVD residuals with one shifted solve setup.
+
+    This is equivalent to calling ``resolvent_analysis`` followed by
+    ``compute_resolvent_svd_residuals`` at the same ``omega``, but it reuses
+    the already-factorized shifted operator. It does not reuse a factorization
+    across different frequencies, because the matrix values change with
+    ``omega``.
+    """
+    return _resolvent_analysis_impl(
+        L0,
+        omega,
+        n_modes,
+        W_diag,
+        B_mat=B_mat,
+        C_mat=C_mat,
+        filter_fn=filter_fn,
+        filter_ct_fn=filter_ct_fn,
+        solver_cfg=solver_cfg,
+        compute_residuals=True,
+    )
+
+
+def _resolvent_analysis_impl(
+    L0: sp.spmatrix | PETSc.Mat,
+    omega: float,
+    n_modes: int,
+    W_diag: np.ndarray,
+    B_mat: sp.spmatrix | PETSc.Mat | None = None,
+    C_mat: sp.spmatrix | PETSc.Mat | None = None,
+    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
+    solver_cfg: dict | None = None,
+    *,
+    compute_residuals: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Implementation shared by the public resolvent entry points."""
     require_complex(solver_cfg)
     ndof = _operator_ndof(L0)
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
@@ -339,18 +401,70 @@ def resolvent_analysis(
         vi.destroy()
         eps.destroy()
         htrh_shell.destroy()
-        # lu wraps a PETSc.KSP + factorized PETSc.Mat (the MUMPS LU);
-        # destroy here so eigenpair-extraction failures still release the
-        # factorization. Setup-phase failures between line 192 and the try
-        # block above are not yet covered (TODO: wrap the full function body).
+
+    try:
+        order = np.argsort(gains)[::-1]
+        gains = gains[order]
+        forcings = forcings[:, order]
+        responses = responses[:, order]
+
+        rho_fwd: np.ndarray | None = None
+        rho_adj: np.ndarray | None = None
+        if compute_residuals:
+            rho_fwd, rho_adj = _compute_resolvent_svd_residuals_from_apply(
+                gains,
+                forcings,
+                responses,
+                W_vec,
+                invW_vec,
+                _apply_H,
+                _apply_H_adj,
+            )
+
+        return gains, responses, forcings, rho_fwd, rho_adj
+    finally:
         lu.destroy()
 
-    order = np.argsort(gains)[::-1]
-    gains = gains[order]
-    forcings = forcings[:, order]
-    responses = responses[:, order]
 
-    return gains, responses, forcings
+def _compute_resolvent_svd_residuals_from_apply(
+    gains: np.ndarray,
+    forcings: np.ndarray,
+    responses: np.ndarray,
+    W_vec: np.ndarray,
+    invW_vec: np.ndarray,
+    apply_H: Callable[[np.ndarray], np.ndarray],
+    apply_H_adj: Callable[[np.ndarray], np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute SVD residuals from already-constructed resolvent actions."""
+    n_modes = gains.shape[0]
+    rho_fwd = np.empty(n_modes, dtype=float)
+    rho_adj = np.empty(n_modes, dtype=float)
+
+    print(
+        "SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
+        "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)"
+    )
+    print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
+    print("-" * 50)
+    for i in range(n_modes):
+        sigma = gains[i]
+        v_i = forcings[:, i]
+        u_i = responses[:, i]
+        # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
+        # equals 1, but computing it keeps the residuals meaningful after any
+        # filter projection or small eigensolver normalization drift.
+        w_norm_v = max(float(np.sqrt(np.real(v_i.conj() @ (W_vec * v_i)))), 1e-300)
+
+        Hv = apply_H(v_i)
+        rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * w_norm_v)
+
+        HH_Wu = apply_H_adj(W_vec * u_i)
+        rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * w_norm_v)
+
+        print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
+
+    print(f"{'max':>20}  {np.max(rho_fwd):>12.4e}  {np.max(rho_adj):>12.4e}")
+    return rho_fwd, rho_adj
 
 
 def compute_resolvent_svd_residuals(
@@ -449,38 +563,14 @@ def compute_resolvent_svd_residuals(
             w = _filt_ct(w)
             return w
 
-        rho_fwd = np.empty(n_modes, dtype=float)
-        rho_adj = np.empty(n_modes, dtype=float)
-
-        print(
-            "SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
-            "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)"
+        return _compute_resolvent_svd_residuals_from_apply(
+            gains,
+            forcings,
+            responses,
+            W_vec,
+            invW_vec,
+            _apply_H,
+            _apply_H_adj,
         )
-        print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
-        print("-" * 50)
-        for i in range(n_modes):
-            sigma = gains[i]
-            v_i = forcings[:, i]
-            u_i = responses[:, i]
-            # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
-            # equals 1, but we compute it explicitly so residuals are consistent even
-            # if the mode is slightly off unit W-norm (e.g., after filter projection).
-            w_norm_v = max(float(np.sqrt(np.real(v_i.conj() @ (W_vec * v_i)))), 1e-300)
-
-            # Forward: ||H v_i - sigma u_i|| / (sigma ||v_i||_W)
-            # Near eps by construction since u_i = H(v_i)/sigma in resolvent_analysis.
-            Hv = _apply_H(v_i)
-            rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * w_norm_v)
-
-            # Adjoint: ||invW H^H(W u_i) - sigma v_i|| / (sigma ||v_i||_W)
-            # Tests the adjoint half of the weighted eigenproblem; converges to
-            # ≤ SLEPc tolerance when the discrete operator is solved correctly.
-            HH_Wu = _apply_H_adj(W_vec * u_i)
-            rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * w_norm_v)
-
-            print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
-
-        print(f"{'max':>20}  {np.max(rho_fwd):>12.4e}  {np.max(rho_adj):>12.4e}")
-        return rho_fwd, rho_adj
     finally:
         lu.destroy()

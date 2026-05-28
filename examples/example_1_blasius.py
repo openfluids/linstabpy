@@ -64,7 +64,7 @@ def compute(cfg: dict):
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
-    from linstabpy.solvers.resolvent import compute_resolvent_svd_residuals, resolvent_analysis
+    from linstabpy.solvers.resolvent import resolvent_analysis_with_residuals
 
     solver_cfg = cfg.get("solver")
 
@@ -169,7 +169,13 @@ def compute(cfg: dict):
 
     # ---- Resolvent analysis ----
     t_resolvent = time.perf_counter()
-    gains, responses, forcings = resolvent_analysis(
+    (
+        gains,
+        responses,
+        forcings,
+        svd_residuals_fwd,
+        svd_residuals_adj,
+    ) = resolvent_analysis_with_residuals(
         L0,
         omega,
         n_modes,
@@ -193,24 +199,10 @@ def compute(cfg: dict):
     # at tol=1e-12, ncv = max(2*n_modes+3, 20).  Different fill-reducing
     # orderings (UMFPACK vs MUMPS/METIS) yield eigenvectors that differ at the
     # O(eps*cond) level; the resulting gain mismatch (~0.54% for this case) is
-    # structural, not a bug.  The SVD residuals below are the primary closure
+    # structural, not a bug.  The SVD residuals are the primary closure
     # criterion: if the triplets (sigma, u, v) satisfy the discrete resolvent
     # equations to near-machine precision the result is correct independently
     # of the MATLAB reference.
-    svd_residuals_fwd, svd_residuals_adj = compute_resolvent_svd_residuals(
-        L0,
-        omega,
-        B_mat,
-        C_mat,
-        gains,
-        forcings,
-        responses,
-        W_diag,
-        filter_fn=mesh.filters.filter if mesh.filters is not None else None,
-        filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
-        solver_cfg=solver_cfg,
-    )
-
     # ---- Save results ----
     np.savez_compressed(
         OUTPUT_NPZ,
