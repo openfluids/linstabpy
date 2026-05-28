@@ -34,8 +34,10 @@ from linstabpy.operators import (
 )
 from linstabpy.operators.assembly import (
     _apply_inv_B,
+    _assemble_block_operator,
     _build_block_csr,
     _build_lnse_system_from_request,
+    _cache_5_block_derivatives,
     _create_axy_diff_matrices,
     _decide_lnse_backend,
     _LNSEAssemblyRequest,
@@ -837,6 +839,54 @@ class TestOperatorAssembly:
         np.testing.assert_array_equal(candidate.indptr, expected.indptr)
         np.testing.assert_array_equal(candidate.indices, expected.indices)
         np.testing.assert_allclose(candidate.data, expected.data, atol=1e-12, rtol=1e-12)
+
+    def test_block_operator_csr_fast_path_matches_direct_csc_bmat(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+    ):
+        """Raw block assembly preserves the old direct-CSR-block-to-CSC result."""
+        prep = _prepare_coefficients(small_mesh_2d, uniform_baseflow, kx=0.0, model="2D")
+        ngp = prep["ngp"]
+        coeffs = prep["coeffs"]
+        candidate = _assemble_block_operator(
+            ngp,
+            coeffs,
+            prep["DR"],
+            prep["D2R"],
+            prep["DZ"],
+            prep["D2Z"],
+            prep["D2RZ"],
+        )
+
+        blocks = [[None] * 5 for _ in range(5)]
+        DR_blocks = _cache_5_block_derivatives(prep["DR"], ngp)
+        D2R_blocks = _cache_5_block_derivatives(prep["D2R"], ngp)
+        DZ_blocks = _cache_5_block_derivatives(prep["DZ"], ngp)
+        D2Z_blocks = _cache_5_block_derivatives(prep["D2Z"], ngp)
+        D2RZ_blocks = _cache_5_block_derivatives(prep["D2RZ"], ngp)
+        for i in range(5):
+            for j in range(5):
+                blocks[i][j] = _build_block_csr(
+                    ngp,
+                    coeffs.A0[i, j, :],
+                    coeffs.Ax[i, j, :],
+                    coeffs.Ay[i, j, :],
+                    coeffs.Axx[i, j, :],
+                    coeffs.Ayy[i, j, :],
+                    coeffs.Axy[i, j, :],
+                    DR_blocks[j],
+                    D2R_blocks[j],
+                    DZ_blocks[j],
+                    D2Z_blocks[j],
+                    D2RZ_blocks[j],
+                )
+        expected = sp.bmat(blocks, format="csc")
+
+        assert candidate.format == "csc"
+        np.testing.assert_array_equal(candidate.indptr, expected.indptr)
+        np.testing.assert_array_equal(candidate.indices, expected.indices)
+        np.testing.assert_array_equal(candidate.data, expected.data)
 
     def test_make_csr_derivative_cache_canonicalizes_duplicate_rows(self):
         """CSR derivative cache canonicalizes duplicate entries before row expansion."""

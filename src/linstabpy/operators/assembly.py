@@ -1468,7 +1468,7 @@ def _assemble_block_operator(
                 D2RZ_blocks[j],
             )
 
-    return sp.bmat(blocks, format="csc")
+    return sp.bmat(blocks, format="csr").tocsc()
 
 
 def _assemble_block_operator_csr(
