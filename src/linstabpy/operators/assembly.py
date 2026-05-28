@@ -335,7 +335,13 @@ class _CSRDerivativeCache:
 
 @dataclass(frozen=True)
 class _LNSEAssemblyRequest:
-    """Normalized input bundle for the LNSE system assembly workflow."""
+    """Normalized input bundle for the LNSE system assembly workflow.
+
+    Keep workflow policy here rather than spreading backend flags across
+    runtime callers.  The lower-level ``build_lnse_operator*`` functions remain
+    pre-BC builders; this request represents the full system path that may also
+    apply boundary conditions and backend conversion.
+    """
 
     mesh: Mesh
     baseflow: BaseFlow
@@ -360,7 +366,12 @@ class _LNSEAssemblyRequest:
 
 @dataclass(frozen=True)
 class LNSESystem:
-    """Assembled LNSE operator plus the metadata needed by downstream solvers."""
+    """Assembled LNSE operator plus the metadata needed by downstream solvers.
+
+    The compatibility wrapper still returns ``(operator, idx, bc_indices)``.
+    New runtime code should keep this object intact so backend decisions,
+    effective BC ownership, and future secondary operators stay traceable.
+    """
 
     operator: sp.csc_matrix | "PETSc.Mat"
     idx: dict
@@ -503,6 +514,8 @@ def build_lnse_operator(
         prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
         L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
         if dissipation_epsilon > 0.0 and mesh.Q_diss_x is not None and mesh.Q_diss_y is not None:
+            # Artificial dissipation is an L0-level correction. It belongs
+            # after inv(B) and sponge, but before any BC recipe overwrites rows.
             ny, nx = mesh.X.shape
             I_ny = sp.eye(ny, format="csr")
             I_nx = sp.eye(nx, format="csr")
@@ -534,9 +547,14 @@ def build_lnse_operator_petsc(
 
     This prototype preserves the existing coefficient-preparation path but avoids
     the final SciPy-assembled global matrix. It currently targets the same
-    pre-BC operator returned by :func:`build_lnse_operator`.
+    pre-BC operator returned by :func:`build_lnse_operator`. Boundary conditions
+    are intentionally outside this function so the same post-operator ordering
+    is used by SciPy, PETSc, and fallback paths.
     """
     if dissipation_epsilon != 0.0:
+        # There is no validated PETSc-side Q_diss insertion yet. Falling back
+        # through the system builder keeps the established SciPy ordering rather
+        # than assembling a PETSc operator with a missing numerical term.
         raise NotImplementedError(
             "Direct PETSc backend does not yet support dissipation_epsilon. "
             'Use backend="auto" or "scipy", or implement Q_diss subtraction '
@@ -659,6 +677,9 @@ def _decide_lnse_backend(request: _LNSEAssemblyRequest) -> _LNSEBackendDecision:
         and resolved_backend == "scipy"
     )
 
+    # Backend selection is part of the provenance. Avoid returning only
+    # "scipy"/"petsc"; callers and metrics need to know whether PETSc was a
+    # true direct assembly path or a SciPy assembly converted for MPI ownership.
     if requested_backend == "scipy":
         reason = "requested_scipy"
     elif requested_backend == "petsc":
@@ -706,6 +727,9 @@ def _build_lnse_system_scipy(
     )
     with _assembly_stage("apply_bc") as stage:
         if bc_recipe:
+            # BC application is the final mutation in the operator pipeline.
+            # Applying it earlier would let inv(B), sponge, or dissipation alter
+            # boundary rows that should be exact replacement equations.
             L0, bc_indices = apply_bc_recipe(
                 L0,
                 mesh,
@@ -744,6 +768,10 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
         bc_recipe_enabled=request.has_bc_recipe,
     ):
         if backend_decision.use_petsc_fallback:
+            # Distributed PETSc callers sometimes request a PETSc-owned matrix
+            # for a case whose direct assembly path is not validated. Assemble
+            # with the SciPy reference path first, then convert, so numerical
+            # ordering remains identical to the baseline.
             L0_sp, idx, bc_indices = _build_lnse_system_scipy(
                 request.mesh,
                 request.baseflow,
@@ -779,6 +807,9 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
         if backend_decision.resolved_backend == "petsc":
             from ..boundary_conditions.recipe import apply_bc_recipe_petsc
 
+            # This is the true direct-PETSc path: raw operator, inv(B), sponge,
+            # then PETSc BC rows. Keep this path separate from the conversion
+            # fallback so benchmarks can tell which assembly route ran.
             L0, idx = build_lnse_operator_petsc(
                 request.mesh,
                 request.baseflow,
@@ -791,6 +822,8 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
             )
             with _assembly_stage("apply_bc") as stage:
                 if request.bc_recipe:
+                    # Same final-step rule as SciPy: PETSc BC rows are applied
+                    # only after every L0-level operator contribution is present.
                     L0, bc_indices = apply_bc_recipe_petsc(
                         L0,
                         request.mesh,
@@ -834,6 +867,8 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
             stage["skipped"] = True
         with _assembly_stage("petsc_compaction") as stage:
             stage["skipped"] = True
+        # Default SciPy system path. It remains the reference for parity tests
+        # and for backend fallbacks that need unsupported numerical terms.
         L0, idx, bc_indices = _build_lnse_system_scipy(
             request.mesh,
             request.baseflow,
