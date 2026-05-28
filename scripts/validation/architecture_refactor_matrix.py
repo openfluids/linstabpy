@@ -39,6 +39,10 @@ GROUP_ALIASES = {
         "phase0-external-assets",
         "documentation-gates",
     ),
+    "safety-infrastructure": (
+        "equivalence-gates",
+        "documentation-gates",
+    ),
 }
 
 
@@ -292,6 +296,28 @@ def _checks() -> list[Check]:
                 str((docs_dir / "docstring_inventory.json").relative_to(ROOT)),
             ),
             artifact=docs_dir / "docstring_inventory.json",
+        ),
+        Check(
+            id="lnse-equivalence-harness",
+            group="equivalence-gates",
+            description="Before/after LNSE assembly equivalence contract for P1/P2/P3 work.",
+            command=(
+                py,
+                "scripts/validation/lnse_equivalence_harness.py",
+                "--case",
+                "2D",
+                "--case",
+                "axy",
+                "--output",
+                str(
+                    (
+                        ROOT / "artifacts/architecture_refactor/safety_infrastructure/"
+                        "lnse_equivalence_harness.json"
+                    ).relative_to(ROOT)
+                ),
+            ),
+            artifact=ROOT / "artifacts/architecture_refactor/safety_infrastructure/"
+            "lnse_equivalence_harness.json",
         ),
     ]
 
