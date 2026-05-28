@@ -194,6 +194,9 @@ def _apply_bc_recipe_impl(
     all_bc: list[np.ndarray] = []
 
     for rule in recipe.rules:
+        # Recipe order is intentional. Later rules physically replace rows
+        # written by earlier rules, which is how mixed corner policies are
+        # expressed without adding a separate precedence field to JSONC.
         bc_type = rule.type
         borders = rule.borders
         variables = rule.variables
@@ -366,6 +369,10 @@ def _analyze_bc_recipe_impl(
         else:
             raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
 
+        # Two sets matter downstream and they are deliberately not identical.
+        # The effective owner says which row survives after sequential recipe
+        # application. The full Dirichlet union says which columns were zeroed
+        # at any point, even if a later Neumann rule took over the row.
         if np.asarray(bc_idx).size:
             constrained_variable_set.update(variables)
 
@@ -433,6 +440,9 @@ def _analyze_bc_recipe_impl(
 
 def _require_spatial_dirichlet_recipe(analysis: dict[str, object]) -> None:
     """Reject spatial recipes that need a boundary type not implemented there."""
+    # The doubled spatial EVP has a separate left/right pair. Dirichlet rows
+    # lift cleanly into both halves; Neumann replacement rows need a spatial
+    # derivation before they can be made equivalent to the temporal operator.
     if any(report["type"] == "neumann" for report in analysis["rule_reports"]):
         raise ValueError("Spatial BC recipes currently support Dirichlet rules only.")
 
@@ -458,6 +468,9 @@ def _apply_spatial_dirichlet_indices(
     if bc_indices.size == 0:
         return Lc, R, np.array([], dtype=np.int64)
 
+    # Spatial Dirichlet enforcement follows the MATLAB generalized-EVP form:
+    # constrain Lc with a penalty row, but leave R with a zero row/column so the
+    # boundary condition does not create artificial alpha=1 eigenvalues.
     def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
         mat = mat.tocsr()
         _zero_rows_csr(mat, bc_indices)
