@@ -56,18 +56,79 @@ def _expected_case_notes(config_path: Path) -> list[dict]:
     return notes
 
 
+def expected_export_stems(config_path: Path) -> list[str]:
+    """Return MATLAB export stems required by the Martini parity registry."""
+    cfg = load_jsonc(config_path)
+    stems: list[str] = []
+    seen: set[str] = set()
+    for case in cfg.get("cases", []):
+        for key, value in case.items():
+            if not key.startswith("matlab_") or not key.endswith("_stem"):
+                continue
+            stem = str(value)
+            if stem in seen:
+                continue
+            stems.append(stem)
+            seen.add(stem)
+    return stems
+
+
+def fixture_status(input_dir: Path, output_dir: Path, config_path: Path) -> dict:
+    """Inventory raw MATLAB exports and extracted NPZ fixtures."""
+    stems = expected_export_stems(config_path)
+    raw_missing = [stem for stem in stems if not (input_dir / f"{stem}.mat").exists()]
+    npz_missing = [stem for stem in stems if not (output_dir / f"{stem}.npz").exists()]
+    return {
+        "input_dir": _display_path(input_dir),
+        "output_dir": _display_path(output_dir),
+        "config": _display_path(config_path),
+        "required_count": len(stems),
+        "required_stems": stems,
+        "raw_mat_missing": raw_missing,
+        "npz_missing": npz_missing,
+        "raw_mat_present_count": len(stems) - len(raw_missing),
+        "npz_present_count": len(stems) - len(npz_missing),
+    }
+
+
+def _print_fixture_status(status: dict) -> None:
+    print(
+        "Martini fixture preflight:",
+        f"raw_mat={status['raw_mat_present_count']}/{status['required_count']}",
+        f"npz={status['npz_present_count']}/{status['required_count']}",
+    )
+    if status["raw_mat_missing"]:
+        print(f"Missing raw MATLAB exports in {status['input_dir']}:")
+        for stem in status["raw_mat_missing"]:
+            print(f"  - {stem}.mat")
+    if status["npz_missing"]:
+        print(f"Missing extracted fixtures in {status['output_dir']}:")
+        for stem in status["npz_missing"]:
+            print(f"  - {stem}.npz")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--check-fixtures",
+        action="store_true",
+        help="List missing raw MATLAB exports and extracted NPZ fixtures without extracting.",
+    )
     args = parser.parse_args()
 
     input_dir = args.input_dir.resolve()
     output_dir = args.output_dir.resolve()
     manifest_path = args.manifest.resolve()
     config_path = args.config.resolve()
+
+    if args.check_fixtures:
+        status = fixture_status(input_dir, output_dir, config_path)
+        _print_fixture_status(status)
+        return 1 if status["raw_mat_missing"] or status["npz_missing"] else 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
