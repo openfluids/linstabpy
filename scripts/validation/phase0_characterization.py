@@ -39,8 +39,9 @@ def _git_sha() -> str | None:
             check=True,
             text=True,
             capture_output=True,
+            timeout=10,
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip()
 
@@ -206,6 +207,7 @@ def _bc_characterization() -> list[dict[str, Any]]:
         (
             "case1_overlap",
             "cartesian",
+            "2D",
             [
                 {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
                 {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
@@ -216,6 +218,7 @@ def _bc_characterization() -> list[dict[str, Any]]:
         (
             "case1_exclude_corners",
             "cartesian",
+            "2D",
             [
                 {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
                 {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
@@ -231,6 +234,7 @@ def _bc_characterization() -> list[dict[str, Any]]:
         (
             "sheared_curvilinear_neumann",
             "sheared",
+            "2D",
             [
                 {"type": "dirichlet", "borders": "b", "variables": "uvw"},
                 {
@@ -241,16 +245,48 @@ def _bc_characterization() -> list[dict[str, Any]]:
                 },
             ],
         ),
+        (
+            "same_border_later_neumann_owns_overlap",
+            "cartesian",
+            "2D",
+            [
+                {"type": "dirichlet", "borders": "b", "variables": "T"},
+                {"type": "neumann", "borders": "b", "variables": "T"},
+            ],
+        ),
+        (
+            "pure_neumann_lr_exclude_corners",
+            "cartesian",
+            "2D",
+            [
+                {"type": "neumann", "borders": "lr", "variables": "u", "exclude_corners": True},
+            ],
+        ),
+        (
+            "axisymmetric_dirichlet_ltr",
+            "axisymmetric",
+            "axy",
+            [
+                {"type": "dirichlet", "borders": "ltr", "variables": "uvwT"},
+            ],
+        ),
     ]
     reports: list[dict[str, Any]] = []
-    for label, mesh_label, recipe in cases:
-        mesh = _mesh(mesh_label, model="2D")
+    for label, mesh_label, model, recipe in cases:
+        mesh = _mesh(mesh_label, model=model)
         baseflow = _uniform_baseflow(mesh)
-        _, idx = build_lnse_operator(mesh, baseflow, kx=0.0)
+        _, idx = build_lnse_operator(
+            mesh,
+            baseflow,
+            kx=0.0,
+            model=model,
+            m=1.0 if model == "axy" else 0.0,
+        )
         analysis = analyze_bc_recipe(mesh, idx, recipe)
         payload = {
             "label": label,
             "mesh": mesh_label,
+            "model": model,
             "ngp": int(mesh.ngp),
             "recipe_sha256": _recipe_hash(recipe),
             "recipe": recipe,
