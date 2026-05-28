@@ -316,6 +316,18 @@ def _checks() -> list[Check]:
             artifact=docs_dir / "docstring_inventory.json",
         ),
         Check(
+            id="public-provenance-scan",
+            group="documentation-gates",
+            description="Tracked-file scan for private paths and internal review provenance.",
+            command=(
+                py,
+                "scripts/validation/check_public_provenance.py",
+                "--output",
+                str((docs_dir / "public_provenance_scan.json").relative_to(ROOT)),
+            ),
+            artifact=docs_dir / "public_provenance_scan.json",
+        ),
+        Check(
             id="lnse-equivalence-harness",
             group="equivalence-gates",
             description="Before/after LNSE assembly equivalence contract for P1/P2/P3 work.",
