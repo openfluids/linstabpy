@@ -2,7 +2,7 @@
   // Case 1 fd-order sweep with the smooth localized sponge fixed at sigma_max=0.5.
   //
   // Run with:
-  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/perf_memory_cases_fd_sponge.jsonc ../../.venv/bin/python examples/case_studies/case1_song/perf_memory.py
+  //   LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/configs/perf_memory_cases_fd_sponge.jsonc .venv/bin/python examples/case_studies/case1_song/scripts/perf_memory.py
 
   "outputs": {
     "report_json": "output/fd_sponge/case1_perf_memory_latest.json",
@@ -14,7 +14,7 @@
   "defaults": {
     "base_config": "parity_config.jsonc",
     "monitor_interval_seconds": 0.5,
-    "python_exe": "../../.venv/bin/python",
+    "python_exe": "../../../../.venv/bin/python",
     "env": {
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",

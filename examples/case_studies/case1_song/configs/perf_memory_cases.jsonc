@@ -2,7 +2,7 @@
   // Fresh Case 1 native-sponge stability study.
   //
   // Run with:
-  //   ../../.venv/bin/python perf_memory.py
+  //   .venv/bin/python examples/case_studies/case1_song/scripts/perf_memory.py
   //
   // This matrix is intentionally minimal:
   // - 10 MPI ranks only
@@ -20,7 +20,7 @@
   "defaults": {
     "base_config": "parity_config.jsonc",
     "monitor_interval_seconds": 0.5,
-    "python_exe": "../../.venv/bin/python",
+    "python_exe": "../../../../.venv/bin/python",
     "env": {
       "OMP_NUM_THREADS": "1",
       "OPENBLAS_NUM_THREADS": "1",

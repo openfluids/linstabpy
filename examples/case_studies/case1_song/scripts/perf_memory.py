@@ -27,7 +27,7 @@ from typing import Any
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -915,7 +915,7 @@ def main() -> int:
     default_launcher = dict(defaults.get("launcher", {}))
     monitor_interval_seconds = float(defaults.get("monitor_interval_seconds", 0.5))
     python_exe = _resolve_executable(
-        config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR
+        config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR, ROOT
     )
     default_base_config = defaults.get(
         "base_config",
