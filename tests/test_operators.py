@@ -936,6 +936,12 @@ class TestOperatorAssembly:
             assert name in stages
 
         assert stages["prepare_coefficients"]["ngp"] == small_mesh_2d.ngp
+        assert stages["prepare_coefficients"]["derivative_vector_count"] == 23
+        assert (
+            stages["prepare_coefficients"]["derivative_vector_bytes_total"]
+            == 23 * small_mesh_2d.ngp * np.dtype(float).itemsize
+        )
+        assert "d2Udxdy" in stages["prepare_coefficients"]["derivative_vector_bytes_by_name"]
         assert stages["assemble_raw_blocks"]["nnz"] > 0
         assert stages["apply_bc"]["skipped"] is True
         assert stages["scipy_to_petsc"]["skipped"] is True
@@ -946,6 +952,35 @@ class TestOperatorAssembly:
             "rss_peak_after_bytes",
             "rss_peak_delta_bytes",
         } <= set(stages["assemble_raw_blocks"])
+
+    def test_axy_prepare_metrics_record_derivative_materialization(
+        self,
+        small_mesh_2d,
+        uniform_baseflow,
+        tmp_path,
+    ):
+        """Axisymmetric preparation reports derivative-vector materialization cost."""
+        output = tmp_path / "assembly_metrics_axy.json"
+        build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            model="axy",
+            m=1,
+            solver_cfg={
+                "assembly_metrics": True,
+                "assembly_metrics_log": False,
+                "assembly_metrics_output": str(output),
+            },
+        )
+
+        report = json.loads(output.read_text(encoding="utf-8"))
+        prepare = report["stages"]["prepare_coefficients"]
+        assert prepare["derivative_vector_count"] == 21
+        assert (
+            prepare["derivative_vector_bytes_total"]
+            == 21 * small_mesh_2d.ngp * np.dtype(float).itemsize
+        )
+        assert "d2Udrz" in prepare["derivative_vector_bytes_by_name"]
 
     def test_build_lnse_system_petsc_metrics_records_local_full_csr_mode(
         self,
