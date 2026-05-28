@@ -96,6 +96,8 @@ remain a later gate.
 | `curvilinear-example0` | `bash run_all_examples.sh --example 0 --skip-parity --fresh` | `examples/example_0_curvilinear_validation.npz` |
 | `high-mode-local-baseline` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --high-mode-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_high_mode_baseline.json` | 100-mode stability baseline for one interior target and one boundary-influenced target |
 | `coefficient-tensor-snapshot` | `.venv/bin/python scripts/validation/phase0_characterization.py --output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_characterization.json --coefficient-snapshot-output artifacts/architecture_refactor/architecture_refactor_phase0/phase0_coefficient_tensors.npz` | exact selected coefficient tensors for P1 before/after equivalence checks |
+| `case1-local-assembly-baseline` | `LINSTABPY_CASE1_PERF_CONFIG=examples/case_studies/case1_song/configs/perf/phase0_local_assembly_baseline.jsonc LINSTABPY_STAGE_HEARTBEAT_SECONDS=60 .venv/bin/python examples/case_studies/case1_song/scripts/perf_memory.py` | bounded Case 1 assembly-only timing/RSS report for P8 |
+| `case2-local-assembly-baseline` | `LINSTABPY_CASE2_PERF_CONFIG=examples/case_studies/case2_lui/configs/perf/phase0_local_assembly_baseline.jsonc LINSTABPY_STAGE_HEARTBEAT_SECONDS=60 .venv/bin/python examples/case_studies/case2_lui/perf_memory.py` | bounded Case 2 assembly-only timing/RSS report for P1/P2/P8 |
 
 ## Phase 0 External-Asset Matrix
 

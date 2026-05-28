@@ -264,6 +264,24 @@ def _checks() -> list[Check]:
             timeout_seconds=600.0,
         ),
         Check(
+            id="case1-local-assembly-baseline",
+            group="phase0-expanded-local",
+            description="Case 1 assembly-only timing and memory baseline for P8.",
+            command=(
+                "bash",
+                "-lc",
+                "LINSTABPY_CASE1_PERF_CONFIG="
+                "examples/case_studies/case1_song/configs/perf/"
+                "phase0_local_assembly_baseline.jsonc "
+                "LINSTABPY_STAGE_HEARTBEAT_SECONDS=60 "
+                f"{shlex.quote(py)} examples/case_studies/case1_song/scripts/perf_memory.py",
+            ),
+            artifact=ROOT
+            / "examples/case_studies/case1_song/output/phase0_local_assembly_baseline"
+            / "case1_phase0_local_assembly_baseline_latest.json",
+            timeout_seconds=300.0,
+        ),
+        Check(
             id="martini-fixture-preflight",
             group="phase0-external-assets",
             description="Check that raw MATLAB exports and extracted Martini NPZ fixtures are present.",
