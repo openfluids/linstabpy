@@ -1,0 +1,6 @@
+include CITATION.cff
+exclude GROK.md
+exclude GROK_implementation_plan.md
+prune artifacts
+prune .crush
+prune .devin
