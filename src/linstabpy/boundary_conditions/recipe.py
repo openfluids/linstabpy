@@ -20,6 +20,7 @@ from .dirichlet import (
     _BORDER_MAP,
     _VARIABLE_MAP,
     _collect_dirichlet_indices,
+    _set_diagonal_entries_csc,
     _zero_cols_csc,
     _zero_rows_csr,
     apply_dirichlet,
@@ -466,10 +467,7 @@ def _apply_spatial_dirichlet_indices(
         return mat
 
     Lc = _zero_rows_cols(Lc)
-    Lc = Lc + sp.csc_matrix(
-        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
-        shape=Lc.shape,
-    )
+    Lc = _set_diagonal_entries_csc(Lc, bc_indices, penalty)
     Lc.eliminate_zeros()
     R = _zero_rows_cols(R)
     return Lc, R, bc_indices

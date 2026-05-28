@@ -8,8 +8,13 @@ optional conversion to PETSc).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.sparse as sp
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
+    from petsc4py import PETSc
 
 
 def _zero_rows_csr(mat: sp.csr_matrix, rows: np.ndarray) -> None:
@@ -28,6 +33,36 @@ def _zero_cols_csc(mat: sp.csc_matrix, cols: np.ndarray) -> None:
     idx = np.concatenate([np.arange(s, e) for s, e in zip(starts, ends)])
     if idx.size:
         mat.data[idx] = 0
+
+
+def _set_diagonal_entries_csc(
+    mat: sp.csc_matrix,
+    indices: np.ndarray,
+    value: float | complex,
+) -> sp.csc_matrix:
+    """Set selected diagonal entries, reusing existing CSC slots when present."""
+    indices = np.unique(np.asarray(indices, dtype=int))
+    if indices.size == 0:
+        return mat
+
+    missing: list[int] = []
+    for col in indices:
+        start = mat.indptr[col]
+        stop = mat.indptr[col + 1]
+        rows = mat.indices[start:stop]
+        hit = np.flatnonzero(rows == col)
+        if hit.size:
+            mat.data[start + int(hit[0])] = value
+        else:
+            missing.append(int(col))
+
+    if missing:
+        missing_idx = np.asarray(missing, dtype=int)
+        mat = mat + sp.csc_matrix(
+            (np.full(missing_idx.size, value), (missing_idx, missing_idx)),
+            shape=mat.shape,
+        )
+    return mat
 
 
 # Border character -> idx dict key
@@ -120,11 +155,7 @@ def apply_dirichlet(
     L0 = L0.tocsc()
     _zero_cols_csc(L0, bc_indices)
 
-    # Add penalty on diagonal (existing diagonal is 0 after zeroing).
-    L0 = L0 + sp.csc_matrix(
-        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
-        shape=L0.shape,
-    )
+    L0 = _set_diagonal_entries_csc(L0, bc_indices, penalty)
     L0.eliminate_zeros()
 
     return L0, bc_indices
@@ -224,10 +255,7 @@ def apply_dirichlet_spatial(
 
     # Lc: zero rows/cols + penalty on diagonal
     Lc = _zero_rows_cols(Lc)
-    Lc = Lc + sp.csc_matrix(
-        (np.full(bc_indices.size, penalty), (bc_indices, bc_indices)),
-        shape=Lc.shape,
-    )
+    Lc = _set_diagonal_entries_csc(Lc, bc_indices, penalty)
     Lc.eliminate_zeros()
 
     # R: zero rows/cols only (no penalty)
