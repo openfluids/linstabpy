@@ -359,8 +359,8 @@ class _LNSEAssemblyRequest:
 
 
 @dataclass(frozen=True)
-class _LNSEAssemblyResult:
-    """Internal assembly result before legacy wrappers unpack the public tuple."""
+class LNSESystem:
+    """Assembled LNSE operator plus the metadata needed by downstream solvers."""
 
     operator: sp.csc_matrix | "PETSc.Mat"
     idx: dict
@@ -368,6 +368,9 @@ class _LNSEAssemblyResult:
     bc_analysis: dict[str, Any] | None
     backend_metadata: dict[str, Any]
     resolvent_operator_data: dict[str, Any] | None = None
+
+
+_LNSEAssemblyResult = LNSESystem
 
 
 @dataclass(frozen=True)
@@ -718,7 +721,7 @@ def _build_lnse_system_scipy(
     return L0, idx, bc_indices
 
 
-def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssemblyResult:
+def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem:
     """Build an LNSE system from the normalized internal request object."""
     from ..utils.petsc_core import compact_petsc_matrix, scipy_to_petsc
 
@@ -765,7 +768,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssem
                 bc_indices_count=int(bc_indices.size),
                 matrix_type="petsc",
             )
-            return _LNSEAssemblyResult(
+            return LNSESystem(
                 operator=L0,
                 idx=idx,
                 bc_indices=bc_indices,
@@ -819,7 +822,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssem
                 bc_indices_count=int(bc_indices.size),
                 matrix_type="petsc",
             )
-            return _LNSEAssemblyResult(
+            return LNSESystem(
                 operator=L0,
                 idx=idx,
                 bc_indices=bc_indices,
@@ -849,7 +852,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssem
             bc_indices_count=int(bc_indices.size),
             matrix_type="scipy",
         )
-        return _LNSEAssemblyResult(
+        return LNSESystem(
             operator=L0,
             idx=idx,
             bc_indices=bc_indices,
@@ -869,7 +872,7 @@ def _analyze_lnse_bc_recipe(
     return analyze_bc_recipe(request.mesh, idx, request.bc_recipe)
 
 
-def build_lnse_system(
+def build_lnse_system_result(
     mesh: Mesh,
     baseflow: BaseFlow,
     *,
@@ -882,8 +885,8 @@ def build_lnse_system(
     bc_penalty: float = 1e4,
     backend: str | None = None,
     solver_cfg: dict | None = None,
-) -> tuple[sp.csc_matrix | "PETSc.Mat", dict, np.ndarray]:
-    """Build an LNSE operator and optionally apply BCs with one backend selector.
+) -> LNSESystem:
+    """Build an LNSE system and return the operator with assembly metadata.
 
     This workflow helper keeps the existing SciPy path as the default while
     allowing direct-PETSc assembly/BC application when ``backend='petsc'``.
@@ -904,7 +907,42 @@ def build_lnse_system(
         backend=backend,
         solver_cfg=solver_cfg,
     )
-    result = _build_lnse_system_from_request(request)
+    return _build_lnse_system_from_request(request)
+
+
+def build_lnse_system(
+    mesh: Mesh,
+    baseflow: BaseFlow,
+    *,
+    kx: float = 0.0,
+    model: str = "2D",
+    m: float = 0,
+    floquet_exp: float = 0.0,
+    dissipation_epsilon: float = 0.0,
+    bc_recipe: list[dict] | None = None,
+    bc_penalty: float = 1e4,
+    backend: str | None = None,
+    solver_cfg: dict | None = None,
+) -> tuple[sp.csc_matrix | "PETSc.Mat", dict, np.ndarray]:
+    """Build an LNSE operator and optionally apply BCs with one backend selector.
+
+    This compatibility wrapper preserves the historical tuple return. New
+    internal callers should use :func:`build_lnse_system_result` so backend
+    metadata and BC analysis stay attached to the assembled operator.
+    """
+    result = build_lnse_system_result(
+        mesh,
+        baseflow,
+        kx=kx,
+        model=model,
+        m=m,
+        floquet_exp=floquet_exp,
+        dissipation_epsilon=dissipation_epsilon,
+        bc_recipe=bc_recipe,
+        bc_penalty=bc_penalty,
+        backend=backend,
+        solver_cfg=solver_cfg,
+    )
     return result.operator, result.idx, result.bc_indices
 
 

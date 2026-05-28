@@ -67,7 +67,7 @@ def compute(cfg: dict):
     """Run cavity direct/adjoint temporal eigenproblems."""
     from linstabpy.baseflow import load_cavity, sutherland_air
     from linstabpy.mesh import Mesh
-    from linstabpy.operators.assembly import build_lnse_system
+    from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
     from linstabpy.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
 
@@ -162,7 +162,7 @@ def compute(cfg: dict):
     sponge = sponge_flat.reshape(mesh.X.shape, order="F")
     mesh.sponge = sponge
 
-    L0, idx, bc_indices = build_lnse_system(
+    lnse_system = build_lnse_system_result(
         mesh,
         baseflow,
         model=cfg.get("model", "2D"),
@@ -172,6 +172,9 @@ def compute(cfg: dict):
         backend=assembly_backend,
         solver_cfg=solver_cfg,
     )
+    L0 = lnse_system.operator
+    idx = lnse_system.idx
+    bc_indices = lnse_system.bc_indices
 
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]

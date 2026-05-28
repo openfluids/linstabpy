@@ -104,6 +104,7 @@ def _install_optional_petsc_stubs() -> None:
 _install_optional_petsc_stubs()
 
 from linstabpy import results_runtime
+from linstabpy.operators import LNSESystem
 
 DISSIPATION_KEYS = (
     "numerics_operator_dissipation_enabled",
@@ -180,18 +181,20 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
         def getInfo(self):
             return {"nz_used": 0}
 
-    def fake_build_lnse_system(*args, **kwargs):
+    def fake_build_lnse_system_result(*args, **kwargs):
         build_lnse_kwargs.append(dict(kwargs))
-        return (
-            FakeMat(),
-            {
+        return LNSESystem(
+            operator=FakeMat(),
+            idx={
                 "rho_j": np.arange(4, dtype=np.int64),
                 "u_j": np.arange(4, 8, dtype=np.int64),
                 "v_j": np.arange(8, 12, dtype=np.int64),
                 "w_j": np.arange(12, 16, dtype=np.int64),
                 "T_j": np.arange(16, 20, dtype=np.int64),
             },
-            np.array([], dtype=np.int64),
+            bc_indices=np.array([], dtype=np.int64),
+            bc_analysis=None,
+            backend_metadata={"matrix_type": "petsc"},
         )
 
     monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
@@ -210,7 +213,7 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
     )
     monkeypatch.setattr(results_runtime, "sutherland_air", lambda baseflow: None)
     monkeypatch.setattr(results_runtime, "Mesh", FakeMeshClass)
-    monkeypatch.setattr(results_runtime, "build_lnse_system", fake_build_lnse_system)
+    monkeypatch.setattr(results_runtime, "build_lnse_system_result", fake_build_lnse_system_result)
     monkeypatch.setattr(
         results_runtime,
         "analyze_bc_recipe",
