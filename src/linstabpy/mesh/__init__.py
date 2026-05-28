@@ -15,6 +15,9 @@ from .sbp import (
 
 __all__ = [
     "Mesh",
+    "MeshGeometry",
+    "MeshOperators",
+    "MeshRuntimeState",
     "MeshFilters",
     "build_mesh_filters",
     "sbp_stencils",
@@ -31,10 +34,15 @@ __all__ = [
 
 def __getattr__(name: str):
     """Lazily import PETSc-dependent mesh objects."""
-    if name == "Mesh":
-        from .mesh import Mesh
+    if name in {"Mesh", "MeshGeometry", "MeshOperators", "MeshRuntimeState"}:
+        from .mesh import Mesh, MeshGeometry, MeshOperators, MeshRuntimeState
 
-        return Mesh
+        return {
+            "Mesh": Mesh,
+            "MeshGeometry": MeshGeometry,
+            "MeshOperators": MeshOperators,
+            "MeshRuntimeState": MeshRuntimeState,
+        }[name]
     if name in {"MeshFilters", "build_mesh_filters"}:
         from .filters import MeshFilters, build_mesh_filters
 

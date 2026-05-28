@@ -502,6 +502,92 @@ class TestSchwarzTheorem:
 
 
 # ===================================================================
+# TestMeshStateViews
+# ===================================================================
+class TestMeshStateViews:
+    """Verify the Mesh state views expose existing storage without migration."""
+
+    def test_geometry_view_references_existing_coordinate_state(self, small_mesh_2d):
+        mesh = small_mesh_2d
+        geometry = mesh.geometry
+        assert geometry.X is mesh.X
+        assert geometry.Y is mesh.Y
+        assert geometry.used_ind is mesh.used_ind
+        assert geometry.idx is mesh.idx
+        assert geometry.ngp == mesh.ngp
+        assert geometry.y_symmetry == mesh.y_symmetry
+        assert geometry.x_periodicity == mesh.x_periodicity
+
+    def test_operator_view_references_existing_operator_state(self, small_mesh_2d):
+        mesh = small_mesh_2d
+        operators = mesh.operators
+        assert operators.Dx is mesh.Dx
+        assert operators.D2x is mesh.D2x
+        assert operators.Dy is mesh.Dy
+        assert operators.D2y is mesh.D2y
+        assert operators.Dxy is mesh.Dxy
+        assert operators.Dyx is mesh.Dyx
+        assert operators.W is mesh.W
+        assert operators.fd_order == mesh.fd_order
+
+    def test_runtime_view_references_existing_optional_state(self):
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=16,
+            ny=18,
+            fd_order=4,
+            alpha_filter=0.4,
+            numerics_operator_dissipation={"enabled": True},
+        )
+        runtime = mesh.runtime_state
+        operators = mesh.operators
+        assert runtime.filters is mesh.filters
+        assert runtime.alpha_filter == mesh.alpha_filter
+        assert runtime.sponge is mesh.sponge
+        assert runtime.J11 is mesh.J11
+        assert runtime.J22 is mesh.J22
+        assert operators.Q_diss_x is mesh.Q_diss_x
+        assert operators.Q_diss_y is mesh.Q_diss_y
+
+    def test_deform_updates_geometry_and_operators_but_preserves_filters(self):
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=16,
+            ny=18,
+            fd_order=4,
+            alpha_filter=0.4,
+        )
+        Y_new = mesh.Y * 1.1
+        deformed = mesh.deform(Y_new=Y_new)
+        assert deformed.geometry.X is deformed.X
+        assert deformed.geometry.Y is deformed.Y
+        assert deformed.operators.Dy is deformed.Dy
+        assert deformed.operators.Dy is not mesh.Dy
+        assert deformed.runtime_state.filters is mesh.runtime_state.filters
+        np.testing.assert_allclose(deformed.geometry.Y, Y_new)
+
+    def test_mask_updates_geometry_and_rebuilds_runtime_filters(self):
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=16,
+            ny=18,
+            fd_order=4,
+            alpha_filter=0.4,
+        )
+        mask = np.ones(mesh.X.shape, dtype=bool)
+        mask[0, :4] = False
+        masked = mesh.mask(mask)
+        assert masked.geometry.used_ind is masked.used_ind
+        assert masked.geometry.used_ind.size == masked.ngp
+        assert masked.geometry.used_ind.size < mesh.geometry.used_ind.size
+        assert masked.runtime_state.filters is masked.filters
+        assert masked.runtime_state.filters is not mesh.runtime_state.filters
+
+
+# ===================================================================
 # TestMeshDeformation
 # ===================================================================
 class TestMeshDeformation:
