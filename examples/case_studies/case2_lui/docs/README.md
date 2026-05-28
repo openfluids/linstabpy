@@ -12,10 +12,10 @@ Este README é **operacional** — como rodar. Para o resto:
   parameter map, referências.
 - **`tutorial.md`** — passo-a-passo prático (rodar um caso, rodar uma
   campanha, MPI sem pegadinha).
-- **`/CLAUDE.md`** — motto e regras globais do projeto.
+- **`REFERENCE.md`** — regras numéricas duráveis e contexto técnico.
 
-Se você é um agente entrando nesta campanha agora, leia `CLAUDE.md`,
-`PLAN.md`, depois `REFERENCE.md`. Volte aqui para comandos.
+Se você está entrando nesta campanha agora, leia `PLAN.md`, depois
+`REFERENCE.md`. Volte aqui para comandos.
 
 ## Artifact Layout
 

@@ -13,7 +13,7 @@
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
 #   petsc4py/slepc4py require a one-time patched install performed by install.sh.
 #   uv run attempts to rebuild petsc4py from source on every call and fails on macOS.
-#   See CLAUDE.md for details.
+#   The installer README documents why the existing venv wrapper is preferred.
 #
 # On Linux HPC nodes, point LINSTABPY_PYTHON at the target interpreter created
 # by install.sh instead of editing this script.

@@ -25,9 +25,10 @@
     "run_dir": "output/resolvent_grid_50pt_fd6_stride4/runs"
   },
   "defaults": {
+    "case_workdir": "../..",
     "launcher": {
       "mpi_procs": 10,
-      "launcher": "mpiexec --rankfile /home/ghamada/linstabpy/examples/case_studies/case2_lui/socket1.rankfile --bind-to core"
+      "launcher": "mpiexec --rankfile socket1.rankfile --bind-to core"
     },
     "case_defaults": {
       "config_overrides": {

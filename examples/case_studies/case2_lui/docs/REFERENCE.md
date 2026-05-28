@@ -5,7 +5,7 @@ governing equations, norms, flow configuration, physical framing, or parameter
 meanings change. For current campaign state (what's done, what's next, what's
 blocked), see `PLAN.md`. For how to run a case, see `README.md`.
 
-Inherits the project motto and rules from the repo-root `CLAUDE.md`.
+This file carries the durable numerical rules for the Case 2 campaign.
 
 ---
 

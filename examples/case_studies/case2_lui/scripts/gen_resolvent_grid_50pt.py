@@ -88,9 +88,9 @@ DROPS: frozenset[tuple[float, float]] = frozenset(
 # --- output path --------------------------------------------------
 
 # __file__ = linstabpy/examples/case_studies/case2_lui/scripts/gen_resolvent_grid_50pt.py
-# parents[0]=scripts, [1]=case2, [2]=studies, [3]=linstabpy (repo root).
-ROOT = Path(__file__).resolve().parents[3]
-OUT_DIR = ROOT / "studies" / "case2" / "configs" / "resolvent"
+# parents[0]=scripts, [1]=case2_lui, [2]=case_studies, [3]=examples, [4]=repo root.
+ROOT = Path(__file__).resolve().parents[4]
+OUT_DIR = ROOT / "examples" / "case_studies" / "case2_lui" / "configs" / "resolvent"
 OUT_JSONC = OUT_DIR / "resolvent_grid_50pt_fd6_stride4.jsonc"
 
 
@@ -143,16 +143,13 @@ def build_config(cases: list[dict]) -> dict:
             "run_dir": "output/resolvent_grid_50pt_fd6_stride4/runs",
         },
         "defaults": {
+            "case_workdir": "../..",
             # Override _defaults.jsonc launcher to pin Phase 3 to socket1,
             # leaving socket0 free for Phase 2b (cross-order EVP) to run
             # in parallel. mpi_procs stays at 10 (one full socket).
             "launcher": {
                 "mpi_procs": 10,
-                "launcher": (
-                    "mpiexec --rankfile "
-                    "/home/ghamada/linstabpy/examples/case_studies/case2_lui/socket1.rankfile "
-                    "--bind-to core"
-                ),
+                "launcher": ("mpiexec --rankfile socket1.rankfile --bind-to core"),
             },
             "case_defaults": {
                 "config_overrides": {

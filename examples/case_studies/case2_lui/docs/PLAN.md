@@ -8,26 +8,24 @@ flow configuration, parameter meanings, physical framing, references) lives
 in `REFERENCE.md`. Operational how-to-run lives in `README.md` and
 `tutorial.md`.
 
-Inherits motto and rules from the repo-root `CLAUDE.md`.
+Inherits the durable numerical rules recorded in `REFERENCE.md`.
 
 ---
 
 ## Context files (read in this order)
 
-An agent joining this campaign should load context from:
+When resuming this campaign, load context from:
 
-1. **`/CLAUDE.md`** — project-wide motto, rules, generality principle,
-   `nconv > 0 ≠ success`, `alpha_filter` vs mean-flow-filter distinction.
-2. **This file (`PLAN.md`)** — current state, acceptance criteria, phase
+1. **This file (`PLAN.md`)** — current state, acceptance criteria, phase
    plan with status, open TODOs, "do not" list. Always load.
-3. **`REFERENCE.md`** (same directory) — code lineage (Martini & Schmidt
+2. **`REFERENCE.md`** (same directory) — code lineage (Martini & Schmidt
    2024 port), governing equations, Chu energy norm, parameter map, flow
    configuration, Physical and Numerical Framing (resolvent / mean-flow /
    LES–DNS gap), how residuals should be read, references. Load when a
    question touches background.
-4. **`README.md`** (same directory, Portuguese) — operational: how to run
+3. **`README.md`** (same directory, Portuguese) — operational: how to run
    one case, how to run a campaign, MPI presets, artifact layout.
-5. **`tutorial.md`** — step-by-step walk-through.
+4. **`tutorial.md`** — step-by-step walk-through.
 
 Supporting files in this directory:
 
