@@ -656,6 +656,8 @@ class TestRecipeAnalysis:
             legacy["effective_neumann_indices"],
         )
         assert direct["rule_reports"][1]["curvilinear_normals"]
+        assert direct["constrained_variables"] == ("T",)
+        assert direct["constrained_variable_blocks"] == {"T": 4}
         if direct["row_owner_rule"] != legacy["row_owner_rule"]:
             pytest.fail("BCRecipe object changed row-owner semantics relative to legacy list[dict]")
 
@@ -688,6 +690,22 @@ class TestRecipeAnalysis:
             BCRecipe.from_config([{"type": "dirichlet", "borders": "b", "variables": "q"}])
         with pytest.raises(ValueError, match="Neumann B.C."):
             BCRecipe.from_config([{"type": "neumann", "borders": "m", "variables": "u"}])
+
+    def test_bc_recipe_constrained_variables_ignore_empty_rules(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        _, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        recipe = [
+            {"type": "dirichlet", "borders": "", "variables": "T"},
+            {"type": "dirichlet", "borders": "b", "variables": "u"},
+        ]
+
+        analysis = analyze_bc_recipe(mesh, idx, recipe)
+
+        assert analysis["constrained_variables"] == ("u",)
+        assert analysis["constrained_variable_blocks"] == {"u": 1}
 
     def test_bc_recipe_spatial_matches_legacy_dirichlet_application(
         self, small_mesh_2d, uniform_baseflow
@@ -788,6 +806,14 @@ class TestRecipeAnalysis:
         )
 
         np.testing.assert_array_equal(analysis["overlap_indices"], expected_overlap)
+        assert analysis["constrained_variables"] == ("r", "u", "v", "w", "T")
+        assert analysis["constrained_variable_blocks"] == {
+            "r": 0,
+            "u": 1,
+            "v": 2,
+            "w": 3,
+            "T": 4,
+        }
 
         dirichlet_total = np.asarray(analysis["column_zeroed_dirichlet_indices"], dtype=int)
         effective_dirichlet = np.asarray(analysis["effective_dirichlet_indices"], dtype=int)

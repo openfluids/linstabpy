@@ -333,6 +333,8 @@ def _analyze_bc_recipe_impl(
             "effective_dirichlet_indices": empty,
             "effective_neumann_indices": empty,
             "column_zeroed_dirichlet_indices": empty,
+            "constrained_variables": tuple(),
+            "constrained_variable_blocks": {},
             "overlap_indices": empty,
             "total_bc_indices": empty,
         }
@@ -341,6 +343,7 @@ def _analyze_bc_recipe_impl(
     neumann_union: set[int] = set()
     row_owner: dict[int, str] = {}
     row_owner_rule: dict[int, int] = {}
+    constrained_variable_set: set[str] = set()
     rule_reports: list[dict[str, object]] = []
 
     for rule_id, rule in enumerate(recipe.rules):
@@ -361,6 +364,9 @@ def _analyze_bc_recipe_impl(
             neumann_union.update(int(val) for val in bc_idx)
         else:
             raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
+
+        if np.asarray(bc_idx).size:
+            constrained_variable_set.update(variables)
 
         overlap_prev = np.array(
             [int(val) for val in bc_idx if int(val) in row_owner],
@@ -403,6 +409,9 @@ def _analyze_bc_recipe_impl(
         dtype=np.int64,
     )
     overlap = np.array(sorted(set(dirichlet_union) & set(neumann_union)), dtype=np.int64)
+    constrained_variables = tuple(
+        variable for variable in _VARIABLE_MAP if variable in constrained_variable_set
+    )
 
     return {
         "rule_reports": rule_reports,
@@ -411,6 +420,10 @@ def _analyze_bc_recipe_impl(
         "effective_dirichlet_indices": effective_dirichlet,
         "effective_neumann_indices": effective_neumann,
         "column_zeroed_dirichlet_indices": np.array(sorted(dirichlet_union), dtype=np.int64),
+        "constrained_variables": constrained_variables,
+        "constrained_variable_blocks": {
+            variable: _VARIABLE_MAP[variable] for variable in constrained_variables
+        },
         "overlap_indices": overlap,
         "total_bc_indices": total_bc,
         "row_owner_rule": row_owner_rule,
