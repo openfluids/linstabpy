@@ -6,6 +6,7 @@ import pytest
 import scipy.sparse as sp
 
 from linstabpy.boundary_conditions import (
+    BCRecipe,
     analyze_bc_recipe,
     apply_bc_recipe,
     apply_bc_recipe_petsc,
@@ -619,6 +620,72 @@ class TestNeumannBC:
 
 class TestRecipeAnalysis:
     """Tests for sequential mixed BC recipe analysis."""
+
+    def test_bc_recipe_value_object_preserves_legacy_analysis(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        _, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        raw_recipe = [
+            {"type": "dirichlet", "borders": "b", "variables": "T"},
+            {
+                "type": "neumann",
+                "borders": "b",
+                "variables": "T",
+                "curvilinear_normals": True,
+            },
+        ]
+
+        recipe = BCRecipe.from_config(raw_recipe)
+        legacy = analyze_bc_recipe(mesh, idx, raw_recipe)
+        direct = analyze_bc_recipe(mesh, idx, recipe)
+
+        np.testing.assert_array_equal(
+            direct["total_bc_indices"],
+            legacy["total_bc_indices"],
+        )
+        np.testing.assert_array_equal(
+            direct["column_zeroed_dirichlet_indices"],
+            legacy["column_zeroed_dirichlet_indices"],
+        )
+        np.testing.assert_array_equal(
+            direct["effective_neumann_indices"],
+            legacy["effective_neumann_indices"],
+        )
+        assert direct["rule_reports"][1]["curvilinear_normals"]
+        if direct["row_owner_rule"] != legacy["row_owner_rule"]:
+            pytest.fail("BCRecipe object changed row-owner semantics relative to legacy list[dict]")
+
+    def test_bc_recipe_value_object_preserves_legacy_apply(self, small_mesh_2d, uniform_baseflow):
+        mesh = small_mesh_2d
+        bf = uniform_baseflow
+        L0, idx = build_lnse_operator(mesh, bf, kx=0.0)
+        penalty = 23.0
+        raw_recipe = [
+            {"type": "dirichlet", "borders": "b", "variables": "T"},
+            {"type": "neumann", "borders": "b", "variables": "T"},
+        ]
+
+        recipe = BCRecipe.from_config(raw_recipe)
+        L_legacy, idx_legacy = apply_bc_recipe(L0.copy(), mesh, idx, raw_recipe, penalty=penalty)
+        L_recipe, idx_recipe = apply_bc_recipe(L0.copy(), mesh, idx, recipe, penalty=penalty)
+
+        np.testing.assert_array_equal(idx_recipe, idx_legacy)
+        diff = (L_recipe - L_legacy).tocsr()
+        assert diff.nnz == 0 or np.max(np.abs(diff.data)) < 1e-12
+
+    def test_bc_recipe_rejects_unknown_type_before_application(self):
+        with pytest.raises(ValueError, match="Unknown BC type"):
+            BCRecipe.from_config([{"type": "robin", "borders": "b", "variables": "u"}])
+
+    def test_bc_recipe_rejects_invalid_border_and_variable_before_application(self):
+        with pytest.raises(ValueError, match="Unknown border character"):
+            BCRecipe.from_config([{"type": "dirichlet", "borders": "x", "variables": "u"}])
+        with pytest.raises(ValueError, match="Unknown variable character"):
+            BCRecipe.from_config([{"type": "dirichlet", "borders": "b", "variables": "q"}])
+        with pytest.raises(ValueError, match="Neumann B.C."):
+            BCRecipe.from_config([{"type": "neumann", "borders": "m", "variables": "u"}])
 
     def test_case1_recipe_overlap_and_effective_sets(self, small_mesh_2d, uniform_baseflow):
         mesh = small_mesh_2d

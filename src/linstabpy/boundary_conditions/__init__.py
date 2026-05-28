@@ -17,6 +17,8 @@ _LAZY_EXPORTS = {
     "build_dirichlet_restriction_matrices": "linstabpy.boundary_conditions.dirichlet",
     "apply_neumann": "linstabpy.boundary_conditions.neumann",
     "apply_neumann_petsc": "linstabpy.boundary_conditions.neumann",
+    "BCRule": "linstabpy.boundary_conditions.recipe",
+    "BCRecipe": "linstabpy.boundary_conditions.recipe",
     "analyze_bc_recipe": "linstabpy.boundary_conditions.recipe",
     "apply_bc_recipe": "linstabpy.boundary_conditions.recipe",
     "apply_bc_recipe_petsc": "linstabpy.boundary_conditions.recipe",
