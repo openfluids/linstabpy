@@ -9,7 +9,16 @@ import sys
 import pytest
 
 from linstabpy.utils import petsc_core
-from linstabpy.utils._solver_cfg import SolverConfig, _mumps_petsc_options, _scfg, _scfg_bool
+from linstabpy.utils._solver_cfg import (
+    DIRECT_SOLVER_TYPES,
+    INEXACT_EIGEN_SOLVER_TYPES,
+    ITERATIVE_EIGEN_SOLVER_TYPES,
+    ITERATIVE_LINEAR_SOLVER_TYPES,
+    SolverConfig,
+    _mumps_petsc_options,
+    _scfg,
+    _scfg_bool,
+)
 
 
 def test_mumps_petsc_options_enable_hardened_defaults() -> None:
@@ -87,6 +96,29 @@ def test_solver_config_wrapper_resolves_existing_subsection_policy() -> None:
     assert SolverConfig({"linsolve": {"type": "mumps"}}).subsection("LINSTABPY_RESOLVENT") == {
         "type": "mumps"
     }
+
+
+def test_solver_config_centralizes_solver_family_policy(monkeypatch) -> None:
+    cfg = SolverConfig(
+        {
+            "linsolve": {"type": "petsc"},
+            "eigen": {"st_solver": "slepc"},
+            "root_scatter": True,
+        }
+    )
+
+    assert {"mumps", "direct", "lu"} == set(DIRECT_SOLVER_TYPES)
+    assert {"iterative", "krylov", "petsc"} == set(ITERATIVE_LINEAR_SOLVER_TYPES)
+    assert {"iterative", "krylov", "slepc"} == set(ITERATIVE_EIGEN_SOLVER_TYPES)
+    assert {"inexact"} == set(INEXACT_EIGEN_SOLVER_TYPES)
+    assert cfg.linear_solver_type("LINSTABPY_LINSOLVE") == "petsc"
+    assert cfg.eigen_st_solver() == "slepc"
+    assert cfg.root_scatter_enabled() is True
+
+    monkeypatch.setenv("LINSTABPY_LINSOLVE_TYPE", "direct")
+    monkeypatch.setenv("LINSTABPY_EIGEN_ST_SOLVER", "inexact")
+    assert SolverConfig({}).linear_solver_type("LINSTABPY_LINSOLVE") == "direct"
+    assert SolverConfig({}).eigen_st_solver() == "inexact"
 
 
 def test_petsc_matrix_mode_accepts_current_aliases(monkeypatch) -> None:

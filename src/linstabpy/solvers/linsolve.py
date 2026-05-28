@@ -20,7 +20,15 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from ..utils._solver_cfg import (
+    DIRECT_SOLVER_TYPES,
+    ITERATIVE_LINEAR_SOLVER_TYPES,
+    SolverConfig,
+    _scfg,
+    _scfg_bool,
+    _scfg_float,
+    _scfg_int,
+)
 from ._eps_helpers import _resolve_solver_cfg_subsection
 from .petsc_utils import (
     _is_petsc_matrix,
@@ -92,13 +100,18 @@ def make_linear_solver(
 
     _sub = _resolve_solver_cfg_subsection(solver_cfg, env_prefix)
 
-    solver_type = _scfg(_sub, "type", f"{env_prefix}_TYPE", "mumps")
+    config = SolverConfig.from_config(solver_cfg)
+    solver_type = (
+        config.linear_solver_type(env_prefix)
+        if config is not None
+        else _scfg(None, "type", f"{env_prefix}_TYPE", "mumps")
+    )
 
     ksp = PETSc.KSP().create(comm=A.getComm())
     ksp.setOperators(A)
     pc = ksp.getPC()
 
-    if solver_type in {"mumps", "direct", "lu"}:
+    if solver_type in DIRECT_SOLVER_TYPES:
         ignored_iterative_keys = sorted(
             key
             for key in (
@@ -152,7 +165,7 @@ def make_linear_solver(
             logger.debug("Could not query MUMPS ordering: %s", e)
             logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, nnz)
         backend = "MUMPS"
-    elif solver_type in {"iterative", "krylov", "petsc"}:
+    elif solver_type in ITERATIVE_LINEAR_SOLVER_TYPES:
         ksp_type = _scfg(_sub, "ksp_type", f"{env_prefix}_KSP_TYPE", "fgmres")
         pc_type = _scfg(_sub, "pc_type", f"{env_prefix}_PC_TYPE", "asm")
         pc_side = _scfg(_sub, "ksp_pc_side", f"{env_prefix}_KSP_PC_SIDE", "right")
