@@ -31,7 +31,13 @@ Use the matrix runner from the repository root:
 ```
 
 The runner writes a JSON report with the current git SHA, selected checks,
-commands, timeout budgets, return codes, and artifact paths. A normal group run
+commands, timeout budgets, return codes, artifact paths, and artifact
+inventories. File artifacts include size and SHA-256. Directory artifacts
+include file count, total size, and a stable SHA-256 computed from each relative
+file path, file size, and file digest. If an artifact cannot be read after the
+check finishes, the runner records an inventory error instead of discarding the
+whole report. Artifact inventory hashing has its own 60 second cap so report
+post-processing cannot make a timed check run indefinitely. A normal group run
 includes every check in that group. Use `--skip-long` only when you are doing a
 quick local smoke run that is not a Phase 0 signoff.
 
