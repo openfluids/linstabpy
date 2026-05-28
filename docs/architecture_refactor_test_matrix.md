@@ -31,15 +31,19 @@ Use the matrix runner from the repository root:
 ```
 
 The runner writes a JSON report with the current git SHA, selected checks,
-commands, return codes, and artifact paths. A normal group run includes every
-check in that group. Use `--skip-long` only when you are doing a quick local
-smoke run that is not a Phase 0 signoff.
+commands, timeout budgets, return codes, and artifact paths. A normal group run
+includes every check in that group. Use `--skip-long` only when you are doing a
+quick local smoke run that is not a Phase 0 signoff.
 
 The `phase0-golden-local` virtual group runs `phase0-local`,
 `phase0-expanded-local`, and `documentation-gates` as one local baseline suite.
 The `phase0-golden-all` virtual group also includes
 `phase0-external-assets`; it is the intended Phase 0 signoff suite once the
 optional Martini assets and fixture bundles are present.
+
+Non-long checks have a 15 minute timeout. Checks marked `long` have a 2 hour
+timeout. A timeout is reported as its own check status in the JSON report and
+must be triaged like a failed validation gate.
 
 ## Required Phases
 

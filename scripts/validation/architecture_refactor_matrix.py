@@ -20,6 +20,9 @@ DEFAULT_REPORT = (
     / "architecture_refactor_phase0"
     / "matrix_run_latest.json"
 )
+GIT_TIMEOUT_SECONDS = 10.0
+DEFAULT_CHECK_TIMEOUT_SECONDS = 900.0
+LONG_CHECK_TIMEOUT_SECONDS = 7200.0
 GROUP_ALIASES = {
     "phase0-golden-local": (
         "phase0-local",
@@ -43,6 +46,7 @@ class Check:
     command: tuple[str, ...]
     artifact: Path | None = None
     long_running: bool = False
+    timeout_seconds: float | None = None
 
 
 def _python() -> str:
@@ -282,10 +286,19 @@ def _git_sha() -> str | None:
             check=True,
             text=True,
             capture_output=True,
+            timeout=GIT_TIMEOUT_SECONDS,
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip()
+
+
+def _timeout_seconds(check: Check) -> float:
+    if check.timeout_seconds is not None:
+        return check.timeout_seconds
+    if check.long_running:
+        return LONG_CHECK_TIMEOUT_SECONDS
+    return DEFAULT_CHECK_TIMEOUT_SECONDS
 
 
 def _selected_groups(group: str | None) -> set[str] | None:
@@ -307,25 +320,45 @@ def _select(checks: Iterable[Check], *, group: str | None, ids: set[str]) -> lis
 
 
 def _run_check(check: Check, *, dry_run: bool) -> dict[str, object]:
+    timeout_seconds = _timeout_seconds(check)
     payload: dict[str, object] = {
         "id": check.id,
         "group": check.group,
         "description": check.description,
         "command": list(check.command),
         "artifact": str(check.artifact.relative_to(ROOT)) if check.artifact else None,
+        "timeout_seconds": timeout_seconds,
         "started_at_utc": _now(),
         "dry_run": dry_run,
     }
     if dry_run:
         payload.update({"returncode": None, "status": "dry-run"})
         return payload
-    result = subprocess.run(
-        check.command,
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        result = subprocess.run(
+            check.command,
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.output or ""
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+        lines = output.splitlines()
+        lines.append(f"Timed out after {timeout_seconds:g} seconds.")
+        payload.update(
+            {
+                "finished_at_utc": _now(),
+                "returncode": None,
+                "status": "timeout",
+                "output_tail": lines[-80:],
+                "artifact_exists": bool(check.artifact and check.artifact.exists()),
+            }
+        )
+        return payload
     payload.update(
         {
             "finished_at_utc": _now(),
