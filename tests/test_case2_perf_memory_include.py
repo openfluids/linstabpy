@@ -27,6 +27,7 @@ perf_memory = _load_perf_memory_module()
 load_with_includes = perf_memory._load_jsonc_with_includes
 read_assembly_metrics = perf_memory._read_assembly_metrics
 case_row = perf_memory._case_row
+parse_log_metrics = perf_memory._parse_log_metrics
 
 
 def _write(path: Path, text: str) -> None:
@@ -149,6 +150,44 @@ def test_case_row_surfaces_rank0_hot_stage_metrics():
     assert row["assemble_raw_blocks_seconds"] == 0.22
     assert row["assemble_raw_blocks_rss_delta_bytes"] == 4096
     assert row["apply_bc_rss_delta_bytes"] == 512
+
+
+def test_parse_log_metrics_extracts_runtime_stage_rss_delta():
+    metrics = parse_log_metrics(
+        [
+            "[case2] stage complete: stage=stability elapsed=12.50s rss_peak_delta_bytes=4096",
+            "[case2] stage complete: stage=resolvent_postcheck elapsed=1.25s rss_peak_delta_bytes=512",
+        ]
+    )
+
+    assert metrics["stage_timings_seconds"]["stability"] == pytest.approx(12.5)
+    assert metrics["stage_timings_seconds"]["resolvent_postcheck"] == pytest.approx(1.25)
+    assert metrics["stage_rss_delta_bytes"]["stability"] == 4096
+    assert metrics["stage_rss_delta_bytes"]["resolvent_postcheck"] == 512
+
+
+def test_case_row_surfaces_runtime_stage_rss_delta():
+    row = case_row(
+        {
+            "case_id": "baseline",
+            "status": "ok",
+            "metrics": {},
+            "parsed": {
+                "stage_timings_seconds": {"stability": 3.0, "resolvent_postcheck": 0.5},
+                "stage_rss_delta_bytes": {
+                    "stability": 8192,
+                    "resolvent_postcheck": 1024,
+                },
+            },
+            "output": {},
+            "effective_case": {},
+            "resolved_config": {},
+        }
+    )
+
+    assert row["stability_rss_delta_bytes"] == 8192
+    assert row["resolvent_postcheck_seconds"] == pytest.approx(0.5)
+    assert row["resolvent_postcheck_rss_delta_bytes"] == 1024
 
 
 def test_case_row_ignores_bad_rank_values_when_finding_rank0():

@@ -51,7 +51,10 @@ _RE_BC = re.compile(r"boundary conditions applied: bc_dofs=(\d+), nnz=(\d+)")
 _RE_STAB = re.compile(r"stability analysis finished: converged_modes=(\d+)")
 _RE_RES = re.compile(r"running resolvent: omega_target=([^\s,]+), modes=(\d+)")
 _RE_FINISH = re.compile(r"compute finished in ([0-9.]+)s")
-_RE_STAGE = re.compile(r"stage complete: stage=([a-z_]+) elapsed=([0-9.]+)s")
+_RE_STAGE = re.compile(
+    r"stage complete: stage=([a-z_]+) elapsed=([0-9.]+)s"
+    r"(?: rss_peak_delta_bytes=(\d+))?"
+)
 _RE_SOLVER = re.compile(
     r"solver setup: mpi_ranks=(\d+) st_solver=([^\s]+) "
     r"resolvent_solver=([^\s]+) root_assembly=(True|False) matrix_mode=([^\s]+)"
@@ -522,6 +525,7 @@ def _cfg_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
 def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     stage_timings: dict[str, float] = {}
+    stage_rss_delta: dict[str, int] = {}
     for line in lines:
         if "loaded case arrays:" in line:
             match = _RE_CASE_SHAPE.search(line)
@@ -566,12 +570,16 @@ def _parse_log_metrics(lines: list[str]) -> dict[str, Any]:
             match = _RE_STAGE.search(line)
             if match:
                 stage_timings[match.group(1)] = float(match.group(2))
+                if match.group(3) is not None:
+                    stage_rss_delta[match.group(1)] = int(match.group(3))
         elif "compute finished in" in line:
             match = _RE_FINISH.search(line)
             if match:
                 metrics["compute_elapsed_seconds_reported"] = float(match.group(1))
     if stage_timings:
         metrics["stage_timings_seconds"] = stage_timings
+    if stage_rss_delta:
+        metrics["stage_rss_delta_bytes"] = stage_rss_delta
     return metrics
 
 
@@ -657,6 +665,7 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
     effective = dict(case.get("effective_case", {}))
     resolved_cfg = dict(case.get("resolved_config", {}))
     stage_timings = dict(parsed.get("stage_timings_seconds", {}))
+    stage_rss_delta = dict(parsed.get("stage_rss_delta_bytes", {}))
     prepare_metrics = _assembly_stage(case, "prepare_coefficients")
     raw_metrics = _assembly_stage(case, "assemble_raw_blocks")
     bc_metrics = _assembly_stage(case, "apply_bc")
@@ -790,9 +799,12 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "nnz_post_bc": parsed.get("nnz_post_bc"),
         "bc_dofs": parsed.get("bc_dofs"),
         "load_case_seconds": stage_timings.get("load_case"),
+        "load_case_rss_delta_bytes": stage_rss_delta.get("load_case"),
         "build_mesh_seconds": stage_timings.get("build_mesh"),
+        "build_mesh_rss_delta_bytes": stage_rss_delta.get("build_mesh"),
         "assemble_operator_seconds": stage_timings.get("assemble_operator_bc"),
         "assemble_operator_bc_seconds": stage_timings.get("assemble_operator_bc"),
+        "assemble_operator_bc_rss_delta_bytes": stage_rss_delta.get("assemble_operator_bc"),
         "prepare_coefficients_seconds": prepare_metrics.get("seconds"),
         "prepare_coefficients_rss_delta_bytes": prepare_metrics.get("rss_peak_delta_bytes"),
         "assemble_raw_blocks_seconds": raw_metrics.get("seconds"),
@@ -800,9 +812,15 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "apply_bc_rss_delta_bytes": bc_metrics.get("rss_peak_delta_bytes"),
         "apply_bc_seconds": stage_timings.get("apply_bc"),
         "compute_chu_norm_seconds": stage_timings.get("compute_chu_norm"),
+        "compute_chu_norm_rss_delta_bytes": stage_rss_delta.get("compute_chu_norm"),
         "stability_seconds": stage_timings.get("stability"),
+        "stability_rss_delta_bytes": stage_rss_delta.get("stability"),
+        "resolvent_postcheck_seconds": stage_timings.get("resolvent_postcheck"),
+        "resolvent_postcheck_rss_delta_bytes": stage_rss_delta.get("resolvent_postcheck"),
         "resolvent_seconds": stage_timings.get("resolvent"),
+        "resolvent_rss_delta_bytes": stage_rss_delta.get("resolvent"),
         "save_results_seconds": stage_timings.get("save_results"),
+        "save_results_rss_delta_bytes": stage_rss_delta.get("save_results"),
         "compute_elapsed_seconds_reported": parsed.get("compute_elapsed_seconds_reported"),
         "leading_omega_real": output.get("leading_omega_real"),
         "leading_omega_imag": output.get("leading_omega_imag"),
@@ -898,9 +916,12 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "nnz_post_bc",
         "bc_dofs",
         "load_case_seconds",
+        "load_case_rss_delta_bytes",
         "build_mesh_seconds",
+        "build_mesh_rss_delta_bytes",
         "assemble_operator_seconds",
         "assemble_operator_bc_seconds",
+        "assemble_operator_bc_rss_delta_bytes",
         "prepare_coefficients_seconds",
         "prepare_coefficients_rss_delta_bytes",
         "assemble_raw_blocks_seconds",
@@ -908,9 +929,15 @@ def _write_csv(path: Path, cases: list[dict[str, Any]]) -> None:
         "apply_bc_rss_delta_bytes",
         "apply_bc_seconds",
         "compute_chu_norm_seconds",
+        "compute_chu_norm_rss_delta_bytes",
         "stability_seconds",
+        "stability_rss_delta_bytes",
+        "resolvent_postcheck_seconds",
+        "resolvent_postcheck_rss_delta_bytes",
         "resolvent_seconds",
+        "resolvent_rss_delta_bytes",
         "save_results_seconds",
+        "save_results_rss_delta_bytes",
         "compute_elapsed_seconds_reported",
         "leading_omega_real",
         "leading_omega_imag",
