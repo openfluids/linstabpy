@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import shutil
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,12 @@ class Symbol:
     required: bool
     allowlisted: bool = False
     rationale: str | None = None
+
+
+@dataclass(frozen=True)
+class FileSet:
+    files: list[Path]
+    source: str
 
 
 def _module_name(path: Path, root: Path) -> str:
@@ -54,7 +62,10 @@ def _relative_path(path: Path, root: Path) -> str:
     try:
         return path.relative_to(ROOT).as_posix()
     except ValueError:
-        return path.relative_to(root).as_posix()
+        try:
+            return path.relative_to(root).as_posix()
+        except ValueError:
+            return path.as_posix()
 
 
 def _docstring(node: ast.AST) -> str | None:
@@ -226,16 +237,91 @@ def _summary(symbols: list[Symbol]) -> dict[str, Any]:
     }
 
 
-def _payload(symbols: list[Symbol]) -> dict[str, Any]:
+def _tracked_files(repo_root: Path) -> FileSet:
+    repo_root = repo_root.resolve()
+    git = shutil.which("git")
+    if git is None:
+        return FileSet(_fallback_files(repo_root), "filesystem-fallback")
+    try:
+        result = subprocess.run(
+            [git, "ls-files"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return FileSet(_fallback_files(repo_root), "filesystem-fallback")
+    return FileSet(
+        [repo_root / line for line in result.stdout.splitlines() if line], "git-ls-files"
+    )
+
+
+def _fallback_files(repo_root: Path) -> list[Path]:
+    ignored = {".git", ".venv", ".pytest_cache", ".ruff_cache", "__pycache__", "artifacts"}
+    return sorted(
+        path
+        for path in repo_root.rglob("*")
+        if path.is_file() and not any(part in ignored for part in path.relative_to(repo_root).parts)
+    )
+
+
+def _count_matching(files: list[Path], repo_root: Path, prefix: str, suffix: str) -> int:
+    prefix_path = Path(prefix)
+    count = 0
+    for path in files:
+        try:
+            rel = path.relative_to(repo_root)
+        except ValueError:
+            continue
+        if rel.parts[: len(prefix_path.parts)] == prefix_path.parts and rel.name.endswith(suffix):
+            count += 1
+    return count
+
+
+def _file_inventory(repo_root: Path, source_root: Path) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    source_root = source_root.resolve()
+    file_set = _tracked_files(repo_root)
+    files = file_set.files
+    py_files = [path for path in files if path.suffix == ".py"]
+    source_files = [path for path in py_files if path.is_relative_to(source_root)]
     return {
+        "inventory_source": file_set.source,
+        "repo_root": _relative_path(repo_root, repo_root),
+        "source_root": _relative_path(source_root, repo_root),
+        "tracked_files": len(files),
+        "tracked_python_files": len(py_files),
+        "source_python_files": len(source_files),
+        "test_python_files": _count_matching(files, repo_root, "tests", ".py"),
+        "example_python_files": _count_matching(files, repo_root, "examples", ".py"),
+        "validation_python_files": _count_matching(files, repo_root, "scripts/validation", ".py"),
+        "documentation_markdown_files": _count_matching(files, repo_root, "docs", ".md"),
+    }
+
+
+def _payload(symbols: list[Symbol], *, repo_root: Path, source_root: Path) -> dict[str, Any]:
+    return {
+        "file_inventory": _file_inventory(repo_root, source_root),
         "summary": _summary(symbols),
         "symbols": [asdict(item) for item in symbols],
     }
 
 
-def _print_text(symbols: list[Symbol]) -> None:
-    payload = _payload(symbols)
+def _print_text(symbols: list[Symbol], *, repo_root: Path, source_root: Path) -> None:
+    payload = _payload(symbols, repo_root=repo_root, source_root=source_root)
+    files = payload["file_inventory"]
     summary = payload["summary"]
+    print(
+        "File inventory: "
+        f"tracked={files['tracked_files']} "
+        f"python={files['tracked_python_files']} "
+        f"src_python={files['source_python_files']} "
+        f"tests={files['test_python_files']} "
+        f"examples={files['example_python_files']} "
+        f"validation={files['validation_python_files']}"
+    )
     print(
         "Docstring coverage: "
         f"required={summary['required_symbols']} "
@@ -262,6 +348,7 @@ def _print_text(symbols: list[Symbol]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--allowlist", type=Path, default=None)
     parser.add_argument(
         "--require-private",
@@ -279,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
         allowlisted=_allowlist(args.allowlist),
         require_private=set(args.require_private),
     )
-    payload = _payload(symbols)
+    payload = _payload(symbols, repo_root=args.repo_root, source_root=args.root)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
@@ -288,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
-        _print_text(symbols)
+        _print_text(symbols, repo_root=args.repo_root, source_root=args.root)
     return 1 if payload["summary"]["missing_required"] else 0
 
 

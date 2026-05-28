@@ -15,6 +15,16 @@ The current AST inventory command is:
 
 Current public-symbol plus required-helper inventory:
 
+| File group | Count |
+|---|---:|
+| Tracked files | 632 |
+| Tracked Python files | 207 |
+| `src/linstabpy` Python files | 42 |
+| Test Python files | 49 |
+| Example Python files | 53 |
+| Validation Python files | 58 |
+| Documentation Markdown files | 4 |
+
 | Kind | Total | Required | Missing required |
 |---|---:|---:|---:|
 | Modules | 42 | 40 | 0 |
