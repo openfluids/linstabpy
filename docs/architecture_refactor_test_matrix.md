@@ -49,6 +49,8 @@ The `phase0-golden-all` virtual group also includes
 optional Martini assets and fixture bundles are present.
 The `safety-infrastructure` virtual group runs the equivalence gates and the
 documentation gate that protect later seam and kernel work.
+The compatibility and shim policy for those seam migrations lives in
+`docs/migration_strategy.md`.
 
 Non-long checks have a 15 minute timeout. Checks marked `long` have a 2 hour
 timeout. A timeout is reported as its own check status in the JSON report and
