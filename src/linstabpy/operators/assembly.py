@@ -1700,39 +1700,43 @@ def _build_block_csr(
     d2z_cache = _as_csr_derivative_cache(D2Z)
     d2rz_cache = _as_csr_derivative_cache(D2RZ)
 
-    row_parts: list[np.ndarray] = []
-    col_parts: list[np.ndarray] = []
-    data_parts: list[np.ndarray] = []
-
-    if has_a0:
-        diag_idx = np.arange(ngp, dtype=np.int64)
-        row_parts.append(diag_idx)
-        col_parts.append(diag_idx)
-        data_parts.append(np.asarray(a0, dtype=complex))
-
-    def _append_scaled_term(coeff: np.ndarray, cache: _CSRDerivativeCache) -> None:
-        if cache.csr.nnz == 0:
-            return
-        row_parts.append(cache.row_indices)
-        col_parts.append(cache.csr.indices)
-        data_parts.append(coeff[cache.row_indices] * cache.csr.data)
-
-    if has_ay:
-        _append_scaled_term(ay, dr_cache)
-    if has_ax:
-        _append_scaled_term(ax, dz_cache)
-    if has_ayy:
-        _append_scaled_term(ayy, d2r_cache)
-    if has_axx:
-        _append_scaled_term(axx, d2z_cache)
-    if has_axy:
-        _append_scaled_term(axy, d2rz_cache)
-
-    if not data_parts:
+    derivative_terms = [
+        (has_ay, ay, dr_cache),
+        (has_ax, ax, dz_cache),
+        (has_ayy, ayy, d2r_cache),
+        (has_axx, axx, d2z_cache),
+        (has_axy, axy, d2rz_cache),
+    ]
+    total_nnz = (ngp if has_a0 else 0) + sum(
+        cache.csr.nnz for enabled, _, cache in derivative_terms if enabled and cache.csr.nnz
+    )
+    if total_nnz == 0:
         return sp.csr_matrix((ngp, ngp), dtype=complex)
 
+    rows = np.empty(total_nnz, dtype=np.int64)
+    cols = np.empty(total_nnz, dtype=np.int64)
+    data = np.empty(total_nnz, dtype=complex)
+    offset = 0
+
+    if has_a0:
+        stop = offset + ngp
+        diag_idx = np.arange(ngp, dtype=np.int64)
+        rows[offset:stop] = diag_idx
+        cols[offset:stop] = diag_idx
+        data[offset:stop] = a0
+        offset = stop
+
+    for enabled, coeff, cache in derivative_terms:
+        if not enabled or cache.csr.nnz == 0:
+            continue
+        stop = offset + cache.csr.nnz
+        rows[offset:stop] = cache.row_indices
+        cols[offset:stop] = cache.csr.indices
+        np.multiply(coeff[cache.row_indices], cache.csr.data, out=data[offset:stop])
+        offset = stop
+
     block = sp.csr_matrix(
-        (np.concatenate(data_parts), (np.concatenate(row_parts), np.concatenate(col_parts))),
+        (data, (rows, cols)),
         shape=(ngp, ngp),
         dtype=complex,
     )
