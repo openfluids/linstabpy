@@ -40,7 +40,7 @@ from linstabpy.mesh import (
     min_points,
     sbp_stencils,
 )
-from linstabpy.mesh.mesh import _build_periodic_1d_operators
+from linstabpy.mesh.mesh import _axm_diag, _build_periodic_1d_operators
 
 # ===================================================================
 # Helper: square-mesh factory (nx == ny)
@@ -1125,3 +1125,47 @@ def test_deform_separable_xy_reuses_symmetry_y_only_family():
     np.testing.assert_allclose(full.D2y_asymm.toarray(), seq.D2y_asymm.toarray())
     np.testing.assert_allclose(full.Dxy_asymm.toarray(), seq.Dxy_asymm.toarray())
     np.testing.assert_allclose(full.Dyx_asymm.toarray(), seq.Dyx_asymm.toarray())
+
+
+def test_axm_diag_matches_explicit_sparse_diagonal_scaling():
+    """Row scaling must remain identical to the old explicit diagonal product."""
+    matrix = sparse.csr_matrix(
+        np.array(
+            [
+                [1.0, 0.0, -2.0],
+                [0.0, 3.0, 4.0],
+                [5.0, 0.0, 6.0],
+            ]
+        )
+    )
+    scale = np.array([2.0, -1.5, 0.25])
+
+    explicit = sparse.diags(scale, offsets=0, shape=matrix.shape, format="csr") @ matrix
+    scaled = _axm_diag(scale, matrix)
+
+    assert sparse.isspmatrix_csr(scaled)
+    np.testing.assert_allclose(scaled.toarray(), explicit.toarray())
+
+
+def test_axm_diag_preserves_complex_scaling():
+    matrix = sparse.csr_matrix(
+        np.array(
+            [
+                [1.0 + 2.0j, 0.0, -2.0j],
+                [0.0, 3.0 - 1.0j, 4.0],
+                [5.0, 0.0, 6.0 + 0.5j],
+            ]
+        )
+    )
+    scale = np.array([2.0 - 1.0j, -1.5, 0.25 + 0.75j])
+
+    explicit = sparse.diags(scale, offsets=0, shape=matrix.shape, format="csr") @ matrix
+    scaled = _axm_diag(scale, matrix)
+
+    np.testing.assert_allclose(scaled.toarray(), explicit.toarray())
+
+
+def test_axm_diag_rejects_wrong_row_count():
+    matrix = sparse.eye(3, format="csr")
+    with pytest.raises(ValueError, match="row count"):
+        _axm_diag(np.ones(2), matrix)
