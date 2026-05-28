@@ -1,0 +1,43 @@
+{
+  // Phase 0 local assembly-only baseline.
+  //
+  // This is intentionally not an EVP/resolvent run. It exercises the Case 2
+  // load -> mesh -> LNSE assembly -> BC -> Chu norm -> save path and records
+  // per-stage assembly metrics without spending local time in SLEPc.
+  "$include": "../_defaults.jsonc",
+  "outputs": {
+    "report_json": "output/phase0_local_assembly_baseline/case2_phase0_local_assembly_baseline_latest.json",
+    "report_csv": "output/phase0_local_assembly_baseline/case2_phase0_local_assembly_baseline_table.csv",
+    "log_dir": "output/phase0_local_assembly_baseline/logs",
+    "run_dir": "output/phase0_local_assembly_baseline/runs"
+  },
+  "defaults": {
+    "launcher": {
+      "mpi_procs": 1
+    },
+    "case_defaults": {
+      "config_overrides": {
+        "numerics": {
+          "stride_ksi": 4,
+          "stride_eta": 4,
+          "fd_order": 4,
+          "alpha_filter": "none"
+        },
+        "analysis": {
+          "run_stability": false,
+          "run_resolvent": false
+        },
+        "solver": {
+          "petsc_matrix_mode": "distributed"
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case2_stride4_fd4_assembly_only",
+      "label": "Case 2 stride-4 fd4 assembly-only baseline",
+      "enabled": true
+    }
+  ]
+}
