@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +23,13 @@ import scipy.sparse as sp
 ROOT = Path(__file__).resolve().parents[2]
 MARTINI_TOOLS = ROOT / "scripts" / "validation" / "martini2024" / "tools"
 sys.path.insert(0, str(MARTINI_TOOLS))
+DEFAULT_OUTPUT = (
+    ROOT
+    / "artifacts"
+    / "architecture_refactor"
+    / "safety_infrastructure"
+    / "lnse_equivalence_harness.json"
+)
 
 from assembly_parity import (  # noqa: E402
     _case_setup,
@@ -49,6 +57,11 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, sort_keys=True)
         fh.write("\n")
+
+
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _complex_parts(value: complex) -> dict[str, float]:
@@ -186,14 +199,14 @@ def _compare_arrays(
     passed = True
     for name in names:
         if name not in before or name not in after:
-            entries[name] = {"pass": False, "reason": "missing tensor"}
+            entries[name] = {"pass": False, "reason": "missing tensor"}  # nosec B105
             passed = False
             continue
         left = np.asarray(before[name])
         right = np.asarray(after[name])
         if left.shape != right.shape:
             entries[name] = {
-                "pass": False,
+                "pass": False,  # nosec B105
                 "reason": "shape mismatch",
                 "before_shape": list(left.shape),
                 "after_shape": list(right.shape),
@@ -323,20 +336,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT
-        / "artifacts"
-        / "architecture_refactor"
-        / "safety_infrastructure"
-        / "lnse_equivalence_harness.json",
+        default=None,
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args(argv)
 
+    dual_path_enabled = _env_flag("LINSTABPY_DUAL_PATH")
+    if args.output is not None:
+        output = args.output
+    elif "LINSTABPY_DUAL_PATH_REPORT" in os.environ:
+        output = Path(os.environ["LINSTABPY_DUAL_PATH_REPORT"])
+    else:
+        output = DEFAULT_OUTPUT
     selected = args.cases or ["2D", "axy"]
     case_reports = [_compare_case(spec, args) for spec in _case_specs(selected)]
     report = {
         "generated_at_utc": _now_utc(),
-        "mode": "current-vs-current",
+        "mode": "dual-path-current-vs-current" if dual_path_enabled else "current-vs-current",
+        "dual_path_enabled": dual_path_enabled,
+        "enabled_by": "LINSTABPY_DUAL_PATH" if dual_path_enabled else None,
         "description": (
             "Baseline and candidate paths both use the current implementation; "
             "future P1/P2/P3 paths must satisfy the same comparison contract."
@@ -344,12 +362,13 @@ def main(argv: list[str] | None = None) -> int:
         "pass": bool(all(case["pass"] for case in case_reports)),
         "cases": case_reports,
     }
-    _write_json(args.output, report)
+    _write_json(output, report)
     print(
         "LNSE equivalence harness:",
         f"pass={report['pass']}",
         f"cases={','.join(selected)}",
-        f"output={args.output}",
+        f"dual_path_enabled={dual_path_enabled}",
+        f"output={output}",
     )
     if not report["pass"] and not args.allow_fail:
         return 1

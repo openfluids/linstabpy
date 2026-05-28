@@ -151,6 +151,7 @@ The first harness slice is:
 | ID | Command | Artifact |
 |---|---|---|
 | `lnse-equivalence-harness` | `.venv/bin/python scripts/validation/lnse_equivalence_harness.py --case 2D --case axy --output artifacts/architecture_refactor/safety_infrastructure/lnse_equivalence_harness.json` | coefficient tensor, raw-operator, pre-BC operator, post-BC operator, BC-index, and eigen-sanity comparison report |
+| `lnse-dual-path-env` | `LINSTABPY_DUAL_PATH=1 LINSTABPY_DUAL_PATH_REPORT=artifacts/architecture_refactor/safety_infrastructure/lnse_dual_path_env.json .venv/bin/python scripts/validation/lnse_equivalence_harness.py --case 2D --case axy` | same comparison report, with `dual_path_enabled=true` |
 
 Before the P1/P2/P3 candidate paths exist, this command runs the current path as
 both baseline and candidate. That establishes the report schema and the exact

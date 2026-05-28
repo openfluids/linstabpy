@@ -54,6 +54,7 @@ def test_safety_infrastructure_selects_equivalence_and_documentation_gates() -> 
 
     assert groups == {"equivalence-gates", "documentation-gates"}
     assert "lnse-equivalence-harness" in ids
+    assert "lnse-dual-path-env" in ids
     assert "docstring-inventory" in ids
     assert "pytest-full" not in ids
 
