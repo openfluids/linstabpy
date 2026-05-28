@@ -2,9 +2,10 @@
 """Structured mesh with SBP finite-difference operators and integration weights.
 
 Translates the MATLAB routines ``CreateMesh.m``, ``AddDW2mesh.m``, and
-``DeformMesh.m`` from LinStab2D.  Phase 1 covers the non-periodic,
-non-symmetry case with optional Y-only mesh deformation (sufficient for
-Blasius-type problems).
+``DeformMesh.m`` from LinStab2D.  The ``Mesh`` object remains the mutable
+runtime carrier; ``MeshGeometry``, ``MeshOperators``, and ``MeshRuntimeState``
+provide grouped views so callers can state which part of the mesh contract
+they consume.
 """
 
 from __future__ import annotations

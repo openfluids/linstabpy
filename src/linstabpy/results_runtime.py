@@ -3,6 +3,8 @@
 
 Wrappers under ``examples/case_studies/`` prepare case-specific environment
 defaults and then call ``compute()`` / ``main()`` from this module.
+The saved ``.npz`` compatibility surface is listed in
+``RUNTIME_NPZ_CONTRACT_KEYS`` and described in ``docs/runtime_npz_contract.md``.
 """
 
 from __future__ import annotations
