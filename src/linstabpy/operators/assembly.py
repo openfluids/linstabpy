@@ -466,6 +466,19 @@ def _record_prepare_derivative_metrics(
     stage["derivative_vector_bytes_total"] = total_bytes
 
 
+def _recorded_derivative_matvec(
+    stage: dict[str, Any],
+    name: str,
+    operator: sp.spmatrix,
+    values: np.ndarray,
+) -> np.ndarray:
+    """Apply one sparse derivative operator and record the materialized matvec."""
+    names = stage.setdefault("derivative_matvec_names", [])
+    names.append(name)
+    stage["derivative_matvec_count"] = int(len(names))
+    return operator @ values
+
+
 def build_lnse_operator(
     mesh: Mesh,
     baseflow: BaseFlow,
@@ -1044,30 +1057,30 @@ def _prepare_coefficients(
 
         model = model.lower()
         if model == "2d":
-            dUdx = Dx @ U
-            dUdy = Dy @ U
-            dVdx = Dx @ V
-            dVdy = Dy @ V
-            dWdx = Dx @ W
-            dWdy = Dy @ W
-            dRHOdx = Dx @ RHO
-            dRHOdy = Dy @ RHO
-            dTdx = Dx @ T
-            dTdy = Dy @ T
-            dPdx = Dx @ P
-            dPdy = Dy @ P
+            dUdx = _recorded_derivative_matvec(stage, "dUdx", Dx, U)
+            dUdy = _recorded_derivative_matvec(stage, "dUdy", Dy, U)
+            dVdx = _recorded_derivative_matvec(stage, "dVdx", Dx, V)
+            dVdy = _recorded_derivative_matvec(stage, "dVdy", Dy, V)
+            dWdx = _recorded_derivative_matvec(stage, "dWdx", Dx, W)
+            dWdy = _recorded_derivative_matvec(stage, "dWdy", Dy, W)
+            dRHOdx = _recorded_derivative_matvec(stage, "dRHOdx", Dx, RHO)
+            dRHOdy = _recorded_derivative_matvec(stage, "dRHOdy", Dy, RHO)
+            dTdx = _recorded_derivative_matvec(stage, "dTdx", Dx, T)
+            dTdy = _recorded_derivative_matvec(stage, "dTdy", Dy, T)
+            dPdx = _recorded_derivative_matvec(stage, "dPdx", Dx, P)
+            dPdy = _recorded_derivative_matvec(stage, "dPdy", Dy, P)
 
-            d2Udx2 = D2x @ U
-            d2Udy2 = D2y @ U
-            d2Vdx2 = D2x @ V
-            d2Vdy2 = D2y @ V
-            d2Wdx2 = D2x @ W
-            d2Wdy2 = D2y @ W
-            d2Tdx2 = D2x @ T
-            d2Tdy2 = D2y @ T
+            d2Udx2 = _recorded_derivative_matvec(stage, "d2Udx2", D2x, U)
+            d2Udy2 = _recorded_derivative_matvec(stage, "d2Udy2", D2y, U)
+            d2Vdx2 = _recorded_derivative_matvec(stage, "d2Vdx2", D2x, V)
+            d2Vdy2 = _recorded_derivative_matvec(stage, "d2Vdy2", D2y, V)
+            d2Wdx2 = _recorded_derivative_matvec(stage, "d2Wdx2", D2x, W)
+            d2Wdy2 = _recorded_derivative_matvec(stage, "d2Wdy2", D2y, W)
+            d2Tdx2 = _recorded_derivative_matvec(stage, "d2Tdx2", D2x, T)
+            d2Tdy2 = _recorded_derivative_matvec(stage, "d2Tdy2", D2y, T)
 
-            d2Udxdy = Dx @ dUdy
-            d2Vdxdy = Dx @ dVdy
+            d2Udxdy = _recorded_derivative_matvec(stage, "d2Udxdy", Dx, dUdy)
+            d2Vdxdy = _recorded_derivative_matvec(stage, "d2Vdxdy", Dx, dVdy)
 
             _record_prepare_derivative_metrics(
                 stage,
@@ -1148,26 +1161,26 @@ def _prepare_coefficients(
             V_c = baseflow.W.ravel(order="F")[p]
             W_c = baseflow.U.ravel(order="F")[p]
 
-            dUdr = Dy @ U_c
-            dVdr = Dy @ V_c
-            dWdr = Dy @ W_c
-            dRHOdr = Dy @ RHO
-            dTdr = Dy @ T
-            dUdz = Dx @ U_c
-            dVdz = Dx @ V_c
-            dWdz = Dx @ W_c
-            dRHOdz = Dx @ RHO
-            dTdz = Dx @ T
+            dUdr = _recorded_derivative_matvec(stage, "dUdr", Dy, U_c)
+            dVdr = _recorded_derivative_matvec(stage, "dVdr", Dy, V_c)
+            dWdr = _recorded_derivative_matvec(stage, "dWdr", Dy, W_c)
+            dRHOdr = _recorded_derivative_matvec(stage, "dRHOdr", Dy, RHO)
+            dTdr = _recorded_derivative_matvec(stage, "dTdr", Dy, T)
+            dUdz = _recorded_derivative_matvec(stage, "dUdz", Dx, U_c)
+            dVdz = _recorded_derivative_matvec(stage, "dVdz", Dx, V_c)
+            dWdz = _recorded_derivative_matvec(stage, "dWdz", Dx, W_c)
+            dRHOdz = _recorded_derivative_matvec(stage, "dRHOdz", Dx, RHO)
+            dTdz = _recorded_derivative_matvec(stage, "dTdz", Dx, T)
 
-            d2Udr2 = D2y @ U_c
-            d2Vdr2 = D2y @ V_c
-            d2Wdr2 = D2y @ W_c
-            d2Udz2 = D2x @ U_c
-            d2Vdz2 = D2x @ V_c
-            d2Wdz2 = D2x @ W_c
+            d2Udr2 = _recorded_derivative_matvec(stage, "d2Udr2", D2y, U_c)
+            d2Vdr2 = _recorded_derivative_matvec(stage, "d2Vdr2", D2y, V_c)
+            d2Wdr2 = _recorded_derivative_matvec(stage, "d2Wdr2", D2y, W_c)
+            d2Udz2 = _recorded_derivative_matvec(stage, "d2Udz2", D2x, U_c)
+            d2Vdz2 = _recorded_derivative_matvec(stage, "d2Vdz2", D2x, V_c)
+            d2Wdz2 = _recorded_derivative_matvec(stage, "d2Wdz2", D2x, W_c)
 
-            d2Udrz = Dx @ dUdr
-            d2Wdrz = Dx @ dWdr
+            d2Udrz = _recorded_derivative_matvec(stage, "d2Udrz", Dx, dUdr)
+            d2Wdrz = _recorded_derivative_matvec(stage, "d2Wdrz", Dx, dWdr)
 
             _record_prepare_derivative_metrics(
                 stage,
@@ -1247,6 +1260,7 @@ def _prepare_coefficients(
             ngp=int(ngp),
             ndof=int(5 * ngp),
             derivative_vector_count=stage.get("derivative_vector_count"),
+            derivative_matvec_count=stage.get("derivative_matvec_count"),
             derivative_vector_bytes_total=stage.get("derivative_vector_bytes_total"),
             coeff_tensor_bytes_by_array=coeff_tensor_bytes,
             coeff_tensor_bytes_total=coeff_tensor_bytes_total,

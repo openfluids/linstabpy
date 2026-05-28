@@ -937,10 +937,12 @@ class TestOperatorAssembly:
 
         assert stages["prepare_coefficients"]["ngp"] == small_mesh_2d.ngp
         assert stages["prepare_coefficients"]["derivative_vector_count"] == 22
+        assert stages["prepare_coefficients"]["derivative_matvec_count"] == 22
         assert (
             stages["prepare_coefficients"]["derivative_vector_bytes_total"]
             == 22 * small_mesh_2d.ngp * np.dtype(float).itemsize
         )
+        assert "dPdx" in stages["prepare_coefficients"]["derivative_matvec_names"]
         assert "d2Udxdy" in stages["prepare_coefficients"]["derivative_vector_bytes_by_name"]
         assert "d2Wdxdy" not in stages["prepare_coefficients"]["derivative_vector_bytes_by_name"]
         assert stages["assemble_raw_blocks"]["nnz"] > 0
@@ -977,10 +979,12 @@ class TestOperatorAssembly:
         report = json.loads(output.read_text(encoding="utf-8"))
         prepare = report["stages"]["prepare_coefficients"]
         assert prepare["derivative_vector_count"] == 18
+        assert prepare["derivative_matvec_count"] == 18
         assert (
             prepare["derivative_vector_bytes_total"]
             == 18 * small_mesh_2d.ngp * np.dtype(float).itemsize
         )
+        assert "d2Wdrz" in prepare["derivative_matvec_names"]
         assert "d2Udrz" in prepare["derivative_vector_bytes_by_name"]
         assert "d2Tdr2" not in prepare["derivative_vector_bytes_by_name"]
         assert "d2Tdz2" not in prepare["derivative_vector_bytes_by_name"]
