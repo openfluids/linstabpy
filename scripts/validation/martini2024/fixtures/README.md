@@ -63,9 +63,19 @@ LINSTABPY_WITH_H5PY=1 ./install.sh
 ```
 
 If the raw exports do not exist, regenerate them from the upstream MATLAB
-reference examples, then copy only the exported `.mat` result/log files into
-`martini_examples/`. The public repository does not bundle MATLAB, the upstream
-checkout, or heavyweight raw exports.
+reference examples. The helper below writes a MATLAB runner into `artifacts/`
+and saves only the result/log variables needed by the parity comparator:
+
+```bash
+.venv/bin/python scripts/validation/martini2024/tools/generate_martini_matlab_exports.py \
+    --source-dir /path/to/LinStab2D/examples-or-baseflows \
+    --output-dir martini_examples
+```
+
+Use `--matlab /path/to/matlab` when MATLAB is not on `PATH`. Add `--dry-run` to
+inspect the generated runner and command without invoking MATLAB. The public
+repository does not bundle MATLAB, the upstream checkout, or heavyweight raw
+exports.
 
 After extraction, run the parity gate:
 
