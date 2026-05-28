@@ -8,11 +8,16 @@ curvilinear coordinates while preserving sparse structure.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.sparse as sp
 
 from ..mesh.mesh import Mesh
 from .dirichlet import _BORDER_MAP, _VARIABLE_MAP, _zero_rows_csr
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
+    from petsc4py import PETSc
 
 _NEUMANN_BORDER_SIGNS: dict[str, float] = {
     "l": -1.0,
@@ -90,6 +95,9 @@ def _collect_neumann_indices(
     raw_index_mesh_array = np.concatenate(raw_index_mesh)
     raw_borders_array = np.concatenate(raw_borders)
 
+    # A corner shared by two Neumann borders has two possible outward normals.
+    # Treat that as ambiguous instead of silently choosing whichever border was
+    # listed first in the recipe.
     order = np.argsort(raw_index_set_array, kind="mergesort")
     sorted_index_set = raw_index_set_array[order]
     sorted_borders = raw_borders_array[order]
@@ -138,6 +146,9 @@ def _build_neumann_rows(
             imesh = int(imesh)
             border = str(border)
             sign = _NEUMANN_BORDER_SIGNS[border]
+            # On mapped grids, use the metric terms already carried by the
+            # mesh. These rows follow the computational-boundary normal, not a
+            # Cartesian shortcut through X/Y gradients.
             if border in ("l", "r"):
                 row_scale_x = sign * mesh.J22[imesh]
                 row_scale_y = sign * (-mesh.J21[imesh])
@@ -165,6 +176,9 @@ def _build_neumann_rows(
             imesh = int(imesh)
             border = str(border)
             sign = _NEUMANN_BORDER_SIGNS[border]
+            # For ordinary deformed meshes, derive the normal from the mapped
+            # coordinates. This keeps Neumann rows consistent with the actual
+            # mesh geometry without requiring explicit metric arrays.
             if border in ("l", "r"):
                 row_scale_x = sign * gradY_y[imesh]
                 row_scale_y = sign * (-gradY_x[imesh])
@@ -261,6 +275,8 @@ def apply_neumann_petsc(
     if index_set.min() < 0 or index_set.max() >= L0.getSize()[0]:
         raise ValueError("Neumann indices are out of bounds for the PETSc matrix")
 
+    # Neumann replaces rows only. Columns stay coupled because the boundary
+    # equation is a derivative condition on the same variable block.
     L0.zeroRows(np.asarray(index_set, dtype=np.int32), diag=0.0)
     # Assemble after zeroRows before switching to INSERT_VALUES.
     L0.assemble()

@@ -145,11 +145,10 @@ def apply_dirichlet(
 
     bc_indices = np.unique(np.concatenate(dof_list))
 
-    # ------------------------------------------------------------------
-    # 2. Zero rows and columns, then set diagonal to penalty
-    # ------------------------------------------------------------------
-    # Direct data-array manipulation avoids SparseEfficiencyWarning
-    # that fancy indexing on CSC/CSR would trigger.
+    # Dirichlet rows remove the equation, and Dirichlet columns remove the
+    # constrained variable from every interior equation. Keep the column-zeroing
+    # here rather than in the recipe layer so SciPy and PETSc semantics remain
+    # the same as MATLAB's row/column replacement.
     L0 = L0.tocsr()
     _zero_rows_csr(L0, bc_indices)
     L0 = L0.tocsc()
@@ -187,6 +186,8 @@ def apply_dirichlet_petsc(
         raise ValueError("Dirichlet indices are out of bounds for the PETSc matrix")
 
     L0.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    # PETSc provides the exact row/column operation needed for Dirichlet
+    # elimination; do not replace this with row-only zeroing.
     L0.zeroRowsColumns(np.asarray(bc_indices, dtype=np.int32), diag=complex(penalty))
     L0.assemble()
     return L0, bc_indices
@@ -245,6 +246,8 @@ def apply_dirichlet_spatial(
     n = ngp * 5
     bc_indices = np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
 
+    # In the spatial EVP each physical boundary constraint appears in both
+    # halves of the doubled state vector.
     def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
         mat = mat.tocsr()
         _zero_rows_csr(mat, bc_indices)
