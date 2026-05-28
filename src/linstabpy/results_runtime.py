@@ -653,6 +653,173 @@ def _stage_compute_chu_norm(
 
 
 @dataclass(frozen=True)
+class _AssemblyStageResult:
+    L0: object
+    L0_resolv: object
+    idx: dict
+    bc_indices: np.ndarray
+    total_bc_indices: np.ndarray
+    effective_dirichlet_indices: np.ndarray
+    effective_neumann_indices: np.ndarray
+    overlap_indices: np.ndarray
+    column_zeroed_dirichlet_indices: np.ndarray
+    constrained_dirichlet_indices: np.ndarray
+
+
+def _stage_assemble_operators(
+    *,
+    mesh: Mesh,
+    baseflow,
+    beta: float,
+    bc_recipe,
+    penalty: float,
+    assembly_backend,
+    solver_cfg: dict,
+    eps_stab: float,
+    eps_resolv: float,
+    run_resolvent: bool,
+    use_root_operator: bool,
+    rank: int,
+    reduce_dirichlet_set: str,
+    heartbeat_seconds: float,
+) -> _AssemblyStageResult:
+    """Assemble stability/resolvent operators and derive BC provenance arrays."""
+    if use_root_operator and rank != 0:
+        # Root-assembly mode for MPI scalability:
+        # non-root ranks keep only a shape-compatible placeholder; the real
+        # SciPy->PETSc operator transfer happens from root inside eigenvalue.py.
+        ndof = mesh.ngp * 5
+        L0 = sp.csc_matrix((ndof, ndof), dtype=complex)
+        idx = {
+            "rho_j": np.arange(0, mesh.ngp, dtype=np.int64),
+            "u_j": np.arange(mesh.ngp, 2 * mesh.ngp, dtype=np.int64),
+            "v_j": np.arange(2 * mesh.ngp, 3 * mesh.ngp, dtype=np.int64),
+            "w_j": np.arange(3 * mesh.ngp, 4 * mesh.ngp, dtype=np.int64),
+            "T_j": np.arange(4 * mesh.ngp, 5 * mesh.ngp, dtype=np.int64),
+        }
+        bc_indices = np.array([], dtype=np.int64)
+        L0_resolv = L0
+        bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
+    else:
+        stage_start = _stage_start()
+        _log("assembling LNSE operator")
+        with _stage_heartbeat("assemble_operator_bc", interval_seconds=heartbeat_seconds):
+            lnse_system = build_lnse_system_result(
+                mesh,
+                baseflow,
+                kx=beta,
+                model="2D",
+                bc_recipe=bc_recipe,
+                bc_penalty=penalty,
+                backend=assembly_backend,
+                solver_cfg=solver_cfg,
+                dissipation_epsilon=eps_stab,
+            )
+            L0 = lnse_system.operator
+            idx = lnse_system.idx
+            bc_indices = lnse_system.bc_indices
+        nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
+        _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
+        _log_stage("assemble_operator_bc", stage_start)
+
+        if run_resolvent and eps_resolv != eps_stab:
+            stage_start = _stage_start()
+            _log(f"assembling separate resolvent LNSE operator (dissipation_epsilon={eps_resolv})")
+            with _stage_heartbeat(
+                "assemble_resolvent_operator_bc",
+                interval_seconds=heartbeat_seconds,
+            ):
+                resolvent_system = build_lnse_system_result(
+                    mesh,
+                    baseflow,
+                    kx=beta,
+                    model="2D",
+                    bc_recipe=bc_recipe,
+                    bc_penalty=penalty,
+                    backend=assembly_backend,
+                    solver_cfg=solver_cfg,
+                    dissipation_epsilon=eps_resolv,
+                )
+                L0_resolv = resolvent_system.operator
+            nnz_resolv = (
+                int(L0_resolv.getInfo()["nz_used"])
+                if hasattr(L0_resolv, "getInfo")
+                else int(L0_resolv.nnz)
+            )
+            _log(
+                "resolvent operator assembled with BCs: "
+                f"shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz_resolv}"
+            )
+            _log_stage("assemble_resolvent_operator_bc", stage_start)
+        elif run_resolvent:
+            L0_resolv = L0
+            _log(
+                "reusing stability LNSE operator for resolvent "
+                f"(eps_stab == eps_resolv == {eps_stab})"
+            )
+        else:
+            L0_resolv = L0
+
+        bc_analysis = (
+            lnse_system.bc_analysis
+            if lnse_system.bc_analysis is not None
+            else analyze_bc_recipe(mesh, idx, bc_recipe)
+        )
+
+    effective_dirichlet_indices = np.asarray(
+        bc_analysis.get("effective_dirichlet_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    effective_neumann_indices = np.asarray(
+        bc_analysis.get("effective_neumann_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    overlap_indices = np.asarray(
+        bc_analysis.get("overlap_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    column_zeroed_dirichlet_indices = np.asarray(
+        bc_analysis.get("column_zeroed_dirichlet_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    total_bc_indices = np.asarray(
+        bc_analysis.get("total_bc_indices", np.array([], dtype=np.int64)),
+        dtype=np.int64,
+    )
+    constrained_dirichlet_indices = (
+        column_zeroed_dirichlet_indices
+        if reduce_dirichlet_set == "column_zeroed"
+        else effective_dirichlet_indices
+    )
+    if rank == 0:
+        if total_bc_indices.size and not np.array_equal(np.unique(bc_indices), total_bc_indices):
+            _log(
+                "warning: analyzed BC index set differs from assembled BC index set "
+                f"(assembled={np.unique(bc_indices).size}, analyzed={total_bc_indices.size})"
+            )
+        _log(
+            "bc analysis: "
+            f"dirichlet_total={column_zeroed_dirichlet_indices.size} "
+            f"effective_dirichlet={effective_dirichlet_indices.size} "
+            f"effective_neumann={effective_neumann_indices.size} "
+            f"cross_type_overlap={overlap_indices.size}"
+        )
+
+    return _AssemblyStageResult(
+        L0=L0,
+        L0_resolv=L0_resolv,
+        idx=idx,
+        bc_indices=bc_indices,
+        total_bc_indices=total_bc_indices,
+        effective_dirichlet_indices=effective_dirichlet_indices,
+        effective_neumann_indices=effective_neumann_indices,
+        overlap_indices=overlap_indices,
+        column_zeroed_dirichlet_indices=column_zeroed_dirichlet_indices,
+        constrained_dirichlet_indices=constrained_dirichlet_indices,
+    )
+
+
+@dataclass(frozen=True)
 class _ResolventStageResult:
     gains: np.ndarray
     responses: np.ndarray
@@ -739,6 +906,169 @@ def _stage_run_resolvent(
     return _ResolventStageResult(gains, responses, forcings, rho_fwd, rho_adj)
 
 
+@dataclass(frozen=True)
+class _StabilityStageResult:
+    omega: np.ndarray
+    direct_modes: np.ndarray
+    stability_info: dict[str, object]
+
+
+def _stage_run_stability(
+    *,
+    run_stability: bool,
+    use_raw_eigs: bool,
+    reduce_dirichlet: bool,
+    use_root_operator: bool,
+    reduce_dirichlet_set: str,
+    constrained_dirichlet_indices: np.ndarray,
+    effective_dirichlet_indices: np.ndarray,
+    effective_neumann_indices: np.ndarray,
+    overlap_indices: np.ndarray,
+    L0,
+    W_diag: np.ndarray,
+    omega_target: complex,
+    n_modes: int,
+    mesh: Mesh,
+    solver_cfg: dict,
+    total_bc_indices: np.ndarray,
+    stability_acceptance_conjugate_aware: bool,
+    heartbeat_seconds: float,
+) -> _StabilityStageResult:
+    """Run the optional temporal stability stage and postcheck returned modes."""
+    omega = np.array([], dtype=complex)
+    direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
+    stability_info: dict[str, object] = {}
+    if not run_stability:
+        return _StabilityStageResult(omega, direct_modes, stability_info)
+
+    stage_start = _stage_start()
+    stability_meta = {
+        "reduce_dirichlet": bool(reduce_dirichlet and not use_root_operator),
+        "reduce_dirichlet_set": reduce_dirichlet_set,
+        "effective_dirichlet_count": int(effective_dirichlet_indices.size),
+        "constrained_dirichlet_count": int(constrained_dirichlet_indices.size),
+        "effective_neumann_count": int(effective_neumann_indices.size),
+        "cross_type_overlap_count": int(overlap_indices.size),
+    }
+    stability_info.update(stability_meta)
+    if use_raw_eigs:
+        _log(
+            "running raw eigensolve on L0 "
+            f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
+        )
+        with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
+            omega, direct_modes, stability_info = _eigs_near_target(
+                L0.tocsc(),
+                n_modes=n_modes,
+                target=omega_target,
+                solver_cfg=solver_cfg,
+                return_info=True,
+            )
+        order = np.argsort(np.abs(omega - omega_target))
+        omega = omega[order]
+        direct_modes = direct_modes[:, order]
+        for key in (
+            "residual_estimates",
+            "residual_absolute",
+            "residual_relative",
+            "residual_backward",
+        ):
+            residuals_raw = np.asarray(
+                stability_info.get(key, np.array([], dtype=float)),
+                dtype=float,
+            )
+            if residuals_raw.size == omega.size:
+                stability_info[key] = residuals_raw[order]
+    else:
+        if reduce_dirichlet and use_root_operator:
+            _log("reduced stability EVP requested but disabled with root-assembly mode")
+        if reduce_dirichlet and constrained_dirichlet_indices.size and not use_root_operator:
+            _log(
+                "running reduced temporal eigensolve on i*L0 "
+                f"(reduce_set={reduce_dirichlet_set}, constrained={constrained_dirichlet_indices.size}, modes={n_modes})"
+            )
+            L0_stab, W_stab, free_dofs = _restrict_operator_for_stability(
+                L0,
+                W_diag,
+                constrained_dirichlet_indices,
+            )
+            try:
+                with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
+                    omega, modes_reduced, stability_info = temporal_eigenvalues(
+                        L0_stab,
+                        n_modes=n_modes,
+                        target=omega_target,
+                        W_diag=W_stab,
+                        solver_cfg=solver_cfg,
+                        return_info=True,
+                    )
+            finally:
+                if _is_petsc_matrix(L0_stab):
+                    L0_stab.destroy()
+            direct_modes = _expand_reduced_modes(modes_reduced, mesh.ngp * 5, free_dofs)
+            stability_info["free_dof_count"] = int(free_dofs.size)
+            stability_info["constrained_dirichlet_indices"] = np.asarray(
+                constrained_dirichlet_indices, dtype=np.int64
+            )
+        else:
+            _log(
+                "running temporal eigensolve on i*L0 "
+                f"(MATLAB convention): target={omega_target:.8g}, modes={n_modes}"
+            )
+            with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
+                omega, direct_modes, stability_info = temporal_eigenvalues(
+                    L0,
+                    n_modes=n_modes,
+                    target=omega_target,
+                    W_diag=W_diag,
+                    solver_cfg=solver_cfg,
+                    return_info=True,
+                )
+    if not use_root_operator:
+        stability_info.update(
+            _postcheck_stability_modes(
+                L0,
+                omega,
+                direct_modes,
+                target=omega_target,
+                bc_indices=total_bc_indices,
+                constrained_dirichlet_indices=constrained_dirichlet_indices,
+                conjugate_aware=stability_acceptance_conjugate_aware,
+            )
+        )
+    stability_info.update(stability_meta)
+    _log(f"stability analysis finished: converged_modes={omega.size}")
+    residuals = np.asarray(
+        stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float
+    )
+    if residuals.size:
+        finite = residuals[np.isfinite(residuals)]
+        if finite.size:
+            _log(
+                "stability eig convergence: "
+                f"nev={stability_info.get('nev_requested')} "
+                f"ncv={stability_info.get('ncv_used')} "
+                f"nconv={stability_info.get('nconv')} "
+                f"eps_iterations={stability_info.get('eps_iterations')} "
+                f"max_residual={float(np.max(finite)):.3e} "
+                f"median_residual={float(np.median(finite)):.3e}"
+            )
+    postcheck_rel = np.asarray(
+        stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
+        dtype=float,
+    )
+    if postcheck_rel.size:
+        finite_post = postcheck_rel[np.isfinite(postcheck_rel)]
+        if finite_post.size:
+            _log(
+                "stability postcheck: "
+                f"max_rel={float(np.max(finite_post)):.3e} "
+                f"median_rel={float(np.median(finite_post)):.3e}"
+            )
+    _log_stage("stability", stage_start)
+    return _StabilityStageResult(omega, direct_modes, stability_info)
+
+
 def compute() -> None:
     """Run the shared case pipeline and write the requested NPZ artifact."""
     t0 = time.perf_counter()
@@ -749,7 +1079,6 @@ def compute() -> None:
     size = comm.getSize()
 
     config_source = _stage_load_runtime_config()
-    config_path = config_source.config_path
     config = config_source.config
     config_hash = config_source.config_hash
     git_sha = config_source.git_sha
@@ -991,123 +1320,32 @@ def compute() -> None:
             {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
         ],
     )
-    if use_root_operator and rank != 0:
-        # Root-assembly mode for MPI scalability:
-        # non-root ranks keep only a shape-compatible placeholder; the real
-        # SciPy->PETSc operator transfer happens from root inside eigenvalue.py.
-        ndof = mesh.ngp * 5
-        L0 = sp.csc_matrix((ndof, ndof), dtype=complex)
-        idx = {
-            "rho_j": np.arange(0, mesh.ngp, dtype=np.int64),
-            "u_j": np.arange(mesh.ngp, 2 * mesh.ngp, dtype=np.int64),
-            "v_j": np.arange(2 * mesh.ngp, 3 * mesh.ngp, dtype=np.int64),
-            "w_j": np.arange(3 * mesh.ngp, 4 * mesh.ngp, dtype=np.int64),
-            "T_j": np.arange(4 * mesh.ngp, 5 * mesh.ngp, dtype=np.int64),
-        }
-        bc_indices = np.array([], dtype=np.int64)
-        L0_resolv = L0
-    else:
-        stage_start = _stage_start()
-        _log("assembling LNSE operator")
-        with _stage_heartbeat("assemble_operator_bc", interval_seconds=heartbeat_seconds):
-            lnse_system = build_lnse_system_result(
-                mesh,
-                baseflow,
-                kx=beta,
-                model="2D",
-                bc_recipe=bc_recipe,
-                bc_penalty=penalty,
-                backend=assembly_backend,
-                solver_cfg=solver_cfg,
-                dissipation_epsilon=eps_stab,
-            )
-            L0 = lnse_system.operator
-            idx = lnse_system.idx
-            bc_indices = lnse_system.bc_indices
-        nnz = int(L0.getInfo()["nz_used"]) if hasattr(L0, "getInfo") else int(L0.nnz)
-        _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
-        _log_stage("assemble_operator_bc", stage_start)
-        if run_resolvent and eps_resolv != eps_stab:
-            stage_start = _stage_start()
-            _log(f"assembling separate resolvent LNSE operator (dissipation_epsilon={eps_resolv})")
-            with _stage_heartbeat(
-                "assemble_resolvent_operator_bc",
-                interval_seconds=heartbeat_seconds,
-            ):
-                resolvent_system = build_lnse_system_result(
-                    mesh,
-                    baseflow,
-                    kx=beta,
-                    model="2D",
-                    bc_recipe=bc_recipe,
-                    bc_penalty=penalty,
-                    backend=assembly_backend,
-                    solver_cfg=solver_cfg,
-                    dissipation_epsilon=eps_resolv,
-                )
-                L0_resolv = resolvent_system.operator
-            nnz_resolv = (
-                int(L0_resolv.getInfo()["nz_used"])
-                if hasattr(L0_resolv, "getInfo")
-                else int(L0_resolv.nnz)
-            )
-            _log(
-                "resolvent operator assembled with BCs: "
-                f"shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz_resolv}"
-            )
-            _log_stage("assemble_resolvent_operator_bc", stage_start)
-        elif run_resolvent:
-            L0_resolv = L0
-            _log(
-                "reusing stability LNSE operator for resolvent "
-                f"(eps_stab == eps_resolv == {eps_stab})"
-            )
-        else:
-            L0_resolv = L0
-
-    bc_analysis = (
-        lnse_system.bc_analysis
-        if "lnse_system" in locals() and lnse_system.bc_analysis is not None
-        else analyze_bc_recipe(mesh, idx, bc_recipe)
+    assembly_result = _stage_assemble_operators(
+        mesh=mesh,
+        baseflow=baseflow,
+        beta=beta,
+        bc_recipe=bc_recipe,
+        penalty=penalty,
+        assembly_backend=assembly_backend,
+        solver_cfg=solver_cfg,
+        eps_stab=eps_stab,
+        eps_resolv=eps_resolv,
+        run_resolvent=run_resolvent,
+        use_root_operator=use_root_operator,
+        rank=rank,
+        reduce_dirichlet_set=reduce_dirichlet_set,
+        heartbeat_seconds=heartbeat_seconds,
     )
-    effective_dirichlet_indices = np.asarray(
-        bc_analysis.get("effective_dirichlet_indices", np.array([], dtype=np.int64)),
-        dtype=np.int64,
-    )
-    effective_neumann_indices = np.asarray(
-        bc_analysis.get("effective_neumann_indices", np.array([], dtype=np.int64)),
-        dtype=np.int64,
-    )
-    overlap_indices = np.asarray(
-        bc_analysis.get("overlap_indices", np.array([], dtype=np.int64)),
-        dtype=np.int64,
-    )
-    column_zeroed_dirichlet_indices = np.asarray(
-        bc_analysis.get("column_zeroed_dirichlet_indices", np.array([], dtype=np.int64)),
-        dtype=np.int64,
-    )
-    total_bc_indices = np.asarray(
-        bc_analysis.get("total_bc_indices", np.array([], dtype=np.int64)),
-        dtype=np.int64,
-    )
-    constrained_dirichlet_indices = (
-        column_zeroed_dirichlet_indices
-        if reduce_dirichlet_set == "column_zeroed"
-        else effective_dirichlet_indices
-    )
-    if rank == 0:
-        if total_bc_indices.size and not np.array_equal(np.unique(bc_indices), total_bc_indices):
-            _log(
-                "warning: analyzed BC index set differs from assembled BC index set "
-                f"(assembled={np.unique(bc_indices).size}, analyzed={total_bc_indices.size})"
-            )
-        _log(
-            "bc analysis: "
-            f"dirichlet_total={column_zeroed_dirichlet_indices.size} "
-            f"effective_dirichlet={effective_dirichlet_indices.size} "
-            f"effective_neumann={effective_neumann_indices.size} "
-            f"cross_type_overlap={overlap_indices.size}"
-        )
+    L0 = assembly_result.L0
+    L0_resolv = assembly_result.L0_resolv
+    idx = assembly_result.idx
+    bc_indices = assembly_result.bc_indices
+    total_bc_indices = assembly_result.total_bc_indices
+    effective_dirichlet_indices = assembly_result.effective_dirichlet_indices
+    effective_neumann_indices = assembly_result.effective_neumann_indices
+    overlap_indices = assembly_result.overlap_indices
+    column_zeroed_dirichlet_indices = assembly_result.column_zeroed_dirichlet_indices
+    constrained_dirichlet_indices = assembly_result.constrained_dirichlet_indices
 
     # ------------------------------------------------------------------
     # 5) Build Chu energy norm weights. These weights are required for
@@ -1139,141 +1377,34 @@ def compute() -> None:
     resolvent_rho_fwd = resolvent_result.rho_fwd
     resolvent_rho_adj = resolvent_result.rho_adj
 
-    omega = np.array([], dtype=complex)
-    direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
-    stability_info: dict[str, object] = {}
-
     # ------------------------------------------------------------------
     # 7) Optional stability analysis.
     #    - raw_eigs: eig(L0) directly (diagnostic-only path, not MATLAB parity)
     #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
     # ------------------------------------------------------------------
-    if run_stability:
-        stage_start = _stage_start()
-        stability_meta = {
-            "reduce_dirichlet": bool(reduce_dirichlet and not use_root_operator),
-            "reduce_dirichlet_set": reduce_dirichlet_set,
-            "effective_dirichlet_count": int(effective_dirichlet_indices.size),
-            "constrained_dirichlet_count": int(constrained_dirichlet_indices.size),
-            "effective_neumann_count": int(effective_neumann_indices.size),
-            "cross_type_overlap_count": int(overlap_indices.size),
-        }
-        stability_info.update(stability_meta)
-        if use_raw_eigs:
-            _log(
-                "running raw eigensolve on L0 "
-                f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
-            )
-            with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
-                omega, direct_modes, stability_info = _eigs_near_target(
-                    L0.tocsc(),
-                    n_modes=n_modes,
-                    target=omega_target,
-                    solver_cfg=solver_cfg,
-                    return_info=True,
-                )
-            order = np.argsort(np.abs(omega - omega_target))
-            omega = omega[order]
-            direct_modes = direct_modes[:, order]
-            for key in (
-                "residual_estimates",
-                "residual_absolute",
-                "residual_relative",
-                "residual_backward",
-            ):
-                residuals_raw = np.asarray(
-                    stability_info.get(key, np.array([], dtype=float)),
-                    dtype=float,
-                )
-                if residuals_raw.size == omega.size:
-                    stability_info[key] = residuals_raw[order]
-        else:
-            if reduce_dirichlet and use_root_operator:
-                _log("reduced stability EVP requested but disabled with root-assembly mode")
-            if reduce_dirichlet and constrained_dirichlet_indices.size and not use_root_operator:
-                _log(
-                    "running reduced temporal eigensolve on i*L0 "
-                    f"(reduce_set={reduce_dirichlet_set}, constrained={constrained_dirichlet_indices.size}, modes={n_modes})"
-                )
-                L0_stab, W_stab, free_dofs = _restrict_operator_for_stability(
-                    L0,
-                    W_diag,
-                    constrained_dirichlet_indices,
-                )
-                try:
-                    with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
-                        omega, modes_reduced, stability_info = temporal_eigenvalues(
-                            L0_stab,
-                            n_modes=n_modes,
-                            target=omega_target,
-                            W_diag=W_stab,
-                            solver_cfg=solver_cfg,
-                            return_info=True,
-                        )
-                finally:
-                    if _is_petsc_matrix(L0_stab):
-                        L0_stab.destroy()
-                direct_modes = _expand_reduced_modes(modes_reduced, mesh.ngp * 5, free_dofs)
-                stability_info["free_dof_count"] = int(free_dofs.size)
-                stability_info["constrained_dirichlet_indices"] = np.asarray(
-                    constrained_dirichlet_indices, dtype=np.int64
-                )
-            else:
-                _log(
-                    "running temporal eigensolve on i*L0 "
-                    f"(MATLAB convention): target={omega_target:.8g}, modes={n_modes}"
-                )
-                with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
-                    omega, direct_modes, stability_info = temporal_eigenvalues(
-                        L0,
-                        n_modes=n_modes,
-                        target=omega_target,
-                        W_diag=W_diag,
-                        solver_cfg=solver_cfg,
-                        return_info=True,
-                    )
-        if not use_root_operator:
-            stability_info.update(
-                _postcheck_stability_modes(
-                    L0,
-                    omega,
-                    direct_modes,
-                    target=omega_target,
-                    bc_indices=total_bc_indices,
-                    constrained_dirichlet_indices=constrained_dirichlet_indices,
-                    conjugate_aware=stability_acceptance_conjugate_aware,
-                )
-            )
-        stability_info.update(stability_meta)
-        _log(f"stability analysis finished: converged_modes={omega.size}")
-        residuals = np.asarray(
-            stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float
-        )
-        if residuals.size:
-            finite = residuals[np.isfinite(residuals)]
-            if finite.size:
-                _log(
-                    "stability eig convergence: "
-                    f"nev={stability_info.get('nev_requested')} "
-                    f"ncv={stability_info.get('ncv_used')} "
-                    f"nconv={stability_info.get('nconv')} "
-                    f"eps_iterations={stability_info.get('eps_iterations')} "
-                    f"max_residual={float(np.max(finite)):.3e} "
-                    f"median_residual={float(np.median(finite)):.3e}"
-                )
-        postcheck_rel = np.asarray(
-            stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
-            dtype=float,
-        )
-        if postcheck_rel.size:
-            finite_post = postcheck_rel[np.isfinite(postcheck_rel)]
-            if finite_post.size:
-                _log(
-                    "stability postcheck: "
-                    f"max_rel={float(np.max(finite_post)):.3e} "
-                    f"median_rel={float(np.median(finite_post)):.3e}"
-                )
-        _log_stage("stability", stage_start)
+    stability_result = _stage_run_stability(
+        run_stability=run_stability,
+        use_raw_eigs=use_raw_eigs,
+        reduce_dirichlet=reduce_dirichlet,
+        use_root_operator=use_root_operator,
+        reduce_dirichlet_set=reduce_dirichlet_set,
+        constrained_dirichlet_indices=constrained_dirichlet_indices,
+        effective_dirichlet_indices=effective_dirichlet_indices,
+        effective_neumann_indices=effective_neumann_indices,
+        overlap_indices=overlap_indices,
+        L0=L0,
+        W_diag=W_diag,
+        omega_target=omega_target,
+        n_modes=n_modes,
+        mesh=mesh,
+        solver_cfg=solver_cfg,
+        total_bc_indices=total_bc_indices,
+        stability_acceptance_conjugate_aware=stability_acceptance_conjugate_aware,
+        heartbeat_seconds=heartbeat_seconds,
+    )
+    omega = stability_result.omega
+    direct_modes = stability_result.direct_modes
+    stability_info = stability_result.stability_info
 
     # ------------------------------------------------------------------
     # 8) Save full run state to one NPZ for downstream parity/plots.
