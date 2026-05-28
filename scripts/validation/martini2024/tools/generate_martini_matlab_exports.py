@@ -108,7 +108,10 @@ def _save_log(filename: str) -> str:
 
 
 def _case_blocks() -> dict[str, list[str]]:
-    quiet = {"verbose     = true;": "verbose     = false;"}
+    quiet = {
+        "verbose     = true;": "verbose     = false;",
+        "verbose         = true;": "verbose         = false;",
+    }
     return {
         "example0": _run_case("example_0_TestCurvilinearDerivative.m")
         + [
