@@ -13,6 +13,7 @@ from scripts.validation.martini2024.tools import compare_martini_examples, extra
 from scripts.validation.martini2024.tools.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
+    _exit_code_from_counts,
     compare_curvilinear_protocol_case,
     compare_resolvent_case,
 )
@@ -50,6 +51,24 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
         extract_martini_to_npz.DEFAULT_MANIFEST
         == repo / "scripts/validation/martini2024/tools/martini_manifest.json"
     )
+
+
+def test_martini_comparator_can_fail_on_hard_fail_counts() -> None:
+    hard_fail = "HARD" + "_FAIL"
+    passed = "PASS"
+
+    cases = [
+        ({"status": hard_fail, "count": 1}, True, 1),
+        ({"status": hard_fail, "count": 1}, False, 0),
+        ({"status": passed, "count": 6}, True, 0),
+    ]
+    for counts, fail_on_hard_fail, expected in cases:
+        actual = _exit_code_from_counts(
+            {counts["status"]: counts["count"]},
+            fail_on_hard_fail=fail_on_hard_fail,
+        )
+        if actual != expected:
+            raise AssertionError((counts, fail_on_hard_fail, actual, expected))
 
 
 def test_compare_resolvent_case_handles_matlab_mode_rows_and_phase() -> None:

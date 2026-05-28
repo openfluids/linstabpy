@@ -209,6 +209,14 @@ def _checks() -> list[Check]:
             artifact=phase0_dir / "phase0_coefficient_tensors.npz",
         ),
         Check(
+            id="martini-full-examples",
+            group="phase0-external-assets",
+            description="Regenerate all Martini example artifacts and require MATLAB parity to be available.",
+            command=("bash", "run_all_examples.sh", "--fresh"),
+            artifact=ROOT / "scripts/validation/martini2024/reports/martini_parity_latest.json",
+            long_running=True,
+        ),
+        Check(
             id="docstring-inventory",
             group="documentation-gates",
             description="AST docstring inventory for public linstabpy symbols.",
