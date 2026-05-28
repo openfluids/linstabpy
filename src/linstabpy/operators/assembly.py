@@ -333,6 +333,43 @@ class _CSRDerivativeCache:
     row_indices: np.ndarray
 
 
+@dataclass(frozen=True)
+class _LNSEAssemblyRequest:
+    """Normalized input bundle for the LNSE system assembly workflow."""
+
+    mesh: Mesh
+    baseflow: BaseFlow
+    kx: float = 0.0
+    model: str = "2D"
+    m: float = 0.0
+    floquet_exp: float = 0.0
+    dissipation_epsilon: float = 0.0
+    bc_recipe: Any = None
+    bc_penalty: float = 1e4
+    backend: str | None = None
+    solver_cfg: dict | None = None
+
+    @property
+    def model_name(self) -> str:
+        return str(self.model).lower()
+
+    @property
+    def has_bc_recipe(self) -> bool:
+        return bool(self.bc_recipe)
+
+
+@dataclass(frozen=True)
+class _LNSEAssemblyResult:
+    """Internal assembly result before legacy wrappers unpack the public tuple."""
+
+    operator: sp.csc_matrix | "PETSc.Mat"
+    idx: dict
+    bc_indices: np.ndarray
+    bc_analysis: dict[str, Any] | None
+    backend_metadata: dict[str, Any]
+    resolvent_operator_data: dict[str, Any] | None = None
+
+
 def _make_csr_derivative_cache(op: sp.spmatrix) -> _CSRDerivativeCache:
     """Convert a derivative operator into a canonical CSR cache."""
     if not sp.issparse(op):
@@ -620,6 +657,171 @@ def _build_lnse_system_scipy(
     return L0, idx, bc_indices
 
 
+def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> _LNSEAssemblyResult:
+    """Build an LNSE system from the normalized internal request object."""
+    from ..utils.petsc_core import _use_distributed_matrix, compact_petsc_matrix, scipy_to_petsc
+
+    requested_backend = _requested_lnse_backend(request.backend, solver_cfg=request.solver_cfg)
+    resolved_backend = _resolve_lnse_backend(
+        request.backend, model=request.model, solver_cfg=request.solver_cfg
+    )
+    distributed_requested = _use_distributed_matrix(request.solver_cfg)
+    direct_supported = _direct_petsc_backend_supported(
+        model=request.model, solver_cfg=request.solver_cfg
+    )
+    use_petsc_fallback = (
+        requested_backend in {"petsc", "auto"}
+        and distributed_requested
+        and resolved_backend == "scipy"
+    )
+    backend_metadata = {
+        "requested_backend": requested_backend,
+        "resolved_backend": resolved_backend,
+        "distributed_requested": distributed_requested,
+        "direct_petsc_supported": direct_supported,
+        "use_petsc_fallback": use_petsc_fallback,
+    }
+
+    with _assembly_metrics_session(
+        solver_cfg=request.solver_cfg,
+        path_kind="system",
+        requested_backend=requested_backend,
+        resolved_backend=resolved_backend,
+        distributed_requested=distributed_requested,
+        direct_petsc_supported=direct_supported,
+        use_petsc_fallback=use_petsc_fallback,
+        model=request.model_name,
+        kx=float(request.kx),
+        m=float(request.m),
+        floquet_exp=float(request.floquet_exp),
+        bc_recipe_enabled=request.has_bc_recipe,
+    ):
+        if use_petsc_fallback:
+            L0_sp, idx, bc_indices = _build_lnse_system_scipy(
+                request.mesh,
+                request.baseflow,
+                kx=request.kx,
+                model=request.model,
+                m=request.m,
+                floquet_exp=request.floquet_exp,
+                dissipation_epsilon=request.dissipation_epsilon,
+                bc_recipe=request.bc_recipe,
+                bc_penalty=request.bc_penalty,
+            )
+            nnz_post_bc = _matrix_nnz(L0_sp)
+            with _assembly_stage("scipy_to_petsc") as stage:
+                L0 = scipy_to_petsc(L0_sp, request.solver_cfg)
+                stage["nnz"] = _matrix_nnz(L0)
+            with _assembly_stage("petsc_compaction") as stage:
+                stage["skipped"] = True
+            _note_assembly_metadata(
+                nnz_post_bc=nnz_post_bc,
+                nnz_final=_matrix_nnz(L0),
+                nnz=_matrix_nnz(L0),
+                bc_indices_count=int(bc_indices.size),
+                matrix_type="petsc",
+            )
+            return _LNSEAssemblyResult(
+                operator=L0,
+                idx=idx,
+                bc_indices=bc_indices,
+                bc_analysis=_analyze_lnse_bc_recipe(request, idx),
+                backend_metadata={**backend_metadata, "matrix_type": "petsc"},
+            )
+
+        if resolved_backend == "petsc":
+            from ..boundary_conditions.recipe import apply_bc_recipe_petsc
+
+            L0, idx = build_lnse_operator_petsc(
+                request.mesh,
+                request.baseflow,
+                kx=request.kx,
+                model=request.model,
+                m=request.m,
+                floquet_exp=request.floquet_exp,
+                dissipation_epsilon=request.dissipation_epsilon,
+                solver_cfg=request.solver_cfg,
+            )
+            with _assembly_stage("apply_bc") as stage:
+                if request.bc_recipe:
+                    L0, bc_indices = apply_bc_recipe_petsc(
+                        L0,
+                        request.mesh,
+                        idx,
+                        request.bc_recipe,
+                        penalty=request.bc_penalty,
+                    )
+                else:
+                    stage["skipped"] = True
+                    bc_indices = np.array([], dtype=np.int64)
+                stage["bc_indices_count"] = int(bc_indices.size)
+                stage["nnz"] = _matrix_nnz(L0)
+            nnz_post_bc = _matrix_nnz(L0)
+            with _assembly_stage("scipy_to_petsc") as stage:
+                stage["skipped"] = True
+            with _assembly_stage("petsc_compaction") as stage:
+                if not distributed_requested and direct_supported:
+                    L0 = compact_petsc_matrix(L0, request.solver_cfg)
+                    stage["nnz"] = _matrix_nnz(L0)
+                else:
+                    stage["skipped"] = True
+            _note_assembly_metadata(
+                nnz_post_bc=nnz_post_bc,
+                nnz_final=_matrix_nnz(L0),
+                nnz=_matrix_nnz(L0),
+                bc_indices_count=int(bc_indices.size),
+                matrix_type="petsc",
+            )
+            return _LNSEAssemblyResult(
+                operator=L0,
+                idx=idx,
+                bc_indices=bc_indices,
+                bc_analysis=_analyze_lnse_bc_recipe(request, idx),
+                backend_metadata={**backend_metadata, "matrix_type": "petsc"},
+            )
+
+        with _assembly_stage("scipy_to_petsc") as stage:
+            stage["skipped"] = True
+        with _assembly_stage("petsc_compaction") as stage:
+            stage["skipped"] = True
+        L0, idx, bc_indices = _build_lnse_system_scipy(
+            request.mesh,
+            request.baseflow,
+            kx=request.kx,
+            model=request.model,
+            m=request.m,
+            floquet_exp=request.floquet_exp,
+            dissipation_epsilon=request.dissipation_epsilon,
+            bc_recipe=request.bc_recipe,
+            bc_penalty=request.bc_penalty,
+        )
+        _note_assembly_metadata(
+            nnz_post_bc=_matrix_nnz(L0),
+            nnz_final=_matrix_nnz(L0),
+            nnz=_matrix_nnz(L0),
+            bc_indices_count=int(bc_indices.size),
+            matrix_type="scipy",
+        )
+        return _LNSEAssemblyResult(
+            operator=L0,
+            idx=idx,
+            bc_indices=bc_indices,
+            bc_analysis=_analyze_lnse_bc_recipe(request, idx),
+            backend_metadata={**backend_metadata, "matrix_type": "scipy"},
+        )
+
+
+def _analyze_lnse_bc_recipe(
+    request: _LNSEAssemblyRequest,
+    idx: dict,
+) -> dict[str, Any] | None:
+    if not request.bc_recipe:
+        return None
+    from ..boundary_conditions.recipe import analyze_bc_recipe
+
+    return analyze_bc_recipe(request.mesh, idx, request.bc_recipe)
+
+
 def build_lnse_system(
     mesh: Mesh,
     baseflow: BaseFlow,
@@ -642,127 +844,21 @@ def build_lnse_system(
     validated SciPy assembly + SciPy->PETSc conversion fallback. That fallback
     returns PETSc matrices, but it is not true distributed direct assembly.
     """
-    from ..utils.petsc_core import _use_distributed_matrix, compact_petsc_matrix, scipy_to_petsc
-
-    requested_backend = _requested_lnse_backend(backend, solver_cfg=solver_cfg)
-    resolved_backend = _resolve_lnse_backend(backend, model=model, solver_cfg=solver_cfg)
-    distributed_requested = _use_distributed_matrix(solver_cfg)
-    direct_supported = _direct_petsc_backend_supported(model=model, solver_cfg=solver_cfg)
-    use_petsc_fallback = (
-        requested_backend in {"petsc", "auto"}
-        and distributed_requested
-        and resolved_backend == "scipy"
-    )
-
-    with _assembly_metrics_session(
+    request = _LNSEAssemblyRequest(
+        mesh=mesh,
+        baseflow=baseflow,
+        kx=kx,
+        model=model,
+        m=m,
+        floquet_exp=floquet_exp,
+        dissipation_epsilon=dissipation_epsilon,
+        bc_recipe=bc_recipe,
+        bc_penalty=bc_penalty,
+        backend=backend,
         solver_cfg=solver_cfg,
-        path_kind="system",
-        requested_backend=requested_backend,
-        resolved_backend=resolved_backend,
-        distributed_requested=distributed_requested,
-        direct_petsc_supported=direct_supported,
-        use_petsc_fallback=use_petsc_fallback,
-        model=str(model).lower(),
-        kx=float(kx),
-        m=float(m),
-        floquet_exp=float(floquet_exp),
-        bc_recipe_enabled=bool(bc_recipe),
-    ):
-        if use_petsc_fallback:
-            L0_sp, idx, bc_indices = _build_lnse_system_scipy(
-                mesh,
-                baseflow,
-                kx=kx,
-                model=model,
-                m=m,
-                floquet_exp=floquet_exp,
-                dissipation_epsilon=dissipation_epsilon,
-                bc_recipe=bc_recipe,
-                bc_penalty=bc_penalty,
-            )
-            nnz_post_bc = _matrix_nnz(L0_sp)
-            with _assembly_stage("scipy_to_petsc") as stage:
-                L0 = scipy_to_petsc(L0_sp, solver_cfg)
-                stage["nnz"] = _matrix_nnz(L0)
-            with _assembly_stage("petsc_compaction") as stage:
-                stage["skipped"] = True
-            _note_assembly_metadata(
-                nnz_post_bc=nnz_post_bc,
-                nnz_final=_matrix_nnz(L0),
-                nnz=_matrix_nnz(L0),
-                bc_indices_count=int(bc_indices.size),
-                matrix_type="petsc",
-            )
-            return L0, idx, bc_indices
-
-        if resolved_backend == "petsc":
-            from ..boundary_conditions.recipe import apply_bc_recipe_petsc
-
-            L0, idx = build_lnse_operator_petsc(
-                mesh,
-                baseflow,
-                kx=kx,
-                model=model,
-                m=m,
-                floquet_exp=floquet_exp,
-                dissipation_epsilon=dissipation_epsilon,
-                solver_cfg=solver_cfg,
-            )
-            with _assembly_stage("apply_bc") as stage:
-                if bc_recipe:
-                    L0, bc_indices = apply_bc_recipe_petsc(
-                        L0,
-                        mesh,
-                        idx,
-                        bc_recipe,
-                        penalty=bc_penalty,
-                    )
-                else:
-                    stage["skipped"] = True
-                    bc_indices = np.array([], dtype=np.int64)
-                stage["bc_indices_count"] = int(bc_indices.size)
-                stage["nnz"] = _matrix_nnz(L0)
-            nnz_post_bc = _matrix_nnz(L0)
-            with _assembly_stage("scipy_to_petsc") as stage:
-                stage["skipped"] = True
-            with _assembly_stage("petsc_compaction") as stage:
-                if not distributed_requested and direct_supported:
-                    L0 = compact_petsc_matrix(L0, solver_cfg)
-                    stage["nnz"] = _matrix_nnz(L0)
-                else:
-                    stage["skipped"] = True
-            _note_assembly_metadata(
-                nnz_post_bc=nnz_post_bc,
-                nnz_final=_matrix_nnz(L0),
-                nnz=_matrix_nnz(L0),
-                bc_indices_count=int(bc_indices.size),
-                matrix_type="petsc",
-            )
-            return L0, idx, bc_indices
-
-        with _assembly_stage("scipy_to_petsc") as stage:
-            stage["skipped"] = True
-        with _assembly_stage("petsc_compaction") as stage:
-            stage["skipped"] = True
-        L0, idx, bc_indices = _build_lnse_system_scipy(
-            mesh,
-            baseflow,
-            kx=kx,
-            model=model,
-            m=m,
-            floquet_exp=floquet_exp,
-            dissipation_epsilon=dissipation_epsilon,
-            bc_recipe=bc_recipe,
-            bc_penalty=bc_penalty,
-        )
-        _note_assembly_metadata(
-            nnz_post_bc=_matrix_nnz(L0),
-            nnz_final=_matrix_nnz(L0),
-            nnz=_matrix_nnz(L0),
-            bc_indices_count=int(bc_indices.size),
-            matrix_type="scipy",
-        )
-        return L0, idx, bc_indices
+    )
+    result = _build_lnse_system_from_request(request)
+    return result.operator, result.idx, result.bc_indices
 
 
 def _prepare_coefficients(
@@ -1594,11 +1690,11 @@ def _apply_inv_B_petsc(
     # converts the distributed matrix to a local SciPy CSR (only valid on one
     # rank).  Raise a clean error before any silent data corruption can occur.
     if model == "axy" and L0.getComm().getSize() > 1:
+        comm_size = L0.getComm().getSize()
         raise RuntimeError(
             "_apply_inv_B_petsc: model='axy' is not supported with distributed "
-            "PETSc matrices (comm size = %d).  Assemble with backend='scipy' "
+            f"PETSc matrices (comm size = {comm_size}).  Assemble with backend='scipy' "
             "or run on a single MPI rank for axisymmetric resolvent/stability."
-            % L0.getComm().getSize()
         )
 
     row_scaling = np.ones(5 * ngp, dtype=complex)
