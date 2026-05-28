@@ -30,3 +30,16 @@ def test_stage_heartbeat_disabled_when_interval_non_positive(monkeypatch):
         time.sleep(0.02)
 
     assert not messages
+
+
+def test_log_stage_includes_peak_rss_delta(monkeypatch):
+    """Stage completion logs carry an RSS delta when started with the runtime helper."""
+    messages: list[str] = []
+    monkeypatch.setattr(results_runtime, "_log", messages.append)
+    monkeypatch.setattr(results_runtime, "_peak_rss_bytes", lambda: 2048)
+
+    results_runtime._log_stage("stability", (10.0, 1024))
+
+    assert len(messages) == 1
+    assert "stage complete: stage=stability" in messages[0]
+    assert "rss_peak_delta_bytes=1024" in messages[0]

@@ -8,10 +8,20 @@ and then call ``compute()`` / ``main()`` from this module.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import resource as _resource_module
+
+try:
+    import resource as _resource
+except ImportError:  # pragma: no cover - Windows fallback
+    _resource: "_resource_module | None" = None
 
 import numpy as np
 import scipy.sparse as sp
@@ -106,8 +116,32 @@ def _log(message: str) -> None:
         print(f"[{_log_prefix()}] {message}", flush=True)
 
 
-def _log_stage(stage: str, stage_start: float) -> None:
+def _peak_rss_bytes() -> int:
+    """Return this rank's peak resident set size in bytes."""
+    if _resource is None:
+        return 0
+    rss = int(_resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss)
+    if sys.platform == "darwin":
+        return rss
+    return rss * 1024
+
+
+def _stage_start() -> tuple[float, int]:
+    """Capture timing and memory counters for a runtime stage."""
+    return time.perf_counter(), _peak_rss_bytes()
+
+
+def _log_stage(stage: str, stage_start: float | tuple[float, int]) -> None:
     """Emit a machine-parseable stage timing line."""
+    if isinstance(stage_start, tuple):
+        start_time, rss0 = stage_start
+        rss_delta = max(0, _peak_rss_bytes() - rss0)
+        _log(
+            "stage complete: "
+            f"stage={stage} elapsed={time.perf_counter() - start_time:.2f}s "
+            f"rss_peak_delta_bytes={rss_delta}"
+        )
+        return
     _log(f"stage complete: stage={stage} elapsed={time.perf_counter() - stage_start:.2f}s")
 
 
@@ -600,7 +634,7 @@ def compute() -> None:
     # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
     #    compute viscosity/transport via Sutherland law.
     # ------------------------------------------------------------------
-    stage_start = time.perf_counter()
+    stage_start = _stage_start()
     with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
         X, Y, baseflow, sponge = load_hamada_case(
             case_dir,
@@ -641,7 +675,7 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 3) Build a computational mesh, then deform it to physical X/Y.
     # ------------------------------------------------------------------
-    stage_start = time.perf_counter()
+    stage_start = _stage_start()
     ny, nx = X.shape
     with _stage_heartbeat("build_mesh", interval_seconds=heartbeat_seconds):
         cmesh = Mesh.create(
@@ -685,7 +719,7 @@ def compute() -> None:
         bc_indices = np.array([], dtype=np.int64)
         L0_resolv = L0
     else:
-        stage_start = time.perf_counter()
+        stage_start = _stage_start()
         _log("assembling LNSE operator")
         with _stage_heartbeat("assemble_operator_bc", interval_seconds=heartbeat_seconds):
             L0, idx, bc_indices = build_lnse_system(
@@ -703,7 +737,7 @@ def compute() -> None:
         _log(f"operator assembled with BCs: shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
         _log_stage("assemble_operator_bc", stage_start)
         if run_resolvent and eps_resolv != eps_stab:
-            stage_start = time.perf_counter()
+            stage_start = _stage_start()
             _log(f"assembling separate resolvent LNSE operator (dissipation_epsilon={eps_resolv})")
             with _stage_heartbeat(
                 "assemble_resolvent_operator_bc",
@@ -783,7 +817,7 @@ def compute() -> None:
     # 5) Build Chu energy norm weights. These weights are required for
     #    weighted analyses (resolvent and temporal formulation).
     # ------------------------------------------------------------------
-    stage_start = time.perf_counter()
+    stage_start = _stage_start()
     p = mesh.used_ind
     W_int = mesh.W.ravel(order="F")[p]
     RHO_p = baseflow.RHO.ravel(order="F")[p]
@@ -804,7 +838,7 @@ def compute() -> None:
     # 6) Optional resolvent analysis at omega_target.
     # ------------------------------------------------------------------
     if run_resolvent:
-        stage_start = time.perf_counter()
+        stage_start = _stage_start()
         _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
         B_diag = np.ones(mesh.ngp * 5, dtype=float)
         B_diag[total_bc_indices] = 0.0
@@ -827,7 +861,7 @@ def compute() -> None:
         _log_stage("resolvent", stage_start)
 
         if gains.size > 0:
-            stage_start = time.perf_counter()
+            stage_start = _stage_start()
             with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
                 resolvent_rho_fwd, resolvent_rho_adj = compute_resolvent_svd_residuals(
                     L0_resolv,
@@ -859,7 +893,7 @@ def compute() -> None:
     #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
     # ------------------------------------------------------------------
     if run_stability:
-        stage_start = time.perf_counter()
+        stage_start = _stage_start()
         stability_meta = {
             "reduce_dirichlet": bool(reduce_dirichlet and not use_root_operator),
             "reduce_dirichlet_set": reduce_dirichlet_set,
@@ -989,7 +1023,7 @@ def compute() -> None:
     # 8) Save full run state to one NPZ for downstream parity/plots.
     # ------------------------------------------------------------------
     if rank == 0:
-        stage_start = time.perf_counter()
+        stage_start = _stage_start()
         stability_residual_estimates = np.asarray(
             stability_info.get("residual_estimates", np.array([], dtype=float)),
             dtype=float,
