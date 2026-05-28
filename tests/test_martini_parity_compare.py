@@ -9,7 +9,11 @@ import numpy as np
 import pytest
 
 from linstabpy.utils.jsonc import load_jsonc
-from scripts.validation.martini2024.tools import compare_martini_examples, extract_martini_to_npz
+from scripts.validation.martini2024.tools import (
+    compare_martini_examples,
+    extract_martini_to_npz,
+    generate_martini_matlab_exports,
+)
 from scripts.validation.martini2024.tools.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
@@ -113,6 +117,27 @@ def test_martini_fixture_status_does_not_create_directories(tmp_path) -> None:
     assert status["npz_missing"] == ["example_1_Blasius_results"]
     assert not input_dir.exists()
     assert not output_dir.exists()
+
+
+def test_martini_matlab_export_runner_writes_expected_exports(tmp_path) -> None:
+    source_dir = tmp_path / "baseflows"
+    output_dir = tmp_path / "raw_exports"
+
+    script = generate_martini_matlab_exports.build_matlab_export_script(source_dir, output_dir)
+
+    assert "example_0_TestCurvilinearDerivative_results.mat" in script
+    assert "example_1_Blasius_results.mat" in script
+    assert "example_2_Jet_results.mat" in script
+    assert "example_3_Streaky_BL_results_base.mat" in script
+    assert "example_3_Streaky_BL_results_temporal.mat" in script
+    assert "example_3_Streaky_BL_results_spatial.mat" in script
+    assert "example_4_Cavity_results_direct.mat" in script
+    assert "example_4_Cavity_results_adjoint.mat" in script
+    assert "example_4_Cavity_results_base.mat" in script
+    assert "example_5_Paraboloid_results.mat" in script
+    assert "getenv('LINSTABPY_MARTINI_EXPORT_DIR')" in script
+    assert "spatialAna  = true;" in script
+    assert "if exist(''omega'',''var'')" in script
 
 
 def test_martini_comparator_can_fail_on_hard_fail_counts() -> None:
