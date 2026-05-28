@@ -152,6 +152,27 @@ class TestPetscSciPyParityUtilities:
         np.testing.assert_array_equal(owned["indices"], ref.indices)
         np.testing.assert_allclose(owned["data"], ref.data)
 
+    def test_petsc_owned_rows_can_return_petsc_csr_views(self):
+        indptr = np.array([0, 2, 3], dtype=np.int64)
+        indices = np.array([0, 1, 1], dtype=np.int64)
+        data = np.array([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j], dtype=complex)
+
+        class FakeMat:
+            def getOwnershipRange(self):
+                return 0, 2
+
+            def getValuesCSR(self):
+                return indptr, indices, data
+
+        owned = petsc_owned_rows(FakeMat(), copy=False)
+
+        np.testing.assert_array_equal(owned["indptr"], indptr)
+        np.testing.assert_array_equal(owned["indices"], indices)
+        np.testing.assert_allclose(owned["data"], data)
+        assert np.shares_memory(owned["indptr"], indptr)
+        assert np.shares_memory(owned["indices"], indices)
+        assert np.shares_memory(owned["data"], data)
+
     @pytest.mark.skipif(shutil.which("mpiexec") is None, reason="mpiexec not available")
     def test_petsc_owned_rows_matches_owned_csr_blocks_under_mpi(self):
         script = textwrap.dedent(
