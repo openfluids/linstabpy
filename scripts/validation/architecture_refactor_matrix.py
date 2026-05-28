@@ -43,6 +43,18 @@ def _checks() -> list[Check]:
     py = _python()
     phase0_dir = ROOT / "artifacts/architecture_refactor/architecture_refactor_phase0"
     docs_dir = ROOT / "artifacts/architecture_refactor/documentation"
+    invariant_helpers = (
+        "linstabpy.operators.assembly._prepare_coefficients",
+        "linstabpy.operators.assembly._assemble_from_prepared",
+        "linstabpy.operators.assembly._apply_inv_B",
+        "linstabpy.boundary_conditions.recipe._apply_bc_recipe_impl",
+        "linstabpy.results_runtime._restrict_operator_for_stability",
+        "linstabpy.utils.petsc_init._sanitize_petsc_argv",
+        "linstabpy.solvers.eigenvalue._configure_st_for_eigenvalue",
+    )
+    invariant_args = tuple(
+        arg for helper in invariant_helpers for arg in ("--require-private", helper)
+    )
     return [
         Check(
             id="pytest-full",
@@ -230,12 +242,13 @@ def _checks() -> list[Check]:
         Check(
             id="docstring-inventory",
             group="documentation-gates",
-            description="AST docstring inventory for public linstabpy symbols.",
+            description="AST docstring inventory for public symbols and selected invariant helpers.",
             command=(
                 py,
                 "scripts/validation/check_docstrings.py",
                 "--root",
                 "src/linstabpy",
+                *invariant_args,
                 "--output",
                 str((docs_dir / "docstring_inventory.json").relative_to(ROOT)),
             ),

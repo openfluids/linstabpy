@@ -13,17 +13,19 @@ The current AST inventory command is:
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --check docstring-inventory
 ```
 
-Current public-symbol inventory:
+Current public-symbol plus required-helper inventory:
 
 | Kind | Total | Required | Missing required |
 |---|---:|---:|---:|
 | Modules | 42 | 40 | 0 |
 | Classes | 8 | 5 | 0 |
-| Functions and methods | 265 | 83 | 0 |
-| All symbols | 315 | 128 | 0 |
+| Functions and methods | 265 | 90 | 0 |
+| All symbols | 315 | 135 | 0 |
 
-This means public module/class/function docstrings are present. The remaining
-work is about quality and invariant coverage in high-risk internals.
+This means public module/class/function docstrings are present, and the current
+matrix also requires selected private helpers that already own numerical or
+runtime invariants. The remaining work is about quality and adding new helper
+requirements as the architecture seams move.
 
 ## High-Risk Surfaces
 
@@ -55,6 +57,19 @@ These counts are a navigation aid for the comment pass, not a coverage quota.
 | `mesh/mesh.py` | 1580 | 17 | 1 | 1 |
 | `utils/petsc_init.py` | 111 | 4 | 0 | 1 |
 | `utils/petsc_core.py` | 762 | 26 | 0 | 2 |
+
+## Required Private Helpers
+
+The documentation gate currently requires docstrings on these private helpers
+because they encode behavior that later refactors must preserve:
+
+- `linstabpy.operators.assembly._prepare_coefficients`
+- `linstabpy.operators.assembly._assemble_from_prepared`
+- `linstabpy.operators.assembly._apply_inv_B`
+- `linstabpy.boundary_conditions.recipe._apply_bc_recipe_impl`
+- `linstabpy.results_runtime._restrict_operator_for_stability`
+- `linstabpy.utils.petsc_init._sanitize_petsc_argv`
+- `linstabpy.solvers.eigenvalue._configure_st_for_eigenvalue`
 
 ## Comment Rules
 

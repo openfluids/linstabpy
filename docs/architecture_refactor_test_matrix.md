@@ -135,9 +135,15 @@ then for every later implementation phase. It must cover:
 Comments should explain maintained invariants and numerical assumptions. Avoid
 line-by-line narration or generated-looking filler.
 
+The matrix runner passes `--require-private` for the current high-risk helpers
+that encode construction ordering, BC application, stability reduction, PETSc
+argv handling, and SLEPc shift configuration. New BCRecipe, LNSESystem,
+SolverConfig, runtime, or kernel-fusion helpers must be added to that required
+set when they become the owner of an invariant.
+
 | ID | Command | Artifact |
 |---|---|---|
-| `docstring-inventory` | `.venv/bin/python scripts/validation/check_docstrings.py --root src/linstabpy --output artifacts/architecture_refactor/documentation/docstring_inventory.json` | AST inventory of public modules/classes/functions and selected private helpers |
+| `docstring-inventory` | `.venv/bin/python scripts/validation/check_docstrings.py --root src/linstabpy --require-private <selected invariant helpers> --output artifacts/architecture_refactor/documentation/docstring_inventory.json` | AST inventory of public modules/classes/functions and selected private invariant helpers |
 
 ## Bead Review Note Template
 
