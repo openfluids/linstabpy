@@ -936,12 +936,13 @@ class TestOperatorAssembly:
             assert name in stages
 
         assert stages["prepare_coefficients"]["ngp"] == small_mesh_2d.ngp
-        assert stages["prepare_coefficients"]["derivative_vector_count"] == 23
+        assert stages["prepare_coefficients"]["derivative_vector_count"] == 22
         assert (
             stages["prepare_coefficients"]["derivative_vector_bytes_total"]
-            == 23 * small_mesh_2d.ngp * np.dtype(float).itemsize
+            == 22 * small_mesh_2d.ngp * np.dtype(float).itemsize
         )
         assert "d2Udxdy" in stages["prepare_coefficients"]["derivative_vector_bytes_by_name"]
+        assert "d2Wdxdy" not in stages["prepare_coefficients"]["derivative_vector_bytes_by_name"]
         assert stages["assemble_raw_blocks"]["nnz"] > 0
         assert stages["apply_bc"]["skipped"] is True
         assert stages["scipy_to_petsc"]["skipped"] is True
@@ -975,12 +976,15 @@ class TestOperatorAssembly:
 
         report = json.loads(output.read_text(encoding="utf-8"))
         prepare = report["stages"]["prepare_coefficients"]
-        assert prepare["derivative_vector_count"] == 21
+        assert prepare["derivative_vector_count"] == 18
         assert (
             prepare["derivative_vector_bytes_total"]
-            == 21 * small_mesh_2d.ngp * np.dtype(float).itemsize
+            == 18 * small_mesh_2d.ngp * np.dtype(float).itemsize
         )
         assert "d2Udrz" in prepare["derivative_vector_bytes_by_name"]
+        assert "d2Tdr2" not in prepare["derivative_vector_bytes_by_name"]
+        assert "d2Tdz2" not in prepare["derivative_vector_bytes_by_name"]
+        assert "d2Vdrz" not in prepare["derivative_vector_bytes_by_name"]
 
     def test_build_lnse_system_petsc_metrics_records_local_full_csr_mode(
         self,
