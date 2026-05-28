@@ -80,7 +80,9 @@ These checks require optional upstream Martini/LinStab2D assets that are not
 committed to the package repository. Provide them through
 `LINSTABPY_BASEFLOW_DATA_DIR` or `src/linstabpy/data/baseflows`, and restore or
 extract the MATLAB fixture NPZ bundles under
-`scripts/validation/martini2024/fixtures`.
+`scripts/validation/martini2024/fixtures`. The fixture runbook in
+`scripts/validation/martini2024/fixtures/README.md` lists the required raw
+exports and the commit policy for compact bundles.
 
 | ID | Command | Artifact |
 |---|---|---|
