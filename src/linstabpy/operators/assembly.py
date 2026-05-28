@@ -1036,6 +1036,7 @@ def _prepare_coefficients(
         D2x = mesh.D2x
         Dy = mesh.Dy
         D2y = mesh.D2y
+        unused_derivative = np.empty(0, dtype=float)
         # MATLAB 2D path uses Dzr = Dz*Dr (GetLinProblem.m: D2RZ=blkdiag(Dzr)).
         # Dz*Dr applied to a vector applies Dr first (r-direction=y), then Dz
         # (z-direction=x): that is Dx @ Dy = mesh.Dxy, not Dy @ Dx = mesh.Dyx.
@@ -1067,7 +1068,6 @@ def _prepare_coefficients(
 
             d2Udxdy = Dx @ dUdy
             d2Vdxdy = Dx @ dVdy
-            d2Wdxdy = Dx @ dWdy
 
             _record_prepare_derivative_metrics(
                 stage,
@@ -1094,7 +1094,6 @@ def _prepare_coefficients(
                     "d2Tdy2": d2Tdy2,
                     "d2Udxdy": d2Udxdy,
                     "d2Vdxdy": d2Vdxdy,
-                    "d2Wdxdy": d2Wdxdy,
                 },
             )
 
@@ -1133,7 +1132,7 @@ def _prepare_coefficients(
                 d2Tdy2=d2Tdy2,
                 d2Udxdy=d2Udxdy,
                 d2Vdxdy=d2Vdxdy,
-                d2Wdxdy=d2Wdxdy,
+                d2Wdxdy=unused_derivative,
                 dmudT=dmudT,
                 d2mudT2=d2mudT2,
             )
@@ -1163,14 +1162,11 @@ def _prepare_coefficients(
             d2Udr2 = D2y @ U_c
             d2Vdr2 = D2y @ V_c
             d2Wdr2 = D2y @ W_c
-            d2Tdr2 = D2y @ T
             d2Udz2 = D2x @ U_c
             d2Vdz2 = D2x @ V_c
             d2Wdz2 = D2x @ W_c
-            d2Tdz2 = D2x @ T
 
             d2Udrz = Dx @ dUdr
-            d2Vdrz = Dx @ dVdr
             d2Wdrz = Dx @ dWdr
 
             _record_prepare_derivative_metrics(
@@ -1189,13 +1185,10 @@ def _prepare_coefficients(
                     "d2Udr2": d2Udr2,
                     "d2Vdr2": d2Vdr2,
                     "d2Wdr2": d2Wdr2,
-                    "d2Tdr2": d2Tdr2,
                     "d2Udz2": d2Udz2,
                     "d2Vdz2": d2Vdz2,
                     "d2Wdz2": d2Wdz2,
-                    "d2Tdz2": d2Tdz2,
                     "d2Udrz": d2Udrz,
-                    "d2Vdrz": d2Vdrz,
                     "d2Wdrz": d2Wdrz,
                 },
             )
@@ -1226,13 +1219,13 @@ def _prepare_coefficients(
                 d2Udr2=d2Udr2,
                 d2Vdr2=d2Vdr2,
                 d2Wdr2=d2Wdr2,
-                d2Tdr2=d2Tdr2,
+                d2Tdr2=unused_derivative,
                 d2Udz2=d2Udz2,
                 d2Vdz2=d2Vdz2,
                 d2Wdz2=d2Wdz2,
-                d2Tdz2=d2Tdz2,
+                d2Tdz2=unused_derivative,
                 d2Udrz=d2Udrz,
-                d2Vdrz=d2Vdrz,
+                d2Vdrz=unused_derivative,
                 d2Wdrz=d2Wdrz,
                 dmudT=dmudT,
                 d2mudT2=d2mudT2,
