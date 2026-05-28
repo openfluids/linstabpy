@@ -77,7 +77,7 @@ def _matrix_nnz(operator) -> int:
 
 
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
-    """Resolve PETSc matrix conversion mode."""
+    """Resolve PETSc matrix conversion mode from JSONC/env policy."""
     raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto")
     if raw in {"auto", "local", "serial", "distributed", "mpi", "parallel"}:
         return raw
@@ -88,6 +88,7 @@ def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
 
 
 def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
+    """Return whether SciPy-to-PETSc conversion should use MPI AIJ ownership."""
     mode = _petsc_matrix_mode(solver_cfg)
     if mode in {"distributed", "mpi", "parallel"}:
         return True
@@ -99,7 +100,12 @@ def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
 
 
 def require_complex(solver_cfg: dict | None = None) -> None:
-    """Assert PETSc was built with complex scalar type and set defaults."""
+    """Assert complex-scalar PETSc and install one-time direct-solver defaults.
+
+    PETSc's options database is process-global.  We set only the project MUMPS
+    defaults here, and only once, so importing multiple solver modules does not
+    repeatedly rewrite options behind an already-created KSP/EPS object.
+    """
     PETSc = _get_petsc()
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
         raise RuntimeError(
@@ -307,7 +313,9 @@ def insert_local_csr_rows(
     Notes
     -----
     This function only inserts values; caller must assemble with
-    ``assemble_matrix`` after all insertions.
+    ``assemble_matrix`` after all insertions.  The explicit ownership check is
+    intentional: distributed assembly bugs are much easier to diagnose here
+    than after PETSc has accepted off-rank values into a global assembly.
     """
     PETSc = _get_petsc()
     csr = sp.csr_matrix(local_rows, dtype=complex)

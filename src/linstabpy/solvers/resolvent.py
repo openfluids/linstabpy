@@ -206,9 +206,11 @@ def resolvent_analysis_with_residuals(
 
     This is equivalent to calling ``resolvent_analysis`` followed by
     ``compute_resolvent_svd_residuals`` at the same ``omega``, but it reuses
-    the already-factorized shifted operator. It does not reuse a factorization
-    across different frequencies, because the matrix values change with
-    ``omega``.
+    the already-factorized shifted operator.  The reuse boundary is deliberately
+    exact-frequency only: a different ``omega`` changes the numerical values in
+    ``L0 - i*omega*I``, so a MUMPS factorization cannot be carried across
+    frequencies unless PETSc/MUMPS symbolic reuse is introduced and tested as a
+    separate policy.
     """
     return _resolvent_analysis_impl(
         L0,
@@ -248,7 +250,8 @@ def _resolvent_analysis_impl(
     L_sigma = _shifted_operator(L0, omega)
 
     # ------------------------------------------------------------------
-    # 2. MUMPS factorisation (computed once, reused for forward and adjoint)
+    # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
+    #    KSP/PC stack is selected by SolverConfig through make_linear_solver.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
     lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
@@ -309,7 +312,8 @@ def _resolvent_analysis_impl(
     htrh_shell.setUp()
 
     # ------------------------------------------------------------------
-    # 5. SLEPc EPS on HtrH (MATLAB-parity route)
+    # 5. SLEPc EPS on HtrH.  This keeps the MATLAB-parity formulation: solve
+    #    the weighted normal operator, then recover response modes through H.
     # ------------------------------------------------------------------
     _res_cfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_RESOLVENT")
     _res_eps_cfg = _res_cfg.get("eigen", _res_cfg) if isinstance(_res_cfg, dict) else {}
@@ -537,7 +541,10 @@ def compute_resolvent_svd_residuals(
     W_vec = np.asarray(W_diag, dtype=float)
     invW_vec = 1.0 / W_vec
 
-    # Rebuild shifted operator and factorization (same path as resolvent_analysis).
+    # Legacy postcheck path: rebuild the same shifted solve so callers that need
+    # a separate "analysis" and "postcheck" stage keep their timing/provenance
+    # boundaries. New code that can combine both stages should call
+    # resolvent_analysis_with_residuals().
     L_sigma = _shifted_operator(L0, omega)
     lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
     try:
