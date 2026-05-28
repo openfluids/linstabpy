@@ -245,12 +245,14 @@ def ownership_range(matrix: PETSc.Mat) -> tuple[int, int]:
     return int(rstart), int(rend)
 
 
-def petsc_owned_rows(mat: PETSc.Mat) -> dict:
+def petsc_owned_rows(mat: PETSc.Mat, *, copy: bool = True) -> dict:
     """Return CSR data for the rows owned by the current rank.
 
     For sequential AIJ matrices this is the full matrix. For MPI AIJ matrices,
     PETSc exposes the locally-owned row block through ``getValuesCSR()``, with
-    column indices reported in the global numbering.
+    column indices reported in the global numbering. ``copy=False`` avoids
+    copies when PETSc already exposes compatible NumPy arrays; callers should
+    still keep the matrix alive while reading the returned buffers.
     """
     rstart, rend = ownership_range(mat)
     row_ids = np.arange(rstart, rend, dtype=np.int64)
@@ -260,9 +262,14 @@ def petsc_owned_rows(mat: PETSc.Mat) -> dict:
     except Exception as exc:  # pragma: no cover - PETSc type guard
         raise TypeError("PETSc matrix does not support CSR extraction via getValuesCSR()") from exc
 
-    indptr_arr = np.array(indptr, dtype=np.int64, copy=True)
-    indices_arr = np.array(indices, dtype=np.int64, copy=True)
-    data_arr = np.array(data, copy=True)
+    if copy:
+        indptr_arr = np.array(indptr, dtype=np.int64, copy=True)
+        indices_arr = np.array(indices, dtype=np.int64, copy=True)
+        data_arr = np.array(data, copy=True)
+    else:
+        indptr_arr = np.asarray(indptr, dtype=np.int64)
+        indices_arr = np.asarray(indices, dtype=np.int64)
+        data_arr = np.asarray(data)
 
     expected_indptr_size = int(row_ids.size) + 1
     if indptr_arr.size != expected_indptr_size:
