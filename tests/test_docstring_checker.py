@@ -104,3 +104,21 @@ def test_docstring_checker_main_writes_json_report(tmp_path, capsys):
     assert payload["file_inventory"]["validation_python_files"] == 1
     assert payload["file_inventory"]["documentation_markdown_files"] == 1
     assert payload["summary"]["missing_required"] == 0
+
+
+def test_docstring_checker_writes_markdown_coverage_table(tmp_path):
+    root = tmp_path / "pkg"
+    report = tmp_path / "coverage.md"
+    _write(
+        root / "__init__.py",
+        '"""Package docs."""\n\ndef documented():\n    """Function docs."""\n    return 1\n',
+    )
+
+    rc = check_docstrings.main(["--root", str(root), "--markdown-output", str(report)])
+
+    assert rc == 0
+    text = report.read_text(encoding="utf-8")
+    assert "# Public API Docstring Coverage" in text
+    assert "| Required symbols | 2 |" in text
+    assert "| `linstabpy.documented` | function |" in text
+    assert "| `linstabpy.documented` | function | `__init__.py:3` | documented |  |" in text
