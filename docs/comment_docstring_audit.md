@@ -112,6 +112,113 @@ Do not comment:
 - generic PETSc, SLEPc, NumPy, or SciPy behavior;
 - future plans that belong in tracked issues or architecture documents.
 
+## Comment And Docstring Policy
+
+The release standard is selective coverage with explicit reasons. A missing
+comment is acceptable when the code is simple and the surrounding tests or type
+names already state the contract. A missing comment is not acceptable when the
+code owns numerical policy, backend lifecycle, or saved-result compatibility.
+
+### Public API Docstrings
+
+Public modules, classes, functions, and methods under `src/linstabpy` need
+docstrings that describe what the caller can rely on. Good public docstrings
+state the purpose, important inputs and outputs, numerical conventions, side
+effects, and failure modes. They should not mechanically repeat type hints or
+list obvious parameter names.
+
+Examples of useful public coverage:
+
+- `BCRecipe` explains effective rows, column-zeroed rows, overlap reporting,
+  and backend dispatch because those are public compatibility contracts.
+- `LNSESystem` describes the assembled handoff instead of forcing callers to
+  infer which sparse matrices and index maps travel together.
+- `SolverConfig` documents where dict/env defaults are interpreted before
+  PETSc/SLEPc objects are created.
+
+### Private Numerical-Policy Helpers
+
+Private helpers need a docstring or a nearby invariant comment when moving the
+helper would change a numerical contract. These helpers should also appear in
+the docstring gate's required-private list when they become stable ownership
+points.
+
+Require comments around helpers that own:
+
+- boundary-condition ordering, especially effective rows versus
+  column-zeroed Dirichlet rows;
+- PETSc/MPI initialization, launcher binding, or local/distributed matrix
+  ownership;
+- solver acceptance, including postcheck residuals, target distance, accepted
+  families, and root-gathered diagnostics;
+- mesh mutation, deformation, masking, filter reuse, or derivative-operator
+  rebuild decisions;
+- NPZ schema compatibility and provenance keys;
+- sparse-assembly order, coefficient fusion, one-pass block construction, or
+  inverse-mass application.
+
+Good invariant comments say why the line is placed where it is. For example:
+the inverse mass/metric block must be applied before sponge, dissipation, and
+boundary conditions; the postcheck must compare against the reduced operator
+used by the solve; and saved NPZ keys may be added but not renamed without a
+migration path.
+
+### Simple Private Helpers
+
+Do not add comments to private helpers that are only small adapters, local
+formatting utilities, simple array conversions, or one-line path/env lookups.
+If a scanner reports one of these, the audit should mark it as intentionally
+private/simple rather than forcing a decorative docstring.
+
+Examples that usually should stay uncommented:
+
+- a helper that normalizes a local string before printing;
+- a one-line wrapper around `np.asarray`;
+- a local path builder whose behavior is already covered by the caller's
+  docstring and tests.
+
+### Examples And Scripts
+
+Examples and validation scripts should have module-level or entry-point
+docstrings that say what case is being run, which data are optional, whether an
+existing cache is loaded or recomputed, and where outputs are written. Inline
+comments belong only near non-obvious numerical setup, MPI launch behavior,
+optional external assets, or cache/provenance decisions.
+
+Avoid turning examples into tutorials inside the source. Reader-facing
+instructions belong in README files or case-study docs; source comments should
+protect the run contract.
+
+### Tests
+
+Test names, parametrization IDs, and assertion messages should carry most of
+the documentation burden. Add comments only when a tolerance, fixture, skip, or
+reference artifact would otherwise look arbitrary. Do not narrate pytest
+mechanics or restate the assertion expression in prose.
+
+### Generated And Cache Artifacts
+
+Generated reports, example `.npz` files, cache directories, and regenerated
+figures are not hand-commented. Document their regeneration command, commit or
+ignore policy, and expected location instead. If a generated artifact becomes
+part of a release fixture, record its source command and SHA-bearing provenance
+in the relevant release audit.
+
+### Comments To Avoid
+
+Remove or reject comments that only narrate the code:
+
+- "Loop over rows."
+- "Set the variable."
+- "Calculate the result."
+- "Convert to array."
+
+Also avoid generic transition prose and claims that sound detached from the
+code path, such as "it is important to note" or "this robustly handles all
+cases" without a specific invariant or test. Public comments should cite code,
+validation commands, source papers, or artifact contracts rather than internal
+planning history.
+
 ## Terminology
 
 Use these terms consistently:
