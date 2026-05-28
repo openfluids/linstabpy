@@ -4,6 +4,7 @@
 import json
 import shutil
 import textwrap
+from inspect import signature
 
 import numpy as np
 import pytest
@@ -32,7 +33,10 @@ from linstabpy.operators import (
 from linstabpy.operators.assembly import (
     _apply_inv_B,
     _build_block_csr,
+    _build_lnse_system_from_request,
     _create_axy_diff_matrices,
+    _LNSEAssemblyRequest,
+    _LNSEAssemblyResult,
     _make_csr_derivative_cache,
     _prepare_coefficients,
 )
@@ -570,6 +574,71 @@ class TestCylindricalCoefficients:
 
 class TestOperatorAssembly:
     """Tests for build_lnse_operator using small_mesh_2d + uniform_baseflow."""
+
+    def test_build_lnse_system_public_signature_is_stable(self):
+        params = signature(build_lnse_system).parameters
+        expected = [
+            "mesh",
+            "baseflow",
+            "kx",
+            "model",
+            "m",
+            "floquet_exp",
+            "dissipation_epsilon",
+            "bc_recipe",
+            "bc_penalty",
+            "backend",
+            "solver_cfg",
+        ]
+
+        if list(params) != expected:
+            raise AssertionError(f"build_lnse_system signature changed: {list(params)!r}")
+        if params["kx"].default != 0.0:
+            raise AssertionError("build_lnse_system kx default changed")
+        if params["model"].default != "2D":
+            raise AssertionError("build_lnse_system model default changed")
+        if params["bc_penalty"].default != 1e4:
+            raise AssertionError("build_lnse_system bc_penalty default changed")
+
+    def test_lnse_assembly_request_result_preserve_public_tuple(
+        self, small_mesh_2d, uniform_baseflow
+    ):
+        recipe = [{"type": "dirichlet", "borders": "bt", "variables": "uvwT"}]
+        request = _LNSEAssemblyRequest(
+            mesh=small_mesh_2d,
+            baseflow=uniform_baseflow,
+            kx=0.15,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+
+        result = _build_lnse_system_from_request(request)
+        public_L0, public_idx, public_bc = build_lnse_system(
+            small_mesh_2d,
+            uniform_baseflow,
+            kx=0.15,
+            bc_recipe=recipe,
+            backend="scipy",
+        )
+
+        if not isinstance(result, _LNSEAssemblyResult):
+            raise AssertionError(f"Expected _LNSEAssemblyResult, got {type(result)!r}")
+        if result.backend_metadata["requested_backend"] != "scipy":
+            raise AssertionError("Request metadata did not preserve requested backend")
+        if result.backend_metadata["resolved_backend"] != "scipy":
+            raise AssertionError("Request metadata did not preserve resolved backend")
+        if result.backend_metadata["matrix_type"] != "scipy":
+            raise AssertionError("Result metadata did not preserve matrix type")
+        if result.bc_analysis is None:
+            raise AssertionError("Result should carry BC analysis when a recipe is present")
+        np.testing.assert_array_equal(result.bc_analysis["dirichlet_indices"], result.bc_indices)
+        np.testing.assert_array_equal(result.bc_indices, public_bc)
+        for key, value in public_idx.items():
+            np.testing.assert_array_equal(result.idx[key], value)
+
+        delta = (result.operator - public_L0).tocsr()
+        if delta.nnz != 0 and np.max(np.abs(delta.data)) >= 1e-12:
+            raise AssertionError("Internal assembly result differs from public wrapper tuple")
 
     def test_continuity_block_no_viscous(self, small_mesh_2d, uniform_baseflow):
         """First ngp rows (continuity) should have no second-derivative viscous entries.
