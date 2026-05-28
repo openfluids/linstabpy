@@ -586,7 +586,13 @@ class TestTemporalEigenvalues:
         target = -0.1j
         omega, _ = temporal_eigenvalues(L0, n_modes=5, target=target)
         dists = np.abs(omega - target)
-        np.testing.assert_array_less(dists[:-1], dists[1:] + 1e-12)
+        # The solver buckets eigenvalues within ``tie_tol`` (1e-10) of each
+        # other as equidistant and then orders them by (real, imag) for
+        # run-to-run reproducibility (see ``_nearest_order`` in
+        # ``solvers/eigenvalue.py``). Raw-distance monotonicity therefore only
+        # holds up to that bucket tolerance, so the slack here must match the
+        # solver's tie_tol rather than machine epsilon.
+        np.testing.assert_array_less(dists[:-1], dists[1:] + 1e-10)
 
     def test_direct_petsc_matches_scipy_eigenvalues(self, blasius_problem):
         """Direct-PETSc input should reproduce the SciPy temporal spectrum."""
