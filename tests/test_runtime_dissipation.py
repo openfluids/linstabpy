@@ -118,6 +118,36 @@ DISSIPATION_KEYS = (
 )
 
 
+def test_runtime_empty_defaults_are_shared_typed_arrays():
+    """Disabled runtime stages should reuse typed empty sentinels."""
+    assert results_runtime.EMPTY_FLOAT.dtype == np.dtype(float)
+    assert results_runtime.EMPTY_COMPLEX.dtype == np.dtype(complex)
+    assert results_runtime.EMPTY_INT32.dtype == np.dtype(np.int32)
+    assert results_runtime.EMPTY_INT64.dtype == np.dtype(np.int64)
+    assert not results_runtime.EMPTY_FLOAT.flags.writeable
+    assert not results_runtime.EMPTY_COMPLEX.flags.writeable
+    assert not results_runtime.EMPTY_INT32.flags.writeable
+    assert not results_runtime.EMPTY_INT64.flags.writeable
+
+    empty_postcheck = results_runtime._postcheck_stability_modes(
+        np.eye(0, dtype=complex),
+        results_runtime.EMPTY_COMPLEX,
+        np.empty((0, 0), dtype=complex),
+        target=0.0 + 0.0j,
+        bc_indices=results_runtime.EMPTY_INT64,
+        constrained_dirichlet_indices=results_runtime.EMPTY_INT64,
+    )
+    assert empty_postcheck["postcheck_residual_rel"] is results_runtime.EMPTY_FLOAT
+    assert empty_postcheck["postcheck_target_distance"] is results_runtime.EMPTY_FLOAT
+
+    empty_resolvent = results_runtime._empty_resolvent_result(ndof=10)
+    assert empty_resolvent.gains is results_runtime.EMPTY_FLOAT
+    assert empty_resolvent.rho_fwd is results_runtime.EMPTY_FLOAT
+    assert empty_resolvent.rho_adj is results_runtime.EMPTY_FLOAT
+    assert empty_resolvent.responses.shape == (10, 0)
+    assert empty_resolvent.forcings.shape == (10, 0)
+
+
 def _write_config(config_path, operator_dissipation: str | None = None) -> None:
     operator_block = ""
     if operator_dissipation is not None:

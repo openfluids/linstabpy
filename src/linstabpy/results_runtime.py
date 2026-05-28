@@ -129,6 +129,31 @@ cache invalidation, and downstream campaign summaries.
 """
 
 
+def _readonly_empty(dtype) -> np.ndarray:
+    """Return a shared empty array that cannot be mutated accidentally."""
+    array = np.array([], dtype=dtype)
+    array.setflags(write=False)
+    return array
+
+
+EMPTY_FLOAT = _readonly_empty(float)
+EMPTY_COMPLEX = _readonly_empty(complex)
+EMPTY_INT32 = _readonly_empty(np.int32)
+EMPTY_INT64 = _readonly_empty(np.int64)
+# Shared empty arrays used as read-only defaults in hot runtime paths.
+
+
+def _array_from_mapping(
+    mapping: dict[str, object],
+    key: str,
+    *,
+    dtype,
+    default: np.ndarray,
+) -> np.ndarray:
+    """Return a typed array from a runtime info mapping without allocating a default."""
+    return np.asarray(mapping.get(key, default), dtype=dtype)
+
+
 def _config_hash(config_dict: dict) -> str:
     """Return a 64-char hex SHA-256 of the sorted-key JSON serialization."""
     import hashlib
@@ -363,18 +388,17 @@ def _postcheck_stability_modes(
 ) -> dict[str, object]:
     """Compute explicit residual and BC-leakage diagnostics for returned modes."""
     n_modes = int(np.asarray(omega).size)
-    empty = np.array([], dtype=float)
     if n_modes == 0 or modes.size == 0:
         return {
-            "postcheck_residual_abs": empty,
-            "postcheck_residual_rel": empty,
-            "postcheck_residual_interior_abs": empty,
-            "postcheck_residual_bc_abs": empty,
-            "postcheck_bc_leak_max": empty,
-            "postcheck_bc_leak_p99": empty,
-            "postcheck_dirichlet_leak_max": empty,
-            "postcheck_dirichlet_leak_p99": empty,
-            "postcheck_target_distance": empty,
+            "postcheck_residual_abs": EMPTY_FLOAT,
+            "postcheck_residual_rel": EMPTY_FLOAT,
+            "postcheck_residual_interior_abs": EMPTY_FLOAT,
+            "postcheck_residual_bc_abs": EMPTY_FLOAT,
+            "postcheck_bc_leak_max": EMPTY_FLOAT,
+            "postcheck_bc_leak_p99": EMPTY_FLOAT,
+            "postcheck_dirichlet_leak_max": EMPTY_FLOAT,
+            "postcheck_dirichlet_leak_p99": EMPTY_FLOAT,
+            "postcheck_target_distance": EMPTY_FLOAT,
         }
 
     bc_idx = np.unique(np.asarray(bc_indices, dtype=int))
@@ -697,7 +721,7 @@ def _stage_assemble_operators(
             "w_j": np.arange(3 * mesh.ngp, 4 * mesh.ngp, dtype=np.int64),
             "T_j": np.arange(4 * mesh.ngp, 5 * mesh.ngp, dtype=np.int64),
         }
-        bc_indices = np.array([], dtype=np.int64)
+        bc_indices = EMPTY_INT64
         L0_resolv = L0
         bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
     else:
@@ -767,23 +791,23 @@ def _stage_assemble_operators(
         )
 
     effective_dirichlet_indices = np.asarray(
-        bc_analysis.get("effective_dirichlet_indices", np.array([], dtype=np.int64)),
+        bc_analysis.get("effective_dirichlet_indices", EMPTY_INT64),
         dtype=np.int64,
     )
     effective_neumann_indices = np.asarray(
-        bc_analysis.get("effective_neumann_indices", np.array([], dtype=np.int64)),
+        bc_analysis.get("effective_neumann_indices", EMPTY_INT64),
         dtype=np.int64,
     )
     overlap_indices = np.asarray(
-        bc_analysis.get("overlap_indices", np.array([], dtype=np.int64)),
+        bc_analysis.get("overlap_indices", EMPTY_INT64),
         dtype=np.int64,
     )
     column_zeroed_dirichlet_indices = np.asarray(
-        bc_analysis.get("column_zeroed_dirichlet_indices", np.array([], dtype=np.int64)),
+        bc_analysis.get("column_zeroed_dirichlet_indices", EMPTY_INT64),
         dtype=np.int64,
     )
     total_bc_indices = np.asarray(
-        bc_analysis.get("total_bc_indices", np.array([], dtype=np.int64)),
+        bc_analysis.get("total_bc_indices", EMPTY_INT64),
         dtype=np.int64,
     )
     constrained_dirichlet_indices = (
@@ -831,11 +855,11 @@ class _ResolventStageResult:
 def _empty_resolvent_result(ndof: int) -> _ResolventStageResult:
     """Return shape-stable empty arrays for runs with resolvent disabled."""
     return _ResolventStageResult(
-        gains=np.array([], dtype=float),
+        gains=EMPTY_FLOAT,
         responses=np.empty((ndof, 0), dtype=complex),
         forcings=np.empty((ndof, 0), dtype=complex),
-        rho_fwd=np.array([], dtype=float),
-        rho_adj=np.array([], dtype=float),
+        rho_fwd=EMPTY_FLOAT,
+        rho_adj=EMPTY_FLOAT,
     )
 
 
@@ -878,8 +902,8 @@ def _stage_run_resolvent(
     _log("resolvent analysis finished")
     _log_stage("resolvent", stage_start)
 
-    rho_fwd = np.array([], dtype=float)
-    rho_adj = np.array([], dtype=float)
+    rho_fwd = EMPTY_FLOAT
+    rho_adj = EMPTY_FLOAT
     if gains.size > 0:
         stage_start = _stage_start()
         with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
@@ -935,7 +959,7 @@ def _stage_run_stability(
     heartbeat_seconds: float,
 ) -> _StabilityStageResult:
     """Run the optional temporal stability stage and postcheck returned modes."""
-    omega = np.array([], dtype=complex)
+    omega = EMPTY_COMPLEX
     direct_modes = np.empty((mesh.ngp * 5, 0), dtype=complex)
     stability_info: dict[str, object] = {}
     if not run_stability:
@@ -973,10 +997,7 @@ def _stage_run_stability(
             "residual_relative",
             "residual_backward",
         ):
-            residuals_raw = np.asarray(
-                stability_info.get(key, np.array([], dtype=float)),
-                dtype=float,
-            )
+            residuals_raw = np.asarray(stability_info.get(key, EMPTY_FLOAT), dtype=float)
             if residuals_raw.size == omega.size:
                 stability_info[key] = residuals_raw[order]
     else:
@@ -1038,8 +1059,8 @@ def _stage_run_stability(
         )
     stability_info.update(stability_meta)
     _log(f"stability analysis finished: converged_modes={omega.size}")
-    residuals = np.asarray(
-        stability_info.get("residual_estimates", np.array([], dtype=float)), dtype=float
+    residuals = _array_from_mapping(
+        stability_info, "residual_estimates", dtype=float, default=EMPTY_FLOAT
     )
     if residuals.size:
         finite = residuals[np.isfinite(residuals)]
@@ -1054,7 +1075,7 @@ def _stage_run_stability(
                 f"median_residual={float(np.median(finite)):.3e}"
             )
     postcheck_rel = np.asarray(
-        stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
+        stability_info.get("postcheck_residual_rel", EMPTY_FLOAT),
         dtype=float,
     )
     if postcheck_rel.size:
@@ -1112,57 +1133,47 @@ def _stage_evaluate_stability_acceptance(
     stability_acceptance_conjugate_aware: bool,
 ) -> _StabilityAcceptanceStageResult:
     """Prepare stability postcheck arrays, acceptance verdicts, and conjugate diagnostics."""
-    stability_residual_estimates = np.asarray(
-        stability_info.get("residual_estimates", np.array([], dtype=float)),
-        dtype=float,
+    stability_residual_estimates = _array_from_mapping(
+        stability_info, "residual_estimates", dtype=float, default=EMPTY_FLOAT
     )
-    stability_residual_absolute = np.asarray(
-        stability_info.get("residual_absolute", np.array([], dtype=float)),
-        dtype=float,
+    stability_residual_absolute = _array_from_mapping(
+        stability_info, "residual_absolute", dtype=float, default=EMPTY_FLOAT
     )
-    stability_residual_relative = np.asarray(
-        stability_info.get("residual_relative", np.array([], dtype=float)),
-        dtype=float,
+    stability_residual_relative = _array_from_mapping(
+        stability_info, "residual_relative", dtype=float, default=EMPTY_FLOAT
     )
-    stability_residual_backward = np.asarray(
-        stability_info.get("residual_backward", np.array([], dtype=float)),
-        dtype=float,
+    stability_residual_backward = _array_from_mapping(
+        stability_info, "residual_backward", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_residual_abs = np.asarray(
-        stability_info.get("postcheck_residual_abs", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_residual_abs = _array_from_mapping(
+        stability_info, "postcheck_residual_abs", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_residual_rel = np.asarray(
-        stability_info.get("postcheck_residual_rel", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_residual_rel = _array_from_mapping(
+        stability_info, "postcheck_residual_rel", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_residual_interior_abs = np.asarray(
-        stability_info.get("postcheck_residual_interior_abs", np.array([], dtype=float)),
+    stability_postcheck_residual_interior_abs = _array_from_mapping(
+        stability_info,
+        "postcheck_residual_interior_abs",
         dtype=float,
+        default=EMPTY_FLOAT,
     )
-    stability_postcheck_residual_bc_abs = np.asarray(
-        stability_info.get("postcheck_residual_bc_abs", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_residual_bc_abs = _array_from_mapping(
+        stability_info, "postcheck_residual_bc_abs", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_bc_leak_max = np.asarray(
-        stability_info.get("postcheck_bc_leak_max", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_bc_leak_max = _array_from_mapping(
+        stability_info, "postcheck_bc_leak_max", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_bc_leak_p99 = np.asarray(
-        stability_info.get("postcheck_bc_leak_p99", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_bc_leak_p99 = _array_from_mapping(
+        stability_info, "postcheck_bc_leak_p99", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_dirichlet_leak_max = np.asarray(
-        stability_info.get("postcheck_dirichlet_leak_max", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_dirichlet_leak_max = _array_from_mapping(
+        stability_info, "postcheck_dirichlet_leak_max", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_dirichlet_leak_p99 = np.asarray(
-        stability_info.get("postcheck_dirichlet_leak_p99", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_dirichlet_leak_p99 = _array_from_mapping(
+        stability_info, "postcheck_dirichlet_leak_p99", dtype=float, default=EMPTY_FLOAT
     )
-    stability_postcheck_target_distance = np.asarray(
-        stability_info.get("postcheck_target_distance", np.array([], dtype=float)),
-        dtype=float,
+    stability_postcheck_target_distance = _array_from_mapping(
+        stability_info, "postcheck_target_distance", dtype=float, default=EMPTY_FLOAT
     )
     stability_acceptance = evaluate_stability_acceptance(
         omega,
@@ -1185,7 +1196,7 @@ def _stage_evaluate_stability_acceptance(
             f"omega_imag_abs_max={stability_acceptance_omega_imag_abs_max:.3e}"
         )
     accepted_idx_for_diag = np.asarray(
-        stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+        stability_acceptance.get("accepted_indices", EMPTY_INT32),
         dtype=np.int32,
     )
     conjugate_diagnostic = check_conjugate_pair_completeness(omega, accepted_idx_for_diag)
@@ -1670,7 +1681,7 @@ def compute() -> None:
                 stability_all_postcheck_rel=stability_postcheck_residual_rel,
                 stability_all_target_distance=stability_postcheck_target_distance,
                 stability_all_reject_reason_code=np.asarray(
-                    stability_acceptance.get("reject_reason_code", np.array([], dtype=np.int32)),
+                    stability_acceptance.get("reject_reason_code", EMPTY_INT32),
                     dtype=np.int32,
                 ),
                 stability_acceptance_postcheck_rel_max=float(
@@ -1690,11 +1701,11 @@ def compute() -> None:
                 ),
                 stability_accepted_count=int(stability_acceptance.get("accepted_count", -1)),
                 stability_accepted_indices=np.asarray(
-                    stability_acceptance.get("accepted_indices", np.array([], dtype=np.int32)),
+                    stability_acceptance.get("accepted_indices", EMPTY_INT32),
                     dtype=np.int32,
                 ),
                 stability_rejected_indices=np.asarray(
-                    stability_acceptance.get("rejected_indices", np.array([], dtype=np.int32)),
+                    stability_acceptance.get("rejected_indices", EMPTY_INT32),
                     dtype=np.int32,
                 ),
                 stability_accepted_postcheck_rel_min=float(
