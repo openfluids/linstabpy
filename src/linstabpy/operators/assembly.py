@@ -448,6 +448,24 @@ def _cache_5_block_derivatives(
     return [cache] * 5
 
 
+def _record_prepare_derivative_metrics(
+    stage: dict[str, Any],
+    derivatives: dict[str, np.ndarray],
+) -> None:
+    """Record materialized derivative-vector cost for P3 kernel work.
+
+    The current coefficient API receives derivative arrays, so
+    ``prepare_coefficients`` must keep these vectors alive until the coefficient
+    tensors have been written.  P3 reductions should lower these counters, not
+    just move the allocations to a different line.
+    """
+    bytes_by_name = {name: int(np.asarray(value).nbytes) for name, value in derivatives.items()}
+    total_bytes = int(sum(bytes_by_name.values()))
+    stage["derivative_vector_count"] = int(len(bytes_by_name))
+    stage["derivative_vector_bytes_by_name"] = bytes_by_name
+    stage["derivative_vector_bytes_total"] = total_bytes
+
+
 def build_lnse_operator(
     mesh: Mesh,
     baseflow: BaseFlow,
@@ -1051,6 +1069,35 @@ def _prepare_coefficients(
             d2Vdxdy = Dx @ dVdy
             d2Wdxdy = Dx @ dWdy
 
+            _record_prepare_derivative_metrics(
+                stage,
+                {
+                    "dUdx": dUdx,
+                    "dUdy": dUdy,
+                    "dVdx": dVdx,
+                    "dVdy": dVdy,
+                    "dWdx": dWdx,
+                    "dWdy": dWdy,
+                    "dRHOdx": dRHOdx,
+                    "dRHOdy": dRHOdy,
+                    "dTdx": dTdx,
+                    "dTdy": dTdy,
+                    "dPdx": dPdx,
+                    "dPdy": dPdy,
+                    "d2Udx2": d2Udx2,
+                    "d2Udy2": d2Udy2,
+                    "d2Vdx2": d2Vdx2,
+                    "d2Vdy2": d2Vdy2,
+                    "d2Wdx2": d2Wdx2,
+                    "d2Wdy2": d2Wdy2,
+                    "d2Tdx2": d2Tdx2,
+                    "d2Tdy2": d2Tdy2,
+                    "d2Udxdy": d2Udxdy,
+                    "d2Vdxdy": d2Vdxdy,
+                    "d2Wdxdy": d2Wdxdy,
+                },
+            )
+
             coeffs = compute_cartesian_coefficients(
                 U=U,
                 V=V,
@@ -1126,6 +1173,33 @@ def _prepare_coefficients(
             d2Vdrz = Dx @ dVdr
             d2Wdrz = Dx @ dWdr
 
+            _record_prepare_derivative_metrics(
+                stage,
+                {
+                    "dUdr": dUdr,
+                    "dVdr": dVdr,
+                    "dWdr": dWdr,
+                    "dRHOdr": dRHOdr,
+                    "dTdr": dTdr,
+                    "dUdz": dUdz,
+                    "dVdz": dVdz,
+                    "dWdz": dWdz,
+                    "dRHOdz": dRHOdz,
+                    "dTdz": dTdz,
+                    "d2Udr2": d2Udr2,
+                    "d2Vdr2": d2Vdr2,
+                    "d2Wdr2": d2Wdr2,
+                    "d2Tdr2": d2Tdr2,
+                    "d2Udz2": d2Udz2,
+                    "d2Vdz2": d2Vdz2,
+                    "d2Wdz2": d2Wdz2,
+                    "d2Tdz2": d2Tdz2,
+                    "d2Udrz": d2Udrz,
+                    "d2Vdrz": d2Vdrz,
+                    "d2Wdrz": d2Wdrz,
+                },
+            )
+
             coeffs = compute_cylindrical_coefficients(
                 U=U_c,
                 V=V_c,
@@ -1179,6 +1253,8 @@ def _prepare_coefficients(
         _note_assembly_metadata(
             ngp=int(ngp),
             ndof=int(5 * ngp),
+            derivative_vector_count=stage.get("derivative_vector_count"),
+            derivative_vector_bytes_total=stage.get("derivative_vector_bytes_total"),
             coeff_tensor_bytes_by_array=coeff_tensor_bytes,
             coeff_tensor_bytes_total=coeff_tensor_bytes_total,
         )
