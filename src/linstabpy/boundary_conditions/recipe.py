@@ -8,13 +8,17 @@ combined BC index set.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import scipy.sparse as sp
 
 from ..mesh.mesh import Mesh
 from .dirichlet import (
+    _BORDER_MAP,
+    _VARIABLE_MAP,
     _collect_dirichlet_indices,
     apply_dirichlet,
     apply_dirichlet_petsc,
@@ -25,11 +29,119 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
     from petsc4py import PETSc
 
 
+@dataclass(frozen=True)
+class BCRule:
+    """Normalized boundary-condition rule from a JSONC-compatible recipe entry."""
+
+    type: str
+    borders: str
+    variables: str
+    exclude_corners: bool = False
+    curvilinear_normals: bool = False
+
+    @classmethod
+    def from_mapping(cls, rule: Mapping[str, Any]) -> "BCRule":
+        """Normalize one raw recipe mapping without changing legacy semantics."""
+        bc_type = str(rule["type"]).strip().lower()
+        if bc_type not in {"dirichlet", "neumann"}:
+            raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
+        borders = str(rule["borders"])
+        variables = str(rule["variables"])
+        _validate_rule_symbols(bc_type, borders, variables)
+        return cls(
+            type=bc_type,
+            borders=borders,
+            variables=variables,
+            exclude_corners=bool(rule.get("exclude_corners", False)),
+            curvilinear_normals=bool(rule.get("curvilinear_normals", False)),
+        )
+
+
+@dataclass(frozen=True)
+class BCRecipe:
+    """First-class boundary-condition recipe with legacy list/dict compatibility.
+
+    The rule order is part of the numerical contract: later rows own overlaps
+    with earlier rows. Dirichlet column-zeroing still records every Dirichlet
+    rule that ran, even if a later Neumann rule replaces the same row.
+    """
+
+    rules: tuple[BCRule, ...]
+
+    @classmethod
+    def from_config(
+        cls,
+        recipe: "BCRecipe | Sequence[Mapping[str, Any]]",
+    ) -> "BCRecipe":
+        """Build a recipe from the current JSONC-compatible list of rule dicts."""
+        if isinstance(recipe, BCRecipe):
+            return recipe
+        return cls(tuple(BCRule.from_mapping(rule) for rule in recipe))
+
+    def apply_to(
+        self,
+        L0: sp.csc_matrix,
+        mesh: Mesh,
+        idx: dict[str, np.ndarray],
+        *,
+        penalty: float = 1e4,
+    ) -> tuple[sp.csc_matrix, np.ndarray]:
+        """Apply this recipe to a SciPy LNSE operator."""
+        return _apply_bc_recipe_impl(
+            L0,
+            mesh,
+            idx,
+            self,
+            penalty=penalty,
+            dirichlet_fn=apply_dirichlet,
+            neumann_fn=apply_neumann,
+        )
+
+    def apply_to_petsc(
+        self,
+        L0: "PETSc.Mat",
+        mesh: Mesh,
+        idx: dict[str, np.ndarray],
+        *,
+        penalty: float = 1e4,
+    ) -> tuple["PETSc.Mat", np.ndarray]:
+        """Apply this recipe to a PETSc LNSE matrix."""
+        return _apply_bc_recipe_impl(
+            L0,
+            mesh,
+            idx,
+            self,
+            penalty=penalty,
+            dirichlet_fn=apply_dirichlet_petsc,
+            neumann_fn=apply_neumann_petsc,
+        )
+
+    def analyze(self, mesh: Mesh, idx: dict[str, np.ndarray]) -> dict[str, object]:
+        """Analyze effective row owners and Dirichlet column-zeroing sets."""
+        return _analyze_bc_recipe_impl(mesh, idx, self)
+
+
+def _validate_rule_symbols(bc_type: str, borders: str, variables: str) -> None:
+    """Fail early on malformed border/variable symbols from config recipes."""
+    for border in borders:
+        if border not in _BORDER_MAP:
+            raise ValueError(
+                f"Unknown border character '{border}'; expected one of 'l', 'r', 'b', 't', 'm'"
+            )
+        if bc_type == "neumann" and border == "m":
+            raise ValueError("Neumann B.C. are currently only supported for b, t, l and r.")
+    for variable in variables:
+        if variable not in _VARIABLE_MAP:
+            raise ValueError(
+                f"Unknown variable character '{variable}'; expected one of 'r', 'u', 'v', 'w', 'T'"
+            )
+
+
 def _apply_bc_recipe_impl(
     L0,
     mesh: Mesh,
     idx: dict[str, np.ndarray],
-    recipe: list[dict],
+    recipe: BCRecipe,
     *,
     penalty: float,
     dirichlet_fn,
@@ -38,12 +150,10 @@ def _apply_bc_recipe_impl(
     """Apply a declarative BC recipe using backend-specific BC functions."""
     all_bc: list[np.ndarray] = []
 
-    for rule in recipe:
-        bc_type = rule["type"].lower()
-        borders = rule["borders"]
-        variables = rule["variables"]
-        exclude_corners = bool(rule.get("exclude_corners", False))
-        curvilinear_normals = bool(rule.get("curvilinear_normals", False))
+    for rule in recipe.rules:
+        bc_type = rule.type
+        borders = rule.borders
+        variables = rule.variables
 
         if bc_type == "dirichlet":
             L0, bc_idx = dirichlet_fn(
@@ -62,8 +172,8 @@ def _apply_bc_recipe_impl(
                 borders,
                 variables,
                 penalty=penalty,
-                exclude_corners=exclude_corners,
-                curvilinear_normals=curvilinear_normals,
+                exclude_corners=rule.exclude_corners,
+                curvilinear_normals=rule.curvilinear_normals,
             )
         else:
             raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
@@ -82,7 +192,7 @@ def apply_bc_recipe(
     L0: sp.csc_matrix,
     mesh: Mesh,
     idx: dict[str, np.ndarray],
-    recipe: list[dict],
+    recipe: BCRecipe | Sequence[Mapping[str, Any]],
     penalty: float = 1e4,
 ) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply a declarative BC recipe from a JSONC config.
@@ -114,40 +224,24 @@ def apply_bc_recipe(
     bc_indices : ndarray
         Sorted unique DOF indices affected by the full recipe.
     """
-    return _apply_bc_recipe_impl(
-        L0,
-        mesh,
-        idx,
-        recipe,
-        penalty=penalty,
-        dirichlet_fn=apply_dirichlet,
-        neumann_fn=apply_neumann,
-    )
+    return BCRecipe.from_config(recipe).apply_to(L0, mesh, idx, penalty=penalty)
 
 
 def apply_bc_recipe_petsc(
     L0: "PETSc.Mat",
     mesh: Mesh,
     idx: dict[str, np.ndarray],
-    recipe: list[dict],
+    recipe: BCRecipe | Sequence[Mapping[str, Any]],
     penalty: float = 1e4,
 ) -> tuple["PETSc.Mat", np.ndarray]:
     """Apply a declarative BC recipe directly to a PETSc LNSE matrix."""
-    return _apply_bc_recipe_impl(
-        L0,
-        mesh,
-        idx,
-        recipe,
-        penalty=penalty,
-        dirichlet_fn=apply_dirichlet_petsc,
-        neumann_fn=apply_neumann_petsc,
-    )
+    return BCRecipe.from_config(recipe).apply_to_petsc(L0, mesh, idx, penalty=penalty)
 
 
 def analyze_bc_recipe(
     mesh: Mesh,
     idx: dict[str, np.ndarray],
-    recipe: list[dict],
+    recipe: BCRecipe | Sequence[Mapping[str, Any]],
 ) -> dict[str, object]:
     """Analyze sequential BC-recipe semantics without modifying a matrix.
 
@@ -156,7 +250,15 @@ def analyze_bc_recipe(
     for stability EVPs, where later Neumann rules may override earlier
     Dirichlet rows at shared corner DOFs.
     """
-    if not recipe:
+    return BCRecipe.from_config(recipe).analyze(mesh, idx)
+
+
+def _analyze_bc_recipe_impl(
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: BCRecipe,
+) -> dict[str, object]:
+    if not recipe.rules:
         empty = np.array([], dtype=np.int64)
         return {
             "rule_reports": [],
@@ -175,11 +277,10 @@ def analyze_bc_recipe(
     row_owner_rule: dict[int, int] = {}
     rule_reports: list[dict[str, object]] = []
 
-    for rule_id, rule in enumerate(recipe):
-        bc_type = str(rule["type"]).strip().lower()
-        borders = str(rule["borders"])
-        variables = str(rule["variables"])
-        exclude_corners = bool(rule.get("exclude_corners", False))
+    for rule_id, rule in enumerate(recipe.rules):
+        bc_type = rule.type
+        borders = rule.borders
+        variables = rule.variables
         if bc_type == "dirichlet":
             bc_idx = _collect_dirichlet_indices(idx, borders, variables, mesh.ngp)
             dirichlet_union.update(int(val) for val in bc_idx)
@@ -189,7 +290,7 @@ def analyze_bc_recipe(
                 borders,
                 variables,
                 mesh.ngp,
-                exclude_corners=exclude_corners,
+                exclude_corners=rule.exclude_corners,
             )
             neumann_union.update(int(val) for val in bc_idx)
         else:
@@ -217,7 +318,8 @@ def analyze_bc_recipe(
                 "type": bc_type,
                 "borders": borders,
                 "variables": variables,
-                "exclude_corners": bool(exclude_corners),
+                "exclude_corners": bool(rule.exclude_corners),
+                "curvilinear_normals": bool(rule.curvilinear_normals),
                 "count": int(np.asarray(bc_idx).size),
                 "indices": np.asarray(bc_idx, dtype=np.int64),
                 "overlap_previous": np.unique(overlap_prev),
