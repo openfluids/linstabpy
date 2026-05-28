@@ -42,12 +42,12 @@ requirements as the architecture seams move.
 | Area | Files | Current risk |
 |---|---|---|
 | LNSE assembly | `src/linstabpy/operators/assembly.py`, `coefficients.py`, `spatial.py` | The five-stage operator construction order is documented, but many private helpers have no local invariant note. P1/P2/P3 work must add comments where coefficient fusion, block assembly, or derivative materialization changes the order or allocation pattern. |
-| Boundary conditions | `src/linstabpy/boundary_conditions/*.py` | Public behavior is documented, but the future BCRecipe seam must make effective rows, column-zeroed rows, overlaps, corners, and curvilinear normals explicit at the seam. |
-| Solver policy | `src/linstabpy/solvers/*.py`, `src/linstabpy/utils/_solver_cfg.py` | Module docstrings explain the current SLEPc/MUMPS paths. SolverConfig work must document where defaults are resolved and which choices affect PETSc/SLEPc object construction. |
-| Runtime and NPZ provenance | `src/linstabpy/results_runtime.py` | The module has a public runtime docstring, but stage boundaries and NPZ schema ownership are still scattered. The runtime split must document stage outputs and saved-key compatibility. |
-| Mesh state | `src/linstabpy/mesh/mesh.py`, `filters.py`, `sbp*.py` | Mesh geometry, operators, filters, sponge, and dissipation live on the same object. Any mutation-reduction work must document which fields are geometry, which are derived operators, and what can be reused after deformation. |
+| Boundary conditions | `src/linstabpy/boundary_conditions/*.py` | `BCRecipe` now owns effective rows, column-zeroed rows, overlaps, corners, curvilinear normals, and backend dispatch. Future comments should protect those distinctions rather than repeat row-loop mechanics. |
+| Solver policy | `src/linstabpy/solvers/*.py`, `src/linstabpy/utils/_solver_cfg.py` | Module docstrings explain the current SLEPc/MUMPS paths. `SolverConfig` owns where defaults are resolved and which choices affect PETSc/SLEPc object construction. |
+| Runtime and NPZ provenance | `src/linstabpy/results_runtime.py` | The runtime now has explicit stage helpers and a checked NPZ contract. Comments should explain stage outputs, saved-key compatibility, and provenance decisions. |
+| Mesh state | `src/linstabpy/mesh/mesh.py`, `filters.py`, `sbp*.py` | Mesh geometry, operators, filters, sponge, and dissipation remain on the same object, with grouped state views for contributor navigation. Comments should say which fields are geometry, which are derived operators, and what can be reused after deformation. |
 | PETSc/MPI init | `src/linstabpy/utils/petsc_init.py`, `petsc_core.py` | Existing comments explain lazy PETSc access and argv sanitization. Keep future comments focused on import/init ordering and MPI binding assumptions. |
-| Case-study wrappers | `examples/case_studies/**`, `studies/case2/**` | Comments should clarify run configuration, cache behavior, and provenance. Machine-specific notes stay outside the public package. |
+| Case-study wrappers | `examples/case_studies/**` | Comments should clarify run configuration, cache behavior, and provenance. Machine-specific notes stay outside the public package. |
 
 ## Helper Counts In Focus Areas
 

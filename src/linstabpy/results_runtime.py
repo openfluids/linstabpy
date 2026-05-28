@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Shared runtime for the case-style study drivers.
 
-Wrappers under ``studies/case*/`` prepare case-specific environment defaults
-and then call ``compute()`` / ``main()`` from this module.
+Wrappers under ``examples/case_studies/`` prepare case-specific environment
+defaults and then call ``compute()`` / ``main()`` from this module.
 """
 
 from __future__ import annotations
