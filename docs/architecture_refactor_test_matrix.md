@@ -23,6 +23,7 @@ Use the matrix runner from the repository root:
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --list
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-expanded-local
+.venv/bin/python scripts/validation/architecture_refactor_matrix.py --group documentation-gates
 .venv/bin/python scripts/validation/architecture_refactor_matrix.py --group phase0-local --skip-long
 ```
 
@@ -119,6 +120,10 @@ then for every later implementation phase. It must cover:
 
 Comments should explain maintained invariants and numerical assumptions. Avoid
 line-by-line narration or generated-looking filler.
+
+| ID | Command | Artifact |
+|---|---|---|
+| `docstring-inventory` | `.venv/bin/python scripts/validation/check_docstrings.py --root src/linstabpy --output artifacts/architecture_refactor/documentation/docstring_inventory.json` | AST inventory of public modules/classes/functions and selected private helpers |
 
 ## Bead Review Note Template
 

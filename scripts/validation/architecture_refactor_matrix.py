@@ -42,6 +42,7 @@ def _python() -> str:
 def _checks() -> list[Check]:
     py = _python()
     phase0_dir = ROOT / "artifacts/architecture_refactor/architecture_refactor_phase0"
+    docs_dir = ROOT / "artifacts/architecture_refactor/documentation"
     return [
         Check(
             id="pytest-full",
@@ -206,6 +207,20 @@ def _checks() -> list[Check]:
                 str((phase0_dir / "phase0_coefficient_tensors.npz").relative_to(ROOT)),
             ),
             artifact=phase0_dir / "phase0_coefficient_tensors.npz",
+        ),
+        Check(
+            id="docstring-inventory",
+            group="documentation-gates",
+            description="AST docstring inventory for public linstabpy symbols.",
+            command=(
+                py,
+                "scripts/validation/check_docstrings.py",
+                "--root",
+                "src/linstabpy",
+                "--output",
+                str((docs_dir / "docstring_inventory.json").relative_to(ROOT)),
+            ),
+            artifact=docs_dir / "docstring_inventory.json",
         ),
     ]
 

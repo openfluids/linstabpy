@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
+"""Acceptance gates for stability eigenvalues and postcheck residuals."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -124,8 +126,7 @@ def evaluate_stability_acceptance(
 
     Additive return keys (always present when any gate is active)
     -------------------------------------------------------------
-    - ``rejected_indices``: int32 array of mode indices where ``accepted``
-      is False.
+    - ``rejected_indices``: int32 array of mode indices rejected by the gates.
     - ``reject_reason_code``: int32 array of length ``n_modes`` with a
       bitmask per mode encoding which gates failed (0 = accepted):
         bit 0 (=1): postcheck_rel gate failed
