@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from scripts.validation import phase0_characterization as phase0
 
@@ -97,3 +98,40 @@ def test_coefficient_snapshot_output_writes_npz(monkeypatch, tmp_path):
     assert metadata["git_sha"] == "test-sha"
     assert metadata["artifact_kind"] == "phase0_coefficient_tensor_snapshot"
     assert metadata["cases"][0]["arrays"]["A0"]["npz_key"] == "case/A0"
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "case1_overlap",
+        "case1_exclude_corners",
+        "sheared_curvilinear_neumann",
+        "same_border_later_neumann_owns_overlap",
+        "pure_neumann_lr_exclude_corners",
+        "axisymmetric_dirichlet_ltr",
+    ],
+)
+def test_bc_characterization_includes_representative_recipes(label):
+    reports = phase0._bc_characterization()
+
+    assert label in {report["label"] for report in reports}
+
+
+def test_bc_characterization_records_later_rule_row_ownership():
+    reports = {report["label"]: report for report in phase0._bc_characterization()}
+    overlap_case = reports["same_border_later_neumann_owns_overlap"]
+
+    sets = overlap_case["sets"]
+    assert sets["dirichlet_indices"]["count"] == sets["neumann_indices"]["count"]
+    assert sets["overlap_indices"]["count"] == sets["dirichlet_indices"]["count"]
+    assert sets["effective_dirichlet_indices"]["count"] == 0
+    assert sets["effective_neumann_indices"]["count"] == sets["overlap_indices"]["count"]
+
+
+def test_bc_characterization_records_axisymmetric_model():
+    reports = {report["label"]: report for report in phase0._bc_characterization()}
+    axy_case = reports["axisymmetric_dirichlet_ltr"]
+
+    assert axy_case["model"] == "axy"
+    assert axy_case["sets"]["dirichlet_indices"]["count"] > 0
+    assert axy_case["sets"]["neumann_indices"]["count"] == 0
