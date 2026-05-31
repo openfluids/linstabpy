@@ -9,9 +9,9 @@ from scripts.validation.martini2024.tools.matlab_hdf5 import extract_file
 from tests._paths import martini_export
 
 
-# Legacy raw-MATLAB-export extraction check. Disabled from pytest collection
-# because martini_examples/ is intentionally outside Git.
-def legacy_test_extract_blasius_results_exposes_resolvent_fields() -> None:
+# Raw-MATLAB-export extraction check; the martini_examples/ bundle is kept out of
+# the repository and not distributed. Skips cleanly when it is absent.
+def test_extract_blasius_results_exposes_resolvent_fields() -> None:
     path = martini_export("example_1_Blasius_results.mat")
     if not path.exists():
         pytest.skip(f"Missing Martini export: {path}")
@@ -26,9 +26,9 @@ def legacy_test_extract_blasius_results_exposes_resolvent_fields() -> None:
     assert any(field.path == "results_Blasius/responses" for field in inventory)
 
 
-# Legacy raw-MATLAB-export extraction check. Disabled from pytest collection
-# because martini_examples/ is intentionally outside Git.
-def legacy_test_extract_blasius_logs_decodes_strings_and_scalars() -> None:
+# Raw-MATLAB-export extraction check; the martini_examples/ bundle is kept out of
+# the repository and not distributed. Skips cleanly when it is absent.
+def test_extract_blasius_logs_decodes_strings_and_scalars() -> None:
     path = martini_export("example_1_Blasius_logs.mat")
     if not path.exists():
         pytest.skip(f"Missing Martini export: {path}")
