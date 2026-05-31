@@ -170,18 +170,384 @@ def continuity_operator_coefficients(symbols: dict[str, sp.Symbol]) -> dict[str,
     }
 
 
-def _coeff_source_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[3]
-    candidates = [
-        repo_root / "src" / "linstabpy" / "operators" / "coefficients.py",
-        repo_root / "linstabpy" / "operators" / "coefficients.py",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    raise FileNotFoundError(
-        "Could not locate coefficients.py under either src/linstabpy/operators or linstabpy/operators"
+
+def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
+    """Independent first-principles derivation of all 175 cartesian LNSE coefficients.
+
+    Governing equations: non-dimensional compressible Navier-Stokes in primitive
+    variables q = [rho, u, v, w, T].  Physical coordinates: x=streamwise,
+    y=wall-normal, z=spanwise.  Linearization about a 2-D steady base flow
+    (Q_bar = RHO, U, V, W, T, MU, P) with all base-flow z-derivatives zero.
+
+    Fourier ansatz in z: d/dz on perturbations -> I*kx  (kx = spanwise wavenumber).
+    System convention: B*dq/dt = L*q, so B[i,j] = sp.I*(coeff of dq_j/dt in eq_i).
+
+    The continuity row (row 0) is verified to match continuity_operator_coefficients
+    exactly.
+
+    Nondimensionalisation: lengths by L_ref, velocities by U_inf, density by
+    rho_inf, temperature by T_inf.  Pressure: p = rho*T/(kappa*Ma^2).
+    Viscous stress: tau_ij = mu*(dui/dxj + duj/dxi) - 2/3*mu*div(u)*delta_ij.
+    Energy (temperature form):
+        rho*DT/Dt = -(kappa-1)*T*rho*div(u)
+                  + kappa/(Re*Pr) * div(mu*grad(T))
+                  + kappa*(kappa-1)*Ma^2/Re * Phi
+    where Phi = mu*[2*(du/dx)^2 + 2*(dv/dy)^2 + 2*(dw/dz)^2 + (du/dy+dv/dx)^2
+                    + (du/dz+dw/dx)^2 + (dv/dz+dw/dy)^2 - 2/3*div(u)^2].
+    """
+    I = sp.I
+    Z = sp.Integer(0)
+
+    U = symbols["U"]; V = symbols["V"]; W = symbols["W"]
+    RHO = symbols["RHO"]; T = symbols["T"]; MU = symbols["MU"]
+    P = symbols["P"]; kx = symbols["kx"]
+    Re = symbols["Re"]; Ma = symbols["Ma"]; Pr = symbols["Pr"]; kappa = symbols["kappa"]
+    dUdx = symbols["dUdx"]; dVdx = symbols["dVdx"]; dWdx = symbols["dWdx"]
+    dRHOdx = symbols["dRHOdx"]; dTdx = symbols["dTdx"]; dPdx = symbols["dPdx"]
+    dUdy = symbols["dUdy"]; dVdy = symbols["dVdy"]; dWdy = symbols["dWdy"]
+    dRHOdy = symbols["dRHOdy"]; dTdy = symbols["dTdy"]; dPdy = symbols["dPdy"]
+    d2Udx2 = symbols["d2Udx2"]; d2Vdx2 = symbols["d2Vdx2"]; d2Wdx2 = symbols["d2Wdx2"]
+    d2Udy2 = symbols["d2Udy2"]; d2Vdy2 = symbols["d2Vdy2"]; d2Wdy2 = symbols["d2Wdy2"]
+    d2Tdx2 = symbols["d2Tdx2"]; d2Tdy2 = symbols["d2Tdy2"]
+    d2Udxdy = symbols["d2Udxdy"]; d2Vdxdy = symbols["d2Vdxdy"]; d2Wdxdy = symbols["d2Wdxdy"]
+    dmudT = symbols["dmudT"]; d2mudT2 = symbols["d2mudT2"]
+
+    # dMU/dx = (dMU/dT)*(dT/dx), similarly for y.  2D base: no z-derivatives.
+    dMUdx = dmudT * dTdx
+    dMUdy = dmudT * dTdy
+    # 1/(kappa*Ma^2) = P/(RHO*T) from ideal gas p = rho*T/(kappa*Ma^2)
+    # Used for pressure gradient linearization:
+    #   dp'/dx = P/RHO * drho'/dx + rho'*(dPdx/RHO - P*dRHOdx/RHO^2) + P/T * dT'/dx + T'*dRHOdx*P/(RHO*T)
+    # (with P=RHO*T/(kappa*Ma^2), dT/dx/(kappa*Ma^2) = dPdx/RHO - P*dRHOdx/RHO^2)
+    kappa_1 = kappa - sp.Integer(1)
+    # kappa*(kappa-1)*Ma^2/Re — prefactor for viscous dissipation in energy
+    C1 = kappa * kappa_1 * Ma ** 2 / Re
+
+    out: dict[str, sp.Expr] = {}
+
+    # ------------------------------------------------------------------
+    # Initialise all 175 entries to zero, then assign nonzero terms.
+    # Keys: "{block}_{ij}" where block in (A0,Ax,Ay,Axx,Ayy,Axy,B),
+    # i in 0..4, j in 0..4.
+    # ------------------------------------------------------------------
+    for block in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+        for i in range(5):
+            for j in range(5):
+                out[f"{block}_{i}{j}"] = Z
+
+    # ==================================================================
+    # ROW 0: CONTINUITY
+    #
+    # drho/dt + d(RHO*u' + U*rho')/dx + d(RHO*v' + V*rho')/dy
+    #         + I*kx*(RHO*w' + W*rho') = 0
+    #
+    # Moving all terms to the RHS (L*q = B*dq/dt convention):
+    # B[0,0] = I  (coeff of drho'/dt, times i)
+    # Exactly reproduces continuity_operator_coefficients (rho -> RHO).
+    # ==================================================================
+    out["B_00"] = I
+    out["A0_00"] = -(I * kx * W + dUdx + dVdy)
+    out["A0_01"] = -dRHOdx
+    out["A0_02"] = -dRHOdy
+    out["A0_03"] = -I * kx * RHO
+    # A0_04 = 0 (already set)
+    out["Ax_00"] = -U
+    out["Ax_01"] = -RHO
+    out["Ay_00"] = -V
+    out["Ay_02"] = -RHO
+    # All second-derivative blocks for row 0 remain zero.
+
+    # ==================================================================
+    # ROW 1: X-MOMENTUM (streamwise, perturbation u', i=1)
+    #
+    # RHO*du'/dt + RHO*(U*du'/dx + V*du'/dy + I*kx*W*u')
+    #            + RHO*(u'*dU/dx + v'*dU/dy)
+    #            + rho'*(U*dU/dx + V*dU/dy)
+    # = -dp'/dx + (1/Re)*(d(tau_xx')/dx + d(tau_xy')/dy + I*kx*tau_xz')
+    #
+    # Pressure:
+    #   dp'/dx = P/RHO*drho'/dx + (dPdx/RHO-P*dRHOdx/RHO^2)*rho'
+    #          + P/T*dT'/dx + dRHOdx*P/(RHO*T)*T'
+    #
+    # Viscous stress (2D base, dU/dz=0):
+    #   tau_xx' = MU*(4/3*du'/dx - 2/3*dv'/dy - 2/3*I*kx*w')
+    #             + T'*dmudT*(4/3*dUdx - 2/3*dVdy)
+    #   tau_xy' = MU*(du'/dy + dv'/dx) + T'*dmudT*(dUdy + dVdx)
+    #   tau_xz' = MU*(I*kx*u' + dw'/dx) + T'*dmudT*dWdx
+    # ==================================================================
+    out["B_11"] = I * RHO
+
+    # --- A0 (no-derivative) ---
+    # rho' terms: advection -(U*dUdx+V*dUdy) + pressure -(dPdx/RHO - P*dRHOdx/RHO^2)
+    out["A0_10"] = -(U * dUdx + V * dUdy + dPdx / RHO - P * dRHOdx / RHO ** 2)
+    # u' terms: advection -RHO*I*kx*W + base gradient -RHO*dUdx
+    #           + viscous -kx^2*MU/Re (from I*kx*tau_xz' = -kx^2*MU*u' + ...)
+    out["A0_11"] = -I * kx * W * RHO - RHO * dUdx - kx ** 2 * MU / Re
+    # v' terms: advection -RHO*dUdy
+    out["A0_12"] = -RHO * dUdy
+    # w' terms: viscous from d(tau_xx')/dx: dMUdx*(-2/3*I*kx)*w'
+    out["A0_13"] = sp.Rational(-2, 3) * I * kx * dMUdx / Re
+    # T' terms: pressure -dRHOdx*P/(RHO*T) + viscous variable-mu second-deriv-of-base terms
+    out["A0_14"] = (
+        (P * dTdx - T * dPdx) / T ** 2
+        + (
+            dmudT * (sp.Rational(4, 3) * d2Udx2 - sp.Rational(2, 3) * d2Vdxdy)
+            + d2mudT2 * dTdx * (sp.Rational(4, 3) * dUdx - sp.Rational(2, 3) * dVdy)
+            + dmudT * (d2Udy2 + d2Vdxdy)
+            + d2mudT2 * dTdy * (dUdy + dVdx)
+            + I * kx * dmudT * dWdx
+        )
+        / Re
     )
+
+    # --- Ax (d/dx coefficients) ---
+    out["Ax_10"] = -P / RHO  # pressure: -P/RHO * drho'/dx
+    # advection -RHO*U + viscous dMUdx*(4/3)*du'/dx from d(tau_xx')/dx
+    out["Ax_11"] = -RHO * U + sp.Rational(4, 3) * dMUdx / Re
+    # from d(tau_xy')/dy: dMUdy*dv'/dx -> Ax[1,2]
+    out["Ax_12"] = dMUdy / Re
+    # I*kx*tau_xz' + d(tau_xx')/dx: net coeff of dw'/dx is I*kx*MU/Re - 2/3*I*kx*MU/Re
+    out["Ax_13"] = sp.Rational(1, 3) * I * kx * MU / Re
+    # pressure -P/T + viscous dmudT*(4/3*dUdx-2/3*dVdy)*dT'/dx
+    out["Ax_14"] = -P / T + dmudT * (sp.Rational(4, 3) * dUdx - sp.Rational(2, 3) * dVdy) / Re
+
+    # --- Ay (d/dy coefficients) ---
+    # Ay[1,0] = 0 (pressure has no drho'/dy in x-momentum)
+    # advection -RHO*V + viscous dMUdy*du'/dy from d(tau_xy')/dy
+    out["Ay_11"] = -RHO * V + dMUdy / Re
+    # from d(tau_xx')/dx: dMUdx*(-2/3)*dv'/dy
+    out["Ay_12"] = sp.Rational(-2, 3) * dMUdx / Re
+    # Ay[1,3] = 0 (no dw'/dy in x-momentum viscous)
+    # viscous dmudT*(dUdy+dVdx)*dT'/dy from d(tau_xy')/dy
+    out["Ay_14"] = dmudT * (dUdy + dVdx) / Re
+
+    # --- Second-derivative blocks ---
+    out["Axx_11"] = sp.Rational(4, 3) * MU / Re   # 4/3*MU * d2u'/dx2
+    out["Ayy_11"] = MU / Re                         # MU * d2u'/dy2
+    out["Axy_12"] = MU / (3 * Re)                  # net coeff of d2v'/dxdy: MU/Re - 2/3*MU/Re
+
+    # ==================================================================
+    # ROW 2: Y-MOMENTUM (wall-normal, perturbation v', i=2)
+    #
+    # By y-momentum symmetry (swap x<->y roles):
+    # RHO*dv'/dt + RHO*(U*dv'/dx + V*dv'/dy + I*kx*W*v')
+    #            + RHO*(u'*dV/dx + v'*dV/dy)
+    #            + rho'*(U*dV/dx + V*dV/dy)
+    # = -dp'/dy + (1/Re)*(d(tau_xy')/dx + d(tau_yy')/dy + I*kx*tau_yz')
+    #
+    #   tau_yy' = MU*(4/3*dv'/dy - 2/3*du'/dx - 2/3*I*kx*w')
+    #             + T'*dmudT*(4/3*dVdy - 2/3*dUdx)
+    #   tau_yz' = MU*(I*kx*v' + dw'/dy) + T'*dmudT*dWdy
+    # ==================================================================
+    out["B_22"] = I * RHO
+
+    # --- A0 ---
+    out["A0_20"] = -(U * dVdx + V * dVdy + dPdy / RHO - P * dRHOdy / RHO ** 2)
+    out["A0_21"] = -RHO * dVdx
+    out["A0_22"] = -I * kx * W * RHO - RHO * dVdy - kx ** 2 * MU / Re
+    out["A0_23"] = sp.Rational(-2, 3) * I * kx * dMUdy / Re
+    out["A0_24"] = (
+        (P * dTdy - T * dPdy) / T ** 2
+        + (
+            dmudT * (sp.Rational(4, 3) * d2Vdy2 - sp.Rational(2, 3) * d2Udxdy)
+            + d2mudT2 * dTdy * (sp.Rational(4, 3) * dVdy - sp.Rational(2, 3) * dUdx)
+            + dmudT * (d2Vdx2 + d2Udxdy)
+            + d2mudT2 * dTdx * (dVdx + dUdy)
+            + I * kx * dmudT * dWdy
+        )
+        / Re
+    )
+
+    # --- Ax ---
+    # from d(tau_yy')/dy: dMUdy*(-2/3)*du'/dx -> Ax[2,1]
+    out["Ax_21"] = sp.Rational(-2, 3) * dMUdy / Re
+    # advection -RHO*U + viscous from d(tau_xy')/dx: dMUdx*dv'/dx
+    out["Ax_22"] = -RHO * U + dMUdx / Re
+    # Ax[2,3] = 0 (no dw'/dx in y-momentum viscous)
+    # from d(tau_xy')/dx: dmudT*(dUdy+dVdx)*dT'/dx
+    out["Ax_24"] = dmudT * (dUdy + dVdx) / Re
+
+    # --- Ay ---
+    out["Ay_20"] = -P / RHO  # pressure: -P/RHO * drho'/dy
+    # from d(tau_xy')/dx: dMUdx*du'/dy
+    out["Ay_21"] = dMUdx / Re
+    # advection -RHO*V + viscous d(tau_yy')/dy: dMUdy*(4/3)*dv'/dy
+    out["Ay_22"] = -RHO * V + sp.Rational(4, 3) * dMUdy / Re
+    # I*kx*tau_yz' + d(tau_yy')/dy: net I*kx*MU/(3*Re) for dw'/dy
+    out["Ay_23"] = sp.Rational(1, 3) * I * kx * MU / Re
+    out["Ay_24"] = -P / T + dmudT * (sp.Rational(4, 3) * dVdy - sp.Rational(2, 3) * dUdx) / Re
+
+    # --- Second-derivative blocks ---
+    out["Axx_22"] = MU / Re
+    out["Ayy_22"] = sp.Rational(4, 3) * MU / Re
+    out["Axy_21"] = MU / (3 * Re)  # net coeff of d2u'/dxdy: MU/Re - 2/3*MU/Re
+
+    # ==================================================================
+    # ROW 3: Z-MOMENTUM (spanwise, perturbation w', i=3)
+    #
+    # After Fourier in z (d/dz -> I*kx on perturbations, d/dz of base = 0):
+    # -dp'/dz = -I*kx * p' = -I*kx*(P/RHO*rho' + P/T*T')
+    #
+    #   tau_xz' = MU*(I*kx*u' + dw'/dx) + T'*dmudT*dWdx
+    #   tau_yz' = MU*(I*kx*v' + dw'/dy) + T'*dmudT*dWdy
+    #   tau_zz' = MU*(4/3*I*kx*w' - 2/3*du'/dx - 2/3*dv'/dy)
+    #             + T'*dmudT*(-2/3*(dUdx+dVdy))  [since 2*dW/dz=0 for 2D base]
+    #
+    # I*kx*tau_zz': -4/3*kx^2*MU*w' - 2/3*I*kx*MU*du'/dx - 2/3*I*kx*MU*dv'/dy
+    # ==================================================================
+    out["B_33"] = I * RHO
+
+    # --- A0 ---
+    out["A0_30"] = -(U * dWdx + V * dWdy + I * kx * P / RHO)
+    out["A0_31"] = -RHO * dWdx + I * kx * dMUdx / Re
+    out["A0_32"] = -RHO * dWdy + I * kx * dMUdy / Re
+    out["A0_33"] = -I * kx * W * RHO - sp.Rational(4, 3) * kx ** 2 * MU / Re
+    out["A0_34"] = (
+        -I * kx * P / T
+        + (
+            dmudT * d2Wdx2
+            + d2mudT2 * dTdx * dWdx
+            + dmudT * d2Wdy2
+            + d2mudT2 * dTdy * dWdy
+            - sp.Rational(2, 3) * I * kx * dmudT * (dUdx + dVdy)
+        )
+        / Re
+    )
+
+    # --- Ax ---
+    # d(tau_xz')/dx: I*kx*MU*du'/dx; I*kx*tau_zz': -2/3*I*kx*MU*du'/dx  -> net I*kx*MU/(3*Re)
+    out["Ax_31"] = sp.Rational(1, 3) * I * kx * MU / Re
+    # advection -RHO*U + viscous dMUdx*dw'/dx from d(tau_xz')/dx
+    out["Ax_33"] = -RHO * U + dMUdx / Re
+    # d(tau_xz')/dx: dmudT*dWdx*dT'/dx
+    out["Ax_34"] = dmudT * dWdx / Re
+
+    # --- Ay ---
+    # d(tau_yz')/dy: I*kx*MU*dv'/dy; I*kx*tau_zz': -2/3*I*kx*MU*dv'/dy -> net I*kx*MU/(3*Re)
+    out["Ay_32"] = sp.Rational(1, 3) * I * kx * MU / Re
+    # advection -RHO*V + viscous dMUdy*dw'/dy from d(tau_yz')/dy
+    out["Ay_33"] = -RHO * V + dMUdy / Re
+    # d(tau_yz')/dy: dmudT*dWdy*dT'/dy
+    out["Ay_34"] = dmudT * dWdy / Re
+
+    # --- Second-derivative blocks ---
+    out["Axx_33"] = MU / Re
+    out["Ayy_33"] = MU / Re
+    # Axy row 3 all zero (no cross-derivative terms in z-momentum)
+
+    # ==================================================================
+    # ROW 4: TEMPERATURE / ENERGY EQUATION (i=4)
+    #
+    # RHO*dT'/dt + RHO*(U*dT'/dx + V*dT'/dy + I*kx*W*T')
+    #           + RHO*(u'*dTdx + v'*dTdy)
+    #           + rho'*(U*dTdx + V*dTdy)
+    # = -(kappa-1)*T*RHO*(du'/dx + dv'/dy + I*kx*w')
+    #   -(kappa-1)*T*(dUdx+dVdy)*rho'
+    #   -(kappa-1)*(dUdx+dVdy)*RHO*T'
+    #   + kappa/(Re*Pr)*[d(MU*dT'/dx)/dx + d(MU*dT'/dy)/dy - kx^2*MU*T'
+    #                    + dmudT*(dTdx+dTdx)*dT'/dx + d(mu'*dTdx)/dx terms]
+    #   + C1*Phi'
+    #
+    # Heat conduction (full linearization):
+    #   d/dx[mu*dT/dx] linearized:
+    #     MU*d2T'/dx2 + dMUdx*dT'/dx + dmudT*dTdx*dT'/dx
+    #     + dmudT*d2Tdx2*T' + d2mudT2*dTdx^2*T'
+    #   similarly for y; for z: -kx^2*MU*T' (dT_base/dz=0)
+    #
+    # Viscous dissipation linearized (2D base, dW/dz=0, dU/dz=dV/dz=0):
+    #   Phi' = MU*[4*dUdx*du'/dx + 4*dVdy*dv'/dy
+    #              + 2*(dUdy+dVdx)*(du'/dy+dv'/dx)
+    #              + 2*dWdx*(I*kx*u'+dw'/dx) + 2*dWdy*(I*kx*v'+dw'/dy)
+    #              - 4/3*(dUdx+dVdy)*(du'/dx+dv'/dy+I*kx*w')]
+    #         + dmudT*T'*[2*dUdx^2 + 2*dVdy^2 + (dUdy+dVdx)^2
+    #                     + dWdx^2 + dWdy^2 - 2/3*(dUdx+dVdy)^2]
+    # ==================================================================
+    out["B_44"] = I * RHO
+
+    div_U_base = dUdx + dVdy  # 2D base-flow divergence
+
+    # --- A0 ---
+    # rho': advection -(U*dTdx+V*dTdy) + pressure-dilatation -(kappa-1)*T*(dUdx+dVdy)
+    out["A0_40"] = -(U * dTdx + V * dTdy + kappa_1 * T * div_U_base)
+    # u': advection -RHO*dTdx + dissipation C1*MU*2*I*kx*dWdx
+    out["A0_41"] = -RHO * dTdx + C1 * MU * 2 * I * kx * dWdx
+    # v': advection -RHO*dTdy + dissipation C1*MU*2*I*kx*dWdy
+    out["A0_42"] = -RHO * dTdy + C1 * MU * 2 * I * kx * dWdy
+    # w': pressure-dilatation -(kappa-1)*T*RHO*I*kx + dissipation C1*MU*(-4/3*div_U)*I*kx
+    out["A0_43"] = -(kappa_1 * T * RHO * I * kx) + C1 * MU * (-sp.Rational(4, 3) * div_U_base * I * kx)
+    # T': advection -I*kx*W*RHO + pressure-dilatation -(kappa-1)*RHO*div_U
+    #   + heat conduction: -kappa*kx^2*MU/(Re*Pr) + kappa*(...)/(Re*Pr)
+    #   + dissipation: C1*dmudT*[...]
+    out["A0_44"] = (
+        -I * kx * W * RHO
+        - kappa_1 * RHO * div_U_base
+        - kappa * kx ** 2 * MU / (Re * Pr)
+        + kappa
+        * (
+            dmudT * d2Tdx2
+            + d2mudT2 * dTdx ** 2
+            + dmudT * d2Tdy2
+            + d2mudT2 * dTdy ** 2
+        )
+        / (Re * Pr)
+        + C1
+        * dmudT
+        * (
+            2 * dUdx ** 2
+            + 2 * dVdy ** 2
+            + (dUdy + dVdx) ** 2
+            + dWdx ** 2
+            + dWdy ** 2
+            - sp.Rational(2, 3) * div_U_base ** 2
+        )
+    )
+
+    # --- Ax ---
+    # pressure-dilatation contribution -(kappa-1)*T*RHO*du'/dx + dissipation C1*MU*(8/3*dUdx-4/3*dVdy)
+    out["Ax_41"] = (
+        -kappa_1 * T * RHO
+        + C1 * MU * (sp.Rational(8, 3) * dUdx - sp.Rational(4, 3) * dVdy)
+    )
+    # dissipation: C1*MU*2*(dUdy+dVdx)
+    out["Ax_42"] = C1 * MU * 2 * (dUdy + dVdx)
+    # dissipation: C1*MU*2*dWdx
+    out["Ax_43"] = C1 * MU * 2 * dWdx
+    # advection -RHO*U + heat conduction 2*kappa*dMUdx/(Re*Pr) = 2*kappa*dmudT*dTdx/(Re*Pr)
+    out["Ax_44"] = -RHO * U + 2 * kappa * dMUdx / (Re * Pr)
+
+    # --- Ay ---
+    # dissipation: C1*MU*2*(dUdy+dVdx)
+    out["Ay_41"] = C1 * MU * 2 * (dUdy + dVdx)
+    # pressure-dilatation -(kappa-1)*T*RHO + dissipation C1*MU*(8/3*dVdy - 4/3*dUdx)
+    out["Ay_42"] = (
+        -kappa_1 * T * RHO
+        + C1 * MU * (sp.Rational(8, 3) * dVdy - sp.Rational(4, 3) * dUdx)
+    )
+    # dissipation: C1*MU*2*dWdy
+    out["Ay_43"] = C1 * MU * 2 * dWdy
+    # advection -RHO*V + heat conduction 2*kappa*dMUdy/(Re*Pr)
+    out["Ay_44"] = -RHO * V + 2 * kappa * dMUdy / (Re * Pr)
+
+    # --- Second-derivative blocks (heat conduction only) ---
+    out["Axx_44"] = kappa * MU / (Re * Pr)
+    out["Ayy_44"] = kappa * MU / (Re * Pr)
+    # Axy row 4 all zero (no cross-derivative in energy equation)
+
+    return out
+
+
+
+def _coeff_source_path() -> Path:
+    # Parse the FROZEN pre-fusion reference (snapshot of coefficients.py at commit
+    # 4d4d07b), which still exposes the 175 named ``c_*_ij`` assignments this tool
+    # needs. The live production coefficients.py was fused (P1) and no longer
+    # exposes them; comparing the live fused numeric output against the symbolic
+    # evaluation of these frozen expressions is exactly the "fusion preserved the
+    # validated algebra" guard. Sibling-relative, so no repo-root guessing.
+    reference = Path(__file__).resolve().parent / "coefficients_reference_base.py"
+    if reference.exists():
+        return reference
+    raise FileNotFoundError(f"Frozen coefficient reference not found: {reference}")
 
 
 @lru_cache(maxsize=4)
