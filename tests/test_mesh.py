@@ -952,9 +952,9 @@ class TestMaskThenDeform:
         assert np.any(cavity_adjacent), "no mi points near cavity boundary"
 
 
-# Legacy MATLAB-export parity check. Disabled from pytest collection because
-# the compact export bundle is not part of the normal test fixture set.
-def legacy_test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
+# MATLAB-export parity check; the reference bundle is kept out of the repository
+# and not distributed. Skips cleanly when the bundle is absent.
+def test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
     from tests._paths import martini_fixture
 
     bundle_path = martini_fixture("example_4_Cavity_results_base.npz")
@@ -994,9 +994,9 @@ def legacy_test_cavity_mask_boundary_matches_exported_matlab_bundle() -> None:
     )
 
 
-# Legacy MATLAB-export parity check. Disabled from pytest collection because
-# the compact export bundle is not part of the normal test fixture set.
-def legacy_test_cavity_sponge_matches_exported_matlab_bundle() -> None:
+# MATLAB-export parity check; the reference bundle is kept out of the repository
+# and not distributed. Skips cleanly when the bundle is absent.
+def test_cavity_sponge_matches_exported_matlab_bundle() -> None:
     from tests._paths import martini_fixture
 
     bundle_path = martini_fixture("example_4_Cavity_results_base.npz")

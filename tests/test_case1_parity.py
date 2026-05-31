@@ -66,9 +66,9 @@ def _rel_l2(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.linalg.norm(a - b) / denom)
 
 
-# Legacy MATLAB-export parity check. Disabled from pytest collection because
-# it depends on generated Case 1 NPZ outputs outside the normal test fixture set.
-def legacy_test_case1_spectrum_parity() -> None:
+# MATLAB-export parity check; the reference bundle is kept out of the repository
+# and not distributed. Depends on generated Case 1 NPZ outputs; skips if absent.
+def test_case1_spectrum_parity() -> None:
     py = _load_stability_npz()
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
     omega_target = complex(np.asarray(py["omega_target"]).reshape(-1)[0])
@@ -93,9 +93,9 @@ def legacy_test_case1_spectrum_parity() -> None:
     )
 
 
-# Legacy MATLAB-export parity check. Disabled from pytest collection because
-# it depends on generated Case 1 NPZ outputs outside the normal test fixture set.
-def legacy_test_case1_mode7_u_field_parity() -> None:
+# MATLAB-export parity check; the reference bundle is kept out of the repository
+# and not distributed. Depends on generated Case 1 NPZ outputs; skips if absent.
+def test_case1_mode7_u_field_parity() -> None:
     py = _load_stability_npz()
     omega_py = np.asarray(py["omega"], dtype=complex).reshape(-1)
     direct = np.asarray(py["direct_modes"], dtype=complex)
