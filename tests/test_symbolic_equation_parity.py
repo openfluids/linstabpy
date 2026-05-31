@@ -21,8 +21,11 @@ from linstabpy.operators.coefficients import (
     compute_cylindrical_coefficients,
 )
 from scripts.validation.martini2024.tools.symbolic_compressible_nse import (
+    cartesian_lnse_coefficients_from_nse,
     cartesian_operator_coefficients,
     cartesian_symbol_table,
+    continuity_operator_coefficients,
+    continuity_symbol_table,
     curvilinear_operator_coefficients,
     curvilinear_symbol_table,
     cylindrical_operator_coefficients,
@@ -656,6 +659,195 @@ def run_parity(
         "mode": mode,
         **merged,
     }
+
+
+# ---------------------------------------------------------------------------
+# pytest entry points
+#
+# This module began as a standalone CLI (see ``main`` below), so the symbolic
+# guard it implements was never collected by pytest. It silently went dark when
+# the P1 coefficient fusion removed the named ``c_*_ij`` assignments its
+# reference parser depends on. The tests below keep the guard permanently in the
+# suite. ``_coeff_source_path`` now parses the frozen pre-fusion reference, so
+# the cartesian/cylindrical checks assert that the live fused production
+# coefficients still match the validated reference algebra (symbolically), and
+# ``test_fused_coefficients_match_frozen_reference_numerically`` states that
+# equivalence directly.
+# ---------------------------------------------------------------------------
+
+_FROZEN_REFERENCE = (
+    Path(__file__).resolve().parents[1]
+    / "scripts"
+    / "validation"
+    / "martini2024"
+    / "tools"
+    / "coefficients_reference_base.py"
+)
+
+
+def _load_frozen_reference():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "coefficients_reference_base", _FROZEN_REFERENCE
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_cartesian_coefficients_match_frozen_reference_symbolically():
+    report = _run_cartesian(ngp=512, seed=20260531, kx=0.73, tol=1e-9)
+    assert report["pass"], report["max_abs_by_block"]
+
+
+def test_cylindrical_coefficients_match_frozen_reference_symbolically():
+    report = _run_cylindrical(ngp=512, seed=20260532, m=2.0, tol=1e-9)
+    assert report["pass"], report["max_abs_by_block"]
+
+
+def test_curvilinear_metric_transforms_match_analytic_chain_rule():
+    # Only the x-only and y-only deformation transforms are well-posed under the
+    # harness's independent-random inputs: they match the analytic chain rule to
+    # machine precision. The full-2D block is NOT asserted here because the
+    # harness draws (a, b, c, d) independently of the (x, y) mapping that feeds
+    # the dJ terms, so its q-terms form a physically inconsistent metric and the
+    # full-2D identity does not hold (residual ~1e4, identical at base and HEAD,
+    # i.e. pre-existing and unrelated to the coefficient fusion). The full-2D
+    # transform itself is validated separately via the curvilinear-derivative
+    # parity fixture / example 0. Validating it here needs a consistent-mapping
+    # fixture (tracked as a follow-up), not the current random inputs.
+    report = _run_curvilinear(ngp=512, seed=20260533, tol=1e-9)
+    blocks = report["max_abs_by_block"]
+    assert blocks["curv_xonly"] < 1e-9, blocks
+    assert blocks["curv_yonly"] < 1e-9, blocks
+
+
+def test_fused_coefficients_match_frozen_reference_numerically():
+    """The fused production coefficients reproduce the frozen pre-fusion
+    reference to ~machine precision on random fields (proves P1 changed no
+    algebra, only operation ordering)."""
+    ref = _load_frozen_reference()
+    Re, Ma, Pr, kappa = 1e4, 0.3, 0.7, 1.4
+    fields = _make_random_cartesian_fields(ngp=512, seed=20260534)
+    P = fields["RHO"] * fields["T"] / (Ma**2 * kappa)
+    kwargs = dict(P=P, kx=0.73, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, **fields)
+
+    fused = compute_cartesian_coefficients(**kwargs)
+    reference = ref.compute_cartesian_coefficients(**kwargs)
+
+    max_abs = 0.0
+    for block in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+        diff = float(np.max(np.abs(getattr(fused, block) - getattr(reference, block))))
+        max_abs = max(max_abs, diff)
+    assert max_abs < 1e-10, f"fused vs frozen reference max|Δ| = {max_abs:.3e}"
+
+
+
+def test_cartesian_coefficients_match_independent_nse_derivation():
+    """Independent first-principles derivation of all 175 cartesian LNSE
+    coefficients must agree with the production compute_cartesian_coefficients
+    to machine precision.  If any entry disagrees the test FAILS and prints the
+    exact block, index, symbolic expression, and numeric values.
+
+    Also verifies: the continuity row of the independent derivation reproduces
+    continuity_operator_coefficients exactly (sympy.simplify == 0 for all 10
+    nonzero anchor entries).
+    """
+    import sympy as sp  # noqa: PLC0415 (local re-import for clarity)
+
+    # ---- 1. Continuity anchor check (symbolic) --------------------------
+    cart_syms = cartesian_symbol_table()
+    cont_syms = continuity_symbol_table()
+    derived = cartesian_lnse_coefficients_from_nse(cart_syms)
+    anchor = continuity_operator_coefficients(cont_syms)
+
+    # Build substitution map: continuity_symbol_table uses 'rho'; rest share names.
+    subs = {cont_syms["rho"]: cart_syms["RHO"]}
+    for name in ("U", "V", "W", "kx", "dUdx", "dVdy", "dRHOdx", "dRHOdy"):
+        subs[cont_syms[name]] = cart_syms[name]
+
+    anchor_entries = {
+        "A0_00": anchor["A0_00"].subs(subs),
+        "A0_01": anchor["A0_01"].subs(subs),
+        "A0_02": anchor["A0_02"].subs(subs),
+        "A0_03": anchor["A0_03"].subs(subs),
+        "A0_04": sp.Integer(0),
+        "Ax_00": anchor["Ax_00"].subs(subs),
+        "Ax_01": anchor["Ax_01"].subs(subs),
+        "Ay_00": anchor["Ay_00"].subs(subs),
+        "Ay_02": anchor["Ay_02"].subs(subs),
+        "B_00": anchor["B_00"],
+    }
+    continuity_anchor_ok = True
+    for key, anchor_expr in anchor_entries.items():
+        diff = sp.simplify(derived[key] - anchor_expr)
+        if diff != 0:
+            continuity_anchor_ok = False
+            print(f"  ANCHOR MISMATCH {key}: simplify(derived - anchor) = {diff}")
+    assert continuity_anchor_ok, "Continuity anchor mismatch: derivation framework is wrong"
+
+    # ---- 2. Numeric parity vs production code ---------------------------
+    Re, Ma, Pr, kappa = 1e4, 0.3, 0.7, 1.4
+    ngp = 256
+    fields = _make_random_cartesian_fields(ngp=ngp, seed=20260531)
+    P_arr = fields["RHO"] * fields["T"] / (Ma**2 * kappa)
+
+    prod = compute_cartesian_coefficients(P=P_arr, kx=0.73, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, **fields)
+    prod_blocks = {
+        "A0": prod.A0, "Ax": prod.Ax, "Ay": prod.Ay,
+        "Axx": prod.Axx, "Ayy": prod.Ayy, "Axy": prod.Axy, "B": prod.B,
+    }
+
+    sym_order = list(cart_syms.keys())
+    sym_args = [cart_syms[n] for n in sym_order]
+    field_vals = {
+        **fields, "P": P_arr, "kx": 0.73,
+        "Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa,
+    }
+    arg_vals = [field_vals[n] for n in sym_order]
+
+    row_labels = ["continuity", "x-mom", "y-mom", "z-mom", "energy"]
+    tol = 1e-10
+    all_pass = True
+    row_max = {label: 0.0 for label in row_labels}
+
+    print("\nPer-block residuals (independent NSE derivation vs production):")
+    for block in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+        block_max = 0.0
+        for i in range(5):
+            for j in range(5):
+                key = f"{block}_{i}{j}"
+                expr = derived[key]
+                fn = sp.lambdify(sym_args, expr, modules=["numpy"])
+                sym_val = np.asarray(fn(*arg_vals), dtype=complex)
+                if sym_val.ndim == 0:
+                    sym_val = np.full(ngp, sym_val)
+                code_val = prod_blocks[block][i, j, :]
+                resid = float(np.max(np.abs(code_val - sym_val)))
+                block_max = max(block_max, resid)
+                row_max[row_labels[i]] = max(row_max[row_labels[i]], resid)
+                if resid >= tol:
+                    all_pass = False
+                    print(
+                        f"  DISAGREEMENT {block}[{i},{j}] ({row_labels[i]} row): "
+                        f"max|Δ|={resid:.3e}"
+                    )
+                    print(f"    symbolic: {expr}")
+                    print(
+                        f"    code[0]={code_val[0]:.6e}, "
+                        f"derivation[0]={sym_val[0]:.6e}"
+                    )
+        print(f"  {block}: max|Δ|={block_max:.3e}")
+
+    print("\nPer-row max residual:")
+    for label in row_labels:
+        print(f"  {label:12s}: max|Δ|={row_max[label]:.3e}")
+
+    assert all_pass, (
+        "Independent NSE derivation disagrees with production code "
+        "(see printed entries above)"
+    )
 
 
 def main() -> int:
