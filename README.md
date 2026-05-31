@@ -1000,6 +1000,35 @@ Strict CI gate:
 python scripts/validation/martini2024/tools/check_parity_matrices.py
 ```
 
+Some parity tests compare against MATLAB reference export bundles (raw `.mat`
+exports and compact `.npz` base bundles). Those bundles are intentionally kept
+out of the repository and are not distributed. The corresponding tests skip
+cleanly when the bundles are absent (so they are silent in CI) and validate
+against them when the bundles are provided locally.
+
+### 8.5 Numerical equivalence after the assembly refactor
+
+The operator-assembly path was refactored to fuse coefficient evaluation and to
+build the block-sparse operator in a single pass. The **assembled operator is
+identical to machine precision** to the earlier element-by-element construction
+(measured on the Blasius case: `max |ΔL| ≈ 5e-16`, relative Frobenius
+`≈ 3e-17`); the one-pass build also drops a handful of explicitly-stored
+numerical zeros, so its sparsity pattern is a clean subset with the same values.
+
+The matrices are not byte-identical: fusing the coefficient expressions sums
+terms in a different order, which changes the last floating-point bit. That
+last-bit difference is amplified by the generalized eigensolver into eigenvalue
+movement of order `~1e-12` — normal conditioning, not a loss of accuracy. The
+eigenpair residual stays below `1e-6` and all parity checks above pass at their
+stated tolerances. `scripts/validation/lnse_equivalence_harness.py` compares
+assembly paths against this contract.
+
+Practical rule: order-sensitive checks must allow at least the solver's
+eigenvalue tie tolerance (`tie_tol = 1e-10` in `solvers/eigenvalue.py`). Do not
+assert bit-for-bit eigenvalue reproduction across the refactor boundary; that is
+not achievable for any two mathematically-equal but differently-ordered
+assemblies in float64.
+
 ## 9. Case studies
 
 ### 9.1 Case 1 (SWBLI)
