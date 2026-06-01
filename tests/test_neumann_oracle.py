@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""Independent geometric oracle for Neumann BC rows.
+
+A homogeneous Neumann row enforces zero *normal* gradient at a boundary point:
+divided by the penalty it is a first-derivative stencil pointing along the
+outward boundary normal. The production rows are built from mesh metrics
+(``gradX``/``gradY`` on rectangular meshes, the ``J`` Jacobian arrays on mapped
+meshes), so any check that reuses those metrics would just re-derive the
+implementation.
+
+This oracle instead takes the boundary normal from the *physical boundary
+polyline* -- the tangent is the finite difference of the physical coordinates of
+consecutive boundary points, and the normal is its perpendicular -- with no
+reference to the production normal formula. The defining geometric property of a
+normal-derivative row then is:
+
+* it annihilates a field that varies purely along the boundary tangent
+  (``n . grad(f_tangent) = n . t = 0``),
+* it responds to a field that varies along the normal
+  (``n . grad(f_normal) = |n|^2 != 0``),
+* it annihilates constants,
+* its nonzeros stay inside the constrained variable block.
+
+A row built along the tangent instead of the normal, a swapped Jacobian
+component, or a wrong variable block all break these and fail here. Both the
+rectangular (gradient) branch and the curvilinear (Jacobian) branch are covered.
+
+Note: the non-curvilinear branch uses the physical-axis normal, which equals the
+true normal only on axis-aligned boundaries -- so it is exercised on a
+rectangular mesh. The curvilinear branch carries true mapped normals and is
+exercised on a curved mesh.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import scipy.sparse as sps
+
+from linstabpy.boundary_conditions.neumann import apply_neumann
+from linstabpy.mesh.mesh import Mesh
+from linstabpy.operators.assembly import _build_index_structure
+
+_BORDER_KEY = {"l": "li", "r": "ri", "b": "bi", "t": "ti"}
+_VAR_OFFSET = {"r": 0, "u": 1, "v": 2, "w": 3, "T": 4}
+
+
+def _rect_mesh(nx: int = 11, ny: int = 9) -> Mesh:
+    return Mesh.create((0.0, 3.0), (0.0, 2.0), nx, ny, fd_order=4)
+
+
+def _curved_mesh(nx: int = 11, ny: int = 9) -> Mesh:
+    base = _rect_mesh(nx, ny)
+    # Nonlinear, genuinely 2-D map so the boundary normal is not axis-aligned
+    # and varies along each boundary.
+    Xn = base.X + 0.10 * base.Y + 0.03 * base.Y**2
+    Yn = base.Y + 0.05 * base.X
+    return base.deform(Xn, Yn)
+
+
+def _check_border(
+    mesh: Mesh,
+    idx: dict,
+    border: str,
+    variable: str,
+    *,
+    curvilinear: bool,
+) -> dict:
+    ngp = mesh.ngp
+    X = mesh.X.ravel(order="F")
+    Y = mesh.Y.ravel(order="F")
+    var = _VAR_OFFSET[variable]
+
+    L0 = sps.csc_matrix((5 * ngp, 5 * ngp), dtype=complex)
+    L0b, bc = apply_neumann(
+        L0, mesh, idx, border, variable, penalty=1.0, curvilinear_normals=curvilinear
+    )
+    L = L0b.tocsr()
+
+    # Interior boundary point (avoid corners) and its along-boundary neighbours.
+    pts = np.sort(idx[_BORDER_KEY[border]])
+    mid = len(pts) // 2
+    imesh = int(pts[mid])
+    prev_pt = int(pts[mid - 1])
+    next_pt = int(pts[mid + 1])
+
+    # Independent tangent/normal from the physical boundary polyline.
+    tx = X[next_pt] - X[prev_pt]
+    ty = Y[next_pt] - Y[prev_pt]
+    tnorm = float(np.hypot(tx, ty))
+    tx, ty = tx / tnorm, ty / tnorm
+    nx_, ny_ = -ty, tx  # perpendicular to the tangent
+
+    dof = var * ngp + imesh
+    row_full = L.getrow(dof).toarray().ravel()
+    row = row_full[var * ngp : (var + 1) * ngp]
+
+    # Variable-block confinement: nonzeros only inside the constrained block.
+    outside = np.concatenate([row_full[: var * ngp], row_full[(var + 1) * ngp :]])
+    block_confined = bool(not np.any(outside))
+
+    f_tan = tx * X + ty * Y
+    f_norm = nx_ * X + ny_ * Y
+    resp_tan = float(np.real(row @ f_tan))
+    resp_norm = float(np.real(row @ f_norm))
+    resp_const = float(np.real(row @ np.ones(ngp)))
+
+    denom = max(abs(resp_norm), 1e-300)
+    return {
+        "border": border,
+        "variable": variable,
+        "dof_ok": bool(dof in set(bc.tolist())),
+        "block_confined": block_confined,
+        "tangent_to_normal_ratio": abs(resp_tan) / denom,
+        "normal_response": abs(resp_norm),
+        "const_response": abs(resp_const),
+    }
+
+
+def _passes(rec: dict) -> bool:
+    return bool(
+        rec["dof_ok"]
+        and rec["block_confined"]
+        and rec["tangent_to_normal_ratio"] < 1e-9
+        and rec["normal_response"] > 0.1
+        and rec["const_response"] < 1e-9
+    )
+
+
+def test_neumann_rectangular_is_normal_derivative():
+    # Non-curvilinear (gradient) branch on an axis-aligned mesh: the row points
+    # along the physical-axis normal, which is the true normal here.
+    mesh = _rect_mesh()
+    idx = _build_index_structure(mesh.idx, mesh.ngp)
+    for border in "lrbt":
+        for variable in ("r", "u", "T"):
+            rec = _check_border(mesh, idx, border, variable, curvilinear=False)
+            assert _passes(rec), rec
+
+
+def test_neumann_curvilinear_is_normal_derivative_on_curved_mesh():
+    # Curvilinear (Jacobian) branch on a curved mesh: the row must follow the
+    # true mapped boundary normal, verified against the physical polyline normal.
+    mesh = _curved_mesh()
+    idx = _build_index_structure(mesh.idx, mesh.ngp)
+    for border in "lrbt":
+        for variable in ("r", "v", "T"):
+            rec = _check_border(mesh, idx, border, variable, curvilinear=True)
+            assert _passes(rec), rec
