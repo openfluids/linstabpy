@@ -16,6 +16,7 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from ..utils._solver_cfg import _scfg
+from .backends import apply_factor_backend, resolve_factor_backend
 from .eigenvalue import _resolve_ncv
 from .petsc_utils import (
     _is_petsc_matrix,
@@ -122,7 +123,11 @@ def _eigs_generalized(
         pc = ksp.getPC()
         pc.setType(PETSc.PC.Type.LU)
         if st_solver == "mumps":
-            pc.setFactorSolverType("mumps")
+            backend = resolve_factor_backend(_scfg_spatial, default="mumps")
+            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
+        else:
+            backend = resolve_factor_backend(_scfg_spatial, default=None)
+            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
 
     eps.setUp()
 

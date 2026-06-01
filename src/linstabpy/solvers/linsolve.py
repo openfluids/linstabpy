@@ -32,6 +32,7 @@ from ..utils._solver_cfg import (
     _scfg_int,
 )
 from ._eps_helpers import _resolve_solver_cfg_subsection
+from .backends import apply_factor_backend, resolve_factor_backend
 from .petsc_utils import (
     _is_petsc_matrix,
     _matrix_nnz,
@@ -139,7 +140,12 @@ def make_linear_solver(
             )
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
-        pc.setFactorSolverType("mumps")
+        factor_backend = resolve_factor_backend(
+            _sub,
+            env_var=f"{env_prefix}_PC_FACTOR_SOLVER_TYPE",
+            default="mumps",
+        )
+        apply_factor_backend(pc, factor_backend, options_prefix=ksp.getOptionsPrefix() or "")
         ksp.setUp()
 
         # This log is the cheap runtime check that the intended direct backend
@@ -168,7 +174,7 @@ def make_linear_solver(
         except (AttributeError, RuntimeError) as e:
             logger.debug("Could not query MUMPS ordering: %s", e)
             logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, nnz)
-        backend = "MUMPS"
+        backend = (factor_backend or "petsc").upper()
     elif solver_type in ITERATIVE_LINEAR_SOLVER_TYPES:
         ksp_type = _scfg(_sub, "ksp_type", f"{env_prefix}_KSP_TYPE", "fgmres")
         pc_type = _scfg(_sub, "pc_type", f"{env_prefix}_PC_TYPE", "asm")
