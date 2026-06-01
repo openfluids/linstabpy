@@ -1514,6 +1514,7 @@ def compute_cylindrical_coefficients(
                     + 3 * Re * R**2 * c1 * dUdr * RHO
                     + 3 * Re * R**2 * c1 * U * dRHOdr
                     + 3 * Re * R**2 * c1 * dWdz * RHO
+                    + 3 * Re * R**2 * c1 * W * dRHOdz
                     + 3 * Re * R * c1 * c2 * U * RHO * cv
                     + 3 * Re * R**2 * c1 * c2 * W * dRHOdz * cv
                     + 3 * Re * R**2 * c1 * c2 * dWdz * RHO * cv

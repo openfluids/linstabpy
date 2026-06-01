@@ -28,6 +28,7 @@ from scripts.validation.martini2024.tools.symbolic_compressible_nse import (
     continuity_symbol_table,
     curvilinear_operator_coefficients,
     curvilinear_symbol_table,
+    cylindrical_lnse_coefficients_from_nse,
     cylindrical_operator_coefficients,
     cylindrical_symbol_table,
 )
@@ -847,6 +848,98 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
     assert all_pass, (
         "Independent NSE derivation disagrees with production code "
         "(see printed entries above)"
+    )
+
+
+def test_cylindrical_coefficients_match_independent_nse_derivation():
+    """Independent first-principles cylindrical NSE derivation must match
+    the production compute_cylindrical_coefficients to machine precision.
+
+    This guard is NOT self-referential: the derivation in
+    cylindrical_lnse_coefficients_from_nse is a conservative cylindrical
+    NSE linearization derived mechanically from first principles, independent
+    of the production code path. It would catch a MATLAB->Python translation
+    bug (e.g. the historical A0_55 sign error in Front E) that a frozen-
+    reference round-trip cannot detect.
+
+    Convention: frozen-base-viscosity -- Martini's LNSE operator excludes
+    the perturbation-viscosity x base-stress/heat-flux divergence terms
+    (all O(dmudT/Re)). The _momentum_temperature_base_stress_corrections and
+    _energy_temperature_base_flux_correction helpers apply this convention
+    consistently so the independent derivation matches the production operator.
+
+    Parameters: Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, m in {0.0, 1.0, 2.0},
+    seed=42, ngp=64.
+    """
+    Re, Ma, Pr, kappa = 1e4, 0.3, 0.7, 1.4
+    ngp = 64
+    seed = 42
+    tol = 1e-10
+
+    syms = cylindrical_symbol_table()
+    derived = cylindrical_lnse_coefficients_from_nse(syms)
+
+    sym_order = list(syms.keys())
+    sym_args = [syms[n] for n in sym_order]
+    lambdified = {
+        key: sp.lambdify(sym_args, expr, modules=["numpy"])
+        for key, expr in derived.items()
+    }
+
+    overall_max = 0.0
+    worst_block = ""
+    worst_i = -1
+    worst_j = -1
+
+    for m_val in (0.0, 1.0, 2.0):
+        fields = _make_random_cylindrical_fields(ngp=ngp, seed=seed)
+        field_vals = {
+            **fields,
+            "m": m_val,
+            "Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa,
+        }
+        arg_vals = [field_vals[n] for n in sym_order]
+
+        prod = compute_cylindrical_coefficients(
+            U=fields["U"], V=fields["V"], W=fields["W"],
+            R=fields["R"], RHO=fields["RHO"], T=fields["T"], MU=fields["MU"],
+            m=m_val, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
+            dUdr=fields["dUdr"], dVdr=fields["dVdr"], dWdr=fields["dWdr"],
+            dRHOdr=fields["dRHOdr"], dTdr=fields["dTdr"],
+            dUdz=fields["dUdz"], dVdz=fields["dVdz"], dWdz=fields["dWdz"],
+            dRHOdz=fields["dRHOdz"], dTdz=fields["dTdz"],
+            d2Udr2=fields["d2Udr2"], d2Vdr2=fields["d2Vdr2"], d2Wdr2=fields["d2Wdr2"],
+            d2Tdr2=fields["d2Tdr2"],
+            d2Udz2=fields["d2Udz2"], d2Vdz2=fields["d2Vdz2"], d2Wdz2=fields["d2Wdz2"],
+            d2Tdz2=fields["d2Tdz2"],
+            d2Udrz=fields["d2Udrz"], d2Vdrz=fields["d2Vdrz"], d2Wdrz=fields["d2Wdrz"],
+            dmudT=fields["dmudT"], d2mudT2=fields["d2mudT2"],
+        )
+        prod_blocks = {
+            "A0": prod.A0, "Ax": prod.Ax, "Ay": prod.Ay,
+            "Axx": prod.Axx, "Ayy": prod.Ayy, "Axy": prod.Axy, "B": prod.B,
+        }
+
+        for block in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+            for i in range(5):
+                for j in range(5):
+                    key = f"{block}_{i}{j}"
+                    fn = lambdified[key]
+                    sym_val = np.asarray(fn(*arg_vals), dtype=complex)
+                    if sym_val.ndim == 0:
+                        sym_val = np.full(ngp, sym_val)
+                    code_val = prod_blocks[block][i, j, :]
+                    resid = float(np.max(np.abs(code_val - sym_val)))
+                    if resid > overall_max:
+                        overall_max = resid
+                        worst_block = block
+                        worst_i = i
+                        worst_j = j
+
+    assert overall_max < tol, (
+        f"Independent cylindrical NSE derivation disagrees with production: "
+        f"max|delta|={overall_max:.3e} at block={worst_block}[{worst_i},{worst_j}] "
+        f"(tol={tol:.1e})"
     )
 
 
