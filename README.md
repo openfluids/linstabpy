@@ -578,6 +578,41 @@ When an iterative linear-solve path is selected, `ksp_rtol`, `ksp_atol`,
 `ksp_max_it`, `pc_type`, subdomain settings, and `ksp_error_if_not_converged`
 become meaningful.
 
+### Compute backends
+
+The validated sparse-direct default is PETSc LU with MUMPS. Backend selection is
+centralized in the factor-backend seam and applies only to PETSc LU paths, not
+to iterative Krylov-only solves.
+
+Selection precedence is:
+
+1. JSONC solver subsection `factor_backend`;
+2. per-solver environment override, such as
+   `LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE` or
+   `LINSTABPY_RESOLVENT_PC_FACTOR_SOLVER_TYPE`;
+3. `LINSTABPY_FACTOR_BACKEND`;
+4. the call-site default.
+
+Examples:
+
+```bash
+LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.example_1_blasius_smoke
+LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.example_1_blasius_smoke
+```
+
+Unavailable backends fail during PETSc LU setup with a direct error message
+instead of silently falling back to MUMPS or PETSc native LU.
+
+| Backend | Status | Notes |
+|---|---|---|
+| `mumps` | Validated default | CPU sparse-direct backend used by the current test suite. |
+| `strumpack` | Experimental | Not built by default; GPU claims are unvalidated for LinStabPy matrices. |
+| `superlu_dist` | Experimental | Not built by default; PETSc requires a SuperLU_DIST build with GPU offload support for GPU use. |
+| `cudss` | Not available by default | No released PETSc factor-solver interface is assumed by LinStabPy. |
+
+See `docs/COMPUTE_BACKENDS.md` for the backend audit, version floors, and the
+current GPU go/no-go notes.
+
 ### Boundary-condition acceptance
 
 Returned stability modes are postchecked against:

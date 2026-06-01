@@ -47,7 +47,7 @@ def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:
     before_cuda_modules = {name for name in sys.modules if "cuda" in name.lower()}
 
     assert backends.resolve_factor_backend(None) == "mumps"
-    assert backends.factor_backend_available("mumps") is True
+    assert backends.factor_backend_available("mumps")
 
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
@@ -76,13 +76,29 @@ def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:
 def test_absent_backend_probe_and_error_message() -> None:
     missing = "linstabpy_absent_factor_backend"
 
-    assert backends.factor_backend_available(missing) is False
+    assert not backends.factor_backend_available(missing)
     with pytest.raises(RuntimeError) as excinfo:
         backends.ensure_factor_backend_available(missing)
 
     message = str(excinfo.value)
     assert missing in message
     assert "PETSc" in message
+    assert "Rebuild PETSc/petsc4py" in message
+    assert "docs/COMPUTE_BACKENDS.md" in message
+
+
+@pytest.mark.parametrize("backend", ["strumpack", "superlu_dist", "cudss"])
+def test_future_backend_knob_fails_loudly_on_cpu_only_build(monkeypatch, backend) -> None:
+    monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", backend)
+    operator = sp.eye(2, format="csr", dtype=complex)
+
+    assert backends.resolve_factor_backend(None) == backend
+    assert not backends.factor_backend_available(backend)
+    with pytest.raises(RuntimeError) as excinfo:
+        make_linear_solver(operator, solver_cfg={"linsolve": {"type": "direct"}})
+
+    message = str(excinfo.value)
+    assert f"PETSc factor backend '{backend}' is not available" in message
     assert "Rebuild PETSc/petsc4py" in message
     assert "docs/COMPUTE_BACKENDS.md" in message
 
