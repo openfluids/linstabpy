@@ -1,10 +1,15 @@
-# FROZEN REFERENCE - DO NOT EDIT.
-# Verbatim snapshot of src/linstabpy/operators/coefficients.py at commit 4d4d07b,
-# the parity-validated pre-fusion element-wise implementation (175 named c_*_ij
-# assignments per function). The symbolic-equation guard parses these assignments
+# FROZEN REFERENCE - DO NOT HAND-EDIT (one documented exception below).
+# Snapshot of src/linstabpy/operators/coefficients.py at commit 4d4d07b, the
+# parity-validated pre-fusion element-wise implementation (175 named c_*_ij
+# assignments per function), PLUS the single deliberate correction recorded as
+# Front E: the cylindrical energy coefficient A0_55 had a MATLAB->Python
+# translation bug (a dropped "+ 3*Re*R**2*c1*W*dRHOdz" term, confirmed against
+# Martini getCoeffsLaminar.m and an independent first-principles derivation).
+# Regenerate-from-base is intentionally NOT used because the 4d4d07b base carries
+# that bug; this file is re-baselined to the corrected algebra so the symbolic
+# guard tracks correct code. The symbolic-equation guard parses these assignments
 # and a numeric guard compares the live fused production coefficients against this
-# reference to prove the P1 fusion preserved the validated algebra. Provenance is
-# the whole point of this file: never hand-edit; regenerate only from base via git.
+# reference. Apart from the documented A0_55 term, never hand-edit.
 #
 # SPDX-License-Identifier: GPL-3.0-only
 """LNSE coefficient matrices for Cartesian compressible flows.
@@ -1282,6 +1287,7 @@ def compute_cylindrical_coefficients(
                 + 3 * Re * R**2 * c1 * dUdr * RHO
                 + 3 * Re * R**2 * c1 * U * dRHOdr
                 + 3 * Re * R**2 * c1 * dWdz * RHO
+                + 3 * Re * R**2 * c1 * W * dRHOdz
                 + 3 * Re * R * c1 * c2 * U * RHO * cv
                 + 3 * Re * R**2 * c1 * c2 * W * dRHOdz * cv
                 + 3 * Re * R**2 * c1 * c2 * dWdz * RHO * cv

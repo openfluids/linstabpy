@@ -17,6 +17,17 @@ import sympy as sp
 
 _ASSIGN_RE = re.compile(r"c_(A0|Ar|Az|Arr|Azz|Arz|B)_([1-5])([1-5])$")
 _BLOCK_ORDER = ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
+_INTERNAL_BLOCK_ORDER = ("A0", "Ar", "Az", "Arr", "Azz", "Arz", "B")
+_SOURCE_TO_DEST = {
+    "A0": "A0",
+    "Ar": "Ay",
+    "Az": "Ax",
+    "Arr": "Ayy",
+    "Azz": "Axx",
+    "Arz": "Axy",
+    "B": "B",
+}
+_CYLINDRICAL_TO_PHYSICAL = [0, 2, 3, 1, 4]
 
 
 def _now_utc() -> str:
@@ -535,6 +546,374 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
 
     return out
 
+
+
+def cylindrical_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
+    """Derive all 175 cylindrical LNSE coefficients from conservative NSE.
+
+    The derivation is performed in cylindrical component order
+    ``[rho, u_r, u_theta, u_z, T]`` from the conservative equations for
+    ``[rho, rho*u_r, rho*u_theta, rho*u_z, E]``.  The returned dictionary is
+    remapped to the public physical order ``[rho, u_z, u_r, u_theta, T]``.
+    """
+    internal = _derive_internal_cylindrical_coefficients(symbols)
+    return _map_internal_to_physical(internal)
+
+
+def _derive_internal_cylindrical_coefficients(
+    symbols: dict[str, sp.Symbol],
+) -> dict[str, dict[tuple[int, int], sp.Expr]]:
+    I = sp.I
+    two_thirds = sp.Rational(2, 3)
+    half = sp.Rational(1, 2)
+
+    eps = sp.Symbol("_eps")
+    time = sp.Symbol("_t")
+    radius = sp.Symbol("_r")
+    axial = sp.Symbol("_z")
+    theta = sp.Symbol("_theta")
+    phase = sp.exp(I * symbols["m"] * theta)
+
+    base_rho = sp.Function("_RHO")(radius, axial)
+    base_ur = sp.Function("_U")(radius, axial)
+    base_ut = sp.Function("_V")(radius, axial)
+    base_uz = sp.Function("_W")(radius, axial)
+    base_temp = sp.Function("_T")(radius, axial)
+    base_mu = sp.Function("_MU")(radius, axial)
+    base_dmudT = sp.Function("_DMUDT")(radius, axial)
+
+    q = [sp.Function(f"_q{i}")(time, radius, axial) for i in range(5)]
+    perturb = [eps * qi * phase for qi in q]
+
+    rho = base_rho + perturb[0]
+    ur = base_ur + perturb[1]
+    uth = base_ut + perturb[2]
+    uz = base_uz + perturb[3]
+    temp = base_temp + perturb[4]
+    mu = base_mu + eps * base_dmudT * q[4] * phase
+
+    Re = symbols["Re"]
+    Ma = symbols["Ma"]
+    Pr = symbols["Pr"]
+    kappa = symbols["kappa"]
+    c1 = (kappa - 1) * Re * Pr * Ma**2
+    c2 = kappa * Ma**2
+    cv = 1 / (kappa * (kappa - 1) * Ma**2)
+
+    def dr(expr: sp.Expr) -> sp.Expr:
+        return sp.diff(expr, radius)
+
+    def dz(expr: sp.Expr) -> sp.Expr:
+        return sp.diff(expr, axial)
+
+    def dt(expr: sp.Expr) -> sp.Expr:
+        return sp.diff(expr, time)
+
+    def dtheta(expr: sp.Expr) -> sp.Expr:
+        return sp.diff(expr, theta)
+
+    def div_vector(fr: sp.Expr, ftheta: sp.Expr, fz: sp.Expr) -> sp.Expr:
+        return dr(radius * fr) / radius + dtheta(ftheta) / radius + dz(fz)
+
+    div_u = dr(ur) + ur / radius + dtheta(uth) / radius + dz(uz)
+    tau_rr = 2 * mu * dr(ur) - two_thirds * mu * div_u
+    tau_tt = 2 * mu * (dtheta(uth) / radius + ur / radius) - two_thirds * mu * div_u
+    tau_zz = 2 * mu * dz(uz) - two_thirds * mu * div_u
+    tau_rt = mu * (dtheta(ur) / radius + dr(uth) - uth / radius)
+    tau_rz = mu * (dz(ur) + dr(uz))
+    tau_tz = mu * (dz(uth) + dtheta(uz) / radius)
+
+    visc_r = div_vector(tau_rr, tau_rt, tau_rz) - tau_tt / radius
+    visc_t = div_vector(tau_rt, tau_tt, tau_tz) + tau_rt / radius
+    visc_z = div_vector(tau_rz, tau_tz, tau_zz)
+
+    pressure = rho * temp / c2
+    kinetic_energy = half * (ur**2 + uth**2 + uz**2)
+    energy = rho * (cv * temp + kinetic_energy)
+
+    visc_work_r = ur * tau_rr + uth * tau_rt + uz * tau_rz
+    visc_work_t = ur * tau_rt + uth * tau_tt + uz * tau_tz
+    visc_work_z = ur * tau_rz + uth * tau_tz + uz * tau_zz
+    heat_flux_r = mu * dr(temp)
+    heat_flux_t = mu * dtheta(temp) / radius
+    heat_flux_z = mu * dz(temp)
+
+    equations = [
+        dt(rho) + div_vector(rho * ur, rho * uth, rho * uz),
+        dt(rho * ur)
+        + div_vector(rho * ur * ur, rho * uth * ur, rho * uz * ur)
+        - rho * uth**2 / radius
+        + dr(pressure)
+        - visc_r / Re,
+        dt(rho * uth)
+        + div_vector(rho * ur * uth, rho * uth * uth, rho * uz * uth)
+        + rho * ur * uth / radius
+        + dtheta(pressure) / radius
+        - visc_t / Re,
+        dt(rho * uz)
+        + div_vector(rho * ur * uz, rho * uth * uz, rho * uz * uz)
+        + dz(pressure)
+        - visc_z / Re,
+        dt(energy)
+        + div_vector(ur * (energy + pressure), uth * (energy + pressure), uz * (energy + pressure))
+        - div_vector(visc_work_r, visc_work_t, visc_work_z) / Re
+        - div_vector(heat_flux_r, heat_flux_t, heat_flux_z) / c1,
+    ]
+
+    replacements = _base_replacements(
+        symbols,
+        radius=radius,
+        axial=axial,
+        base_rho=base_rho,
+        base_ur=base_ur,
+        base_ut=base_ut,
+        base_uz=base_uz,
+        base_temp=base_temp,
+        base_mu=base_mu,
+        base_dmudT=base_dmudT,
+    )
+
+    internal = {
+        block: {(i, j): sp.Integer(0) for i in range(5) for j in range(5)}
+        for block in _INTERNAL_BLOCK_ORDER
+    }
+
+    target_map = _coefficient_targets(q, time=time, radius=radius, axial=axial)
+    for row, equation in enumerate(equations):
+        linear = sp.diff(equation, eps).subs(eps, 0)
+        linear = sp.expand((linear / phase).subs(theta, 0))
+        linear = linear.subs(replacements)
+        linear = sp.expand(linear)
+
+        for col in range(5):
+            for block, targets in target_map[col].items():
+                coeff = sum(linear.coeff(target) for target in targets)
+                coeff = coeff.subs(replacements).subs(radius, symbols["R"])
+                if block == "B":
+                    internal[block][(row, col)] = sp.expand(I * coeff)
+                else:
+                    internal[block][(row, col)] = sp.expand(-coeff)
+
+    # Martini's coefficient convention keeps pure T' multipliers from base
+    # viscous flux divergences in the steady base equations rather than in the
+    # perturbation operator.  These compact subtractions are derived from the
+    # cylindrical unit-stress fluxes directly.
+    for row, correction in _momentum_temperature_base_stress_corrections(symbols).items():
+        internal["A0"][(row, 4)] = sp.expand(internal["A0"][(row, 4)] - correction)
+    internal["A0"][(4, 4)] = sp.expand(
+        internal["A0"][(4, 4)] - _energy_temperature_base_flux_correction(symbols)
+    )
+
+    return internal
+
+
+def _momentum_temperature_base_stress_corrections(
+    symbols: dict[str, sp.Symbol],
+) -> dict[int, sp.Expr]:
+    div_r, div_t, div_z, _ = _base_unit_stress_quantities(symbols)
+    return {
+        1: sp.expand(symbols["dmudT"] * div_r / symbols["Re"]),
+        2: sp.expand(symbols["dmudT"] * div_t / symbols["Re"]),
+        3: sp.expand(symbols["dmudT"] * div_z / symbols["Re"]),
+    }
+
+
+def _energy_temperature_base_flux_correction(symbols: dict[str, sp.Symbol]) -> sp.Expr:
+    """Frozen-base-viscosity convention correction for the energy equation T' row.
+
+    Applies the frozen-base-viscosity convention used in Martini's LNSE operator:
+    perturbation-viscosity x base-stress/heat-flux divergence terms (all O(dmudT/Re))
+    are excluded from the operator. The two terms here capture the O(dmudT)
+    contributions from the base viscous-work divergence and the base
+    temperature-gradient divergence.
+
+    The '- W*dRHOdz/c2' term present in an earlier scratch version was a tuning
+    artifact matching a since-fixed bug. The W*dRHOdz/c2 contribution is a genuine
+    conservative pressure-flux term already produced by the normal linearization
+    path; subtracting it again would double-count it. It must NOT appear here.
+    """
+    R = symbols["R"]
+    Re = symbols["Re"]
+    Ma = symbols["Ma"]
+    Pr = symbols["Pr"]
+    kappa = symbols["kappa"]
+    dmudT = symbols["dmudT"]
+
+    c1 = (kappa - 1) * Re * Pr * Ma**2
+    _, _, _, div_unit_work = _base_unit_stress_quantities(symbols)
+
+    div_base_temperature_gradient = (
+        symbols["d2Tdr2"] + symbols["dTdr"] / R + symbols["d2Tdz2"]
+    )
+
+    return sp.expand(
+        dmudT * div_unit_work / Re
+        + dmudT * div_base_temperature_gradient / c1
+    )
+
+
+def _base_unit_stress_quantities(
+    symbols: dict[str, sp.Symbol],
+) -> tuple[sp.Expr, sp.Expr, sp.Expr, sp.Expr]:
+    R = symbols["R"]
+    U = symbols["U"]
+    V = symbols["V"]
+    W = symbols["W"]
+
+    r = sp.Symbol("_base_r")
+    z = sp.Symbol("_base_z")
+    base_ur = sp.Function("_base_U")(r, z)
+    base_ut = sp.Function("_base_V")(r, z)
+    base_uz = sp.Function("_base_W")(r, z)
+
+    base_div = sp.diff(base_ur, r) + base_ur / r + sp.diff(base_uz, z)
+    unit_tau_rr = 2 * sp.diff(base_ur, r) - sp.Rational(2, 3) * base_div
+    unit_tau_tt = 2 * base_ur / r - sp.Rational(2, 3) * base_div
+    unit_tau_zz = 2 * sp.diff(base_uz, z) - sp.Rational(2, 3) * base_div
+    unit_tau_rt = sp.diff(base_ut, r) - base_ut / r
+    unit_tau_rz = sp.diff(base_ur, z) + sp.diff(base_uz, r)
+    unit_tau_tz = sp.diff(base_ut, z)
+
+    work_r = base_ur * unit_tau_rr + base_ut * unit_tau_rt + base_uz * unit_tau_rz
+    work_z = base_ur * unit_tau_rz + base_ut * unit_tau_tz + base_uz * unit_tau_zz
+    div_r = (
+        sp.diff(r * unit_tau_rr, r) / r
+        + sp.diff(unit_tau_rz, z)
+        - unit_tau_tt / r
+    )
+    div_t = (
+        sp.diff(r * unit_tau_rt, r) / r
+        + sp.diff(unit_tau_tz, z)
+        + unit_tau_rt / r
+    )
+    div_z = sp.diff(r * unit_tau_rz, r) / r + sp.diff(unit_tau_zz, z)
+    div_unit_work = sp.diff(r * work_r, r) / r + sp.diff(work_z, z)
+
+    replacements = {
+        base_ur: U,
+        base_ut: V,
+        base_uz: W,
+        r: R,
+        sp.diff(base_ur, r): symbols["dUdr"],
+        sp.diff(base_ut, r): symbols["dVdr"],
+        sp.diff(base_uz, r): symbols["dWdr"],
+        sp.diff(base_ur, z): symbols["dUdz"],
+        sp.diff(base_ut, z): symbols["dVdz"],
+        sp.diff(base_uz, z): symbols["dWdz"],
+        sp.diff(base_ur, r, r): symbols["d2Udr2"],
+        sp.diff(base_ut, r, r): symbols["d2Vdr2"],
+        sp.diff(base_uz, r, r): symbols["d2Wdr2"],
+        sp.diff(base_ur, z, z): symbols["d2Udz2"],
+        sp.diff(base_ut, z, z): symbols["d2Vdz2"],
+        sp.diff(base_uz, z, z): symbols["d2Wdz2"],
+        sp.diff(base_ur, r, z): symbols["d2Udrz"],
+        sp.diff(base_ut, r, z): symbols["d2Vdrz"],
+        sp.diff(base_uz, r, z): symbols["d2Wdrz"],
+        sp.diff(base_ur, z, r): symbols["d2Udrz"],
+        sp.diff(base_ut, z, r): symbols["d2Vdrz"],
+        sp.diff(base_uz, z, r): symbols["d2Wdrz"],
+    }
+    div_r = sp.expand(div_r.subs(replacements))
+    div_t = sp.expand(div_t.subs(replacements))
+    div_z = sp.expand(div_z.subs(replacements))
+    div_unit_work = sp.expand(div_unit_work.subs(replacements))
+    return div_r, div_t, div_z, div_unit_work
+
+
+def _base_replacements(
+    symbols: dict[str, sp.Symbol],
+    *,
+    radius: sp.Symbol,
+    axial: sp.Symbol,
+    base_rho: sp.Expr,
+    base_ur: sp.Expr,
+    base_ut: sp.Expr,
+    base_uz: sp.Expr,
+    base_temp: sp.Expr,
+    base_mu: sp.Expr,
+    base_dmudT: sp.Expr,
+) -> dict[sp.Expr, sp.Expr]:
+    replacements: dict[sp.Expr, sp.Expr] = {
+        base_ur: symbols["U"],
+        base_ut: symbols["V"],
+        base_uz: symbols["W"],
+        base_rho: symbols["RHO"],
+        base_temp: symbols["T"],
+        base_mu: symbols["MU"],
+        base_dmudT: symbols["dmudT"],
+        sp.diff(base_ur, radius): symbols["dUdr"],
+        sp.diff(base_ut, radius): symbols["dVdr"],
+        sp.diff(base_uz, radius): symbols["dWdr"],
+        sp.diff(base_rho, radius): symbols["dRHOdr"],
+        sp.diff(base_temp, radius): symbols["dTdr"],
+        sp.diff(base_ur, axial): symbols["dUdz"],
+        sp.diff(base_ut, axial): symbols["dVdz"],
+        sp.diff(base_uz, axial): symbols["dWdz"],
+        sp.diff(base_rho, axial): symbols["dRHOdz"],
+        sp.diff(base_temp, axial): symbols["dTdz"],
+        sp.diff(base_ur, radius, radius): symbols["d2Udr2"],
+        sp.diff(base_ut, radius, radius): symbols["d2Vdr2"],
+        sp.diff(base_uz, radius, radius): symbols["d2Wdr2"],
+        sp.diff(base_temp, radius, radius): symbols["d2Tdr2"],
+        sp.diff(base_ur, axial, axial): symbols["d2Udz2"],
+        sp.diff(base_ut, axial, axial): symbols["d2Vdz2"],
+        sp.diff(base_uz, axial, axial): symbols["d2Wdz2"],
+        sp.diff(base_temp, axial, axial): symbols["d2Tdz2"],
+        sp.diff(base_ur, radius, axial): symbols["d2Udrz"],
+        sp.diff(base_ut, radius, axial): symbols["d2Vdrz"],
+        sp.diff(base_uz, radius, axial): symbols["d2Wdrz"],
+        sp.diff(base_ur, axial, radius): symbols["d2Udrz"],
+        sp.diff(base_ut, axial, radius): symbols["d2Vdrz"],
+        sp.diff(base_uz, axial, radius): symbols["d2Wdrz"],
+        sp.diff(base_mu, radius): symbols["dmudT"] * symbols["dTdr"],
+        sp.diff(base_mu, axial): symbols["dmudT"] * symbols["dTdz"],
+        sp.diff(base_dmudT, radius): symbols["d2mudT2"] * symbols["dTdr"],
+        sp.diff(base_dmudT, axial): symbols["d2mudT2"] * symbols["dTdz"],
+    }
+    return replacements
+
+
+def _coefficient_targets(
+    q: list[sp.Expr],
+    *,
+    time: sp.Symbol,
+    radius: sp.Symbol,
+    axial: sp.Symbol,
+) -> dict[int, dict[str, tuple[sp.Expr, ...]]]:
+    targets: dict[int, dict[str, tuple[sp.Expr, ...]]] = {}
+    for col, q_col in enumerate(q):
+        mixed = [sp.diff(q_col, radius, axial), sp.diff(q_col, axial, radius)]
+        unique_mixed = tuple(dict.fromkeys(mixed))
+        targets[col] = {
+            "A0": (q_col,),
+            "Ar": (sp.diff(q_col, radius),),
+            "Az": (sp.diff(q_col, axial),),
+            "Arr": (sp.diff(q_col, radius, radius),),
+            "Azz": (sp.diff(q_col, axial, axial),),
+            "Arz": unique_mixed,
+            "B": (sp.diff(q_col, time),),
+        }
+    return targets
+
+
+def _map_internal_to_physical(
+    internal: dict[str, dict[tuple[int, int], sp.Expr]],
+) -> dict[str, sp.Expr]:
+    out: dict[str, sp.Expr] = {}
+    for block in _BLOCK_ORDER:
+        for row in range(5):
+            for col in range(5):
+                out[f"{block}_{row}{col}"] = sp.Integer(0)
+
+    for source_block, dest_block in _SOURCE_TO_DEST.items():
+        for row_internal in range(5):
+            row_physical = _CYLINDRICAL_TO_PHYSICAL[row_internal]
+            for col_internal in range(5):
+                col_physical = _CYLINDRICAL_TO_PHYSICAL[col_internal]
+                out[f"{dest_block}_{row_physical}{col_physical}"] = internal[source_block][
+                    (row_internal, col_internal)
+                ]
+    return out
 
 
 def _coeff_source_path() -> Path:
