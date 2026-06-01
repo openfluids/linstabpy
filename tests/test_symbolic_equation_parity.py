@@ -601,6 +601,136 @@ def _run_curvilinear(ngp: int, seed: int, tol: float) -> dict[str, Any]:
     }
 
 
+def _cheb_diff_matrix(n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Chebyshev-Gauss-Lobatto first-derivative matrix (Trefethen ``cheb``).
+
+    Exact for polynomials of degree <= n-1, so spectral differentiation of a
+    low-degree polynomial field is reproduced to machine precision. Returns
+    ``(D1, nodes)`` with ``nodes = cos(pi*k/(n-1))``.
+    """
+    if n == 1:
+        return np.zeros((1, 1)), np.array([1.0])
+    k = np.arange(n)
+    x = np.cos(np.pi * k / (n - 1))
+    cvec = np.ones(n)
+    cvec[0] = 2.0
+    cvec[n - 1] = 2.0
+    cvec = cvec * (-1.0) ** k
+    X = np.tile(x, (n, 1)).T
+    dX = X - X.T
+    D = np.outer(cvec, 1.0 / cvec) / (dX + np.eye(n))
+    D = D - np.diag(D.sum(axis=1))
+    return D, x
+
+
+def _run_curvilinear_full2d_oracle(n: int = 8, tol: float = 1e-9) -> dict[str, Any]:
+    """Validate the production full-2D metric transform against an INDEPENDENT
+    analytic oracle.
+
+    Unlike ``_run_curvilinear`` (which checks the production transform against
+    the symbolic ``curvilinear_operator_coefficients`` -- a second transcription
+    of the same ``dJi = -Ji.dJ.Ji`` algebra, hence self-referential), this oracle
+    never uses that identity. It picks an analytic map ``(X(xi,eta), Y(xi,eta))``
+    and a polynomial field ``P(xi,eta)``, computes the true physical derivatives
+    of the composite mechanically with SymPy, and asserts the production transform
+    reproduces them on a Chebyshev grid where spectral differentiation of the
+    low-degree polynomials is exact. A dropped/garbled q-term in production would
+    diverge from the SymPy ground truth and fail here.
+    """
+    # --- exact computational-space tensor-product operators (CGL spectral) ---
+    D1, nodes = _cheb_diff_matrix(n)
+    D2_1d = D1 @ D1
+    eye = np.eye(n)
+    Dx = sps.csr_matrix(np.kron(D1, eye))  # d/dxi
+    Dy = sps.csr_matrix(np.kron(eye, D1))  # d/deta
+    D2x = sps.csr_matrix(np.kron(D2_1d, eye))
+    D2y = sps.csr_matrix(np.kron(eye, D2_1d))
+    Dxy = (Dx @ Dy).tocsr()  # d2/dxi deta
+    Dyx = (Dy @ Dx).tocsr()
+
+    XI, ETA = np.meshgrid(nodes, nodes, indexing="ij")
+    xi_flat = XI.reshape(-1)
+    eta_flat = ETA.reshape(-1)
+
+    # --- analytic map + polynomial field (the independent oracle) ---
+    xi, eta = sp.symbols("xi eta", real=True)
+    X = xi + sp.Rational(15, 100) * xi * eta + sp.Rational(5, 100) * eta**2  # deg 2
+    Y = eta + sp.Rational(10, 100) * xi**2 - sp.Rational(8, 100) * xi * eta  # deg 2
+    P = (
+        1
+        + sp.Rational(1, 2) * xi
+        - sp.Rational(3, 10) * eta
+        + sp.Rational(4, 10) * xi**2
+        - sp.Rational(1, 5) * xi * eta
+        + sp.Rational(7, 100) * eta**2
+        + sp.Rational(1, 10) * xi**3
+        - sp.Rational(6, 100) * xi**2 * eta
+        + sp.Rational(3, 100) * eta**3
+    )  # deg 3 field
+
+    # forward Jacobian J = [[X_xi, Y_xi], [X_eta, Y_eta]]; Ji = J^-1 (inverse map)
+    J = sp.Matrix(
+        [[sp.diff(X, xi), sp.diff(Y, xi)], [sp.diff(X, eta), sp.diff(Y, eta)]]
+    )
+    Ji = J.inv()
+    a_s, b_s, c_s, d_s = Ji[0, 0], Ji[0, 1], Ji[1, 0], Ji[1, 1]
+
+    # physical-derivative operators built straight from the map (no dJi identity)
+    def dX(g: sp.Expr) -> sp.Expr:
+        return a_s * sp.diff(g, xi) + b_s * sp.diff(g, eta)
+
+    def dY(g: sp.Expr) -> sp.Expr:
+        return c_s * sp.diff(g, xi) + d_s * sp.diff(g, eta)
+
+    FX = dX(P)
+    FY = dY(P)
+    FXX = dX(FX)
+    FXY = dX(FY)
+    FYX = dY(FX)
+    FYY = dY(FY)
+
+    def _sample(expr: sp.Expr) -> np.ndarray:
+        fn = sp.lambdify((xi, eta), expr, "numpy")
+        val = fn(xi_flat, eta_flat)
+        return np.broadcast_to(np.asarray(val, dtype=float), xi_flat.shape).astype(float)
+
+    a = _sample(a_s)
+    b = _sample(b_s)
+    c = _sample(c_s)
+    d = _sample(d_s)
+    xvec = _sample(X)
+    yvec = _sample(Y)
+    fvec = _sample(P)
+    fx, fy = _sample(FX), _sample(FY)
+    fxx, fxy, fyx, fyy = _sample(FXX), _sample(FXY), _sample(FYX), _sample(FYY)
+
+    # --- drive production and compare to the analytic ground truth ---
+    Dx_new = sps.diags(a, format="csr") @ Dx + sps.diags(b, format="csr") @ Dy
+    Dy_new = sps.diags(c, format="csr") @ Dx + sps.diags(d, format="csr") @ Dy
+    D2x_new, Dxy_new, Dyx_new, D2y_new = _transform_second_derivatives(
+        a, b, c, d, D2x, D2y, Dxy, Dyx, Dx, Dy, xvec, yvec
+    )
+
+    residuals = {
+        "full2d_Dx": float(np.max(np.abs((Dx_new @ fvec) - fx))),
+        "full2d_Dy": float(np.max(np.abs((Dy_new @ fvec) - fy))),
+        "full2d_D2x": float(np.max(np.abs((D2x_new @ fvec) - fxx))),
+        "full2d_Dxy": float(np.max(np.abs((Dxy_new @ fvec) - fxy))),
+        "full2d_Dyx": float(np.max(np.abs((Dyx_new @ fvec) - fyx))),
+        "full2d_D2y": float(np.max(np.abs((D2y_new @ fvec) - fyy))),
+    }
+    max_abs = max(residuals.values())
+    return {
+        "scope": "curvilinear_full2d_independent_oracle",
+        "ngp": n * n,
+        "tolerance": tol,
+        "n_terms_checked": len(residuals),
+        "max_abs_residual": max_abs,
+        "residuals": residuals,
+        "pass": bool(max_abs <= tol),
+    }
+
+
 def _merge_reports(reports: dict[str, dict[str, Any]], tol: float) -> dict[str, Any]:
     combined_residuals: dict[str, float] = {}
     combined_block_max: dict[str, float] = {}
@@ -708,20 +838,32 @@ def test_cylindrical_coefficients_match_frozen_reference_symbolically():
 
 
 def test_curvilinear_metric_transforms_match_analytic_chain_rule():
-    # Only the x-only and y-only deformation transforms are well-posed under the
-    # harness's independent-random inputs: they match the analytic chain rule to
-    # machine precision. The full-2D block is NOT asserted here because the
-    # harness draws (a, b, c, d) independently of the (x, y) mapping that feeds
-    # the dJ terms, so its q-terms form a physically inconsistent metric and the
-    # full-2D identity does not hold (residual ~1e4, identical at base and HEAD,
-    # i.e. pre-existing and unrelated to the coefficient fusion). The full-2D
-    # transform itself is validated separately via the curvilinear-derivative
-    # parity fixture / example 0. Validating it here needs a consistent-mapping
-    # fixture (tracked as a follow-up), not the current random inputs.
+    # This harness draws (a, b, c, d) independently of the (x, y) mapping that
+    # feeds the dJ terms, so only the x-only and y-only deformation branches form
+    # a self-consistent metric; those match the analytic chain rule to machine
+    # precision and are asserted here. The full-2D block is NOT asserted in this
+    # test: with decoupled random inputs its metric is physically inconsistent and
+    # the full-2D identity cannot hold (residual ~1e4). The full-2D transform is
+    # independently validated in
+    # test_curvilinear_full2d_matches_independent_analytic_oracle, which uses a
+    # consistent analytic map and a SymPy ground truth that does not share the
+    # production dJi = -Ji.dJ.Ji algebra.
     report = _run_curvilinear(ngp=512, seed=20260533, tol=1e-9)
     blocks = report["max_abs_by_block"]
     assert blocks["curv_xonly"] < 1e-9, blocks
     assert blocks["curv_yonly"] < 1e-9, blocks
+
+
+def test_curvilinear_full2d_matches_independent_analytic_oracle():
+    # Independent oracle for the full-2D metric transform: an analytic map and a
+    # polynomial field whose true physical derivatives are computed mechanically
+    # by SymPy (never via production's dJi = -Ji.dJ.Ji q-term algebra), checked on
+    # a Chebyshev grid where spectral differentiation of the polynomials is exact.
+    # A dropped or garbled q-term in _transform_second_derivatives would diverge
+    # from this ground truth -- the self-referential blind spot that hid the
+    # cylindrical A0_44 bug does not apply here.
+    report = _run_curvilinear_full2d_oracle(n=8, tol=1e-9)
+    assert report["pass"], report["residuals"]
 
 
 def test_fused_coefficients_match_frozen_reference_numerically():
