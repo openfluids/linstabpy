@@ -74,6 +74,7 @@ from ._eps_helpers import (
     _resolve_eps_error_type,
     _resolve_solver_cfg_subsection,
 )
+from .backends import apply_factor_backend, resolve_factor_backend
 from .petsc_utils import (
     _is_petsc_matrix,
     _operator_shape,
@@ -432,7 +433,11 @@ def _configure_st_for_eigenvalue(
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
         if st_solver == "mumps":
-            pc.setFactorSolverType("mumps")
+            backend = resolve_factor_backend(ecfg, default="mumps")
+            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
+        else:
+            backend = resolve_factor_backend(ecfg, default=None)
+            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
 
     elif st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         ksp_type = _scfg(ecfg, "ksp_type", "LINSTABPY_EIGEN_KSP_TYPE", "gmres")
@@ -465,8 +470,16 @@ def _configure_st_for_eigenvalue(
         else:
             pc.setType(pc_type)
             if pc_type == "lu":
-                factor_solver_type = pc_factor_solver_type if pc_factor_solver_type else "mumps"
-                pc.setFactorSolverType(factor_solver_type)
+                factor_solver_type = resolve_factor_backend(
+                    ecfg,
+                    env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+                    default=pc_factor_solver_type if pc_factor_solver_type else "mumps",
+                )
+                apply_factor_backend(
+                    pc,
+                    factor_solver_type,
+                    options_prefix=ksp.getOptionsPrefix() or "",
+                )
         ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
         if ksp_type in {"gmres", "fgmres"}:

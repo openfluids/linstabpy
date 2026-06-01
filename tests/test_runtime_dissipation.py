@@ -296,6 +296,8 @@ def test_runtime_npz_contract_keys_are_written(monkeypatch, tmp_path):
 
         assert data["provenance_config_hash"].shape == ()
         assert data["provenance_linstabpy_git_sha"].shape == ()
+        assert data["provenance_factor_backend"].item() == "mumps"
+        assert data["provenance_factor_precision"].item() == "double"
         np.testing.assert_array_equal(
             data["stability_accepted_indices"], np.array([], dtype=np.int32)
         )

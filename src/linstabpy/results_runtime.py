@@ -41,6 +41,7 @@ from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.solvers.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstabpy.solvers.resolvent import (
@@ -122,6 +123,8 @@ RUNTIME_NPZ_CONTRACT_KEYS = (
     "solver_apply_to_resolvent_effective",
     "provenance_config_hash",
     "provenance_linstabpy_git_sha",
+    "provenance_factor_backend",
+    "provenance_factor_precision",
 )
 """Critical keys that runtime ``.npz`` outputs must continue to expose.
 
@@ -1401,6 +1404,7 @@ def compute() -> None:
     _linsolve = solver_cfg.get("linsolve", {})
     _resolvent_cfg = solver_cfg.get("resolvent", _linsolve)
     resolvent_type = _resolvent_cfg.get("type", _linsolve.get("type", "mumps"))
+    factor_backend_provenance = resolve_factor_backend(solver_cfg, default="mumps") or "petsc"
     matrix_mode = solver_cfg.get("petsc_matrix_mode", "auto")
     assembly_backend = cfg("assembly_backend", None)
     reduce_dirichlet = bool(_ecfg.get("reduce_dirichlet", False))
@@ -1752,6 +1756,8 @@ def compute() -> None:
                 solver_apply_to_resolvent_effective=np.bool_(eps_resolv > 0.0),
                 provenance_config_hash=np.bytes_(config_hash[:16].encode()),
                 provenance_linstabpy_git_sha=np.bytes_(git_sha.encode()),
+                provenance_factor_backend=np.array(str(factor_backend_provenance)),
+                provenance_factor_precision=np.array(FACTOR_PRECISION),
                 stability_missing_conjugate_partner_indices=np.asarray(
                     _conj_diag["missing_partner_indices"], dtype=np.int32
                 ),
