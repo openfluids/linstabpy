@@ -74,7 +74,13 @@ from ._eps_helpers import (
     _resolve_eps_error_type,
     _resolve_solver_cfg_subsection,
 )
-from .backends import apply_factor_backend, resolve_factor_backend
+from .backends import (
+    DEFAULT_FACTOR_BACKEND,
+    apply_factor_backend,
+    resolve_factor_backend,
+    shifted_ksp_probe_residual,
+    should_probe_backend,
+)
 from .petsc_utils import (
     _is_petsc_matrix,
     _operator_shape,
@@ -560,6 +566,50 @@ def _configure_st_for_eigenvalue(
         )
 
 
+def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:
+    """Resolve the factor backend used by the configured ST KSP/PC."""
+    if ecfg is None:
+        ecfg = {}
+    if st_solver in DIRECT_SOLVER_TYPES:
+        if st_solver == DEFAULT_FACTOR_BACKEND:
+            return resolve_factor_backend(ecfg, default=DEFAULT_FACTOR_BACKEND)
+        return resolve_factor_backend(ecfg, default=None)
+    if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
+        pc_type = str(_scfg(ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")).lower()
+        if pc_type != "lu":
+            return None
+        pc_factor_solver_type = _scfg(
+            ecfg,
+            "pc_factor_solver_type",
+            "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            "",
+        )
+        return resolve_factor_backend(
+            ecfg,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default=pc_factor_solver_type if pc_factor_solver_type else DEFAULT_FACTOR_BACKEND,
+        )
+    return None
+
+
+def _probe_residual_rel_max(ecfg: dict | None) -> float:
+    probe_cfg = ecfg.get("backend_probe", {}) if ecfg else {}
+    return float(probe_cfg.get("residual_rel_max", 1.0e-8))
+
+
+def _raise_backend_probe_failure(
+    *,
+    backend: str | None,
+    residual_rel: float,
+    residual_rel_max: float,
+) -> NoReturn:
+    raise RuntimeError(
+        f"factor backend '{backend}' failed accuracy probe: "
+        f"||Kx-b||/||b|| = {residual_rel:.3e} > {residual_rel_max:.3e}; "
+        "refusing to run EVP (set eigen.backend_probe.enabled=false to override)"
+    )
+
+
 def _eigs_near_target(
     operator: sp.csc_matrix | PETSc.Mat,
     n_modes: int,
@@ -764,6 +814,34 @@ def _eigs_near_target(
             st_solver=st_solver,
         )
 
+    resolved_factor_backend = _resolve_st_factor_backend(st_solver, _ecfg)
+    probe_cfg = _ecfg.get("backend_probe", {}) if _ecfg else {}
+    backend_probe_result: dict[str, float | int | str | None] | None = None
+    if should_probe_backend(resolved_factor_backend, probe_cfg):
+        probe = shifted_ksp_probe_residual(st.getKSP())
+        backend_probe_result = probe
+        residual_rel = float(probe["residual_rel"])
+        residual_rel_max = _probe_residual_rel_max(_ecfg)
+        logger.info(
+            "Factor backend accuracy probe: backend=%s residual_abs=%.3e residual_rel=%.3e "
+            "tol=%.3e ksp_type=%s pc_type=%s factor_solver=%s iterations=%s reason=%s",
+            resolved_factor_backend,
+            float(probe["residual_abs"]),
+            residual_rel,
+            residual_rel_max,
+            probe["ksp_type"],
+            probe["pc_type"],
+            probe["pc_factor_solver_type"],
+            probe["ksp_iterations"],
+            probe["ksp_reason"],
+        )
+        if residual_rel > residual_rel_max:
+            _raise_backend_probe_failure(
+                backend=resolved_factor_backend,
+                residual_rel=residual_rel,
+                residual_rel_max=residual_rel_max,
+            )
+
     logger.info(
         "  SLEPc EPS: sigma = %.6g%+.6gj, nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s ...",
         np.real(target),
@@ -893,6 +971,15 @@ def _eigs_near_target(
         "residual_relative": residual_relative,
         "residual_backward": residual_backward,
     }
+    info["backend_probe_factor_backend"] = resolved_factor_backend
+    info["backend_probe_ran"] = backend_probe_result is not None
+    if backend_probe_result is not None:
+        info.update(
+            {
+                f"backend_probe_{key}": value
+                for key, value in backend_probe_result.items()
+            }
+        )
     info.update({key: value for key, value in (monitor_state or {}).items()})
     eps.destroy()
     A.destroy()
