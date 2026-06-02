@@ -21,6 +21,7 @@ NCV = 30
 POSTCHECK_REL_MAX = 1.0e-6
 TARGET_DISTANCE_MAX = 0.11
 
+# Dense scipy.eig-validated to 1.65e-11 (independent oracle); see docs/strumpack_pop_dense_reference.json.
 MUMPS_REFERENCE_OMEGA = np.array(
     [
         -0.0012146156977368631 - 0.002073260395878823j,
@@ -142,3 +143,30 @@ def test_strumpack_fgmres_matches_mumps_temporal_reference() -> None:
     assert info["st_solver"] == "iterative"
     _assert_spectrum_matches_reference(omega, atol=1.0e-9)
     _assert_existing_acceptance_gate_passes(omega, info)
+
+
+def test_strumpack_preonly_fails_backend_probe_fast(monkeypatch) -> None:
+    if not factor_backend_available("strumpack"):
+        pytest.skip("SKIPPED: STRUMPACK/CUDA factor backend unavailable")
+
+    monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", "strumpack")
+    L0, _ = _build_blasius_temporal_problem()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        temporal_eigenvalues(
+            L0,
+            N_MODES,
+            TARGET,
+            ncv=NCV,
+            solver_cfg={
+                "eigen": {
+                    "st_solver": "mumps",
+                    "eps_tol": 1.0e-10,
+                    "eps_max_it": 7500,
+                }
+            },
+        )
+
+    message = str(excinfo.value)
+    assert "factor backend 'strumpack' failed accuracy probe" in message
+    assert "set eigen.backend_probe.enabled=false to override" in message
