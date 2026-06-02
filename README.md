@@ -1,6 +1,6 @@
 # LinStabPy
 
-![LinStabPy banner](https://raw.githubusercontent.com/ricardofrantz/linstabpy/main/docs/assets/linstabpy-banner.png)
+![LinStabPy banner](docs/assets/linstabpy-banner.png)
 
 ## 1. Project overview
 
