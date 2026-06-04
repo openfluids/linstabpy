@@ -6,11 +6,14 @@
 
 LinStabPy builds the linearized compressible Navier–Stokes operators for
 two-dimensional structured base flows and solves the eigenvalue and resolvent
-problems through PETSc/SLEPc with sparse direct factorization (MUMPS). It is a
-sparse Python re-implementation of the MATLAB `LinStab2D` code of Martini and
-Schmidt (2024).
+problems through PETSc/SLEPc with sparse direct factorization (MUMPS). It began
+as a Python port of the MATLAB `LinStab2D` code (Martini and Schmidt, 2024) and
+has grown into a standalone framework: it adopts the operator abstractions of
+`resolvent4py` (Padovan et al., 2025), extends the discretization to
+fd2/fd4/fd6/fd8 summation-by-parts operators, and verifies the assembled operator
+against independent derivations rather than against MATLAB output alone.
 
-The point of the rewrite is memory. Stability and resolvent analysis of 2D base
+Memory was the original motivation. Stability and resolvent analysis of 2D base
 flows produces large linear systems, and MATLAB's dense `backslash` path scales
 as `O(n^2)` in storage. A 150k-DOF operator needs about 180 GB of RAM that way,
 which puts most LES/DNS-derived base flows out of reach on an ordinary
@@ -50,9 +53,12 @@ It currently supports:
 - **Boundary treatment:** Dirichlet rows, Neumann rows, sponge damping fields, and masking for structured grids with excluded points
 - **Energy norms:** Chu compressible energy norm with quadrature weighting
 
-The implementation follows the modelling choices of Martini and Schmidt (2024)
-where possible, while replacing the MATLAB dense workflows with sparse PETSc/SLEPc
-solvers.
+The compressible formulation follows Martini and Schmidt (2024), and the
+operator-handling design draws on `resolvent4py` (Padovan et al., 2025). Where the
+original code was validated mainly against its own MATLAB output, LinStabPy adds a
+layer of provenance-independent checks: a symbolic re-derivation of the
+coefficients, a complex-step Jacobian, and direct verification of the curvilinear
+transform, global assembly, boundary rows, and energy norm.
 
 ## Installation
 
@@ -1317,40 +1323,73 @@ Reference MATLAB source boundary:
 
 Roadmap:
 
-| Phase | Status | Description |
+| Area | Status | Notes |
 |---|---|---|
-| Core assembly plus Martini examples | Done | Example family implemented and parity-gated. |
-| PETSc/SLEPc solvers | Done | MUMPS direct solves and SLEPc eigenvalue/SVD paths. |
-| Additional validation cases | In progress | SWBLI validation and production case workflows. |
-| Solver optimization | Planned | Improve sparse assembly, transfer, and preconditioner paths. |
-| Matrix-free Krylov | Future | Time-stepper-style approach for larger 3D-oriented workflows. |
+| Core assembly and reference examples | Done | SBP operator family (fd2–fd8) and the Martini examples, parity-gated. |
+| PETSc/SLEPc solvers | Done | MUMPS sparse-direct temporal/spatial/adjoint EVP and resolvent SVD paths. |
+| Independent operator verification | Done | Provenance-independent oracles for the coefficients, global assembly, boundary rows, curvilinear transform, and energy norm. |
+| SWBLI validation and resolvent results | In progress | Song/Robinet global-stability reproduction and a new SWBLI resolvent gain map. |
+| Factor-backend seam | Done | Central backend selection for PETSc LU paths; `mumps` is the validated default. |
+| GPU sparse-direct backends | In progress | `strumpack`, `superlu_dist`, and `cudss` paths are under active development; `mumps` stays the validated CPU default until the GPU paths are verified for LinStabPy matrices. |
 
 ## References
 
-Martini, E. & Schmidt, O. (2024). Linstab2D: stability and resolvent analysis of
-compressible viscous flows in MATLAB. *Theoretical and Computational Fluid
-Dynamics*. doi:10.1007/s00162-024-00706-0.
+**Methodology and lineage**
+
+Martini, E. & Schmidt, O. T. (2024). LinStab2D: stability and resolvent analysis
+of compressible viscous flows in MATLAB. *Theoretical and Computational Fluid
+Dynamics*, 38(5), 665-685. doi:10.1007/s00162-024-00706-0.
+
+Padovan, A., Anantharaman, V., Rowley, C. W., Vollmer, B., Colonius, T. & Bodony,
+D. J. (2025). resolvent4py: a parallel Python package for analysis, model
+reduction and control of large-scale linear systems. *SoftwareX*, 31, 102286.
+doi:10.1016/j.softx.2025.102286.
+
+**Solver stack**
+
+Balay, S. et al. (2025). *PETSc/TAO Users Manual* (ANL-21/39, Revision 3.24).
+Argonne National Laboratory. doi:10.2172/2998643.
+
+Hernández, V., Román, J. E. & Vidal, V. (2005). SLEPc: a scalable and flexible
+toolkit for the solution of eigenvalue problems. *ACM Transactions on
+Mathematical Software*, 31(3), 351-362. doi:10.1145/1089014.1089019.
+
+Amestoy, P. R., Duff, I. S., Koster, J. & L'Excellent, J.-Y. (2001). A fully
+asynchronous multifrontal solver using distributed dynamic scheduling (MUMPS).
+*SIAM Journal on Matrix Analysis and Applications*, 23(1), 15-41.
+
+**Discretization and norms**
 
 Strand, B. (1994). Summation by parts for finite difference approximations for
 d/dx. *Journal of Computational Physics*, 110(1), 47-67.
 
-Mattsson, K. & Nordstrom, J. (2004). Summation by parts operators for finite
+Mattsson, K. & Nordström, J. (2004). Summation by parts operators for finite
 difference approximations of second derivatives. *Journal of Computational
 Physics*, 199(2), 503-540.
 
+Chu, B.-T. (1965). On the energy transfer to small disturbances in fluid flow
+(Part I). *Acta Mechanica*, 1(3), 215-234.
+
+Schmid, P. J. & Henningson, D. S. (2001). *Stability and Transition in Shear
+Flows*. Springer.
+
 ## License and citation
 
-linstabpy is distributed under **GPL-3.0-only**, matching the license of its
-upstream MATLAB ancestor LinStab2D (Martini & Schmidt 2024,
-https://github.com/LinStab2D/LinStab2D). See `LICENSE` for the full GPL-3.0 text
-and `NOTICE` for upstream attribution and modification history.
+LinStabPy is distributed under **GPL-3.0-only**. The license is inherited from its
+MATLAB ancestor LinStab2D (Martini and Schmidt, 2024,
+https://github.com/LinStab2D/LinStab2D), which is GPL-3.0. See `LICENSE` for the
+full text and `NOTICE` for attribution and the modification history.
 
-When using linstabpy in published work, cite the LinStab2D paper:
+When using LinStabPy in published work, please cite the LinStabPy paper together
+with the LinStab2D methodology paper:
+
+> Hamada, G. Y. R. & Frantz, R. A. S. linstabpy: open-source compressible
+> stability and resolvent analysis. *Theoretical and Computational Fluid
+> Dynamics* (in preparation, 2026).
 
 > Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent analysis of
-> compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* (2024).
-> doi:10.1007/s00162-024-00706-0
+> compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665-685
+> (2024). doi:10.1007/s00162-024-00706-0
 
-See `CITATION.cff` for the machine-readable citation entry. Once linstabpy is
-archived on Zenodo, the software DOI and release version will be added to that
-file (placeholders are listed there as TODOs).
+See `CITATION.cff` for the machine-readable entry. The software DOI and release
+version will be added once the first tagged release is archived on Zenodo.

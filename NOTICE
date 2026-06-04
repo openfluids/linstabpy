@@ -8,8 +8,9 @@ O. T. Schmidt, licensed under GPL-3.0.
 
 The upstream LinStab2D source tree is not bundled with linstabpy. Users
 who want the upstream MATLAB code or reference base flows can clone it
-themselves; see README section 2.8 for the LINSTABPY_BASEFLOW_DATA_DIR
-env-var override that points linstabpy at a local upstream clone.
+themselves; see the README "Fetching reference base flows" section for
+the LINSTABPY_BASEFLOW_DATA_DIR env-var override that points linstabpy
+at a local upstream clone.
 
 Files whose module docstring states "Translates <FILENAME>.m from the
 MATLAB LinStab2D codebase" are direct ports or close adaptations of the
@@ -33,9 +34,14 @@ Modifications made by the linstabpy authors (2024-2026):
   - JSONC-driven configuration system.
   - Test infrastructure (535 tests across 52 files) and CI.
 
-When using linstabpy in published work, please cite the LinStab2D
-paper:
+When using linstabpy in published work, please cite the linstabpy
+paper (Hamada & Frantz, in preparation) together with the LinStab2D
+methodology paper:
+
+  Hamada, G. Y. R. & Frantz, R. A. S. linstabpy: open-source
+  compressible stability and resolvent analysis. Theor. Comput. Fluid
+  Dyn. (in preparation, 2026).
 
   Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent
   analysis of compressible viscous flows in MATLAB. Theor. Comput.
-  Fluid Dyn. (2024). doi:10.1007/s00162-024-00706-0
+  Fluid Dyn. 38, 665-685 (2024). doi:10.1007/s00162-024-00706-0
