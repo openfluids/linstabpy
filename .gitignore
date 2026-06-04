@@ -49,3 +49,8 @@ validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/co
 # LINSTABPY_BASEFLOW_DATA_DIR at a local clone of
 # https://github.com/LinStab2D/LinStab2D, or place .mat files here directly).
 src/linstabpy/data/baseflows/
+
+# SWBLI run-kit: drivers are tracked; machine-specific configs/outputs/backups are not
+run/*.jsonc
+run/output/
+run/*.bak_*
