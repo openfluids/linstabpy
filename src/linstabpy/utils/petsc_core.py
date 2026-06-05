@@ -702,9 +702,26 @@ def petsc_matvec_residual(
 
 
 def petsc_vec(arr: np.ndarray) -> PETSc.Vec:
-    """Convert a 1-D numpy array to a PETSc Vec."""
+    """Convert a full-global 1-D numpy array to a PETSc Vec.
+
+    Under MPI the input ``arr`` is a full-global array (every rank holds the
+    whole vector). ``createWithArray`` with no communicator/size split would
+    treat each rank's entire copy as its local slice, producing a vec of global
+    size ``N * nranks`` (the array replicated across ranks). That wrong-sized,
+    replicated vec then mismatches any distributed operator it is fed into.
+    Build a vec of the correct global size ``N`` instead, with each rank holding
+    only its ownership slice. See ``tests/test_petsc_vec_mpi.py``.
+    """
     PETSc = _get_petsc()
-    v = PETSc.Vec().createWithArray(np.ascontiguousarray(arr, dtype=complex))
+    arr = np.ascontiguousarray(arr, dtype=complex)
+    if PETSc.COMM_WORLD.getSize() == 1:
+        return PETSc.Vec().createWithArray(arr)
+    n = int(arr.shape[0])
+    v = PETSc.Vec().create(comm=PETSc.COMM_WORLD)
+    v.setSizes((PETSc.DECIDE, n))
+    v.setType("standard")
+    lo, hi = v.getOwnershipRange()
+    v.getArray()[:] = arr[lo:hi]
     return v
 
 
