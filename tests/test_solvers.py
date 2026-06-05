@@ -335,6 +335,58 @@ def test_resolvent_svd_residual_norm() -> None:
     assert np.all(rho_adj < 1e-6), f"rho_adj unexpectedly large: {rho_adj}"
 
 
+def test_resolvent_svd_residual_uses_w_norm_numerator() -> None:
+    """rho_fwd numerator must use the W-norm, not the unweighted 2-norm.
+
+    A norm-mismatched residual (2-norm numerator over W-norm denominator)
+    amplifies a tiny parallel-FP jitter into a spurious ~1e-7 reading under MPI
+    when the Chu weight spans orders of magnitude. The measure must be
+    W-consistent. This builds a diagonal (analytic) resolvent action, injects a
+    known error e on a high-weight component, and asserts rho_fwd equals the
+    W-norm prediction ||e||_W/(sigma||v||_W) -- which differs ~1000x from the
+    2-norm prediction here. See
+    resolvent/docs/mpi_resolvent_residual_investigation.md.
+    """
+    diag = -np.array([1.0, 2.0, 3.0, 4.0], dtype=float)
+    L0 = sp.diags(diag, format="csc", dtype=complex)
+    omega = 0.25
+    # Wide Chu-weight dynamic range so the W-norm and 2-norm diverge sharply.
+    W_diag = np.array([1.0, 1.0e6, 1.0, 1.0e6])
+    solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+
+    # Analytic diagonal resolvent action H = inv(L0 - i*omega*I), B=C=None, no filters.
+    h_diag = 1.0 / (diag - 1j * omega)
+    v = np.array([0.3, 0.1, 0.2, 0.05], dtype=complex)
+    v = v / np.sqrt(np.real(v.conj() @ (W_diag * v)))  # ||v||_W == 1
+    hv = h_diag * v
+    sigma = 0.7
+
+    # Known error concentrated on the highest-weight index => Hv - sigma*u = e.
+    e = np.zeros(4, dtype=complex)
+    e[1] = 1.0e-9
+    u = (hv - e) / sigma
+
+    rho_fwd, _ = compute_resolvent_svd_residuals(
+        L0,
+        omega=omega,
+        B_mat=None,
+        C_mat=None,
+        gains=np.array([sigma]),
+        forcings=v.reshape(-1, 1),
+        responses=u.reshape(-1, 1),
+        W_diag=W_diag,
+        solver_cfg=solver_cfg,
+    )
+
+    expected_w = float(np.sqrt(np.real(e.conj() @ (W_diag * e)))) / sigma  # W-norm, ||v||_W==1
+    expected_2 = float(np.linalg.norm(e)) / sigma  # unweighted 2-norm
+    np.testing.assert_allclose(rho_fwd[0], expected_w, rtol=1e-7)
+    assert abs(rho_fwd[0] - expected_2) > 0.5 * expected_w, (
+        f"rho_fwd={rho_fwd[0]:.3e} matches the 2-norm prediction {expected_2:.3e}, "
+        f"not the W-norm {expected_w:.3e}; numerator is not W-consistent"
+    )
+
+
 def test_resolvent_analysis_with_residuals_matches_postcheck() -> None:
     """Combined resolvent/postcheck path must preserve the residual values."""
     diag = -np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)

@@ -445,11 +445,22 @@ def _compute_resolvent_svd_residuals_from_apply(
     rho_adj = np.empty(n_modes, dtype=float)
 
     print(
-        "SVD residuals  rho_fwd = ||H v - s u||/(s||v||_W)  "
-        "rho_adj = ||invW H^H(Wu) - s v||/(s||v||_W)"
+        "SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  "
+        "rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)"
     )
     print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
     print("-" * 50)
+
+    def _w_norm(residual: np.ndarray) -> float:
+        # W-inner-product norm: sqrt(r^H W r). Used for BOTH numerator and
+        # denominator so the residual measure is norm-consistent. An earlier
+        # version measured the numerator in the unweighted 2-norm while the
+        # denominator was the W-norm; because the Chu weight spans orders of
+        # magnitude that mismatch amplified a tiny (~1e-12) parallel-FP jitter
+        # into a ~1e-7 reading under MPI. See
+        # resolvent/docs/mpi_resolvent_residual_investigation.md.
+        return float(np.sqrt(max(np.real(residual.conj() @ (W_vec * residual)), 0.0)))
+
     for i in range(n_modes):
         sigma = gains[i]
         v_i = forcings[:, i]
@@ -457,13 +468,13 @@ def _compute_resolvent_svd_residuals_from_apply(
         # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
         # equals 1, but computing it keeps the residuals meaningful after any
         # filter projection or small eigensolver normalization drift.
-        w_norm_v = max(float(np.sqrt(np.real(v_i.conj() @ (W_vec * v_i)))), 1e-300)
+        w_norm_v = max(_w_norm(v_i), 1e-300)
 
         Hv = apply_H(v_i)
-        rho_fwd[i] = float(np.linalg.norm(Hv - sigma * u_i)) / (sigma * w_norm_v)
+        rho_fwd[i] = _w_norm(Hv - sigma * u_i) / (sigma * w_norm_v)
 
         HH_Wu = apply_H_adj(W_vec * u_i)
-        rho_adj[i] = float(np.linalg.norm(invW_vec * HH_Wu - sigma * v_i)) / (sigma * w_norm_v)
+        rho_adj[i] = _w_norm(invW_vec * HH_Wu - sigma * v_i) / (sigma * w_norm_v)
 
         print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
 
@@ -491,15 +502,19 @@ def compute_resolvent_svd_residuals(
         invW H^H W H v_i = sigma_i^2 v_i
 
     with ``v_i`` normalised in the W-inner product (``v_i^H W v_i = 1``) and
-    response ``u_i = H v_i / sigma_i``.  The two residuals reported are:
+    response ``u_i = H v_i / sigma_i``.  Both residuals use the W-inner-product
+    norm ``||x||_W = sqrt(x^H W x)`` consistently in numerator and denominator:
 
-        rho_fwd[i] = ||H v_i − sigma_i u_i|| / (sigma_i ||v_i||_W)
-        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i|| / (sigma_i ||v_i||_W)
+        rho_fwd[i] = ||H v_i − sigma_i u_i||_W / (sigma_i ||v_i||_W)
+        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i||_W / (sigma_i ||v_i||_W)
 
     *rho_fwd* is near machine precision by construction (u_i is defined as
     H v_i / sigma_i).  *rho_adj* is the meaningful residual: it checks the
     adjoint half of the weighted eigenproblem and converges to ≤ SLEPc's
-    tolerance (1e-12) when the discrete operator is solved correctly.
+    tolerance (1e-12) when the discrete operator is solved correctly.  Measuring
+    the numerator in the W-norm (rather than the unweighted 2-norm) keeps the
+    measure norm-consistent; with a 2-norm numerator the Chu-weight dynamic range
+    amplified parallel-FP jitter into a spurious ~1e-7 reading under MPI.
 
     Derivation: from ``HtrH v = sigma^2 v`` and ``u = H v / sigma``:
 
