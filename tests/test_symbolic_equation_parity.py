@@ -862,7 +862,9 @@ def test_curvilinear_full2d_matches_independent_analytic_oracle():
     # A dropped or garbled q-term in _transform_second_derivatives would diverge
     # from this ground truth -- the self-referential blind spot that hid the
     # cylindrical A0_44 bug does not apply here.
-    report = _run_curvilinear_full2d_oracle(n=8, tol=1e-9)
+    # Bead ...2.6 acceptance is <1e-10; production reaches ~4.3e-13 here, so 1e-10
+    # leaves ~2 orders of margin while matching the stated oracle tolerance.
+    report = _run_curvilinear_full2d_oracle(n=8, tol=1e-10)
     assert report["pass"], report["residuals"]
 
 
