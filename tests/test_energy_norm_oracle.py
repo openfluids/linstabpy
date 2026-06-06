@@ -96,7 +96,9 @@ def _run_norm_oracle(ngp: int = 16, seed: int = 20260601) -> dict:
         "axy_diff": axy_diff,
         "pass": bool(
             value_diff < 1e-12
-            and inv_diff < 1e-9
+            # invW is the exact reciprocal of W (measured |invW - 1/W| == 0.0),
+            # so this is held at 1e-12 like the other checks, not the looser 1e-9.
+            and inv_diff < 1e-12
             and uvw_identical
             and rho_T_distinct
             and energy_diff < 1e-12
