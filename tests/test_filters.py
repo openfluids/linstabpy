@@ -108,7 +108,9 @@ class TestFilterAdjointProperty:
 
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
-        assert_allclose(lhs, rhs, atol=1e-10)
+        # Exact discrete-transpose identity: measured residual ~1e-14, so the
+        # oracle asserts ~1e-12 (frozen-numerics guard oracle 1, bead ...2.3).
+        assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_adjoint_property_multi_column(self, mesh_with_filter):
         """Adjoint property holds for real vectors of length 5*ngp."""
@@ -120,7 +122,8 @@ class TestFilterAdjointProperty:
 
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
-        assert_allclose(lhs, rhs, atol=1e-10)
+        # Exact discrete-transpose identity; ~1e-12 oracle tolerance (bead ...2.3).
+        assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_high_frequency_damped(self, mesh_with_filter):
         """A high-frequency signal is damped by the filter."""
