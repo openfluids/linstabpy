@@ -118,12 +118,17 @@ def _check_border(
 
 
 def _passes(rec: dict) -> bool:
+    # Measured tangent/normal and constant responses are ~5e-15 on BOTH the
+    # rectangular (gradient) and curved (Jacobian) branches, so the oracle asserts
+    # ~1e-12 (bead ...2.7's ~1e-15 property, with ~200x margin) rather than the
+    # old 1e-9. A tangent-aligned or swapped-Jacobian mutation drives the ratio to
+    # O(1), far above either threshold.
     return bool(
         rec["dof_ok"]
         and rec["block_confined"]
-        and rec["tangent_to_normal_ratio"] < 1e-9
+        and rec["tangent_to_normal_ratio"] < 1e-12
         and rec["normal_response"] > 0.1
-        and rec["const_response"] < 1e-9
+        and rec["const_response"] < 1e-12
     )
 
 
