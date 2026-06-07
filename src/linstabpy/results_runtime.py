@@ -543,6 +543,9 @@ def _stage_load_runtime_config() -> _RuntimeConfigSource:
     config: dict = {}
     if config_path.exists():
         config = load_jsonc(config_path)
+        from linstabpy.config import validate_config
+
+        validate_config(config, source=str(config_path))
         _log(f"loaded config: {config_path}")
     elif any(
         name in os.environ
