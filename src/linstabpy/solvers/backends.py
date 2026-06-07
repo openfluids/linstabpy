@@ -8,11 +8,13 @@ from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
+import numpy as np
 from petsc4py import PETSc
 
 DEFAULT_FACTOR_BACKEND = "mumps"
 FACTOR_PRECISION = "double"
 ERR_SUP = 92
+_PROBE_DENOMINATOR_TINY = 1.0e-300
 
 
 def resolve_factor_backend(
@@ -64,6 +66,67 @@ def ensure_factor_backend_available(backend: str) -> None:
         )
 
 
+def should_probe_backend(
+    resolved_backend: str | None,
+    probe_cfg: Mapping[str, Any] | None = None,
+) -> bool:
+    """Return whether a resolved factor backend should run the accuracy probe."""
+    backend = _normalize_backend(resolved_backend)
+    if backend is None:
+        return False
+    if backend == DEFAULT_FACTOR_BACKEND:
+        return False
+    if probe_cfg is not None and "enabled" in probe_cfg:
+        return _as_bool(probe_cfg["enabled"])
+    return True
+
+
+def shifted_ksp_probe_residual(
+    ksp: PETSc.KSP,
+    *,
+    rhs_seed: int = 17,
+) -> dict[str, float | int | str | None]:
+    """Solve one deterministic shifted-system RHS and return the true residual.
+
+    This is a diagnostic probe for an already-configured shift-invert KSP.  It
+    does not know about eigenpairs or acceptance policy; it only measures
+    ``||Kx-b|| / ||b||`` for the KSP's current operator using PETSc collective
+    vector norms.
+    """
+    operators = ksp.getOperators()
+    A = operators[0]
+    b = A.createVecRight()
+    x = A.createVecRight()
+    r = A.createVecLeft()
+    old_nonzero_guess = _safe_call(ksp.getInitialGuessNonzero)
+    try:
+        _fill_deterministic_rhs(b, rhs_seed=rhs_seed)
+        x.set(0)
+        ksp.setInitialGuessNonzero(False)
+        ksp.solve(b, x)
+        A.mult(x, r)
+        r.axpy(-1, b)
+        residual_abs = float(r.norm())
+        rhs_norm = float(b.norm())
+        residual_rel = residual_abs / max(rhs_norm, _PROBE_DENOMINATOR_TINY)
+        pc = ksp.getPC()
+        return {
+            "residual_abs": residual_abs,
+            "residual_rel": residual_rel,
+            "ksp_iterations": int(ksp.getIterationNumber()),
+            "ksp_reason": int(ksp.getConvergedReason()),
+            "ksp_type": ksp.getType(),
+            "pc_type": pc.getType(),
+            "pc_factor_solver_type": _safe_call(pc.getFactorSolverType),
+        }
+    finally:
+        if old_nonzero_guess is not None:
+            ksp.setInitialGuessNonzero(bool(old_nonzero_guess))
+        r.destroy()
+        x.destroy()
+        b.destroy()
+
+
 @lru_cache(maxsize=None)
 def factor_backend_available(backend: str) -> bool:
     """Return whether a tiny complex AIJ LU can be set up with ``backend``."""
@@ -98,6 +161,35 @@ def _normalize_backend(value: object) -> str | None:
     if text in {"", "none", "null", "default", "petsc"}:
         return None
     return text
+
+
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"Invalid backend_probe.enabled={value!r}; expected boolean")
+
+
+def _fill_deterministic_rhs(vec: PETSc.Vec, *, rhs_seed: int) -> None:
+    rstart, rend = vec.getOwnershipRange()
+    for row in range(rstart, rend):
+        real = np.sin((row + 1) * (rhs_seed + 0.5))
+        imag = np.cos((row + 1) * (rhs_seed + 1.5))
+        vec.setValue(row, complex(real, imag))
+    vec.assemble()
+
+
+def _safe_call(method):  # noqa: ANN001
+    try:
+        return method()
+    except (AttributeError, PETSc.Error):
+        return None
 
 
 def _petsc_error_code(exc: PETSc.Error) -> int | None:
