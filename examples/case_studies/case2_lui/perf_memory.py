@@ -1072,6 +1072,9 @@ def main() -> int:
         )
         base_config = load_jsonc(base_config_path)
         case_config = _build_case_config(base_config, effective_case)
+        from linstabpy.config import validate_config
+
+        validate_config(case_config, source=str(base_config_path))
         _write_json(case_cfg_path, case_config)
         case_report["resolved_config"] = case_config
 
