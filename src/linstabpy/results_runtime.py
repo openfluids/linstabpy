@@ -147,6 +147,8 @@ EMPTY_INT32 = _readonly_empty(np.int32)
 EMPTY_INT64 = _readonly_empty(np.int64)
 # Shared empty arrays used as read-only defaults in hot runtime paths.
 
+_STAGE_WALL: dict[str, float] = {}
+
 
 def _array_from_mapping(
     mapping: dict[str, object],
@@ -1107,10 +1109,26 @@ def _stage_write_npz(
     """Persist the runtime NPZ payload under the save-results stage boundary."""
     stage_start = _stage_start()
     with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
+        from linstabpy.utils.cost_metrics import collect_cost_metrics
+
+        cost = collect_cost_metrics(_STAGE_WALL, git_sha=_git_head_sha())
+        payload = {**payload, **cost}
         np.savez_compressed(output_npz, **payload)
+        if PETSc.COMM_WORLD.getRank() == 0:
+            import json
+
+            sidecar = output_npz.with_suffix(".metrics.json")
+            serializable_cost = {}
+            for k, v in cost.items():
+                if isinstance(v, float) and np.isnan(v):
+                    serializable_cost[k] = None
+                elif isinstance(v, np.number):
+                    serializable_cost[k] = v.item()
+                else:
+                    serializable_cost[k] = v
+            with open(sidecar, "w") as fh:
+                json.dump(serializable_cost, fh, indent=2, sort_keys=True)
     _log_stage("save_results", stage_start)
-
-
 @dataclass(frozen=True)
 class _StabilityAcceptanceStageResult:
     residual_estimates: np.ndarray
