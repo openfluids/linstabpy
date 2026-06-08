@@ -244,14 +244,18 @@ def _log_stage(stage: str, stage_start: float | tuple[float, int]) -> None:
     """Emit a machine-parseable stage timing line."""
     if isinstance(stage_start, tuple):
         start_time, rss0 = stage_start
+        elapsed = time.perf_counter() - start_time
+        _STAGE_WALL[stage] = _STAGE_WALL.get(stage, 0.0) + elapsed
         rss_delta = max(0, _peak_rss_bytes() - rss0)
         _log(
             "stage complete: "
-            f"stage={stage} elapsed={time.perf_counter() - start_time:.2f}s "
+            f"stage={stage} elapsed={elapsed:.2f}s "
             f"rss_peak_delta_bytes={rss_delta}"
         )
         return
-    _log(f"stage complete: stage={stage} elapsed={time.perf_counter() - stage_start:.2f}s")
+    elapsed = time.perf_counter() - stage_start
+    _STAGE_WALL[stage] = _STAGE_WALL.get(stage, 0.0) + elapsed
+    _log(f"stage complete: stage={stage} elapsed={elapsed:.2f}s")
 
 
 def _default_stage_heartbeat_seconds() -> float:
@@ -1105,13 +1109,22 @@ def _stage_write_npz(
     output_npz: Path,
     heartbeat_seconds: float,
     payload: dict[str, object],
+    peak_rss_bytes: int,
 ) -> None:
-    """Persist the runtime NPZ payload under the save-results stage boundary."""
+    """Persist the runtime NPZ payload under the save-results stage boundary.
+
+    ``peak_rss_bytes`` is the cross-rank-aggregated peak RSS, computed by the
+    caller in the collective region (every rank) before the rank-0-only save
+    block. It is threaded in so ``collect_cost_metrics`` performs NO MPI
+    collective here (this function runs rank-0-only; a collective would deadlock).
+    """
     stage_start = _stage_start()
     with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
         from linstabpy.utils.cost_metrics import collect_cost_metrics
 
-        cost = collect_cost_metrics(_STAGE_WALL, git_sha=_git_head_sha())
+        cost = collect_cost_metrics(
+            _STAGE_WALL, git_sha=_git_head_sha(), peak_rss_bytes=peak_rss_bytes
+        )
         payload = {**payload, **cost}
         np.savez_compressed(output_npz, **payload)
         if PETSc.COMM_WORLD.getRank() == 0:
@@ -1592,6 +1605,11 @@ def compute() -> None:
     # ------------------------------------------------------------------
     # 8) Save full run state to one NPZ for downstream parity/plots.
     # ------------------------------------------------------------------
+    # Cross-rank peak-RSS aggregation MUST run on EVERY rank (collective),
+    # BEFORE the rank-0-only save block below -- otherwise the allreduce
+    # deadlocks every multi-rank run. The aggregated scalar is threaded into the
+    # rank-0-only save (see _stage_write_npz / collect_cost_metrics).
+    _peak_rss_total_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
     if rank == 0:
         acceptance_result = _stage_evaluate_stability_acceptance(
             omega=omega,
@@ -1622,6 +1640,7 @@ def compute() -> None:
         _stage_write_npz(
             output_npz=output_npz,
             heartbeat_seconds=heartbeat_seconds,
+            peak_rss_bytes=_peak_rss_total_bytes,
             payload=dict(
                 omega=omega,
                 direct_modes=direct_modes,
