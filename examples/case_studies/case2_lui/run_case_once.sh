@@ -77,31 +77,58 @@ if [ "$MPI_PROCS" -le 1 ]; then
 fi
 
 launcher=()
-case "$MPI_PRESET" in
-  socket0)
-    launcher=(mpiexec --rankfile "$CASE_DIR/socket0.rankfile" --bind-to core)
-    ;;
-  socket1)
-    launcher=(mpiexec --rankfile "$CASE_DIR/socket1.rankfile" --bind-to core)
-    ;;
-  socket01)
-    launcher=(mpiexec --rankfile "$CASE_DIR/socket01.rankfile" --bind-to core)
-    ;;
-  none)
-    launcher=(mpiexec)
-    ;;
-  custom)
-    if [ -z "${LINSTABPY_MPI_LAUNCHER:-}" ]; then
-      echo "set LINSTABPY_MPI_LAUNCHER when LINSTABPY_MPI_PRESET=custom" >&2
-      exit 2
-    fi
-    read -r -a launcher <<< "${LINSTABPY_MPI_LAUNCHER}"
-    ;;
-  *)
-    echo "unknown LINSTABPY_MPI_PRESET: $MPI_PRESET" >&2
-    echo "valid values: socket0, socket1, socket01, none, custom" >&2
+
+# Rankfile override: explicit path takes precedence over preset
+if [ -n "${LINSTABPY_MPI_RANKFILE:-}" ]; then
+  if [ ! -f "$LINSTABPY_MPI_RANKFILE" ]; then
+    echo "LINSTABPY_MPI_RANKFILE not found: $LINSTABPY_MPI_RANKFILE" >&2
     exit 2
-    ;;
-esac
+  fi
+  launcher=(mpiexec --rankfile "$LINSTABPY_MPI_RANKFILE" --bind-to core)
+else
+  case "$MPI_PRESET" in
+    socket0)
+      launcher=(mpiexec --rankfile "$CASE_DIR/socket0.rankfile" --bind-to core)
+      ;;
+    socket1)
+      launcher=(mpiexec --rankfile "$CASE_DIR/socket1.rankfile" --bind-to core)
+      ;;
+    socket01)
+      launcher=(mpiexec --rankfile "$CASE_DIR/socket01.rankfile" --bind-to core)
+      ;;
+    c9)
+      # c9: Intel MPI 2021.x on an sm_86 GPU node. Hardware-agnostic preset.
+      # Under PBS the host/slot layout comes from $PBS_NODEFILE; otherwise plain mpiexec.
+      # Explicit node/host/rankfile is injected at runtime via LINSTABPY_MPI_RANKFILE.
+      # NO hostnames or absolute paths here (public repo boundary).
+      if [ -n "${PBS_NODEFILE:-}" ]; then
+        launcher=(mpiexec -machinefile "$PBS_NODEFILE")
+      else
+        launcher=(mpiexec)
+      fi
+      ;;
+    none)
+      launcher=(mpiexec)
+      ;;
+    custom)
+      if [ -z "${LINSTABPY_MPI_LAUNCHER:-}" ]; then
+        echo "set LINSTABPY_MPI_LAUNCHER when LINSTABPY_MPI_PRESET=custom" >&2
+        exit 2
+      fi
+      read -r -a launcher <<< "${LINSTABPY_MPI_LAUNCHER}"
+      ;;
+    *)
+      echo "unknown LINSTABPY_MPI_PRESET: $MPI_PRESET" >&2
+      echo "valid values: socket0, socket1, socket01, c9, none, custom" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+# Dry-run hook: print launcher without executing
+if [ -n "${LINSTABPY_MPI_DRYRUN:-}" ]; then
+  echo "LAUNCHER: ${launcher[*]} -n $MPI_PROCS $PYTHON_EXE $CASE_MODULE.py"
+  exit 0
+fi
 
 exec "${launcher[@]}" -n "$MPI_PROCS" "$PYTHON_EXE" case2.py
