@@ -62,15 +62,22 @@ def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
 def _shifted_operator(
     operator: sp.spmatrix | PETSc.Mat,
     omega: complex,
+    gamma: float = 0.0,
 ) -> sp.csc_matrix | PETSc.Mat:
-    """Return ``operator - 1j*omega*I`` preserving the backend."""
+    """Return ``operator - (gamma + 1j*omega)*I`` preserving the backend."""
     if _is_petsc_matrix(operator):
         shifted = operator.copy()
-        shifted.shift(-1j * omega)
+        if gamma == 0.0:
+            shifted.shift(-1j * omega)
+        else:
+            shifted.shift(-(float(gamma) + 1j * omega))
         shifted.assemble()
         return shifted
     shifted = sp.csc_matrix(operator, copy=True)
-    shifted.setdiag(shifted.diagonal() - 1j * omega)
+    if gamma == 0.0:
+        shifted.setdiag(shifted.diagonal() - 1j * omega)
+    else:
+        shifted.setdiag(shifted.diagonal() - (float(gamma) + 1j * omega))
     return shifted
 
 
@@ -133,7 +140,10 @@ def resolvent_analysis(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    *,
+    gamma: float = 0.0,
+    return_info: bool = False,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]:
     """Compute resolvent gains, optimal forcings, and optimal responses.
 
     Performs a resolvent analysis of the linear operator *L0* at angular
@@ -166,6 +176,14 @@ def resolvent_analysis(
     filter_ct_fn : Callable, optional
         Adjoint-compliant spatial filter for the adjoint resolvent.
         Typically ``mesh.filters.filter_ct``.  Defaults to identity.
+    gamma : float, optional
+        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
+        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
+        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
+        resolvent and keep the shifted solve numerically well-posed at poles.
+    return_info : bool, optional
+        If True, append an info dictionary containing
+        ``{"resolvent_discount_gamma": float(gamma)}``.
 
     Returns
     -------
@@ -175,6 +193,8 @@ def resolvent_analysis(
         Optimal response modes (columns), normalised in the *W*-inner product.
     forcings : ndarray, shape (ndof, n_modes)
         Optimal forcing modes (columns), normalised in the *W*-inner product.
+    info : dict, optional
+        Returned only when ``return_info=True``.
     """
     gains, responses, forcings, _, _ = _resolvent_analysis_impl(
         L0,
@@ -186,8 +206,11 @@ def resolvent_analysis(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        gamma=gamma,
         compute_residuals=False,
     )
+    if return_info:
+        return gains, responses, forcings, {"resolvent_discount_gamma": float(gamma)}
     return gains, responses, forcings
 
 
@@ -201,18 +224,31 @@ def resolvent_analysis_with_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    *,
+    gamma: float = 0.0,
+    return_info: bool = False,
+) -> (
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, float]]
+):
     """Compute resolvent modes and SVD residuals with one shifted solve setup.
 
     This is equivalent to calling ``resolvent_analysis`` followed by
     ``compute_resolvent_svd_residuals`` at the same ``omega``, but it reuses
     the already-factorized shifted operator.  The reuse boundary is deliberately
-    exact-frequency only: a different ``omega`` changes the numerical values in
-    ``L0 - i*omega*I``, so a MUMPS factorization cannot be carried across
-    frequencies unless PETSc/MUMPS symbolic reuse is introduced and tested as a
-    separate policy.
+    exact-frequency/discount only: a different ``omega`` or ``gamma`` changes
+    the numerical values in ``L0 - (gamma + i*omega)*I``, so a MUMPS
+    factorization cannot be carried across frequencies or discounts unless
+    PETSc/MUMPS symbolic reuse is introduced and tested as a separate policy.
+
+    ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
+    ``L0 - i*omega*I`` arithmetic.  Larger ``gamma`` values damp the resolvent
+    and keep the shifted solve numerically well-posed at poles.  If
+    ``return_info=True``, an info dictionary containing
+    ``{"resolvent_discount_gamma": float(gamma)}`` is appended to the existing
+    return tuple.
     """
-    return _resolvent_analysis_impl(
+    result = _resolvent_analysis_impl(
         L0,
         omega,
         n_modes,
@@ -222,8 +258,12 @@ def resolvent_analysis_with_residuals(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        gamma=gamma,
         compute_residuals=True,
     )
+    if return_info:
+        return (*result, {"resolvent_discount_gamma": float(gamma)})
+    return result
 
 
 def _resolvent_analysis_impl(
@@ -237,6 +277,7 @@ def _resolvent_analysis_impl(
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
     *,
+    gamma: float = 0.0,
     compute_residuals: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
     """Implementation shared by the public resolvent entry points."""
@@ -245,9 +286,9 @@ def _resolvent_analysis_impl(
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
 
     # ------------------------------------------------------------------
-    # 1. Form the shifted operator  L_sigma = L0 - i*omega*I
+    # 1. Form the shifted operator  L_sigma = L0 - (gamma + i*omega)*I
     # ------------------------------------------------------------------
-    L_sigma = _shifted_operator(L0, omega)
+    L_sigma = _shifted_operator(L0, omega, gamma=gamma)
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
@@ -494,6 +535,8 @@ def compute_resolvent_svd_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    *,
+    gamma: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute self-residuals for resolvent SVD triplets.
 
@@ -541,6 +584,11 @@ def compute_resolvent_svd_residuals(
         Diagonal of the energy-norm weight matrix used in ``resolvent_analysis``.
     filter_fn, filter_ct_fn : Callable or None
         Same spatial filters passed to ``resolvent_analysis``.
+    gamma : float, optional
+        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
+        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
+        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
+        resolvent and keep the shifted solve numerically well-posed at poles.
 
     Returns
     -------
@@ -560,7 +608,7 @@ def compute_resolvent_svd_residuals(
     # a separate "analysis" and "postcheck" stage keep their timing/provenance
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
-    L_sigma = _shifted_operator(L0, omega)
+    L_sigma = _shifted_operator(L0, omega, gamma=gamma)
     lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
     try:
         if _is_petsc_matrix(L_sigma):
