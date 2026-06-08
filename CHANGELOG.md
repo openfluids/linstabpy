@@ -7,10 +7,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-Development happens on the `dev` branch and is promoted to `main` through a
-reviewed pull request once a coherent milestone is green. Entries accumulate
-here until the next release is cut.
+Work toward **0.0.4**. Development happens on the `dev` branch (versioned
+`0.0.4.dev0`) and is promoted to `main` through a reviewed pull request once a
+coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
+### Added
+- `docs/DEVELOPMENT.md`: the development and release workflow — two-branch model,
+  the granular `0.0.x` tick cadence (a few beads → verify → tag), the merge gate,
+  and CHANGELOG discipline.
+
+### Changed
 - Clean-code revamp in progress under frozen-numerics invariants: the validated
   operator/energy-norm/SBP math is hash-frozen and must stay numerically
   identical (independent oracle parity, not a self-referential snapshot), while
