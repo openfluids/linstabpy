@@ -30,7 +30,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 ROOT = Path(__file__).resolve().parent
 DEFAULT_RUN_DIR = ROOT / "output" / "runs"
 COMPONENT_NAMES = ("rho", "u", "v", "w", "T")
@@ -133,7 +132,11 @@ def _plot_resolvent_mode_figure(
     gains_ax.grid(True, alpha=0.25)
 
     ot = omega_target
-    omega_str = f"{ot.real:.6g}{ot.imag:+.6g}i" if np.isfinite(ot.real) and np.isfinite(ot.imag) else str(ot)
+    omega_str = (
+        f"{ot.real:.6g}{ot.imag:+.6g}i"
+        if np.isfinite(ot.real) and np.isfinite(ot.imag)
+        else str(ot)
+    )
     fig.suptitle(
         f"{title_prefix}: {label}\n"
         f"{kind_label} mode={mode_index}  "

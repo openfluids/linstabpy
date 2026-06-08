@@ -181,7 +181,6 @@ def continuity_operator_coefficients(symbols: dict[str, sp.Symbol]) -> dict[str,
     }
 
 
-
 def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
     """Independent first-principles derivation of all 175 cartesian LNSE coefficients.
 
@@ -209,19 +208,43 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     I = sp.I
     Z = sp.Integer(0)
 
-    U = symbols["U"]; V = symbols["V"]; W = symbols["W"]
-    RHO = symbols["RHO"]; T = symbols["T"]; MU = symbols["MU"]
-    P = symbols["P"]; kx = symbols["kx"]
-    Re = symbols["Re"]; Ma = symbols["Ma"]; Pr = symbols["Pr"]; kappa = symbols["kappa"]
-    dUdx = symbols["dUdx"]; dVdx = symbols["dVdx"]; dWdx = symbols["dWdx"]
-    dRHOdx = symbols["dRHOdx"]; dTdx = symbols["dTdx"]; dPdx = symbols["dPdx"]
-    dUdy = symbols["dUdy"]; dVdy = symbols["dVdy"]; dWdy = symbols["dWdy"]
-    dRHOdy = symbols["dRHOdy"]; dTdy = symbols["dTdy"]; dPdy = symbols["dPdy"]
-    d2Udx2 = symbols["d2Udx2"]; d2Vdx2 = symbols["d2Vdx2"]; d2Wdx2 = symbols["d2Wdx2"]
-    d2Udy2 = symbols["d2Udy2"]; d2Vdy2 = symbols["d2Vdy2"]; d2Wdy2 = symbols["d2Wdy2"]
-    d2Tdx2 = symbols["d2Tdx2"]; d2Tdy2 = symbols["d2Tdy2"]
-    d2Udxdy = symbols["d2Udxdy"]; d2Vdxdy = symbols["d2Vdxdy"]; d2Wdxdy = symbols["d2Wdxdy"]
-    dmudT = symbols["dmudT"]; d2mudT2 = symbols["d2mudT2"]
+    U = symbols["U"]
+    V = symbols["V"]
+    W = symbols["W"]
+    RHO = symbols["RHO"]
+    T = symbols["T"]
+    MU = symbols["MU"]
+    P = symbols["P"]
+    kx = symbols["kx"]
+    Re = symbols["Re"]
+    Ma = symbols["Ma"]
+    Pr = symbols["Pr"]
+    kappa = symbols["kappa"]
+    dUdx = symbols["dUdx"]
+    dVdx = symbols["dVdx"]
+    dWdx = symbols["dWdx"]
+    dRHOdx = symbols["dRHOdx"]
+    dTdx = symbols["dTdx"]
+    dPdx = symbols["dPdx"]
+    dUdy = symbols["dUdy"]
+    dVdy = symbols["dVdy"]
+    dWdy = symbols["dWdy"]
+    dRHOdy = symbols["dRHOdy"]
+    dTdy = symbols["dTdy"]
+    dPdy = symbols["dPdy"]
+    d2Udx2 = symbols["d2Udx2"]
+    d2Vdx2 = symbols["d2Vdx2"]
+    d2Wdx2 = symbols["d2Wdx2"]
+    d2Udy2 = symbols["d2Udy2"]
+    d2Vdy2 = symbols["d2Vdy2"]
+    d2Wdy2 = symbols["d2Wdy2"]
+    d2Tdx2 = symbols["d2Tdx2"]
+    d2Tdy2 = symbols["d2Tdy2"]
+    d2Udxdy = symbols["d2Udxdy"]
+    d2Vdxdy = symbols["d2Vdxdy"]
+    d2Wdxdy = symbols["d2Wdxdy"]
+    dmudT = symbols["dmudT"]
+    d2mudT2 = symbols["d2mudT2"]
 
     # dMU/dx = (dMU/dT)*(dT/dx), similarly for y.  2D base: no z-derivatives.
     dMUdx = dmudT * dTdx
@@ -232,7 +255,7 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     # (with P=RHO*T/(kappa*Ma^2), dT/dx/(kappa*Ma^2) = dPdx/RHO - P*dRHOdx/RHO^2)
     kappa_1 = kappa - sp.Integer(1)
     # kappa*(kappa-1)*Ma^2/Re — prefactor for viscous dissipation in energy
-    C1 = kappa * kappa_1 * Ma ** 2 / Re
+    C1 = kappa * kappa_1 * Ma**2 / Re
 
     out: dict[str, sp.Expr] = {}
 
@@ -290,26 +313,22 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
 
     # --- A0 (no-derivative) ---
     # rho' terms: advection -(U*dUdx+V*dUdy) + pressure -(dPdx/RHO - P*dRHOdx/RHO^2)
-    out["A0_10"] = -(U * dUdx + V * dUdy + dPdx / RHO - P * dRHOdx / RHO ** 2)
+    out["A0_10"] = -(U * dUdx + V * dUdy + dPdx / RHO - P * dRHOdx / RHO**2)
     # u' terms: advection -RHO*I*kx*W + base gradient -RHO*dUdx
     #           + viscous -kx^2*MU/Re (from I*kx*tau_xz' = -kx^2*MU*u' + ...)
-    out["A0_11"] = -I * kx * W * RHO - RHO * dUdx - kx ** 2 * MU / Re
+    out["A0_11"] = -I * kx * W * RHO - RHO * dUdx - kx**2 * MU / Re
     # v' terms: advection -RHO*dUdy
     out["A0_12"] = -RHO * dUdy
     # w' terms: viscous from d(tau_xx')/dx: dMUdx*(-2/3*I*kx)*w'
     out["A0_13"] = sp.Rational(-2, 3) * I * kx * dMUdx / Re
     # T' terms: pressure -dRHOdx*P/(RHO*T) + viscous variable-mu second-deriv-of-base terms
-    out["A0_14"] = (
-        (P * dTdx - T * dPdx) / T ** 2
-        + (
-            dmudT * (sp.Rational(4, 3) * d2Udx2 - sp.Rational(2, 3) * d2Vdxdy)
-            + d2mudT2 * dTdx * (sp.Rational(4, 3) * dUdx - sp.Rational(2, 3) * dVdy)
-            + dmudT * (d2Udy2 + d2Vdxdy)
-            + d2mudT2 * dTdy * (dUdy + dVdx)
-            + I * kx * dmudT * dWdx
-        )
-        / Re
-    )
+    out["A0_14"] = (P * dTdx - T * dPdx) / T**2 + (
+        dmudT * (sp.Rational(4, 3) * d2Udx2 - sp.Rational(2, 3) * d2Vdxdy)
+        + d2mudT2 * dTdx * (sp.Rational(4, 3) * dUdx - sp.Rational(2, 3) * dVdy)
+        + dmudT * (d2Udy2 + d2Vdxdy)
+        + d2mudT2 * dTdy * (dUdy + dVdx)
+        + I * kx * dmudT * dWdx
+    ) / Re
 
     # --- Ax (d/dx coefficients) ---
     out["Ax_10"] = -P / RHO  # pressure: -P/RHO * drho'/dx
@@ -333,9 +352,9 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     out["Ay_14"] = dmudT * (dUdy + dVdx) / Re
 
     # --- Second-derivative blocks ---
-    out["Axx_11"] = sp.Rational(4, 3) * MU / Re   # 4/3*MU * d2u'/dx2
-    out["Ayy_11"] = MU / Re                         # MU * d2u'/dy2
-    out["Axy_12"] = MU / (3 * Re)                  # net coeff of d2v'/dxdy: MU/Re - 2/3*MU/Re
+    out["Axx_11"] = sp.Rational(4, 3) * MU / Re  # 4/3*MU * d2u'/dx2
+    out["Ayy_11"] = MU / Re  # MU * d2u'/dy2
+    out["Axy_12"] = MU / (3 * Re)  # net coeff of d2v'/dxdy: MU/Re - 2/3*MU/Re
 
     # ==================================================================
     # ROW 2: Y-MOMENTUM (wall-normal, perturbation v', i=2)
@@ -353,21 +372,17 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     out["B_22"] = I * RHO
 
     # --- A0 ---
-    out["A0_20"] = -(U * dVdx + V * dVdy + dPdy / RHO - P * dRHOdy / RHO ** 2)
+    out["A0_20"] = -(U * dVdx + V * dVdy + dPdy / RHO - P * dRHOdy / RHO**2)
     out["A0_21"] = -RHO * dVdx
-    out["A0_22"] = -I * kx * W * RHO - RHO * dVdy - kx ** 2 * MU / Re
+    out["A0_22"] = -I * kx * W * RHO - RHO * dVdy - kx**2 * MU / Re
     out["A0_23"] = sp.Rational(-2, 3) * I * kx * dMUdy / Re
-    out["A0_24"] = (
-        (P * dTdy - T * dPdy) / T ** 2
-        + (
-            dmudT * (sp.Rational(4, 3) * d2Vdy2 - sp.Rational(2, 3) * d2Udxdy)
-            + d2mudT2 * dTdy * (sp.Rational(4, 3) * dVdy - sp.Rational(2, 3) * dUdx)
-            + dmudT * (d2Vdx2 + d2Udxdy)
-            + d2mudT2 * dTdx * (dVdx + dUdy)
-            + I * kx * dmudT * dWdy
-        )
-        / Re
-    )
+    out["A0_24"] = (P * dTdy - T * dPdy) / T**2 + (
+        dmudT * (sp.Rational(4, 3) * d2Vdy2 - sp.Rational(2, 3) * d2Udxdy)
+        + d2mudT2 * dTdy * (sp.Rational(4, 3) * dVdy - sp.Rational(2, 3) * dUdx)
+        + dmudT * (d2Vdx2 + d2Udxdy)
+        + d2mudT2 * dTdx * (dVdx + dUdy)
+        + I * kx * dmudT * dWdy
+    ) / Re
 
     # --- Ax ---
     # from d(tau_yy')/dy: dMUdy*(-2/3)*du'/dx -> Ax[2,1]
@@ -412,7 +427,7 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     out["A0_30"] = -(U * dWdx + V * dWdy + I * kx * P / RHO)
     out["A0_31"] = -RHO * dWdx + I * kx * dMUdx / Re
     out["A0_32"] = -RHO * dWdy + I * kx * dMUdy / Re
-    out["A0_33"] = -I * kx * W * RHO - sp.Rational(4, 3) * kx ** 2 * MU / Re
+    out["A0_33"] = -I * kx * W * RHO - sp.Rational(4, 3) * kx**2 * MU / Re
     out["A0_34"] = (
         -I * kx * P / T
         + (
@@ -485,39 +500,35 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     # v': advection -RHO*dTdy + dissipation C1*MU*2*I*kx*dWdy
     out["A0_42"] = -RHO * dTdy + C1 * MU * 2 * I * kx * dWdy
     # w': pressure-dilatation -(kappa-1)*T*RHO*I*kx + dissipation C1*MU*(-4/3*div_U)*I*kx
-    out["A0_43"] = -(kappa_1 * T * RHO * I * kx) + C1 * MU * (-sp.Rational(4, 3) * div_U_base * I * kx)
+    out["A0_43"] = -(kappa_1 * T * RHO * I * kx) + C1 * MU * (
+        -sp.Rational(4, 3) * div_U_base * I * kx
+    )
     # T': advection -I*kx*W*RHO + pressure-dilatation -(kappa-1)*RHO*div_U
     #   + heat conduction: -kappa*kx^2*MU/(Re*Pr) + kappa*(...)/(Re*Pr)
     #   + dissipation: C1*dmudT*[...]
     out["A0_44"] = (
         -I * kx * W * RHO
         - kappa_1 * RHO * div_U_base
-        - kappa * kx ** 2 * MU / (Re * Pr)
+        - kappa * kx**2 * MU / (Re * Pr)
         + kappa
-        * (
-            dmudT * d2Tdx2
-            + d2mudT2 * dTdx ** 2
-            + dmudT * d2Tdy2
-            + d2mudT2 * dTdy ** 2
-        )
+        * (dmudT * d2Tdx2 + d2mudT2 * dTdx**2 + dmudT * d2Tdy2 + d2mudT2 * dTdy**2)
         / (Re * Pr)
         + C1
         * dmudT
         * (
-            2 * dUdx ** 2
-            + 2 * dVdy ** 2
+            2 * dUdx**2
+            + 2 * dVdy**2
             + (dUdy + dVdx) ** 2
-            + dWdx ** 2
-            + dWdy ** 2
-            - sp.Rational(2, 3) * div_U_base ** 2
+            + dWdx**2
+            + dWdy**2
+            - sp.Rational(2, 3) * div_U_base**2
         )
     )
 
     # --- Ax ---
     # pressure-dilatation contribution -(kappa-1)*T*RHO*du'/dx + dissipation C1*MU*(8/3*dUdx-4/3*dVdy)
-    out["Ax_41"] = (
-        -kappa_1 * T * RHO
-        + C1 * MU * (sp.Rational(8, 3) * dUdx - sp.Rational(4, 3) * dVdy)
+    out["Ax_41"] = -kappa_1 * T * RHO + C1 * MU * (
+        sp.Rational(8, 3) * dUdx - sp.Rational(4, 3) * dVdy
     )
     # dissipation: C1*MU*2*(dUdy+dVdx)
     out["Ax_42"] = C1 * MU * 2 * (dUdy + dVdx)
@@ -530,9 +541,8 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     # dissipation: C1*MU*2*(dUdy+dVdx)
     out["Ay_41"] = C1 * MU * 2 * (dUdy + dVdx)
     # pressure-dilatation -(kappa-1)*T*RHO + dissipation C1*MU*(8/3*dVdy - 4/3*dUdx)
-    out["Ay_42"] = (
-        -kappa_1 * T * RHO
-        + C1 * MU * (sp.Rational(8, 3) * dVdy - sp.Rational(4, 3) * dUdx)
+    out["Ay_42"] = -kappa_1 * T * RHO + C1 * MU * (
+        sp.Rational(8, 3) * dVdy - sp.Rational(4, 3) * dUdx
     )
     # dissipation: C1*MU*2*dWdy
     out["Ay_43"] = C1 * MU * 2 * dWdy
@@ -545,7 +555,6 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     # Axy row 4 all zero (no cross-derivative in energy equation)
 
     return out
-
 
 
 def cylindrical_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
@@ -742,14 +751,9 @@ def _energy_temperature_base_flux_correction(symbols: dict[str, sp.Symbol]) -> s
     c1 = (kappa - 1) * Re * Pr * Ma**2
     _, _, _, div_unit_work = _base_unit_stress_quantities(symbols)
 
-    div_base_temperature_gradient = (
-        symbols["d2Tdr2"] + symbols["dTdr"] / R + symbols["d2Tdz2"]
-    )
+    div_base_temperature_gradient = symbols["d2Tdr2"] + symbols["dTdr"] / R + symbols["d2Tdz2"]
 
-    return sp.expand(
-        dmudT * div_unit_work / Re
-        + dmudT * div_base_temperature_gradient / c1
-    )
+    return sp.expand(dmudT * div_unit_work / Re + dmudT * div_base_temperature_gradient / c1)
 
 
 def _base_unit_stress_quantities(
@@ -776,16 +780,8 @@ def _base_unit_stress_quantities(
 
     work_r = base_ur * unit_tau_rr + base_ut * unit_tau_rt + base_uz * unit_tau_rz
     work_z = base_ur * unit_tau_rz + base_ut * unit_tau_tz + base_uz * unit_tau_zz
-    div_r = (
-        sp.diff(r * unit_tau_rr, r) / r
-        + sp.diff(unit_tau_rz, z)
-        - unit_tau_tt / r
-    )
-    div_t = (
-        sp.diff(r * unit_tau_rt, r) / r
-        + sp.diff(unit_tau_tz, z)
-        + unit_tau_rt / r
-    )
+    div_r = sp.diff(r * unit_tau_rr, r) / r + sp.diff(unit_tau_rz, z) - unit_tau_tt / r
+    div_t = sp.diff(r * unit_tau_rt, r) / r + sp.diff(unit_tau_tz, z) + unit_tau_rt / r
     div_z = sp.diff(r * unit_tau_rz, r) / r + sp.diff(unit_tau_zz, z)
     div_unit_work = sp.diff(r * work_r, r) / r + sp.diff(work_z, z)
 

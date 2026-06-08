@@ -174,7 +174,7 @@ for i in range(len(gains)):
     ax51.set_aspect("equal")
     ax51.set_xlabel("Response")
 
-    if sponge_flag == True:
+    if sponge_flag:
         ax1.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])
         ax11.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])
         ax2.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])

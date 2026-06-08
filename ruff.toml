@@ -45,6 +45,11 @@ ignore = [
 # Validation harness uses similar lazy-import + ad-hoc helper patterns.
 "scripts/validation/**" = ["F821", "F841"]
 "scripts/tools/**" = ["F841"]
+# sbp_generator.py is a frozen validated-math file (Invariant A,
+# test_deny_list_math_frozen.py). Its pre-existing unused `a_i2` (F841) in the
+# order>8 branch must not be edited -- the freeze forbids touching the body -- so
+# ignore F841 here rather than changing the frozen hash.
+"src/linstabpy/mesh/sbp_generator.py" = ["F841"]
 
 [format]
 quote-style = "double"

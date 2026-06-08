@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import numpy as np
-import scipy.sparse as sp
-import scipy.linalg
 import pytest
+import scipy.linalg
+import scipy.sparse as sp
 
 from linstabpy.solvers.resolvent import resolvent_analysis
 

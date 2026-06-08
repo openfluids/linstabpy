@@ -118,7 +118,7 @@ for i in range(len(omega)):
     ax31.set_aspect("equal")
     ax31.set_ylabel(r"$R(T/T_{max})$")
 
-    if sponge_flag == True:
+    if sponge_flag:
         ax11.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])
         ax2.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])
         ax21.contour(x, y, sponge, levels=[sponge_contour], colors=["black"], linewidths=[1])

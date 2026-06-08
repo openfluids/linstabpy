@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests._paths import martini_export, require_existing
 from scripts.validation.martini2024.tools.matlab_source_parity import (
     TOTAL,
     audit,
 )
+from tests._paths import martini_export, require_existing
 
 _CYL_PATH = martini_export("getCoeffsLaminar.m")
 _CART_PATH = martini_export("getCoeffsLaminar_Cartesian.m")
@@ -35,9 +35,7 @@ def _assert_clean(coord: str) -> None:
             f" out of {TOTAL} total"
         ]
         if result.structural:
-            worst_key, worst_diff = max(
-                result.structural.items(), key=lambda kv: len(str(kv[1]))
-            )
+            worst_key, worst_diff = max(result.structural.items(), key=lambda kv: len(str(kv[1])))
             lines.append(f"  worst: {worst_key}  delta = {worst_diff}")
             for k, v in sorted(result.structural.items()):
                 lines.append(f"  {k}: matlab_minus_python = {v}")

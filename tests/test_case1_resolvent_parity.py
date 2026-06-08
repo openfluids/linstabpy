@@ -8,7 +8,9 @@ import pytest
 
 try:
     import h5py
-except ImportError:  # pragma: no cover - only exercised when the MATLAB resolvent bundle is present.
+except (
+    ImportError
+):  # pragma: no cover - only exercised when the MATLAB resolvent bundle is present.
     h5py = None
 
 from tests._paths import case_fixture

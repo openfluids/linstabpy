@@ -58,8 +58,7 @@ def _run_dirichlet_oracle(
     rng = np.random.default_rng(seed)
     # distinct boundary grid points per border (overlap across borders allowed)
     idx = {
-        key: np.sort(rng.choice(ngp, size=n_border, replace=False))
-        for key in _BORDER_KEY.values()
+        key: np.sort(rng.choice(ngp, size=n_border, replace=False)) for key in _BORDER_KEY.values()
     }
 
     dense = rng.normal(size=(5 * ngp, 5 * ngp)) + 1j * rng.normal(size=(5 * ngp, 5 * ngp))

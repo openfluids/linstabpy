@@ -22,7 +22,6 @@ from pathlib import Path
 
 import sympy as sp
 
-
 ROOT = Path(__file__).resolve().parents[4]
 PYTHON_COEFFS = ROOT / "src/linstabpy/operators/coefficients.py"
 

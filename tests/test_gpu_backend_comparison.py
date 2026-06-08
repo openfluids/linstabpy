@@ -14,7 +14,6 @@ from linstabpy.solvers import temporal_eigenvalues
 from linstabpy.solvers.backends import factor_backend_available
 from linstabpy.utils.stability_acceptance import evaluate_stability_acceptance
 
-
 TARGET = -0.1j
 N_MODES = 5
 NCV = 30

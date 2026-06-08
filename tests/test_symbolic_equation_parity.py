@@ -669,9 +669,7 @@ def _run_curvilinear_full2d_oracle(n: int = 8, tol: float = 1e-9) -> dict[str, A
     )  # deg 3 field
 
     # forward Jacobian J = [[X_xi, Y_xi], [X_eta, Y_eta]]; Ji = J^-1 (inverse map)
-    J = sp.Matrix(
-        [[sp.diff(X, xi), sp.diff(Y, xi)], [sp.diff(X, eta), sp.diff(Y, eta)]]
-    )
+    J = sp.Matrix([[sp.diff(X, xi), sp.diff(Y, xi)], [sp.diff(X, eta), sp.diff(Y, eta)]])
     Ji = J.inv()
     a_s, b_s, c_s, d_s = Ji[0, 0], Ji[0, 1], Ji[1, 0], Ji[1, 1]
 
@@ -819,9 +817,7 @@ _FROZEN_REFERENCE = (
 def _load_frozen_reference():
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "coefficients_reference_base", _FROZEN_REFERENCE
-    )
+    spec = importlib.util.spec_from_file_location("coefficients_reference_base", _FROZEN_REFERENCE)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -888,7 +884,6 @@ def test_fused_coefficients_match_frozen_reference_numerically():
     assert max_abs < 1e-10, f"fused vs frozen reference max|Δ| = {max_abs:.3e}"
 
 
-
 def test_cartesian_coefficients_match_independent_nse_derivation():
     """Independent first-principles derivation of all 175 cartesian LNSE
     coefficients must agree with the production compute_cartesian_coefficients
@@ -938,17 +933,29 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
     fields = _make_random_cartesian_fields(ngp=ngp, seed=20260531)
     P_arr = fields["RHO"] * fields["T"] / (Ma**2 * kappa)
 
-    prod = compute_cartesian_coefficients(P=P_arr, kx=0.73, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, **fields)
+    prod = compute_cartesian_coefficients(
+        P=P_arr, kx=0.73, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, **fields
+    )
     prod_blocks = {
-        "A0": prod.A0, "Ax": prod.Ax, "Ay": prod.Ay,
-        "Axx": prod.Axx, "Ayy": prod.Ayy, "Axy": prod.Axy, "B": prod.B,
+        "A0": prod.A0,
+        "Ax": prod.Ax,
+        "Ay": prod.Ay,
+        "Axx": prod.Axx,
+        "Ayy": prod.Ayy,
+        "Axy": prod.Axy,
+        "B": prod.B,
     }
 
     sym_order = list(cart_syms.keys())
     sym_args = [cart_syms[n] for n in sym_order]
     field_vals = {
-        **fields, "P": P_arr, "kx": 0.73,
-        "Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa,
+        **fields,
+        "P": P_arr,
+        "kx": 0.73,
+        "Re": Re,
+        "Ma": Ma,
+        "Pr": Pr,
+        "kappa": kappa,
     }
     arg_vals = [field_vals[n] for n in sym_order]
 
@@ -975,14 +982,10 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
                 if resid >= tol:
                     all_pass = False
                     print(
-                        f"  DISAGREEMENT {block}[{i},{j}] ({row_labels[i]} row): "
-                        f"max|Δ|={resid:.3e}"
+                        f"  DISAGREEMENT {block}[{i},{j}] ({row_labels[i]} row): max|Δ|={resid:.3e}"
                     )
                     print(f"    symbolic: {expr}")
-                    print(
-                        f"    code[0]={code_val[0]:.6e}, "
-                        f"derivation[0]={sym_val[0]:.6e}"
-                    )
+                    print(f"    code[0]={code_val[0]:.6e}, derivation[0]={sym_val[0]:.6e}")
         print(f"  {block}: max|Δ|={block_max:.3e}")
 
     print("\nPer-row max residual:")
@@ -990,8 +993,7 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
         print(f"  {label:12s}: max|Δ|={row_max[label]:.3e}")
 
     assert all_pass, (
-        "Independent NSE derivation disagrees with production code "
-        "(see printed entries above)"
+        "Independent NSE derivation disagrees with production code (see printed entries above)"
     )
 
 
@@ -1026,8 +1028,7 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
     sym_order = list(syms.keys())
     sym_args = [syms[n] for n in sym_order]
     lambdified = {
-        key: sp.lambdify(sym_args, expr, modules=["numpy"])
-        for key, expr in derived.items()
+        key: sp.lambdify(sym_args, expr, modules=["numpy"]) for key, expr in derived.items()
     }
 
     overall_max = 0.0
@@ -1040,28 +1041,58 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
         field_vals = {
             **fields,
             "m": m_val,
-            "Re": Re, "Ma": Ma, "Pr": Pr, "kappa": kappa,
+            "Re": Re,
+            "Ma": Ma,
+            "Pr": Pr,
+            "kappa": kappa,
         }
         arg_vals = [field_vals[n] for n in sym_order]
 
         prod = compute_cylindrical_coefficients(
-            U=fields["U"], V=fields["V"], W=fields["W"],
-            R=fields["R"], RHO=fields["RHO"], T=fields["T"], MU=fields["MU"],
-            m=m_val, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa,
-            dUdr=fields["dUdr"], dVdr=fields["dVdr"], dWdr=fields["dWdr"],
-            dRHOdr=fields["dRHOdr"], dTdr=fields["dTdr"],
-            dUdz=fields["dUdz"], dVdz=fields["dVdz"], dWdz=fields["dWdz"],
-            dRHOdz=fields["dRHOdz"], dTdz=fields["dTdz"],
-            d2Udr2=fields["d2Udr2"], d2Vdr2=fields["d2Vdr2"], d2Wdr2=fields["d2Wdr2"],
+            U=fields["U"],
+            V=fields["V"],
+            W=fields["W"],
+            R=fields["R"],
+            RHO=fields["RHO"],
+            T=fields["T"],
+            MU=fields["MU"],
+            m=m_val,
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            dUdr=fields["dUdr"],
+            dVdr=fields["dVdr"],
+            dWdr=fields["dWdr"],
+            dRHOdr=fields["dRHOdr"],
+            dTdr=fields["dTdr"],
+            dUdz=fields["dUdz"],
+            dVdz=fields["dVdz"],
+            dWdz=fields["dWdz"],
+            dRHOdz=fields["dRHOdz"],
+            dTdz=fields["dTdz"],
+            d2Udr2=fields["d2Udr2"],
+            d2Vdr2=fields["d2Vdr2"],
+            d2Wdr2=fields["d2Wdr2"],
             d2Tdr2=fields["d2Tdr2"],
-            d2Udz2=fields["d2Udz2"], d2Vdz2=fields["d2Vdz2"], d2Wdz2=fields["d2Wdz2"],
+            d2Udz2=fields["d2Udz2"],
+            d2Vdz2=fields["d2Vdz2"],
+            d2Wdz2=fields["d2Wdz2"],
             d2Tdz2=fields["d2Tdz2"],
-            d2Udrz=fields["d2Udrz"], d2Vdrz=fields["d2Vdrz"], d2Wdrz=fields["d2Wdrz"],
-            dmudT=fields["dmudT"], d2mudT2=fields["d2mudT2"],
+            d2Udrz=fields["d2Udrz"],
+            d2Vdrz=fields["d2Vdrz"],
+            d2Wdrz=fields["d2Wdrz"],
+            dmudT=fields["dmudT"],
+            d2mudT2=fields["d2mudT2"],
         )
         prod_blocks = {
-            "A0": prod.A0, "Ax": prod.Ax, "Ay": prod.Ay,
-            "Axx": prod.Axx, "Ayy": prod.Ayy, "Axy": prod.Axy, "B": prod.B,
+            "A0": prod.A0,
+            "Ax": prod.Ax,
+            "Ay": prod.Ay,
+            "Axx": prod.Axx,
+            "Ayy": prod.Ayy,
+            "Axy": prod.Axy,
+            "B": prod.B,
         }
 
         for block in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B"):

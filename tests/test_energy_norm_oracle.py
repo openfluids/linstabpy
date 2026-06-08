@@ -76,7 +76,13 @@ def _run_norm_oracle(ngp: int = 16, seed: int = 20260601) -> dict:
     E_form = float(np.real(np.sum(np.conj(q) * (W_diag * q))))
     E_comp = float(
         np.sum(
-            [np.sum(_canonical_blocks(RHO, T, W_int, kappa, Ma)[v] * np.abs(q[v * ngp : (v + 1) * ngp]) ** 2) for v in range(5)]
+            [
+                np.sum(
+                    _canonical_blocks(RHO, T, W_int, kappa, Ma)[v]
+                    * np.abs(q[v * ngp : (v + 1) * ngp]) ** 2
+                )
+                for v in range(5)
+            ]
         )
     )
     energy_diff = abs(E_form - E_comp) / max(abs(E_comp), 1e-300)

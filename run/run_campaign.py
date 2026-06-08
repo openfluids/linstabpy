@@ -45,7 +45,6 @@ for _path_entry in (ROOT / "src", ROOT):
 
 from linstabpy.utils.jsonc import load_jsonc
 
-
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parent
 DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases_fd4_tol_sweep.jsonc"
@@ -226,7 +225,7 @@ def _process_tree_rss_bytes(root_pid: int) -> tuple[int, int]:
 def _read_output_npz(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    with np.load(path, allow_pickle = False) as data:
+    with np.load(path, allow_pickle=False) as data:
         result: dict[str, Any] = {}
         if "omega" in data:
             omega = np.asarray(data["omega"]).reshape(-1)
@@ -252,7 +251,9 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
         if "alpha_filter" in data:
             result["alpha_filter_saved"] = str(np.asarray(data["alpha_filter"]).reshape(-1)[0])
         if "use_matlab_sponge_aux" in data:
-            result["use_matlab_sponge_aux_saved"] = bool(np.asarray(data["use_matlab_sponge_aux"]).reshape(-1)[0])
+            result["use_matlab_sponge_aux_saved"] = bool(
+                np.asarray(data["use_matlab_sponge_aux"]).reshape(-1)[0]
+            )
         if "sponge_enabled" in data:
             result["sponge_enabled"] = bool(np.asarray(data["sponge_enabled"]).reshape(-1)[0])
         if "sponge_source" in data:
@@ -268,13 +269,21 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
         if "stability_eps_ncv" in data:
             result["stability_eps_ncv"] = int(np.asarray(data["stability_eps_ncv"]).reshape(-1)[0])
         if "stability_eps_nconv" in data:
-            result["stability_eps_nconv"] = int(np.asarray(data["stability_eps_nconv"]).reshape(-1)[0])
+            result["stability_eps_nconv"] = int(
+                np.asarray(data["stability_eps_nconv"]).reshape(-1)[0]
+            )
         if "stability_eps_iterations" in data:
-            result["stability_eps_iterations"] = int(np.asarray(data["stability_eps_iterations"]).reshape(-1)[0])
+            result["stability_eps_iterations"] = int(
+                np.asarray(data["stability_eps_iterations"]).reshape(-1)[0]
+            )
         if "stability_eps_conv_test" in data:
-            result["stability_eps_conv_test"] = str(np.asarray(data["stability_eps_conv_test"]).reshape(-1)[0])
+            result["stability_eps_conv_test"] = str(
+                np.asarray(data["stability_eps_conv_test"]).reshape(-1)[0]
+            )
         if "stability_eps_tol" in data:
-            result["stability_eps_tol"] = float(np.asarray(data["stability_eps_tol"]).reshape(-1)[0])
+            result["stability_eps_tol"] = float(
+                np.asarray(data["stability_eps_tol"]).reshape(-1)[0]
+            )
         if "stability_eps_setup_seconds" in data:
             result["stability_eps_setup_seconds"] = float(
                 np.asarray(data["stability_eps_setup_seconds"]).reshape(-1)[0]
@@ -284,7 +293,9 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
                 np.asarray(data["stability_eps_solve_seconds"]).reshape(-1)[0]
             )
         if "stability_true_residual" in data:
-            result["stability_true_residual"] = bool(np.asarray(data["stability_true_residual"]).reshape(-1)[0])
+            result["stability_true_residual"] = bool(
+                np.asarray(data["stability_true_residual"]).reshape(-1)[0]
+            )
         if "stability_reduce_dirichlet" in data:
             result["stability_reduce_dirichlet"] = bool(
                 np.asarray(data["stability_reduce_dirichlet"]).reshape(-1)[0]
@@ -308,7 +319,9 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
             if finite.size:
                 result["stability_residual_max"] = float(np.max(finite))
                 result["stability_residual_median"] = float(np.median(finite))
-                result["stability_residual_first10_max"] = float(np.max(finite[: min(10, finite.size)]))
+                result["stability_residual_first10_max"] = float(
+                    np.max(finite[: min(10, finite.size)])
+                )
         if "stability_residual_relative" in data:
             residuals_rel = np.asarray(data["stability_residual_relative"], dtype=float).reshape(-1)
             finite_rel = residuals_rel[np.isfinite(residuals_rel)]
@@ -327,7 +340,9 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
             if finite_post_rel.size:
                 result["stability_postcheck_residual_rel_min"] = float(np.min(finite_post_rel))
                 result["stability_postcheck_residual_rel_max"] = float(np.max(finite_post_rel))
-                result["stability_postcheck_residual_rel_median"] = float(np.median(finite_post_rel))
+                result["stability_postcheck_residual_rel_median"] = float(
+                    np.median(finite_post_rel)
+                )
                 result["stability_postcheck_residual_rel_count_le_1e6"] = int(
                     np.sum(finite_post_rel <= 1e-6)
                 )
@@ -338,13 +353,17 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
                     np.sum(finite_post_rel <= 1e-3)
                 )
         if "stability_postcheck_target_distance" in data:
-            post_dist = np.asarray(data["stability_postcheck_target_distance"], dtype=float).reshape(-1)
+            post_dist = np.asarray(
+                data["stability_postcheck_target_distance"], dtype=float
+            ).reshape(-1)
             finite_post_dist = post_dist[np.isfinite(post_dist)]
             result["stability_postcheck_target_distance_count"] = int(post_dist.size)
             if finite_post_dist.size:
                 result["stability_postcheck_target_distance_min"] = float(np.min(finite_post_dist))
                 result["stability_postcheck_target_distance_max"] = float(np.max(finite_post_dist))
-                result["stability_postcheck_target_distance_median"] = float(np.median(finite_post_dist))
+                result["stability_postcheck_target_distance_median"] = float(
+                    np.median(finite_post_dist)
+                )
         if "stability_acceptance_postcheck_rel_max" in data:
             result["stability_acceptance_postcheck_rel_max"] = float(
                 np.asarray(data["stability_acceptance_postcheck_rel_max"]).reshape(-1)[0]
@@ -405,7 +424,9 @@ def _read_output_npz(path: Path) -> dict[str, Any]:
                 result["stability_postcheck_bc_leak_max"] = float(np.max(finite_leak))
                 result["stability_postcheck_bc_leak_median"] = float(np.median(finite_leak))
         if "stability_postcheck_dirichlet_leak_max" in data:
-            leak = np.asarray(data["stability_postcheck_dirichlet_leak_max"], dtype=float).reshape(-1)
+            leak = np.asarray(data["stability_postcheck_dirichlet_leak_max"], dtype=float).reshape(
+                -1
+            )
             finite_leak = leak[np.isfinite(leak)]
             result["stability_postcheck_dirichlet_leak_count"] = int(leak.size)
             if finite_leak.size:
@@ -588,8 +609,12 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         ),
         "stride_ksi": _cfg_get(resolved_cfg, "numerics.stride_ksi", effective.get("stride_ksi")),
         "stride_eta": _cfg_get(resolved_cfg, "numerics.stride_eta", effective.get("stride_eta")),
-        "run_stability": _cfg_get(resolved_cfg, "analysis.run_stability", effective.get("run_stability")),
-        "run_resolvent": _cfg_get(resolved_cfg, "analysis.run_resolvent", effective.get("run_resolvent")),
+        "run_stability": _cfg_get(
+            resolved_cfg, "analysis.run_stability", effective.get("run_stability")
+        ),
+        "run_resolvent": _cfg_get(
+            resolved_cfg, "analysis.run_resolvent", effective.get("run_resolvent")
+        ),
         "n_modes_stability_requested": output.get("n_modes_stability_requested"),
         "stability_eps_nev": output.get("stability_eps_nev"),
         "stability_eps_ncv": output.get("stability_eps_ncv"),
@@ -602,7 +627,9 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "stability_true_residual": output.get("stability_true_residual"),
         "stability_reduce_dirichlet": output.get("stability_reduce_dirichlet"),
         "stability_reduce_dirichlet_set": output.get("stability_reduce_dirichlet_set"),
-        "stability_constrained_dirichlet_count": output.get("stability_constrained_dirichlet_count"),
+        "stability_constrained_dirichlet_count": output.get(
+            "stability_constrained_dirichlet_count"
+        ),
         "stability_residual_error_type": output.get("stability_residual_error_type"),
         "stability_residual_max": output.get("stability_residual_max"),
         "stability_residual_median": output.get("stability_residual_median"),
@@ -610,35 +637,73 @@ def _case_row(case: dict[str, Any]) -> dict[str, Any]:
         "stability_residual_relative_min": output.get("stability_residual_relative_min"),
         "stability_residual_relative_max": output.get("stability_residual_relative_max"),
         "stability_residual_relative_median": output.get("stability_residual_relative_median"),
-        "stability_residual_relative_count_le_1e6": output.get("stability_residual_relative_count_le_1e6"),
-        "stability_residual_relative_count_le_1e4": output.get("stability_residual_relative_count_le_1e4"),
-        "stability_residual_relative_count_le_1e3": output.get("stability_residual_relative_count_le_1e3"),
+        "stability_residual_relative_count_le_1e6": output.get(
+            "stability_residual_relative_count_le_1e6"
+        ),
+        "stability_residual_relative_count_le_1e4": output.get(
+            "stability_residual_relative_count_le_1e4"
+        ),
+        "stability_residual_relative_count_le_1e3": output.get(
+            "stability_residual_relative_count_le_1e3"
+        ),
         "stability_postcheck_residual_rel_min": output.get("stability_postcheck_residual_rel_min"),
         "stability_postcheck_residual_rel_max": output.get("stability_postcheck_residual_rel_max"),
-        "stability_postcheck_residual_rel_median": output.get("stability_postcheck_residual_rel_median"),
-        "stability_postcheck_residual_rel_count_le_1e6": output.get("stability_postcheck_residual_rel_count_le_1e6"),
-        "stability_postcheck_residual_rel_count_le_1e4": output.get("stability_postcheck_residual_rel_count_le_1e4"),
-        "stability_postcheck_residual_rel_count_le_1e3": output.get("stability_postcheck_residual_rel_count_le_1e3"),
-        "stability_postcheck_target_distance_min": output.get("stability_postcheck_target_distance_min"),
-        "stability_postcheck_target_distance_max": output.get("stability_postcheck_target_distance_max"),
-        "stability_postcheck_target_distance_median": output.get("stability_postcheck_target_distance_median"),
-        "stability_acceptance_postcheck_rel_max": output.get("stability_acceptance_postcheck_rel_max"),
-        "stability_acceptance_target_distance_max": output.get("stability_acceptance_target_distance_max"),
-        "stability_acceptance_omega_real_abs_max": output.get("stability_acceptance_omega_real_abs_max"),
-        "stability_acceptance_omega_imag_abs_max": output.get("stability_acceptance_omega_imag_abs_max"),
+        "stability_postcheck_residual_rel_median": output.get(
+            "stability_postcheck_residual_rel_median"
+        ),
+        "stability_postcheck_residual_rel_count_le_1e6": output.get(
+            "stability_postcheck_residual_rel_count_le_1e6"
+        ),
+        "stability_postcheck_residual_rel_count_le_1e4": output.get(
+            "stability_postcheck_residual_rel_count_le_1e4"
+        ),
+        "stability_postcheck_residual_rel_count_le_1e3": output.get(
+            "stability_postcheck_residual_rel_count_le_1e3"
+        ),
+        "stability_postcheck_target_distance_min": output.get(
+            "stability_postcheck_target_distance_min"
+        ),
+        "stability_postcheck_target_distance_max": output.get(
+            "stability_postcheck_target_distance_max"
+        ),
+        "stability_postcheck_target_distance_median": output.get(
+            "stability_postcheck_target_distance_median"
+        ),
+        "stability_acceptance_postcheck_rel_max": output.get(
+            "stability_acceptance_postcheck_rel_max"
+        ),
+        "stability_acceptance_target_distance_max": output.get(
+            "stability_acceptance_target_distance_max"
+        ),
+        "stability_acceptance_omega_real_abs_max": output.get(
+            "stability_acceptance_omega_real_abs_max"
+        ),
+        "stability_acceptance_omega_imag_abs_max": output.get(
+            "stability_acceptance_omega_imag_abs_max"
+        ),
         "stability_accepted_count": output.get("stability_accepted_count"),
         "stability_accepted_postcheck_rel_min": output.get("stability_accepted_postcheck_rel_min"),
-        "stability_accepted_postcheck_rel_median": output.get("stability_accepted_postcheck_rel_median"),
-        "stability_accepted_target_distance_min": output.get("stability_accepted_target_distance_min"),
-        "stability_accepted_target_distance_median": output.get("stability_accepted_target_distance_median"),
+        "stability_accepted_postcheck_rel_median": output.get(
+            "stability_accepted_postcheck_rel_median"
+        ),
+        "stability_accepted_target_distance_min": output.get(
+            "stability_accepted_target_distance_min"
+        ),
+        "stability_accepted_target_distance_median": output.get(
+            "stability_accepted_target_distance_median"
+        ),
         "stability_accepted_omega_real_min": output.get("stability_accepted_omega_real_min"),
         "stability_accepted_omega_real_max": output.get("stability_accepted_omega_real_max"),
         "stability_accepted_omega_imag_min": output.get("stability_accepted_omega_imag_min"),
         "stability_accepted_omega_imag_max": output.get("stability_accepted_omega_imag_max"),
         "stability_postcheck_bc_leak_max": output.get("stability_postcheck_bc_leak_max"),
         "stability_postcheck_bc_leak_median": output.get("stability_postcheck_bc_leak_median"),
-        "stability_postcheck_dirichlet_leak_max": output.get("stability_postcheck_dirichlet_leak_max"),
-        "stability_postcheck_dirichlet_leak_median": output.get("stability_postcheck_dirichlet_leak_median"),
+        "stability_postcheck_dirichlet_leak_max": output.get(
+            "stability_postcheck_dirichlet_leak_max"
+        ),
+        "stability_postcheck_dirichlet_leak_median": output.get(
+            "stability_postcheck_dirichlet_leak_median"
+        ),
         "mpi_ranks": parsed.get("mpi_ranks"),
         "st_solver": parsed.get("st_solver"),
         "resolvent_solver": parsed.get("resolvent_solver"),
@@ -805,11 +870,7 @@ def main() -> int:
         os.getenv("LINSTABPY_CAMPAIGN_CONFIG", "").strip()
         or os.getenv("LINSTABPY_CASE2_PERF_CONFIG", "").strip()
     )
-    config_path = (
-        Path(_cfg_raw).resolve()
-        if _cfg_raw
-        else DEFAULT_CONFIG.resolve()
-    )
+    config_path = Path(_cfg_raw).resolve() if _cfg_raw else DEFAULT_CONFIG.resolve()
     cfg = load_jsonc(config_path)
     config_dir = config_path.parent
 
@@ -825,8 +886,12 @@ def main() -> int:
     default_env = {str(k): str(v) for k, v in dict(defaults.get("env", {})).items()}
     default_launcher = dict(defaults.get("launcher", {}))
     monitor_interval_seconds = float(defaults.get("monitor_interval_seconds", 0.5))
-    python_exe = _resolve_executable(config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR)
-    default_base_config = defaults.get("base_config", default_env.get("LINSTABPY_CASE_CONFIG", "parity_config.jsonc"))
+    python_exe = _resolve_executable(
+        config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR
+    )
+    default_base_config = defaults.get(
+        "base_config", default_env.get("LINSTABPY_CASE_CONFIG", "parity_config.jsonc")
+    )
     default_case_workdir = _resolve_input_path(
         config_dir,
         defaults.get("case_workdir", "."),
@@ -920,7 +985,9 @@ def main() -> int:
                 case_report["output"] = _read_output_npz(case_npz)
                 case_report["status"] = "ok"
             else:
-                case_report["error"] = f"child process failed with returncode={metrics['returncode']}"
+                case_report["error"] = (
+                    f"child process failed with returncode={metrics['returncode']}"
+                )
         except Exception as exc:
             case_report["error"] = str(exc)
 

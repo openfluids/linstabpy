@@ -143,7 +143,10 @@ def resolvent_analysis(
     *,
     gamma: float = 0.0,
     return_info: bool = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]:
+) -> (
+    tuple[np.ndarray, np.ndarray, np.ndarray]
+    | tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]
+):
     """Compute resolvent gains, optimal forcings, and optimal responses.
 
     Performs a resolvent analysis of the linear operator *L0* at angular

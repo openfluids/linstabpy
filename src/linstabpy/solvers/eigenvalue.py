@@ -974,12 +974,7 @@ def _eigs_near_target(
     info["backend_probe_factor_backend"] = resolved_factor_backend
     info["backend_probe_ran"] = backend_probe_result is not None
     if backend_probe_result is not None:
-        info.update(
-            {
-                f"backend_probe_{key}": value
-                for key, value in backend_probe_result.items()
-            }
-        )
+        info.update({f"backend_probe_{key}": value for key, value in backend_probe_result.items()})
     info.update({key: value for key, value in (monitor_state or {}).items()})
     eps.destroy()
     A.destroy()
