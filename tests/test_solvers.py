@@ -327,6 +327,7 @@ def test_resolvent_svd_residual_norm() -> None:
         responses=responses,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        gamma=0.0,
     )
 
     assert np.all(np.isfinite(rho_fwd))
@@ -376,6 +377,7 @@ def test_resolvent_svd_residual_uses_w_norm_numerator() -> None:
         responses=u.reshape(-1, 1),
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        gamma=0.0,
     )
 
     expected_w = float(np.sqrt(np.real(e.conj() @ (W_diag * e)))) / sigma  # W-norm, ||v||_W==1
@@ -411,6 +413,7 @@ def test_resolvent_analysis_with_residuals_matches_postcheck() -> None:
         responses=responses,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        gamma=0.0,
     )
 
     np.testing.assert_allclose(rho_fwd_reused, rho_fwd_post, atol=1e-14, rtol=1e-12)
@@ -596,6 +599,7 @@ class TestResolventAnalysis:
             responses=responses,
             W_diag=W_diag,
             solver_cfg=solver_cfg,
+            gamma=0.0,
         )
         assert np.all(np.isfinite(rho_fwd)), "rho_fwd contains non-finite values"
         assert np.all(np.isfinite(rho_adj)), "rho_adj contains non-finite values"

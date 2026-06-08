@@ -536,9 +536,15 @@ def compute_resolvent_svd_residuals(
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
     *,
-    gamma: float = 0.0,
+    gamma: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute self-residuals for resolvent SVD triplets.
+
+    ``gamma`` is REQUIRED (no default): this postcheck rebuilds the shifted
+    operator ``L0 - (gamma + i*omega) I`` and MUST use the SAME ``gamma`` the
+    analysis used, or the residual is measured against a different operator and a
+    valid discounted-resolvent result fails the postcheck gate. Pass ``gamma=0.0``
+    explicitly for the standard (undiscounted) resolvent.
 
     The resolvent analysis solves the weighted eigenvalue problem
 
