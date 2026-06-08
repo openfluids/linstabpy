@@ -6,7 +6,6 @@ from __future__ import annotations
 import os
 from math import nan
 
-from mpi4py import MPI
 from petsc4py import PETSc
 
 
@@ -29,23 +28,30 @@ def _petsc_options_string() -> str:
     return ";".join(f"{key}={value}" for key, value in sorted(options.items()))
 
 
-def collect_cost_metrics(stage_wall: dict[str, float], *, git_sha: str) -> dict[str, object]:
-    from linstabpy.results_runtime import _peak_rss_bytes
-
+def collect_cost_metrics(
+    stage_wall: dict[str, float],
+    *,
+    git_sha: str,
+    peak_rss_bytes: int,
+) -> dict[str, object]:
+    # peak_rss_bytes is the ALREADY cross-rank-aggregated value, computed by the
+    # caller in the collective region (every rank) BEFORE the rank-0-only save
+    # block. This function must contain NO MPI collective: it runs inside the
+    # rank-0-only save path, so an allreduce here would deadlock every multi-rank
+    # run. See feedback_mpi_collective_rank0 / bead 3.3.
     solve_times = [
         float(stage_wall[stage])
         for stage in ("stability", "resolvent")
         if stage in stage_wall
     ]
     cost_gpus = int(os.getenv("LINSTAB2D_GPUS", "0") or 0)
-    peak_rss = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
 
     return {
         "cost_wall_total_s": float(sum(stage_wall.values())),
         "cost_wall_assemble_s": float(stage_wall.get("assemble_operator_bc", nan)),
         "cost_wall_factor_s": float(nan),
         "cost_wall_solve_s": float(sum(solve_times)) if solve_times else float(nan),
-        "cost_peak_rss_bytes": int(peak_rss),
+        "cost_peak_rss_bytes": int(peak_rss_bytes),
         "cost_peak_gpu_mem_bytes": _gpu_memory_bytes(cost_gpus),
         "cost_mpi_ranks": int(PETSc.COMM_WORLD.getSize()),
         "cost_gpus": cost_gpus,
