@@ -33,7 +33,7 @@ EOF
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 CASE_DIR="$ROOT/examples/case_studies/case2_lui"
 PYTHON_EXE="$ROOT/.venv/bin/python"
 
