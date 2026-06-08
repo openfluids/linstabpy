@@ -33,6 +33,10 @@ def _install_optional_petsc_stubs() -> None:
         def bcast(self, value, root=0):
             return value
 
+        def allreduce(self, value, op=None):
+            # Single-rank identity reduction: SUM/MAX/MIN of one value is itself.
+            return value
+
     class _FakeMat:
         pass
 
@@ -45,9 +49,18 @@ def _install_optional_petsc_stubs() -> None:
     class _FakePC:
         pass
 
+    class _FakeOptions:
+        # PETSc.Options().getAll() is queried by the cost-metrics provenance.
+        def getAll(self):
+            return {}
+
     fake_mpi = types.ModuleType("mpi4py")
     fake_mpi_submodule = types.ModuleType("mpi4py.MPI")
     fake_mpi_submodule.COMM_WORLD = _FakeComm()
+    # Reduction-op sentinels referenced as MPI.SUM/MAX/MIN by collective calls.
+    fake_mpi_submodule.SUM = "SUM"
+    fake_mpi_submodule.MAX = "MAX"
+    fake_mpi_submodule.MIN = "MIN"
     fake_mpi.MPI = fake_mpi_submodule
 
     fake_petsc4py = types.ModuleType("petsc4py")
@@ -63,6 +76,7 @@ def _install_optional_petsc_stubs() -> None:
         ScalarType=np.complex128,
         IntType=np.int64,
         InsertMode=types.SimpleNamespace(INSERT_VALUES=0),
+        Options=_FakeOptions,
     )
     fake_petsc4py.PETSc = fake_petsc
 

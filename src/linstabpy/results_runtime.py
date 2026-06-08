@@ -248,9 +248,7 @@ def _log_stage(stage: str, stage_start: float | tuple[float, int]) -> None:
         _STAGE_WALL[stage] = _STAGE_WALL.get(stage, 0.0) + elapsed
         rss_delta = max(0, _peak_rss_bytes() - rss0)
         _log(
-            "stage complete: "
-            f"stage={stage} elapsed={elapsed:.2f}s "
-            f"rss_peak_delta_bytes={rss_delta}"
+            f"stage complete: stage={stage} elapsed={elapsed:.2f}s rss_peak_delta_bytes={rss_delta}"
         )
         return
     elapsed = time.perf_counter() - stage_start
@@ -1143,6 +1141,8 @@ def _stage_write_npz(
             with open(sidecar, "w") as fh:
                 json.dump(serializable_cost, fh, indent=2, sort_keys=True)
     _log_stage("save_results", stage_start)
+
+
 @dataclass(frozen=True)
 class _StabilityAcceptanceStageResult:
     residual_estimates: np.ndarray

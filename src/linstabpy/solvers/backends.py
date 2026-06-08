@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
 import numpy as np
@@ -127,7 +127,7 @@ def shifted_ksp_probe_residual(
         b.destroy()
 
 
-@lru_cache(maxsize=None)
+@cache
 def factor_backend_available(backend: str) -> bool:
     """Return whether a tiny complex AIJ LU can be set up with ``backend``."""
     backend = _normalize_backend(backend)

@@ -10,7 +10,6 @@ import linstabpy.utils.cost_metrics as cost_metrics_module
 from linstabpy.results_runtime import _STAGE_WALL, _log_stage, _stage_start, _stage_write_npz
 from linstabpy.utils.cost_metrics import collect_cost_metrics
 
-
 COST_KEYS = {
     "cost_wall_total_s",
     "cost_wall_assemble_s",
@@ -131,8 +130,7 @@ def test_collect_cost_metrics_has_no_mpi_collective():
         ".Bcast(",
     ):
         assert collective not in src, (
-            f"collect_cost_metrics must not call MPI {collective!r} "
-            "(rank-0-only path -> deadlock)"
+            f"collect_cost_metrics must not call MPI {collective!r} (rank-0-only path -> deadlock)"
         )
 
 

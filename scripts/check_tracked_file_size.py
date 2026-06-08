@@ -16,8 +16,7 @@ def _repo_root() -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     return Path(result.stdout.strip())
@@ -28,8 +27,7 @@ def _git_list(root: Path, args: list[str]) -> list[Path]:
         ["git", *args, "-z"],
         cwd=root,
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     raw_paths = result.stdout.split(b"\0")
     return [root / raw.decode() for raw in raw_paths if raw]

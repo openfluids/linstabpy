@@ -43,9 +43,7 @@ def test_temporal_eigenvalue_sign_is_growth_positive() -> None:
     Im(omega) must equal the real part of the eigenvalue (the growth rate).
     """
     # Four eigenvalues: one growing (Re=+0.05), three damped (Re<0)
-    lam = np.array(
-        [0.05 + 0.40j, -0.30 + 1.1j, -0.50 - 0.7j, -0.80 + 0.2j], dtype=complex
-    )
+    lam = np.array([0.05 + 0.40j, -0.30 + 1.1j, -0.50 - 0.7j, -0.80 + 0.2j], dtype=complex)
     L0 = sp.diags(lam, format="csc", dtype=complex)
 
     # Call the temporal eigenvalue solver, targeting near the first eigenvalue.
@@ -53,14 +51,14 @@ def test_temporal_eigenvalue_sign_is_growth_positive() -> None:
     omega, modes = temporal_eigenvalues(L0, n_modes=4, target=target)
 
     # The leading eigenvalue must have Im(omega) > 0 (unstable).
-    assert (
-        omega[0].imag > 0
-    ), f"Leading eigenvalue Im(omega)={omega[0].imag} must be positive (unstable). Full omega={omega}"
+    assert omega[0].imag > 0, (
+        f"Leading eigenvalue Im(omega)={omega[0].imag} must be positive (unstable). Full omega={omega}"
+    )
 
     # The leading Im(omega) must match the growth rate Re(lambda[0]).
-    assert np.isclose(
-        omega[0].imag, lam[0].real, atol=1e-8
-    ), f"Im(omega[0])={omega[0].imag} must equal growth rate Re(lam[0])={lam[0].real}. Verifies the e^{{-i*omega*t}} convention."
+    assert np.isclose(omega[0].imag, lam[0].real, atol=1e-8), (
+        f"Im(omega[0])={omega[0].imag} must equal growth rate Re(lam[0])={lam[0].real}. Verifies the e^{{-i*omega*t}} convention."
+    )
 
     # The other three damped eigenvalues must have Im(omega) < 0 (stable).
     # Match them by finding the nearest omega to i*lam[k].
@@ -69,9 +67,9 @@ def test_temporal_eigenvalue_sign_is_growth_positive() -> None:
         distances = np.abs(omega[1:] - expected_omega)
         min_idx = np.argmin(distances)
         closest_omega = omega[1 + min_idx]
-        assert (
-            closest_omega.imag < 0
-        ), f"Damped eigenvalue k={k}: Im(omega)={closest_omega.imag} must be negative (stable). Expected near {expected_omega}"
+        assert closest_omega.imag < 0, (
+            f"Damped eigenvalue k={k}: Im(omega)={closest_omega.imag} must be negative (stable). Expected near {expected_omega}"
+        )
 
 
 def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
@@ -117,7 +115,11 @@ def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
     # (3) Try deeper relative search (in case test is reorganized)
     if csv_path is None:
         for i in range(2, 5):
-            candidate = Path(__file__).resolve().parents[i] / "archive" / "reference_song32deg_eigenspectrum.csv"
+            candidate = (
+                Path(__file__).resolve().parents[i]
+                / "archive"
+                / "reference_song32deg_eigenspectrum.csv"
+            )
             if candidate.exists():
                 csv_path = candidate
                 break
@@ -156,31 +158,31 @@ def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
 
     # (a) There must be at least one unstable mode (omega_i > 0).
     unstable_mask = growth_rates > 0
-    assert (
-        np.any(unstable_mask)
-    ), f"No unstable modes found (all omega_i <= 0). CSV data integrity check failed."
+    assert np.any(unstable_mask), (
+        "No unstable modes found (all omega_i <= 0). CSV data integrity check failed."
+    )
 
     # (b) Unstable modes must be localised in wavelength.
     unstable_wavelengths = wavelengths[unstable_mask]
-    assert np.all(
-        unstable_wavelengths >= 0.15
-    ), f"Some unstable modes have lambda/L < 0.15 (outside expected band): {unstable_wavelengths}"
-    assert np.all(
-        unstable_wavelengths <= 0.85
-    ), f"Some unstable modes have lambda/L > 0.85 (outside expected band): {unstable_wavelengths}"
+    assert np.all(unstable_wavelengths >= 0.15), (
+        f"Some unstable modes have lambda/L < 0.15 (outside expected band): {unstable_wavelengths}"
+    )
+    assert np.all(unstable_wavelengths <= 0.85), (
+        f"Some unstable modes have lambda/L > 0.85 (outside expected band): {unstable_wavelengths}"
+    )
 
     # (c) Peak growth should be in [0.045, 0.065] (reference is ~+0.0558).
     max_growth = np.max(growth_rates)
-    assert (
-        0.045 <= max_growth <= 0.065
-    ), f"Peak growth omega_i={max_growth} outside expected range [0.045, 0.065]"
+    assert 0.045 <= max_growth <= 0.065, (
+        f"Peak growth omega_i={max_growth} outside expected range [0.045, 0.065]"
+    )
 
     # (d) Peak occurs near lambda/L~0.327, i.e. in [0.30, 0.45].
     peak_idx = np.argmax(growth_rates)
     peak_wavelength = wavelengths[peak_idx]
-    assert (
-        0.30 <= peak_wavelength <= 0.45
-    ), f"Peak growth at lambda/L={peak_wavelength} outside expected range [0.30, 0.45]"
+    assert 0.30 <= peak_wavelength <= 0.45, (
+        f"Peak growth at lambda/L={peak_wavelength} outside expected range [0.30, 0.45]"
+    )
 
     # All assertions passed: the reference convention is documented and verified.
     # Assertion messages explain that this is the target linstabpy must match

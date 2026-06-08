@@ -32,15 +32,12 @@ def test_harness_resolves_paths_from_repository_root():
     config_dir = case_fixture("case1") / "configs"
 
     assert perf_memory.ROOT == REPO_ROOT
-    assert (
-        perf_memory._resolve_executable(
-            config_dir,
-            "../../../../.venv/bin/python",
-            perf_memory.CASE_DIR,
-            perf_memory.ROOT,
-        )
-        == str(REPO_ROOT / ".venv" / "bin" / "python")
-    )
+    assert perf_memory._resolve_executable(
+        config_dir,
+        "../../../../.venv/bin/python",
+        perf_memory.CASE_DIR,
+        perf_memory.ROOT,
+    ) == str(REPO_ROOT / ".venv" / "bin" / "python")
 
 
 def test_parse_log_metrics_extracts_runtime_stage_rss_delta():

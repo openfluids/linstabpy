@@ -22,7 +22,15 @@ from scripts.validation.martini2024.tools.extract_martini_to_npz import (  # noq
 
 DEFAULT_SCRIPT = ROOT / "artifacts" / "martini2024" / "export_martini_reference.m"
 ENV_OUTPUT_DIR = "LINSTABPY_MARTINI_EXPORT_DIR"
-ALL_CASES = ("example0", "example1", "example2", "example3_temporal", "example3_spatial", "example4", "example5")
+ALL_CASES = (
+    "example0",
+    "example1",
+    "example2",
+    "example3_temporal",
+    "example3_spatial",
+    "example4",
+    "example5",
+)
 
 
 def _display_path(path: Path) -> str:
@@ -65,8 +73,7 @@ def _run_case(script_name: str, replacements: dict[str, str] | None = None) -> l
         lines.append(f"script_text = fileread({_matlab_quote(script_name)});")
         for old, new in replacements.items():
             lines.append(
-                "script_text = strrep(script_text, "
-                f"{_matlab_quote(old)}, {_matlab_quote(new)});"
+                f"script_text = strrep(script_text, {_matlab_quote(old)}, {_matlab_quote(new)});"
             )
         lines.extend(
             [
@@ -101,10 +108,7 @@ def _save_result(filename: str, variable: str) -> str:
 
 
 def _save_log(filename: str) -> str:
-    return (
-        f"save(fullfile(output_dir, {_matlab_quote(filename)}), "
-        "'timing_total', '-v7.3');"
-    )
+    return f"save(fullfile(output_dir, {_matlab_quote(filename)}), 'timing_total', '-v7.3');"
 
 
 def _case_blocks() -> dict[str, list[str]]:
@@ -116,9 +120,7 @@ def _case_blocks() -> dict[str, list[str]]:
         "example0": _run_case("example_0_TestCurvilinearDerivative.m")
         + [
             "results_TestCurv = struct('x', x, 'y', y, 'f', f, 'df', df, 'df_an', df_an);",
-            _save_result(
-                "example_0_TestCurvilinearDerivative_results.mat", "results_TestCurv"
-            ),
+            _save_result("example_0_TestCurvilinearDerivative_results.mat", "results_TestCurv"),
             _save_log("example_0_TestCurvilinearDerivative_logs.mat"),
             "close all;",
             "",
@@ -144,9 +146,7 @@ def _case_blocks() -> dict[str, list[str]]:
             "results_StreakyBL_base = struct('mesh', mesh, 'baseFlow', baseFlow);",
             "results_StreakyBL_temporal = struct('omega', omega, 'V', V);",
             _save_result("example_3_Streaky_BL_results_base.mat", "results_StreakyBL_base"),
-            _save_result(
-                "example_3_Streaky_BL_results_temporal.mat", "results_StreakyBL_temporal"
-            ),
+            _save_result("example_3_Streaky_BL_results_temporal.mat", "results_StreakyBL_temporal"),
             _save_log("example_3_Streaky_BL_logs.mat"),
             "close all;",
             "",
@@ -162,9 +162,7 @@ def _case_blocks() -> dict[str, list[str]]:
         )
         + [
             "results_StreakyBL_spatial = struct('alphas', alphas);",
-            _save_result(
-                "example_3_Streaky_BL_results_spatial.mat", "results_StreakyBL_spatial"
-            ),
+            _save_result("example_3_Streaky_BL_results_spatial.mat", "results_StreakyBL_spatial"),
             "close all;",
             "",
         ],

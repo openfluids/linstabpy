@@ -5,7 +5,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "examples/case_studies/case2_lui/run_case_once.sh"
 CONFIG = REPO_ROOT / "examples/case_studies/case2_lui/configs/parity_config.jsonc"
@@ -45,9 +44,7 @@ def test_c9_preset_resolves_launcher(tmp_path):
 
 
 def test_rankfile_override_precedence(tmp_path):
-    result = run_dryrun(
-        tmp_path, preset="socket0", rankfile=str(C9_RANKFILE), procs=2
-    )
+    result = run_dryrun(tmp_path, preset="socket0", rankfile=str(C9_RANKFILE), procs=2)
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "LAUNCHER:" in result.stdout
     assert str(C9_RANKFILE) in result.stdout
@@ -55,9 +52,7 @@ def test_rankfile_override_precedence(tmp_path):
 
 
 def test_malformed_rankfile_errors(tmp_path):
-    result = run_dryrun(
-        tmp_path, preset="none", rankfile="/nonexistent/nope.rankfile", procs=2
-    )
+    result = run_dryrun(tmp_path, preset="none", rankfile="/nonexistent/nope.rankfile", procs=2)
     assert result.returncode != 0
     assert "not found" in result.stderr
 

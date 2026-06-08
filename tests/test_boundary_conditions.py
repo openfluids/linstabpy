@@ -267,9 +267,7 @@ class TestDirichletAdapters:
         n_dofs = 8
         dirichlet_indices = np.array([6, 1, 1, 3], dtype=int)
 
-        _, _, free_from_matrices = build_dirichlet_restriction_matrices(
-            n_dofs, dirichlet_indices
-        )
+        _, _, free_from_matrices = build_dirichlet_restriction_matrices(n_dofs, dirichlet_indices)
         free_direct = dirichlet_free_dofs(n_dofs, dirichlet_indices)
 
         np.testing.assert_array_equal(free_direct, free_from_matrices)
