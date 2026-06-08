@@ -933,6 +933,7 @@ def _stage_run_resolvent(
                 filter_fn=mesh.filters.filter if mesh.filters is not None else None,
                 filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
                 solver_cfg=solver_cfg,
+                gamma=0.0,
             )
         _log(
             "resolvent postcheck: "

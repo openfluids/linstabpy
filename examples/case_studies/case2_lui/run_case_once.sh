@@ -125,9 +125,13 @@ else
   esac
 fi
 
-# Dry-run hook: print launcher without executing
+# Dry-run hook: print the exact launcher that the real exec below runs.
+# The entry script is always case2.py; the case module is selected at runtime via
+# the LINSTABPY_CASE_MODULE env var (exported above), NOT via the command line, so
+# print case2.py here and surface the module env separately to avoid implying a
+# "$CASE_MODULE.py" file is launched.
 if [ -n "${LINSTABPY_MPI_DRYRUN:-}" ]; then
-  echo "LAUNCHER: ${launcher[*]} -n $MPI_PROCS $PYTHON_EXE $CASE_MODULE.py"
+  echo "LAUNCHER: ${launcher[*]} -n $MPI_PROCS $PYTHON_EXE case2.py (LINSTABPY_CASE_MODULE=$CASE_MODULE)"
   exit 0
 fi
 
