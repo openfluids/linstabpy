@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from linstabpy.solvers.backends import DEFAULT_FACTOR_BACKEND
+from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
 
 _TRUE = {"1", "true", "yes", "on"}
@@ -39,10 +41,8 @@ def _spatial_subsection(solver: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _resolvent_eps_subsection(solver: Mapping[str, Any]) -> Mapping[str, Any]:
-    res = solver.get("resolvent", {}) or {}
-    if isinstance(res, Mapping):
-        return res.get("eigen", res) or {}
-    return {}
+    res = _subsection(solver, "LINSTABPY_RESOLVENT")
+    return res.get("eigen", res) or {}
 
 
 def _env_get(env: Mapping[str, str], key: str) -> str | None:
@@ -131,6 +131,25 @@ def _factor_backend(cfg: Mapping[str, Any] | None, env: Mapping[str, str], *, en
     return _normalize_backend(default)
 
 
+def _st_factor_backend(st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> str | None:
+    if st_solver in DIRECT_SOLVER_TYPES:
+        if st_solver == DEFAULT_FACTOR_BACKEND:
+            return _factor_backend(cfg, env, default=DEFAULT_FACTOR_BACKEND)
+        return _factor_backend(cfg, env, default=None)
+    if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
+        pc_type = _scfg(cfg, "pc_type", env, "LINSTABPY_EIGEN_PC_TYPE", "asm")
+        if pc_type != "lu":
+            return None
+        pc_factor_solver_type = _scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "")
+        return _factor_backend(
+            cfg,
+            env,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default=pc_factor_solver_type if pc_factor_solver_type else DEFAULT_FACTOR_BACKEND,
+        )
+    return None
+
+
 @dataclass(frozen=True)
 class LinSolveCfg:
     type: str
@@ -202,7 +221,7 @@ class ResolventCfg:
 @dataclass(frozen=True)
 class EigenCfg:
     st_solver: str
-    factor_backend: str | None
+    st_factor_backend: str | None
     pc_factor_solver_type: str
     cond_warn: bool
     cond_warn_max_n: int
@@ -229,10 +248,11 @@ class EigenCfg:
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "EigenCfg":
         st_solver = _scfg(cfg, "st_solver", env, "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
+        pc_factor_solver_type = _scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "")
         return cls(
             st_solver=st_solver,
-            factor_backend=_factor_backend(cfg, env, default="mumps"),
-            pc_factor_solver_type=_scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", ""),
+            st_factor_backend=_st_factor_backend(st_solver, cfg, env),
+            pc_factor_solver_type=pc_factor_solver_type,
             cond_warn=_scfg_bool(cfg, "cond_warn", env, "LINSTABPY_EIGEN_COND_WARN", True),
             cond_warn_max_n=_scfg_int(cfg, "cond_warn_max_n", env, "LINSTABPY_EIGEN_COND_WARN_MAX_N", 1500),
             cond_warn_threshold=_scfg_float(cfg, "cond_warn_threshold", env, "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12),
