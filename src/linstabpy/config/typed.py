@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from linstabpy.solvers.backends import DEFAULT_FACTOR_BACKEND
+from linstabpy.solvers.backends import DEFAULT_FACTOR_BACKEND, _as_bool
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
 
@@ -208,7 +208,7 @@ class ResolventEpsCfg:
             true_residual=_scfg_bool(cfg, "true_residual", env, "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL", False),
             monitor=_scfg_bool(cfg, "monitor", env, "LINSTABPY_RESOLVENT_EPS_MONITOR", False),
             monitor_every=_scfg_int(cfg, "monitor_every", env, "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10),
-            ncv=_scfg_optional_int(cfg, "ncv", env, "LINSTABPY_RESOLVENT_EPS_NCV", None),
+            ncv=int(cfg["ncv"]) if cfg is not None and "ncv" in cfg else None,
         )
 
 
@@ -219,7 +219,49 @@ class ResolventCfg:
 
 
 @dataclass(frozen=True)
+class InexactCfg:
+    ksp_type: str
+    ksp_rtol: float
+    ksp_atol: float
+    ksp_max_it: int
+    pc_type: str
+    asm_overlap: int
+    sub_pc_type: str
+    pc_factor_levels: int
+
+    @classmethod
+    def from_mapping(cls, cfg: Mapping[str, Any] | None) -> "InexactCfg":
+        d = cfg or {}
+        return cls(
+            ksp_type=str(d.get("ksp_type", "fgmres")),
+            ksp_rtol=float(d.get("ksp_rtol", 1e-8)),
+            ksp_atol=float(d.get("ksp_atol", 1e-10)),
+            ksp_max_it=int(d.get("ksp_max_it", 200)),
+            pc_type=str(d.get("pc_type", "asm")),
+            asm_overlap=int(d.get("asm_overlap", 1)),
+            sub_pc_type=str(d.get("sub_pc_type", "ilu")),
+            pc_factor_levels=int(d.get("pc_factor_levels", 2)),
+        )
+
+
+@dataclass(frozen=True)
+class BackendProbeCfg:
+    residual_rel_max: float
+    enabled: bool | None
+
+    @classmethod
+    def from_mapping(cls, cfg: Mapping[str, Any] | None) -> "BackendProbeCfg":
+        d = cfg or {}
+        return cls(
+            residual_rel_max=float(d.get("residual_rel_max", 1.0e-8)),
+            enabled=_as_bool(d["enabled"]) if "enabled" in d else None,
+        )
+
+
+@dataclass(frozen=True)
 class EigenCfg:
+    inexact: InexactCfg
+    backend_probe: BackendProbeCfg
     st_solver: str
     st_factor_backend: str | None
     pc_factor_solver_type: str
@@ -250,6 +292,8 @@ class EigenCfg:
         st_solver = _scfg(cfg, "st_solver", env, "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
         pc_factor_solver_type = _scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "")
         return cls(
+            inexact=InexactCfg.from_mapping(cfg.get("inexact", {}) if cfg else {}),
+            backend_probe=BackendProbeCfg.from_mapping(cfg.get("backend_probe", {}) if cfg else {}),
             st_solver=st_solver,
             st_factor_backend=_st_factor_backend(st_solver, cfg, env),
             pc_factor_solver_type=pc_factor_solver_type,
@@ -272,7 +316,7 @@ class EigenCfg:
             true_residual=_scfg_bool(cfg, "true_residual", env, "LINSTABPY_EIGEN_TRUE_RESIDUAL", st_solver == "inexact"),
             extract_all_converged=_scfg_bool(cfg, "extract_all_converged", env, "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False),
             weighted_norm_tol=_scfg_float(cfg, "weighted_norm_tol", env, "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL", 1e-12),
-            ncv=_scfg_optional_int(cfg, "ncv", env, "LINSTABPY_EIGEN_NCV", None),
+            ncv=int(cfg["ncv"]) if cfg is not None and "ncv" in cfg else None,
             eps_max_it_explicit=_scfg_optional_int(cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None),
         )
 
@@ -299,7 +343,7 @@ class MeshCfg:
     assembly_metrics_output: str | None
     assembly_metrics_dir: str | None
     assembly_metrics_tag: str | None
-    assembly_metrics_log: bool
+    assembly_metrics_log_explicit: bool | None
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "MeshCfg":
@@ -309,7 +353,17 @@ class MeshCfg:
             assembly_metrics_output=_raw_cfg_value(cfg, "assembly_metrics_output", env, "LINSTABPY_ASSEMBLY_METRICS_OUTPUT"),
             assembly_metrics_dir=_raw_cfg_value(cfg, "assembly_metrics_dir", env, "LINSTABPY_ASSEMBLY_METRICS_DIR"),
             assembly_metrics_tag=_raw_cfg_value(cfg, "assembly_metrics_tag", env, "LINSTABPY_ASSEMBLY_METRICS_TAG"),
-            assembly_metrics_log=_scfg_bool(cfg, "assembly_metrics_log", env, "LINSTABPY_ASSEMBLY_METRICS_LOG", False),
+            # Faithful to the real reader: assembly.py uses _scfg_bool (truthy
+            # {1,true,yes,on}, False otherwise, never raises) — NOT backends._as_bool
+            # (which accepts y/n and raises on garbage). Return None only when the
+            # value is set by neither cfg nor env, so the call site can apply the
+            # dynamic default (= metrics enabled).
+            assembly_metrics_log_explicit=(
+                _scfg_bool(cfg, "assembly_metrics_log", env, "LINSTABPY_ASSEMBLY_METRICS_LOG", False)
+                if (cfg is not None and "assembly_metrics_log" in cfg)
+                or "LINSTABPY_ASSEMBLY_METRICS_LOG" in env
+                else None
+            ),
         )
 
 
