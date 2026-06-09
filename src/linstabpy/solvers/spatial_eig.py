@@ -17,8 +17,7 @@ from slepc4py import SLEPc
 
 from linstabpy.config import Config
 
-from ..utils._solver_cfg import _scfg
-from .backends import apply_factor_backend, resolve_factor_backend
+from .backends import apply_factor_backend
 from .eigenvalue import _resolve_ncv
 from .petsc_utils import (
     _is_petsc_matrix,
@@ -56,6 +55,7 @@ def _eigs_generalized(
     *,
     ncv: int | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur."""
     if n_modes <= 0:
@@ -81,6 +81,7 @@ def _eigs_generalized(
         sel = order[:n_modes]
         return eigvals[sel], eigvecs[:, sel]
 
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     A = (
         Lc.copy()
@@ -110,10 +111,7 @@ def _eigs_generalized(
     eps.setTolerances(tol=1e-10, max_it=max(500, 10 * ndof))
 
     # Shift-invert spectral transformation (MUMPS by default, configurable).
-    _scfg_spatial = (
-        solver_cfg.get("spatial", solver_cfg.get("eigen", {})) if solver_cfg is not None else None
-    )
-    st_solver = _scfg(_scfg_spatial, "st_solver", "LINSTABPY_SPATIAL_ST_SOLVER", "mumps")
+    st_solver = cfg.spatial.st_solver
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
     # Mirror the temporal solver and set the shift explicitly on ST so the
@@ -125,11 +123,17 @@ def _eigs_generalized(
         pc = ksp.getPC()
         pc.setType(PETSc.PC.Type.LU)
         if st_solver == "mumps":
-            backend = resolve_factor_backend(_scfg_spatial, default="mumps")
-            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
+            apply_factor_backend(
+                pc,
+                cfg.spatial.factor_backend,
+                options_prefix=ksp.getOptionsPrefix() or "",
+            )
         else:
-            backend = resolve_factor_backend(_scfg_spatial, default=None)
-            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
+            apply_factor_backend(
+                pc,
+                cfg.spatial.factor_backend,
+                options_prefix=ksp.getOptionsPrefix() or "",
+            )
 
     eps.setUp()
 
@@ -205,5 +209,6 @@ def spatial_eigenvalues(
         target,
         ncv=ncv,
         solver_cfg=solver_cfg,
+        cfg=cfg,
     )
     return eigenvalues, eigenvectors

@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import resource
 import sys
 import time
@@ -47,9 +46,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.config import Config
+
 from ..baseflow.baseflow import BaseFlow
 from ..mesh.mesh import Mesh
-from ..utils._solver_cfg import _scfg, _scfg_bool
 from ..utils.petsc_core import _matrix_nnz
 from .coefficients import (
     LNSECoefficients,
@@ -91,20 +91,6 @@ def _jsonify_metric_value(value: Any) -> Any:
     if isinstance(value, np.generic):
         return value.item()
     return value
-
-
-def _raw_cfg_value(cfg: dict | None, key: str, env_var: str) -> str | None:
-    if cfg is not None and key in cfg:
-        value = cfg[key]
-        if value is None:
-            return None
-        text = str(value).strip()
-        return text or None
-    raw = os.getenv(env_var)
-    if raw is None:
-        return None
-    raw = raw.strip()
-    return raw or None
 
 
 def _detect_rank_size() -> tuple[int, int]:
@@ -212,32 +198,13 @@ class _AssemblyMetricsCollector:
 
 
 def _resolve_assembly_metrics_config(solver_cfg: dict | None) -> _AssemblyMetricsConfig:
-    output = _raw_cfg_value(
-        solver_cfg,
-        "assembly_metrics_output",
-        "LINSTABPY_ASSEMBLY_METRICS_OUTPUT",
-    )
-    directory = _raw_cfg_value(
-        solver_cfg,
-        "assembly_metrics_dir",
-        "LINSTABPY_ASSEMBLY_METRICS_DIR",
-    )
-    tag = _raw_cfg_value(
-        solver_cfg,
-        "assembly_metrics_tag",
-        "LINSTABPY_ASSEMBLY_METRICS_TAG",
-    )
-    enabled = (
-        _scfg_bool(solver_cfg, "assembly_metrics", "LINSTABPY_ASSEMBLY_METRICS", False)
-        or output is not None
-        or directory is not None
-    )
-    log_enabled = _scfg_bool(
-        solver_cfg,
-        "assembly_metrics_log",
-        "LINSTABPY_ASSEMBLY_METRICS_LOG",
-        enabled,
-    )
+    cfg = Config.load(solver_cfg if solver_cfg is not None else {})
+    output = cfg.mesh.assembly_metrics_output
+    directory = cfg.mesh.assembly_metrics_dir
+    tag = cfg.mesh.assembly_metrics_tag
+    enabled = cfg.mesh.assembly_metrics or output is not None or directory is not None
+    log_explicit = cfg.mesh.assembly_metrics_log_explicit
+    log_enabled = log_explicit if log_explicit is not None else enabled
     return _AssemblyMetricsConfig(
         enabled=enabled,
         output=output,
@@ -660,7 +627,7 @@ def _requested_lnse_backend(
 ) -> str:
     """Return the normalized backend request string for LNSE workflow helpers."""
     raw = (
-        _scfg(solver_cfg, "assembly_backend", "LINSTABPY_ASSEMBLY_BACKEND", "scipy")
+        Config.load(solver_cfg if solver_cfg is not None else {}).mesh.assembly_backend
         if backend is None
         else backend
     )

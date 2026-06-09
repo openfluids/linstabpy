@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
-from ._solver_cfg import _mumps_petsc_options, _scfg
+from ._solver_cfg import _mumps_petsc_options
 
 if TYPE_CHECKING:
     # Type-only import so ruff/mypy/pyright see ``PETSc`` names; at runtime,
@@ -78,7 +78,9 @@ def _matrix_nnz(operator) -> int:
 
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
     """Resolve PETSc matrix conversion mode from JSONC/env policy."""
-    raw = _scfg(solver_cfg, "petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto")
+    from linstabpy.config import Config
+
+    raw = Config.load(solver_cfg if solver_cfg is not None else {}).mpi.petsc_matrix_mode
     if raw in {"auto", "local", "serial", "distributed", "mpi", "parallel"}:
         return raw
     raise ValueError(
