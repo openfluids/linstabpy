@@ -22,6 +22,8 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
+from linstabpy.config import Config
+
 from ..utils._solver_cfg import (
     DIRECT_SOLVER_TYPES,
     ITERATIVE_LINEAR_SOLVER_TYPES,
@@ -72,6 +74,7 @@ def make_linear_solver(
     *,
     env_prefix: str = "LINSTABPY_LINSOLVE",
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
 ) -> LinearSolver:
     """Build a reusable PETSc linear solver for ``operator``.
 
@@ -88,6 +91,7 @@ def make_linear_solver(
         ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
         subsection override the corresponding env vars.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
 
     nrows, ncols = _operator_shape(operator)

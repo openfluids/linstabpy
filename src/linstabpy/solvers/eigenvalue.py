@@ -57,6 +57,8 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
+from linstabpy.config import Config
+
 from ..utils._solver_cfg import (
     DIRECT_SOLVER_TYPES,
     INEXACT_EIGEN_SOLVER_TYPES,
@@ -618,9 +620,11 @@ def _eigs_near_target(
     ncv: int | None = None,
     initial_space: np.ndarray | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     return_info: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Solve a shift-invert EVP near ``target`` using SLEPc Krylov-Schur."""
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     ndof = _operator_shape(operator)[0]
     _warn_if_shifted_operator_is_ill_conditioned(operator, target, solver_cfg)
@@ -992,6 +996,7 @@ def temporal_eigenvalues(
     ncv: int | None = None,
     initial_space: np.ndarray | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     return_info: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, dict[str, object]]:
     """Compute temporal eigenvalues ``omega = eig(i*L0)`` near a target.
@@ -1023,6 +1028,7 @@ def temporal_eigenvalues(
     modes:
         Right eigenvectors corresponding to ``omega``.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
 
     temporal_operator = _scaled_operator(operator, 1j)
@@ -1035,6 +1041,7 @@ def temporal_eigenvalues(
             ncv=ncv,
             initial_space=initial_space,
             solver_cfg=solver_cfg,
+            cfg=cfg,
             return_info=True,
         )
     else:
@@ -1045,6 +1052,7 @@ def temporal_eigenvalues(
             ncv=ncv,
             initial_space=initial_space,
             solver_cfg=solver_cfg,
+            cfg=cfg,
         )
         info = {}
     order = _nearest_order(eigenvalues, omega)
@@ -1106,6 +1114,7 @@ def adjoint_eigenvalues(
     invW_diag: np.ndarray,
     ncv: int | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     temporal: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute adjoint temporal eigenvalues near a target with W weighting.
@@ -1138,6 +1147,7 @@ def adjoint_eigenvalues(
         eigenvalues so that ``adjoint_omegas == conj(temporal_omegas)``.
         Default is False (raw adjoint eigenvalue convention).
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
     if _is_petsc_matrix(operator):
         raise NotImplementedError(
@@ -1162,6 +1172,7 @@ def adjoint_eigenvalues(
         omega_internal,
         ncv=ncv,
         solver_cfg=solver_cfg,
+        cfg=cfg,
     )
     eigenvalues, eigenvectors = _sort_nearest(eigenvalues, eigenvectors, omega_internal)
     eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
