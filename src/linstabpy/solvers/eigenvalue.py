@@ -63,11 +63,6 @@ from ..utils._solver_cfg import (
     DIRECT_SOLVER_TYPES,
     INEXACT_EIGEN_SOLVER_TYPES,
     ITERATIVE_EIGEN_SOLVER_TYPES,
-    SolverConfig,
-    _scfg,
-    _scfg_bool,
-    _scfg_float,
-    _scfg_int,
 )
 from ._eps_helpers import (
     _install_eps_monitor,
@@ -77,9 +72,7 @@ from ._eps_helpers import (
     _resolve_solver_cfg_subsection,
 )
 from .backends import (
-    DEFAULT_FACTOR_BACKEND,
     apply_factor_backend,
-    resolve_factor_backend,
     shifted_ksp_probe_residual,
     should_probe_backend,
 )
@@ -218,21 +211,18 @@ def _sort_nearest(
 def _warn_if_shifted_operator_is_ill_conditioned(
     operator: sp.csc_matrix | PETSc.Mat,
     target: complex,
-    solver_cfg: dict | None = None,
+    cfg: Config,
 ) -> None:
     """Warn when ``cond(operator - target*I)`` exceeds a configurable threshold.
 
     The exact dense condition number can be expensive for large sparse systems, so
     this check is limited to moderate sizes by ``cond_warn_max_n``.
     """
-    _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_EIGEN")
-    if not _scfg_bool(_ecfg, "cond_warn", "LINSTABPY_EIGEN_COND_WARN", True):
+    if not cfg.eigen.cond_warn:
         return
 
-    max_n = _scfg_int(_ecfg, "cond_warn_max_n", "LINSTABPY_EIGEN_COND_WARN_MAX_N", 1500)
-    threshold = _scfg_float(
-        _ecfg, "cond_warn_threshold", "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12
-    )
+    max_n = cfg.eigen.cond_warn_max_n
+    threshold = cfg.eigen.cond_warn_threshold
     ndof = _operator_shape(operator)[0]
     if ndof > max_n:
         return
@@ -392,6 +382,7 @@ def _configure_st_for_eigenvalue(
     ksp: "PETSc.KSP",
     pc: "PETSc.PC",
     st: "SLEPc.ST",
+    cfg: Config | None = None,
 ) -> None:
     """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
 
@@ -411,6 +402,7 @@ def _configure_st_for_eigenvalue(
     """
     if ecfg is None:
         ecfg = {}
+    cfg = cfg if cfg is not None else Config.load({"solver": {"eigen": ecfg}})
 
     if st_solver in DIRECT_SOLVER_TYPES:
         ignored_iterative_keys = sorted(
@@ -440,28 +432,19 @@ def _configure_st_for_eigenvalue(
             )
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
-        if st_solver == "mumps":
-            backend = resolve_factor_backend(ecfg, default="mumps")
-            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
-        else:
-            backend = resolve_factor_backend(ecfg, default=None)
-            apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
+        backend = cfg.eigen.st_factor_backend
+        apply_factor_backend(pc, backend, options_prefix=ksp.getOptionsPrefix() or "")
 
     elif st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
-        ksp_type = _scfg(ecfg, "ksp_type", "LINSTABPY_EIGEN_KSP_TYPE", "gmres")
-        pc_type = _scfg(ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")
-        pc_factor_solver_type = _scfg(
-            ecfg,
-            "pc_factor_solver_type",
-            "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
-            "",
-        )
-        pc_side = _scfg(ecfg, "ksp_pc_side", "LINSTABPY_EIGEN_KSP_PC_SIDE", "left")
-        ksp_rtol = _scfg_float(ecfg, "ksp_rtol", "LINSTABPY_EIGEN_KSP_RTOL", 1e-8)
-        ksp_max_it = _scfg_int(ecfg, "ksp_max_it", "LINSTABPY_EIGEN_KSP_MAX_IT", 20000)
-        asm_overlap = _scfg_int(ecfg, "asm_overlap", "LINSTABPY_EIGEN_ASM_OVERLAP", 2)
-        sub_ksp_type = _scfg(ecfg, "sub_ksp_type", "LINSTABPY_EIGEN_SUB_KSP_TYPE", "preonly")
-        sub_pc_type = _scfg(ecfg, "sub_pc_type", "LINSTABPY_EIGEN_SUB_PC_TYPE", "lu")
+        ksp_type = cfg.eigen.ksp_type
+        pc_type = cfg.eigen.pc_type
+        pc_factor_solver_type = cfg.eigen.pc_factor_solver_type
+        pc_side = cfg.eigen.ksp_pc_side
+        ksp_rtol = cfg.eigen.ksp_rtol
+        ksp_max_it = cfg.eigen.ksp_max_it
+        asm_overlap = cfg.eigen.asm_overlap
+        sub_ksp_type = cfg.eigen.sub_ksp_type
+        sub_pc_type = cfg.eigen.sub_pc_type
         ksp.setType(ksp_type)
         if pc_side == "left":
             ksp.setPCSide(PETSc.PC.Side.LEFT)
@@ -478,11 +461,7 @@ def _configure_st_for_eigenvalue(
         else:
             pc.setType(pc_type)
             if pc_type == "lu":
-                factor_solver_type = resolve_factor_backend(
-                    ecfg,
-                    env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
-                    default=pc_factor_solver_type if pc_factor_solver_type else "mumps",
-                )
+                factor_solver_type = cfg.eigen.st_factor_backend
                 apply_factor_backend(
                     pc,
                     factor_solver_type,
@@ -510,15 +489,15 @@ def _configure_st_for_eigenvalue(
         # Memory scales with preconditioner storage, not with the LU factor.
         # All parameters are read from the nested "inexact" sub-dict to avoid
         # key collision with the "iterative" branch options.
-        inexact_cfg = ecfg.get("inexact", {}) if ecfg else {}
-        ksp_type = str(inexact_cfg.get("ksp_type", "fgmres"))
-        ksp_rtol = float(inexact_cfg.get("ksp_rtol", 1e-8))
-        ksp_atol = float(inexact_cfg.get("ksp_atol", 1e-10))
-        ksp_max_it = int(inexact_cfg.get("ksp_max_it", 200))
-        pc_type = str(inexact_cfg.get("pc_type", "asm"))
-        asm_overlap = int(inexact_cfg.get("asm_overlap", 1))
-        sub_pc_type = str(inexact_cfg.get("sub_pc_type", "ilu"))
-        factor_levels = int(inexact_cfg.get("pc_factor_levels", 2))
+        inexact_cfg = cfg.eigen.inexact
+        ksp_type = inexact_cfg.ksp_type
+        ksp_rtol = inexact_cfg.ksp_rtol
+        ksp_atol = inexact_cfg.ksp_atol
+        ksp_max_it = inexact_cfg.ksp_max_it
+        pc_type = inexact_cfg.pc_type
+        asm_overlap = inexact_cfg.asm_overlap
+        sub_pc_type = inexact_cfg.sub_pc_type
+        factor_levels = inexact_cfg.pc_factor_levels
 
         ksp.setType(ksp_type)
         ksp.setTolerances(rtol=ksp_rtol, atol=ksp_atol, max_it=ksp_max_it)
@@ -568,35 +547,22 @@ def _configure_st_for_eigenvalue(
         )
 
 
+
 def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:
-    """Resolve the factor backend used by the configured ST KSP/PC."""
-    if ecfg is None:
-        ecfg = {}
+    """Resolve the factor backend used by the configured ST KSP/PC (compatibility helper)."""
+    cfg = Config.load({"solver": {"eigen": ecfg or {}}})
     if st_solver in DIRECT_SOLVER_TYPES:
-        if st_solver == DEFAULT_FACTOR_BACKEND:
-            return resolve_factor_backend(ecfg, default=DEFAULT_FACTOR_BACKEND)
-        return resolve_factor_backend(ecfg, default=None)
+        return cfg.eigen.st_factor_backend
     if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
-        pc_type = str(_scfg(ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")).lower()
-        if pc_type != "lu":
+        if cfg.eigen.pc_type != "lu":
             return None
-        pc_factor_solver_type = _scfg(
-            ecfg,
-            "pc_factor_solver_type",
-            "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
-            "",
-        )
-        return resolve_factor_backend(
-            ecfg,
-            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
-            default=pc_factor_solver_type if pc_factor_solver_type else DEFAULT_FACTOR_BACKEND,
-        )
+        return cfg.eigen.st_factor_backend
     return None
 
 
 def _probe_residual_rel_max(ecfg: dict | None) -> float:
-    probe_cfg = ecfg.get("backend_probe", {}) if ecfg else {}
-    return float(probe_cfg.get("residual_rel_max", 1.0e-8))
+    cfg = Config.load({"solver": {"eigen": ecfg or {}}})
+    return cfg.eigen.backend_probe.residual_rel_max
 
 
 def _raise_backend_probe_failure(
@@ -627,7 +593,7 @@ def _eigs_near_target(
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     ndof = _operator_shape(operator)[0]
-    _warn_if_shifted_operator_is_ill_conditioned(operator, target, solver_cfg)
+    _warn_if_shifted_operator_is_ill_conditioned(operator, target, cfg)
 
     if ndof <= 2 or n_modes >= ndof - 1:
         dense = np.asarray(
@@ -657,20 +623,13 @@ def _eigs_near_target(
         return eigenvalues, eigenvectors, dense_info
 
     _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_EIGEN")
-    config = SolverConfig.from_config(solver_cfg)
-    st_solver = (
-        config.eigen_st_solver()
-        if config is not None
-        else _scfg(None, "st_solver", "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
-    )
+    st_solver = cfg.eigen.st_solver
     use_root_scatter = (
         not _is_petsc_matrix(operator)
         and PETSc.COMM_WORLD.getSize() > 1
         and st_solver in ITERATIVE_EIGEN_SOLVER_TYPES
         and (
-            config.root_scatter_enabled()
-            if config is not None
-            else _scfg_bool(None, "root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False)
+            cfg.mpi.root_scatter
         )
     )
     if _is_petsc_matrix(operator):
@@ -691,9 +650,7 @@ def _eigs_near_target(
     eps.setProblemType(SLEPc.EPS.ProblemType.NHEP)
     eps.setType(SLEPc.EPS.Type.KRYLOVSCHUR)
     default_ncv = min(max(2 * n_modes + 3, 30), ndof - 1)
-    requested_ncv = ncv
-    if requested_ncv is None and _ecfg is not None and "ncv" in _ecfg:
-        requested_ncv = int(_ecfg["ncv"])
+    requested_ncv = ncv if ncv is not None else cfg.eigen.ncv
     ncv = _resolve_ncv(
         ndof=ndof,
         n_modes=n_modes,
@@ -703,25 +660,17 @@ def _eigs_near_target(
     eps.setDimensions(nev=n_modes, ncv=ncv)
     eps.setTarget(target)
     eps.setWhichEigenpairs(SLEPc.EPS.Which.TARGET_MAGNITUDE)
-    conv_test_name = _scfg(_ecfg, "conv_test", "LINSTABPY_EIGEN_CONV_TEST", "")
+    conv_test_name = cfg.eigen.conv_test
     if conv_test_name:
         eps.setConvergenceTest(_resolve_eps_convergence_test(conv_test_name))
-    eps_tol = _scfg_float(_ecfg, "eps_tol", "LINSTABPY_EIGEN_EPS_TOL", 1e-10)
-    eps_max_it = _scfg_int(_ecfg, "eps_max_it", "LINSTABPY_EIGEN_EPS_MAX_IT", max(500, 10 * ndof))
+    eps_tol = cfg.eigen.eps_tol
+    eps_max_it = cfg.eigen.eps_max_it(ndof)
     eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
-    residual_error_type_name = _scfg(
-        _ecfg,
-        "residual_error_type",
-        "LINSTABPY_EIGEN_RESIDUAL_ERROR_TYPE",
-        "relative",
-    )
+    residual_error_type_name = cfg.eigen.residual_error_type
     residual_error_type = _resolve_eps_error_type(residual_error_type_name)
     monitor_state: dict[str, float | int] | None = None
-    if _scfg_bool(_ecfg, "monitor", "LINSTABPY_EIGEN_MONITOR", False):
-        monitor_state = _install_eps_monitor(
-            eps,
-            _scfg_int(_ecfg, "monitor_every", "LINSTABPY_EIGEN_MONITOR_EVERY", 10),
-        )
+    if cfg.eigen.monitor:
+        monitor_state = _install_eps_monitor(eps, cfg.eigen.monitor_every)
     initial_vecs: list[PETSc.Vec] = []
     if initial_space is not None:
         initial_arr = np.asarray(initial_space, dtype=complex)
@@ -752,12 +701,12 @@ def _eigs_near_target(
     ksp = st.getKSP()
     pc = ksp.getPC()
 
-    _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st)
+    _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
     # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
     # Re-apply FieldSplit IS setup here since the helper cannot access ndof/A.
     if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
-        pc_type_used = _scfg(_ecfg, "pc_type", "LINSTABPY_EIGEN_PC_TYPE", "asm")
+        pc_type_used = cfg.eigen.pc_type
         if pc_type_used in {"fieldsplit", "fs"} and ndof % 5 == 0:
             ngp = ndof // 5
             fluid_idx = np.concatenate(
@@ -790,10 +739,7 @@ def _eigs_near_target(
     )
     # "inexact" inner solves can satisfy the preconditioned residual while
     # the true residual remains large; default true_residual=True for that path.
-    true_residual_default = st_solver == "inexact"
-    true_residual = _scfg_bool(
-        _ecfg, "true_residual", "LINSTABPY_EIGEN_TRUE_RESIDUAL", true_residual_default
-    )
+    true_residual = cfg.eigen.true_residual
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
 
@@ -818,14 +764,15 @@ def _eigs_near_target(
             st_solver=st_solver,
         )
 
-    resolved_factor_backend = _resolve_st_factor_backend(st_solver, _ecfg)
-    probe_cfg = _ecfg.get("backend_probe", {}) if _ecfg else {}
+    resolved_factor_backend = cfg.eigen.st_factor_backend
+    probe_enabled = cfg.eigen.backend_probe.enabled
+    probe_cfg = {"enabled": probe_enabled} if probe_enabled is not None else {}
     backend_probe_result: dict[str, float | int | str | None] | None = None
     if should_probe_backend(resolved_factor_backend, probe_cfg):
         probe = shifted_ksp_probe_residual(st.getKSP())
         backend_probe_result = probe
         residual_rel = float(probe["residual_rel"])
-        residual_rel_max = _probe_residual_rel_max(_ecfg)
+        residual_rel_max = cfg.eigen.backend_probe.residual_rel_max
         logger.info(
             "Factor backend accuracy probe: backend=%s residual_abs=%.3e residual_rel=%.3e "
             "tol=%.3e ksp_type=%s pc_type=%s factor_solver=%s iterations=%s reason=%s",
@@ -893,12 +840,7 @@ def _eigs_near_target(
             n_modes,
         )
 
-    extract_all_converged = _scfg_bool(
-        _ecfg,
-        "extract_all_converged",
-        "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED",
-        False,
-    )
+    extract_all_converged = cfg.eigen.extract_all_converged
     n_extract = int(nconv) if extract_all_converged else min(int(nconv), int(n_modes))
     eigenvalues = np.empty(n_extract, dtype=complex)
     eigenvectors = np.empty((ndof, n_extract), dtype=complex)
@@ -1063,15 +1005,9 @@ def temporal_eigenvalues(
     if W_diag is not None:
         eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
         if eigenvectors.shape[1] > 0:
-            _ecfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_EIGEN")
             v0 = eigenvectors[:, 0]
             weighted_norm_error = np.abs(np.vdot(v0, np.asarray(W_diag) * v0) - 1.0)
-            weighted_norm_tol = _scfg_float(
-                _ecfg,
-                "weighted_norm_tol",
-                "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL",
-                1e-12,
-            )
+            weighted_norm_tol = cfg.eigen.weighted_norm_tol
             if weighted_norm_error > weighted_norm_tol:
                 logger.warning(
                     "Leading weighted norm check failed: |v^H W v - 1|=%.3e > %.3e",
