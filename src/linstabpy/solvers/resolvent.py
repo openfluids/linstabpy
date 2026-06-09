@@ -41,11 +41,9 @@ from slepc4py import SLEPc
 
 from linstabpy.config import Config
 
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 from ._eps_helpers import (
     _install_eps_monitor,
     _resolve_eps_convergence_test,
-    _resolve_solver_cfg_subsection,
 )
 from .linsolve import make_linear_solver
 from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_vec, require_complex, vec_to_numpy
@@ -305,7 +303,7 @@ def _resolvent_analysis_impl(
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
-    #    KSP/PC stack is selected by SolverConfig through make_linear_solver.
+    #    KSP/PC stack is selected by typed config through make_linear_solver.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
     lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
@@ -369,24 +367,11 @@ def _resolvent_analysis_impl(
     # 5. SLEPc EPS on HtrH.  This keeps the MATLAB-parity formulation: solve
     #    the weighted normal operator, then recover response modes through H.
     # ------------------------------------------------------------------
-    _res_cfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_RESOLVENT")
-    _res_eps_cfg = _res_cfg.get("eigen", _res_cfg) if isinstance(_res_cfg, dict) else {}
-    ncv = _resolve_resolvent_ncv(
-        ndof,
-        n_modes,
-        int(_res_eps_cfg["ncv"])
-        if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg
-        else None,
-    )
-    eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTABPY_RESOLVENT_EPS_TOL", 1e-8)
-    eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTABPY_RESOLVENT_EPS_MAX_IT", 1000)
-    conv_test_name = _scfg(_res_eps_cfg, "conv_test", "LINSTABPY_RESOLVENT_EPS_CONV_TEST", "")
-    true_residual = _scfg_bool(
-        _res_eps_cfg,
-        "true_residual",
-        "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL",
-        False,
-    )
+    ncv = _resolve_resolvent_ncv(ndof, n_modes, cfg.resolvent.eps.ncv)
+    eps_tol = cfg.resolvent.eps.eps_tol
+    eps_max_it = cfg.resolvent.eps.eps_max_it
+    conv_test_name = cfg.resolvent.eps.conv_test
+    true_residual = cfg.resolvent.eps.true_residual
     logger.info(
         "  SLEPc EPS on HtrH operator (nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s) ...",
         n_modes,
@@ -407,10 +392,10 @@ def _resolvent_analysis_impl(
     eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
-    if _scfg_bool(_res_eps_cfg, "monitor", "LINSTABPY_RESOLVENT_EPS_MONITOR", False):
+    if cfg.resolvent.eps.monitor:
         _install_eps_monitor(
             eps,
-            _scfg_int(_res_eps_cfg, "monitor_every", "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10),
+            cfg.resolvent.eps.monitor_every,
             label="resolvent",
         )
     eps.setFromOptions()
