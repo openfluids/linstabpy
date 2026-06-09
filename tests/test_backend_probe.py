@@ -98,7 +98,9 @@ def test_temporal_default_mumps_path_does_not_invoke_probe(monkeypatch) -> None:
 
 def test_temporal_backend_probe_failure_raises_clear_error(monkeypatch) -> None:
     monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
-    monkeypatch.setattr(eigenvalue, "resolve_factor_backend", lambda *args, **kwargs: "strumpack")
+    # The resolved backend is driven by solver_cfg.eigen.factor_backend below
+    # (cfg.eigen.st_factor_backend == "strumpack"); production no longer reads a
+    # module-level eigenvalue.resolve_factor_backend, so no monkeypatch is needed.
     monkeypatch.setattr(eigenvalue, "apply_factor_backend", lambda *args, **kwargs: "strumpack")
     monkeypatch.setattr(
         eigenvalue,
