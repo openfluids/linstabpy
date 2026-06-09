@@ -15,6 +15,12 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
 - `docs/DEVELOPMENT.md`: the development and release workflow — two-branch model,
   the granular `0.0.x` tick cadence (a few beads → verify → tag), the merge gate,
   and CHANGELOG discipline.
+- `config.typed`: a typed, frozen `Config` tree (`LinSolveCfg`, `ResolventCfg`,
+  `EigenCfg`, `SpatialCfg`, `MeshCfg`, `MpiCfg`) with a single `Config.load`
+  reader that parses JSONC + env once at the boundary, precedence `JSONC > ENV >
+  default`. Internal seam only — defaults byte-match the legacy `_scfg*` surface
+  and no call sites are migrated yet (Stage 1 of the SolverConfig centralization).
+  Guarded by a differential oracle test against the live `_scfg*` readers.
 
 ### Changed
 - Clean-code revamp in progress under frozen-numerics invariants: the validated
