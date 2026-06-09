@@ -39,6 +39,8 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
+from linstabpy.config import Config
+
 from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
 from ._eps_helpers import (
     _install_eps_monitor,
@@ -140,6 +142,7 @@ def resolvent_analysis(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float = 0.0,
     return_info: bool = False,
@@ -199,6 +202,7 @@ def resolvent_analysis(
     info : dict, optional
         Returned only when ``return_info=True``.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     gains, responses, forcings, _, _ = _resolvent_analysis_impl(
         L0,
         omega,
@@ -209,6 +213,7 @@ def resolvent_analysis(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        cfg=cfg,
         gamma=gamma,
         compute_residuals=False,
     )
@@ -227,6 +232,7 @@ def resolvent_analysis_with_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float = 0.0,
     return_info: bool = False,
@@ -251,6 +257,7 @@ def resolvent_analysis_with_residuals(
     ``{"resolvent_discount_gamma": float(gamma)}`` is appended to the existing
     return tuple.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     result = _resolvent_analysis_impl(
         L0,
         omega,
@@ -261,6 +268,7 @@ def resolvent_analysis_with_residuals(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        cfg=cfg,
         gamma=gamma,
         compute_residuals=True,
     )
@@ -282,8 +290,10 @@ def _resolvent_analysis_impl(
     *,
     gamma: float = 0.0,
     compute_residuals: bool,
+    cfg: Config | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
     """Implementation shared by the public resolvent entry points."""
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     ndof = _operator_ndof(L0)
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
@@ -298,7 +308,7 @@ def _resolvent_analysis_impl(
     #    KSP/PC stack is selected by SolverConfig through make_linear_solver.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     # make_linear_solver copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
@@ -538,6 +548,7 @@ def compute_resolvent_svd_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -606,6 +617,7 @@ def compute_resolvent_svd_residuals(
     rho_adj : ndarray, shape (n_modes,)
         Adjoint residuals (primary quality signal; ≈ SLEPc tol for correct solutions).
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     n_modes = gains.shape[0]
     logger.info("Computing resolvent SVD residuals for %d modes ...", n_modes)
@@ -618,7 +630,7 @@ def compute_resolvent_svd_residuals(
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
     L_sigma = _shifted_operator(L0, omega, gamma=gamma)
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     try:
         if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()

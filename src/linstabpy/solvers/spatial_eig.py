@@ -15,6 +15,8 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
+from linstabpy.config import Config
+
 from ..utils._solver_cfg import _scfg
 from .backends import apply_factor_backend, resolve_factor_backend
 from .eigenvalue import _resolve_ncv
@@ -179,6 +181,7 @@ def spatial_eigenvalues(
     target: float | complex,
     ncv: int | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve the spatial EVP `(Lc + omega Lw) @ v = alpha R @ v`.
 
@@ -188,6 +191,7 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     lhs = Lc.copy() if _is_petsc_matrix(Lc) else sp.csc_matrix(Lc, dtype=complex)
     if _is_petsc_matrix(lhs):
         lhs.axpy(omega, Lw, structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN)
