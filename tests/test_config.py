@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 
 from linstabpy.config import Config
-from linstabpy.solvers.backends import resolve_factor_backend
-from linstabpy.solvers.eigenvalue import _resolve_st_factor_backend
+from linstabpy.solvers.backends import _as_bool, resolve_factor_backend
+from linstabpy.solvers.eigenvalue import _probe_residual_rel_max, _resolve_st_factor_backend
 from linstabpy.utils._solver_cfg import (
     SolverConfig,
     _scfg,
@@ -74,7 +74,6 @@ FIELD_SPECS = [
     FieldSpec("resolvent.py:true_residual", "resolvent.eps.true_residual", "RESOLVENT_EPS", "true_residual", "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL", False, _scfg_bool, True, "on"),
     FieldSpec("resolvent.py:monitor", "resolvent.eps.monitor", "RESOLVENT_EPS", "monitor", "LINSTABPY_RESOLVENT_EPS_MONITOR", False, _scfg_bool, True, "on"),
     FieldSpec("resolvent.py:monitor_every", "resolvent.eps.monitor_every", "RESOLVENT_EPS", "monitor_every", "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10, _scfg_int, 7, "8"),
-    FieldSpec("resolvent.py:ncv", "resolvent.eps.ncv", "RESOLVENT_EPS", "ncv", "LINSTABPY_RESOLVENT_EPS_NCV", None, _scfg_optional_int, 31, "41"),
     # eigenvalue.py
     FieldSpec("eigenvalue.py:st_solver", "eigen.st_solver", "LINSTABPY_EIGEN", "st_solver", "LINSTABPY_EIGEN_ST_SOLVER", "mumps", _scfg, "ITERATIVE", "slepc"),
     FieldSpec("eigenvalue.py:pc_factor_solver_type", "eigen.pc_factor_solver_type", "LINSTABPY_EIGEN", "pc_factor_solver_type", "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "", _scfg, "SUPERLU_DIST", "mumps"),
@@ -97,14 +96,12 @@ FIELD_SPECS = [
     FieldSpec("eigenvalue.py:true_residual", "eigen.true_residual", "LINSTABPY_EIGEN", "true_residual", "LINSTABPY_EIGEN_TRUE_RESIDUAL", False, _scfg_bool, True, "on"),
     FieldSpec("eigenvalue.py:extract_all_converged", "eigen.extract_all_converged", "LINSTABPY_EIGEN", "extract_all_converged", "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False, _scfg_bool, True, "on"),
     FieldSpec("eigenvalue.py:weighted_norm_tol", "eigen.weighted_norm_tol", "LINSTABPY_EIGEN", "weighted_norm_tol", "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL", 1e-12, _scfg_float, 2e-12, "3e-12"),
-    FieldSpec("eigenvalue.py:ncv", "eigen.ncv", "LINSTABPY_EIGEN", "ncv", "LINSTABPY_EIGEN_NCV", None, _scfg_optional_int, 51, "52"),
     FieldSpec("eigenvalue.py:eps_max_it", "eigen.eps_max_it_explicit", "LINSTABPY_EIGEN", "eps_max_it", "LINSTABPY_EIGEN_EPS_MAX_IT", None, _scfg_optional_int, 600, "700"),
     # spatial_eig.py
     FieldSpec("spatial_eig.py:st_solver", "spatial.st_solver", "SPATIAL", "st_solver", "LINSTABPY_SPATIAL_ST_SOLVER", "mumps", _scfg, "LU", "direct"),
     # assembly.py / petsc_core.py / _solver_cfg.py top-level
     FieldSpec("assembly.py:assembly_backend", "mesh.assembly_backend", "ROOT", "assembly_backend", "LINSTABPY_ASSEMBLY_BACKEND", "scipy", _scfg, "PETSC", "scipy"),
     FieldSpec("assembly.py:assembly_metrics", "mesh.assembly_metrics", "ROOT", "assembly_metrics", "LINSTABPY_ASSEMBLY_METRICS", False, _scfg_bool, True, "yes"),
-    FieldSpec("assembly.py:assembly_metrics_log", "mesh.assembly_metrics_log", "ROOT", "assembly_metrics_log", "LINSTABPY_ASSEMBLY_METRICS_LOG", False, _scfg_bool, True, "yes"),
     FieldSpec("petsc_core.py:petsc_matrix_mode", "mpi.petsc_matrix_mode", "ROOT", "petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto", _scfg, "MPIAIJ", "seqaij"),
     FieldSpec("eigenvalue.py:root_scatter_enabled", "mpi.root_scatter", "ROOT", "root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False, _scfg_bool, True, "on"),
     FieldSpec("_solver_cfg.py:mumps_icntl_7", "mpi.mumps_icntl_7", "ROOT", "mumps_icntl_7", "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False, _scfg_bool, True, "yes"),
@@ -264,9 +261,78 @@ def test_resolvent_eps_subsection_falls_back_to_linsolve() -> None:
     assert typed.resolvent.eps.monitor == _scfg_bool(eps_sub, "monitor", "LINSTABPY_RESOLVENT_EPS_MONITOR", False)
 
 
+def test_eigen_inexact_matches_plain_cast_jsonc_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LINSTABPY_EIGEN_INEXACT_KSP_TYPE", "lowercase-env-ignored")
+    raw = {
+        "eigen": {
+            "inexact": {
+                "ksp_type": "FGMRES_Mixed",
+                "ksp_rtol": "2e-7",
+                "ksp_atol": "3e-11",
+                "ksp_max_it": "321",
+                "pc_type": "ASM_Mixed",
+                "asm_overlap": "4",
+                "sub_pc_type": "ILU_Mixed",
+                "pc_factor_levels": "5",
+            }
+        }
+    }
+    d = raw["eigen"]["inexact"]
+    cfg = Config.load(raw).eigen.inexact
+
+    assert cfg.ksp_type == str(d.get("ksp_type", "fgmres"))
+    assert cfg.ksp_type == "FGMRES_Mixed"
+    assert cfg.ksp_rtol == float(d.get("ksp_rtol", 1e-8))
+    assert cfg.ksp_atol == float(d.get("ksp_atol", 1e-10))
+    assert cfg.ksp_max_it == int(d.get("ksp_max_it", 200))
+    assert cfg.pc_type == str(d.get("pc_type", "asm"))
+    assert cfg.asm_overlap == int(d.get("asm_overlap", 1))
+    assert cfg.sub_pc_type == str(d.get("sub_pc_type", "ilu"))
+    assert cfg.pc_factor_levels == int(d.get("pc_factor_levels", 2))
+    assert Config.load({}).eigen.inexact.ksp_type == "fgmres"
+
+
+def test_eigen_backend_probe_matches_live_reader() -> None:
+    assert Config.load({}).eigen.backend_probe.residual_rel_max == _probe_residual_rel_max({})
+    assert Config.load({}).eigen.backend_probe.enabled is None
+
+    for value in [True, False, "yes", "off", 1, 0]:
+        raw = {"eigen": {"backend_probe": {"residual_rel_max": "4e-7", "enabled": value}}}
+        assert Config.load(raw).eigen.backend_probe.residual_rel_max == _probe_residual_rel_max(raw["eigen"])
+        assert Config.load(raw).eigen.backend_probe.enabled == _as_bool(value)
+
+
+def test_ncv_jsonc_only_and_env_has_no_effect(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LINSTABPY_RESOLVENT_EPS_NCV", "41")
+    monkeypatch.setenv("LINSTABPY_EIGEN_NCV", "52")
+    assert Config.load({}).resolvent.eps.ncv is None
+    assert Config.load({}).eigen.ncv is None
+
+    raw = {"resolvent": {"eigen": {"ncv": "31"}}, "eigen": {"ncv": "51"}}
+    assert Config.load(raw).resolvent.eps.ncv == int(raw["resolvent"]["eigen"]["ncv"])
+    assert Config.load(raw).eigen.ncv == int(raw["eigen"]["ncv"])
+
+
+def test_assembly_metrics_log_explicit_dynamic_default_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    # None only when unset by both cfg and env (call site then applies =enabled).
+    assert Config.load({}).mesh.assembly_metrics_log_explicit is None
+    monkeypatch.setenv("LINSTABPY_ASSEMBLY_METRICS_LOG", "yes")
+    assert Config.load({}).mesh.assembly_metrics_log_explicit is True
+    monkeypatch.setenv("LINSTABPY_ASSEMBLY_METRICS_LOG", "off")
+    assert Config.load({}).mesh.assembly_metrics_log_explicit is False
+    # When set, must match the LIVE reader (_scfg_bool), NOT backends._as_bool.
+    for value in (True, False, "yes", "no", "1", "0", "on", "off", "y", "n", "maybe", "true"):
+        raw = {"assembly_metrics_log": value}
+        expected = _scfg_bool(raw, "assembly_metrics_log", "LINSTABPY_ASSEMBLY_METRICS_LOG", False)
+        assert Config.load(raw).mesh.assembly_metrics_log_explicit == expected, value
+    # _scfg_bool semantics: "y" is False (not in {1,true,yes,on}) and garbage never raises.
+    assert Config.load({"assembly_metrics_log": "y"}).mesh.assembly_metrics_log_explicit is False
+    assert Config.load({"assembly_metrics_log": "maybe"}).mesh.assembly_metrics_log_explicit is False
+
+
 def test_site_to_field_table_covers_known_reader_surface() -> None:
     assert len({(s.field, s.env_var, s.default, s.section) for s in FIELD_SPECS}) == len(FIELD_SPECS)
-    assert len(FIELD_SPECS) == 67
+    assert len(FIELD_SPECS) == 64
     assert len(RAW_VALUE_SPECS) == 3
     # factor backends are context readers, not simple _scfg tuples.
     assert Config.load({}).eigen.st_factor_backend == _resolve_st_factor_backend("mumps", {})
