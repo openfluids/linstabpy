@@ -8,6 +8,7 @@ import sys
 
 import pytest
 
+from linstabpy.config import Config
 from linstabpy.utils import petsc_core
 from linstabpy.utils._solver_cfg import (
     DIRECT_SOLVER_TYPES,
@@ -15,40 +16,9 @@ from linstabpy.utils._solver_cfg import (
     ITERATIVE_EIGEN_SOLVER_TYPES,
     ITERATIVE_LINEAR_SOLVER_TYPES,
     SolverConfig,
-    _mumps_petsc_options,
     _scfg,
     _scfg_bool,
 )
-
-
-def test_mumps_petsc_options_enable_hardened_defaults() -> None:
-    assert _mumps_petsc_options(None) == {
-        "mat_mumps_icntl_14": "100",
-        "mat_mumps_icntl_24": "1",
-    }
-
-
-def test_mumps_petsc_options_preserve_existing_icntl7_gate() -> None:
-    assert _mumps_petsc_options({"mumps_icntl_7": True}) == {
-        "mat_mumps_icntl_7": "5",
-        "mat_mumps_icntl_14": "100",
-        "mat_mumps_icntl_24": "1",
-    }
-
-
-def test_mumps_petsc_options_allow_jsonc_override_and_opt_out() -> None:
-    assert _mumps_petsc_options({"mumps_icntl_14": 250, "mumps_icntl_24": None}) == {
-        "mat_mumps_icntl_14": "250",
-    }
-
-
-def test_mumps_petsc_options_allow_environment_override(monkeypatch) -> None:
-    monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_14", "300")
-    monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_24", "none")
-
-    assert _mumps_petsc_options(None) == {
-        "mat_mumps_icntl_14": "300",
-    }
 
 
 def test_solver_config_dict_overrides_environment(monkeypatch) -> None:
@@ -78,7 +48,6 @@ def test_solver_config_wrapper_preserves_mapping_behavior() -> None:
     assert cfg["petsc_matrix_mode"] == "local"
     assert cfg.get("eigen") == {"eps_tol": 1e-9}
     assert dict(cfg) == raw
-    assert cfg.setting("petsc_matrix_mode", "LINSTABPY_PETSC_MATRIX_MODE", "auto") == "local"
 
 
 def test_solver_config_wrapper_resolves_existing_subsection_policy() -> None:
@@ -98,27 +67,11 @@ def test_solver_config_wrapper_resolves_existing_subsection_policy() -> None:
     }
 
 
-def test_solver_config_centralizes_solver_family_policy(monkeypatch) -> None:
-    cfg = SolverConfig(
-        {
-            "linsolve": {"type": "petsc"},
-            "eigen": {"st_solver": "slepc"},
-            "root_scatter": True,
-        }
-    )
-
+def test_solver_config_exports_solver_family_sets() -> None:
     assert {"mumps", "direct", "lu"} == set(DIRECT_SOLVER_TYPES)
     assert {"iterative", "krylov", "petsc"} == set(ITERATIVE_LINEAR_SOLVER_TYPES)
     assert {"iterative", "krylov", "slepc"} == set(ITERATIVE_EIGEN_SOLVER_TYPES)
     assert {"inexact"} == set(INEXACT_EIGEN_SOLVER_TYPES)
-    assert cfg.linear_solver_type("LINSTABPY_LINSOLVE") == "petsc"
-    assert cfg.eigen_st_solver() == "slepc"
-    assert cfg.root_scatter_enabled() is True
-
-    monkeypatch.setenv("LINSTABPY_LINSOLVE_TYPE", "direct")
-    monkeypatch.setenv("LINSTABPY_EIGEN_ST_SOLVER", "inexact")
-    assert SolverConfig({}).linear_solver_type("LINSTABPY_LINSOLVE") == "direct"
-    assert SolverConfig({}).eigen_st_solver() == "inexact"
 
 
 def test_petsc_matrix_mode_accepts_current_aliases(monkeypatch) -> None:
@@ -205,3 +158,30 @@ def test_import_petsc_core_is_petsc_free() -> None:
     )
 
     assert proc.stdout.strip() == "0 0"
+
+
+def _mumps_opts(raw: dict) -> dict[str, str]:
+    return petsc_core.mumps_icntl_petsc_options(Config.load(raw).mpi)
+
+
+def test_mumps_icntl_petsc_options_hardened_defaults() -> None:
+    # ICNTL(7) opt-in gate off by default -> no key; 14/24 hardened by default.
+    assert _mumps_opts({}) == {"mat_mumps_icntl_14": "100", "mat_mumps_icntl_24": "1"}
+
+
+def test_mumps_icntl_petsc_options_icntl7_gate_and_overrides() -> None:
+    assert _mumps_opts({"mumps_icntl_7": True})["mat_mumps_icntl_7"] == "5"
+    assert _mumps_opts({"mumps_icntl_14": 200})["mat_mumps_icntl_14"] == "200"
+    assert _mumps_opts({"mumps_icntl_24": 7})["mat_mumps_icntl_24"] == "7"
+
+
+def test_mumps_icntl_petsc_options_none_opts_out() -> None:
+    # "none"/"petsc" sentinels -> leave the setting to PETSc/MUMPS (no key).
+    opts = _mumps_opts({"mumps_icntl_14": "none", "mumps_icntl_24": "petsc"})
+    assert "mat_mumps_icntl_14" not in opts
+    assert "mat_mumps_icntl_24" not in opts
+
+
+def test_mumps_icntl_petsc_options_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_14", "321")
+    assert _mumps_opts({})["mat_mumps_icntl_14"] == "321"

@@ -12,15 +12,32 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
-from ._solver_cfg import _mumps_petsc_options
-
 if TYPE_CHECKING:
     # Type-only import so ruff/mypy/pyright see ``PETSc`` names; at runtime,
     # ``TYPE_CHECKING`` is ``False`` so this never fires and PETSc stays
     # un-initialized until the lazy ``__getattr__`` below is hit.
     from petsc4py import PETSc  # noqa: F401
 
+    from linstabpy.config.typed import MpiCfg
+
 _petsc_configured = False
+
+
+def mumps_icntl_petsc_options(mpi: "MpiCfg") -> dict[str, str]:
+    """Map the typed MUMPS ICNTL config to PETSc option-database entries.
+
+    ICNTL(7) keeps its historical opt-in gate (changing the ordering can change
+    factorization behavior); ICNTL(14)/ICNTL(24) are hardened by default and
+    left to PETSc/MUMPS only when set to ``None``.
+    """
+    opts: dict[str, str] = {}
+    if mpi.mumps_icntl_7:
+        opts["mat_mumps_icntl_7"] = "5"  # METIS ordering
+    if mpi.mumps_icntl_14 is not None:
+        opts["mat_mumps_icntl_14"] = str(mpi.mumps_icntl_14)
+    if mpi.mumps_icntl_24 is not None:
+        opts["mat_mumps_icntl_24"] = str(mpi.mumps_icntl_24)
+    return opts
 
 
 # Lazy PETSc accessor: ``import linstabpy.utils.petsc_core`` stays PETSc-free.
@@ -116,8 +133,11 @@ def require_complex(solver_cfg: dict | None = None) -> None:
         )
     global _petsc_configured
     if not _petsc_configured:
+        from linstabpy.config import Config
+
+        cfg = Config.load(solver_cfg if solver_cfg is not None else {})
         opts = PETSc.Options()
-        for key, value in _mumps_petsc_options(solver_cfg).items():
+        for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
             opts.setValue(key, value)
         _petsc_configured = True
 
