@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.resolvent import ResolventOperator
+from linstabpy.resolvent import ResolventOperator, WeightedNormalOperator
 
 
 class _DummyFactorization:
@@ -23,6 +23,12 @@ def test_resolvent_operator_import() -> None:
     from linstabpy.resolvent import ResolventOperator as imported
 
     assert imported is ResolventOperator
+
+
+def test_weighted_normal_operator_import() -> None:
+    from linstabpy.resolvent import WeightedNormalOperator as imported
+
+    assert imported is WeightedNormalOperator
 
 
 def test_resolvent_operator_matches_inline_chain_with_b_c() -> None:
@@ -77,3 +83,27 @@ def test_resolvent_operator_matches_inline_chain_without_b_c_or_filters() -> Non
     w_adj = v
     w_adj = lu.solve_transpose(w_adj)
     np.testing.assert_array_equal(op.apply_adjoint(v), w_adj)
+
+
+def test_weighted_normal_operator_matches_inline_weighted_chain() -> None:
+    from petsc4py import PETSc
+
+    rng = np.random.default_rng(24680)
+    n = 5
+    solve_mat = rng.standard_normal((n, n)) + 1j * rng.standard_normal((n, n))
+    v = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    W_diag = 0.25 + rng.random(n)
+    lu = _DummyFactorization(solve_mat)
+    op = ResolventOperator(lu, None, None, None, None)
+    weighted_op = WeightedNormalOperator(op, W_diag, n)
+
+    x = PETSc.Vec().createSeq(n)
+    y = PETSc.Vec().createSeq(n)
+    try:
+        x.setArray(v)
+        weighted_op.mult(None, x, y)
+        expected = (1.0 / W_diag) * op.apply_adjoint(W_diag * op.apply(v))
+        np.testing.assert_array_equal(y.getArray(readonly=True), expected)
+    finally:
+        x.destroy()
+        y.destroy()
