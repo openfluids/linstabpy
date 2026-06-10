@@ -62,44 +62,6 @@ class SolverConfig(Mapping[str, Any]):
             return self.get("eigen", {})
         return self.get("linsolve", {})
 
-    def linear_solver_type(self, env_prefix: str) -> str:
-        """Resolve the KSP solver family for a linsolve/resolvent prefix."""
-        return self.setting_from_subsection(env_prefix, "type", f"{env_prefix}_TYPE", "mumps")
-
-    def eigen_st_solver(self) -> str:
-        """Resolve the SLEPc shift-transform backend family."""
-        return self.setting_from_subsection(
-            "LINSTABPY_EIGEN",
-            "st_solver",
-            "LINSTABPY_EIGEN_ST_SOLVER",
-            "mumps",
-        )
-
-    def root_scatter_enabled(self) -> bool:
-        """Resolve the top-level PETSc root-scatter policy."""
-        return self.setting_bool("root_scatter", "LINSTABPY_PETSC_ROOT_SCATTER", False)
-
-    def setting(self, key: str, env_var: str, default: str) -> str:
-        return _scfg(self, key, env_var, default)
-
-    def setting_from_subsection(
-        self,
-        env_prefix: str,
-        key: str,
-        env_var: str,
-        default: str,
-    ) -> str:
-        return _scfg(self.subsection(env_prefix), key, env_var, default)
-
-    def setting_bool(self, key: str, env_var: str, default: bool) -> bool:
-        return _scfg_bool(self, key, env_var, default)
-
-    def setting_float(self, key: str, env_var: str, default: float) -> float:
-        return _scfg_float(self, key, env_var, default)
-
-    def setting_int(self, key: str, env_var: str, default: int) -> int:
-        return _scfg_int(self, key, env_var, default)
-
 
 def _scfg(cfg: Mapping[str, Any] | None, key: str, env_var: str, default: str) -> str:
     """Read solver setting from dict, else env var, else default."""
@@ -153,37 +115,3 @@ def _scfg_bool(cfg: Mapping[str, Any] | None, key: str, env_var: str, default: b
         return str(v).strip().lower() in {"1", "true", "yes", "on"}
     raw = os.getenv(env_var, "1" if default else "0").strip().lower()
     return raw in {"1", "true", "yes", "on"}
-
-
-def _mumps_petsc_options(cfg: Mapping[str, Any] | None) -> dict[str, str]:
-    """Return PETSc option-database defaults for MUMPS factorization.
-
-    ``None``/``"none"``/``"petsc"`` leaves a setting to PETSc/MUMPS native
-    defaults. ICNTL(7) keeps its historical opt-in gate because changing the
-    ordering can change factorization behavior; ICNTL(14) and ICNTL(24) are
-    hardened by default.
-    """
-    options: dict[str, str] = {}
-
-    if _scfg_bool(cfg, "mumps_icntl_7", "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False):
-        options["mat_mumps_icntl_7"] = "5"  # METIS ordering
-
-    mumps_icntl_14 = _scfg_optional_int(
-        cfg,
-        "mumps_icntl_14",
-        "LINSTABPY_PETSC_MUMPS_ICNTL_14",
-        100,
-    )
-    if mumps_icntl_14 is not None:
-        options["mat_mumps_icntl_14"] = str(mumps_icntl_14)
-
-    mumps_icntl_24 = _scfg_optional_int(
-        cfg,
-        "mumps_icntl_24",
-        "LINSTABPY_PETSC_MUMPS_ICNTL_24",
-        1,
-    )
-    if mumps_icntl_24 is not None:
-        options["mat_mumps_icntl_24"] = str(mumps_icntl_24)
-
-    return options

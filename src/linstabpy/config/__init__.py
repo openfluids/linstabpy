@@ -2,5 +2,26 @@
 """Configuration validation helpers."""
 
 from linstabpy.config.schema import ConfigValidationError, validate_config
+from linstabpy.config.typed import (
+    Config,
+    EigenCfg,
+    LinSolveCfg,
+    MeshCfg,
+    MpiCfg,
+    ResolventCfg,
+    ResolventEpsCfg,
+    SpatialCfg,
+)
 
-__all__ = ["ConfigValidationError", "validate_config"]
+__all__ = [
+    "Config",
+    "ConfigValidationError",
+    "EigenCfg",
+    "LinSolveCfg",
+    "MeshCfg",
+    "MpiCfg",
+    "ResolventCfg",
+    "ResolventEpsCfg",
+    "SpatialCfg",
+    "validate_config",
+]
