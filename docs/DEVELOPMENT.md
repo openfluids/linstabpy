@@ -59,6 +59,23 @@ changelog entry.
    only (never `git add -A`).
 6. **Changelog updated** — the slice's user-visible changes are recorded.
 
+## Where verification runs
+
+The development machines are memory-limited; the full merge gate runs on a
+big-memory verification workstation. The loop:
+
+1. Commit on the development machine and push the slice to `dev`.
+2. On the verification workstation, pull `dev` (`git fetch && git pull
+   --ff-only`) and run the full merge gate there — the suite, the no-MPI
+   lane, and lint.
+3. Open the `dev → main` PR only after the gate is green on the verification
+   workstation. A state that is green only on a development laptop is never
+   promoted.
+
+Never copy edited sources to the verification machine by hand (no rsync/scp):
+it runs exactly what `dev` has, so every result stays traceable to a commit
+SHA.
+
 ## Releasing — cutting a patch tag on `main`
 
 1. In `CHANGELOG.md`, move the `[Unreleased]` entries into a new
