@@ -11,6 +11,7 @@ solver-policy choice rather than an automatic fallback.
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -24,7 +25,6 @@ from petsc4py import PETSc
 
 from linstabpy.config import Config
 
-from ..solvers.backends import apply_factor_backend
 from ..solvers.petsc_utils import (
     _is_petsc_matrix,
     _matrix_nnz,
@@ -34,6 +34,7 @@ from ..solvers.petsc_utils import (
     vec_to_numpy,
 )
 from ..utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_LINEAR_SOLVER_TYPES
+from .backends import apply_factor_backend
 
 logger = logging.getLogger(__name__)
 
@@ -390,3 +391,11 @@ def factorize(
         _ksp=ksp,
         _mat=A,
     )
+
+
+# Keep ``from linstabpy.linalg import factorize`` bound to the public function
+# even after the same-named implementation submodule is imported.
+_parent = sys.modules.get("linstabpy.linalg")
+if _parent is not None:
+    _parent.Factorization = Factorization
+    _parent.factorize = factorize

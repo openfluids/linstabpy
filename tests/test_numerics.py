@@ -111,9 +111,9 @@ class TestResolventNumerics:
         # Build resolvent H(ω) = (iωI - L0)^{-1}
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
 
-        solver = make_linear_solver(L_sigma.tocsc())
+        solver = factorize(L_sigma.tocsc())
 
         rng = np.random.default_rng(42)
         for trial in range(5):
@@ -135,9 +135,9 @@ class TestResolventNumerics:
 
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
 
-        solver = make_linear_solver(L_sigma.tocsc())
+        solver = factorize(L_sigma.tocsc())
 
         f1 = forcings[:, 0]
         response = solver.solve(f1)

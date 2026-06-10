@@ -16,8 +16,8 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.backends import apply_factor_backend
 
-from .backends import apply_factor_backend
 from .eigenvalue import _resolve_ncv
 from .petsc_utils import (
     _is_petsc_matrix,

@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from linstabpy.config import Config
-from linstabpy.solvers.backends import _as_bool, resolve_factor_backend
+from linstabpy.linalg.backends import _as_bool, resolve_factor_backend
 from linstabpy.solvers.eigenvalue import _probe_residual_rel_max, _resolve_st_factor_backend
 from linstabpy.utils._solver_cfg import (
     SolverConfig,

@@ -38,11 +38,11 @@ from petsc4py import PETSc
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
+from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
-from linstabpy.solvers.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstabpy.solvers.resolvent import (
