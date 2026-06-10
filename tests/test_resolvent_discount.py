@@ -8,7 +8,7 @@ import pytest
 import scipy.linalg
 import scipy.sparse as sp
 
-from linstabpy.solvers.resolvent import resolvent_analysis
+from linstabpy.resolvent.analysis import resolvent_analysis
 
 _CFG = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 _OMEGA = 3.0

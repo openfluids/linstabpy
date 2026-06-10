@@ -1,154 +1,63 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Resolvent analysis via PETSc/SLEPc on the weighted resolvent operator.
+"""Deprecated resolvent solver import path.
 
-Computes the optimal forcing/response pairs and gains for the linearised
-Navier--Stokes operator at a given frequency.  The resolvent operator is
-
-    H = C @ inv(L0 - i*omega*I) @ B
-
-The implementation follows MATLAB's reference route by solving the eigenproblem
-for ``H^H W H`` in the weighted inner product:
-
-    HtrH(v) = invW * H^H * W * H(v)
-
-using SLEPc EPS on a MatShell. Singular values are recovered as
-``sigma = sqrt(real(lambda))`` and response modes from ``u = H(v)/sigma``.
-The shifted operator factorisation uses PETSc KSP with MUMPS (computed once,
-reused for both forward and adjoint solves).
-
-References
-----------
-McKeon, B. J., & Sharma, A. S. (2010). A critical-layer framework for
-    turbulent pipe flow. J. Fluid Mech., 658, 336-382.
-Frantz, R. A. S., Loiseau, J.-Ch., & Robinet, J.-Ch. (2023). Krylov
-    methods for large-scale dynamical systems: application in fluid dynamics.
-    Appl. Mech. Rev., 75(3), 030802.
+Use :mod:`linstabpy.resolvent.analysis` instead.  This module remains as a
+one-minor-version compatibility shim.
 """
 
 from __future__ import annotations
 
-import logging
-from collections.abc import Callable
+import warnings
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-import scipy.sparse as sp
+if TYPE_CHECKING:
+    # Type-only imports keep this PEP-562 shim importable without PETSc;
+    # `from __future__ import annotations` defers signature evaluation.
+    from collections.abc import Callable
 
-from linstabpy.linalg import shifted_operator
+    import numpy as np
+    import scipy.sparse as sp
+    from petsc4py import PETSc
 
-from ..utils.petsc_init import init_slepc_from_argv
+    from linstabpy.config import Config
 
-init_slepc_from_argv()
-from petsc4py import PETSc
+_DEPRECATED_EXPORTS = {
+    "resolvent_analysis": "resolvent_analysis",
+    "compute_resolvent_svd_residuals": "compute_resolvent_svd_residuals",
+    "resolvent_analysis_with_residuals": "resolvent_analysis",
+}
 
-from linstabpy.config import Config
-from linstabpy.linalg.factorize import factorize
-from linstabpy.resolvent import ResolventOperator
-from linstabpy.resolvent.gain import compute_leading_gains
-
-from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex
-
-logger = logging.getLogger(__name__)
-
-
-def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
-    """Return the square-system size for SciPy or PETSc operators."""
-    nrows, ncols = _operator_shape(operator)
-    if nrows != ncols:
-        raise ValueError("L0 must be a square matrix")
-    return nrows
+__all__ = sorted(_DEPRECATED_EXPORTS)
 
 
-def resolvent_analysis(
-    L0: sp.spmatrix | PETSc.Mat,
-    omega: float,
-    n_modes: int,
-    W_diag: np.ndarray,
-    B_mat: sp.spmatrix | PETSc.Mat | None = None,
-    C_mat: sp.spmatrix | PETSc.Mat | None = None,
-    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    solver_cfg: dict | None = None,
-    cfg: Config | None = None,
-    *,
-    gamma: float = 0.0,
-    return_info: bool = False,
-) -> (
-    tuple[np.ndarray, np.ndarray, np.ndarray]
-    | tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]
-):
-    """Compute resolvent gains, optimal forcings, and optimal responses.
+def __getattr__(name: str) -> Any:
+    if name not in _DEPRECATED_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    if name == "resolvent_analysis_with_residuals":
+        warnings.warn(
+            "linstabpy.solvers.resolvent.resolvent_analysis_with_residuals is deprecated; "
+            "use linstabpy.resolvent.analysis.resolvent_analysis(..., residuals=True) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _resolvent_analysis_with_residuals
 
-    Performs a resolvent analysis of the linear operator *L0* at angular
-    frequency *omega*.  The resolvent operator is
-
-        H = FILTER( C inv(L0 - i omega I) B FILTER(v) )
-
-    and its gains/modes are computed from the weighted Hermitian operator
-    ``HtrH(v) = invW * H^H * W * H(v)`` using SLEPc EPS. This follows the
-    MATLAB parity implementation directly.
-
-    Parameters
-    ----------
-    L0 : sparse matrix, shape (ndof, ndof)
-        LNSE operator with boundary conditions already applied.
-    omega : float
-        Angular frequency (rad/s) for the analysis.
-    n_modes : int
-        Number of leading resolvent modes to compute.
-    W_diag : ndarray, shape (ndof,)
-        Diagonal of the energy-norm matrix (e.g. Chu energy norm multiplied
-        by quadrature weights).
-    B_mat : sparse matrix, shape (ndof, ndof), optional
-        Input (forcing) matrix.  Defaults to the identity.
-    C_mat : sparse matrix, shape (ndof, ndof), optional
-        Output (observation) matrix.  Defaults to the identity.
-    filter_fn : Callable, optional
-        Spatial filter applied before and after the resolvent operator.
-        Typically ``mesh.filters.filter``.  Defaults to identity.
-    filter_ct_fn : Callable, optional
-        Adjoint-compliant spatial filter for the adjoint resolvent.
-        Typically ``mesh.filters.filter_ct``.  Defaults to identity.
-    gamma : float, optional
-        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
-        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
-        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
-        resolvent and keep the shifted solve numerically well-posed at poles.
-    return_info : bool, optional
-        If True, append an info dictionary containing
-        ``{"resolvent_discount_gamma": float(gamma)}``.
-
-    Returns
-    -------
-    gains : ndarray, shape (n_modes,)
-        Resolvent gains (singular values of *H*), sorted in descending order.
-    responses : ndarray, shape (ndof, n_modes)
-        Optimal response modes (columns), normalised in the *W*-inner product.
-    forcings : ndarray, shape (ndof, n_modes)
-        Optimal forcing modes (columns), normalised in the *W*-inner product.
-    info : dict, optional
-        Returned only when ``return_info=True``.
-    """
-    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    gains, responses, forcings, _, _ = _resolvent_analysis_impl(
-        L0,
-        omega,
-        n_modes,
-        W_diag,
-        B_mat=B_mat,
-        C_mat=C_mat,
-        filter_fn=filter_fn,
-        filter_ct_fn=filter_ct_fn,
-        solver_cfg=solver_cfg,
-        cfg=cfg,
-        gamma=gamma,
-        compute_residuals=False,
+    warnings.warn(
+        f"linstabpy.solvers.resolvent.{name} is deprecated; "
+        f"use linstabpy.resolvent.analysis.{_DEPRECATED_EXPORTS[name]} instead",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    if return_info:
-        return gains, responses, forcings, {"resolvent_discount_gamma": float(gamma)}
-    return gains, responses, forcings
+    from linstabpy.resolvent.analysis import compute_resolvent_svd_residuals, resolvent_analysis
+
+    exports = {
+        "compute_resolvent_svd_residuals": compute_resolvent_svd_residuals,
+        "resolvent_analysis": resolvent_analysis,
+    }
+    return exports[_DEPRECATED_EXPORTS[name]]
 
 
-def resolvent_analysis_with_residuals(
+def _resolvent_analysis_with_residuals(
     L0: sp.spmatrix | PETSc.Mat,
     omega: float,
     n_modes: int,
@@ -166,25 +75,16 @@ def resolvent_analysis_with_residuals(
     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
     | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, float]]
 ):
-    """Compute resolvent modes and SVD residuals with one shifted solve setup.
+    """Deprecated wrapper for ``resolvent_analysis(..., residuals=True)``."""
+    warnings.warn(
+        "linstabpy.solvers.resolvent.resolvent_analysis_with_residuals is deprecated; "
+        "use linstabpy.resolvent.analysis.resolvent_analysis(..., residuals=True) instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from linstabpy.resolvent.analysis import resolvent_analysis
 
-    This is equivalent to calling ``resolvent_analysis`` followed by
-    ``compute_resolvent_svd_residuals`` at the same ``omega``, but it reuses
-    the already-factorized shifted operator.  The reuse boundary is deliberately
-    exact-frequency/discount only: a different ``omega`` or ``gamma`` changes
-    the numerical values in ``L0 - (gamma + i*omega)*I``, so a MUMPS
-    factorization cannot be carried across frequencies or discounts unless
-    PETSc/MUMPS symbolic reuse is introduced and tested as a separate policy.
-
-    ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
-    ``L0 - i*omega*I`` arithmetic.  Larger ``gamma`` values damp the resolvent
-    and keep the shifted solve numerically well-posed at poles.  If
-    ``return_info=True``, an info dictionary containing
-    ``{"resolvent_discount_gamma": float(gamma)}`` is appended to the existing
-    return tuple.
-    """
-    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    result = _resolvent_analysis_impl(
+    return resolvent_analysis(
         L0,
         omega,
         n_modes,
@@ -195,245 +95,7 @@ def resolvent_analysis_with_residuals(
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
         cfg=cfg,
+        residuals=True,
         gamma=gamma,
-        compute_residuals=True,
+        return_info=return_info,
     )
-    if return_info:
-        return (*result, {"resolvent_discount_gamma": float(gamma)})
-    return result
-
-
-def _resolvent_analysis_impl(
-    L0: sp.spmatrix | PETSc.Mat,
-    omega: float,
-    n_modes: int,
-    W_diag: np.ndarray,
-    B_mat: sp.spmatrix | PETSc.Mat | None = None,
-    C_mat: sp.spmatrix | PETSc.Mat | None = None,
-    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    solver_cfg: dict | None = None,
-    *,
-    gamma: float = 0.0,
-    compute_residuals: bool,
-    cfg: Config | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
-    """Implementation shared by the public resolvent entry points."""
-    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    require_complex(solver_cfg)
-    ndof = _operator_ndof(L0)
-    logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
-
-    # ------------------------------------------------------------------
-    # 1. Form the shifted operator  L_sigma = L0 - (gamma + i*omega)*I
-    # ------------------------------------------------------------------
-    L_sigma = shifted_operator(L0, omega, gamma=gamma)
-
-    # ------------------------------------------------------------------
-    # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
-    #    KSP/PC stack is selected by typed config through factorize.
-    # ------------------------------------------------------------------
-    logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
-    # factorize copies the operator internally; free the shifted copy.
-    if _is_petsc_matrix(L_sigma):
-        L_sigma.destroy()
-    logger.info("  linear solver backend: %s", lu.backend)
-    logger.info("  MUMPS factorisation done.")
-
-    # ------------------------------------------------------------------
-    # 3. Define forward (H) and adjoint (H^H) resolvent operators
-    # ------------------------------------------------------------------
-    op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
-
-    gains, responses, forcings, W_vec, invW_vec = compute_leading_gains(
-        op,
-        W_diag,
-        n_modes,
-        ndof,
-        cfg,
-    )
-
-    try:
-        rho_fwd: np.ndarray | None = None
-        rho_adj: np.ndarray | None = None
-        if compute_residuals:
-            rho_fwd, rho_adj = _compute_resolvent_svd_residuals_from_apply(
-                gains,
-                forcings,
-                responses,
-                W_vec,
-                invW_vec,
-                op.apply,
-                op.apply_adjoint,
-            )
-
-        return gains, responses, forcings, rho_fwd, rho_adj
-    finally:
-        lu.destroy()
-
-
-def _compute_resolvent_svd_residuals_from_apply(
-    gains: np.ndarray,
-    forcings: np.ndarray,
-    responses: np.ndarray,
-    W_vec: np.ndarray,
-    invW_vec: np.ndarray,
-    apply_H: Callable[[np.ndarray], np.ndarray],
-    apply_H_adj: Callable[[np.ndarray], np.ndarray],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Compute SVD residuals from already-constructed resolvent actions."""
-    n_modes = gains.shape[0]
-    rho_fwd = np.empty(n_modes, dtype=float)
-    rho_adj = np.empty(n_modes, dtype=float)
-
-    print(
-        "SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  "
-        "rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)"
-    )
-    print(f"{'Mode':>4}  {'sigma':>14}  {'rho_fwd':>12}  {'rho_adj':>12}")
-    print("-" * 50)
-
-    def _w_norm(residual: np.ndarray) -> float:
-        # W-inner-product norm: sqrt(r^H W r). Used for BOTH numerator and
-        # denominator so the residual measure is norm-consistent. An earlier
-        # version measured the numerator in the unweighted 2-norm while the
-        # denominator was the W-norm; because the Chu weight spans orders of
-        # magnitude that mismatch amplified a tiny (~1e-12) parallel-FP jitter
-        # into a ~1e-7 reading under MPI. See
-        # resolvent/docs/mpi_resolvent_residual_investigation.md.
-        return float(np.sqrt(max(np.real(residual.conj() @ (W_vec * residual)), 0.0)))
-
-    for i in range(n_modes):
-        sigma = gains[i]
-        v_i = forcings[:, i]
-        u_i = responses[:, i]
-        # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
-        # equals 1, but computing it keeps the residuals meaningful after any
-        # filter projection or small eigensolver normalization drift.
-        w_norm_v = max(_w_norm(v_i), 1e-300)
-
-        Hv = apply_H(v_i)
-        rho_fwd[i] = _w_norm(Hv - sigma * u_i) / (sigma * w_norm_v)
-
-        HH_Wu = apply_H_adj(W_vec * u_i)
-        rho_adj[i] = _w_norm(invW_vec * HH_Wu - sigma * v_i) / (sigma * w_norm_v)
-
-        print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
-
-    print(f"{'max':>20}  {np.max(rho_fwd):>12.4e}  {np.max(rho_adj):>12.4e}")
-    return rho_fwd, rho_adj
-
-
-def compute_resolvent_svd_residuals(
-    L0: sp.spmatrix | PETSc.Mat,
-    omega: complex,
-    B_mat: sp.spmatrix | PETSc.Mat | None,
-    C_mat: sp.spmatrix | PETSc.Mat | None,
-    gains: np.ndarray,
-    forcings: np.ndarray,
-    responses: np.ndarray,
-    W_diag: np.ndarray,
-    filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
-    solver_cfg: dict | None = None,
-    cfg: Config | None = None,
-    *,
-    gamma: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Compute self-residuals for resolvent SVD triplets.
-
-    ``gamma`` is REQUIRED (no default): this postcheck rebuilds the shifted
-    operator ``L0 - (gamma + i*omega) I`` and MUST use the SAME ``gamma`` the
-    analysis used, or the residual is measured against a different operator and a
-    valid discounted-resolvent result fails the postcheck gate. Pass ``gamma=0.0``
-    explicitly for the standard (undiscounted) resolvent.
-
-    The resolvent analysis solves the weighted eigenvalue problem
-
-        invW H^H W H v_i = sigma_i^2 v_i
-
-    with ``v_i`` normalised in the W-inner product (``v_i^H W v_i = 1``) and
-    response ``u_i = H v_i / sigma_i``.  Both residuals use the W-inner-product
-    norm ``||x||_W = sqrt(x^H W x)`` consistently in numerator and denominator:
-
-        rho_fwd[i] = ||H v_i − sigma_i u_i||_W / (sigma_i ||v_i||_W)
-        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i||_W / (sigma_i ||v_i||_W)
-
-    *rho_fwd* is near machine precision by construction (u_i is defined as
-    H v_i / sigma_i).  *rho_adj* is the meaningful residual: it checks the
-    adjoint half of the weighted eigenproblem and converges to ≤ SLEPc's
-    tolerance (1e-12) when the discrete operator is solved correctly.  Measuring
-    the numerator in the W-norm (rather than the unweighted 2-norm) keeps the
-    measure norm-consistent; with a 2-norm numerator the Chu-weight dynamic range
-    amplified parallel-FP jitter into a spurious ~1e-7 reading under MPI.
-
-    Derivation: from ``HtrH v = sigma^2 v`` and ``u = H v / sigma``:
-
-        H^H W (sigma u) = sigma^2 W v   →   invW H^H (W u) = sigma v
-
-    so ``rho_adj`` ≈ SLEPc tol ≈ 1e-12 for converged triplets.
-
-    Parameters
-    ----------
-    L0 : sparse matrix, shape (ndof, ndof)
-        LNSE operator with BCs applied.
-    omega : complex
-        Angular frequency used in the resolvent analysis (may be complex for
-        the paraboloid fallback shift).
-    B_mat, C_mat : sparse matrix or None
-        Input/output matrices passed to ``resolvent_analysis``.
-    gains : ndarray, shape (n_modes,)
-        Singular values returned by ``resolvent_analysis``.
-    forcings : ndarray, shape (ndof, n_modes)
-        Optimal forcing modes (right singular vectors, W-normalised).
-    responses : ndarray, shape (ndof, n_modes)
-        Optimal response modes (left singular vectors).
-    W_diag : ndarray, shape (ndof,)
-        Diagonal of the energy-norm weight matrix used in ``resolvent_analysis``.
-    filter_fn, filter_ct_fn : Callable or None
-        Same spatial filters passed to ``resolvent_analysis``.
-    gamma : float, optional
-        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
-        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
-        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
-        resolvent and keep the shifted solve numerically well-posed at poles.
-
-    Returns
-    -------
-    rho_fwd : ndarray, shape (n_modes,)
-        Forward residuals (near eps by construction).
-    rho_adj : ndarray, shape (n_modes,)
-        Adjoint residuals (primary quality signal; ≈ SLEPc tol for correct solutions).
-    """
-    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    require_complex(solver_cfg)
-    n_modes = gains.shape[0]
-    logger.info("Computing resolvent SVD residuals for %d modes ...", n_modes)
-
-    W_vec = np.asarray(W_diag, dtype=float)
-    invW_vec = 1.0 / W_vec
-
-    # Legacy postcheck path: rebuild the same shifted solve so callers that need
-    # a separate "analysis" and "postcheck" stage keep their timing/provenance
-    # boundaries. New code that can combine both stages should call
-    # resolvent_analysis_with_residuals().
-    L_sigma = shifted_operator(L0, omega, gamma=gamma)
-    lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
-    try:
-        if _is_petsc_matrix(L_sigma):
-            L_sigma.destroy()
-
-        op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
-
-        return _compute_resolvent_svd_residuals_from_apply(
-            gains,
-            forcings,
-            responses,
-            W_vec,
-            invW_vec,
-            op.apply,
-            op.apply_adjoint,
-        )
-    finally:
-        lu.destroy()

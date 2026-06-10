@@ -11,6 +11,7 @@ import numpy as np
 
 from linstabpy.linalg import backends as linalg_backends
 from linstabpy.linalg.factorize import Factorization, factorize
+from linstabpy.resolvent.analysis import resolvent_analysis
 
 
 def _deprecated_import(import_statement: str, namespace: dict[str, object]) -> None:
@@ -62,8 +63,55 @@ def test_solve_transpose_alias_forwards_to_solve_adjoint() -> None:
     np.testing.assert_allclose(fac.solve_transpose(rhs), [2.0, 3.0])
 
 
+def test_resolvent_shim_attrs_warn_and_work() -> None:
+    import scipy.sparse as sp
+
+    import linstabpy.solvers.resolvent as resolvent_shim
+
+    L0 = sp.diags(-np.array([1.0, 2.0, 3.0], dtype=float), format="csc", dtype=complex)
+    W_diag = np.ones(3)
+    solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        old_analysis = resolvent_shim.resolvent_analysis
+        old_postcheck = resolvent_shim.compute_resolvent_svd_residuals
+        gains, responses, forcings = old_analysis(
+            L0,
+            omega=0.25,
+            n_modes=1,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
+        )
+        residual_payload = resolvent_shim.resolvent_analysis_with_residuals(
+            L0,
+            omega=0.25,
+            n_modes=1,
+            W_diag=W_diag,
+            solver_cfg=solver_cfg,
+        )
+    assert old_postcheck is not None
+    assert sum(item.category is DeprecationWarning for item in caught) >= 3
+
+    np.testing.assert_array_equal(gains, residual_payload[0])
+    np.testing.assert_array_equal(responses, residual_payload[1])
+    np.testing.assert_array_equal(forcings, residual_payload[2])
+    assert len(residual_payload) == 5
+
+
 def test_plain_import_linstabpy_does_not_import_petsc() -> None:
     code = "import sys; import linstabpy; print('petsc4py' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert result.stdout.strip() == "False"
+
+
+def test_plain_import_linstabpy_resolvent_does_not_import_petsc() -> None:
+    code = "import sys; import linstabpy.resolvent; print('petsc4py' in sys.modules)"
     result = subprocess.run(
         [sys.executable, "-c", code],
         check=True,

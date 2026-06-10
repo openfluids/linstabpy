@@ -13,7 +13,7 @@ import pytest
 import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
-import linstabpy.solvers.resolvent as resolvent_module
+import linstabpy.resolvent.analysis as resolvent_module
 from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
@@ -34,9 +34,9 @@ from linstabpy.operators import (
     build_spatial_operator_petsc,
     compute_chu_norm,
 )
+from linstabpy.resolvent.analysis import compute_resolvent_svd_residuals, resolvent_analysis
 from linstabpy.solvers import (
     adjoint_eigenvalues,
-    resolvent_analysis,
     spatial_eigenvalues,
     temporal_eigenvalues,
 )
@@ -47,10 +47,6 @@ from linstabpy.solvers.eigenvalue import (
     _sort_nearest as _sort_temporal_nearest,
 )
 from linstabpy.solvers.petsc_utils import petsc_to_scipy, scipy_to_petsc
-from linstabpy.solvers.resolvent import (
-    compute_resolvent_svd_residuals,
-    resolvent_analysis_with_residuals,
-)
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
@@ -489,12 +485,13 @@ def test_resolvent_analysis_with_residuals_matches_postcheck() -> None:
     W_diag = np.array([1.0, 2.0, 0.5, 1.5, 3.0])
     solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 
-    gains, responses, forcings, rho_fwd_reused, rho_adj_reused = resolvent_analysis_with_residuals(
+    gains, responses, forcings, rho_fwd_reused, rho_adj_reused = resolvent_analysis(
         L0,
         omega=0.25,
         n_modes=2,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        residuals=True,
     )
     rho_fwd_post, rho_adj_post = compute_resolvent_svd_residuals(
         L0,
@@ -530,12 +527,13 @@ def test_resolvent_analysis_with_residuals_uses_one_factorization(monkeypatch) -
 
     monkeypatch.setattr(resolvent_module, "factorize", counted_factorize)
 
-    gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis_with_residuals(
+    gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis(
         L0,
         omega=0.25,
         n_modes=2,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        residuals=True,
     )
 
     assert gains.shape == (2,)

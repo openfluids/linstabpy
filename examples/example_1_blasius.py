@@ -64,7 +64,7 @@ def compute(cfg: dict):
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
-    from linstabpy.solvers.resolvent import resolvent_analysis_with_residuals
+    from linstabpy.resolvent.analysis import resolvent_analysis
 
     solver_cfg = cfg.get("solver")
 
@@ -175,7 +175,7 @@ def compute(cfg: dict):
         forcings,
         svd_residuals_fwd,
         svd_residuals_adj,
-    ) = resolvent_analysis_with_residuals(
+    ) = resolvent_analysis(
         L0,
         omega,
         n_modes,
@@ -185,6 +185,7 @@ def compute(cfg: dict):
         filter_fn=mesh.filters.filter if mesh.filters is not None else None,
         filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
         solver_cfg=solver_cfg,
+        residuals=True,
     )
     t_resolvent = time.perf_counter() - t_resolvent
     print(
