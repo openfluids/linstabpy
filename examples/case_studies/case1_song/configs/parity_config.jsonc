@@ -105,11 +105,13 @@
       "st_solver": "mumps",
 
       // EPS convergence threshold (not the same as explicit postchecked
-      // full-operator residual).
-      "eps_tol": 1e-6,
+      // full-operator residual). 1e-8 mirrors the MATLAB reference run
+      // (workflow/main.m: opts.tol = 1e-8) on the transformed problem.
+      "eps_tol": 1e-8,
 
       // Krylov subspace size for EPS. This is often a quality knob, not just
-      // a performance knob, for interior non-normal problems.
+      // a performance knob, for interior non-normal problems. The MATLAB
+      // reference used opts.p = 203; 300 is comfortably above that.
       "ncv": 300,
 
       // EPS convergence test:
@@ -118,9 +120,17 @@
       //   "norm" = matrix-norm-based
       "conv_test": "rel",
 
-      // With shift-invert, true residuals are safer than cheap transformed
-      // residual estimates, at some extra cost.
-      "true_residual": true
+      // Converge on the shift-invert *transformed* residual, matching the
+      // MATLAB eigs convergence semantics that produced spectrum.mat.
+      // With true_residual=true the EPS demands an untransformed-operator
+      // residual that this operator cannot reach (floor ~2.6e-4 with
+      // penalty-BC 1e8; verified 2026-06-10: stagnates at nconv=0 for 60+
+      // restarts at BOTH v0.0.3 and Stage-1 dev, while transformed-residual
+      // convergence finishes in 2 restarts / ~90 s with identical Krylov
+      // dimensions). Mode quality is still guarded downstream by the
+      // explicit full-operator postcheck and the acceptance bitmask —
+      // EPS convergence is a stopping rule here, not the quality gate.
+      "true_residual": false
     },
 
     // Linear solver (resolvent factorization)
