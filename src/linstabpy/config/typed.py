@@ -49,28 +49,36 @@ def _env_get(env: Mapping[str, str], key: str) -> str | None:
     return env[key] if key in env else None
 
 
-def _scfg(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: str) -> str:
+def _scfg(
+    cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: str
+) -> str:
     if cfg is not None and key in cfg:
         return str(cfg[key]).strip().lower()
     raw = _env_get(env, env_var)
     return (raw if raw is not None else default).strip().lower()
 
 
-def _scfg_float(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: float) -> float:
+def _scfg_float(
+    cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: float
+) -> float:
     if cfg is not None and key in cfg:
         return float(cfg[key])
     raw = _env_get(env, env_var)
     return float(raw if raw is not None else str(default))
 
 
-def _scfg_int(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: int) -> int:
+def _scfg_int(
+    cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: int
+) -> int:
     if cfg is not None and key in cfg:
         return int(cfg[key])
     raw = _env_get(env, env_var)
     return int(raw if raw is not None else str(default))
 
 
-def _scfg_bool(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: bool) -> bool:
+def _scfg_bool(
+    cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: bool
+) -> bool:
     if cfg is not None and key in cfg:
         value = cfg[key]
         if isinstance(value, bool):
@@ -89,7 +97,13 @@ def _parse_optional_int(value: object) -> int | None:
     return int(value)
 
 
-def _scfg_optional_int(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str, default: int | None) -> int | None:
+def _scfg_optional_int(
+    cfg: Mapping[str, Any] | None,
+    key: str,
+    env: Mapping[str, str],
+    env_var: str,
+    default: int | None,
+) -> int | None:
     if cfg is not None and key in cfg:
         return _parse_optional_int(cfg[key])
     raw = _env_get(env, env_var)
@@ -98,7 +112,9 @@ def _scfg_optional_int(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str
     return default
 
 
-def _raw_cfg_value(cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str) -> str | None:
+def _raw_cfg_value(
+    cfg: Mapping[str, Any] | None, key: str, env: Mapping[str, str], env_var: str
+) -> str | None:
     if cfg is not None and key in cfg:
         value = cfg[key]
         if value is None:
@@ -121,7 +137,13 @@ def _normalize_backend(value: object) -> str | None:
     return text
 
 
-def _factor_backend(cfg: Mapping[str, Any] | None, env: Mapping[str, str], *, env_var: str | None = None, default: str | None = "mumps") -> str | None:
+def _factor_backend(
+    cfg: Mapping[str, Any] | None,
+    env: Mapping[str, str],
+    *,
+    env_var: str | None = None,
+    default: str | None = "mumps",
+) -> str | None:
     if cfg is not None and "factor_backend" in cfg:
         return _normalize_backend(cfg["factor_backend"])
     if env_var is not None and env_var in env:
@@ -131,7 +153,9 @@ def _factor_backend(cfg: Mapping[str, Any] | None, env: Mapping[str, str], *, en
     return _normalize_backend(default)
 
 
-def _st_factor_backend(st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> str | None:
+def _st_factor_backend(
+    st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
+) -> str | None:
     if st_solver in DIRECT_SOLVER_TYPES:
         if st_solver == DEFAULT_FACTOR_BACKEND:
             return _factor_backend(cfg, env, default=DEFAULT_FACTOR_BACKEND)
@@ -140,7 +164,9 @@ def _st_factor_backend(st_solver: str, cfg: Mapping[str, Any] | None, env: Mappi
         pc_type = _scfg(cfg, "pc_type", env, "LINSTABPY_EIGEN_PC_TYPE", "asm")
         if pc_type != "lu":
             return None
-        pc_factor_solver_type = _scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "")
+        pc_factor_solver_type = _scfg(
+            cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", ""
+        )
         return _factor_backend(
             cfg,
             env,
@@ -169,10 +195,14 @@ class LinSolveCfg:
     ksp_monitor: bool
 
     @classmethod
-    def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str], prefix: str) -> "LinSolveCfg":
+    def from_mapping(
+        cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str], prefix: str
+    ) -> "LinSolveCfg":
         return cls(
             type=_scfg(cfg, "type", env, f"{prefix}_TYPE", "mumps"),
-            factor_backend=_factor_backend(cfg, env, env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE", default="mumps"),
+            factor_backend=_factor_backend(
+                cfg, env, env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE", default="mumps"
+            ),
             ksp_type=_scfg(cfg, "ksp_type", env, f"{prefix}_KSP_TYPE", "fgmres"),
             pc_type=_scfg(cfg, "pc_type", env, f"{prefix}_PC_TYPE", "asm"),
             ksp_pc_side=_scfg(cfg, "ksp_pc_side", env, f"{prefix}_KSP_PC_SIDE", "right"),
@@ -182,9 +212,15 @@ class LinSolveCfg:
             asm_overlap=_scfg_int(cfg, "asm_overlap", env, f"{prefix}_ASM_OVERLAP", 2),
             sub_ksp_type=_scfg(cfg, "sub_ksp_type", env, f"{prefix}_SUB_KSP_TYPE", "preonly"),
             sub_pc_type=_scfg(cfg, "sub_pc_type", env, f"{prefix}_SUB_PC_TYPE", "lu"),
-            pc_factor_levels=_scfg_int(cfg, "pc_factor_levels", env, f"{prefix}_PC_FACTOR_LEVELS", 0),
-            pc_factor_shift_type=_scfg(cfg, "pc_factor_shift_type", env, f"{prefix}_PC_FACTOR_SHIFT_TYPE", "nonzero"),
-            pc_factor_shift_amount=_scfg_float(cfg, "pc_factor_shift_amount", env, f"{prefix}_PC_FACTOR_SHIFT_AMOUNT", 1e-12),
+            pc_factor_levels=_scfg_int(
+                cfg, "pc_factor_levels", env, f"{prefix}_PC_FACTOR_LEVELS", 0
+            ),
+            pc_factor_shift_type=_scfg(
+                cfg, "pc_factor_shift_type", env, f"{prefix}_PC_FACTOR_SHIFT_TYPE", "nonzero"
+            ),
+            pc_factor_shift_amount=_scfg_float(
+                cfg, "pc_factor_shift_amount", env, f"{prefix}_PC_FACTOR_SHIFT_AMOUNT", 1e-12
+            ),
             ksp_monitor=_scfg_bool(cfg, "ksp_monitor", env, f"{prefix}_KSP_MONITOR", False),
         )
 
@@ -200,14 +236,20 @@ class ResolventEpsCfg:
     ncv: int | None
 
     @classmethod
-    def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "ResolventEpsCfg":
+    def from_mapping(
+        cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
+    ) -> "ResolventEpsCfg":
         return cls(
             eps_tol=_scfg_float(cfg, "eps_tol", env, "LINSTABPY_RESOLVENT_EPS_TOL", 1e-8),
             eps_max_it=_scfg_int(cfg, "eps_max_it", env, "LINSTABPY_RESOLVENT_EPS_MAX_IT", 1000),
             conv_test=_scfg(cfg, "conv_test", env, "LINSTABPY_RESOLVENT_EPS_CONV_TEST", ""),
-            true_residual=_scfg_bool(cfg, "true_residual", env, "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL", False),
+            true_residual=_scfg_bool(
+                cfg, "true_residual", env, "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL", False
+            ),
             monitor=_scfg_bool(cfg, "monitor", env, "LINSTABPY_RESOLVENT_EPS_MONITOR", False),
-            monitor_every=_scfg_int(cfg, "monitor_every", env, "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10),
+            monitor_every=_scfg_int(
+                cfg, "monitor_every", env, "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10
+            ),
             ncv=int(cfg["ncv"]) if cfg is not None and "ncv" in cfg else None,
         )
 
@@ -290,7 +332,9 @@ class EigenCfg:
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "EigenCfg":
         st_solver = _scfg(cfg, "st_solver", env, "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
-        pc_factor_solver_type = _scfg(cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "")
+        pc_factor_solver_type = _scfg(
+            cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", ""
+        )
         return cls(
             inexact=InexactCfg.from_mapping(cfg.get("inexact", {}) if cfg else {}),
             backend_probe=BackendProbeCfg.from_mapping(cfg.get("backend_probe", {}) if cfg else {}),
@@ -298,8 +342,12 @@ class EigenCfg:
             st_factor_backend=_st_factor_backend(st_solver, cfg, env),
             pc_factor_solver_type=pc_factor_solver_type,
             cond_warn=_scfg_bool(cfg, "cond_warn", env, "LINSTABPY_EIGEN_COND_WARN", True),
-            cond_warn_max_n=_scfg_int(cfg, "cond_warn_max_n", env, "LINSTABPY_EIGEN_COND_WARN_MAX_N", 1500),
-            cond_warn_threshold=_scfg_float(cfg, "cond_warn_threshold", env, "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12),
+            cond_warn_max_n=_scfg_int(
+                cfg, "cond_warn_max_n", env, "LINSTABPY_EIGEN_COND_WARN_MAX_N", 1500
+            ),
+            cond_warn_threshold=_scfg_float(
+                cfg, "cond_warn_threshold", env, "LINSTABPY_EIGEN_COND_WARN_THRESHOLD", 1e12
+            ),
             ksp_type=_scfg(cfg, "ksp_type", env, "LINSTABPY_EIGEN_KSP_TYPE", "gmres"),
             pc_type=_scfg(cfg, "pc_type", env, "LINSTABPY_EIGEN_PC_TYPE", "asm"),
             ksp_pc_side=_scfg(cfg, "ksp_pc_side", env, "LINSTABPY_EIGEN_KSP_PC_SIDE", "left"),
@@ -310,18 +358,32 @@ class EigenCfg:
             sub_pc_type=_scfg(cfg, "sub_pc_type", env, "LINSTABPY_EIGEN_SUB_PC_TYPE", "lu"),
             conv_test=_scfg(cfg, "conv_test", env, "LINSTABPY_EIGEN_CONV_TEST", ""),
             eps_tol=_scfg_float(cfg, "eps_tol", env, "LINSTABPY_EIGEN_EPS_TOL", 1e-10),
-            residual_error_type=_scfg(cfg, "residual_error_type", env, "LINSTABPY_EIGEN_RESIDUAL_ERROR_TYPE", "relative"),
+            residual_error_type=_scfg(
+                cfg, "residual_error_type", env, "LINSTABPY_EIGEN_RESIDUAL_ERROR_TYPE", "relative"
+            ),
             monitor=_scfg_bool(cfg, "monitor", env, "LINSTABPY_EIGEN_MONITOR", False),
             monitor_every=_scfg_int(cfg, "monitor_every", env, "LINSTABPY_EIGEN_MONITOR_EVERY", 10),
-            true_residual=_scfg_bool(cfg, "true_residual", env, "LINSTABPY_EIGEN_TRUE_RESIDUAL", st_solver == "inexact"),
-            extract_all_converged=_scfg_bool(cfg, "extract_all_converged", env, "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False),
-            weighted_norm_tol=_scfg_float(cfg, "weighted_norm_tol", env, "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL", 1e-12),
+            true_residual=_scfg_bool(
+                cfg, "true_residual", env, "LINSTABPY_EIGEN_TRUE_RESIDUAL", st_solver == "inexact"
+            ),
+            extract_all_converged=_scfg_bool(
+                cfg, "extract_all_converged", env, "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False
+            ),
+            weighted_norm_tol=_scfg_float(
+                cfg, "weighted_norm_tol", env, "LINSTABPY_EIGEN_WEIGHTED_NORM_TOL", 1e-12
+            ),
             ncv=int(cfg["ncv"]) if cfg is not None and "ncv" in cfg else None,
-            eps_max_it_explicit=_scfg_optional_int(cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None),
+            eps_max_it_explicit=_scfg_optional_int(
+                cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None
+            ),
         )
 
     def eps_max_it(self, ndof: int) -> int:
-        return self.eps_max_it_explicit if self.eps_max_it_explicit is not None else max(500, 10 * int(ndof))
+        return (
+            self.eps_max_it_explicit
+            if self.eps_max_it_explicit is not None
+            else max(500, 10 * int(ndof))
+        )
 
 
 @dataclass(frozen=True)
@@ -348,18 +410,30 @@ class MeshCfg:
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "MeshCfg":
         return cls(
-            assembly_backend=_scfg(cfg, "assembly_backend", env, "LINSTABPY_ASSEMBLY_BACKEND", "scipy"),
-            assembly_metrics=_scfg_bool(cfg, "assembly_metrics", env, "LINSTABPY_ASSEMBLY_METRICS", False),
-            assembly_metrics_output=_raw_cfg_value(cfg, "assembly_metrics_output", env, "LINSTABPY_ASSEMBLY_METRICS_OUTPUT"),
-            assembly_metrics_dir=_raw_cfg_value(cfg, "assembly_metrics_dir", env, "LINSTABPY_ASSEMBLY_METRICS_DIR"),
-            assembly_metrics_tag=_raw_cfg_value(cfg, "assembly_metrics_tag", env, "LINSTABPY_ASSEMBLY_METRICS_TAG"),
+            assembly_backend=_scfg(
+                cfg, "assembly_backend", env, "LINSTABPY_ASSEMBLY_BACKEND", "scipy"
+            ),
+            assembly_metrics=_scfg_bool(
+                cfg, "assembly_metrics", env, "LINSTABPY_ASSEMBLY_METRICS", False
+            ),
+            assembly_metrics_output=_raw_cfg_value(
+                cfg, "assembly_metrics_output", env, "LINSTABPY_ASSEMBLY_METRICS_OUTPUT"
+            ),
+            assembly_metrics_dir=_raw_cfg_value(
+                cfg, "assembly_metrics_dir", env, "LINSTABPY_ASSEMBLY_METRICS_DIR"
+            ),
+            assembly_metrics_tag=_raw_cfg_value(
+                cfg, "assembly_metrics_tag", env, "LINSTABPY_ASSEMBLY_METRICS_TAG"
+            ),
             # Faithful to the real reader: assembly.py uses _scfg_bool (truthy
             # {1,true,yes,on}, False otherwise, never raises) — NOT backends._as_bool
             # (which accepts y/n and raises on garbage). Return None only when the
             # value is set by neither cfg nor env, so the call site can apply the
             # dynamic default (= metrics enabled).
             assembly_metrics_log_explicit=(
-                _scfg_bool(cfg, "assembly_metrics_log", env, "LINSTABPY_ASSEMBLY_METRICS_LOG", False)
+                _scfg_bool(
+                    cfg, "assembly_metrics_log", env, "LINSTABPY_ASSEMBLY_METRICS_LOG", False
+                )
                 if (cfg is not None and "assembly_metrics_log" in cfg)
                 or "LINSTABPY_ASSEMBLY_METRICS_LOG" in env
                 else None
@@ -378,11 +452,21 @@ class MpiCfg:
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "MpiCfg":
         return cls(
-            petsc_matrix_mode=_scfg(cfg, "petsc_matrix_mode", env, "LINSTABPY_PETSC_MATRIX_MODE", "auto"),
-            root_scatter=_scfg_bool(cfg, "root_scatter", env, "LINSTABPY_PETSC_ROOT_SCATTER", False),
-            mumps_icntl_7=_scfg_bool(cfg, "mumps_icntl_7", env, "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False),
-            mumps_icntl_14=_scfg_optional_int(cfg, "mumps_icntl_14", env, "LINSTABPY_PETSC_MUMPS_ICNTL_14", 100),
-            mumps_icntl_24=_scfg_optional_int(cfg, "mumps_icntl_24", env, "LINSTABPY_PETSC_MUMPS_ICNTL_24", 1),
+            petsc_matrix_mode=_scfg(
+                cfg, "petsc_matrix_mode", env, "LINSTABPY_PETSC_MATRIX_MODE", "auto"
+            ),
+            root_scatter=_scfg_bool(
+                cfg, "root_scatter", env, "LINSTABPY_PETSC_ROOT_SCATTER", False
+            ),
+            mumps_icntl_7=_scfg_bool(
+                cfg, "mumps_icntl_7", env, "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False
+            ),
+            mumps_icntl_14=_scfg_optional_int(
+                cfg, "mumps_icntl_14", env, "LINSTABPY_PETSC_MUMPS_ICNTL_14", 100
+            ),
+            mumps_icntl_24=_scfg_optional_int(
+                cfg, "mumps_icntl_24", env, "LINSTABPY_PETSC_MUMPS_ICNTL_24", 1
+            ),
         )
 
 
@@ -396,7 +480,11 @@ class Config:
     mpi: MpiCfg
 
     @classmethod
-    def load(cls, jsonc_path_or_dict: str | Path | Mapping[str, Any] | None, env: Mapping[str, str] = os.environ) -> "Config":
+    def load(
+        cls,
+        jsonc_path_or_dict: str | Path | Mapping[str, Any] | None,
+        env: Mapping[str, str] = os.environ,
+    ) -> "Config":
         if isinstance(jsonc_path_or_dict, (str, Path)):
             raw = load_jsonc(jsonc_path_or_dict)
         elif jsonc_path_or_dict is None:

@@ -106,7 +106,9 @@ def make_linear_solver(
     solver_section = solver_cfg.get("solver", solver_cfg) if solver_cfg is not None else None
     if isinstance(solver_section, dict):
         if env_prefix == "LINSTABPY_RESOLVENT":
-            solver_subsection = solver_section.get("resolvent", solver_section.get("linsolve", {})) or {}
+            solver_subsection = (
+                solver_section.get("resolvent", solver_section.get("linsolve", {})) or {}
+            )
         else:
             solver_subsection = solver_section.get("linsolve", {}) or {}
     else:
