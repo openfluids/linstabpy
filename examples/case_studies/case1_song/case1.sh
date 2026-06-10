@@ -18,7 +18,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
-REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../../.." && pwd)"
 export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 # -------------------------------------------------------------------
