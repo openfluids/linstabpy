@@ -306,7 +306,9 @@ def _resolvent_analysis_impl(
     #    KSP/PC stack is selected by typed config through make_linear_solver.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
+    lu = make_linear_solver(
+        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
+    )
     # make_linear_solver copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
@@ -615,7 +617,9 @@ def compute_resolvent_svd_residuals(
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
     L_sigma = _shifted_operator(L0, omega, gamma=gamma)
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
+    lu = make_linear_solver(
+        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
+    )
     try:
         if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()

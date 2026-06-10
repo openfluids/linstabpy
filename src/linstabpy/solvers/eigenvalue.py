@@ -438,7 +438,6 @@ def _configure_st_for_eigenvalue(
     elif st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         ksp_type = cfg.eigen.ksp_type
         pc_type = cfg.eigen.pc_type
-        pc_factor_solver_type = cfg.eigen.pc_factor_solver_type
         pc_side = cfg.eigen.ksp_pc_side
         ksp_rtol = cfg.eigen.ksp_rtol
         ksp_max_it = cfg.eigen.ksp_max_it
@@ -547,7 +546,6 @@ def _configure_st_for_eigenvalue(
         )
 
 
-
 def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:
     """Resolve the factor backend used by the configured ST KSP/PC (compatibility helper)."""
     cfg = Config.load({"solver": {"eigen": ecfg or {}}})
@@ -628,9 +626,7 @@ def _eigs_near_target(
         not _is_petsc_matrix(operator)
         and PETSc.COMM_WORLD.getSize() > 1
         and st_solver in ITERATIVE_EIGEN_SOLVER_TYPES
-        and (
-            cfg.mpi.root_scatter
-        )
+        and (cfg.mpi.root_scatter)
     )
     if _is_petsc_matrix(operator):
         A = operator.copy()

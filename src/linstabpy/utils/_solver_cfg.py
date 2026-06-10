@@ -62,6 +62,7 @@ class SolverConfig(Mapping[str, Any]):
             return self.get("eigen", {})
         return self.get("linsolve", {})
 
+
 def _scfg(cfg: Mapping[str, Any] | None, key: str, env_var: str, default: str) -> str:
     """Read solver setting from dict, else env var, else default."""
     if cfg is not None and key in cfg:
