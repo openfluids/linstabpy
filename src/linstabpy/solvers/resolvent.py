@@ -43,12 +43,13 @@ from slepc4py import SLEPc
 
 from linstabpy.config import Config
 from linstabpy.linalg.factorize import factorize
+from linstabpy.resolvent import ResolventOperator
 
 from ._eps_helpers import (
     _install_eps_monitor,
     _resolve_eps_convergence_test,
 )
-from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_vec, require_complex, vec_to_numpy
+from .petsc_utils import _is_petsc_matrix, _operator_shape, require_complex, vec_to_numpy
 
 logger = logging.getLogger(__name__)
 
@@ -59,44 +60,6 @@ def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
     if nrows != ncols:
         raise ValueError("L0 must be a square matrix")
     return nrows
-
-
-def _apply_optional_matrix(
-    matrix: sp.spmatrix | PETSc.Mat | None,
-    vector: np.ndarray,
-) -> np.ndarray:
-    """Apply an optional SciPy/PETSc matrix to a NumPy vector."""
-    if matrix is None:
-        return vector
-    if isinstance(matrix, PETSc.Mat):
-        x = petsc_vec(vector)
-        y = x.duplicate()
-        try:
-            matrix.mult(x, y)
-            return vec_to_numpy(y)
-        finally:
-            x.destroy()
-            y.destroy()
-    return matrix @ vector
-
-
-def _apply_optional_adjoint_matrix(
-    matrix: sp.spmatrix | PETSc.Mat | None,
-    vector: np.ndarray,
-) -> np.ndarray:
-    """Apply an optional conjugate-transpose matrix to a NumPy vector."""
-    if matrix is None:
-        return vector
-    if isinstance(matrix, PETSc.Mat):
-        x = petsc_vec(vector)
-        y = x.duplicate()
-        try:
-            matrix.multHermitian(x, y)
-            return vec_to_numpy(y)
-        finally:
-            x.destroy()
-            y.destroy()
-    return matrix.conj().T @ vector
 
 
 def _resolve_resolvent_ncv(ndof: int, n_modes: int, requested_ncv: int | None) -> int:
@@ -296,26 +259,7 @@ def _resolvent_analysis_impl(
     # ------------------------------------------------------------------
     # 3. Define forward (H) and adjoint (H^H) resolvent operators
     # ------------------------------------------------------------------
-    _filt = filter_fn if filter_fn is not None else (lambda v: v)
-    _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
-
-    def _apply_H(v: np.ndarray) -> np.ndarray:
-        """Apply resolvent: H v = FILTER(C inv(L_sigma) B FILTER(v))."""
-        w = _filt(v)
-        w = _apply_optional_matrix(B_mat, w)
-        w = lu.solve(w)
-        w = _apply_optional_matrix(C_mat, w)
-        w = _filt(w)
-        return w
-
-    def _apply_H_adj(v: np.ndarray) -> np.ndarray:
-        """Apply adjoint resolvent: H^H v = FILTER_ct(B^H inv(L_sigma^H) C^H FILTER_ct(v))."""
-        w = _filt_ct(v)
-        w = _apply_optional_adjoint_matrix(C_mat, w)
-        w = lu.solve_transpose(w)
-        w = _apply_optional_adjoint_matrix(B_mat, w)
-        w = _filt_ct(w)
-        return w
+    op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
 
     # ------------------------------------------------------------------
     # 4. Build PETSc MatShell for HtrH(v) = invW * H^H * W * H(v)
@@ -330,9 +274,9 @@ def _resolvent_analysis_impl(
     class _HtrHShell:
         def mult(self, mat, x, y):
             v = vec_to_numpy(x)
-            v = _apply_H(v)
+            v = op.apply(v)
             v = W_vec * v
-            v = _apply_H_adj(v)
+            v = op.apply_adjoint(v)
             weighted = invW_vec * v
             if y.getComm().getSize() == 1:
                 y.setArray(weighted)
@@ -415,7 +359,7 @@ def _resolvent_analysis_impl(
                 forcing = forcing / np.sqrt(norm_sq)
             forcings[:, i] = forcing
 
-            response = _apply_H(forcing)
+            response = op.apply(forcing)
             if sigma > 0.0:
                 response = response / sigma
             responses[:, i] = response
@@ -440,8 +384,8 @@ def _resolvent_analysis_impl(
                 responses,
                 W_vec,
                 invW_vec,
-                _apply_H,
-                _apply_H_adj,
+                op.apply,
+                op.apply_adjoint,
             )
 
         return gains, responses, forcings, rho_fwd, rho_adj
@@ -600,24 +544,7 @@ def compute_resolvent_svd_residuals(
         if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()
 
-        _filt = filter_fn if filter_fn is not None else (lambda v: v)
-        _filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
-
-        def _apply_H(v: np.ndarray) -> np.ndarray:
-            w = _filt(v)
-            w = _apply_optional_matrix(B_mat, w)
-            w = lu.solve(w)
-            w = _apply_optional_matrix(C_mat, w)
-            w = _filt(w)
-            return w
-
-        def _apply_H_adj(v: np.ndarray) -> np.ndarray:
-            w = _filt_ct(v)
-            w = _apply_optional_adjoint_matrix(C_mat, w)
-            w = lu.solve_transpose(w)
-            w = _apply_optional_adjoint_matrix(B_mat, w)
-            w = _filt_ct(w)
-            return w
+        op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
 
         return _compute_resolvent_svd_residuals_from_apply(
             gains,
@@ -625,8 +552,8 @@ def compute_resolvent_svd_residuals(
             responses,
             W_vec,
             invW_vec,
-            _apply_H,
-            _apply_H_adj,
+            op.apply,
+            op.apply_adjoint,
         )
     finally:
         lu.destroy()
