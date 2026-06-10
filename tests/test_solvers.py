@@ -23,6 +23,7 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
+from linstabpy.linalg import Factorization, factorize
 from linstabpy.mesh import Mesh
 from linstabpy.operators import (
     build_lnse_operator,
@@ -53,6 +54,37 @@ from linstabpy.solvers.resolvent import (
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
+
+
+def test_linalg_factorization_exports_and_adjoint_aliases():
+    A = sp.csc_matrix(
+        np.array(
+            [
+                [3.0 + 0.5j, 1.0 - 0.25j],
+                [0.5 + 0.125j, 2.0 - 0.75j],
+            ],
+            dtype=complex,
+        )
+    )
+    rhs = np.array([1.0 - 0.5j, 2.0 + 0.25j], dtype=complex)
+
+    fac = factorize(A)
+    try:
+        assert isinstance(fac, Factorization)
+        assert hasattr(fac, "solve")
+        assert hasattr(fac, "solve_adjoint")
+        assert hasattr(fac, "residual")
+        np.testing.assert_array_equal(fac.solve_adjoint(rhs), fac.solve_transpose(rhs))
+        x = fac.solve(rhs)
+        assert fac.residual(rhs, x) < 1e-12
+    finally:
+        fac.destroy()
+
+    solver = make_linear_solver(A)
+    try:
+        np.testing.assert_array_equal(solver.solve_adjoint(rhs), solver.solve_transpose(rhs))
+    finally:
+        solver.destroy()
 
 
 def _assert_temporal_spectrum_allclose(
