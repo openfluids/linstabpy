@@ -6,9 +6,10 @@ from __future__ import annotations
 _LAZY_EXPORTS = {
     "ResolventOperator": "linstabpy.resolvent.operator",
     "WeightedNormalOperator": "linstabpy.resolvent.gain",
+    "resolvent_analysis": "linstabpy.resolvent.analysis",
 }
 
-__all__ = ["ResolventOperator", "WeightedNormalOperator"]
+__all__ = sorted(_LAZY_EXPORTS)
 
 
 def __getattr__(name: str):  # noqa: ANN201

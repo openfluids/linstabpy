@@ -33,9 +33,9 @@ from examples._helpers import (  # noqa: E402
 from linstabpy.mesh import Mesh  # noqa: E402
 from linstabpy.operators.assembly import build_lnse_system  # noqa: E402
 from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
+from linstabpy.resolvent.analysis import resolvent_analysis  # noqa: E402
 from linstabpy.solvers.eigenvalue import temporal_eigenvalues  # noqa: E402
 from linstabpy.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
-from linstabpy.solvers.resolvent import resolvent_analysis  # noqa: E402
 from linstabpy.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 

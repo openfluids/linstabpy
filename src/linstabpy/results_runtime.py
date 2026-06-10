@@ -43,12 +43,9 @@ from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
+from linstabpy.resolvent.analysis import resolvent_analysis
 from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
-from linstabpy.solvers.resolvent import (
-    compute_resolvent_svd_residuals,
-    resolvent_analysis,
-)
 from linstabpy.utils.jsonc import load_jsonc
 from linstabpy.utils.stability_acceptance import (
     _postcheck_target_distance,
@@ -902,7 +899,7 @@ def _stage_run_resolvent(
     B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0_resolv, "getInfo") else B_mat_sp
     C_mat = B_mat.copy()
     with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
-        gains, responses, forcings = resolvent_analysis(
+        gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis(
             L0_resolv,
             omega_target,
             n_modes_resolvent,
@@ -913,36 +910,17 @@ def _stage_run_resolvent(
             filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
             solver_cfg=solver_cfg,
             cfg=cfg,
+            residuals=True,
         )
     _log("resolvent analysis finished")
     _log_stage("resolvent", stage_start)
 
-    rho_fwd = EMPTY_FLOAT
-    rho_adj = EMPTY_FLOAT
     if gains.size > 0:
-        stage_start = _stage_start()
-        with _stage_heartbeat("resolvent_postcheck", interval_seconds=heartbeat_seconds):
-            rho_fwd, rho_adj = compute_resolvent_svd_residuals(
-                L0_resolv,
-                omega_target,
-                B_mat,
-                C_mat,
-                gains,
-                forcings,
-                responses,
-                W_diag,
-                filter_fn=mesh.filters.filter if mesh.filters is not None else None,
-                filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
-                solver_cfg=solver_cfg,
-                cfg=cfg,
-                gamma=0.0,
-            )
         _log(
             "resolvent postcheck: "
             f"rho_fwd_max={float(np.max(rho_fwd)):.3e} "
             f"rho_adj_max={float(np.max(rho_adj)):.3e}"
         )
-        _log_stage("resolvent_postcheck", stage_start)
 
     return _ResolventStageResult(gains, responses, forcings, rho_fwd, rho_adj)
 
