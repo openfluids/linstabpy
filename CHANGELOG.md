@@ -7,27 +7,60 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-Work toward **0.0.4**. Development happens on the `dev` branch (versioned
-`0.0.4.dev0`) and is promoted to `main` through a reviewed pull request once a
+Work toward **0.0.5**. Development happens on the `dev` branch (versioned
+`0.0.5.dev0`) and is promoted to `main` through a reviewed pull request once a
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
+
+## [0.0.4] - 2026-06-10
+
+Stage 1 of the clean-code revamp: SolverConfig centralization, complete and
+verified under the frozen-numerics invariant, plus the Case 1 MATLAB parity
+pipeline brought to green on the verification workstation for the first time.
 
 ### Added
 - `docs/DEVELOPMENT.md`: the development and release workflow — two-branch model,
   the granular `0.0.x` tick cadence (a few beads → verify → tag), the merge gate,
-  and CHANGELOG discipline.
+  and CHANGELOG discipline. README gained a short "Branching and releases"
+  pointer section.
 - `config.typed`: a typed, frozen `Config` tree (`LinSolveCfg`, `ResolventCfg`,
   `EigenCfg`, `SpatialCfg`, `MeshCfg`, `MpiCfg`) with a single `Config.load`
   reader that parses JSONC + env once at the boundary, precedence `JSONC > ENV >
-  default`. Internal seam only — defaults byte-match the legacy `_scfg*` surface
-  and no call sites are migrated yet (Stage 1 of the SolverConfig centralization).
-  Guarded by a differential oracle test against the live `_scfg*` readers.
+  default`. Defaults are byte-faithful to the legacy `_scfg*` surface, guarded
+  by a differential oracle test.
+- `utils.petsc_core.mumps_icntl_petsc_options(mpi)`: pure helper mapping the
+  typed `MpiCfg` ICNTL fields to PETSc option strings (unit-covered).
 
 ### Changed
-- Clean-code revamp in progress under frozen-numerics invariants: the validated
-  operator/energy-norm/SBP math is hash-frozen and must stay numerically
-  identical (independent oracle parity, not a self-referential snapshot), while
-  the surrounding solver/driver structure is refactored. The full test suite and
-  the no-MPI pure-math lane stay green at every commit.
+- **Stage 1 complete:** all 79 `_scfg*` production call sites migrated onto the
+  typed `cfg.*` tree (solvers, runtime, diagnostics). `utils/_solver_cfg.py` is
+  retained as the low-level parsing-primitive layer that `config.typed` builds
+  on; its dead policy surface (`setting*`, `linear_solver_type`,
+  `eigen_st_solver`, `root_scatter_enabled`, `_mumps_petsc_options`) was
+  removed. Numerics unchanged by construction and by oracle: all seven
+  first-principles oracle groups and the Martini example parity are identical
+  to the pre-refactor baseline.
+
+### Fixed
+- `case1.sh`: repo-root resolution broke after the tree reorganization
+  (`../..` → `../../..`); the script aborted with "missing Python runtime" on
+  any fresh checkout.
+- Case 1 parity stability solve stagnated (EPS `nconv=0` for 60+ restarts):
+  the EPS now converges on the shift-invert transformed residual at tol 1e-8,
+  matching the MATLAB `eigs` semantics that produced the reference
+  `spectrum.mat` (mode quality remains gated by the full-operator postcheck
+  and the acceptance bitmask).
+- Case 1 stability parity pass now runs sponge-free like the MATLAB reference
+  run (whose exported sponge aux is identically zero); the native
+  `case1_resolvent` sponge remains active for the resolvent pass. Spectrum
+  parity vs MATLAB: max rel. error 2.8e-08 over the 100 closest-to-target
+  modes (was O(1) with the sponge mismatch).
+
+### Verified
+- Verification workstation, dev @ `800cd5c`: full suite **1034 passed /
+  5 skipped / 0 failed**, including — for the first time on that machine —
+  the Case 1 MATLAB spectrum-parity and resolvent-parity tests actually
+  running (resolvent SVD postcheck residuals ~1e-10). Martini example parity
+  table byte-identical to the v0.0.1 baseline across all six examples.
 
 ## [0.0.3] - 2026-06-08
 
