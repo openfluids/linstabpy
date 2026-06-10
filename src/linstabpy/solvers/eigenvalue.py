@@ -58,6 +58,11 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.backends import (
+    apply_factor_backend,
+    shifted_ksp_probe_residual,
+    should_probe_backend,
+)
 
 from ..utils._solver_cfg import (
     DIRECT_SOLVER_TYPES,
@@ -70,11 +75,6 @@ from ._eps_helpers import (
     _resolve_eps_convergence_test,
     _resolve_eps_error_type,
     _resolve_solver_cfg_subsection,
-)
-from .backends import (
-    apply_factor_backend,
-    shifted_ksp_probe_residual,
-    should_probe_backend,
 )
 from .petsc_utils import (
     _is_petsc_matrix,

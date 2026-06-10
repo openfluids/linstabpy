@@ -42,12 +42,12 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.factorize import factorize
 
 from ._eps_helpers import (
     _install_eps_monitor,
     _resolve_eps_convergence_test,
 )
-from .linsolve import make_linear_solver
 from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_vec, require_complex, vec_to_numpy
 
 logger = logging.getLogger(__name__)
@@ -283,13 +283,11 @@ def _resolvent_analysis_impl(
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
-    #    KSP/PC stack is selected by typed config through make_linear_solver.
+    #    KSP/PC stack is selected by typed config through factorize.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(
-        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
-    )
-    # make_linear_solver copies the operator internally; free the shifted copy.
+    lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
+    # factorize copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
     logger.info("  linear solver backend: %s", lu.backend)
@@ -597,9 +595,7 @@ def compute_resolvent_svd_residuals(
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
     L_sigma = shifted_operator(L0, omega, gamma=gamma)
-    lu = make_linear_solver(
-        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
-    )
+    lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     try:
         if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()

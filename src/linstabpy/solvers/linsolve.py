@@ -1,31 +1,35 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Backward-compatible linear solver entry point."""
+"""Deprecated linear-solver import path.
+
+Use :mod:`linstabpy.linalg.factorize` instead.  This module remains as a
+one-minor-version compatibility shim.
+"""
 
 from __future__ import annotations
 
-import scipy.sparse as sp
+import warnings
+from typing import Any
 
-from linstabpy.config import Config
-from linstabpy.utils.petsc_init import init_petsc_from_argv
+_DEPRECATED_EXPORTS = {
+    "Factorization": "Factorization",
+    "LinearSolver": "Factorization",
+    "factorize": "factorize",
+    "make_linear_solver": "factorize",
+}
 
-init_petsc_from_argv()
-from petsc4py import PETSc
-
-from linstabpy.linalg.factorize import Factorization, factorize
-from linstabpy.solvers.backends import apply_factor_backend
-
-LinearSolver = Factorization
-
-
-def make_linear_solver(
-    operator: sp.spmatrix | PETSc.Mat,
-    *,
-    env_prefix: str = "LINSTABPY_LINSOLVE",
-    solver_cfg: dict | None = None,
-    cfg: Config | None = None,
-) -> Factorization:
-    """Build a reusable PETSc linear solver for ``operator``."""
-    return factorize(operator, env_prefix=env_prefix, solver_cfg=solver_cfg, cfg=cfg)
+__all__ = sorted(_DEPRECATED_EXPORTS)
 
 
-__all__ = ["Factorization", "LinearSolver", "apply_factor_backend", "make_linear_solver"]
+def __getattr__(name: str) -> Any:
+    if name not in _DEPRECATED_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    warnings.warn(
+        f"linstabpy.solvers.linsolve.{name} is deprecated; "
+        f"use linstabpy.linalg.factorize.{_DEPRECATED_EXPORTS[name]} instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from linstabpy.linalg.factorize import Factorization, factorize
+
+    exports = {"Factorization": Factorization, "factorize": factorize}
+    return exports[_DEPRECATED_EXPORTS[name]]

@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from petsc4py import PETSc
 
+from linstabpy.linalg.backends import shifted_ksp_probe_residual, should_probe_backend
 from linstabpy.solvers import eigenvalue
-from linstabpy.solvers.backends import shifted_ksp_probe_residual, should_probe_backend
 
 
 def _create_aij(diagonal: list[complex]) -> PETSc.Mat:

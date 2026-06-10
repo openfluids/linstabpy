@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 
 import numpy as np
@@ -10,10 +11,10 @@ import pytest
 import scipy.sparse as sp
 from petsc4py import PETSc
 
+import linstabpy.linalg.backends as backends
 from linstabpy.linalg import Backend
 from linstabpy.linalg.backends import available, ensure, select
-from linstabpy.solvers import backends
-from linstabpy.solvers.linsolve import make_linear_solver
+from linstabpy.linalg.factorize import factorize
 
 
 def test_linalg_backend_registry_imports_and_availability() -> None:
@@ -131,7 +132,7 @@ def test_future_backend_knob_fails_loudly_on_cpu_only_build(monkeypatch, backend
     assert backends.resolve_factor_backend(None) == backend
     assert not backends.factor_backend_available(backend)
     with pytest.raises(RuntimeError) as excinfo:
-        make_linear_solver(operator, solver_cfg={"linsolve": {"type": "direct"}})
+        factorize(operator, solver_cfg={"linsolve": {"type": "direct"}})
 
     message = str(excinfo.value)
     assert f"PETSc factor backend '{backend}' is not available" in message
@@ -143,7 +144,7 @@ def test_direct_linsolve_uses_mumps_backend(monkeypatch) -> None:
     monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
     operator = sp.eye(2, format="csr", dtype=complex)
 
-    solver = make_linear_solver(operator, solver_cfg={"linsolve": {"type": "direct"}})
+    solver = factorize(operator, solver_cfg={"linsolve": {"type": "direct"}})
     try:
         assert solver.backend == "MUMPS"
         assert solver._ksp is not None
@@ -159,10 +160,11 @@ def test_iterative_linsolve_does_not_enter_factor_backend_seam(monkeypatch) -> N
     def fail_apply(*args, **kwargs):  # noqa: ANN002, ANN003
         raise AssertionError("direct factor seam should not run for iterative linsolve")
 
-    monkeypatch.setattr("linstabpy.solvers.linsolve.apply_factor_backend", fail_apply)
+    factorize_module = importlib.import_module("linstabpy.linalg.factorize")
+    monkeypatch.setattr(factorize_module, "apply_factor_backend", fail_apply)
     operator = sp.eye(2, format="csr", dtype=complex)
 
-    solver = make_linear_solver(
+    solver = factorize(
         operator,
         solver_cfg={
             "linsolve": {

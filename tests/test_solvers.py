@@ -23,7 +23,8 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
-from linstabpy.linalg import Factorization, factorize, shifted_operator
+from linstabpy.linalg import Factorization, shifted_operator
+from linstabpy.linalg.factorize import factorize
 from linstabpy.mesh import Mesh
 from linstabpy.operators import (
     build_lnse_operator,
@@ -45,7 +46,6 @@ from linstabpy.solvers.eigenvalue import (
 from linstabpy.solvers.eigenvalue import (
     _sort_nearest as _sort_temporal_nearest,
 )
-from linstabpy.solvers.linsolve import make_linear_solver
 from linstabpy.solvers.petsc_utils import petsc_to_scipy, scipy_to_petsc
 from linstabpy.solvers.resolvent import (
     compute_resolvent_svd_residuals,
@@ -140,7 +140,7 @@ def test_linalg_factorization_exports_and_adjoint_aliases():
     finally:
         fac.destroy()
 
-    solver = make_linear_solver(A)
+    solver = factorize(A)
     try:
         np.testing.assert_array_equal(solver.solve_adjoint(rhs), solver.solve_transpose(rhs))
     finally:
@@ -180,7 +180,8 @@ def _build_linsolve_mpi_script() -> str:
         from linstabpy.mesh import Mesh
         from linstabpy.baseflow import BaseFlow, sutherland_air
         from linstabpy.operators import build_lnse_system
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
+
         import linstabpy.utils.petsc_core as petsc_core
 
         mesh = Mesh.create(
@@ -238,8 +239,8 @@ def _build_linsolve_mpi_script() -> str:
         L_sigma_sys.assemble()
 
         try:
-            solver_ref = make_linear_solver(L_sigma_ref)
-            solver_sys = make_linear_solver(L_sigma_sys, solver_cfg={"petsc_matrix_mode": "distributed"})
+            solver_ref = factorize(L_sigma_ref)
+            solver_sys = factorize(L_sigma_sys, solver_cfg={"petsc_matrix_mode": "distributed"})
 
             rng = np.random.default_rng(17)
             rhs = rng.standard_normal(L0_ref.shape[0]) + 1j * rng.standard_normal(L0_ref.shape[0])
@@ -520,14 +521,14 @@ def test_resolvent_analysis_with_residuals_uses_one_factorization(monkeypatch) -
     solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 
     n_builds = 0
-    original_make_linear_solver = resolvent_module.make_linear_solver
+    original_factorize = resolvent_module.factorize
 
-    def counted_make_linear_solver(*args, **kwargs):
+    def counted_factorize(*args, **kwargs):
         nonlocal n_builds
         n_builds += 1
-        return original_make_linear_solver(*args, **kwargs)
+        return original_factorize(*args, **kwargs)
 
-    monkeypatch.setattr(resolvent_module, "make_linear_solver", counted_make_linear_solver)
+    monkeypatch.setattr(resolvent_module, "factorize", counted_factorize)
 
     gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis_with_residuals(
         L0,
@@ -773,7 +774,7 @@ class TestLinearSolverLifecycle:
         n = 50
         diag = np.arange(1, n + 1, dtype=complex) + 0.1j
         A_sp = sp.diags(diag, format="csc")
-        solver = make_linear_solver(A_sp)
+        solver = factorize(A_sp)
         assert solver._ksp is not None
         assert solver._mat is not None
         solver.destroy()
@@ -800,8 +801,8 @@ class TestDirectPetscSolverInputs:
         rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
 
         try:
-            solver_sp = make_linear_solver(L_sigma)
-            solver_petsc = make_linear_solver(L_sigma_petsc)
+            solver_sp = factorize(L_sigma)
+            solver_petsc = factorize(L_sigma_petsc)
 
             x_sp = solver_sp.solve(rhs)
             x_petsc = solver_petsc.solve(rhs)
@@ -877,8 +878,8 @@ class TestDistributedPetscFallbackSolverInputs:
         rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
 
         try:
-            solver_sp = make_linear_solver(L_sigma)
-            solver_petsc = make_linear_solver(L_sigma_petsc, solver_cfg=solver_cfg)
+            solver_sp = factorize(L_sigma)
+            solver_petsc = factorize(L_sigma_petsc, solver_cfg=solver_cfg)
 
             x_sp = solver_sp.solve(rhs)
             x_petsc = solver_petsc.solve(rhs)
