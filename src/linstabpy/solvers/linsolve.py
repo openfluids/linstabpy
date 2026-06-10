@@ -22,17 +22,10 @@ from ..utils.petsc_init import init_petsc_from_argv
 init_petsc_from_argv()
 from petsc4py import PETSc
 
-from ..utils._solver_cfg import (
-    DIRECT_SOLVER_TYPES,
-    ITERATIVE_LINEAR_SOLVER_TYPES,
-    SolverConfig,
-    _scfg,
-    _scfg_bool,
-    _scfg_float,
-    _scfg_int,
-)
-from ._eps_helpers import _resolve_solver_cfg_subsection
-from .backends import apply_factor_backend, resolve_factor_backend
+from linstabpy.config import Config
+
+from ..utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_LINEAR_SOLVER_TYPES
+from .backends import apply_factor_backend
 from .petsc_utils import (
     _is_petsc_matrix,
     _matrix_nnz,
@@ -72,6 +65,7 @@ def make_linear_solver(
     *,
     env_prefix: str = "LINSTABPY_LINSOLVE",
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
 ) -> LinearSolver:
     """Build a reusable PETSc linear solver for ``operator``.
 
@@ -88,6 +82,7 @@ def make_linear_solver(
         ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
         subsection override the corresponding env vars.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
 
     nrows, ncols = _operator_shape(operator)
@@ -101,14 +96,25 @@ def make_linear_solver(
     else:
         A = scipy_to_petsc(operator, solver_cfg)
 
-    _sub = _resolve_solver_cfg_subsection(solver_cfg, env_prefix)
+    if env_prefix == "LINSTABPY_LINSOLVE":
+        lin = cfg.linsolve
+    elif env_prefix == "LINSTABPY_RESOLVENT":
+        lin = cfg.resolvent.linear
+    else:
+        raise ValueError(f"unmapped env_prefix {env_prefix!r}")
 
-    config = SolverConfig.from_config(solver_cfg)
-    solver_type = (
-        config.linear_solver_type(env_prefix)
-        if config is not None
-        else _scfg(None, "type", f"{env_prefix}_TYPE", "mumps")
-    )
+    solver_section = solver_cfg.get("solver", solver_cfg) if solver_cfg is not None else None
+    if isinstance(solver_section, dict):
+        if env_prefix == "LINSTABPY_RESOLVENT":
+            solver_subsection = (
+                solver_section.get("resolvent", solver_section.get("linsolve", {})) or {}
+            )
+        else:
+            solver_subsection = solver_section.get("linsolve", {}) or {}
+    else:
+        solver_subsection = {}
+
+    solver_type = lin.type
 
     ksp = PETSc.KSP().create(comm=A.getComm())
     ksp.setOperators(A)
@@ -128,7 +134,7 @@ def make_linear_solver(
                 "sub_ksp_type",
                 "sub_pc_type",
             )
-            if _sub is not None and key in _sub
+            if key in solver_subsection
         )
         if ignored_iterative_keys:
             logger.warning(
@@ -140,11 +146,7 @@ def make_linear_solver(
             )
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc.setType(PETSc.PC.Type.LU)
-        factor_backend = resolve_factor_backend(
-            _sub,
-            env_var=f"{env_prefix}_PC_FACTOR_SOLVER_TYPE",
-            default="mumps",
-        )
+        factor_backend = lin.factor_backend
         apply_factor_backend(pc, factor_backend, options_prefix=ksp.getOptionsPrefix() or "")
         ksp.setUp()
 
@@ -176,28 +178,24 @@ def make_linear_solver(
             logger.info("Linear solver: MUMPS direct (n=%d, nnz=%d)", n, nnz)
         backend = (factor_backend or "petsc").upper()
     elif solver_type in ITERATIVE_LINEAR_SOLVER_TYPES:
-        ksp_type = _scfg(_sub, "ksp_type", f"{env_prefix}_KSP_TYPE", "fgmres")
-        pc_type = _scfg(_sub, "pc_type", f"{env_prefix}_PC_TYPE", "asm")
-        pc_side = _scfg(_sub, "ksp_pc_side", f"{env_prefix}_KSP_PC_SIDE", "right")
-        ksp_rtol = _scfg_float(_sub, "ksp_rtol", f"{env_prefix}_KSP_RTOL", 1e-10)
-        ksp_atol = _scfg_float(_sub, "ksp_atol", f"{env_prefix}_KSP_ATOL", 1e-14)
-        ksp_max_it = _scfg_int(_sub, "ksp_max_it", f"{env_prefix}_KSP_MAX_IT", 20000)
-        asm_overlap = _scfg_int(_sub, "asm_overlap", f"{env_prefix}_ASM_OVERLAP", 2)
-        sub_ksp_type = _scfg(_sub, "sub_ksp_type", f"{env_prefix}_SUB_KSP_TYPE", "preonly")
-        sub_pc_type = _scfg(_sub, "sub_pc_type", f"{env_prefix}_SUB_PC_TYPE", "lu")
-        pc_factor_levels = _scfg_int(_sub, "pc_factor_levels", f"{env_prefix}_PC_FACTOR_LEVELS", 0)
+        ksp_type = lin.ksp_type
+        pc_type = lin.pc_type
+        pc_side = lin.ksp_pc_side
+        ksp_rtol = lin.ksp_rtol
+        ksp_atol = lin.ksp_atol
+        ksp_max_it = lin.ksp_max_it
+        asm_overlap = lin.asm_overlap
+        sub_ksp_type = lin.sub_ksp_type
+        sub_pc_type = lin.sub_pc_type
+        pc_factor_levels = lin.pc_factor_levels
         # Default to NONZERO pivot shift for ILU/ICC sub-PCs: prevents NaN/Inf
         # in FGMRES inner products when PC factorization hits near-zero pivots
         # on stiff non-normal LNSE operators. PETSc default (NONE) is fragile.
-        pc_factor_shift_type = _scfg(
-            _sub, "pc_factor_shift_type", f"{env_prefix}_PC_FACTOR_SHIFT_TYPE", "nonzero"
-        )
-        pc_factor_shift_amount = _scfg_float(
-            _sub, "pc_factor_shift_amount", f"{env_prefix}_PC_FACTOR_SHIFT_AMOUNT", 1e-12
-        )
+        pc_factor_shift_type = lin.pc_factor_shift_type
+        pc_factor_shift_amount = lin.pc_factor_shift_amount
         # When True, attach KSPMonitorDefault so each iteration prints
         # `iter rnorm` to stdout. Visible in c8 run logs without -ksp_monitor.
-        ksp_monitor = _scfg_bool(_sub, "ksp_monitor", f"{env_prefix}_KSP_MONITOR", False)
+        ksp_monitor = lin.ksp_monitor
 
         ksp.setType(ksp_type)
         if pc_side == "left":

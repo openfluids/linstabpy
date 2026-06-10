@@ -1276,6 +1276,16 @@ For deeper OS-specific notes and installer experiments, see `scripts/ci/`.
 
 ## Development
 
+### Branching and releases
+
+`main` is the stable branch: it always passes the full test suite, every
+release is tagged on it, and it advances only through a reviewed pull request
+from `dev`. Day-to-day work lands on `dev` (versioned `0.0.x.devN`), is
+verified on a big-memory workstation, and is promoted to `main` in small,
+individually tagged `0.0.x` increments. Branch roles, the versioning scheme,
+the merge gate, and the release steps are documented in
+`docs/DEVELOPMENT.md`.
+
 Run tests with:
 
 ```bash

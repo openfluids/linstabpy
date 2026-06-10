@@ -37,6 +37,7 @@ from petsc4py import PETSc
 
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
+from linstabpy.config import Config
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
@@ -885,6 +886,7 @@ def _stage_run_resolvent(
     n_modes_resolvent: int,
     total_bc_indices: np.ndarray,
     solver_cfg: dict,
+    cfg: Config | None = None,
     heartbeat_seconds: float,
 ) -> _ResolventStageResult:
     """Run resolvent analysis and its SVD postcheck for one target frequency."""
@@ -910,6 +912,7 @@ def _stage_run_resolvent(
             filter_fn=mesh.filters.filter if mesh.filters is not None else None,
             filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
             solver_cfg=solver_cfg,
+            cfg=cfg,
         )
     _log("resolvent analysis finished")
     _log_stage("resolvent", stage_start)
@@ -931,6 +934,7 @@ def _stage_run_resolvent(
                 filter_fn=mesh.filters.filter if mesh.filters is not None else None,
                 filter_ct_fn=mesh.filters.filter_ct if mesh.filters is not None else None,
                 solver_cfg=solver_cfg,
+                cfg=cfg,
                 gamma=0.0,
             )
         _log(
@@ -967,6 +971,7 @@ def _stage_run_stability(
     n_modes: int,
     mesh: Mesh,
     solver_cfg: dict,
+    cfg: Config | None = None,
     total_bc_indices: np.ndarray,
     stability_acceptance_conjugate_aware: bool,
     heartbeat_seconds: float,
@@ -999,6 +1004,7 @@ def _stage_run_stability(
                 n_modes=n_modes,
                 target=omega_target,
                 solver_cfg=solver_cfg,
+                cfg=cfg,
                 return_info=True,
             )
         order = np.argsort(np.abs(omega - omega_target))
@@ -1034,6 +1040,7 @@ def _stage_run_stability(
                         target=omega_target,
                         W_diag=W_stab,
                         solver_cfg=solver_cfg,
+                        cfg=cfg,
                         return_info=True,
                     )
             finally:
@@ -1056,6 +1063,7 @@ def _stage_run_stability(
                     target=omega_target,
                     W_diag=W_diag,
                     solver_cfg=solver_cfg,
+                    cfg=cfg,
                     return_info=True,
                 )
     if not use_root_operator:
@@ -1405,6 +1413,7 @@ def compute() -> None:
     if solver_cfg is None:
         solver_cfg = {}
         config["solver"] = solver_cfg
+    cfg_obj = Config.load(config)
 
     # Read solver knobs from JSONC (env-var fallback for backward compat).
     _ecfg = solver_cfg.get("eigen", {})
@@ -1566,6 +1575,7 @@ def compute() -> None:
         n_modes_resolvent=n_modes_resolvent,
         total_bc_indices=total_bc_indices,
         solver_cfg=solver_cfg,
+        cfg=cfg_obj,
         heartbeat_seconds=heartbeat_seconds,
     )
     gains = resolvent_result.gains
@@ -1595,6 +1605,7 @@ def compute() -> None:
         n_modes=n_modes,
         mesh=mesh,
         solver_cfg=solver_cfg,
+        cfg=cfg_obj,
         total_bc_indices=total_bc_indices,
         stability_acceptance_conjugate_aware=stability_acceptance_conjugate_aware,
         heartbeat_seconds=heartbeat_seconds,

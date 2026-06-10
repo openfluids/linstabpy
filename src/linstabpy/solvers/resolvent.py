@@ -39,11 +39,11 @@ init_slepc_from_argv()
 from petsc4py import PETSc
 from slepc4py import SLEPc
 
-from ..utils._solver_cfg import _scfg, _scfg_bool, _scfg_float, _scfg_int
+from linstabpy.config import Config
+
 from ._eps_helpers import (
     _install_eps_monitor,
     _resolve_eps_convergence_test,
-    _resolve_solver_cfg_subsection,
 )
 from .linsolve import make_linear_solver
 from .petsc_utils import _is_petsc_matrix, _operator_shape, petsc_vec, require_complex, vec_to_numpy
@@ -140,6 +140,7 @@ def resolvent_analysis(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float = 0.0,
     return_info: bool = False,
@@ -199,6 +200,7 @@ def resolvent_analysis(
     info : dict, optional
         Returned only when ``return_info=True``.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     gains, responses, forcings, _, _ = _resolvent_analysis_impl(
         L0,
         omega,
@@ -209,6 +211,7 @@ def resolvent_analysis(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        cfg=cfg,
         gamma=gamma,
         compute_residuals=False,
     )
@@ -227,6 +230,7 @@ def resolvent_analysis_with_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float = 0.0,
     return_info: bool = False,
@@ -251,6 +255,7 @@ def resolvent_analysis_with_residuals(
     ``{"resolvent_discount_gamma": float(gamma)}`` is appended to the existing
     return tuple.
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     result = _resolvent_analysis_impl(
         L0,
         omega,
@@ -261,6 +266,7 @@ def resolvent_analysis_with_residuals(
         filter_fn=filter_fn,
         filter_ct_fn=filter_ct_fn,
         solver_cfg=solver_cfg,
+        cfg=cfg,
         gamma=gamma,
         compute_residuals=True,
     )
@@ -282,8 +288,10 @@ def _resolvent_analysis_impl(
     *,
     gamma: float = 0.0,
     compute_residuals: bool,
+    cfg: Config | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
     """Implementation shared by the public resolvent entry points."""
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     ndof = _operator_ndof(L0)
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
@@ -295,10 +303,12 @@ def _resolvent_analysis_impl(
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
-    #    KSP/PC stack is selected by SolverConfig through make_linear_solver.
+    #    KSP/PC stack is selected by typed config through make_linear_solver.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(
+        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
+    )
     # make_linear_solver copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
@@ -359,24 +369,11 @@ def _resolvent_analysis_impl(
     # 5. SLEPc EPS on HtrH.  This keeps the MATLAB-parity formulation: solve
     #    the weighted normal operator, then recover response modes through H.
     # ------------------------------------------------------------------
-    _res_cfg = _resolve_solver_cfg_subsection(solver_cfg, "LINSTABPY_RESOLVENT")
-    _res_eps_cfg = _res_cfg.get("eigen", _res_cfg) if isinstance(_res_cfg, dict) else {}
-    ncv = _resolve_resolvent_ncv(
-        ndof,
-        n_modes,
-        int(_res_eps_cfg["ncv"])
-        if isinstance(_res_eps_cfg, dict) and "ncv" in _res_eps_cfg
-        else None,
-    )
-    eps_tol = _scfg_float(_res_eps_cfg, "eps_tol", "LINSTABPY_RESOLVENT_EPS_TOL", 1e-8)
-    eps_max_it = _scfg_int(_res_eps_cfg, "eps_max_it", "LINSTABPY_RESOLVENT_EPS_MAX_IT", 1000)
-    conv_test_name = _scfg(_res_eps_cfg, "conv_test", "LINSTABPY_RESOLVENT_EPS_CONV_TEST", "")
-    true_residual = _scfg_bool(
-        _res_eps_cfg,
-        "true_residual",
-        "LINSTABPY_RESOLVENT_EPS_TRUE_RESIDUAL",
-        False,
-    )
+    ncv = _resolve_resolvent_ncv(ndof, n_modes, cfg.resolvent.eps.ncv)
+    eps_tol = cfg.resolvent.eps.eps_tol
+    eps_max_it = cfg.resolvent.eps.eps_max_it
+    conv_test_name = cfg.resolvent.eps.conv_test
+    true_residual = cfg.resolvent.eps.true_residual
     logger.info(
         "  SLEPc EPS on HtrH operator (nev=%d, ncv=%d, tol=%g, conv_test=%s, true_residual=%s) ...",
         n_modes,
@@ -397,10 +394,10 @@ def _resolvent_analysis_impl(
     eps.setTolerances(tol=eps_tol, max_it=eps_max_it)
     if hasattr(eps, "setTrueResidual") and true_residual:
         eps.setTrueResidual(True)
-    if _scfg_bool(_res_eps_cfg, "monitor", "LINSTABPY_RESOLVENT_EPS_MONITOR", False):
+    if cfg.resolvent.eps.monitor:
         _install_eps_monitor(
             eps,
-            _scfg_int(_res_eps_cfg, "monitor_every", "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10),
+            cfg.resolvent.eps.monitor_every,
             label="resolvent",
         )
     eps.setFromOptions()
@@ -538,6 +535,7 @@ def compute_resolvent_svd_residuals(
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     solver_cfg: dict | None = None,
+    cfg: Config | None = None,
     *,
     gamma: float,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -606,6 +604,7 @@ def compute_resolvent_svd_residuals(
     rho_adj : ndarray, shape (n_modes,)
         Adjoint residuals (primary quality signal; ≈ SLEPc tol for correct solutions).
     """
+    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
     n_modes = gains.shape[0]
     logger.info("Computing resolvent SVD residuals for %d modes ...", n_modes)
@@ -618,7 +617,9 @@ def compute_resolvent_svd_residuals(
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
     L_sigma = _shifted_operator(L0, omega, gamma=gamma)
-    lu = make_linear_solver(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
+    lu = make_linear_solver(
+        L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
+    )
     try:
         if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()
