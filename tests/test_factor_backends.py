@@ -10,8 +10,44 @@ import pytest
 import scipy.sparse as sp
 from petsc4py import PETSc
 
+from linstabpy.linalg import Backend
+from linstabpy.linalg.backends import available, ensure, select
 from linstabpy.solvers import backends
 from linstabpy.solvers.linsolve import make_linear_solver
+
+
+def test_linalg_backend_registry_imports_and_availability() -> None:
+    availability = available()
+
+    assert Backend.MUMPS in availability
+    assert availability[Backend.MUMPS] == backends.factor_backend_available("mumps")
+    ensure(None)
+
+
+def test_linalg_select_matches_solver_backend_resolution(monkeypatch) -> None:
+    monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", "superlu")
+    monkeypatch.setenv("LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "mumps")
+    cfgs = [
+        None,
+        {"factor_backend": "petsc"},
+        {"factor_backend": "MUMPS"},
+        {"factor_backend": "strumpack"},
+        {"factor_backend": "superlu_dist"},
+        {"factor_backend": "cudss"},
+    ]
+
+    for cfg in cfgs:
+        resolved = backends.resolve_factor_backend(
+            cfg,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default="mumps",
+        )
+        selected = select(
+            cfg,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default=Backend.MUMPS,
+        )
+        assert (None if selected is None else str(selected)) == resolved
 
 
 def test_resolve_factor_backend_precedence(monkeypatch) -> None:
