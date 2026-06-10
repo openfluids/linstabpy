@@ -33,6 +33,8 @@ from collections.abc import Callable
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.linalg import shifted_operator
+
 from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
@@ -57,28 +59,6 @@ def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
     if nrows != ncols:
         raise ValueError("L0 must be a square matrix")
     return nrows
-
-
-def _shifted_operator(
-    operator: sp.spmatrix | PETSc.Mat,
-    omega: complex,
-    gamma: float = 0.0,
-) -> sp.csc_matrix | PETSc.Mat:
-    """Return ``operator - (gamma + 1j*omega)*I`` preserving the backend."""
-    if _is_petsc_matrix(operator):
-        shifted = operator.copy()
-        if gamma == 0.0:
-            shifted.shift(-1j * omega)
-        else:
-            shifted.shift(-(float(gamma) + 1j * omega))
-        shifted.assemble()
-        return shifted
-    shifted = sp.csc_matrix(operator, copy=True)
-    if gamma == 0.0:
-        shifted.setdiag(shifted.diagonal() - 1j * omega)
-    else:
-        shifted.setdiag(shifted.diagonal() - (float(gamma) + 1j * omega))
-    return shifted
 
 
 def _apply_optional_matrix(
@@ -299,7 +279,7 @@ def _resolvent_analysis_impl(
     # ------------------------------------------------------------------
     # 1. Form the shifted operator  L_sigma = L0 - (gamma + i*omega)*I
     # ------------------------------------------------------------------
-    L_sigma = _shifted_operator(L0, omega, gamma=gamma)
+    L_sigma = shifted_operator(L0, omega, gamma=gamma)
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
@@ -616,7 +596,7 @@ def compute_resolvent_svd_residuals(
     # a separate "analysis" and "postcheck" stage keep their timing/provenance
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis_with_residuals().
-    L_sigma = _shifted_operator(L0, omega, gamma=gamma)
+    L_sigma = shifted_operator(L0, omega, gamma=gamma)
     lu = make_linear_solver(
         L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
     )

@@ -23,7 +23,7 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
-from linstabpy.linalg import Factorization, factorize
+from linstabpy.linalg import Factorization, factorize, shifted_operator
 from linstabpy.mesh import Mesh
 from linstabpy.operators import (
     build_lnse_operator,
@@ -46,7 +46,7 @@ from linstabpy.solvers.eigenvalue import (
     _sort_nearest as _sort_temporal_nearest,
 )
 from linstabpy.solvers.linsolve import make_linear_solver
-from linstabpy.solvers.petsc_utils import scipy_to_petsc
+from linstabpy.solvers.petsc_utils import petsc_to_scipy, scipy_to_petsc
 from linstabpy.solvers.resolvent import (
     compute_resolvent_svd_residuals,
     resolvent_analysis_with_residuals,
@@ -54,6 +54,66 @@ from linstabpy.solvers.resolvent import (
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
+
+
+def test_shifted_operator_scipy_matches_legacy_and_direct_gamma_shift():
+    L0 = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    gamma = 0.75
+
+    old_gamma0 = sp.csc_matrix(L0, copy=True)
+    old_gamma0.setdiag(old_gamma0.diagonal() - 1j * omega)
+    moved_gamma0 = shifted_operator(L0, omega, 0.0)
+    assert (moved_gamma0 != old_gamma0).nnz == 0
+    np.testing.assert_array_equal(moved_gamma0.toarray(), old_gamma0.toarray())
+
+    direct_gamma = sp.csc_matrix(L0, copy=True)
+    direct_gamma.setdiag(direct_gamma.diagonal() - (gamma + 1j * omega))
+    moved_gamma = shifted_operator(L0, omega, gamma)
+    np.testing.assert_array_equal(moved_gamma.toarray(), direct_gamma.toarray())
+
+
+def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
+    L0_sp = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    gamma = 0.75
+    L0 = scipy_to_petsc(L0_sp)
+    try:
+        old_gamma0 = L0.copy()
+        old_gamma0.shift(-1j * omega)
+        old_gamma0.assemble()
+        moved_gamma0 = shifted_operator(L0, omega, 0.0)
+        np.testing.assert_array_equal(
+            petsc_to_scipy(moved_gamma0).toarray(), petsc_to_scipy(old_gamma0).toarray()
+        )
+
+        direct_gamma = L0.copy()
+        direct_gamma.shift(-(gamma + 1j * omega))
+        direct_gamma.assemble()
+        moved_gamma = shifted_operator(L0, omega, gamma)
+        np.testing.assert_array_equal(
+            petsc_to_scipy(moved_gamma).toarray(), petsc_to_scipy(direct_gamma).toarray()
+        )
+    finally:
+        for matrix in (
+            L0,
+            locals().get("old_gamma0"),
+            locals().get("moved_gamma0"),
+            locals().get("direct_gamma"),
+            locals().get("moved_gamma"),
+        ):
+            if matrix is not None:
+                matrix.destroy()
 
 
 def test_linalg_factorization_exports_and_adjoint_aliases():

@@ -3,5 +3,14 @@
 
 from .backends import Backend, available, ensure, select
 from .factorize import Factorization, factorize
+from .shifted import shifted_operator
 
-__all__ = ["Backend", "Factorization", "available", "ensure", "factorize", "select"]
+__all__ = [
+    "Backend",
+    "Factorization",
+    "available",
+    "ensure",
+    "factorize",
+    "select",
+    "shifted_operator",
+]
