@@ -7,12 +7,12 @@ from scipy.optimize import linear_sum_assignment
 
 from linstabpy.baseflow import load_blasius, sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.driver.run import _postcheck_stability_modes
+from linstabpy.linalg.backends import factor_backend_available
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator
-from linstabpy.results_runtime import _postcheck_stability_modes
-from linstabpy.solvers import temporal_eigenvalues
-from linstabpy.solvers.backends import factor_backend_available
-from linstabpy.utils.stability_acceptance import evaluate_stability_acceptance
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
+from linstabpy.stability.acceptance import evaluate_stability_acceptance
 
 TARGET = -0.1j
 N_MODES = 5

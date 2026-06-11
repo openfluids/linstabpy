@@ -16,8 +16,8 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.backends import apply_factor_backend
 
-from .backends import apply_factor_backend
 from .eigenvalue import _resolve_ncv
 from .petsc_utils import (
     _is_petsc_matrix,
@@ -176,39 +176,28 @@ def _eigs_generalized(
     return eigenvalues, eigenvectors
 
 
-def spatial_eigenvalues(
-    Lc: sp.spmatrix | PETSc.Mat,
-    Lw: sp.spmatrix | PETSc.Mat,
-    R: sp.spmatrix | PETSc.Mat,
-    omega: float | complex,
-    n_modes: int,
-    target: float | complex,
-    ncv: int | None = None,
-    solver_cfg: dict | None = None,
-    cfg: Config | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Solve the spatial EVP `(Lc + omega Lw) @ v = alpha R @ v`.
+_DEPRECATED_EXPORTS = {
+    "spatial_eigenvalues": ("linstabpy.stability._eigenvalues", "spatial_eigenvalues"),
+}
 
-    Returns:
-        alpha : ndarray, shape (n_modes,)
-            Spatial eigenvalues.
-        modes : ndarray, shape (N, n_modes)
-            Right eigenvectors.
-    """
-    cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    lhs = Lc.copy() if _is_petsc_matrix(Lc) else sp.csc_matrix(Lc, dtype=complex)
-    if _is_petsc_matrix(lhs):
-        lhs.axpy(omega, Lw, structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN)
-    else:
-        lhs = lhs + omega * sp.csc_matrix(Lw, dtype=complex)
 
-    eigenvalues, eigenvectors = _eigs_generalized(
-        lhs,
-        R,
-        n_modes,
-        target,
-        ncv=ncv,
-        solver_cfg=solver_cfg,
-        cfg=cfg,
-    )
-    return eigenvalues, eigenvectors
+def __getattr__(name: str):  # noqa: ANN201
+    if name in _DEPRECATED_EXPORTS:
+        import importlib
+        import warnings
+
+        module_name, attr_name = _DEPRECATED_EXPORTS[name]
+        warnings.warn(
+            f"linstabpy.solvers.spatial_eig.{name} is deprecated; "
+            f"use linstabpy.stability.{attr_name}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        attr = getattr(importlib.import_module(module_name), attr_name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_DEPRECATED_EXPORTS))

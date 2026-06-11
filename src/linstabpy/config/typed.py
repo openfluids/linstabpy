@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from linstabpy.solvers.backends import DEFAULT_FACTOR_BACKEND, _as_bool
+from linstabpy.linalg.backends import DEFAULT_FACTOR_BACKEND, _as_bool
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
 

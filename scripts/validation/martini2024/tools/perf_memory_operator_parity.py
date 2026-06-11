@@ -400,8 +400,10 @@ def main() -> int:
             build_spatial_operator,
             compute_chu_norm,
         )
-        from linstabpy.solvers import resolvent_analysis, spatial_eigenvalues, temporal_eigenvalues
+        from linstabpy.resolvent.analysis import resolvent_analysis
         from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.stability import eigenvalues as temporal_eigenvalues
+        from linstabpy.stability import spatial_eigenvalues
     except Exception as exc:  # pragma: no cover - environment dependent
         report = {
             "generated_at_utc": _now_utc(),

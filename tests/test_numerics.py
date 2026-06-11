@@ -17,7 +17,8 @@ from linstabpy.boundary_conditions import apply_dirichlet, apply_dirichlet_spati
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator, build_spatial_operator, compute_chu_norm
 from linstabpy.operators.assembly import _apply_inv_B
-from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
+from linstabpy.resolvent.analysis import resolvent_analysis
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 from tests.conftest import build_synthetic_jet
 
 # ---------------------------------------------------------------------------
@@ -111,9 +112,9 @@ class TestResolventNumerics:
         # Build resolvent H(ω) = (iωI - L0)^{-1}
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
 
-        solver = make_linear_solver(L_sigma.tocsc())
+        solver = factorize(L_sigma.tocsc())
 
         rng = np.random.default_rng(42)
         for trial in range(5):
@@ -135,9 +136,9 @@ class TestResolventNumerics:
 
         n = L0.shape[0]
         L_sigma = 1j * omega * sp.eye(n) - L0
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
 
-        solver = make_linear_solver(L_sigma.tocsc())
+        solver = factorize(L_sigma.tocsc())
 
         f1 = forcings[:, 0]
         response = solver.solve(f1)

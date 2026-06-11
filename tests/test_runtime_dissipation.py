@@ -117,7 +117,9 @@ def _install_optional_petsc_stubs() -> None:
 
 _install_optional_petsc_stubs()
 
-from linstabpy import results_runtime
+import importlib
+
+results_runtime = importlib.import_module("linstabpy.driver.run")
 from linstabpy.operators import LNSESystem
 
 DISSIPATION_KEYS = (
@@ -275,7 +277,7 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
         lambda *args, **kwargs: (np.ones(20, dtype=float), np.ones(20, dtype=float)),
     )
 
-    results_runtime.compute()
+    results_runtime.run()
     return output_path, mesh_create_kwargs, build_lnse_kwargs
 
 

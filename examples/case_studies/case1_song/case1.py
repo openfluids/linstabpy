@@ -3,7 +3,7 @@
 
 The case file owns only working-directory and environment defaults. Numerical
 stage ordering, solver policy, postchecks, and NPZ persistence stay in
-``linstabpy.results_runtime``.
+``linstabpy.driver``.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from linstabpy.results_runtime import compute as _runtime_compute
-from linstabpy.results_runtime import main as _runtime_main
+from linstabpy.driver.cli import main as _runtime_main
+from linstabpy.driver.run import run as _runtime_compute
 
 SCRIPT = Path(__file__).resolve()
 

@@ -697,7 +697,7 @@ def _mohseni_pole_stencil(a_interior: np.ndarray, h: int) -> np.ndarray:
 
 
 # Single source of truth for MSN A_{2p}(n, r, s) defaults.
-# Layers above (mesh.py, results_runtime.py) MUST reference these names rather
+# Layers above (mesh.py, driver.run) MUST reference these names rather
 # than re-declaring the literals. See `phase1_dissipation_math.md` §4 for the
 # meaning of the three parameters.
 DISSIPATION_DEFAULTS: dict[str, float] = {

@@ -29,7 +29,7 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.solvers.resolvent import resolvent_analysis
+from linstabpy.resolvent.analysis import resolvent_analysis
 
 _CFG = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 _GAMMA = 0.2

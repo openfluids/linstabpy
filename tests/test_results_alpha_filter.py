@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+import importlib
 import types
 
 import numpy as np
 
-from linstabpy import results_runtime
+results_runtime = importlib.import_module("linstabpy.driver.run")
 from linstabpy.operators import LNSESystem
 
 
@@ -124,7 +125,7 @@ def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
         lambda *args, **kwargs: (np.ones(20, dtype=float), np.ones(20, dtype=float)),
     )
 
-    results_runtime.compute()
+    results_runtime.run()
     assert mesh_create_calls == [0.0]
     with np.load(output_path, allow_pickle=False) as data:
         assert data["alpha_filter"].item() == "0.0"

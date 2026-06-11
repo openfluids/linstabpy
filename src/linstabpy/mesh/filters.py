@@ -407,7 +407,7 @@ def _make_filter_ksp(
     ksp.setType(PETSc.KSP.Type.PREONLY)
     pc = ksp.getPC()
     pc.setType(PETSc.PC.Type.LU)
-    from ..solvers.backends import apply_factor_backend
+    from ..linalg.backends import apply_factor_backend
 
     apply_factor_backend(pc, "mumps")
     ksp.setUp()

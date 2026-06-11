@@ -494,7 +494,7 @@ def _high_mode_case(
     target: complex,
 ) -> dict[str, Any]:
     from linstabpy.operators import build_lnse_operator, build_lnse_system
-    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+    from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
     mesh = _mesh("cartesian", model="2D")
     baseflow = _uniform_baseflow(mesh)
