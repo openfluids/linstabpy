@@ -1496,9 +1496,9 @@ def run() -> None:
         stability_postcheck_target_distance = acceptance_result.postcheck_target_distance
         stability_acceptance = acceptance_result.acceptance
         _conj_diag = acceptance_result.conjugate_diagnostic
-        from linstabpy.results_runtime import _stage_write_npz
+        from linstabpy.driver.io import save_results
 
-        _stage_write_npz(
+        save_results(
             output_npz=output_npz,
             heartbeat_seconds=heartbeat_seconds,
             peak_rss_bytes=_peak_rss_total_bytes,
