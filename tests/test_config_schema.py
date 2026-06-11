@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 
 import pytest
+
+_DRIVER_RUN_MODULE = importlib.import_module("linstabpy.driver.run")
 
 from linstabpy.config import ConfigValidationError, validate_config
 from linstabpy.utils.jsonc import load_jsonc
@@ -75,6 +78,43 @@ def test_bool_not_accepted_for_int_field() -> None:
     assert "expected int, got bool" in str(exc_info.value)
 
 
+def test_driver_rejects_malformed_config_before_case_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "malformed_absurd_grid.jsonc"
+    config_path.write_text(
+        """
+        {
+          "nx": 200000,
+          "ny": 200000,
+          "numerics": {
+            "fd_order": 5
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+    case_load_calls = 0
+
+    def fail_if_case_load_reached(*args: object, **kwargs: object) -> None:
+        nonlocal case_load_calls
+        case_load_calls += 1
+        raise AssertionError("case loading should not be reached for invalid config")
+
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
+    monkeypatch.delenv("LINSTABPY_CASE2_CONFIG", raising=False)
+    monkeypatch.delenv("LINSTABPY_CASE1_CONFIG", raising=False)
+    monkeypatch.setattr(_DRIVER_RUN_MODULE, "_stage_load_case", fail_if_case_load_reached)
+    monkeypatch.setattr(_DRIVER_RUN_MODULE, "_log", lambda message: None)
+
+    with pytest.raises(ConfigValidationError) as exc_info:
+        _DRIVER_RUN_MODULE.run()
+
+    assert str(config_path) in str(exc_info.value)
+    assert "numerics.fd_order" in str(exc_info.value)
+    assert case_load_calls == 0
+
+
 def test_no_false_positives_on_shipped_configs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     config_paths = [
@@ -82,6 +122,11 @@ def test_no_false_positives_on_shipped_configs() -> None:
         for path in repo_root.rglob("*.jsonc")
         if ".venv" not in path.relative_to(repo_root).parts
     ]
+    relative_config_paths = [path.relative_to(repo_root) for path in config_paths]
+
+    assert config_paths, "shipped JSONC config sweep found no files"
+    assert any(path.parts[0] == "examples" for path in relative_config_paths)
+    assert any("studies" in path.as_posix() for path in relative_config_paths)
 
     for path in config_paths:
         validate_config(load_jsonc(path), source=str(path))
