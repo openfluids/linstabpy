@@ -12,9 +12,12 @@ import scipy.sparse as sp
 from petsc4py import PETSc
 
 import linstabpy.linalg.backends as backends
+from linstabpy.config import Config
 from linstabpy.linalg import Backend
 from linstabpy.linalg.backends import available, ensure, select
 from linstabpy.linalg.factorize import factorize
+from linstabpy.solvers import eigenvalue as eigen_core
+from linstabpy.stability import eigenvalues as stability_eigenvalues
 
 
 def test_linalg_backend_registry_imports_and_availability() -> None:
@@ -154,6 +157,169 @@ def test_direct_linsolve_uses_mumps_backend(monkeypatch) -> None:
         np.testing.assert_allclose(solver.solve(np.array([1.0, 2.0])), [1.0, 2.0])
     finally:
         solver.destroy()
+
+
+def _tiny_shifted_ksp(st_solver: str, backend: str | None = None) -> tuple[PETSc.KSP, PETSc.Mat]:
+    A = PETSc.Mat().createAIJ(size=(3, 3), comm=PETSc.COMM_SELF)
+    values = {
+        (0, 0): 4.0 + 0.5j,
+        (0, 1): 0.25 - 0.1j,
+        (1, 0): 0.5 + 0.2j,
+        (1, 1): 3.0 - 0.25j,
+        (1, 2): -0.3j,
+        (2, 1): 0.1 + 0.4j,
+        (2, 2): 2.0 + 0.75j,
+    }
+    for (row, col), value in values.items():
+        A.setValue(row, col, value)
+    A.assemble()
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_SELF)
+    ksp.setOperators(A)
+    ecfg: dict[str, object] = {
+        "st_solver": st_solver,
+        "inexact": {"ksp_rtol": 1.0e-12, "ksp_atol": 1.0e-14, "ksp_max_it": 80},
+    }
+    if backend is not None:
+        ecfg["factor_backend"] = backend
+    cfg = Config.load({"solver": {"eigen": ecfg}})
+    eigen_core._configure_st_for_eigenvalue(st_solver, ecfg, ksp, ksp.getPC(), None, cfg=cfg)
+    ksp.setUp()
+    return ksp, A
+
+
+def _solve_ksp(ksp: PETSc.KSP, values: list[complex]) -> np.ndarray:
+    b = ksp.getOperators()[0].createVecRight()
+    x = ksp.getOperators()[0].createVecRight()
+    try:
+        for row, value in enumerate(values):
+            b.setValue(row, value)
+        b.assemble()
+        ksp.solve(b, x)
+        return x.getArray(readonly=True).copy()
+    finally:
+        x.destroy()
+        b.destroy()
+
+
+def test_fgmres_lu_path_with_mumps_matches_plain_mumps_direct() -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    fgmres_ksp, fgmres_A = _tiny_shifted_ksp("fgmres_lu", "mumps")
+    direct_ksp, direct_A = _tiny_shifted_ksp("mumps", "mumps")
+    try:
+        assert fgmres_ksp.getType() == PETSc.KSP.Type.FGMRES
+        assert fgmres_ksp.getPC().getType() == PETSc.PC.Type.LU
+        assert fgmres_ksp.getPC().getFactorSolverType() == "mumps"
+
+        rhs = [1.0 + 0.25j, -0.5 + 0.75j, 0.125 - 0.5j]
+        fgmres_x = _solve_ksp(fgmres_ksp, rhs)
+        direct_x = _solve_ksp(direct_ksp, rhs)
+        np.testing.assert_allclose(fgmres_x, direct_x, rtol=1.0e-10, atol=1.0e-12)
+
+        probe = backends.shifted_ksp_probe_residual(fgmres_ksp)
+        assert float(probe["residual_rel"]) <= 1.0e-8
+    finally:
+        fgmres_ksp.destroy()
+        fgmres_A.destroy()
+        direct_ksp.destroy()
+        direct_A.destroy()
+
+
+def test_strumpack_fgmres_path_matches_plain_mumps_direct_when_available() -> None:
+    if not backends.factor_backend_available("strumpack"):
+        pytest.skip("SKIPPED: missing STRUMPACK factor backend")
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    strumpack_ksp, strumpack_A = _tiny_shifted_ksp("strumpack_fgmres")
+    direct_ksp, direct_A = _tiny_shifted_ksp("mumps", "mumps")
+    try:
+        assert strumpack_ksp.getType() == PETSc.KSP.Type.FGMRES
+        assert strumpack_ksp.getPC().getType() == PETSc.PC.Type.LU
+        assert strumpack_ksp.getPC().getFactorSolverType() == "strumpack"
+
+        rhs = [1.0 + 0.25j, -0.5 + 0.75j, 0.125 - 0.5j]
+        strumpack_x = _solve_ksp(strumpack_ksp, rhs)
+        direct_x = _solve_ksp(direct_ksp, rhs)
+        np.testing.assert_allclose(strumpack_x, direct_x, rtol=1.0e-8, atol=1.0e-10)
+    finally:
+        strumpack_ksp.destroy()
+        strumpack_A.destroy()
+        direct_ksp.destroy()
+        direct_A.destroy()
+
+
+def test_strumpack_fgmres_missing_backend_fails_loudly() -> None:
+    if backends.factor_backend_available("strumpack"):
+        pytest.skip("STRUMPACK factor backend is available in this PETSc build")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        ksp, A = _tiny_shifted_ksp("strumpack_fgmres")
+        ksp.destroy()
+        A.destroy()
+
+    message = str(excinfo.value)
+    assert "PETSc factor backend 'strumpack' is not available" in message
+    assert "Rebuild PETSc/petsc4py" in message
+    assert "docs/COMPUTE_BACKENDS.md" in message
+
+
+@pytest.mark.parametrize("st_solver", ["fgmres_lu", "strumpack_fgmres"])
+def test_fgmres_selectors_honor_eigen_factor_solver_env_override(
+    monkeypatch: pytest.MonkeyPatch, st_solver: str
+) -> None:
+    monkeypatch.setenv("LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "superlu_dist")
+    cfg = Config.load({"solver": {"eigen": {"st_solver": st_solver}}})
+    assert cfg.eigen.st_factor_backend == "superlu_dist"
+
+
+def test_strumpack_fgmres_cp5_probe_policy_is_active() -> None:
+    assert backends.should_probe_backend("strumpack", st_solver="strumpack_fgmres")
+    # The fgmres families are inexact outer solves: even the default MUMPS
+    # factor backend must be probed there, while plain direct MUMPS stays exempt.
+    assert backends.should_probe_backend("mumps", st_solver="fgmres_lu")
+    assert backends.should_probe_backend("mumps", st_solver="strumpack_fgmres")
+    assert not backends.should_probe_backend("mumps")
+    # An explicit probe_cfg switch still wins over the family default.
+    assert not backends.should_probe_backend(
+        "mumps", {"enabled": False}, st_solver="fgmres_lu"
+    )
+
+
+def test_strumpack_fgmres_invokes_backend_probe(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
+    calls: list[str] = []
+
+    def fake_apply_factor_backend(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(f"apply:{backend}")
+        return backend
+
+    def fake_probe(ksp):  # noqa: ANN001
+        calls.append(f"probe:{ksp.getType()}")
+        return {
+            "residual_abs": 0.0,
+            "residual_rel": 0.0,
+            "ksp_iterations": 1,
+            "ksp_reason": 1,
+            "ksp_type": ksp.getType(),
+            "pc_type": ksp.getPC().getType(),
+            "pc_factor_solver_type": "strumpack",
+        }
+
+    monkeypatch.setattr(eigen_core, "apply_factor_backend", fake_apply_factor_backend)
+    monkeypatch.setattr(eigen_core, "shifted_ksp_probe_residual", fake_probe)
+    operator = np.diag([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j, 4.0 + 0.0j])
+
+    omega, _ = stability_eigenvalues(
+        operator,
+        n_modes=1,
+        target=2.2 + 0.0j,
+        solver_cfg={"eigen": {"st_solver": "strumpack_fgmres"}},
+    )
+
+    assert omega.shape == (1,)
+    assert calls == ["apply:strumpack", "probe:fgmres"]
 
 
 def test_iterative_linsolve_does_not_enter_factor_backend_seam(monkeypatch) -> None:
