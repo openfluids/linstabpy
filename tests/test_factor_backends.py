@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 import sys
 
 import numpy as np
@@ -285,6 +286,114 @@ def test_strumpack_fgmres_cp5_probe_policy_is_active() -> None:
     assert not backends.should_probe_backend(
         "mumps", {"enabled": False}, st_solver="fgmres_lu"
     )
+
+
+def _tiny_stability_operator() -> np.ndarray:
+    return np.array(
+        [
+            [1.0 + 0.0j, 0.2 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j],
+            [0.0 + 0.0j, 2.0 + 0.0j, 0.1 + 0.0j, 0.0 + 0.0j],
+            [0.0 + 0.0j, 0.0 + 0.0j, 3.0 + 0.0j, 0.3 + 0.0j],
+            [0.1 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 4.0 + 0.0j],
+        ],
+        dtype=complex,
+    )
+
+
+def test_mumps_shift_invert_probe_real_solve_is_below_threshold(monkeypatch) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    real_probe = eigen_core.shifted_ksp_probe_residual
+    calls: list[dict[str, float | int | str | None]] = []
+
+    def force_probe(resolved_backend, probe_cfg=None, *, st_solver=None):  # noqa: ANN001
+        assert resolved_backend == "mumps"
+        assert st_solver == "mumps"
+        return True
+
+    def spy_probe(ksp):  # noqa: ANN001
+        probe = real_probe(ksp)
+        calls.append(probe)
+        return probe
+
+    monkeypatch.setattr(eigen_core, "should_probe_backend", force_probe)
+    monkeypatch.setattr(eigen_core, "shifted_ksp_probe_residual", spy_probe)
+
+    omega, _, info = stability_eigenvalues(
+        _tiny_stability_operator(),
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={"eigen": {"st_solver": "mumps"}},
+        return_info=True,
+    )
+
+    assert omega.shape == (1,)
+    assert len(calls) == 1
+    assert calls[0]["ksp_type"] == PETSc.KSP.Type.PREONLY
+    assert calls[0]["pc_type"] == PETSc.PC.Type.LU
+    assert calls[0]["pc_factor_solver_type"] == "mumps"
+    assert float(calls[0]["residual_rel"]) <= 1.0e-8
+    assert info["backend_probe_ran"] is True
+    assert float(info["backend_probe_residual_rel"]) == pytest.approx(
+        float(calls[0]["residual_rel"])
+    )
+
+
+def test_fgmres_lu_backend_probe_raises_on_degraded_real_solve(monkeypatch) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    def degrade_factor_backend_to_unpreconditioned_solve(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        assert backend == "mumps"
+        pc.setType(PETSc.PC.Type.NONE)
+        return backend
+
+    monkeypatch.setattr(
+        eigen_core,
+        "apply_factor_backend",
+        degrade_factor_backend_to_unpreconditioned_solve,
+    )
+
+    real_probe = eigen_core.shifted_ksp_probe_residual
+    probe_calls: list[dict[str, float | int | str | None]] = []
+
+    def spy_probe(ksp):  # noqa: ANN001
+        probe = real_probe(ksp)
+        probe_calls.append(probe)
+        return probe
+
+    monkeypatch.setattr(eigen_core, "shifted_ksp_probe_residual", spy_probe)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        stability_eigenvalues(
+            _tiny_stability_operator(),
+            n_modes=1,
+            target=2.2 + 0.0j,
+            ncv=3,
+            solver_cfg={
+                "eigen": {
+                    "st_solver": "fgmres_lu",
+                    "inexact": {
+                        "ksp_rtol": 0.999,
+                        "ksp_atol": 0.0,
+                        "ksp_max_it": 1,
+                    },
+                    "backend_probe": {"residual_rel_max": 1.0e-8},
+                }
+            },
+        )
+
+    # The raise must come from the real probe measuring the degraded solve.
+    assert len(probe_calls) == 1
+    assert float(probe_calls[0]["residual_rel"]) > 1.0e-8
+
+    message = str(excinfo.value)
+    assert "factor backend 'mumps' failed accuracy probe" in message
+    assert "||Kx-b||/||b||" in message
+    assert re.search(r"\|\|Kx-b\|\|/\|\|b\|\| = [0-9.]+e[+-]\d+ >", message)
+    assert "1.000e-08" in message
 
 
 def test_strumpack_fgmres_invokes_backend_probe(monkeypatch) -> None:
