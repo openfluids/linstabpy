@@ -54,6 +54,6 @@ def collect_cost_metrics(
         "cost_mpi_ranks": int(PETSc.COMM_WORLD.getSize()),
         "cost_gpus": cost_gpus,
         "cost_petsc_options": _petsc_options_string(),
-        "cost_hardware_tag": str(os.getenv("LINSTAB2D_HARDWARE_TAG", "")),
+        "cost_hardware_tag": str(os.getenv("LINSTAB2D_HARDWARE_TAG", "unknown")),
         "cost_git_sha": str(git_sha),
     }
