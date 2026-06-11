@@ -15,6 +15,9 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
 - Runtime result archives and metrics sidecars now include git, config, host, compute-mode, and MPI-stack provenance.
 - CPU/MUMPS default-path parity fixture on a small Blasius case and standalone regression guard for ≤1e-12 baseline drift. (bead r3uu.1.13)
 
+### Changed
+- Runtime cost metrics now use `unknown` as the default hardware tag when no hardware tag is configured.
+
 ## [0.0.5] - 2026-06-11
 
 Stages 2–6 of the clean-code revamp, completing the refactor program under the

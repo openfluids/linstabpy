@@ -124,6 +124,17 @@ RUNTIME_NPZ_CONTRACT_KEYS = (
     "hostname",
     "compute_mode",
     "mpi_stack",
+    "cost_wall_total_s",
+    "cost_wall_assemble_s",
+    "cost_wall_factor_s",
+    "cost_wall_solve_s",
+    "cost_peak_rss_bytes",
+    "cost_peak_gpu_mem_bytes",
+    "cost_mpi_ranks",
+    "cost_gpus",
+    "cost_petsc_options",
+    "cost_hardware_tag",
+    "cost_git_sha",
 )
 """Critical keys that runtime ``.npz`` outputs must continue to expose.
 

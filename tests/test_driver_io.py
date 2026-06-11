@@ -92,5 +92,5 @@ def test_save_and_load_results_preserve_provenance_and_cost_keys(tmp_path, monke
         assert data["cost_mpi_ranks"].item() >= 1
         assert data["cost_gpus"].item() == 0
         assert isinstance(data["cost_petsc_options"].item(), str)
-        assert data["cost_hardware_tag"].item() == ""
+        assert data["cost_hardware_tag"].item() == "unknown"
         assert isinstance(data["cost_git_sha"].item(), str)
