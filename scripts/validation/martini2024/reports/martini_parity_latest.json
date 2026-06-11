@@ -524,6 +524,6 @@
     "PASS": 5,
     "SOFT_FAIL": 1
   },
-  "generated_at_utc": "2026-06-10T19:59:09.634279+00:00",
+  "generated_at_utc": "2026-06-11T06:15:12.936468+00:00",
   "npz_dir": "scripts/validation/martini2024/fixtures"
 }
