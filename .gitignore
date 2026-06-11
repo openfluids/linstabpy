@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 *.npz
+!tests/fixtures/mumps_parity_reference.npz
 *.png
 !docs/assets/linstabpy-banner.png
 # Compact validation fixtures may be tracked; generated example outputs remain ignored.
