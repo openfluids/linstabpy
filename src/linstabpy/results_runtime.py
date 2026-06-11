@@ -47,12 +47,12 @@ from linstabpy.resolvent.analysis import resolvent_analysis
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstabpy.stability._eigenvalues import _solve_near_target
 from linstabpy.stability._eigenvalues import eigenvalues as temporal_eigenvalues
-from linstabpy.utils.jsonc import load_jsonc
-from linstabpy.utils.stability_acceptance import (
+from linstabpy.stability.acceptance import (
     _postcheck_target_distance,
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
+from linstabpy.utils.jsonc import load_jsonc
 
 RUNTIME_NPZ_CONTRACT_KEYS = (
     "omega",
