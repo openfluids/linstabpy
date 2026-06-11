@@ -11,8 +11,8 @@ _LAZY_EXPORTS = {
     "build_lnse_system": "linstabpy.operators.assembly",
     "build_lnse_operator": "linstabpy.operators.assembly",
     "compute_chu_norm": "linstabpy.operators.energy_norm",
-    "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
-    "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
+    "temporal_eigenvalues": ("linstabpy.stability._eigenvalues", "eigenvalues"),
+    "adjoint_eigenvalues": "linstabpy.stability._eigenvalues",
     "resolvent_analysis": "linstabpy.resolvent.analysis",
     "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "BaseFlow": "linstabpy.baseflow",
@@ -30,7 +30,9 @@ def __getattr__(name):
     if name in _LAZY_EXPORTS:
         import importlib
 
-        attr = getattr(importlib.import_module(_LAZY_EXPORTS[name]), name)
+        target = _LAZY_EXPORTS[name]
+        module_name, attr_name = target if isinstance(target, tuple) else (target, name)
+        attr = getattr(importlib.import_module(module_name), attr_name)
         globals()[name] = attr
         return attr
     raise AttributeError(f"module 'linstabpy' has no attribute {name!r}")

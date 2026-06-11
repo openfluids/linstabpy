@@ -14,7 +14,7 @@ from linstabpy.mesh import Mesh
 from linstabpy.operators.assembly import build_lnse_operator
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.resolvent.analysis import resolvent_analysis
-from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")

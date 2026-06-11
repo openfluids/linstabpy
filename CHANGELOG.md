@@ -11,6 +11,17 @@ Work toward **0.0.5**. Development happens on the `dev` branch (versioned
 `0.0.5.dev0`) and is promoted to `main` through a reviewed pull request once a
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
+### Changed
+- **Stage 4 (refactor):** new `linstabpy.stability` package unifies the three
+  eigenvalue entry points — `eigenvalues` (was `temporal_eigenvalues`),
+  `adjoint_eigenvalues`, `spatial_eigenvalues` — on one shared private
+  shift-invert core (`_solve_near_target`, moved verbatim from
+  `solvers.eigenvalue._eigs_near_target`). Old names in `solvers.eigenvalue` /
+  `solvers.spatial_eig` remain as deprecation shims for one minor version;
+  top-level `linstabpy.temporal_eigenvalues` / `adjoint_eigenvalues` are
+  unchanged and warning-free. Numerics frozen: full suite and spectra
+  identical to baseline. (bead r3uu.6.5.1)
+
 ## [0.0.4] - 2026-06-10
 
 Stage 1 of the clean-code revamp: SolverConfig centralization, complete and

@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.solvers import temporal_eigenvalues
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 
 def test_temporal_eigenvalue_sign_is_growth_positive() -> None:

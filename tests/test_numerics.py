@@ -17,7 +17,8 @@ from linstabpy.boundary_conditions import apply_dirichlet, apply_dirichlet_spati
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator, build_spatial_operator, compute_chu_norm
 from linstabpy.operators.assembly import _apply_inv_B
-from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
+from linstabpy.resolvent.analysis import resolvent_analysis
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 from tests.conftest import build_synthetic_jet
 
 # ---------------------------------------------------------------------------
