@@ -38,6 +38,12 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
   and `load_results`). The provenance/cost key set is unchanged and now
   guarded by a round-trip test; `results_runtime._stage_write_npz` remains
   as a back-compatible wrapper. (bead r3uu.6.6.2)
+- **Stage 5 (refactor):** new CLI front door `linstabpy.driver.cli` with a
+  `--version` flag; the cache-aware `main()` moved there verbatim.
+  `results_runtime` is now a one-minor-version deprecation shim re-exporting
+  its previous public surface (`compute` → `driver.run`, `main` →
+  `driver.cli.main`, helpers → their new homes) with `DeprecationWarning`;
+  all in-repo importers migrated. (bead r3uu.6.6.3)
 
 ## [0.0.4] - 2026-06-10
 

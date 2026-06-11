@@ -38,12 +38,6 @@ from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.resolvent.analysis import resolvent_analysis
-from linstabpy.results_runtime import (
-    EMPTY_COMPLEX,
-    EMPTY_FLOAT,
-    EMPTY_INT32,
-    EMPTY_INT64,
-)
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
 from linstabpy.stability._eigenvalues import _solve_near_target
 from linstabpy.stability._eigenvalues import eigenvalues as temporal_eigenvalues
@@ -53,6 +47,98 @@ from linstabpy.stability.acceptance import (
     evaluate_stability_acceptance,
 )
 from linstabpy.utils.jsonc import load_jsonc
+
+RUNTIME_NPZ_CONTRACT_KEYS = (
+    "omega",
+    "direct_modes",
+    "gains",
+    "responses",
+    "forcings",
+    "resolvent_rho_fwd",
+    "resolvent_rho_adj",
+    "omega_target",
+    "St",
+    "beta",
+    "fd_order",
+    "alpha_filter",
+    "n_modes_stability_requested",
+    "n_modes_resolvent_requested",
+    "X",
+    "Y",
+    "U",
+    "sponge",
+    "bc_indices",
+    "bc_total_indices",
+    "bc_effective_dirichlet_indices",
+    "bc_column_zeroed_dirichlet_indices",
+    "bc_effective_neumann_indices",
+    "bc_overlap_indices",
+    "W_diag",
+    "invW_diag",
+    "stability_eps_nev",
+    "stability_eps_ncv",
+    "stability_eps_nconv",
+    "stability_eps_iterations",
+    "stability_eps_reason",
+    "stability_ksp_reason",
+    "stability_eps_conv_test",
+    "stability_eps_tol",
+    "stability_eps_max_it",
+    "stability_true_residual",
+    "stability_reduce_dirichlet",
+    "stability_residual_estimates",
+    "stability_residual_absolute",
+    "stability_residual_relative",
+    "stability_residual_backward",
+    "stability_postcheck_residual_abs",
+    "stability_postcheck_residual_rel",
+    "stability_postcheck_target_distance",
+    "stability_all_omega",
+    "stability_all_postcheck_rel",
+    "stability_all_target_distance",
+    "stability_all_reject_reason_code",
+    "stability_acceptance_postcheck_rel_max",
+    "stability_acceptance_target_distance_max",
+    "stability_acceptance_omega_real_abs_max",
+    "stability_acceptance_omega_imag_abs_max",
+    "stability_acceptance_conjugate_aware",
+    "stability_accepted_count",
+    "stability_accepted_indices",
+    "stability_rejected_indices",
+    "stability_missing_conjugate_partner_indices",
+    "stability_partner_rejected_indices",
+    "numerics_operator_dissipation_enabled",
+    "numerics_operator_dissipation_epsilon",
+    "numerics_operator_dissipation_order_diss",
+    "numerics_operator_dissipation_apply_to_stability",
+    "numerics_operator_dissipation_apply_to_resolvent",
+    "solver_eigen_st_solver_used",
+    "solver_apply_to_resolvent_effective",
+    "provenance_config_hash",
+    "provenance_linstabpy_git_sha",
+    "provenance_factor_backend",
+    "provenance_factor_precision",
+)
+"""Critical keys that runtime ``.npz`` outputs must continue to expose.
+
+The runtime writes additional arrays for plotting and diagnostics.  This list
+captures the compatibility surface needed by validation scripts, parity checks,
+cache invalidation, and downstream campaign summaries.
+"""
+
+
+def _readonly_empty(dtype) -> np.ndarray:
+    """Return a shared empty array that cannot be mutated accidentally."""
+    array = np.array([], dtype=dtype)
+    array.setflags(write=False)
+    return array
+
+
+EMPTY_FLOAT = _readonly_empty(float)
+EMPTY_COMPLEX = _readonly_empty(complex)
+EMPTY_INT32 = _readonly_empty(np.int32)
+EMPTY_INT64 = _readonly_empty(np.int64)
+# Shared empty arrays used as read-only defaults in hot runtime paths.
 
 _STAGE_WALL: dict[str, float] = {}
 

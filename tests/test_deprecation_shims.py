@@ -99,6 +99,34 @@ def test_resolvent_shim_attrs_warn_and_work() -> None:
     assert len(residual_payload) == 5
 
 
+def test_results_runtime_shim_warns_and_resolves_to_driver_objects() -> None:
+    import importlib
+
+    from linstabpy.driver import cli
+
+    run = importlib.import_module("linstabpy.driver.run")
+
+    sys.modules.pop("linstabpy.results_runtime", None)
+    namespace: dict[str, object] = {}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        exec(  # noqa: S102
+            "from linstabpy.results_runtime import compute, main, EMPTY_FLOAT",
+            namespace,
+        )
+    assert sum(item.category is DeprecationWarning for item in caught) == 3
+
+    assert namespace["compute"] is run.run
+    assert namespace["main"] is cli.main
+    assert namespace["EMPTY_FLOAT"] is run.EMPTY_FLOAT
+
+    shim = importlib.import_module("linstabpy.results_runtime")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        _ = shim.compute
+    assert caught == []
+
+
 def test_stability_acceptance_shim_warns_and_resolves_to_stability_objects() -> None:
     import importlib
 
