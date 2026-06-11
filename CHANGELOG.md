@@ -5,6 +5,12 @@ All notable changes to linstabpy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Work toward **0.0.6**. Development happens on the `dev` branch (versioned
+`0.0.6.dev0`) and is promoted to `main` through a reviewed pull request once a
+coherent slice is green. Entries accumulate here until the next patch tag is cut.
+
 ## [0.0.5] - 2026-06-11
 
 Stages 2–6 of the clean-code revamp, completing the refactor program under the
@@ -164,6 +170,7 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
+[Unreleased]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.5...HEAD
 [0.0.5]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.1...v0.0.3
