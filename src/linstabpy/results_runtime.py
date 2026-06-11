@@ -38,9 +38,7 @@ from petsc4py import PETSc
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
-from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.mesh import Mesh
-from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.resolvent.analysis import resolvent_analysis
@@ -1096,6 +1094,7 @@ def _stage_write_npz(
     heartbeat_seconds: float,
     payload: dict[str, object],
     peak_rss_bytes: int,
+    stage_wall: dict[str, float] | None = None,
 ) -> None:
     """Persist the runtime NPZ payload under the save-results stage boundary.
 
@@ -1103,13 +1102,19 @@ def _stage_write_npz(
     caller in the collective region (every rank) before the rank-0-only save
     block. It is threaded in so ``collect_cost_metrics`` performs NO MPI
     collective here (this function runs rank-0-only; a collective would deadlock).
+
+    ``stage_wall`` is the caller's accumulated per-stage wall-time map; it is
+    threaded in because the orchestration stages now live in
+    ``linstabpy.driver.run`` and update that module's accumulator, not this one.
     """
     stage_start = _stage_start()
     with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
         from linstabpy.utils.cost_metrics import collect_cost_metrics
 
         cost = collect_cost_metrics(
-            _STAGE_WALL, git_sha=_git_head_sha(), peak_rss_bytes=peak_rss_bytes
+            _STAGE_WALL if stage_wall is None else stage_wall,
+            git_sha=_git_head_sha(),
+            peak_rss_bytes=peak_rss_bytes,
         )
         payload = {**payload, **cost}
         np.savez_compressed(output_npz, **payload)
@@ -1254,553 +1259,25 @@ def _stage_evaluate_stability_acceptance(
 
 def compute() -> None:
     """Run the shared case pipeline and write the requested NPZ artifact."""
-    t0 = time.perf_counter()
-    output_npz = _output_npz_path()
-    _log("starting compute")
-    comm = PETSc.COMM_WORLD
-    rank = comm.getRank()
-    size = comm.getSize()
+    import importlib
 
-    config_source = _stage_load_runtime_config()
-    config = config_source.config
-    config_hash = config_source.config_hash
-    git_sha = config_source.git_sha
-    cfg = lambda path, default: _cfg_get(config, path, default)
+    from linstabpy.driver import run as driver_run
 
-    heartbeat_seconds = float(
-        cfg("logging.stage_heartbeat_seconds", _default_stage_heartbeat_seconds())
-    )
+    driver_run_module = importlib.import_module("linstabpy.driver.run")
 
-    # ------------------------------------------------------------------
-    # 1) Read runtime configuration from environment variables.
-    #    Defaults here mirror the reference MATLAB setup.
-    # ------------------------------------------------------------------
-    case_dir = Path(str(cfg("paths.case_dir", str(Path.cwd() / "data" / "baseflow"))))
-    sponge_mat_path = Path(
-        str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat"))
-    )
-    Re = float(cfg("physics.Re", 395000.0))
-    Ma = float(cfg("physics.Ma", 2.0))
-    Pr = float(cfg("physics.Pr", 0.747))
-    # MATLAB export note:
-    # - `case_inputs_used.mat/baseFlow.kappa` is 1.4
-    # - `run_metadata.mat/kappa` is 1.31
-    # The assembled reference operators/spectrum align with baseFlow.kappa.
-    kappa = float(cfg("physics.kappa", 1.4))
-    T_0 = float(cfg("physics.T_0", 1540.0))
+    for name in (
+        "_log",
+        "_log_stage",
+        "load_hamada_case",
+        "sutherland_air",
+        "Mesh",
+        "build_lnse_system_result",
+        "analyze_bc_recipe",
+        "compute_chu_norm",
+    ):
+        setattr(driver_run_module, name, globals()[name])
 
-    stride_ksi = int(cfg("numerics.stride_ksi", 1))
-    stride_eta = int(cfg("numerics.stride_eta", 1))
-    fd_order = int(cfg("numerics.fd_order", 4))
-    beta = float(cfg("numerics.beta", 0.0))
-    penalty = float(cfg("bc.penalty", 1e8))
-
-    ratio_u = float(cfg("analysis.ratio_uinf", 1.0))
-    ratio_l = float(cfg("analysis.ratio_l", 0.1))
-    St = float(cfg("analysis.St", 0.1))
-
-    # Target angular frequency used by resolvent and shift-invert EVP.
-    omega_target = _resolve_omega_target(
-        cfg("analysis.omega_target", None),
-        2.0 * np.pi * St * ratio_u / ratio_l,
-    )
-    stability_acceptance_postcheck_rel_max = _resolve_optional_float(
-        cfg("analysis.stability_acceptance.postcheck_rel_max", None)
-    )
-    stability_acceptance_target_distance_max = _resolve_optional_float(
-        cfg("analysis.stability_acceptance.target_distance_max", None)
-    )
-    stability_acceptance_omega_real_abs_max = _resolve_optional_float(
-        _cfg_first(
-            cfg,
-            "analysis.stability_acceptance.omega_real_abs_max",
-            "analysis.stability_acceptance.frequency_abs_max",
-            "analysis.stability_acceptance.omega_abs_max",
-        )
-    )
-    stability_acceptance_omega_imag_abs_max = _resolve_optional_float(
-        _cfg_first(
-            cfg,
-            "analysis.stability_acceptance.omega_imag_abs_max",
-            "analysis.stability_acceptance.growth_abs_max",
-            "analysis.stability_acceptance.sigma_abs_max",
-        )
-    )
-    # Default True: real-valued baseflows have a conjugate-pair spectrum, and
-    # admitting the conjugate partner at the same target_distance_max is the
-    # physically correct metric (see _postcheck_target_distance docstring and
-    # SWBLI.md for the mode-family rationale). Set to False in the JSONC only
-    # for complex baseflows (Floquet, complex perturbation-tracking).
-    stability_acceptance_conjugate_aware: bool = bool(
-        cfg("analysis.stability_acceptance.conjugate_aware", True)
-    )
-
-    n_modes = int(cfg("analysis.n_modes_stability", 100))
-    n_modes_resolvent = int(cfg("analysis.n_modes_resolvent", 10))
-    run_resolvent = bool(cfg("analysis.run_resolvent", True))
-    run_stability = bool(cfg("analysis.run_stability", True))
-    zero_spanwise = bool(cfg("physics.zero_spanwise", False))
-    sponge_cfg_raw = cfg("physics.sponge", None)
-    sponge_cfg = sponge_cfg_raw if isinstance(sponge_cfg_raw, dict) else None
-    native_sponge_enabled = bool((sponge_cfg or {}).get("enabled", False))
-    use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", False))
-    alpha_filter_raw = cfg("numerics.alpha_filter", "none")
-    alpha_filter = _effective_alpha_filter(
-        alpha_filter_raw,
-        run_resolvent=run_resolvent,
-        context="config",
-    )
-    od_raw = cfg("numerics.operator_dissipation", None)
-    od_cfg = od_raw if isinstance(od_raw, dict) else {}
-    od_enabled = bool(od_cfg.get("enabled", False))
-    od_epsilon = float(od_cfg.get("epsilon", 0.0))
-    od_order_diss = int(od_cfg.get("order_diss", fd_order))
-    od_apply_to_stability = bool(od_cfg.get("apply_to_stability", True))
-    od_apply_to_resolvent = bool(od_cfg.get("apply_to_resolvent", False))
-    od_transition_fraction = float(
-        od_cfg.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"])
-    )
-    od_endpoint_exponent = float(
-        od_cfg.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"])
-    )
-    od_interior_value = float(od_cfg.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
-    # Effective epsilon per analysis stage
-    eps_stab = od_epsilon if (od_enabled and od_apply_to_stability) else 0.0
-    eps_resolv = (
-        od_epsilon if (od_enabled and od_apply_to_resolvent) else 0.0
-    )  # Phase 4: use when wiring resolvent
-    if od_enabled:
-        _log(
-            f"numerics.operator_dissipation effective: enabled=True, epsilon={od_epsilon}, order_diss={od_order_diss}, "
-            f"apply_to_stability={od_apply_to_stability}, apply_to_resolvent={od_apply_to_resolvent}, "
-            f"transition_fraction={od_transition_fraction}, endpoint_exponent={od_endpoint_exponent}, "
-            f"interior_value={od_interior_value}"
-        )
-    # MATLAB export note:
-    # case_inputs_used.mat stores uppercase dMUdT/d2MUdT2 as zeros; GetLinProblem.m
-    # consumes those names in getCoeffsLaminar_Cartesian.m. Keep this default True
-    # for strict parity with the exported reference matrices/spectrum.
-    zero_mu_t_derivs = bool(cfg("physics.zero_mu_t_derivs", True))
-    # MATLAB stability convention:
-    #   L0_matlab = L0 / (-1i)  => omega = eig(L0_matlab) = eig(1j * L0)
-    # Keep this as default for parity with exported MATLAB spectrum.
-    use_raw_eigs = bool(cfg("analysis.use_raw_eigs", False))
-    prefer_matlab_sponge_aux = (
-        (not native_sponge_enabled) and use_matlab_sponge_aux and sponge_mat_path.exists()
-    )
-    solver_cfg = config.get("solver")
-    if solver_cfg is None:
-        solver_cfg = {}
-        config["solver"] = solver_cfg
-    cfg_obj = Config.load(config)
-
-    # Read solver knobs from JSONC (env-var fallback for backward compat).
-    _ecfg = solver_cfg.get("eigen", {})
-    st_solver = (
-        _ecfg.get("st_solver", os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
-    )
-    iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
-    _root_raw = _first_env(
-        "LINSTABPY_CASE_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE2_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE1_ROOT_ASSEMBLY",
-    )
-    requested_root_operator = size > 1 and (
-        (_root_raw.strip().lower() in {"1", "true", "yes", "on"})
-        if _root_raw is not None
-        else iterative_st_solver
-    )
-    use_root_operator = requested_root_operator and iterative_st_solver
-    if requested_root_operator and not iterative_st_solver:
-        _log(
-            "root-assembly mode requested but disabled because "
-            f"eigen.st_solver={st_solver!r} is not iterative"
-        )
-    if use_root_operator and run_resolvent:
-        raise RuntimeError(
-            "Root-only operator assembly mode is currently intended for stability solves only. "
-            "Set LINSTABPY_CASE_ROOT_ASSEMBLY=0 when running resolvent in MPI."
-        )
-    if use_root_operator:
-        solver_cfg.setdefault("root_scatter", True)
-
-    _linsolve = solver_cfg.get("linsolve", {})
-    _resolvent_cfg = solver_cfg.get("resolvent", _linsolve)
-    resolvent_type = _resolvent_cfg.get("type", _linsolve.get("type", "mumps"))
-    factor_backend_provenance = resolve_factor_backend(solver_cfg, default="mumps") or "petsc"
-    matrix_mode = solver_cfg.get("petsc_matrix_mode", "auto")
-    assembly_backend = cfg("assembly_backend", None)
-    reduce_dirichlet = bool(_ecfg.get("reduce_dirichlet", False))
-    reduce_dirichlet_set = str(_ecfg.get("reduce_dirichlet_set", "column_zeroed")).strip().lower()
-    if reduce_dirichlet_set not in {"effective", "column_zeroed"}:
-        raise ValueError("solver.eigen.reduce_dirichlet_set must be 'effective' or 'column_zeroed'")
-
-    _log(
-        f"config: case_dir={case_dir} fd_order={fd_order} n_modes={n_modes} "
-        f"run_stability={run_stability} run_resolvent={run_resolvent} "
-        f"raw_eigs={use_raw_eigs} zero_mu_t_derivs={zero_mu_t_derivs} "
-        f"alpha_filter={alpha_filter} "
-        f"sponge_request={'native' if native_sponge_enabled else ('matlab_aux' if prefer_matlab_sponge_aux else 'baseflow_file')}"
-    )
-    _log(
-        "solver setup: "
-        f"mpi_ranks={size} "
-        f"st_solver={st_solver} "
-        f"resolvent_solver={resolvent_type} "
-        f"root_assembly={use_root_operator} "
-        f"matrix_mode={matrix_mode}"
-    )
-
-    # ------------------------------------------------------------------
-    # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
-    #    compute viscosity/transport via Sutherland law.
-    # ------------------------------------------------------------------
-    loaded_case = _stage_load_case(
-        case_dir=case_dir,
-        Re=Re,
-        Ma=Ma,
-        Pr=Pr,
-        kappa=kappa,
-        T_0=T_0,
-        stride_ksi=stride_ksi,
-        stride_eta=stride_eta,
-        zero_spanwise=zero_spanwise,
-        sponge_mat_path=sponge_mat_path,
-        prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
-        native_sponge_enabled=native_sponge_enabled,
-        sponge_cfg=sponge_cfg,
-        zero_mu_t_derivs=zero_mu_t_derivs,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-    X = loaded_case.X
-    Y = loaded_case.Y
-    baseflow = loaded_case.baseflow
-    sponge = loaded_case.sponge
-    sponge_enabled = loaded_case.sponge_enabled
-    sponge_source = loaded_case.sponge_source
-
-    # ------------------------------------------------------------------
-    # 3) Build a computational mesh, then deform it to physical X/Y.
-    # ------------------------------------------------------------------
-    mesh = _stage_build_mesh(
-        X=X,
-        Y=Y,
-        sponge=sponge,
-        fd_order=fd_order,
-        alpha_filter=alpha_filter,
-        od_cfg=od_cfg,
-        od_enabled=od_enabled,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-
-    # ------------------------------------------------------------------
-    # 4) Assemble LNSE operator and impose boundary conditions.
-    # ------------------------------------------------------------------
-    bc_recipe = cfg(
-        "bc.recipe",
-        [
-            {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
-            {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
-            {"type": "neumann", "borders": "b", "variables": "T", "exclude_corners": True},
-            {"type": "neumann", "borders": "r", "variables": "ruvwT", "exclude_corners": True},
-        ],
-    )
-    assembly_result = _stage_assemble_operators(
-        mesh=mesh,
-        baseflow=baseflow,
-        beta=beta,
-        bc_recipe=bc_recipe,
-        penalty=penalty,
-        assembly_backend=assembly_backend,
-        solver_cfg=solver_cfg,
-        eps_stab=eps_stab,
-        eps_resolv=eps_resolv,
-        run_resolvent=run_resolvent,
-        use_root_operator=use_root_operator,
-        rank=rank,
-        reduce_dirichlet_set=reduce_dirichlet_set,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-    L0 = assembly_result.L0
-    L0_resolv = assembly_result.L0_resolv
-    idx = assembly_result.idx
-    bc_indices = assembly_result.bc_indices
-    total_bc_indices = assembly_result.total_bc_indices
-    effective_dirichlet_indices = assembly_result.effective_dirichlet_indices
-    effective_neumann_indices = assembly_result.effective_neumann_indices
-    overlap_indices = assembly_result.overlap_indices
-    column_zeroed_dirichlet_indices = assembly_result.column_zeroed_dirichlet_indices
-    constrained_dirichlet_indices = assembly_result.constrained_dirichlet_indices
-
-    # ------------------------------------------------------------------
-    # 5) Build Chu energy norm weights. These weights are required for
-    #    weighted analyses (resolvent and temporal formulation).
-    # ------------------------------------------------------------------
-    W_diag, invW_diag = _stage_compute_chu_norm(
-        mesh=mesh,
-        baseflow=baseflow,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-
-    # ------------------------------------------------------------------
-    # 6) Optional resolvent analysis at omega_target.
-    # ------------------------------------------------------------------
-    resolvent_result = _stage_run_resolvent(
-        run_resolvent=run_resolvent,
-        L0_resolv=L0_resolv,
-        mesh=mesh,
-        W_diag=W_diag,
-        omega_target=omega_target,
-        n_modes_resolvent=n_modes_resolvent,
-        total_bc_indices=total_bc_indices,
-        solver_cfg=solver_cfg,
-        cfg=cfg_obj,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-    gains = resolvent_result.gains
-    responses = resolvent_result.responses
-    forcings = resolvent_result.forcings
-    resolvent_rho_fwd = resolvent_result.rho_fwd
-    resolvent_rho_adj = resolvent_result.rho_adj
-
-    # ------------------------------------------------------------------
-    # 7) Optional stability analysis.
-    #    - raw_eigs: eig(L0) directly (diagnostic-only path, not MATLAB parity)
-    #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
-    # ------------------------------------------------------------------
-    stability_result = _stage_run_stability(
-        run_stability=run_stability,
-        use_raw_eigs=use_raw_eigs,
-        reduce_dirichlet=reduce_dirichlet,
-        use_root_operator=use_root_operator,
-        reduce_dirichlet_set=reduce_dirichlet_set,
-        constrained_dirichlet_indices=constrained_dirichlet_indices,
-        effective_dirichlet_indices=effective_dirichlet_indices,
-        effective_neumann_indices=effective_neumann_indices,
-        overlap_indices=overlap_indices,
-        L0=L0,
-        W_diag=W_diag,
-        omega_target=omega_target,
-        n_modes=n_modes,
-        mesh=mesh,
-        solver_cfg=solver_cfg,
-        cfg=cfg_obj,
-        total_bc_indices=total_bc_indices,
-        stability_acceptance_conjugate_aware=stability_acceptance_conjugate_aware,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-    omega = stability_result.omega
-    direct_modes = stability_result.direct_modes
-    stability_info = stability_result.stability_info
-
-    # ------------------------------------------------------------------
-    # 8) Save full run state to one NPZ for downstream parity/plots.
-    # ------------------------------------------------------------------
-    # Cross-rank peak-RSS aggregation MUST run on EVERY rank (collective),
-    # BEFORE the rank-0-only save block below -- otherwise the allreduce
-    # deadlocks every multi-rank run. The aggregated scalar is threaded into the
-    # rank-0-only save (see _stage_write_npz / collect_cost_metrics).
-    _peak_rss_total_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
-    if rank == 0:
-        acceptance_result = _stage_evaluate_stability_acceptance(
-            omega=omega,
-            stability_info=stability_info,
-            stability_acceptance_postcheck_rel_max=stability_acceptance_postcheck_rel_max,
-            stability_acceptance_target_distance_max=stability_acceptance_target_distance_max,
-            stability_acceptance_omega_real_abs_max=stability_acceptance_omega_real_abs_max,
-            stability_acceptance_omega_imag_abs_max=stability_acceptance_omega_imag_abs_max,
-            stability_acceptance_conjugate_aware=stability_acceptance_conjugate_aware,
-        )
-        stability_residual_estimates = acceptance_result.residual_estimates
-        stability_residual_absolute = acceptance_result.residual_absolute
-        stability_residual_relative = acceptance_result.residual_relative
-        stability_residual_backward = acceptance_result.residual_backward
-        stability_postcheck_residual_abs = acceptance_result.postcheck_residual_abs
-        stability_postcheck_residual_rel = acceptance_result.postcheck_residual_rel
-        stability_postcheck_residual_interior_abs = (
-            acceptance_result.postcheck_residual_interior_abs
-        )
-        stability_postcheck_residual_bc_abs = acceptance_result.postcheck_residual_bc_abs
-        stability_postcheck_bc_leak_max = acceptance_result.postcheck_bc_leak_max
-        stability_postcheck_bc_leak_p99 = acceptance_result.postcheck_bc_leak_p99
-        stability_postcheck_dirichlet_leak_max = acceptance_result.postcheck_dirichlet_leak_max
-        stability_postcheck_dirichlet_leak_p99 = acceptance_result.postcheck_dirichlet_leak_p99
-        stability_postcheck_target_distance = acceptance_result.postcheck_target_distance
-        stability_acceptance = acceptance_result.acceptance
-        _conj_diag = acceptance_result.conjugate_diagnostic
-        _stage_write_npz(
-            output_npz=output_npz,
-            heartbeat_seconds=heartbeat_seconds,
-            peak_rss_bytes=_peak_rss_total_bytes,
-            payload=dict(
-                omega=omega,
-                direct_modes=direct_modes,
-                gains=gains,
-                responses=responses,
-                forcings=forcings,
-                resolvent_rho_fwd=resolvent_rho_fwd,
-                resolvent_rho_adj=resolvent_rho_adj,
-                omega_target=omega_target,
-                use_raw_eigs=use_raw_eigs,
-                St=St,
-                beta=beta,
-                fd_order=fd_order,
-                alpha_filter=np.array(str(alpha_filter)),
-                use_matlab_sponge_aux=use_matlab_sponge_aux,
-                sponge_enabled=sponge_enabled,
-                sponge_source=np.array(sponge_source),
-                sponge_preset=np.array(str((sponge_cfg or {}).get("preset", ""))),
-                native_sponge_requested=native_sponge_enabled,
-                matlab_sponge_aux_requested=use_matlab_sponge_aux,
-                n_modes_stability_requested=n_modes,
-                n_modes_resolvent_requested=n_modes_resolvent,
-                Re=Re,
-                Ma=Ma,
-                Pr=Pr,
-                kappa=kappa,
-                T_0=T_0,
-                X=mesh.X,
-                Y=mesh.Y,
-                U=baseflow.U,
-                sponge=mesh.sponge,
-                idx_rho_j=idx["rho_j"],
-                idx_u_j=idx["u_j"],
-                idx_v_j=idx["v_j"],
-                idx_w_j=idx["w_j"],
-                idx_T_j=idx["T_j"],
-                bc_indices=bc_indices,
-                bc_total_indices=total_bc_indices,
-                bc_effective_dirichlet_indices=effective_dirichlet_indices,
-                bc_column_zeroed_dirichlet_indices=column_zeroed_dirichlet_indices,
-                bc_effective_neumann_indices=effective_neumann_indices,
-                bc_overlap_indices=overlap_indices,
-                W_diag=W_diag,
-                invW_diag=invW_diag,
-                stability_eps_nev=int(stability_info.get("nev_requested", -1)),
-                stability_eps_ncv=int(stability_info.get("ncv_used", -1)),
-                stability_eps_nconv=int(stability_info.get("nconv", -1)),
-                stability_eps_iterations=int(stability_info.get("eps_iterations", -1)),
-                stability_eps_reason=np.array(str(stability_info.get("eps_reason", ""))),
-                stability_ksp_reason=np.array(str(stability_info.get("ksp_reason", ""))),
-                stability_eps_conv_test=np.array(str(stability_info.get("conv_test", ""))),
-                stability_eps_tol=float(stability_info.get("eps_tol", np.nan)),
-                stability_eps_max_it=int(stability_info.get("eps_max_it", -1)),
-                stability_eps_setup_seconds=float(stability_info.get("eps_setup_seconds", np.nan)),
-                stability_eps_solve_seconds=float(stability_info.get("eps_solve_seconds", np.nan)),
-                stability_true_residual=bool(stability_info.get("true_residual", False)),
-                stability_reduce_dirichlet=bool(stability_info.get("reduce_dirichlet", False)),
-                stability_reduce_dirichlet_set=np.array(
-                    str(stability_info.get("reduce_dirichlet_set", ""))
-                ),
-                stability_free_dof_count=int(stability_info.get("free_dof_count", -1)),
-                stability_constrained_dirichlet_count=int(
-                    stability_info.get("constrained_dirichlet_count", -1)
-                ),
-                stability_residual_error_type=np.array(
-                    str(stability_info.get("residual_error_type", ""))
-                ),
-                stability_residual_estimates=stability_residual_estimates,
-                stability_residual_absolute=stability_residual_absolute,
-                stability_residual_relative=stability_residual_relative,
-                stability_residual_backward=stability_residual_backward,
-                stability_postcheck_residual_abs=stability_postcheck_residual_abs,
-                stability_postcheck_residual_rel=stability_postcheck_residual_rel,
-                stability_postcheck_residual_interior_abs=stability_postcheck_residual_interior_abs,
-                stability_postcheck_residual_bc_abs=stability_postcheck_residual_bc_abs,
-                stability_postcheck_bc_leak_max=stability_postcheck_bc_leak_max,
-                stability_postcheck_bc_leak_p99=stability_postcheck_bc_leak_p99,
-                stability_postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
-                stability_postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
-                stability_postcheck_target_distance=stability_postcheck_target_distance,
-                # Full pre-acceptance dump for every ARPACK-converged mode (Front A).
-                # These arrays cover ALL converged modes, not just accepted ones.
-                stability_all_omega=np.asarray(omega, dtype=complex),
-                stability_all_postcheck_rel=stability_postcheck_residual_rel,
-                stability_all_target_distance=stability_postcheck_target_distance,
-                stability_all_reject_reason_code=np.asarray(
-                    stability_acceptance.get("reject_reason_code", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_acceptance_postcheck_rel_max=float(
-                    stability_acceptance_postcheck_rel_max
-                ),
-                stability_acceptance_target_distance_max=float(
-                    stability_acceptance_target_distance_max
-                ),
-                stability_acceptance_omega_real_abs_max=float(
-                    stability_acceptance_omega_real_abs_max
-                ),
-                stability_acceptance_omega_imag_abs_max=float(
-                    stability_acceptance_omega_imag_abs_max
-                ),
-                stability_acceptance_conjugate_aware=bool(
-                    stability_acceptance.get("acceptance_conjugate_aware", False)
-                ),
-                stability_accepted_count=int(stability_acceptance.get("accepted_count", -1)),
-                stability_accepted_indices=np.asarray(
-                    stability_acceptance.get("accepted_indices", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_rejected_indices=np.asarray(
-                    stability_acceptance.get("rejected_indices", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_accepted_postcheck_rel_min=float(
-                    stability_acceptance.get("accepted_postcheck_rel_min", np.nan)
-                ),
-                stability_accepted_postcheck_rel_median=float(
-                    stability_acceptance.get("accepted_postcheck_rel_median", np.nan)
-                ),
-                stability_accepted_target_distance_min=float(
-                    stability_acceptance.get("accepted_target_distance_min", np.nan)
-                ),
-                stability_accepted_target_distance_median=float(
-                    stability_acceptance.get("accepted_target_distance_median", np.nan)
-                ),
-                stability_accepted_omega_real_min=float(
-                    stability_acceptance.get("accepted_omega_real_min", np.nan)
-                ),
-                stability_accepted_omega_real_max=float(
-                    stability_acceptance.get("accepted_omega_real_max", np.nan)
-                ),
-                stability_accepted_omega_imag_min=float(
-                    stability_acceptance.get("accepted_omega_imag_min", np.nan)
-                ),
-                stability_accepted_omega_imag_max=float(
-                    stability_acceptance.get("accepted_omega_imag_max", np.nan)
-                ),
-                stability_leading_weighted_norm_error=float(
-                    stability_info.get("leading_weighted_norm_error", np.nan)
-                ),
-                stability_weighted_norm_tol=float(stability_info.get("weighted_norm_tol", np.nan)),
-                numerics_operator_dissipation_enabled=np.bool_(od_enabled),
-                numerics_operator_dissipation_epsilon=np.float64(od_epsilon),
-                numerics_operator_dissipation_order_diss=np.int64(od_order_diss),
-                numerics_operator_dissipation_apply_to_stability=np.bool_(od_apply_to_stability),
-                numerics_operator_dissipation_apply_to_resolvent=np.bool_(od_apply_to_resolvent),
-                numerics_operator_dissipation_transition_fraction=np.float64(
-                    od_transition_fraction
-                ),
-                numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
-                numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
-                solver_eigen_st_solver_used=str(st_solver),
-                solver_apply_to_resolvent_effective=np.bool_(eps_resolv > 0.0),
-                provenance_config_hash=np.bytes_(config_hash[:16].encode()),
-                provenance_linstabpy_git_sha=np.bytes_(git_sha.encode()),
-                provenance_factor_backend=np.array(str(factor_backend_provenance)),
-                provenance_factor_precision=np.array(FACTOR_PRECISION),
-                stability_missing_conjugate_partner_indices=np.asarray(
-                    _conj_diag["missing_partner_indices"], dtype=np.int32
-                ),
-                stability_partner_rejected_indices=np.asarray(
-                    _conj_diag["partner_rejected_indices"], dtype=np.int32
-                ),
-            ),
-        )
-    elapsed = time.perf_counter() - t0
-    _log(f"results saved to {output_npz}")
-    _log(f"compute finished in {elapsed:.2f}s")
-    comm.barrier()
+    driver_run()
 
 
 def main() -> None:
