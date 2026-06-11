@@ -99,6 +99,37 @@ def test_resolvent_shim_attrs_warn_and_work() -> None:
     assert len(residual_payload) == 5
 
 
+def test_stability_acceptance_shim_warns_and_resolves_to_stability_objects() -> None:
+    import importlib
+
+    from linstabpy.stability import acceptance
+
+    sys.modules.pop("linstabpy.utils.stability_acceptance", None)
+    namespace: dict[str, object] = {}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        exec(  # noqa: S102
+            "from linstabpy.utils.stability_acceptance import "
+            "_postcheck_target_distance, check_conjugate_pair_completeness, "
+            "evaluate_stability_acceptance",
+            namespace,
+        )
+    assert sum(item.category is DeprecationWarning for item in caught) == 3
+
+    assert namespace["_postcheck_target_distance"] is acceptance._postcheck_target_distance
+    assert (
+        namespace["check_conjugate_pair_completeness"]
+        is acceptance.check_conjugate_pair_completeness
+    )
+    assert namespace["evaluate_stability_acceptance"] is acceptance.evaluate_stability_acceptance
+
+    shim = importlib.import_module("linstabpy.utils.stability_acceptance")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        _ = shim.evaluate_stability_acceptance
+    assert caught == []
+
+
 def test_plain_import_linstabpy_does_not_import_petsc() -> None:
     code = "import sys; import linstabpy; print('petsc4py' in sys.modules)"
     result = subprocess.run(

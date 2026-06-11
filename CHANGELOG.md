@@ -21,6 +21,11 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
   top-level `linstabpy.temporal_eigenvalues` / `adjoint_eigenvalues` are
   unchanged and warning-free. Numerics frozen: full suite and spectra
   identical to baseline. (bead r3uu.6.5.1)
+- **Stage 4 (refactor):** `utils.stability_acceptance` moved verbatim to
+  `linstabpy.stability.acceptance`, colocating the acceptance gate
+  (postcheck residual, target distance, conjugate-aware verdict,
+  `reject_reason_code` bitmask — all unchanged) with the eigenvalue core.
+  Old path remains a deprecation shim for one minor version. (bead r3uu.6.5.2)
 
 ## [0.0.4] - 2026-06-10
 
