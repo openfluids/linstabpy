@@ -7,7 +7,8 @@ import math
 import numpy as np
 
 import linstabpy.utils.cost_metrics as cost_metrics_module
-from linstabpy.results_runtime import _STAGE_WALL, _log_stage, _stage_start, _stage_write_npz
+from linstabpy.driver.io import _stage_write_npz
+from linstabpy.driver.run import _STAGE_WALL, _log_stage, _stage_start
 from linstabpy.utils.cost_metrics import collect_cost_metrics
 
 COST_KEYS = {

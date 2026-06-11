@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+import importlib
 import time
 
-from linstabpy import results_runtime
+results_runtime = importlib.import_module("linstabpy.driver.run")
 
 
 def test_stage_heartbeat_emits_periodic_logs(monkeypatch):

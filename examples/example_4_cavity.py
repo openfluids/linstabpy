@@ -69,7 +69,8 @@ def compute(cfg: dict):
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
-    from linstabpy.solvers.eigenvalue import adjoint_eigenvalues, temporal_eigenvalues
+    from linstabpy.stability import adjoint_eigenvalues
+    from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
     solver_cfg = cfg.get("solver")
     if solver_cfg is None:

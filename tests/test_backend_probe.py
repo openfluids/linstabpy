@@ -7,8 +7,9 @@ import numpy as np
 import pytest
 from petsc4py import PETSc
 
+from linstabpy.linalg.backends import shifted_ksp_probe_residual, should_probe_backend
 from linstabpy.solvers import eigenvalue
-from linstabpy.solvers.backends import shifted_ksp_probe_residual, should_probe_backend
+from linstabpy.stability import eigenvalues as stability_eigenvalues
 
 
 def _create_aij(diagonal: list[complex]) -> PETSc.Mat:
@@ -91,7 +92,7 @@ def test_temporal_default_mumps_path_does_not_invoke_probe(monkeypatch) -> None:
     monkeypatch.setattr(eigenvalue, "shifted_ksp_probe_residual", fail_probe)
     operator = np.diag([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j])
 
-    omega, _ = eigenvalue.temporal_eigenvalues(operator, n_modes=1, target=2.2j)
+    omega, _ = stability_eigenvalues(operator, n_modes=1, target=2.2j)
 
     assert omega.shape == (1,)
 
@@ -118,7 +119,7 @@ def test_temporal_backend_probe_failure_raises_clear_error(monkeypatch) -> None:
     operator = np.diag([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j])
 
     with pytest.raises(RuntimeError) as excinfo:
-        eigenvalue.temporal_eigenvalues(
+        stability_eigenvalues(
             operator,
             n_modes=1,
             target=2.2j,

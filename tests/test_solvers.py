@@ -6,6 +6,8 @@ All tests in this file are marked @pytest.mark.slow.
 
 import json
 import shutil
+import subprocess
+import sys
 import textwrap
 
 import numpy as np
@@ -13,7 +15,7 @@ import pytest
 import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
-import linstabpy.solvers.resolvent as resolvent_module
+import linstabpy.resolvent.analysis as resolvent_module
 from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
@@ -23,6 +25,8 @@ from linstabpy.boundary_conditions import (
     apply_dirichlet_spatial,
     apply_dirichlet_spatial_petsc,
 )
+from linstabpy.linalg import Factorization, shifted_operator
+from linstabpy.linalg.factorize import factorize
 from linstabpy.mesh import Mesh
 from linstabpy.operators import (
     build_lnse_operator,
@@ -32,11 +36,9 @@ from linstabpy.operators import (
     build_spatial_operator_petsc,
     compute_chu_norm,
 )
-from linstabpy.solvers import (
-    adjoint_eigenvalues,
+from linstabpy.resolvent.analysis import (
+    compute_resolvent_svd_residuals,
     resolvent_analysis,
-    spatial_eigenvalues,
-    temporal_eigenvalues,
 )
 from linstabpy.solvers.eigenvalue import (
     _resolve_ncv as _resolve_temporal_ncv,
@@ -44,15 +46,171 @@ from linstabpy.solvers.eigenvalue import (
 from linstabpy.solvers.eigenvalue import (
     _sort_nearest as _sort_temporal_nearest,
 )
-from linstabpy.solvers.linsolve import make_linear_solver
-from linstabpy.solvers.petsc_utils import scipy_to_petsc
-from linstabpy.solvers.resolvent import (
-    compute_resolvent_svd_residuals,
-    resolvent_analysis_with_residuals,
-)
+from linstabpy.solvers.petsc_utils import petsc_to_scipy, scipy_to_petsc
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
+from linstabpy.stability import (
+    adjoint_eigenvalues,
+    eigenvalues,
+    spatial_eigenvalues,
+)
+from linstabpy.stability import (
+    eigenvalues as temporal_eigenvalues,
+)
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
+
+
+def test_stability_public_exports_use_shared_solver_core():
+    import linstabpy.stability._eigenvalues as stability_eigenvalues
+
+    assert callable(eigenvalues)
+    assert callable(adjoint_eigenvalues)
+    assert callable(spatial_eigenvalues)
+    assert callable(stability_eigenvalues.eigenvalues)
+    assert callable(stability_eigenvalues.adjoint_eigenvalues)
+    assert callable(stability_eigenvalues.spatial_eigenvalues)
+    assert (
+        stability_eigenvalues.eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+    assert (
+        stability_eigenvalues.adjoint_eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+    assert (
+        stability_eigenvalues.spatial_eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+
+
+def test_legacy_eigenvalue_shims_warn_and_delegate():
+    import linstabpy.solvers.eigenvalue as legacy_eigenvalue
+    import linstabpy.solvers.spatial_eig as legacy_spatial
+    import linstabpy.stability._eigenvalues as stability_eigenvalues
+
+    legacy_eigenvalue.__dict__.pop("temporal_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.eigenvalues"):
+        old_temporal = legacy_eigenvalue.temporal_eigenvalues
+    assert old_temporal is stability_eigenvalues.eigenvalues
+
+    legacy_eigenvalue.__dict__.pop("adjoint_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.adjoint_eigenvalues"):
+        old_adjoint = legacy_eigenvalue.adjoint_eigenvalues
+    assert old_adjoint is stability_eigenvalues.adjoint_eigenvalues
+
+    legacy_spatial.__dict__.pop("spatial_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.spatial_eigenvalues"):
+        old_spatial = legacy_spatial.spatial_eigenvalues
+    assert old_spatial is stability_eigenvalues.spatial_eigenvalues
+
+
+def test_import_stability_package_is_petsc_free():
+    code = (
+        "import sys; "
+        "before = set(sys.modules); "
+        "import linstabpy.stability; "
+        "after = set(sys.modules); "
+        "print(int('petsc4py' in (after - before)), int('slepc4py' in (after - before)))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert proc.stdout.strip() == "0 0"
+
+
+def test_shifted_operator_scipy_matches_legacy_and_direct_gamma_shift():
+    L0 = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    gamma = 0.75
+
+    old_gamma0 = sp.csc_matrix(L0, copy=True)
+    old_gamma0.setdiag(old_gamma0.diagonal() - 1j * omega)
+    moved_gamma0 = shifted_operator(L0, omega, 0.0)
+    assert (moved_gamma0 != old_gamma0).nnz == 0
+    np.testing.assert_array_equal(moved_gamma0.toarray(), old_gamma0.toarray())
+
+    direct_gamma = sp.csc_matrix(L0, copy=True)
+    direct_gamma.setdiag(direct_gamma.diagonal() - (gamma + 1j * omega))
+    moved_gamma = shifted_operator(L0, omega, gamma)
+    np.testing.assert_array_equal(moved_gamma.toarray(), direct_gamma.toarray())
+
+
+def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
+    L0_sp = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    gamma = 0.75
+    L0 = scipy_to_petsc(L0_sp)
+    try:
+        old_gamma0 = L0.copy()
+        old_gamma0.shift(-1j * omega)
+        old_gamma0.assemble()
+        moved_gamma0 = shifted_operator(L0, omega, 0.0)
+        np.testing.assert_array_equal(
+            petsc_to_scipy(moved_gamma0).toarray(), petsc_to_scipy(old_gamma0).toarray()
+        )
+
+        direct_gamma = L0.copy()
+        direct_gamma.shift(-(gamma + 1j * omega))
+        direct_gamma.assemble()
+        moved_gamma = shifted_operator(L0, omega, gamma)
+        np.testing.assert_array_equal(
+            petsc_to_scipy(moved_gamma).toarray(),
+            petsc_to_scipy(direct_gamma).toarray(),
+        )
+    finally:
+        for matrix in (
+            L0,
+            locals().get("old_gamma0"),
+            locals().get("moved_gamma0"),
+            locals().get("direct_gamma"),
+            locals().get("moved_gamma"),
+        ):
+            if matrix is not None:
+                matrix.destroy()
+
+
+def test_linalg_factorization_exports_and_adjoint_aliases():
+    A = sp.csc_matrix(
+        np.array(
+            [
+                [3.0 + 0.5j, 1.0 - 0.25j],
+                [0.5 + 0.125j, 2.0 - 0.75j],
+            ],
+            dtype=complex,
+        )
+    )
+    rhs = np.array([1.0 - 0.5j, 2.0 + 0.25j], dtype=complex)
+
+    fac = factorize(A)
+    try:
+        assert isinstance(fac, Factorization)
+        assert hasattr(fac, "solve")
+        assert hasattr(fac, "solve_adjoint")
+        assert hasattr(fac, "residual")
+        np.testing.assert_array_equal(fac.solve_adjoint(rhs), fac.solve_transpose(rhs))
+        x = fac.solve(rhs)
+        assert fac.residual(rhs, x) < 1e-12
+    finally:
+        fac.destroy()
+
+    solver = factorize(A)
+    try:
+        np.testing.assert_array_equal(solver.solve_adjoint(rhs), solver.solve_transpose(rhs))
+    finally:
+        solver.destroy()
 
 
 def _assert_temporal_spectrum_allclose(
@@ -81,14 +239,14 @@ def _assert_temporal_spectrum_allclose(
 
 
 def _build_linsolve_mpi_script() -> str:
-    return textwrap.dedent(
-        """
+    return textwrap.dedent("""
         import json
         import numpy as np
         from linstabpy.mesh import Mesh
         from linstabpy.baseflow import BaseFlow, sutherland_air
         from linstabpy.operators import build_lnse_system
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize
+
         import linstabpy.utils.petsc_core as petsc_core
 
         mesh = Mesh.create(
@@ -146,8 +304,8 @@ def _build_linsolve_mpi_script() -> str:
         L_sigma_sys.assemble()
 
         try:
-            solver_ref = make_linear_solver(L_sigma_ref)
-            solver_sys = make_linear_solver(L_sigma_sys, solver_cfg={"petsc_matrix_mode": "distributed"})
+            solver_ref = factorize(L_sigma_ref)
+            solver_sys = factorize(L_sigma_sys, solver_cfg={"petsc_matrix_mode": "distributed"})
 
             rng = np.random.default_rng(17)
             rhs = rng.standard_normal(L0_ref.shape[0]) + 1j * rng.standard_normal(L0_ref.shape[0])
@@ -184,8 +342,7 @@ def _build_linsolve_mpi_script() -> str:
         finally:
             L_sigma_sys.destroy()
             L0_sys.destroy()
-        """
-    )
+        """)
 
 
 @pytest.fixture
@@ -396,12 +553,13 @@ def test_resolvent_analysis_with_residuals_matches_postcheck() -> None:
     W_diag = np.array([1.0, 2.0, 0.5, 1.5, 3.0])
     solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 
-    gains, responses, forcings, rho_fwd_reused, rho_adj_reused = resolvent_analysis_with_residuals(
+    gains, responses, forcings, rho_fwd_reused, rho_adj_reused = resolvent_analysis(
         L0,
         omega=0.25,
         n_modes=2,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        residuals=True,
     )
     rho_fwd_post, rho_adj_post = compute_resolvent_svd_residuals(
         L0,
@@ -428,21 +586,22 @@ def test_resolvent_analysis_with_residuals_uses_one_factorization(monkeypatch) -
     solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 
     n_builds = 0
-    original_make_linear_solver = resolvent_module.make_linear_solver
+    original_factorize = resolvent_module.factorize
 
-    def counted_make_linear_solver(*args, **kwargs):
+    def counted_factorize(*args, **kwargs):
         nonlocal n_builds
         n_builds += 1
-        return original_make_linear_solver(*args, **kwargs)
+        return original_factorize(*args, **kwargs)
 
-    monkeypatch.setattr(resolvent_module, "make_linear_solver", counted_make_linear_solver)
+    monkeypatch.setattr(resolvent_module, "factorize", counted_factorize)
 
-    gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis_with_residuals(
+    gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis(
         L0,
         omega=0.25,
         n_modes=2,
         W_diag=W_diag,
         solver_cfg=solver_cfg,
+        residuals=True,
     )
 
     assert gains.shape == (2,)
@@ -681,7 +840,7 @@ class TestLinearSolverLifecycle:
         n = 50
         diag = np.arange(1, n + 1, dtype=complex) + 0.1j
         A_sp = sp.diags(diag, format="csc")
-        solver = make_linear_solver(A_sp)
+        solver = factorize(A_sp)
         assert solver._ksp is not None
         assert solver._mat is not None
         solver.destroy()
@@ -708,8 +867,8 @@ class TestDirectPetscSolverInputs:
         rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
 
         try:
-            solver_sp = make_linear_solver(L_sigma)
-            solver_petsc = make_linear_solver(L_sigma_petsc)
+            solver_sp = factorize(L_sigma)
+            solver_petsc = factorize(L_sigma_petsc)
 
             x_sp = solver_sp.solve(rhs)
             x_petsc = solver_petsc.solve(rhs)
@@ -785,8 +944,8 @@ class TestDistributedPetscFallbackSolverInputs:
         rhs = rng.standard_normal(L0.shape[0]) + 1j * rng.standard_normal(L0.shape[0])
 
         try:
-            solver_sp = make_linear_solver(L_sigma)
-            solver_petsc = make_linear_solver(L_sigma_petsc, solver_cfg=solver_cfg)
+            solver_sp = factorize(L_sigma)
+            solver_petsc = factorize(L_sigma_petsc, solver_cfg=solver_cfg)
 
             x_sp = solver_sp.solve(rhs)
             x_petsc = solver_petsc.solve(rhs)
@@ -804,7 +963,10 @@ class TestDistributedPetscFallbackSolverInputs:
             x_adj_vec = solver_petsc.solve_transpose_vec(b)
             try:
                 np.testing.assert_allclose(
-                    np.array(x_vec.array_r, copy=True), x_sp[r0:r1], atol=1e-8, rtol=1e-8
+                    np.array(x_vec.array_r, copy=True),
+                    x_sp[r0:r1],
+                    atol=1e-8,
+                    rtol=1e-8,
                 )
                 np.testing.assert_allclose(
                     np.array(x_adj_vec.array_r, copy=True),

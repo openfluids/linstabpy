@@ -36,7 +36,7 @@ from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator
-from linstabpy.solvers import temporal_eigenvalues
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 # ---------------------------------------------------------------------------
 # Helper: build parallel-flow LNSE problem

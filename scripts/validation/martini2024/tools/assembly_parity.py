@@ -186,7 +186,7 @@ def _compute_temporal_eigs(
     target: complex,
     solver_cfg: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
+    from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
     eigvals, _, info = temporal_eigenvalues(
         sp.csc_matrix(matrix, dtype=complex),
