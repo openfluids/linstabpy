@@ -327,9 +327,9 @@ def _compute(cfg: dict) -> None:
     from linstabpy.operators.assembly import build_lnse_operator, build_lnse_operator_petsc
     from linstabpy.operators.energy_norm import compute_chu_norm
     from linstabpy.operators.spatial import build_spatial_operator, build_spatial_operator_petsc
-    from linstabpy.solvers.eigenvalue import temporal_eigenvalues
     from linstabpy.solvers.petsc_utils import petsc_to_scipy
-    from linstabpy.solvers.spatial_eig import spatial_eigenvalues
+    from linstabpy.stability import eigenvalues as temporal_eigenvalues
+    from linstabpy.stability import spatial_eigenvalues
 
     solver_cfg = cfg.get("solver")
     assembly_backend = str(cfg.get("assembly_backend", "scipy")).lower()

@@ -44,8 +44,9 @@ from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.resolvent.analysis import resolvent_analysis
-from linstabpy.solvers.eigenvalue import _eigs_near_target, temporal_eigenvalues
 from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
+from linstabpy.stability._eigenvalues import _solve_near_target
+from linstabpy.stability._eigenvalues import eigenvalues as temporal_eigenvalues
 from linstabpy.utils.jsonc import load_jsonc
 from linstabpy.utils.stability_acceptance import (
     _postcheck_target_distance,
@@ -977,7 +978,7 @@ def _stage_run_stability(
             f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
         )
         with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
-            omega, direct_modes, stability_info = _eigs_near_target(
+            omega, direct_modes, stability_info = _solve_near_target(
                 L0.tocsc(),
                 n_modes=n_modes,
                 target=omega_target,

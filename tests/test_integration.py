@@ -14,7 +14,8 @@ from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator, compute_chu_norm
-from linstabpy.solvers import resolvent_analysis, temporal_eigenvalues
+from linstabpy.resolvent.analysis import resolvent_analysis
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 # ---------------------------------------------------------------------------
 # Fixtures

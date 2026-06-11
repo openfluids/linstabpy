@@ -6,6 +6,8 @@ All tests in this file are marked @pytest.mark.slow.
 
 import json
 import shutil
+import subprocess
+import sys
 import textwrap
 
 import numpy as np
@@ -34,11 +36,9 @@ from linstabpy.operators import (
     build_spatial_operator_petsc,
     compute_chu_norm,
 )
-from linstabpy.resolvent.analysis import compute_resolvent_svd_residuals, resolvent_analysis
-from linstabpy.solvers import (
-    adjoint_eigenvalues,
-    spatial_eigenvalues,
-    temporal_eigenvalues,
+from linstabpy.resolvent.analysis import (
+    compute_resolvent_svd_residuals,
+    resolvent_analysis,
 )
 from linstabpy.solvers.eigenvalue import (
     _resolve_ncv as _resolve_temporal_ncv,
@@ -48,8 +48,77 @@ from linstabpy.solvers.eigenvalue import (
 )
 from linstabpy.solvers.petsc_utils import petsc_to_scipy, scipy_to_petsc
 from linstabpy.solvers.spatial_eig import _resolve_ncv as _resolve_spatial_ncv
+from linstabpy.stability import (
+    adjoint_eigenvalues,
+    eigenvalues,
+    spatial_eigenvalues,
+)
+from linstabpy.stability import (
+    eigenvalues as temporal_eigenvalues,
+)
 from tests.conftest import build_synthetic_jet
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
+
+
+def test_stability_public_exports_use_shared_solver_core():
+    import linstabpy.stability._eigenvalues as stability_eigenvalues
+
+    assert callable(eigenvalues)
+    assert callable(adjoint_eigenvalues)
+    assert callable(spatial_eigenvalues)
+    assert callable(stability_eigenvalues.eigenvalues)
+    assert callable(stability_eigenvalues.adjoint_eigenvalues)
+    assert callable(stability_eigenvalues.spatial_eigenvalues)
+    assert (
+        stability_eigenvalues.eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+    assert (
+        stability_eigenvalues.adjoint_eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+    assert (
+        stability_eigenvalues.spatial_eigenvalues.__globals__["_solve_near_target"]
+        is stability_eigenvalues._solve_near_target
+    )
+
+
+def test_legacy_eigenvalue_shims_warn_and_delegate():
+    import linstabpy.solvers.eigenvalue as legacy_eigenvalue
+    import linstabpy.solvers.spatial_eig as legacy_spatial
+    import linstabpy.stability._eigenvalues as stability_eigenvalues
+
+    legacy_eigenvalue.__dict__.pop("temporal_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.eigenvalues"):
+        old_temporal = legacy_eigenvalue.temporal_eigenvalues
+    assert old_temporal is stability_eigenvalues.eigenvalues
+
+    legacy_eigenvalue.__dict__.pop("adjoint_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.adjoint_eigenvalues"):
+        old_adjoint = legacy_eigenvalue.adjoint_eigenvalues
+    assert old_adjoint is stability_eigenvalues.adjoint_eigenvalues
+
+    legacy_spatial.__dict__.pop("spatial_eigenvalues", None)
+    with pytest.warns(DeprecationWarning, match="linstabpy.stability.spatial_eigenvalues"):
+        old_spatial = legacy_spatial.spatial_eigenvalues
+    assert old_spatial is stability_eigenvalues.spatial_eigenvalues
+
+
+def test_import_stability_package_is_petsc_free():
+    code = (
+        "import sys; "
+        "before = set(sys.modules); "
+        "import linstabpy.stability; "
+        "after = set(sys.modules); "
+        "print(int('petsc4py' in (after - before)), int('slepc4py' in (after - before)))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert proc.stdout.strip() == "0 0"
 
 
 def test_shifted_operator_scipy_matches_legacy_and_direct_gamma_shift():
@@ -98,7 +167,8 @@ def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
         direct_gamma.assemble()
         moved_gamma = shifted_operator(L0, omega, gamma)
         np.testing.assert_array_equal(
-            petsc_to_scipy(moved_gamma).toarray(), petsc_to_scipy(direct_gamma).toarray()
+            petsc_to_scipy(moved_gamma).toarray(),
+            petsc_to_scipy(direct_gamma).toarray(),
         )
     finally:
         for matrix in (
@@ -169,8 +239,7 @@ def _assert_temporal_spectrum_allclose(
 
 
 def _build_linsolve_mpi_script() -> str:
-    return textwrap.dedent(
-        """
+    return textwrap.dedent("""
         import json
         import numpy as np
         from linstabpy.mesh import Mesh
@@ -273,8 +342,7 @@ def _build_linsolve_mpi_script() -> str:
         finally:
             L_sigma_sys.destroy()
             L0_sys.destroy()
-        """
-    )
+        """)
 
 
 @pytest.fixture
@@ -895,7 +963,10 @@ class TestDistributedPetscFallbackSolverInputs:
             x_adj_vec = solver_petsc.solve_transpose_vec(b)
             try:
                 np.testing.assert_allclose(
-                    np.array(x_vec.array_r, copy=True), x_sp[r0:r1], atol=1e-8, rtol=1e-8
+                    np.array(x_vec.array_r, copy=True),
+                    x_sp[r0:r1],
+                    atol=1e-8,
+                    rtol=1e-8,
                 )
                 np.testing.assert_allclose(
                     np.array(x_adj_vec.array_r, copy=True),
