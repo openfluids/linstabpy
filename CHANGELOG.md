@@ -12,6 +12,7 @@ Work toward **0.0.6**. Development happens on the `dev` branch (versioned
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
 ### Added
+- Runtime result archives and metrics sidecars now include git, config, host, compute-mode, and MPI-stack provenance.
 - CPU/MUMPS default-path parity fixture on a small Blasius case and standalone regression guard for ≤1e-12 baseline drift. (bead r3uu.1.13)
 
 ## [0.0.5] - 2026-06-11

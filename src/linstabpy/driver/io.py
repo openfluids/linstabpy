@@ -15,6 +15,7 @@ def save_results(
     payload: dict[str, object],
     peak_rss_bytes: int,
     stage_wall: dict[str, float] | None = None,
+    provenance: dict[str, str] | None = None,
 ) -> None:
     """Persist the runtime NPZ payload under the save-results stage boundary.
 
@@ -30,11 +31,15 @@ def save_results(
     from linstabpy.driver.run import (
         _STAGE_WALL,
         PETSc,
-        _git_head_sha,
         _log_stage,
         _stage_heartbeat,
         _stage_start,
     )
+
+    if provenance is None:
+        from linstabpy.utils.provenance import collect_provenance
+
+        provenance = collect_provenance(None)
 
     stage_start = _stage_start()
     with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
@@ -42,17 +47,18 @@ def save_results(
 
         cost = collect_cost_metrics(
             _STAGE_WALL if stage_wall is None else stage_wall,
-            git_sha=_git_head_sha(),
+            git_sha=provenance["git_sha"],
             peak_rss_bytes=peak_rss_bytes,
         )
-        payload = {**payload, **cost}
+        payload = {**payload, **cost, **provenance}
         np.savez_compressed(output_npz, **payload)
         if PETSc.COMM_WORLD.getRank() == 0:
             import json
 
             sidecar = output_npz.with_suffix(".metrics.json")
             serializable_cost = {}
-            for k, v in cost.items():
+            sidecar_payload = {**cost, **provenance}
+            for k, v in sidecar_payload.items():
                 if isinstance(v, float) and np.isnan(v):
                     serializable_cost[k] = None
                 elif isinstance(v, np.number):
