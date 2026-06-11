@@ -12,6 +12,9 @@ Work toward **0.0.5**. Development happens on the `dev` branch (versioned
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
 ### Changed
+- **Stage 6 (refactor):** assembly metrics, stage timers, and CSR derivative
+  cache helpers moved into `linstabpy.operators.metrics`; `assembly.py` now
+  imports the plumbing while preserving compatibility re-exports. (bead r3uu.6.7.1)
 - **Stage 4 (refactor):** new `linstabpy.stability` package unifies the three
   eigenvalue entry points — `eigenvalues` (was `temporal_eigenvalues`),
   `adjoint_eigenvalues`, `spatial_eigenvalues` — on one shared private
