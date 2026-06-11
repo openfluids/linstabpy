@@ -44,6 +44,9 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
   its previous public surface (`compute` → `driver.run`, `main` →
   `driver.cli.main`, helpers → their new homes) with `DeprecationWarning`;
   all in-repo importers migrated. (bead r3uu.6.6.3)
+- **Stage 5 (test):** driver split certified numerics-inert by the full suite,
+  driver provenance round-trip, `--version` smoke, and examples parity gate.
+  (bead r3uu.6.6.4)
 
 ## [0.0.4] - 2026-06-10
 
