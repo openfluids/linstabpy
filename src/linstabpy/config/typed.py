@@ -173,6 +173,20 @@ def _st_factor_backend(
             env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
             default=pc_factor_solver_type if pc_factor_solver_type else DEFAULT_FACTOR_BACKEND,
         )
+    if st_solver == "strumpack_fgmres":
+        return _factor_backend(
+            cfg,
+            env,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default="strumpack",
+        )
+    if st_solver == "fgmres_lu":
+        return _factor_backend(
+            cfg,
+            env,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default=DEFAULT_FACTOR_BACKEND,
+        )
     return None
 
 
@@ -364,7 +378,11 @@ class EigenCfg:
             monitor=_scfg_bool(cfg, "monitor", env, "LINSTABPY_EIGEN_MONITOR", False),
             monitor_every=_scfg_int(cfg, "monitor_every", env, "LINSTABPY_EIGEN_MONITOR_EVERY", 10),
             true_residual=_scfg_bool(
-                cfg, "true_residual", env, "LINSTABPY_EIGEN_TRUE_RESIDUAL", st_solver == "inexact"
+                cfg,
+                "true_residual",
+                env,
+                "LINSTABPY_EIGEN_TRUE_RESIDUAL",
+                st_solver in {"inexact", "fgmres_lu", "strumpack_fgmres"},
             ),
             extract_all_converged=_scfg_bool(
                 cfg, "extract_all_converged", env, "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False

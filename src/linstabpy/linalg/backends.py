@@ -88,12 +88,18 @@ def ensure_factor_backend_available(backend: str) -> None:
 def should_probe_backend(
     resolved_backend: str | None,
     probe_cfg: Mapping[str, Any] | None = None,
+    *,
+    st_solver: str | None = None,
 ) -> bool:
     """Return whether a resolved factor backend should run the accuracy probe."""
     backend = _normalize_backend(resolved_backend)
     if backend is None:
         return False
-    if backend == DEFAULT_FACTOR_BACKEND:
+    # The fgmres+direct-PC families are inexact outer solves even over the
+    # default MUMPS factor backend, so they never take the default-backend
+    # probe exemption; an explicit probe_cfg "enabled" still wins either way.
+    inexact_outer = str(st_solver or "").strip().lower() in {"fgmres_lu", "strumpack_fgmres"}
+    if backend == DEFAULT_FACTOR_BACKEND and not inexact_outer:
         return False
     if probe_cfg is not None and "enabled" in probe_cfg:
         return _as_bool(probe_cfg["enabled"])

@@ -256,7 +256,7 @@ def _solve_near_target(
     probe_enabled = cfg.eigen.backend_probe.enabled
     probe_cfg = {"enabled": probe_enabled} if probe_enabled is not None else {}
     backend_probe_result: dict[str, float | int | str | None] | None = None
-    if _temporal_core.should_probe_backend(resolved_factor_backend, probe_cfg):
+    if _temporal_core.should_probe_backend(resolved_factor_backend, probe_cfg, st_solver=st_solver):
         probe = _temporal_core.shifted_ksp_probe_residual(st.getKSP())
         backend_probe_result = probe
         residual_rel = float(probe["residual_rel"])
