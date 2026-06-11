@@ -26,6 +26,13 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
   (postcheck residual, target distance, conjugate-aware verdict,
   `reject_reason_code` bitmask — all unchanged) with the eigenvalue core.
   Old path remains a deprecation shim for one minor version. (bead r3uu.6.5.2)
+- **Stage 5 (refactor):** new `linstabpy.driver` package; the case-pipeline
+  orchestration moved verbatim from `results_runtime.compute` to
+  `linstabpy.driver.run` (`from linstabpy.driver import run`).
+  `results_runtime.compute` now delegates and remains the supported
+  entrypoint; PETSc command-line options are initialised before `petsc4py`
+  import on the new path as well. Numerics frozen: full suite and spectra
+  identical to baseline. (bead r3uu.6.6.1)
 
 ## [0.0.4] - 2026-06-10
 
