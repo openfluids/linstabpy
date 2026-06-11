@@ -12,6 +12,9 @@ Work toward **0.0.5**. Development happens on the `dev` branch (versioned
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
 ### Changed
+- **Stage 6 (test):** metrics extraction certified operator-identical by the
+  assembly-block oracle, MATLAB source parity, metamorphic tests, full suite,
+  and Martini example parity. (bead r3uu.6.7.2)
 - **Stage 6 (refactor):** assembly metrics, stage timers, and CSR derivative
   cache helpers moved into `linstabpy.operators.metrics`; `assembly.py` now
   imports the plumbing while preserving compatibility re-exports. (bead r3uu.6.7.1)
