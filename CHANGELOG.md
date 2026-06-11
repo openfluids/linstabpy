@@ -5,13 +5,28 @@ All notable changes to linstabpy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.5] - 2026-06-11
 
-Work toward **0.0.5**. Development happens on the `dev` branch (versioned
-`0.0.5.dev0`) and is promoted to `main` through a reviewed pull request once a
-coherent slice is green. Entries accumulate here until the next patch tag is cut.
+Stages 2–6 of the clean-code revamp, completing the refactor program under the
+frozen-numerics invariant: the `linalg/`, `resolvent/`, `stability/`, `driver/`,
+and `operators/metrics` seams, each shipped with deprecation shims and certified
+operator-identical. Final gate on the verification workstation: full suite
+1058 passed / 5 skipped, examples 6/6, MATLAB parity unchanged; the assembled
+operator is bit-identical to the pre-refactor anchor (v0.0.2) by SHA-256 digest.
 
 ### Changed
+- **Stage 2 (refactor):** new `linstabpy.linalg` package — `factorize()` /
+  `Factorization` (was `make_linear_solver` / `LinearSolver`, with
+  `.solve_transpose` renamed `.solve_adjoint`), a typed `Backend` registry
+  (`select`/`ensure`/`available`), and `shifted_operator` (was private).
+  `solvers.linsolve` / `solvers.backends` remain as deprecation shims for one
+  minor version.
+- **Stage 3 (refactor):** new `linstabpy.resolvent` package —
+  `ResolventOperator` in `resolvent/operator.py` and `WeightedNormalOperator`
+  plus the gain driver in `resolvent/gain.py`;
+  `resolvent_analysis_with_residuals` folded into
+  `resolvent_analysis(residuals=True)`. Numerics frozen: gains and modes
+  identical to baseline.
 - **Stage 6 (test):** metrics extraction certified operator-identical by the
   assembly-block oracle, MATLAB source parity, metamorphic tests, full suite,
   and Martini example parity. (bead r3uu.6.7.2)
@@ -53,6 +68,14 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
 - **Stage 5 (test):** driver split certified numerics-inert by the full suite,
   driver provenance round-trip, `--version` smoke, and examples parity gate.
   (bead r3uu.6.6.4)
+
+### Verified
+- Full test suite on the verification workstation (Intel-MPI): 1058 passed, 5 skipped.
+- Examples: 6/6 PASS; MATLAB (Martini) parity: 5 PASS + 1 known SOFT_FAIL (jet), unchanged.
+- No-MPI pure-math lane (dissipation gate): 91 passed.
+- Cumulative-drift gate: assembled-operator SHA-256 digests bit-identical
+  v0.0.2 → 0.0.5 (32/32 arrays, equivalence-harness cases 2D + axy).
+- `ruff check` and `ruff format --check`: clean.
 
 ## [0.0.4] - 2026-06-10
 
@@ -141,6 +164,7 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.3...HEAD
+[0.0.5]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.1...v0.0.3
 [0.0.1]: https://github.com/ricardofrantz/linstabpy/releases/tag/v0.0.1
