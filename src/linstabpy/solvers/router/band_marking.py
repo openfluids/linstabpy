@@ -1,0 +1,208 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""EVP-distance marking for resolvent forcing-frequency bands.
+
+The marker accepts temporal EVP values in the ``omega`` plane used by
+:func:`linstabpy.stability.eigenvalues`.  The resolvent solve forms
+``L_sigma = L0 - i*omega*I``, so singular shifts occur when
+``i*omega = lambda(L0)`` and the resolvent pole is
+``omega_pole = -i*lambda(L0)``.  Since the EVP returns
+``omega_eig = eig(i*L0) = i*lambda(L0)``, the pole associated with a temporal
+EVP value is ``omega_pole = -omega_eig``.  A requested real forcing frequency
+``omega_req`` is therefore compared with ``min(abs(omega_req + omega_eig))``.
+No shifted linear solve or resolvent solve is performed by :func:`label_band`.
+
+Configuration
+-------------
+The danger radius is read, in order, from one of these equivalent keys:
+
+* ``cfg["danger_radius"]``;
+* ``cfg["band_marking"]["danger_radius"]``;
+* ``cfg["solver"]["router"]["band_marking"]["danger_radius"]``.
+
+When omitted, the default is ``solver.eigen.backend_probe.residual_rel_max`` as
+resolved by the normal typed configuration (currently ``1e-8`` unless the solver
+configuration or environment overrides it).  This ties the pre-sweep pole guard
+to the same post-solve shifted-operator probe scale used to reject inaccurate
+factorizations, avoiding an unrelated bare constant.  Users should enlarge this
+radius in physical sweeps when they want a wider no-go band around lightly damped
+or unstable eigenvalues.
+
+Smooth regions are opt-in.  By default every non-danger point is labelled
+``"stable"``.  A point is labelled ``"smooth"`` only if it is outside the danger
+radius and lies in a configured interval from ``smooth_regions`` (or
+``solver.router.band_marking.smooth_regions``), where each interval is either a
+``(lo, hi)`` pair or a mapping with ``min``/``max`` keys.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+
+STABLE = "stable"
+NEAR_POLE = "near-pole"
+SMOOTH = "smooth"
+
+
+@dataclass(frozen=True)
+class BandMarks:
+    """Per-frequency EVP-distance labels for a beta slice."""
+
+    omegas: np.ndarray
+    labels: np.ndarray
+    distances: np.ndarray
+    danger_radius: float
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _band_cfg(cfg: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    root = _as_mapping(cfg)
+    direct = _as_mapping(root.get("band_marking"))
+    if direct:
+        return direct
+    solver = _as_mapping(root.get("solver"))
+    router = _as_mapping(solver.get("router"))
+    return _as_mapping(router.get("band_marking"))
+
+
+def _danger_radius(cfg: Mapping[str, Any] | None) -> float:
+    root = _as_mapping(cfg)
+    band = _band_cfg(root)
+    if "danger_radius" in root:
+        value = root["danger_radius"]
+    elif "danger_radius" in band:
+        value = band["danger_radius"]
+    else:
+        from linstabpy.solvers.eigenvalue import _probe_residual_rel_max
+
+        solver = _as_mapping(root.get("solver"))
+        eigen_cfg = _as_mapping(solver.get("eigen"))
+        value = _probe_residual_rel_max(dict(eigen_cfg))
+    radius = float(value)
+    if not np.isfinite(radius) or radius < 0.0:
+        raise ValueError(f"danger_radius must be a finite non-negative float, got {value!r}")
+    return radius
+
+
+def _smooth_regions(cfg: Mapping[str, Any] | None) -> tuple[tuple[float, float], ...]:
+    root = _as_mapping(cfg)
+    band = _band_cfg(root)
+    raw = root.get("smooth_regions", band.get("smooth_regions", ()))
+    regions: list[tuple[float, float]] = []
+    for item in raw or ():
+        if isinstance(item, Mapping):
+            lo = float(item["min"])
+            hi = float(item["max"])
+        else:
+            lo = float(item[0])
+            hi = float(item[1])
+        if not (np.isfinite(lo) and np.isfinite(hi)) or hi < lo:
+            raise ValueError(f"invalid smooth region {item!r}")
+        regions.append((lo, hi))
+    return tuple(regions)
+
+
+def label_band(eigs: Sequence[complex], omegas: Sequence[float], cfg: Mapping[str, Any] | None = None) -> BandMarks:
+    """Label requested real frequencies by distance to a supplied EVP spectrum.
+
+    Parameters
+    ----------
+    eigs:
+        Complex temporal eigenvalues in the ``omega = eig(i*L0)`` plane.
+        The compared resolvent poles are ``-eigs``.
+    omegas:
+        Requested real forcing frequencies in that same omega normalization.
+    cfg:
+        Optional band-marking configuration.  See the module docstring for keys.
+
+    Returns
+    -------
+    BandMarks
+        Frequencies, labels, nearest-EVP distances, and the radius used.
+    """
+    eig_arr = np.asarray(eigs, dtype=np.complex128).ravel()
+    omega_arr = np.asarray(omegas, dtype=float).ravel()
+    radius = _danger_radius(cfg)
+
+    if eig_arr.size == 0:
+        distances = np.full(omega_arr.shape, np.inf, dtype=float)
+    else:
+        poles = -eig_arr
+        distances = np.min(np.abs(omega_arr[:, None] - poles[None, :]), axis=1)
+
+    labels = np.full(omega_arr.shape, STABLE, dtype=object)
+    labels[distances < radius] = NEAR_POLE
+
+    if omega_arr.size:
+        smooth_mask = labels != NEAR_POLE
+        for lo, hi in _smooth_regions(cfg):
+            smooth_mask &= ~np.isnan(omega_arr)
+            labels[smooth_mask & (omega_arr >= lo) & (omega_arr <= hi)] = SMOOTH
+
+    return BandMarks(
+        omegas=omega_arr,
+        labels=labels,
+        distances=distances,
+        danger_radius=radius,
+    )
+
+
+def _get_first(cfg: Mapping[str, Any], *names: str, default: Any = None) -> Any:
+    for name in names:
+        if name in cfg:
+            return cfg[name]
+    return default
+
+
+def _evp_eigenvalues(
+    L0_beta: Any,
+    *,
+    n_modes: int,
+    target: complex,
+    ncv: int | None,
+    solver_cfg: Any,
+) -> tuple[Any, Any]:
+    from linstabpy.stability import eigenvalues
+
+    return eigenvalues(
+        L0_beta,
+        n_modes=n_modes,
+        target=target,
+        ncv=ncv,
+        solver_cfg=solver_cfg,
+    )
+
+
+def mark_unstable_band(L0_beta: Any, f_range: Sequence[float], cfg: Mapping[str, Any] | None = None) -> BandMarks:
+    """Compute EVP values near a beta slice and label the requested band.
+
+    This is intentionally a thin wrapper around :func:`linstabpy.stability.eigenvalues`;
+    it does not assemble operators or run a resolvent sweep.
+    """
+    root = _as_mapping(cfg)
+    band = _band_cfg(root)
+    omega_arr = np.asarray(f_range, dtype=float).ravel()
+    # Poles sit at -omega_eig, so eigenvalues relevant to the requested real
+    # frequencies live near the NEGATED band center in the EVP omega plane.
+    target = complex(_get_first(band, "target", "evp_target", default=-np.median(omega_arr) if omega_arr.size else 0.0))
+    n_modes = int(_get_first(band, "n_modes", "evp_n_modes", default=8))
+    ncv = _get_first(band, "ncv", "evp_ncv", default=None)
+    solver_cfg = root.get("solver", root if root else None)
+
+    eigs, _modes = _evp_eigenvalues(
+        L0_beta,
+        n_modes=n_modes,
+        target=target,
+        ncv=None if ncv is None else int(ncv),
+        solver_cfg=solver_cfg,
+    )
+    return label_band(eigs, omega_arr, root)
+
+
+__all__ = ["BandMarks", "NEAR_POLE", "SMOOTH", "STABLE", "label_band", "mark_unstable_band"]
