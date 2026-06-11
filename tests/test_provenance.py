@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+
+import numpy as np
+import pytest
+
+from linstabpy.driver.io import load_results, save_results
+from linstabpy.driver.run import _output_npz_path
+from linstabpy.utils.provenance import collect_provenance
+
+PROVENANCE_KEYS = {"git_sha", "config_md5", "hostname", "compute_mode", "mpi_stack"}
+
+
+def _git_rev_parse_head() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+
+def test_collect_provenance_has_stable_typed_fields(tmp_path, monkeypatch):
+    monkeypatch.delenv("LINSTABPY_COMPUTE_MODE", raising=False)
+    monkeypatch.delenv("LINSTABPY_MPI_STACK", raising=False)
+    config_path = tmp_path / "case.jsonc"
+    first_bytes = b'{"alpha": 1}\n'
+    config_path.write_bytes(first_bytes)
+
+    first = collect_provenance(config_path)
+    second = collect_provenance(config_path)
+
+    assert set(first) == PROVENANCE_KEYS
+    assert all(isinstance(value, str) for value in first.values())
+    assert first["config_md5"] == second["config_md5"]
+    assert first["config_md5"] == hashlib.md5(first_bytes).hexdigest()  # noqa: S324
+    assert first["git_sha"] == _git_rev_parse_head()
+    assert first["hostname"]
+    assert first["compute_mode"] == "cpu"
+    assert first["mpi_stack"] == "unknown"
+
+    second_bytes = b'{"alpha": 2}\n'
+    config_path.write_bytes(second_bytes)
+    changed = collect_provenance(config_path)
+    assert changed["config_md5"] == hashlib.md5(second_bytes).hexdigest()  # noqa: S324
+    assert changed["config_md5"] != first["config_md5"]
+
+
+def test_collect_provenance_validates_compute_mode(tmp_path, monkeypatch):
+    config_path = tmp_path / "case.jsonc"
+    config_path.write_text("{}\n")
+    monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", "quantum")
+
+    with pytest.raises(ValueError, match="LINSTABPY_COMPUTE_MODE"):
+        collect_provenance(config_path)
+
+
+@pytest.mark.parametrize("mode", ["cpu", "gpu", "mixed"])
+def test_collect_provenance_accepts_supported_compute_modes(tmp_path, monkeypatch, mode):
+    config_path = tmp_path / "case.jsonc"
+    config_path.write_text("{}\n")
+    monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", mode)
+
+    assert collect_provenance(config_path)["compute_mode"] == mode
+
+
+def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
+    config_path = tmp_path / "case.jsonc"
+    raw_config = b'{"beta": 3}\n'
+    config_path.write_bytes(raw_config)
+    provenance = collect_provenance(config_path)
+    output_npz = tmp_path / "result.npz"
+    payload = {"omega": np.array([1.0 + 0.5j]), "gains": np.array([2.0])}
+
+    save_results(
+        output_npz=output_npz,
+        heartbeat_seconds=1e9,
+        payload=payload,
+        peak_rss_bytes=42,
+        stage_wall={"stability": 0.25},
+        provenance=provenance,
+    )
+
+    with load_results(output_npz) as data:
+        for key, expected in provenance.items():
+            assert data[key].item() == expected
+        assert data["config_md5"].item() == hashlib.md5(raw_config).hexdigest()  # noqa: S324
+        assert data["git_sha"].item() == _git_rev_parse_head()
+        assert data["cost_git_sha"].item() == data["git_sha"].item()
+
+    sidecar = json.loads(output_npz.with_suffix(".metrics.json").read_text())
+    for key, expected in provenance.items():
+        assert sidecar[key] == expected
+    assert sidecar["config_md5"] == hashlib.md5(raw_config).hexdigest()  # noqa: S324
+    assert sidecar["git_sha"] == _git_rev_parse_head()
+    assert sidecar["cost_git_sha"] == sidecar["git_sha"]
+
+
+def test_default_output_path_embeds_config_md5_and_git_sha8(tmp_path, monkeypatch):
+    config_path = tmp_path / "case.jsonc"
+    raw_config = b'{"gamma": 4}\n'
+    config_path.write_bytes(raw_config)
+    provenance = collect_provenance(config_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LINSTABPY_CASE_LOG_PREFIX", "caseX")
+    monkeypatch.delenv("LINSTABPY_CASE_OUTPUT_NPZ", raising=False)
+    monkeypatch.delenv("LINSTABPY_CASE2_OUTPUT_NPZ", raising=False)
+    monkeypatch.delenv("LINSTABPY_CASE1_OUTPUT_NPZ", raising=False)
+
+    output = _output_npz_path(provenance)
+
+    assert output == (tmp_path / f"caseX_{provenance['config_md5']}_{provenance['git_sha'][:8]}.npz")
+
+
+def test_explicit_output_path_is_honored_unchanged(tmp_path, monkeypatch):
+    explicit = tmp_path / "explicit-name.npz"
+    monkeypatch.setenv("LINSTABPY_CASE_OUTPUT_NPZ", str(explicit))
+
+    assert _output_npz_path({"config_md5": "ignored", "git_sha": "ignored"}) == explicit.resolve()
