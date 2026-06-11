@@ -1096,43 +1096,16 @@ def _stage_write_npz(
     peak_rss_bytes: int,
     stage_wall: dict[str, float] | None = None,
 ) -> None:
-    """Persist the runtime NPZ payload under the save-results stage boundary.
+    """Backward-compatible re-export of :func:`linstabpy.driver.io.save_results`."""
+    from linstabpy.driver.io import save_results
 
-    ``peak_rss_bytes`` is the cross-rank-aggregated peak RSS, computed by the
-    caller in the collective region (every rank) before the rank-0-only save
-    block. It is threaded in so ``collect_cost_metrics`` performs NO MPI
-    collective here (this function runs rank-0-only; a collective would deadlock).
-
-    ``stage_wall`` is the caller's accumulated per-stage wall-time map; it is
-    threaded in because the orchestration stages now live in
-    ``linstabpy.driver.run`` and update that module's accumulator, not this one.
-    """
-    stage_start = _stage_start()
-    with _stage_heartbeat("save_results", interval_seconds=heartbeat_seconds):
-        from linstabpy.utils.cost_metrics import collect_cost_metrics
-
-        cost = collect_cost_metrics(
-            _STAGE_WALL if stage_wall is None else stage_wall,
-            git_sha=_git_head_sha(),
-            peak_rss_bytes=peak_rss_bytes,
-        )
-        payload = {**payload, **cost}
-        np.savez_compressed(output_npz, **payload)
-        if PETSc.COMM_WORLD.getRank() == 0:
-            import json
-
-            sidecar = output_npz.with_suffix(".metrics.json")
-            serializable_cost = {}
-            for k, v in cost.items():
-                if isinstance(v, float) and np.isnan(v):
-                    serializable_cost[k] = None
-                elif isinstance(v, np.number):
-                    serializable_cost[k] = v.item()
-                else:
-                    serializable_cost[k] = v
-            with open(sidecar, "w") as fh:
-                json.dump(serializable_cost, fh, indent=2, sort_keys=True)
-    _log_stage("save_results", stage_start)
+    save_results(
+        output_npz=output_npz,
+        heartbeat_seconds=heartbeat_seconds,
+        payload=payload,
+        peak_rss_bytes=peak_rss_bytes,
+        stage_wall=_STAGE_WALL if stage_wall is None else stage_wall,
+    )
 
 
 @dataclass(frozen=True)
@@ -1300,7 +1273,9 @@ def main() -> None:
             need_recompute = True
         else:
             try:
-                data = np.load(output_npz, allow_pickle=False)
+                from linstabpy.driver.io import load_results
+
+                data = load_results(output_npz)
             except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
                 print(f"Cached results unavailable or invalid ({exc}), recomputing.")
                 need_recompute = True

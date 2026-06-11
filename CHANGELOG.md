@@ -33,6 +33,11 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
   entrypoint; PETSc command-line options are initialised before `petsc4py`
   import on the new path as well. Numerics frozen: full suite and spectra
   identical to baseline. (bead r3uu.6.6.1)
+- **Stage 5 (refactor):** runtime `.npz` archive I/O isolated in
+  `linstabpy.driver.io` (`save_results` — verbatim move of the writer —
+  and `load_results`). The provenance/cost key set is unchanged and now
+  guarded by a round-trip test; `results_runtime._stage_write_npz` remains
+  as a back-compatible wrapper. (bead r3uu.6.6.2)
 
 ## [0.0.4] - 2026-06-10
 
