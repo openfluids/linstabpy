@@ -13,6 +13,7 @@ _LAZY_EXPORTS = {
     "compute_chu_norm": "linstabpy.operators.energy_norm",
     "temporal_eigenvalues": ("linstabpy.stability._eigenvalues", "eigenvalues"),
     "adjoint_eigenvalues": "linstabpy.stability._eigenvalues",
+    "wavemaker": "linstabpy.stability.sensitivity",
     "resolvent_analysis": "linstabpy.resolvent.analysis",
     "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "BaseFlow": "linstabpy.baseflow",
