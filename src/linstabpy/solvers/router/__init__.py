@@ -16,12 +16,20 @@ from .certification import (
     randomized_resolvent_svd,
 )
 
+_LAZY_EXPORTS = {
+    "SweepResult": "linstabpy.solvers.router.stable_sweep",
+    "stable_sweep": "linstabpy.solvers.router.stable_sweep",
+    "sweep_stable_regime": "linstabpy.solvers.router.stable_sweep",
+}
+
 __all__ = [
     "BandMarks",
     "CertificationReport",
     "CheckResult",
+    "SweepResult",
     "band_marking",
     "certification",
+    "stable_sweep",
     "certified_rsvd",
     "check_adjoint_of_approx_factor",
     "check_deterministic_linearity",
@@ -32,4 +40,20 @@ __all__ = [
     "label_band",
     "mark_unstable_band",
     "randomized_resolvent_svd",
+    "sweep_stable_regime",
 ]
+
+
+def __getattr__(name: str):  # noqa: ANN201
+    if name in _LAZY_EXPORTS:
+        import importlib
+
+        module = importlib.import_module(_LAZY_EXPORTS[name])
+        attr = module if name == "stable_sweep" else getattr(module, name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_EXPORTS))
