@@ -15,6 +15,25 @@ Backend selection precedence is:
 Requested backends are checked with a tiny complex PETSc LU setup probe. An
 unavailable backend fails loudly instead of silently falling back.
 
+## Mixed-Precision Factorization Knob
+
+`LINSTABPY_FACTOR_PRECISION` and the matching JSONC `factor_precision` field
+select the factor precision surface. The default is `double`, which is inert and
+does not add any PETSc options. The experimental value `single` is accepted only
+with the `superlu_dist` factor backend, where it inserts the PETSc option
+`pc_precision single` alongside `pc_factor_mat_solver_type`. Any other backend
+with `single` raises a `ValueError` naming the backend and
+`LINSTABPY_FACTOR_PRECISION`; it is never silently ignored.
+
+Today only the environment variable is enforced at factorization time. The
+JSONC `factor_precision` field is validated and carried in the typed config
+but is not yet consumed by the solver call sites; the Phase B.4
+mixed-precision iterative-refinement work wires it through.
+
+This knob only exposes configuration for later mixed-precision iterative
+refinement work. It is not a production recommendation, and `double` remains the
+reference/default path.
+
 ## Current Status
 
 | Backend | Status | Notes |
