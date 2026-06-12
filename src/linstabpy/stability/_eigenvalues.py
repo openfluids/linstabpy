@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import numbers
 import sys
 import time
 
@@ -54,6 +55,46 @@ from linstabpy.solvers.spatial_eig import _eigs_generalized
 from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_finite_number(name: str, value: float | complex) -> None:
+    if isinstance(value, bool) or not isinstance(value, numbers.Number):
+        raise TypeError(f"{name} must be a finite number")
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+
+
+def _validate_sparse_square_operator(
+    name: str,
+    operator: sp.spmatrix | PETSc.Mat,
+) -> int:
+    if not (_is_petsc_matrix(operator) or sp.issparse(operator) or isinstance(operator, np.ndarray)):
+        raise TypeError(f"{name} must be a 2-D array, sparse matrix, or PETSc Mat")
+    shape = _operator_shape(operator) if not isinstance(operator, np.ndarray) else operator.shape
+    if len(shape) != 2:
+        raise ValueError(f"{name} must be a 2-D operator")
+    nrows, ncols = shape
+    if nrows != ncols:
+        raise ValueError(f"{name} must be a square matrix")
+    return nrows
+
+
+def _validate_n_modes(n_modes: int, ndof: int) -> None:
+    if isinstance(n_modes, bool) or not isinstance(n_modes, numbers.Integral):
+        raise TypeError("n_modes must be an integer >= 1")
+    if n_modes < 1:
+        raise ValueError("n_modes must be >= 1")
+    if n_modes > ndof:
+        raise ValueError("n_modes cannot exceed matrix size")
+
+
+def _validate_weight_vector(name: str, value: np.ndarray, ndof: int) -> np.ndarray:
+    vector = np.asarray(value)
+    if vector.ndim != 1:
+        raise ValueError(f"{name} must be a 1-D vector")
+    if vector.size != ndof:
+        raise ValueError(f"{name} length must match operator size {ndof}")
+    return vector
 
 
 def _solve_near_target(
@@ -458,6 +499,11 @@ def eigenvalues(
     modes:
         Right eigenvectors corresponding to ``omega``.
     """
+    ndof = _validate_sparse_square_operator("L0", L0)
+    _validate_n_modes(n_modes, ndof)
+    _validate_finite_number("target", target)
+    if W_diag is not None:
+        _validate_weight_vector("W_diag", W_diag, ndof)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
 
@@ -571,6 +617,11 @@ def adjoint_eigenvalues(
         eigenvalues so that ``adjoint_omegas == conj(temporal_omegas)``.
         Default is False (raw adjoint eigenvalue convention).
     """
+    ndof = _validate_sparse_square_operator("L0", L0)
+    _validate_n_modes(n_modes, ndof)
+    _validate_finite_number("target", target)
+    _validate_weight_vector("W_diag", W_diag, ndof)
+    _validate_weight_vector("invW_diag", invW_diag, ndof)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
     if _is_petsc_matrix(operator):
@@ -628,6 +679,14 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
+    ndof = _validate_sparse_square_operator("Lc", Lc)
+    _validate_n_modes(n_modes, ndof)
+    for name, operator in (("Lw", Lw), ("R", R)):
+        other_ndof = _validate_sparse_square_operator(name, operator)
+        if other_ndof != ndof:
+            raise ValueError(f"{name} shape must match Lc shape")
+    _validate_finite_number("omega", omega)
+    _validate_finite_number("target", target)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     lhs = Lc.copy() if _is_petsc_matrix(Lc) else sp.csc_matrix(Lc, dtype=complex)
     if _is_petsc_matrix(lhs):

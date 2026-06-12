@@ -10,6 +10,7 @@ they consume.
 
 from __future__ import annotations
 
+import numbers
 from dataclasses import dataclass
 
 import numpy as np
@@ -28,6 +29,47 @@ from .sbp import (
     build_sbp_pole_matrices,
     min_points,
 )
+
+
+def _validate_range_pair(name: str, value: tuple[float, float]) -> None:
+    try:
+        n_items = len(value)
+    except TypeError as exc:
+        raise TypeError(f"{name} must be a pair of finite numbers") from exc
+    if n_items != 2:
+        raise ValueError(f"{name} must be a pair of finite numbers")
+    if any(isinstance(item, bool) or not isinstance(item, numbers.Number) for item in value):
+        raise TypeError(f"{name} must be a pair of finite numbers")
+    if not np.all(np.isfinite(value)):
+        raise ValueError(f"{name} entries must be finite")
+    if value[0] == value[1]:
+        raise ValueError(f"{name} endpoints must be distinct")
+
+
+def _validate_create_inputs(
+    xrange: tuple[float, float],
+    yrange: tuple[float, float],
+    nx: int,
+    ny: int,
+    fd_order: int,
+) -> None:
+    _validate_range_pair("xrange", xrange)
+    _validate_range_pair("yrange", yrange)
+    for name, value in (("nx", nx), ("ny", ny), ("fd_order", fd_order)):
+        if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+            raise TypeError(f"{name} must be an integer")
+    try:
+        required_points = min_points(int(fd_order))
+    except ValueError as exc:
+        raise ValueError(f"fd_order is invalid: {exc}") from exc
+    if nx < required_points:
+        raise ValueError(
+            f"nx must be >= {required_points} for fd_order={fd_order} SBP stencil"
+        )
+    if ny < required_points:
+        raise ValueError(
+            f"ny must be >= {required_points} for fd_order={fd_order} SBP stencil"
+        )
 
 
 @dataclass(frozen=True)
@@ -292,6 +334,8 @@ class Mesh:
         -------
         Mesh
         """
+        _validate_create_inputs(xrange, yrange, nx, ny, fd_order)
+
         # --- 1. Uniform grid ------------------------------------------
         if x_periodicity:
             if nx < 3:
