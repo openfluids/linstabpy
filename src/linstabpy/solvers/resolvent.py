@@ -2,7 +2,29 @@
 """Deprecated resolvent solver import path.
 
 Use :mod:`linstabpy.resolvent.analysis` instead.  This module remains as a
-one-minor-version compatibility shim.
+one-minor-version compatibility shim.  The shifted solves used by the public
+wrappers read the ``solver.resolvent`` JSONC section, with ``solver.linsolve``
+as the compatibility fallback.  ``factor_backend`` selects the PETSc LU factor
+backend for direct solves.  Resolution order is JSONC ``factor_backend``, then
+``LINSTABPY_RESOLVENT_PC_FACTOR_SOLVER_TYPE``, then
+``LINSTABPY_FACTOR_BACKEND``, then the call-site default (``mumps`` for the
+reference direct path).  Requested backends are checked with a small complex
+PETSc LU probe and an unavailable backend fails loudly instead of falling back.
+See ``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
+
+Current backend status is deliberately conservative: ``mumps`` is the default
+and reference path; ``strumpack`` is experimental and currently documented only
+for the diagnostic FGMRES+LU configuration; ``superlu_dist`` is rejected for the
+tested CUDA build; and ``cudss`` is not wired to the ``linstabpy`` PETSc factor
+interface.
+
+The experimental factorization knobs are environment-enforced today:
+``LINSTABPY_FACTOR_PRECISION`` (``single`` only with ``superlu_dist``),
+``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
+``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
+when requested with the wrong backend, and make no performance claim.  Matching
+JSONC fields are validated and carried in the typed config but are not yet
+consumed by the solver call sites for factorization setup.
 """
 
 from __future__ import annotations
@@ -31,6 +53,11 @@ __all__ = sorted(_DEPRECATED_EXPORTS)
 
 
 def __getattr__(name: str) -> Any:
+    """Lazily expose deprecated public resolvent wrappers.
+
+    Backend selection for the returned wrappers is documented in the module
+    docstring above and in ``docs/COMPUTE_BACKENDS.md``.
+    """
     if name not in _DEPRECATED_EXPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     if name == "resolvent_analysis_with_residuals":
@@ -75,7 +102,17 @@ def _resolvent_analysis_with_residuals(
     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
     | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, float]]
 ):
-    """Deprecated wrapper for ``resolvent_analysis(..., residuals=True)``."""
+    """Deprecated wrapper for ``resolvent_analysis(..., residuals=True)``.
+
+    Direct shifted solves use ``solver.resolvent.factor_backend`` (or the
+    ``solver.linsolve`` fallback), then
+    ``LINSTABPY_RESOLVENT_PC_FACTOR_SOLVER_TYPE``, then
+    ``LINSTABPY_FACTOR_BACKEND``, then the ``mumps`` default.  Availability is
+    probe-checked and unavailable backends fail loudly.  Experimental
+    precision, MUMPS BLR, and MUMPS ordering knobs are enforced from
+    environment variables only at factorization time today; matching JSONC
+    fields are carried but not consumed.  See ``docs/COMPUTE_BACKENDS.md``.
+    """
     warnings.warn(
         "linstabpy.solvers.resolvent.resolvent_analysis_with_residuals is deprecated; "
         "use linstabpy.resolvent.analysis.resolvent_analysis(..., residuals=True) instead",
