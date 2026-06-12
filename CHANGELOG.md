@@ -12,6 +12,7 @@ Work toward **0.0.6**. Development happens on the `dev` branch (versioned
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
 ### Added
+- RSVD certification gate (`solvers.router.certification`): `certified_rsvd` runs five algebraic checks before trusting an inexact resolvent action — σ-accuracy-derived solve tolerance, forward/adjoint consistency with realized-residual enforcement, adjoint-of-approximate-factor verification, deterministic linearity probed on both forward and adjoint actions, and multi-seed RSVD reproducibility — and fails loud naming the tripped check. (bead r3uu.14.4)
 - Phase-zero EVP-guided band marking (`solvers.router.band_marking`): labels requested forcing frequencies stable / near-pole / smooth by distance to the resolvent poles (`-omega_eig`) before any sweep. (bead r3uu.14.3)
 - Config-selectable FGMRES shift-invert path with direct-LU preconditioning, including STRUMPACK backend selection when available.
 - Runtime result archives and metrics sidecars now include git, config, host, compute-mode, and MPI-stack provenance.
