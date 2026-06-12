@@ -16,8 +16,11 @@ from typing import Any
 from linstabpy.linalg.backends import (
     DEFAULT_FACTOR_BACKEND,
     DEFAULT_FACTOR_PRECISION,
+    DEFAULT_MUMPS_BLR,
+    DEFAULT_MUMPS_BLR_TOL,
     _as_bool,
     _normalize_factor_precision,
+    _normalize_mumps_blr_tol,
 )
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
@@ -166,6 +169,22 @@ def _factor_precision(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> 
     return DEFAULT_FACTOR_PRECISION
 
 
+def _mumps_blr(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> bool:
+    if "LINSTABPY_MUMPS_BLR" in env:
+        return _as_bool(env["LINSTABPY_MUMPS_BLR"])
+    if cfg is not None and "mumps_blr" in cfg:
+        return _as_bool(cfg["mumps_blr"])
+    return DEFAULT_MUMPS_BLR
+
+
+def _mumps_blr_tol(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> float:
+    if "LINSTABPY_MUMPS_BLR_TOL" in env:
+        return _normalize_mumps_blr_tol(env["LINSTABPY_MUMPS_BLR_TOL"])
+    if cfg is not None and "mumps_blr_tol" in cfg:
+        return _normalize_mumps_blr_tol(cfg["mumps_blr_tol"])
+    return DEFAULT_MUMPS_BLR_TOL
+
+
 def _st_factor_backend(
     st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
 ) -> str | None:
@@ -208,6 +227,8 @@ class LinSolveCfg:
     type: str
     factor_backend: str | None
     factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
     ksp_type: str
     pc_type: str
     ksp_pc_side: str
@@ -232,6 +253,8 @@ class LinSolveCfg:
                 cfg, env, env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE", default="mumps"
             ),
             factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
             ksp_type=_scfg(cfg, "ksp_type", env, f"{prefix}_KSP_TYPE", "fgmres"),
             pc_type=_scfg(cfg, "pc_type", env, f"{prefix}_PC_TYPE", "asm"),
             ksp_pc_side=_scfg(cfg, "ksp_pc_side", env, f"{prefix}_KSP_PC_SIDE", "right"),
@@ -336,6 +359,8 @@ class EigenCfg:
     st_solver: str
     st_factor_backend: str | None
     factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
     pc_factor_solver_type: str
     cond_warn: bool
     cond_warn_max_n: int
@@ -371,6 +396,8 @@ class EigenCfg:
             st_solver=st_solver,
             st_factor_backend=_st_factor_backend(st_solver, cfg, env),
             factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
             pc_factor_solver_type=pc_factor_solver_type,
             cond_warn=_scfg_bool(cfg, "cond_warn", env, "LINSTABPY_EIGEN_COND_WARN", True),
             cond_warn_max_n=_scfg_int(
@@ -426,6 +453,8 @@ class SpatialCfg:
     st_solver: str
     factor_backend: str | None
     factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "SpatialCfg":
@@ -435,6 +464,8 @@ class SpatialCfg:
             st_solver=st_solver,
             factor_backend=_factor_backend(cfg, env, default=default),
             factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
         )
 
 
