@@ -127,12 +127,20 @@ def _apply_with_fake_options(
     backend: str,
     *,
     factor_precision: str | None = None,
+    mumps_blr: bool | None = None,
+    mumps_blr_tol: float | None = None,
 ) -> tuple[_FakeOptions, _FakePC]:
     options = _FakeOptions()
     pc = _FakePC()
     monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
     monkeypatch.setattr(backends.PETSc, "Options", lambda: options)
-    backends.apply_factor_backend(pc, backend, factor_precision=factor_precision)
+    backends.apply_factor_backend(
+        pc,
+        backend,
+        factor_precision=factor_precision,
+        mumps_blr=mumps_blr,
+        mumps_blr_tol=mumps_blr_tol,
+    )
     return options, pc
 
 
@@ -147,7 +155,11 @@ def test_factor_precision_double_is_inert_by_default(monkeypatch) -> None:
     assert absent_options.set_calls == explicit_options.set_calls == [
         ("pc_factor_mat_solver_type", "mumps")
     ]
-    assert absent_options.del_calls == explicit_options.del_calls == ["pc_factor_mat_solver_type"]
+    assert absent_options.del_calls == explicit_options.del_calls == [
+        "mat_mumps_icntl_35",
+        "mat_mumps_cntl_7",
+        "pc_factor_mat_solver_type",
+    ]
     assert absent_pc.factor_solver_type == explicit_pc.factor_solver_type == "mumps"
 
 
@@ -164,6 +176,88 @@ def test_factor_precision_single_superlu_dist_sets_pc_precision(monkeypatch) -> 
     assert pc.factor_solver_type == "superlu_dist"
 
 
+def test_mumps_blr_default_off_keeps_options_db_byte_identical(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_MUMPS_BLR", raising=False)
+    monkeypatch.delenv("LINSTABPY_MUMPS_BLR_TOL", raising=False)
+
+    absent_options, absent_pc = _apply_with_fake_options(monkeypatch, "mumps")
+    explicit_off_options, explicit_off_pc = _apply_with_fake_options(
+        monkeypatch, "mumps", mumps_blr=False, mumps_blr_tol=1.0e-2
+    )
+
+    assert absent_options.set_calls == explicit_off_options.set_calls == [
+        ("pc_factor_mat_solver_type", "mumps")
+    ]
+    # The off path clears any leftover BLR options (no-op when absent) so a
+    # prior BLR-enabled setup cannot leak into this one, then removes the
+    # solver-type key as before. Nothing is ever *set* besides the backend.
+    assert absent_options.del_calls == explicit_off_options.del_calls == [
+        "mat_mumps_icntl_35",
+        "mat_mumps_cntl_7",
+        "pc_factor_mat_solver_type",
+    ]
+    assert absent_pc.factor_solver_type == explicit_off_pc.factor_solver_type == "mumps"
+
+
+def test_mumps_blr_enabled_sets_icntl_35_and_cntl_7(monkeypatch) -> None:
+    options, pc = _apply_with_fake_options(
+        monkeypatch, "mumps", mumps_blr=True, mumps_blr_tol=5.0e-3
+    )
+
+    assert options.set_calls == [
+        ("pc_factor_mat_solver_type", "mumps"),
+        ("mat_mumps_icntl_35", "1"),
+        ("mat_mumps_cntl_7", "0.005"),
+    ]
+    assert options.del_calls == ["pc_factor_mat_solver_type"]
+    assert pc.factor_solver_type == "mumps"
+
+
+@pytest.mark.parametrize("backend", ["petsc", None, "strumpack", "superlu_dist", "cudss"])
+def test_mumps_blr_rejects_non_mumps_backend(monkeypatch, backend) -> None:
+    monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
+
+    with pytest.raises(ValueError) as excinfo:
+        backends.apply_factor_backend(_FakePC(), backend, mumps_blr=True)
+
+    message = str(excinfo.value)
+    assert repr(backend) in message
+    assert "LINSTABPY_MUMPS_BLR" in message
+    assert "mumps" in message
+
+
+def test_mumps_blr_env_beats_jsonc_and_default(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_MUMPS_BLR", raising=False)
+    monkeypatch.delenv("LINSTABPY_MUMPS_BLR_TOL", raising=False)
+
+    assert backends.resolve_mumps_blr(None) is False
+    assert backends.resolve_mumps_blr_tol(None) == pytest.approx(1.0e-4)
+    assert backends.resolve_mumps_blr({"mumps_blr": True}) is True
+    assert backends.resolve_mumps_blr_tol({"mumps_blr_tol": 2.5e-3}) == pytest.approx(2.5e-3)
+
+    monkeypatch.setenv("LINSTABPY_MUMPS_BLR", "off")
+    monkeypatch.setenv("LINSTABPY_MUMPS_BLR_TOL", "3e-2")
+    assert backends.resolve_mumps_blr({"mumps_blr": True}) is False
+    assert backends.resolve_mumps_blr_tol({"mumps_blr_tol": 2.5e-3}) == pytest.approx(3.0e-2)
+
+    cfg = Config.load(
+        {"solver": {"linsolve": {"mumps_blr": False, "mumps_blr_tol": 1.0e-2}}},
+        env={"LINSTABPY_MUMPS_BLR": "yes", "LINSTABPY_MUMPS_BLR_TOL": "4e-3"},
+    )
+    assert cfg.linsolve.mumps_blr is True
+    assert cfg.linsolve.mumps_blr_tol == pytest.approx(4.0e-3)
+
+
+@pytest.mark.parametrize("bad_tol", [-1.0, 0.0, "nan", "inf", "not-a-number"])
+def test_mumps_blr_bad_tolerance_raises_typed_error(bad_tol) -> None:
+    with pytest.raises(ValueError) as excinfo:
+        Config.load({"solver": {"linsolve": {"mumps_blr_tol": bad_tol}}}, env={})
+
+    message = str(excinfo.value)
+    assert "LINSTABPY_MUMPS_BLR_TOL" in message
+    assert "positive finite" in message
+
+
 @pytest.mark.parametrize("backend", ["mumps", "superlu", "strumpack", "cudss"])
 def test_factor_precision_single_rejects_non_superlu_dist(monkeypatch, backend) -> None:
     monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
@@ -175,6 +269,79 @@ def test_factor_precision_single_rejects_non_superlu_dist(monkeypatch, backend) 
     assert backend in message
     assert "LINSTABPY_FACTOR_PRECISION" in message
     assert "superlu_dist" in message
+
+
+def _mumps_blr_probe_ksp(monkeypatch, *, enabled: bool, tol: float = 2.5e-3):  # noqa: ANN001
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    monkeypatch.setenv("LINSTABPY_MUMPS_BLR", "1" if enabled else "0")
+    monkeypatch.setenv("LINSTABPY_MUMPS_BLR_TOL", f"{tol:g}")
+    A = PETSc.Mat().createAIJ(size=(2, 2), comm=PETSc.COMM_SELF)
+    values = {
+        (0, 0): 2.0 + 0.5j,
+        (0, 1): 0.1 - 0.2j,
+        (1, 0): 0.3 + 0.1j,
+        (1, 1): 3.0 - 0.25j,
+    }
+    for (row, col), value in values.items():
+        A.setValue(row, col, value)
+    A.assemble()
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_SELF)
+    try:
+        ksp.setOperators(A)
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.LU)
+        backends.apply_factor_backend(pc, "mumps")
+        ksp.setUp()
+        return ksp, A
+    except Exception:
+        ksp.destroy()
+        A.destroy()
+        raise
+
+
+def test_mumps_blr_real_wiring_reaches_mumps_after_ksp_setup(monkeypatch) -> None:
+    tol = 2.5e-3
+    ksp, A = _mumps_blr_probe_ksp(monkeypatch, enabled=True, tol=tol)
+    try:
+        factor = ksp.getPC().getFactorMatrix()
+        assert factor.getMumpsIcntl(35) == 1
+        assert factor.getMumpsCntl(7) == pytest.approx(tol)
+    finally:
+        PETSc.Options().delValue("mat_mumps_cntl_7")
+        PETSc.Options().delValue("mat_mumps_icntl_35")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_mumps_blr_default_off_real_wiring_leaves_mumps_blr_disabled(monkeypatch) -> None:
+    ksp, A = _mumps_blr_probe_ksp(monkeypatch, enabled=False)
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(35) == 0
+    finally:
+        PETSc.Options().delValue("mat_mumps_cntl_7")
+        PETSc.Options().delValue("mat_mumps_icntl_35")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_mumps_blr_off_after_enabled_setup_is_not_sticky(monkeypatch) -> None:
+    ksp_on, A_on = _mumps_blr_probe_ksp(monkeypatch, enabled=True, tol=2.5e-3)
+    try:
+        assert ksp_on.getPC().getFactorMatrix().getMumpsIcntl(35) == 1
+        ksp_off, A_off = _mumps_blr_probe_ksp(monkeypatch, enabled=False)
+        try:
+            assert ksp_off.getPC().getFactorMatrix().getMumpsIcntl(35) == 0
+        finally:
+            ksp_off.destroy()
+            A_off.destroy()
+    finally:
+        PETSc.Options().delValue("mat_mumps_cntl_7")
+        PETSc.Options().delValue("mat_mumps_icntl_35")
+        ksp_on.destroy()
+        A_on.destroy()
 
 
 def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:

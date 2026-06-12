@@ -14,6 +14,8 @@ from petsc4py import PETSc
 
 DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
+DEFAULT_MUMPS_BLR = False
+DEFAULT_MUMPS_BLR_TOL = 1.0e-4
 FACTOR_PRECISION = DEFAULT_FACTOR_PRECISION
 ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
@@ -67,21 +69,63 @@ def resolve_factor_precision(
     return _normalize_factor_precision(default)
 
 
+def resolve_mumps_blr(
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    env_var: str = "LINSTABPY_MUMPS_BLR",
+    default: bool = DEFAULT_MUMPS_BLR,
+) -> bool:
+    """Resolve the MUMPS BLR switch with precedence env > JSONC > default."""
+    if env_var in os.environ:
+        return _as_bool(os.environ[env_var])
+    if cfg is not None and "mumps_blr" in cfg:
+        return _as_bool(cfg["mumps_blr"])
+    return bool(default)
+
+
+def resolve_mumps_blr_tol(
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    env_var: str = "LINSTABPY_MUMPS_BLR_TOL",
+    default: float = DEFAULT_MUMPS_BLR_TOL,
+) -> float:
+    """Resolve the MUMPS BLR tolerance with precedence env > JSONC > default."""
+    if env_var in os.environ:
+        return _normalize_mumps_blr_tol(os.environ[env_var])
+    if cfg is not None and "mumps_blr_tol" in cfg:
+        return _normalize_mumps_blr_tol(cfg["mumps_blr_tol"])
+    return _normalize_mumps_blr_tol(default)
+
+
 def apply_factor_backend(
     pc: PETSc.PC,
     backend: str | None,
     *,
     options_prefix: str = "",
     factor_precision: str | None = None,
+    mumps_blr: bool | None = None,
+    mumps_blr_tol: float | None = None,
 ) -> str | None:
     """Apply ``backend`` to a PCLU after ``pc.setType('lu')``."""
+    requested_backend = backend
     backend = _normalize_backend(backend)
+    blr_enabled = resolve_mumps_blr(None) if mumps_blr is None else bool(mumps_blr)
+    if blr_enabled and backend != "mumps":
+        raise ValueError(
+            "LINSTABPY_MUMPS_BLR is only supported with backend 'mumps' "
+            f"(got backend {requested_backend!r})"
+        )
     if backend is None:
         return None
     precision = (
         resolve_factor_precision(None)
         if factor_precision is None
         else _normalize_factor_precision(factor_precision)
+    )
+    blr_tol = (
+        resolve_mumps_blr_tol(None)
+        if mumps_blr_tol is None
+        else _normalize_mumps_blr_tol(mumps_blr_tol)
     )
     if precision == "single" and backend != "superlu_dist":
         raise ValueError(
@@ -92,9 +136,20 @@ def apply_factor_backend(
     opts = PETSc.Options()
     key = f"{options_prefix}pc_factor_mat_solver_type"
     precision_key = f"{options_prefix}pc_precision"
+    blr_mode_key = f"{options_prefix}mat_mumps_icntl_35"
+    blr_tol_key = f"{options_prefix}mat_mumps_cntl_7"
     opts.setValue(key, backend)
     if precision == "single":
         opts.setValue(precision_key, "single")
+    if blr_enabled:
+        opts.setValue(blr_mode_key, "1")
+        opts.setValue(blr_tol_key, f"{blr_tol:g}")
+    elif backend == "mumps":
+        # BLR options persist in the process-global options DB so MUMPS can
+        # consume them at factorization setup; an off-request must clear any
+        # leftovers from an earlier BLR-enabled setup or BLR becomes sticky.
+        opts.delValue(blr_mode_key)
+        opts.delValue(blr_tol_key)
     try:
         pc.setFromOptions()
         pc.setFactorSolverType(backend)
@@ -252,6 +307,20 @@ def _normalize_factor_precision(value: object) -> str:
     )
 
 
+def _normalize_mumps_blr_tol(value: object) -> float:
+    try:
+        tol = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid LINSTABPY_MUMPS_BLR_TOL={value!r}; expected a positive finite number"
+        ) from exc
+    if not np.isfinite(tol) or tol <= 0.0:
+        raise ValueError(
+            f"Invalid LINSTABPY_MUMPS_BLR_TOL={value!r}; expected a positive finite number"
+        )
+    return tol
+
+
 def _as_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -289,6 +358,8 @@ __all__ = [
     "Backend",
     "DEFAULT_FACTOR_BACKEND",
     "DEFAULT_FACTOR_PRECISION",
+    "DEFAULT_MUMPS_BLR",
+    "DEFAULT_MUMPS_BLR_TOL",
     "FACTOR_PRECISION",
     "apply_factor_backend",
     "available",
@@ -297,6 +368,8 @@ __all__ = [
     "factor_backend_available",
     "resolve_factor_backend",
     "resolve_factor_precision",
+    "resolve_mumps_blr",
+    "resolve_mumps_blr_tol",
     "select",
     "shifted_ksp_probe_residual",
     "should_probe_backend",

@@ -56,6 +56,41 @@ This knob only exposes configuration for later mixed-precision iterative
 refinement work. It is not a production recommendation, and `double` remains the
 reference/default path.
 
+## MUMPS BLR Low-Rank Compression Knob
+
+MUMPS block-low-rank (BLR) compression can be requested only for the MUMPS factor
+backend. It is off by default, so the default MUMPS options path is unchanged.
+Set `LINSTABPY_MUMPS_BLR=1` or the matching JSONC field `mumps_blr: true` in the
+relevant solver subsection to enable it. The BLR dropping tolerance is controlled
+by `LINSTABPY_MUMPS_BLR_TOL` or `mumps_blr_tol`; the default tolerance is
+`1e-4`. Environment variables take precedence over JSONC, which takes precedence
+over the defaults.
+
+Today only the environment variables are enforced at factorization time, and
+they apply to every MUMPS LU `linstabpy` sets up in the process. The JSONC
+`mumps_blr` and `mumps_blr_tol` fields are validated and carried in the typed
+config but are not yet consumed by the solver call sites; wiring the
+per-solver config through is future work, as with `factor_precision`.
+
+When BLR is enabled with backend `mumps`, `linstabpy` sets these PETSc options
+and leaves them in the PETSc options database for the process so MUMPS can
+consume them during the later factorization setup:
+
+```text
+-mat_mumps_icntl_35 1
+-mat_mumps_cntl_7 <tolerance>
+```
+
+`ICNTL(35)=1` requests MUMPS BLR factorization, and `CNTL(7)` sets the BLR
+dropping tolerance. No `ICNTL(36)`, `ICNTL(37)`, or `ICNTL(38)` values are set by
+`linstabpy`; PETSc/MUMPS defaults are left in charge unless a later, documented
+configuration surface is added. Enabling BLR with any non-MUMPS backend raises a
+`ValueError` naming `LINSTABPY_MUMPS_BLR` and the selected backend.
+
+BLR changes the numerical factorization and can affect shifted-solve residuals,
+eigenvalue postchecks, and resolvent gains. Treat it as an explicit accuracy /
+memory trade-off to verify for each case. No performance claim is made here.
+
 ## Current Status
 
 | Backend | Status | Notes |

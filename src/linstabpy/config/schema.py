@@ -95,6 +95,8 @@ TOP_LEVEL_ALLOWED = frozenset(
         "omega_targets",
         "direct_ksp",
         "factor_precision",
+        "mumps_blr",
+        "mumps_blr_tol",
         "schema_version",
     }
 )
@@ -143,6 +145,7 @@ _NUMERIC_FIELDS = frozenset(
         "y_stretch_yi",
         "omega_shift_fallback",
         "spatial_omega_imag_shift",
+        "mumps_blr_tol",
     }
 )
 
@@ -155,6 +158,7 @@ _BOOL_FIELDS = frozenset(
         "run_stability",
         "run_resolvent",
         "use_omega_shift_fallback",
+        "mumps_blr",
     }
 )
 
