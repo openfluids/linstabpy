@@ -4,6 +4,28 @@
 default factor backend is `mumps`, and that remains the reference path for
 temporal EVP, spatial EVP, resolvent, and linear-solve validation.
 
+## Build-Stack Isolation Strategy
+
+`install.sh` keeps one virtual environment per PETSc/SLEPc build stack. The
+unselected/default stack is the CPU MUMPS reference build and continues to use
+`.venv`. Non-default stacks use side-by-side directories named
+`.venv-<stack>`, for example `.venv-gpu-strumpack`. This layout is deliberate:
+`--force` for a non-default stack may only remove that stack's own directory and
+must never delete or overwrite the validated CPU `.venv`.
+
+Use `bash install.sh --dry-run` to inspect the resolved stack, virtual
+environment path, PETSc configure branch, and any planned destructive action
+without creating or deleting a virtual environment. The stack can be selected
+with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
+
+| Stack | Virtual environment | PETSc configure branch | Rule |
+|---|---|---|---|
+| default / CPU reference | `.venv` | complex scalar PETSc/SLEPc with MUMPS, METIS, and ParMETIS downloads | This remains the only reference build. Default behavior must not change unless a separate change explicitly updates the CPU build contract. |
+| `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until GPU-build recipe beads run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
+
+This section documents the intended build separation only. It is not a claim
+that the GPU branch has been built, validated, or measured.
+
 Backend selection precedence is:
 
 1. JSONC solver subsection `factor_backend`;
