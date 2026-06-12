@@ -81,6 +81,7 @@ SHA.
 1. In `CHANGELOG.md`, move the `[Unreleased]` entries into a new
    `[0.0.x] - YYYY-MM-DD` section.
 2. Set `pyproject.toml` `version = "0.0.x"`.
+   Freeze the solver-stack constraints: `bash scripts/tools/freeze_env.sh v0.0.x`.
 3. Merge `dev → main` via the gated PR.
 4. Annotated tag: `git tag -a v0.0.x <commit> -m "…"` then
    `git push origin v0.0.x`. **Never move a published tag** — if a tag was cut on

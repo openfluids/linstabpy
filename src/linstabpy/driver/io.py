@@ -77,6 +77,8 @@ def save_results(
             peak_rss_bytes=peak_rss_bytes,
         )
         payload = {**payload, **cost, **provenance}
+        provenance_lines = "\n".join(f"  {key}: {value}" for key, value in provenance.items())
+        _LOG.info("provenance block for %s:\n%s", output_npz, provenance_lines)
         np.savez_compressed(output_npz, **payload)
         if PETSc.COMM_WORLD.getRank() == 0:
             import json

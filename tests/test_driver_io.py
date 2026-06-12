@@ -26,6 +26,14 @@ STAMPED_PROVENANCE_KEYS = {
     "hostname",
     "compute_mode",
     "mpi_stack",
+    "python_version",
+    "numpy_version",
+    "scipy_version",
+    "petsc4py_version",
+    "slepc4py_version",
+    "petsc_arch",
+    "mumps_version",
+    "mpi_impl",
 }
 
 PROVENANCE_KEYS = {
