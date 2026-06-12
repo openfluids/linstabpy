@@ -1,27 +1,48 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Temporal and adjoint eigenvalue solvers using SLEPc EPS.
 
-Solver configuration — ``solver.eigen`` section in JSONC
----------------------------------------------------------
+Solver configuration uses the ``solver.eigen`` JSONC section.  For direct
+shift-invert paths, ``factor_backend`` selects the PETSc LU factor backend.
+On the reference direct path (``st_solver`` of ``mumps``/``direct``/``lu``)
+the resolution order is ``solver.eigen.factor_backend``, then
+``LINSTABPY_FACTOR_BACKEND``, then the ``mumps`` default — the per-solver
+``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`` override is *not* consulted on
+that path.  That per-solver override participates only for the iterative
+eigensolver with ``pc_type="lu"`` and for ``st_solver="strumpack_fgmres"``
+(whose default is ``strumpack``).
+Requested backends are checked with a small complex PETSc LU probe and an
+unavailable backend fails loudly instead of falling back.  See
+``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
+
+Current backend status is deliberately conservative: ``mumps`` is the default
+and reference path; ``strumpack`` is experimental and currently documented only
+for the diagnostic FGMRES+LU configuration; ``superlu_dist`` is rejected for the
+tested CUDA build; and ``cudss`` is not wired to the ``linstabpy`` PETSc factor
+interface.
+
+The experimental factorization knobs are environment-enforced today:
+``LINSTABPY_FACTOR_PRECISION`` (``single`` only with ``superlu_dist``),
+``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
+``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
+when requested with the wrong backend, and make no performance claim.  Matching
+JSONC fields are validated and carried in the typed config but are not yet
+consumed by the solver call sites for factorization setup.
 
 ``st_solver`` selects the shift-invert inner linear solver:
 
-* ``"mumps"`` (default) — direct LU via MUMPS.  Robust, memory-heavy.
-  Requires ~3 TiB at stride-1 for the SWBLI LNSE operator.
+* ``"mumps"`` (default) — direct LU through the configured factor backend,
+  with MUMPS as the reference default.
 * ``"iterative"`` / ``"krylov"`` / ``"slepc"`` — configurable Krylov inner
   solver with a wide choice of preconditioners (including ASM, BJacobi,
-  FieldSplit).  Parameters are read from the *top-level* ``solver.eigen``
-  section keys (``ksp_type``, ``pc_type``, …).
-* ``"inexact"`` — FGMRES + ASM + local ILU inner solver tuned for
-  memory-constrained large-DOF runs.  Parameters live in the nested
-  ``solver.eigen.inexact`` sub-dict so they do not collide with the
-  ``"iterative"`` key names.  Memory scales with preconditioner storage
-  instead of the LU factor, giving 5–20× lower peak RSS at stride-1.
-* ``"strumpack_fgmres"`` — FGMRES outer KSP with a direct-LU PC whose
-  default factor backend is STRUMPACK.  The portable ``"fgmres_lu"`` selector
-  uses the same path with the configured ``factor_backend``.  Both selectors
-  read ``ksp_rtol``, ``ksp_atol``, and ``ksp_max_it`` from
-  ``solver.eigen.inexact``.
+  FieldSplit).  Parameters are read from the top-level ``solver.eigen``
+  section keys (``ksp_type``, ``pc_type``, ...).
+* ``"inexact"`` — FGMRES + ASM + local ILU inner solver.  Parameters live in
+  the nested ``solver.eigen.inexact`` sub-dict so they do not collide with the
+  ``"iterative"`` key names.
+* ``"strumpack_fgmres"`` — FGMRES outer KSP with a direct-LU PC whose default
+  factor backend is STRUMPACK.  The portable ``"fgmres_lu"`` selector uses the
+  same path with the configured ``factor_backend``.  Both selectors read
+  ``ksp_rtol``, ``ksp_atol``, and ``ksp_max_it`` from ``solver.eigen.inexact``.
 
 JSONC schema for ``"inexact"`` mode::
 
@@ -42,10 +63,9 @@ JSONC schema for ``"inexact"`` mode::
     }
 
 ``true_residual`` defaults to ``True`` when ``st_solver`` is ``"inexact"``,
-``"fgmres_lu"``, or ``"strumpack_fgmres"``.
-Inexact inner solves can satisfy the preconditioned residual while the
-true residual remains large; forcing true-residual checks at convergence
-time catches this case.
+``"fgmres_lu"``, or ``"strumpack_fgmres"``.  Inexact inner solves can satisfy
+the preconditioned residual while the true residual remains large; forcing
+true-residual checks at convergence time catches this case.
 """
 
 from __future__ import annotations
@@ -386,6 +406,15 @@ def _configure_st_for_eigenvalue(
 ) -> None:
     """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
 
+    Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` JSONC,
+    ``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE``, ``LINSTABPY_FACTOR_BACKEND``,
+    then the path default.  Availability is probe-checked and unavailable
+    backends fail loudly; see ``docs/COMPUTE_BACKENDS.md``.  The environment
+    knobs ``LINSTABPY_FACTOR_PRECISION``, ``LINSTABPY_MUMPS_BLR`` with
+    ``LINSTABPY_MUMPS_BLR_TOL``, and ``LINSTABPY_MUMPS_ORDERING`` are enforced
+    only from the environment at factorization time today; matching JSONC
+    fields are carried but not consumed by this setup path.
+
     Parameters
     ----------
     st_solver:
@@ -657,6 +686,11 @@ _DEPRECATED_EXPORTS = {
 
 
 def __getattr__(name: str):  # noqa: ANN201
+    """Lazily expose deprecated public eigenvalue wrappers.
+
+    The active backend/knob documentation for these wrappers is the module
+    docstring above and ``docs/COMPUTE_BACKENDS.md``.
+    """
     if name in _DEPRECATED_EXPORTS:
         import importlib
         import warnings
@@ -675,4 +709,5 @@ def __getattr__(name: str):  # noqa: ANN201
 
 
 def __dir__() -> list[str]:
+    """Return module attributes including deprecated public wrappers."""
     return sorted(set(globals()) | set(_DEPRECATED_EXPORTS))
