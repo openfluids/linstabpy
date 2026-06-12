@@ -21,6 +21,7 @@ from linstabpy.linalg.backends import (
     _as_bool,
     _normalize_factor_precision,
     _normalize_mumps_blr_tol,
+    _normalize_mumps_ordering,
 )
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
@@ -185,6 +186,14 @@ def _mumps_blr_tol(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> flo
     return DEFAULT_MUMPS_BLR_TOL
 
 
+def _mumps_ordering(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> str | None:
+    if "LINSTABPY_MUMPS_ORDERING" in env:
+        return _normalize_mumps_ordering(env["LINSTABPY_MUMPS_ORDERING"])
+    if cfg is not None and "mumps_ordering" in cfg:
+        return _normalize_mumps_ordering(cfg["mumps_ordering"])
+    return None
+
+
 def _st_factor_backend(
     st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
 ) -> str | None:
@@ -229,6 +238,7 @@ class LinSolveCfg:
     factor_precision: str
     mumps_blr: bool
     mumps_blr_tol: float
+    mumps_ordering: str | None
     ksp_type: str
     pc_type: str
     ksp_pc_side: str
@@ -255,6 +265,7 @@ class LinSolveCfg:
             factor_precision=_factor_precision(cfg, env),
             mumps_blr=_mumps_blr(cfg, env),
             mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
             ksp_type=_scfg(cfg, "ksp_type", env, f"{prefix}_KSP_TYPE", "fgmres"),
             pc_type=_scfg(cfg, "pc_type", env, f"{prefix}_PC_TYPE", "asm"),
             ksp_pc_side=_scfg(cfg, "ksp_pc_side", env, f"{prefix}_KSP_PC_SIDE", "right"),
@@ -361,6 +372,7 @@ class EigenCfg:
     factor_precision: str
     mumps_blr: bool
     mumps_blr_tol: float
+    mumps_ordering: str | None
     pc_factor_solver_type: str
     cond_warn: bool
     cond_warn_max_n: int
@@ -398,6 +410,7 @@ class EigenCfg:
             factor_precision=_factor_precision(cfg, env),
             mumps_blr=_mumps_blr(cfg, env),
             mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
             pc_factor_solver_type=pc_factor_solver_type,
             cond_warn=_scfg_bool(cfg, "cond_warn", env, "LINSTABPY_EIGEN_COND_WARN", True),
             cond_warn_max_n=_scfg_int(
@@ -455,6 +468,7 @@ class SpatialCfg:
     factor_precision: str
     mumps_blr: bool
     mumps_blr_tol: float
+    mumps_ordering: str | None
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "SpatialCfg":
@@ -466,6 +480,7 @@ class SpatialCfg:
             factor_precision=_factor_precision(cfg, env),
             mumps_blr=_mumps_blr(cfg, env),
             mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
         )
 
 

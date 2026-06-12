@@ -97,6 +97,7 @@ TOP_LEVEL_ALLOWED = frozenset(
         "factor_precision",
         "mumps_blr",
         "mumps_blr_tol",
+        "mumps_ordering",
         "schema_version",
     }
 )
@@ -169,6 +170,7 @@ _STRING_FIELDS = frozenset(
         "output_root",
         "base_config",
         "factor_precision",
+        "mumps_ordering",
         "schema_version",
         "$include",
     }
