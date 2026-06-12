@@ -18,6 +18,14 @@ def _complete_metrics_payload() -> dict[str, object]:
         "hostname": "test-host",
         "compute_mode": "cpu",
         "mpi_stack": "unknown",
+        "python_version": "3.13.0",
+        "numpy_version": "2.0.0",
+        "scipy_version": "1.14.0",
+        "petsc4py_version": "3.24.0",
+        "slepc4py_version": "3.24.0",
+        "petsc_arch": "arch-python",
+        "mumps_version": "5.8.1",
+        "mpi_impl": "MPI test implementation",
         "case": "tiny-smoke",
         "fd_order": 6,
         "stride": 4,
@@ -105,10 +113,7 @@ def test_production_sidecar_payload_passes_schema(tmp_path, monkeypatch):
     monkeypatch.setenv("LINSTAB2D_GPUS", "0")
     output_npz = tmp_path / "tiny_smoke.npz"
     payload = _complete_metrics_payload()
-    provenance = {
-        key: str(payload.pop(key))
-        for key in ("git_sha", "config_md5", "hostname", "compute_mode", "mpi_stack")
-    }
+    provenance = {key: str(payload.pop(key)) for key in SCHEMA["provenance"]}
     # Let save_results provide the cost/provenance block through the production
     # sidecar path while the tiny payload supplies problem and quality metrics.
     for key in list(payload):

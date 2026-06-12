@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,7 +15,25 @@ from linstabpy.driver.io import load_results, save_results
 from linstabpy.driver.run import _output_npz_path
 from linstabpy.utils.provenance import collect_provenance
 
-PROVENANCE_KEYS = {"git_sha", "config_md5", "hostname", "compute_mode", "mpi_stack"}
+PROVENANCE_KEYS = {
+    "git_sha",
+    "config_md5",
+    "hostname",
+    "compute_mode",
+    "mpi_stack",
+    "python_version",
+    "numpy_version",
+    "scipy_version",
+    "petsc4py_version",
+    "slepc4py_version",
+    "petsc_arch",
+    "mumps_version",
+    "mpi_impl",
+}
+REPO_ROOT = Path(__file__).resolve().parents[1]
+_CONSTRAINT_LINE = re.compile(
+    r"^([A-Za-z0-9_.-]+(==|===|!=|~=|>=|<=|>|<).+|-e\s+.+|[A-Za-z0-9_.-]+\s*@\s*.+)$"
+)
 
 
 def _git_rev_parse_head() -> str:
@@ -32,6 +52,7 @@ def test_collect_provenance_has_stable_typed_fields(tmp_path, monkeypatch):
 
     assert set(first) == PROVENANCE_KEYS
     assert all(isinstance(value, str) for value in first.values())
+    assert all(value == "unavailable" or value for value in first.values())
     assert first["config_md5"] == second["config_md5"]
     assert first["config_md5"] == hashlib.md5(first_bytes).hexdigest()  # noqa: S324
     assert first["git_sha"] == _git_rev_parse_head()
@@ -62,6 +83,19 @@ def test_collect_provenance_accepts_supported_compute_modes(tmp_path, monkeypatc
     monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", mode)
 
     assert collect_provenance(config_path)["compute_mode"] == mode
+
+
+def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
+    script = REPO_ROOT / "scripts" / "tools" / "freeze_env.sh"
+
+    subprocess.run([script, "test"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    constraints = tmp_path / "constraints-test.txt"
+    assert constraints.is_file()
+    lines = [line.strip() for line in constraints.read_text().splitlines()]
+    entries = [line for line in lines if line and not line.startswith("#")]
+    assert entries
+    assert all(_CONSTRAINT_LINE.match(line) for line in entries)
 
 
 def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkeypatch):
