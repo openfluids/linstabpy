@@ -12,6 +12,8 @@ set -euo pipefail
 #   bash install.sh                    # full install (no h5py by default)
 #   bash install.sh --force            # remove .venv first, then reinstall everything
 #   bash install.sh --force --latest   # reinstall with latest package releases
+#   bash install.sh --stack gpu-strumpack --dry-run  # show isolated GPU-stack plan
+#   LINSTABPY_BUILD_STACK=gpu-strumpack bash install.sh --dry-run
 #   LINSTABPY_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
 #   LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest  # Python 3.14 + latest packages
 #   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
@@ -42,12 +44,17 @@ set -euo pipefail
 # =============================================================================
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${ROOT_DIR}/.venv"
+DEFAULT_VENV_DIR="${ROOT_DIR}/.venv"
+REQUESTED_STACK="${LINSTABPY_BUILD_STACK:-default}"
+BUILD_STACK=""
+VENV_DIR=""
+VENV_DISPLAY=""
 OS_NAME=$(uname -s)
 PYTHON_VERSION="${LINSTABPY_PYTHON_VERSION:-3.13}"
 INSTALL_MODE="install"
 FORCE_REINSTALL=0
 LATEST_PACKAGES=0
+DRY_RUN=0
 PETSC_VERSION="${LINSTABPY_PETSC_VERSION:-3.24.2}"
 SLEPC_VERSION="${LINSTABPY_SLEPC_VERSION:-3.24.2}"
 PETSC4PY_VERSION="${LINSTABPY_PETSC4PY_VERSION:-3.24.2}"
@@ -78,6 +85,23 @@ while [ "$#" -gt 0 ]; do
             LATEST_PACKAGES=1
             shift
             ;;
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        --stack)
+            if [ "$#" -lt 2 ]; then
+                err "Missing value for --stack"
+                usage
+                exit 2
+            fi
+            REQUESTED_STACK="$2"
+            shift 2
+            ;;
+        --stack=*)
+            REQUESTED_STACK="${1#--stack=}"
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -89,6 +113,87 @@ while [ "$#" -gt 0 ]; do
             ;;
     esac
 done
+
+resolve_build_stack() {
+    case "${REQUESTED_STACK}" in
+        ""|default|cpu)
+            BUILD_STACK="default"
+            VENV_DIR="${DEFAULT_VENV_DIR}"
+            VENV_DISPLAY=".venv"
+            ;;
+        *[!A-Za-z0-9_.-]*|.*|-*|*-|*..*)
+            err "Invalid build stack '${REQUESTED_STACK}'. Use letters, numbers, '.', '_', or '-', and do not start with '.' or '-'."
+            exit 2
+            ;;
+        *)
+            BUILD_STACK="${REQUESTED_STACK}"
+            VENV_DIR="${ROOT_DIR}/.venv-${BUILD_STACK}"
+            VENV_DISPLAY=".venv-${BUILD_STACK}"
+            ;;
+    esac
+}
+
+assert_stack_venv_is_safe() {
+    if [ "${BUILD_STACK}" = "default" ]; then
+        return 0
+    fi
+    if [ "${VENV_DIR}" = "${DEFAULT_VENV_DIR}" ]; then
+        err "Refusing non-default stack '${BUILD_STACK}' because it resolves to the CPU .venv."
+        exit 1
+    fi
+    # A pre-existing symlink (or otherwise aliased path) would let every later
+    # write follow it into the CPU .venv; the string comparison above cannot
+    # see that, so refuse aliased stack venvs before any use, not only before
+    # removal.
+    if [ -L "${VENV_DIR}" ]; then
+        err "Refusing non-default stack '${BUILD_STACK}': ${VENV_DIR} is a symlink."
+        exit 1
+    fi
+    if [ -d "${VENV_DIR}" ] && [ -d "${DEFAULT_VENV_DIR}" ]; then
+        local resolved_stack resolved_default
+        resolved_stack="$(cd "${VENV_DIR}" 2>/dev/null && pwd -P)" || resolved_stack=""
+        resolved_default="$(cd "${DEFAULT_VENV_DIR}" 2>/dev/null && pwd -P)" || resolved_default=""
+        if [ -n "${resolved_stack}" ] && [ "${resolved_stack}" = "${resolved_default}" ]; then
+            err "Refusing non-default stack '${BUILD_STACK}': ${VENV_DIR} resolves to the CPU .venv."
+            exit 1
+        fi
+    fi
+}
+
+remove_venv_dir() {
+    local target="$1"
+    if [ "${BUILD_STACK}" != "default" ] && [ "${target}" = "${DEFAULT_VENV_DIR}" ]; then
+        err "Refusing to remove CPU .venv while building stack '${BUILD_STACK}'."
+        exit 1
+    fi
+    rm -rf "${target}"
+}
+
+print_dry_run_plan() {
+    assert_stack_venv_is_safe
+    printf 'build_stack=%s\n' "${BUILD_STACK}"
+    printf 'venv_dir=%s\n' "${VENV_DIR}"
+    printf 'venv_display=%s\n' "${VENV_DISPLAY}"
+    printf 'force=%s\n' "${FORCE_REINSTALL}"
+    if [ "${BUILD_STACK}" = "default" ]; then
+        printf 'petsc_configure_branch=cpu-mumps\n'
+    else
+        printf 'petsc_configure_branch=cuda-strumpack-design\n'
+        printf 'protected_venv=%s\n' "${DEFAULT_VENV_DIR}"
+    fi
+    if [ "${FORCE_REINSTALL}" = "1" ]; then
+        printf 'planned_remove=%s\n' "${VENV_DIR}"
+    else
+        printf 'planned_remove=none\n'
+    fi
+}
+
+resolve_build_stack
+assert_stack_venv_is_safe
+if [ "${DRY_RUN}" = "1" ]; then
+    print_dry_run_plan
+    exit 0
+fi
 
 # Print a directory containing libmpi.so* / libmpich.so* (Open MPI, MPICH, Intel MPI)
 # or return non-zero.
@@ -1325,14 +1430,14 @@ log "Using uv at: ${UV_BIN}"
 # ── Create/validate venv with the requested Python version ───────────────────
 if [ "${FORCE_REINSTALL}" = "1" ] && [ -d "${VENV_DIR}" ]; then
     warn "Removing existing virtual environment at ${VENV_DIR} (--force)"
-    rm -rf "${VENV_DIR}"
+    remove_venv_dir "${VENV_DIR}"
 fi
 
 if [ -d "${VENV_DIR}" ]; then
     EXISTING_PY="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
     if [ "${EXISTING_PY}" != "${PYTHON_VERSION}" ]; then
         warn "Existing venv uses Python ${EXISTING_PY:-unknown}; recreating with Python ${PYTHON_VERSION}"
-        rm -rf "${VENV_DIR}"
+        remove_venv_dir "${VENV_DIR}"
         log "Creating virtual environment (Python ${PYTHON_VERSION}) at ${VENV_DIR}"
         "${UV_BIN}" venv --python "${PYTHON_VERSION}" "${VENV_DIR}"
     else
@@ -1392,10 +1497,22 @@ fi
 _PETSC_CONF_OPTS=(
     "--with-scalar-type=complex"
     "--download-cmake"
-    "--download-mumps"
-    "--download-metis"
-    "--download-parmetis"
 )
+if [ "${BUILD_STACK}" = "default" ]; then
+    _PETSC_CONF_OPTS+=(
+        "--download-mumps"
+        "--download-metis"
+        "--download-parmetis"
+    )
+else
+    _PETSC_CONF_OPTS+=(
+        "--with-cuda"
+        "--download-strumpack"
+        "--download-metis"
+        "--download-parmetis"
+        "--download-ptscotch"
+    )
+fi
 if ! darwin_append_petsc_linalg_options; then
     _PETSC_CONF_OPTS+=(
         "--download-fblaslapack"
@@ -1885,7 +2002,7 @@ fi
 fi
 
 echo
-ok "Setup complete. Activate with: source .venv/bin/activate"
+ok "Setup complete. Activate with: source ${VENV_DISPLAY}/bin/activate"
 ok "Optional alias: echo \"alias linstabpy-activate='source ${VENV_DIR}/bin/activate'\" >> ~/.bashrc"
 ok "Quick check:  bash install.sh --check"
-ok "Run tests:    .venv/bin/python -m pytest tests/ -v"
+ok "Run tests:    ${VENV_DISPLAY}/bin/python -m pytest tests/ -v"
