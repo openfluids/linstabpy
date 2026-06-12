@@ -84,6 +84,99 @@ def test_resolve_factor_backend_precedence(monkeypatch) -> None:
     )
 
 
+def test_resolve_factor_precision_precedence_and_config_surface(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_FACTOR_PRECISION", raising=False)
+
+    assert backends.resolve_factor_precision(None) == "double"
+    assert backends.resolve_factor_precision({"factor_precision": "single"}) == "single"
+
+    monkeypatch.setenv("LINSTABPY_FACTOR_PRECISION", "double")
+    assert backends.resolve_factor_precision({"factor_precision": "single"}) == "double"
+
+    cfg = Config.load({"solver": {"linsolve": {"factor_precision": "single"}}}, env={})
+    assert cfg.linsolve.factor_precision == "single"
+    assert Config.load({}, env={}).linsolve.factor_precision == "double"
+
+
+class _FakeOptions:
+    def __init__(self) -> None:
+        self.set_calls: list[tuple[str, str]] = []
+        self.del_calls: list[str] = []
+
+    def setValue(self, key: str, value: str) -> None:  # noqa: N802
+        self.set_calls.append((key, value))
+
+    def delValue(self, key: str) -> None:  # noqa: N802
+        self.del_calls.append(key)
+
+
+class _FakePC:
+    def __init__(self) -> None:
+        self.from_options_calls = 0
+        self.factor_solver_type: str | None = None
+
+    def setFromOptions(self) -> None:  # noqa: N802
+        self.from_options_calls += 1
+
+    def setFactorSolverType(self, backend: str) -> None:  # noqa: N802
+        self.factor_solver_type = backend
+
+
+def _apply_with_fake_options(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    *,
+    factor_precision: str | None = None,
+) -> tuple[_FakeOptions, _FakePC]:
+    options = _FakeOptions()
+    pc = _FakePC()
+    monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
+    monkeypatch.setattr(backends.PETSc, "Options", lambda: options)
+    backends.apply_factor_backend(pc, backend, factor_precision=factor_precision)
+    return options, pc
+
+
+def test_factor_precision_double_is_inert_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_FACTOR_PRECISION", raising=False)
+
+    absent_options, absent_pc = _apply_with_fake_options(monkeypatch, "mumps")
+    explicit_options, explicit_pc = _apply_with_fake_options(
+        monkeypatch, "mumps", factor_precision="double"
+    )
+
+    assert absent_options.set_calls == explicit_options.set_calls == [
+        ("pc_factor_mat_solver_type", "mumps")
+    ]
+    assert absent_options.del_calls == explicit_options.del_calls == ["pc_factor_mat_solver_type"]
+    assert absent_pc.factor_solver_type == explicit_pc.factor_solver_type == "mumps"
+
+
+def test_factor_precision_single_superlu_dist_sets_pc_precision(monkeypatch) -> None:
+    options, pc = _apply_with_fake_options(
+        monkeypatch, "superlu_dist", factor_precision="single"
+    )
+
+    assert options.set_calls == [
+        ("pc_factor_mat_solver_type", "superlu_dist"),
+        ("pc_precision", "single"),
+    ]
+    assert options.del_calls == ["pc_precision", "pc_factor_mat_solver_type"]
+    assert pc.factor_solver_type == "superlu_dist"
+
+
+@pytest.mark.parametrize("backend", ["mumps", "superlu", "strumpack", "cudss"])
+def test_factor_precision_single_rejects_non_superlu_dist(monkeypatch, backend) -> None:
+    monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
+
+    with pytest.raises(ValueError) as excinfo:
+        backends.apply_factor_backend(_FakePC(), backend, factor_precision="single")
+
+    message = str(excinfo.value)
+    assert backend in message
+    assert "LINSTABPY_FACTOR_PRECISION" in message
+    assert "superlu_dist" in message
+
+
 def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:
     before_cuda_modules = {name for name in sys.modules if "cuda" in name.lower()}
 

@@ -13,7 +13,8 @@ import numpy as np
 from petsc4py import PETSc
 
 DEFAULT_FACTOR_BACKEND = "mumps"
-FACTOR_PRECISION = "double"
+DEFAULT_FACTOR_PRECISION = "double"
+FACTOR_PRECISION = DEFAULT_FACTOR_PRECISION
 ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
 
@@ -52,24 +53,54 @@ def resolve_factor_backend(
     return _normalize_backend(default)
 
 
+def resolve_factor_precision(
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    env_var: str = "LINSTABPY_FACTOR_PRECISION",
+    default: str = DEFAULT_FACTOR_PRECISION,
+) -> str:
+    """Resolve direct-factor precision with precedence env > JSONC > default."""
+    if env_var in os.environ:
+        return _normalize_factor_precision(os.environ[env_var])
+    if cfg is not None and "factor_precision" in cfg:
+        return _normalize_factor_precision(cfg["factor_precision"])
+    return _normalize_factor_precision(default)
+
+
 def apply_factor_backend(
     pc: PETSc.PC,
     backend: str | None,
     *,
     options_prefix: str = "",
+    factor_precision: str | None = None,
 ) -> str | None:
     """Apply ``backend`` to a PCLU after ``pc.setType('lu')``."""
     backend = _normalize_backend(backend)
     if backend is None:
         return None
+    precision = (
+        resolve_factor_precision(None)
+        if factor_precision is None
+        else _normalize_factor_precision(factor_precision)
+    )
+    if precision == "single" and backend != "superlu_dist":
+        raise ValueError(
+            "LINSTABPY_FACTOR_PRECISION=single is only supported with "
+            f"backend 'superlu_dist' (got backend {backend!r})"
+        )
     ensure_factor_backend_available(backend)
     opts = PETSc.Options()
     key = f"{options_prefix}pc_factor_mat_solver_type"
+    precision_key = f"{options_prefix}pc_precision"
     opts.setValue(key, backend)
+    if precision == "single":
+        opts.setValue(precision_key, "single")
     try:
         pc.setFromOptions()
         pc.setFactorSolverType(backend)
     finally:
+        if precision == "single":
+            opts.delValue(precision_key)
         opts.delValue(key)
     return backend
 
@@ -212,6 +243,15 @@ def _normalize_backend(value: object) -> str | None:
     return text
 
 
+def _normalize_factor_precision(value: object) -> str:
+    text = str(value).strip().lower()
+    if text in {"double", "single"}:
+        return text
+    raise ValueError(
+        f"Invalid LINSTABPY_FACTOR_PRECISION={value!r}; expected 'double' or 'single'"
+    )
+
+
 def _as_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -248,6 +288,7 @@ def _petsc_error_code(exc: PETSc.Error) -> int | None:
 __all__ = [
     "Backend",
     "DEFAULT_FACTOR_BACKEND",
+    "DEFAULT_FACTOR_PRECISION",
     "FACTOR_PRECISION",
     "apply_factor_backend",
     "available",
@@ -255,6 +296,7 @@ __all__ = [
     "ensure_factor_backend_available",
     "factor_backend_available",
     "resolve_factor_backend",
+    "resolve_factor_precision",
     "select",
     "shifted_ksp_probe_residual",
     "should_probe_backend",

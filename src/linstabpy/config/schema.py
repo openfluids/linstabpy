@@ -94,6 +94,7 @@ TOP_LEVEL_ALLOWED = frozenset(
         "baseflow_preprocess",
         "omega_targets",
         "direct_ksp",
+        "factor_precision",
         "schema_version",
     }
 )
@@ -163,6 +164,7 @@ _STRING_FIELDS = frozenset(
         "assembly_backend",
         "output_root",
         "base_config",
+        "factor_precision",
         "schema_version",
         "$include",
     }
