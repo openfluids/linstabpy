@@ -16,6 +16,13 @@ DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
 DEFAULT_MUMPS_BLR = False
 DEFAULT_MUMPS_BLR_TOL = 1.0e-4
+MUMPS_ORDERING_TO_ICNTL_7 = {
+    "amd": 0,
+    "pord": 4,
+    "metis": 5,
+    "qamd": 6,
+    "auto": 7,
+}
 FACTOR_PRECISION = DEFAULT_FACTOR_PRECISION
 ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
@@ -97,6 +104,20 @@ def resolve_mumps_blr_tol(
     return _normalize_mumps_blr_tol(default)
 
 
+def resolve_mumps_ordering(
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    env_var: str = "LINSTABPY_MUMPS_ORDERING",
+    default: str | None = None,
+) -> str | None:
+    """Resolve MUMPS ordering with precedence env > JSONC > default."""
+    if env_var in os.environ:
+        return _normalize_mumps_ordering(os.environ[env_var])
+    if cfg is not None and "mumps_ordering" in cfg:
+        return _normalize_mumps_ordering(cfg["mumps_ordering"])
+    return _normalize_mumps_ordering(default)
+
+
 def apply_factor_backend(
     pc: PETSc.PC,
     backend: str | None,
@@ -105,14 +126,21 @@ def apply_factor_backend(
     factor_precision: str | None = None,
     mumps_blr: bool | None = None,
     mumps_blr_tol: float | None = None,
+    mumps_ordering: str | None = None,
 ) -> str | None:
     """Apply ``backend`` to a PCLU after ``pc.setType('lu')``."""
     requested_backend = backend
     backend = _normalize_backend(backend)
     blr_enabled = resolve_mumps_blr(None) if mumps_blr is None else bool(mumps_blr)
+    ordering = resolve_mumps_ordering(None) if mumps_ordering is None else _normalize_mumps_ordering(mumps_ordering)
     if blr_enabled and backend != "mumps":
         raise ValueError(
             "LINSTABPY_MUMPS_BLR is only supported with backend 'mumps' "
+            f"(got backend {requested_backend!r})"
+        )
+    if ordering is not None and backend != "mumps":
+        raise ValueError(
+            "LINSTABPY_MUMPS_ORDERING is only supported with backend 'mumps' "
             f"(got backend {requested_backend!r})"
         )
     if backend is None:
@@ -138,6 +166,7 @@ def apply_factor_backend(
     precision_key = f"{options_prefix}pc_precision"
     blr_mode_key = f"{options_prefix}mat_mumps_icntl_35"
     blr_tol_key = f"{options_prefix}mat_mumps_cntl_7"
+    ordering_key = f"{options_prefix}mat_mumps_icntl_7"
     opts.setValue(key, backend)
     if precision == "single":
         opts.setValue(precision_key, "single")
@@ -150,6 +179,13 @@ def apply_factor_backend(
         # leftovers from an earlier BLR-enabled setup or BLR becomes sticky.
         opts.delValue(blr_mode_key)
         opts.delValue(blr_tol_key)
+    if ordering is not None:
+        opts.setValue(ordering_key, str(MUMPS_ORDERING_TO_ICNTL_7[ordering]))
+    # Unlike the BLR keys (which only linstabpy writes), mat_mumps_icntl_7 has
+    # legitimate external writers: the legacy mpi.mumps_icntl_7 gate installed
+    # by petsc_core and user-supplied CLI options. When this knob is unset it
+    # expresses no opinion and must NOT clear the key, or it would silently
+    # neutralize those explicit ordering requests.
     try:
         pc.setFromOptions()
         pc.setFactorSolverType(backend)
@@ -307,6 +343,20 @@ def _normalize_factor_precision(value: object) -> str:
     )
 
 
+def _normalize_mumps_ordering(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in {"", "none", "null", "default", "off"}:
+        return None
+    if text in MUMPS_ORDERING_TO_ICNTL_7:
+        return text
+    allowed = ", ".join(sorted(MUMPS_ORDERING_TO_ICNTL_7))
+    raise ValueError(
+        f"Invalid LINSTABPY_MUMPS_ORDERING={value!r}; allowed values: {allowed}"
+    )
+
+
 def _normalize_mumps_blr_tol(value: object) -> float:
     try:
         tol = float(value)
@@ -360,6 +410,7 @@ __all__ = [
     "DEFAULT_FACTOR_PRECISION",
     "DEFAULT_MUMPS_BLR",
     "DEFAULT_MUMPS_BLR_TOL",
+    "MUMPS_ORDERING_TO_ICNTL_7",
     "FACTOR_PRECISION",
     "apply_factor_backend",
     "available",
@@ -370,6 +421,7 @@ __all__ = [
     "resolve_factor_precision",
     "resolve_mumps_blr",
     "resolve_mumps_blr_tol",
+    "resolve_mumps_ordering",
     "select",
     "shifted_ksp_probe_residual",
     "should_probe_backend",

@@ -91,6 +91,38 @@ BLR changes the numerical factorization and can affect shifted-solve residuals,
 eigenvalue postchecks, and resolvent gains. Treat it as an explicit accuracy /
 memory trade-off to verify for each case. No performance claim is made here.
 
+## MUMPS Ordering Knob
+
+MUMPS fill-reducing ordering can be requested only for the MUMPS factor backend.
+It is unset by default. When unset, `linstabpy` neither sets nor clears
+`mat_mumps_icntl_7` — the knob expresses no opinion, so an `ICNTL(7)` value
+installed by other writers (the legacy `mpi.mumps_icntl_7` config gate, or a
+user-supplied `-mat_mumps_icntl_7` option) is preserved, and with no writer at
+all MUMPS keeps its default automatic ordering selection (`ICNTL(7)=7`). Set
+`LINSTABPY_MUMPS_ORDERING` (enforced today; the JSONC `mumps_ordering` field is
+carried but not yet consumed — see below) to one of the named values below.
+When set, it overwrites any externally installed `ICNTL(7)` value. The intended
+precedence is env over JSONC over the unset default.
+
+| `mumps_ordering` value | PETSc/MUMPS option |
+|---|---|
+| `amd` | `-mat_mumps_icntl_7 0` |
+| `pord` | `-mat_mumps_icntl_7 4` |
+| `metis` | `-mat_mumps_icntl_7 5` |
+| `qamd` | `-mat_mumps_icntl_7 6` |
+| `auto` | `-mat_mumps_icntl_7 7` |
+
+Today only the environment variable is enforced at factorization time, and it
+applies to every MUMPS LU `linstabpy` sets up in the process. The JSONC
+`mumps_ordering` field is validated and carried in the typed config but is not
+yet consumed by the solver call sites; wiring the per-solver config through is
+future work, as with `factor_precision` and `mumps_blr`.
+
+When the ordering knob is enabled with any non-MUMPS backend, `linstabpy` raises
+a `ValueError` naming `LINSTABPY_MUMPS_ORDERING` and the selected backend.
+Unknown ordering names also raise a `ValueError` listing the allowed values. No
+performance claim is made for any ordering choice here.
+
 ## Current Status
 
 | Backend | Status | Notes |

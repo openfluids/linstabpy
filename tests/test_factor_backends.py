@@ -129,6 +129,7 @@ def _apply_with_fake_options(
     factor_precision: str | None = None,
     mumps_blr: bool | None = None,
     mumps_blr_tol: float | None = None,
+    mumps_ordering: str | None = None,
 ) -> tuple[_FakeOptions, _FakePC]:
     options = _FakeOptions()
     pc = _FakePC()
@@ -140,6 +141,7 @@ def _apply_with_fake_options(
         factor_precision=factor_precision,
         mumps_blr=mumps_blr,
         mumps_blr_tol=mumps_blr_tol,
+        mumps_ordering=mumps_ordering,
     )
     return options, pc
 
@@ -213,6 +215,17 @@ def test_mumps_blr_enabled_sets_icntl_35_and_cntl_7(monkeypatch) -> None:
     assert pc.factor_solver_type == "mumps"
 
 
+def test_mumps_ordering_enabled_sets_icntl_7(monkeypatch) -> None:
+    options, pc = _apply_with_fake_options(monkeypatch, "mumps", mumps_ordering="pord")
+
+    assert options.set_calls == [
+        ("pc_factor_mat_solver_type", "mumps"),
+        ("mat_mumps_icntl_7", "4"),
+    ]
+    assert options.del_calls == ["mat_mumps_icntl_35", "mat_mumps_cntl_7", "pc_factor_mat_solver_type"]
+    assert pc.factor_solver_type == "mumps"
+
+
 @pytest.mark.parametrize("backend", ["petsc", None, "strumpack", "superlu_dist", "cudss"])
 def test_mumps_blr_rejects_non_mumps_backend(monkeypatch, backend) -> None:
     monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
@@ -246,6 +259,47 @@ def test_mumps_blr_env_beats_jsonc_and_default(monkeypatch) -> None:
     )
     assert cfg.linsolve.mumps_blr is True
     assert cfg.linsolve.mumps_blr_tol == pytest.approx(4.0e-3)
+
+
+def test_mumps_ordering_env_beats_jsonc_and_default(monkeypatch) -> None:
+    monkeypatch.delenv("LINSTABPY_MUMPS_ORDERING", raising=False)
+
+    assert backends.resolve_mumps_ordering(None) is None
+    assert backends.resolve_mumps_ordering({"mumps_ordering": "pord"}) == "pord"
+
+    monkeypatch.setenv("LINSTABPY_MUMPS_ORDERING", "auto")
+    assert backends.resolve_mumps_ordering({"mumps_ordering": "pord"}) == "auto"
+
+    cfg = Config.load(
+        {"solver": {"linsolve": {"mumps_ordering": "pord"}}},
+        env={"LINSTABPY_MUMPS_ORDERING": "qamd"},
+    )
+    assert cfg.linsolve.mumps_ordering == "qamd"
+    assert Config.load({}, env={}).linsolve.mumps_ordering is None
+
+
+@pytest.mark.parametrize("bad_ordering", ["nested", "scotch", "42"])
+def test_mumps_ordering_bad_value_raises_allowed_values(bad_ordering) -> None:
+    with pytest.raises(ValueError) as excinfo:
+        Config.load({"solver": {"linsolve": {"mumps_ordering": bad_ordering}}}, env={})
+
+    message = str(excinfo.value)
+    assert "LINSTABPY_MUMPS_ORDERING" in message
+    for allowed in backends.MUMPS_ORDERING_TO_ICNTL_7:
+        assert allowed in message
+
+
+@pytest.mark.parametrize("backend", ["petsc", None, "strumpack", "superlu_dist", "cudss"])
+def test_mumps_ordering_rejects_non_mumps_backend(monkeypatch, backend) -> None:
+    monkeypatch.setattr(backends, "ensure_factor_backend_available", lambda backend: None)
+
+    with pytest.raises(ValueError) as excinfo:
+        backends.apply_factor_backend(_FakePC(), backend, mumps_ordering="pord")
+
+    message = str(excinfo.value)
+    assert repr(backend) in message
+    assert "LINSTABPY_MUMPS_ORDERING" in message
+    assert "mumps" in message
 
 
 @pytest.mark.parametrize("bad_tol", [-1.0, 0.0, "nan", "inf", "not-a-number"])
@@ -342,6 +396,89 @@ def test_mumps_blr_off_after_enabled_setup_is_not_sticky(monkeypatch) -> None:
         PETSc.Options().delValue("mat_mumps_icntl_35")
         ksp_on.destroy()
         A_on.destroy()
+
+
+def _mumps_ordering_probe_ksp(monkeypatch, ordering: str | None):  # noqa: ANN001
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    if ordering is None:
+        monkeypatch.delenv("LINSTABPY_MUMPS_ORDERING", raising=False)
+    else:
+        monkeypatch.setenv("LINSTABPY_MUMPS_ORDERING", ordering)
+    A = PETSc.Mat().createAIJ(size=(3, 3), comm=PETSc.COMM_SELF)
+    values = {
+        (0, 0): 4.0 + 0.0j,
+        (0, 1): 0.25 - 0.1j,
+        (1, 0): 0.5 + 0.2j,
+        (1, 1): 3.0 - 0.25j,
+        (1, 2): -0.3j,
+        (2, 1): 0.1 + 0.4j,
+        (2, 2): 2.0 + 0.75j,
+    }
+    for (row, col), value in values.items():
+        A.setValue(row, col, value)
+    A.assemble()
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_SELF)
+    try:
+        ksp.setOperators(A)
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.LU)
+        backends.apply_factor_backend(pc, "mumps")
+        ksp.setUp()
+        return ksp, A
+    except PETSc.Error as exc:
+        ksp.destroy()
+        A.destroy()
+        # Only METIS is an optional package in our map; every other ordering
+        # ships with MUMPS, so a setup error there is a regression, not an
+        # availability gap, and must FAIL rather than skip.
+        if ordering == "metis":
+            pytest.skip(f"SKIPPED: MUMPS ordering package 'metis' unavailable: {exc}")
+        raise
+    except Exception:
+        ksp.destroy()
+        A.destroy()
+        raise
+
+
+def test_mumps_ordering_real_wiring_reaches_mumps_after_ksp_setup(monkeypatch) -> None:
+    ordering = "pord"
+    expected = backends.MUMPS_ORDERING_TO_ICNTL_7[ordering]
+    ksp, A = _mumps_ordering_probe_ksp(monkeypatch, ordering)
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == expected
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_mumps_ordering_unset_leaves_mumps_default_after_ksp_setup(monkeypatch) -> None:
+    ksp, A = _mumps_ordering_probe_ksp(monkeypatch, None)
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == 7
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_mumps_ordering_unset_preserves_externally_set_icntl_7(monkeypatch) -> None:
+    """An unset knob expresses no opinion: it must not clobber an icntl_7 value
+    installed by external writers (the legacy mpi.mumps_icntl_7 gate in
+    petsc_core, or user-supplied CLI options)."""
+    PETSc.Options().setValue("mat_mumps_icntl_7", "5")
+    try:
+        ksp, A = _mumps_ordering_probe_ksp(monkeypatch, None)
+        try:
+            assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == 5
+        finally:
+            ksp.destroy()
+            A.destroy()
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
 
 
 def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:
