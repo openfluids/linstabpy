@@ -37,6 +37,9 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
 ### Changed
 - Runtime cost metrics now use `unknown` as the default hardware tag when no hardware tag is configured.
 
+### Fixed
+- `install.sh --dry-run` `planned_remove` now mirrors the real venv lifecycle exactly: it reports a removal only when the venv actually exists and would be removed — under `--force` on an existing venv, or a Python-version mismatch that triggers recreate — and reports `none` for an absent venv or in `--check` mode (which never removes). Previously it keyed off `--force` alone, over-reporting a removal for an absent venv or under `--check`, and under-reporting the mismatch-recreate case. Plan-reporting fidelity only, via a single shared `venv_will_be_removed` predicate; real removals were already correctly guarded by `remove_venv_dir`. (bead resolvent-e4s8)
+
 ## [0.0.5] - 2026-06-11
 
 Stages 2–6 of the clean-code revamp, completing the refactor program under the

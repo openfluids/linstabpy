@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import stat
 import subprocess
 from pathlib import Path
 
@@ -23,6 +25,14 @@ def run_dry_run(*args: str) -> dict[str, str]:
     return plan
 
 
+def write_stub_venv_python(venv_dir: Path, version: str) -> None:
+    bin_dir = venv_dir / "bin"
+    bin_dir.mkdir(parents=True)
+    python = bin_dir / "python"
+    python.write_text(f'#!/usr/bin/env bash\nprintf "%s\\n" "{version}"\n')
+    python.chmod(python.stat().st_mode | stat.S_IXUSR)
+
+
 def test_default_dry_run_targets_cpu_venv() -> None:
     plan = run_dry_run()
 
@@ -42,12 +52,74 @@ def test_gpu_stack_dry_run_targets_isolated_venv() -> None:
     assert plan["petsc_configure_branch"] == "cuda-strumpack-design"
 
 
-def test_gpu_force_dry_run_removes_only_stack_venv() -> None:
-    plan = run_dry_run("--stack", "gpu-strumpack", "--force")
+def test_gpu_force_dry_run_removes_only_existing_stack_venv() -> None:
+    stack = "force-existing-plan-test"
+    venv_dir = ROOT / f".venv-{stack}"
+    shutil.rmtree(venv_dir, ignore_errors=True)
+    venv_dir.mkdir()
+    try:
+        plan = run_dry_run("--stack", stack, "--force")
 
-    assert plan["force"] == "1"
-    assert plan["planned_remove"] == str(ROOT / ".venv-gpu-strumpack")
-    assert plan["planned_remove"] != str(ROOT / ".venv")
+        assert plan["force"] == "1"
+        assert plan["planned_remove"] == str(venv_dir)
+        assert plan["planned_remove"] != str(ROOT / ".venv")
+    finally:
+        shutil.rmtree(venv_dir, ignore_errors=True)
+
+
+def test_force_dry_run_does_not_plan_absent_stack_venv_removal() -> None:
+    stack = "force-absent-plan-test"
+    venv_dir = ROOT / f".venv-{stack}"
+    shutil.rmtree(venv_dir, ignore_errors=True)
+    try:
+        plan = run_dry_run("--stack", stack, "--force")
+
+        assert plan["force"] == "1"
+        assert plan["planned_remove"] == "none"
+    finally:
+        shutil.rmtree(venv_dir, ignore_errors=True)
+
+
+def test_mismatched_python_dry_run_plans_stack_venv_recreate() -> None:
+    stack = "mismatch-plan-test"
+    venv_dir = ROOT / f".venv-{stack}"
+    shutil.rmtree(venv_dir, ignore_errors=True)
+    try:
+        write_stub_venv_python(venv_dir, "3.12")
+        plan = run_dry_run("--stack", stack)
+
+        assert plan["force"] == "0"
+        assert plan["planned_remove"] == str(venv_dir)
+    finally:
+        shutil.rmtree(venv_dir, ignore_errors=True)
+
+
+def test_matching_python_dry_run_keeps_existing_stack_venv() -> None:
+    stack = "matching-python-plan-test"
+    venv_dir = ROOT / f".venv-{stack}"
+    shutil.rmtree(venv_dir, ignore_errors=True)
+    try:
+        write_stub_venv_python(venv_dir, "3.13")
+        plan = run_dry_run("--stack", stack)
+
+        assert plan["force"] == "0"
+        assert plan["planned_remove"] == "none"
+    finally:
+        shutil.rmtree(venv_dir, ignore_errors=True)
+
+
+def test_check_mode_dry_run_never_plans_stack_venv_removal() -> None:
+    stack = "check-mode-plan-test"
+    venv_dir = ROOT / f".venv-{stack}"
+    shutil.rmtree(venv_dir, ignore_errors=True)
+    try:
+        write_stub_venv_python(venv_dir, "3.12")
+        plan = run_dry_run("--stack", stack, "--check", "--force")
+
+        assert plan["force"] == "1"
+        assert plan["planned_remove"] == "none"
+    finally:
+        shutil.rmtree(venv_dir, ignore_errors=True)
 
 
 def test_option_like_stack_name_is_rejected() -> None:
