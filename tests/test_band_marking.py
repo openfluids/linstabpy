@@ -37,6 +37,75 @@ def test_label_band_distance_is_monotone_away_from_planted_eigenvalue() -> None:
     assert np.all(np.diff(marks.distances) > 0.0)
 
 
+def test_default_danger_radius_uses_half_median_sweep_spacing_and_fires_near_pole() -> None:
+    eigs = np.array([-1.3 + 0.0j])
+    omegas = np.array([0.0, 1.0, 2.0])
+
+    marks = label_band(eigs, omegas)
+
+    assert marks.danger_radius == pytest.approx(0.5)
+    assert marks.distances[1] == pytest.approx(0.3)
+    # This same fixture was inert under the old residual-scale default because
+    # the pole distance is much larger than the historical ~1e-8 fallback.
+    assert marks.distances[1] > 1.0e-8
+    assert marks.labels.tolist() == [STABLE, NEAR_POLE, STABLE]
+
+
+def test_default_danger_radius_uses_finite_unique_median_spacing() -> None:
+    eigs = np.array([-1.4 + 0.0j])
+    omegas = np.array([np.nan, 0.0, 1.0, 1.0, np.inf, 4.0])
+
+    marks = label_band(eigs, omegas)
+
+    # finite unique grid [0, 1, 4] -> median spacing 2 -> default radius 1.
+    assert marks.danger_radius == pytest.approx(1.0)
+    assert marks.labels.tolist() == [STABLE, STABLE, NEAR_POLE, NEAR_POLE, STABLE, STABLE]
+
+
+def test_default_danger_radius_is_zero_when_no_sweep_scale_available() -> None:
+    for omegas in ([1.0], [1.0, 1.0, np.nan, np.inf], [np.nan, np.inf]):
+        marks = label_band([-1.0 + 0.0j], omegas)
+        assert marks.danger_radius == pytest.approx(0.0)
+        assert not np.any(marks.labels == NEAR_POLE)
+
+
+@pytest.mark.parametrize(
+    ("cfg", "expected"),
+    [
+        (
+            {
+                "danger_radius": 0.0,
+                "band_marking": {"danger_radius": 0.25},
+                "solver": {"router": {"band_marking": {"danger_radius": 0.5}}},
+            },
+            0.0,
+        ),
+        (
+            {
+                "band_marking": {"danger_radius": 0.25},
+                "solver": {"router": {"band_marking": {"danger_radius": 0.5}}},
+            },
+            0.25,
+        ),
+        ({"solver": {"router": {"band_marking": {"danger_radius": 0.5}}}}, 0.5),
+    ],
+)
+def test_explicit_danger_radius_precedence_and_zero_value(cfg: dict[str, object], expected: float) -> None:
+    marks = label_band([-1.0 + 0.0j], [1.0], cfg)
+
+    assert marks.danger_radius == pytest.approx(expected)
+    if expected == 0.0:
+        assert marks.labels.tolist() == [STABLE]
+    else:
+        assert marks.labels.tolist() == [NEAR_POLE]
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -1.0])
+def test_explicit_danger_radius_validation_still_applies(value: float) -> None:
+    with pytest.raises(ValueError, match="danger_radius must be a finite non-negative float"):
+        label_band([-1.0 + 0.0j], [1.0, 2.0], {"danger_radius": value})
+
+
 def test_label_band_asymmetric_spectrum_uses_resolvent_pole_sign() -> None:
     # eig = -3 - 0.2j maps to the resolvent pole 3 + 0.2j.
     marks = label_band([-3.0 - 0.2j], [3.0, -3.0], {"danger_radius": 0.3})
