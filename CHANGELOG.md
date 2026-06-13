@@ -12,6 +12,7 @@ Work toward **0.0.6**. Development happens on the `dev` branch (versioned
 coherent slice is green. Entries accumulate here until the next patch tag is cut.
 
 ### Changed
+- 2-D LNSE assembly now applies the analytical `inv(B)` as a direct CSR row scaling (`data *= per-row factors`) instead of materializing a sparse diagonal and multiplying, and the SciPy raw-assembly path builds CSR natively with a single final `tocsc()` (one fewer format conversion). The assembled operator is numerically unchanged — guarded at ≤1e-10 against the validated block reference, with the seven Appendix-A oracles green — and ~26% faster on a small fd6 Blasius representative case (measured median on a shared box; no speedup claim at production scale). (bead r3uu.14.2)
 - Solver module docstrings (`solvers/eigenvalue.py`, `spatial_eig.py`, `resolvent.py`, `linsolve.py`) now document the factor-backend seam: path-accurate resolution order (including that `LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE` is not consulted on the reference direct eigen path), probe-based availability with loud failure, conservative backend statuses, and the env-only enforcement status of the experimental precision/BLR/ordering knobs; doc-only, behavior proven unchanged by docstring-stripped AST comparison. (bead r3uu.1.9)
 
 ### Added

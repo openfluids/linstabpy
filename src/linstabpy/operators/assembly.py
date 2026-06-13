@@ -1076,8 +1076,8 @@ class _ScipyLNSEAssemblyBackend:
         DZ: sp.spmatrix,
         D2Z: sp.spmatrix,
         D2RZ: sp.spmatrix,
-    ) -> sp.csc_matrix:
-        return _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
+    ) -> sp.csr_matrix:
+        return _assemble_block_operator_csr(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
 
     def apply_inv_B(
         self,
@@ -1596,14 +1596,20 @@ def _apply_inv_B(
     inverse is computed analytically at each grid point.
     """
     if model == "2d":
-        # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  inv = diag(1, 1/RHO, ...)
-        inv_B_signs = np.empty(5 * ngp)
-        inv_B_signs[0 * ngp : 1 * ngp] = 1.0
-        inv_B_signs[1 * ngp : 2 * ngp] = 1.0 / RHO
-        inv_B_signs[2 * ngp : 3 * ngp] = 1.0 / RHO
-        inv_B_signs[3 * ngp : 4 * ngp] = 1.0 / RHO
-        inv_B_signs[4 * ngp : 5 * ngp] = 1.0 / RHO
-        return sp.diags(inv_B_signs) @ L0
+        # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  inv = diag(1, 1/RHO, ...).
+        # Apply this pure row scaling directly in CSR rather than materializing
+        # a sparse diagonal matrix and multiplying it into the raw operator.
+        L0_csr = L0.tocsr(copy=True)
+        row_scaling = np.empty(5 * ngp)
+        row_scaling[0 * ngp : 1 * ngp] = 1.0
+        inv_rho = 1.0 / RHO
+        row_scaling[1 * ngp : 2 * ngp] = inv_rho
+        row_scaling[2 * ngp : 3 * ngp] = inv_rho
+        row_scaling[3 * ngp : 4 * ngp] = inv_rho
+        row_scaling[4 * ngp : 5 * ngp] = inv_rho
+        row_nnz = np.diff(L0_csr.indptr)
+        L0_csr.data *= np.repeat(row_scaling, row_nnz)
+        return L0_csr
 
     # --- Cylindrical model: B/1j is lower-triangular ---
     #
