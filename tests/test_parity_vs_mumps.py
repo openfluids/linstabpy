@@ -1,0 +1,366 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Parity protocol for candidate sparse-direct backends against MUMPS.
+
+This module is the CPU skeleton for the future GPU/mixed-precision parity gate.
+The reference is the repository's validated MUMPS shifted-invert path.  A
+candidate backend is run on the same small Blasius temporal-LNSE EVP and must
+satisfy the same acceptance quantities already used by the stability tests:
+
+* ``postcheck_residual_rel <= 1e-6`` bounds each returned eigenpair by the
+  explicit full-operator residual from ``_postcheck_stability_modes``.  This is
+  the primary quality floor: a backend cannot be parity-equivalent if either its
+  modes or the MUMPS modes fail the existing postcheck residual gate.
+* ``postcheck_target_distance <= 0.11`` bounds that both spectra came from the
+  intended shift-invert target neighbourhood.  The tolerance matches the small
+  Blasius backend-comparison convention in ``tests/test_gpu_backend_comparison.py``.
+* Matching is conjugate-aware: the assignment cost between candidate and MUMPS
+  eigenvalues is ``min(|omega_c - omega_m|, |omega_c + conj(omega_m)|)``.  The
+  ``-conj(omega)`` mirror is the temporal-spectrum convention already used by
+  the backend parity helper in ``tests/test_gpu_backend_comparison.py``
+  (reflection across the imaginary axis: opposite real frequency, same growth
+  rate).
+* The candidate-to-MUMPS matched eigenvalue distance must be no larger than the
+  postcheck residual gate (``1e-6``).  That ties the parity distance to the
+  already accepted eigenpair-defect scale instead of introducing a separate
+  backend-specific epsilon.
+
+Each comparison also creates a structured quality/cost record with matrix size,
+nonzeros, factor-memory estimate, setup/solve wall times, rank/GPU counts, exact
+solver options, backend-probe readbacks, postcheck maxima, target-distance
+maxima, and matched eigenvalue distances.  The record is printed with a stable
+``PARITY_RECORD`` prefix while pytest capture is disabled so batch harnesses can
+collect it from normal test output.
+
+GPU execution is intentionally deferred.  The non-MUMPS self-test here uses the
+CPU HARD path requested by bead r3uu.1.6: SuperLU_DIST with PETSc
+``-pc_precision single`` (complex64 factor with FP64 refinement) when that PETSc
+build supports it.  If SuperLU_DIST is absent, the test skip reason is loud and
+explicit.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from typing import Any
+
+import numpy as np
+import pytest
+import scipy.sparse as sp
+from petsc4py import PETSc
+from scipy.optimize import linear_sum_assignment
+
+from linstabpy.baseflow import load_blasius, sutherland_air
+from linstabpy.boundary_conditions import apply_dirichlet
+from linstabpy.driver.run import _postcheck_stability_modes
+from linstabpy.linalg.backends import apply_factor_backend, factor_backend_available
+from linstabpy.mesh import Mesh
+from linstabpy.operators import build_lnse_operator
+from linstabpy.solvers.petsc_utils import scipy_to_petsc
+from linstabpy.stability import eigenvalues as temporal_eigenvalues
+from linstabpy.stability.acceptance import evaluate_stability_acceptance
+
+TARGET = -0.1j
+N_MODES = 5
+NCV = 30
+POSTCHECK_REL_MAX = 1.0e-6
+TARGET_DISTANCE_MAX = 0.11
+EIGENVALUE_MATCH_MAX = POSTCHECK_REL_MAX
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, np.ndarray):
+        if np.iscomplexobj(value):
+            return [[float(np.real(item)), float(np.imag(item))] for item in value.reshape(-1)]
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, complex):
+        return [float(value.real), float(value.imag)]
+    return str(value)
+
+
+def _build_blasius_temporal_problem() -> tuple[sp.spmatrix, np.ndarray]:
+    mesh = Mesh.create(xrange=(200, 300), yrange=(0, 30), nx=15, ny=10, fd_order=4)
+    y_new = 30.0 * np.sinh(3.0 * mesh.Y / 30.0) / np.sinh(3.0)
+    mesh = mesh.deform(Y_new=y_new)
+
+    bf = load_blasius(mesh.X, mesh.Y, Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15)
+    sutherland_air(bf)
+
+    operator, idx = build_lnse_operator(mesh, bf, kx=0.0)
+    operator, bc_indices = apply_dirichlet(operator, idx, "bt", "uvwT", mesh.ngp)
+    return operator, bc_indices
+
+
+def _solver_options(backend: str, *, factor_precision: str = "double") -> dict[str, Any]:
+    return {
+        "st_solver": "mumps",
+        "factor_backend": backend,
+        "factor_precision": factor_precision,
+        "eps_tol": 1.0e-10,
+        "eps_max_it": 7500,
+        "backend_probe": {"enabled": backend != "mumps", "residual_rel_max": POSTCHECK_REL_MAX},
+    }
+
+
+def _solve_with_backend(
+    operator: sp.spmatrix,
+    bc_indices: np.ndarray,
+    backend: str,
+    *,
+    factor_precision: str = "double",
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    omega, modes, info = temporal_eigenvalues(
+        operator,
+        N_MODES,
+        TARGET,
+        ncv=NCV,
+        solver_cfg={"eigen": _solver_options(backend, factor_precision=factor_precision)},
+        return_info=True,
+    )
+    postcheck = _postcheck_stability_modes(
+        operator,
+        omega,
+        modes,
+        target=TARGET,
+        bc_indices=bc_indices,
+        constrained_dirichlet_indices=bc_indices,
+        conjugate_aware=True,
+    )
+    info.update(postcheck)
+    return omega, modes, info
+
+
+def _assert_existing_acceptance_gate_passes(omega: np.ndarray, info: dict[str, Any]) -> dict[str, Any]:
+    result = evaluate_stability_acceptance(
+        omega,
+        np.asarray(info["postcheck_residual_rel"], dtype=float),
+        np.asarray(info["postcheck_target_distance"], dtype=float),
+        postcheck_rel_max=POSTCHECK_REL_MAX,
+        target_distance_max=TARGET_DISTANCE_MAX,
+        conjugate_aware=True,
+    )
+    assert result["accepted_count"] == N_MODES, result
+    return result
+
+
+def _conjugate_aware_match(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    direct = np.abs(candidate[:, None] - reference[None, :])
+    # Temporal mirror partner is -conj(omega) (same convention as
+    # tests/test_gpu_backend_comparison.py), not conj(omega).
+    mirror = np.abs(candidate[:, None] + np.conjugate(reference[None, :]))
+    cost = np.minimum(direct, mirror)
+    rows, cols = linear_sum_assignment(cost)
+    errors = np.empty(candidate.size, dtype=float)
+    errors[rows] = cost[rows, cols]
+    return errors
+
+
+def _factor_memory_probe(
+    operator: sp.spmatrix,
+    backend: str,
+    *,
+    factor_precision: str = "double",
+) -> dict[str, Any]:
+    shifted = (1j * operator - TARGET * sp.eye(operator.shape[0], format="csc")).tocsc()
+    mat = scipy_to_petsc(shifted, {"eigen": _solver_options(backend, factor_precision=factor_precision)})
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
+    prefix = f"parity_{backend}_"
+    ksp.setOptionsPrefix(prefix)
+    ksp.setOperators(mat)
+    ksp.setType(PETSc.KSP.Type.PREONLY)
+    pc = ksp.getPC()
+    pc.setType(PETSc.PC.Type.LU)
+    t0 = time.perf_counter()
+    try:
+        resolved = apply_factor_backend(
+            pc,
+            backend,
+            options_prefix=prefix,
+            factor_precision=factor_precision,
+        )
+        ksp.setUp()
+        setup_seconds = time.perf_counter() - t0
+        factor = pc.getFactorMatrix()
+        info = factor.getInfo() if factor is not None else {}
+        verified_precision = factor_precision == "double"
+        if factor_precision == "single":
+            # Verify from PETSc consumption, not request state: the option must
+            # have been read by PCSetUp (Options.used), and the factor solver
+            # readback must be SuperLU_DIST.  An ignored/unsupported
+            # -pc_precision leaves used() False and fails this check.
+            verified_precision = (
+                PETSc.Options().used(f"{prefix}pc_precision")
+                and resolved == "superlu_dist"
+                and pc.getFactorSolverType() == "superlu_dist"
+            )
+        return {
+            "factor_probe_backend_readback": pc.getFactorSolverType(),
+            "factor_probe_precision_requested": factor_precision,
+            "factor_probe_precision_verified": bool(verified_precision),
+            "factor_setup_seconds": float(setup_seconds),
+            "factor_memory_bytes": int(info.get("memory", -1)) if info else -1,
+            "factor_nz_allocated": int(info.get("nz_allocated", -1)) if info else -1,
+            "factor_nz_used": int(info.get("nz_used", -1)) if info else -1,
+        }
+    finally:
+        ksp.destroy()
+        mat.destroy()
+
+
+def _solver_state(info: dict[str, Any]) -> dict[str, Any]:
+    """Subspace and convergence state, so two comparisons are provably alike."""
+    return {
+        key: info.get(key)
+        for key in (
+            "nev_requested",
+            "ncv_used",
+            "nconv",
+            "eps_iterations",
+            "eps_reason",
+            "ksp_reason",
+            "eps_tol",
+            "eps_max_it",
+            "st_solver",
+        )
+    }
+
+
+def _comparison_record(
+    name: str,
+    operator: sp.spmatrix,
+    reference_omega: np.ndarray,
+    reference_info: dict[str, Any],
+    candidate_omega: np.ndarray,
+    candidate_info: dict[str, Any],
+    *,
+    candidate_backend: str,
+    factor_precision: str,
+) -> dict[str, Any]:
+    match_errors = _conjugate_aware_match(candidate_omega, reference_omega)
+    record = {
+        "comparison": name,
+        "matrix_size": list(operator.shape),
+        "matrix_nnz": int(operator.nnz),
+        "ranks": int(PETSc.COMM_WORLD.getSize()),
+        "gpus": 0,
+        "target": TARGET,
+        "tolerances": {
+            "postcheck_rel_max": POSTCHECK_REL_MAX,
+            "target_distance_max": TARGET_DISTANCE_MAX,
+            "eigenvalue_match_max": EIGENVALUE_MATCH_MAX,
+            "conjugate_aware_matching": True,
+        },
+        "reference_options": _solver_options("mumps"),
+        "candidate_options": _solver_options(candidate_backend, factor_precision=factor_precision),
+        "reference_solver": _solver_state(reference_info),
+        "candidate_solver": _solver_state(candidate_info),
+        "reference_wall_seconds": {
+            "eps_setup": float(reference_info["eps_setup_seconds"]),
+            "eps_solve": float(reference_info["eps_solve_seconds"]),
+        },
+        "candidate_wall_seconds": {
+            "eps_setup": float(candidate_info["eps_setup_seconds"]),
+            "eps_solve": float(candidate_info["eps_solve_seconds"]),
+        },
+        "reference_backend_probe": {
+            key: value for key, value in reference_info.items() if key.startswith("backend_probe_")
+        },
+        "candidate_backend_probe": {
+            key: value for key, value in candidate_info.items() if key.startswith("backend_probe_")
+        },
+        "reference_quality": {
+            "postcheck_residual_rel_max": float(np.max(reference_info["postcheck_residual_rel"])),
+            "target_distance_max": float(np.max(reference_info["postcheck_target_distance"])),
+        },
+        "candidate_quality": {
+            "postcheck_residual_rel_max": float(np.max(candidate_info["postcheck_residual_rel"])),
+            "target_distance_max": float(np.max(candidate_info["postcheck_target_distance"])),
+            "matched_eigenvalue_distance_max": float(np.max(match_errors)),
+            "matched_eigenvalue_distances": match_errors,
+        },
+    }
+    record.update(_factor_memory_probe(operator, candidate_backend, factor_precision=factor_precision))
+    return record
+
+
+def _assert_parity_record(record: dict[str, Any]) -> None:
+    assert record["candidate_quality"]["postcheck_residual_rel_max"] <= POSTCHECK_REL_MAX
+    assert record["reference_quality"]["postcheck_residual_rel_max"] <= POSTCHECK_REL_MAX
+    assert record["candidate_quality"]["target_distance_max"] <= TARGET_DISTANCE_MAX
+    assert record["reference_quality"]["target_distance_max"] <= TARGET_DISTANCE_MAX
+    assert record["candidate_quality"]["matched_eigenvalue_distance_max"] <= EIGENVALUE_MATCH_MAX
+    if record["candidate_options"]["factor_precision"] == "single":
+        assert record["factor_probe_precision_verified"] is True
+
+
+def _emit(record: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
+    with capsys.disabled():
+        print("PARITY_RECORD " + json.dumps(record, default=_json_default, sort_keys=True), flush=True)
+
+
+def test_mumps_vs_mumps_self_consistency(capsys: pytest.CaptureFixture[str]) -> None:
+    if not factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: mumps not in this PETSc build")
+
+    operator, bc_indices = _build_blasius_temporal_problem()
+    reference_omega, _, reference_info = _solve_with_backend(operator, bc_indices, "mumps")
+    candidate_omega, _, candidate_info = _solve_with_backend(operator, bc_indices, "mumps")
+
+    _assert_existing_acceptance_gate_passes(reference_omega, reference_info)
+    _assert_existing_acceptance_gate_passes(candidate_omega, candidate_info)
+    record = _comparison_record(
+        "mumps_vs_mumps",
+        operator,
+        reference_omega,
+        reference_info,
+        candidate_omega,
+        candidate_info,
+        candidate_backend="mumps",
+        factor_precision="double",
+    )
+    _emit(record, capsys)
+    _assert_parity_record(record)
+
+
+def test_superlu_dist_single_precision_vs_mumps_cpu_hard_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    if not factor_backend_available("superlu_dist"):
+        pytest.skip("SKIPPED: superlu_dist not in this PETSc build")
+    if not factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: mumps (the parity reference) not in this PETSc build")
+
+    operator, bc_indices = _build_blasius_temporal_problem()
+    reference_omega, _, reference_info = _solve_with_backend(operator, bc_indices, "mumps")
+
+    # The current eigenvalue seam consumes -pc_precision from the PETSc/options
+    # environment at factorization time, not from solver_cfg JSONC.  Set it only
+    # around the SuperLU_DIST candidate solve so the MUMPS reference remains the
+    # double-precision baseline.
+    monkeypatch.setenv("LINSTABPY_FACTOR_PRECISION", "single")
+    candidate_omega, _, candidate_info = _solve_with_backend(
+        operator,
+        bc_indices,
+        "superlu_dist",
+        factor_precision="single",
+    )
+
+    assert candidate_info["backend_probe_ran"] is True
+    assert candidate_info["backend_probe_pc_factor_solver_type"] == "superlu_dist"
+    _assert_existing_acceptance_gate_passes(reference_omega, reference_info)
+    _assert_existing_acceptance_gate_passes(candidate_omega, candidate_info)
+    record = _comparison_record(
+        "superlu_dist_single_vs_mumps",
+        operator,
+        reference_omega,
+        reference_info,
+        candidate_omega,
+        candidate_info,
+        candidate_backend="superlu_dist",
+        factor_precision="single",
+    )
+    _emit(record, capsys)
+    _assert_parity_record(record)
