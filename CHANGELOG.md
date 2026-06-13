@@ -40,6 +40,9 @@ coherent slice is green. Entries accumulate here until the next patch tag is cut
 ### Fixed
 - `install.sh --dry-run` `planned_remove` now mirrors the real venv lifecycle exactly: it reports a removal only when the venv actually exists and would be removed — under `--force` on an existing venv, or a Python-version mismatch that triggers recreate — and reports `none` for an absent venv or in `--check` mode (which never removes). Previously it keyed off `--force` alone, over-reporting a removal for an absent venv or under `--check`, and under-reporting the mismatch-recreate case. Plan-reporting fidelity only, via a single shared `venv_will_be_removed` predicate; real removals were already correctly guarded by `remove_venv_dir`. (bead resolvent-e4s8)
 
+### Deprecated
+- The legacy `mpi.mumps_icntl_7` / `LINSTABPY_PETSC_SET_MUMPS_ICNTL_7` boolean is now a deprecated compatibility alias for `mumps_ordering=metis`; it is still accepted (and still installs `ICNTL(7)=5`) but new configs should use the canonical `mumps_ordering` surface (`mumps_ordering: "metis"` / `LINSTABPY_MUMPS_ORDERING=metis`). The `metis`→`ICNTL(7)=5` value is now drawn from a single shared `MUMPS_ORDERING_TO_ICNTL_7` table (new PETSc-free `linstabpy.mumps_options` module) consumed by both the legacy gate and the ordering knob, so the two surfaces can no longer drift. Numerically identical to the prior behavior for every existing config (real-wiring `ICNTL(7)` read-back: legacy alias → 5, explicit `mumps_ordering` overrides the alias, unset leaves the key absent → MUMPS default 7). (bead resolvent-38ww)
+
 ## [0.0.5] - 2026-06-11
 
 Stages 2–6 of the clean-code revamp, completing the refactor program under the

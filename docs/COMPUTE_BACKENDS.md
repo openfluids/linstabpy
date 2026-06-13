@@ -97,13 +97,24 @@ memory trade-off to verify for each case. No performance claim is made here.
 MUMPS fill-reducing ordering can be requested only for the MUMPS factor backend.
 It is unset by default. When unset, `linstabpy` neither sets nor clears
 `mat_mumps_icntl_7` — the knob expresses no opinion, so an `ICNTL(7)` value
-installed by other writers (the legacy `mpi.mumps_icntl_7` config gate, or a
-user-supplied `-mat_mumps_icntl_7` option) is preserved, and with no writer at
-all MUMPS keeps its default automatic ordering selection (`ICNTL(7)=7`). Set
-`LINSTABPY_MUMPS_ORDERING` (enforced today; the JSONC `mumps_ordering` field is
-carried but not yet consumed — see below) to one of the named values below.
-When set, it overwrites any externally installed `ICNTL(7)` value. The intended
-precedence is env over JSONC over the unset default.
+installed by other writers is preserved, and with no writer at all MUMPS keeps
+its default automatic ordering selection (`ICNTL(7)=7`). The legacy
+`mpi.mumps_icntl_7` / `LINSTABPY_PETSC_SET_MUMPS_ICNTL_7` boolean remains
+accepted for compatibility, but is deprecated: it is now only an alias for
+`mumps_ordering=metis` (`ICNTL(7)=5`). Prefer `mumps_ordering: "metis"` in
+JSONC or `LINSTABPY_MUMPS_ORDERING=metis` in the environment.
+
+When both surfaces are present, explicit `mumps_ordering` wins over the legacy
+alias: environment `LINSTABPY_MUMPS_ORDERING` first, then JSONC
+`mumps_ordering`, then legacy `mpi.mumps_icntl_7`, then no opinion. That order is
+the intended resolution precedence; today only the environment variable is
+enforced at factorization time (it applies to every MUMPS LU `linstabpy` sets
+up), while the JSONC `mumps_ordering` field is validated and carried in the typed
+config but is not yet consumed by the solver call sites — wiring it through is
+future work, as with `factor_precision` and `mumps_blr`. User-supplied PETSc CLI
+options are still process-global PETSc options and should not be mixed with these
+higher-level config surfaces in the same run. Set `LINSTABPY_MUMPS_ORDERING` to
+one of the named values below.
 
 | `mumps_ordering` value | PETSc/MUMPS option |
 |---|---|
@@ -112,12 +123,6 @@ precedence is env over JSONC over the unset default.
 | `metis` | `-mat_mumps_icntl_7 5` |
 | `qamd` | `-mat_mumps_icntl_7 6` |
 | `auto` | `-mat_mumps_icntl_7 7` |
-
-Today only the environment variable is enforced at factorization time, and it
-applies to every MUMPS LU `linstabpy` sets up in the process. The JSONC
-`mumps_ordering` field is validated and carried in the typed config but is not
-yet consumed by the solver call sites; wiring the per-solver config through is
-future work, as with `factor_precision` and `mumps_blr`.
 
 When the ordering knob is enabled with any non-MUMPS backend, `linstabpy` raises
 a `ValueError` naming `LINSTABPY_MUMPS_ORDERING` and the selected backend.

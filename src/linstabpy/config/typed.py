@@ -529,6 +529,13 @@ class MeshCfg:
 
 @dataclass(frozen=True)
 class MpiCfg:
+    """MPI/PETSc init-time options.
+
+    ``mumps_icntl_7`` is a deprecated compatibility alias for the canonical
+    ``mumps_ordering=metis`` surface; keep accepting it, but prefer the named
+    ordering knob for new configs.
+    """
+
     petsc_matrix_mode: str
     root_scatter: bool
     mumps_icntl_7: bool
