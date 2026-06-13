@@ -983,19 +983,47 @@ def _prepare_coefficients(
 
 
 def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_matrix:
-    """Assemble the LNSE operator from precomputed coefficients and derivatives.
+    """Assemble the LNSE operator from precomputed coefficients with SciPy."""
+    return _assemble_from_prepared_with_backend(
+        prep,
+        backend=_ScipyLNSEAssemblyBackend(),
+        floquet_exp=floquet_exp,
+    )
 
-    Applies the Floquet shift, block assembly, inv(B), and sponge.
+
+def _assemble_from_prepared_petsc(
+    prep: dict,
+    *,
+    floquet_exp: float = 0.0,
+    solver_cfg: dict | None = None,
+) -> "PETSc.Mat":
+    """Assemble the LNSE operator from precomputed data directly into PETSc."""
+    return _assemble_from_prepared_with_backend(
+        prep,
+        backend=_PetscLNSEAssemblyBackend(solver_cfg=solver_cfg),
+        floquet_exp=floquet_exp,
+    )
+
+
+def _assemble_from_prepared_with_backend(
+    prep: dict,
+    *,
+    backend: Any,
+    floquet_exp: float = 0.0,
+) -> sp.csc_matrix | "PETSc.Mat":
+    """Shared LNSE assembly orchestration for SciPy and PETSc backends.
+
+    The required operation order is: optional Floquet shift, raw block assembly,
+    inv(B) scaling, sponge addition, and backend finalization.  Backend objects
+    own only representation-specific matrix construction/mutation details.
     """
     ngp = prep["ngp"]
     model = prep["model"]
-    coeffs = prep["coeffs"]
     DR = prep["DR"]
     D2R = prep["D2R"]
     DZ = prep["DZ"]
     D2Z = prep["D2Z"]
     D2RZ = prep["D2RZ"]
-    mesh = prep["mesh"]
 
     # Floquet shift: Dx → Dx + iα, D2x → D2x + 2iα Dx + (iα)²
     # Without this (floquet_exp=0), no streamwise wavenumber is imposed.
@@ -1004,11 +1032,11 @@ def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_m
         DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
 
     with _assembly_stage("assemble_raw_blocks") as stage:
-        L0 = _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
+        L0 = backend.assemble_raw(prep["coeffs"], ngp, DR, D2R, DZ, D2Z, D2RZ)
         stage["nnz"] = _matrix_nnz(L0)
 
     with _assembly_stage("apply_invB") as stage:
-        L0 = _apply_inv_B(
+        L0 = backend.apply_inv_B(
             L0,
             model,
             ngp,
@@ -1023,45 +1051,73 @@ def _assemble_from_prepared(prep: dict, *, floquet_exp: float = 0.0) -> sp.csc_m
         stage["nnz"] = _matrix_nnz(L0)
 
     with _assembly_stage("apply_sponge") as stage:
+        mesh = prep["mesh"]
         if mesh.sponge is not None:
             p = mesh.used_ind
-            sponge = mesh.sponge.ravel(order="F")[p]
-            sponge_diag = np.tile(sponge, 5)
-            L0 = L0 - sp.diags(sponge_diag)
+            sponge_diag = np.tile(mesh.sponge.ravel(order="F")[p], 5)
+            L0 = backend.apply_sponge(L0, sponge_diag)
         else:
             stage["skipped"] = True
         stage["nnz"] = _matrix_nnz(L0)
 
-    return L0.tocsc()
+    return backend.finalize(L0)
 
 
-def _assemble_from_prepared_petsc(
-    prep: dict,
-    *,
-    floquet_exp: float = 0.0,
-    solver_cfg: dict | None = None,
-) -> "PETSc.Mat":
-    """Assemble the LNSE operator from precomputed data directly into PETSc."""
-    from petsc4py import PETSc
+@dataclass(frozen=True)
+class _ScipyLNSEAssemblyBackend:
+    """SciPy-specific operations for the shared LNSE assembly workflow."""
 
-    from ..utils.petsc_core import _use_distributed_matrix, assemble_matrix, ownership_range
+    def assemble_raw(
+        self,
+        coeffs: LNSECoefficients,
+        ngp: int,
+        DR: sp.spmatrix,
+        D2R: sp.spmatrix,
+        DZ: sp.spmatrix,
+        D2Z: sp.spmatrix,
+        D2RZ: sp.spmatrix,
+    ) -> sp.csc_matrix:
+        return _assemble_block_operator(ngp, coeffs, DR, D2R, DZ, D2Z, D2RZ)
 
-    ngp = prep["ngp"]
-    model = prep["model"]
-    coeffs = prep["coeffs"]
-    DR = prep["DR"]
-    D2R = prep["D2R"]
-    DZ = prep["DZ"]
-    D2Z = prep["D2Z"]
-    D2RZ = prep["D2RZ"]
-    mesh = prep["mesh"]
+    def apply_inv_B(
+        self,
+        L0: sp.spmatrix,
+        model: str,
+        ngp: int,
+        RHO: np.ndarray,
+        U: np.ndarray,
+        V: np.ndarray,
+        W: np.ndarray,
+        T: np.ndarray,
+        kappa: float,
+        Ma: float,
+    ) -> sp.spmatrix:
+        return _apply_inv_B(L0, model, ngp, RHO, U, V, W, T, kappa, Ma)
 
-    if floquet_exp != 0.0:
-        i_alpha = 1j * floquet_exp
-        DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
+    def apply_sponge(self, L0: sp.spmatrix, sponge_diag: np.ndarray) -> sp.spmatrix:
+        return L0 - sp.diags(sponge_diag)
 
-    with _assembly_stage("assemble_raw_blocks") as stage:
-        L0_petsc = _assemble_block_operator_petsc(
+    def finalize(self, L0: sp.spmatrix) -> sp.csc_matrix:
+        return L0.tocsc()
+
+
+@dataclass(frozen=True)
+class _PetscLNSEAssemblyBackend:
+    """PETSc-specific operations for the shared LNSE assembly workflow."""
+
+    solver_cfg: dict | None = None
+
+    def assemble_raw(
+        self,
+        coeffs: LNSECoefficients,
+        ngp: int,
+        DR: sp.spmatrix,
+        D2R: sp.spmatrix,
+        DZ: sp.spmatrix,
+        D2Z: sp.spmatrix,
+        D2RZ: sp.spmatrix,
+    ) -> "PETSc.Mat":
+        return _assemble_block_operator_petsc(
             ngp,
             coeffs,
             DR,
@@ -1069,59 +1125,63 @@ def _assemble_from_prepared_petsc(
             DZ,
             D2Z,
             D2RZ,
-            solver_cfg=solver_cfg,
+            solver_cfg=self.solver_cfg,
         )
-        stage["nnz"] = _matrix_nnz(L0_petsc)
-    with _assembly_stage("apply_invB") as stage:
-        _apply_inv_B_petsc(
-            L0_petsc,
-            model,
-            ngp,
-            prep["RHO"],
-            prep["U"],
-            prep["V"],
-            prep["W"],
-            prep["T"],
-            prep["kappa"],
-            prep["Ma"],
-        )
-        stage["nnz"] = _matrix_nnz(L0_petsc)
 
-    with _assembly_stage("apply_sponge") as stage:
-        if mesh.sponge is not None:
-            p = mesh.used_ind
-            sponge = np.asarray(mesh.sponge.ravel(order="F")[p], dtype=complex)
-            sponge_diag = np.tile(sponge, 5)
-            if _use_distributed_matrix(solver_cfg):
-                r0, r1 = ownership_range(L0_petsc)
-                local_diag = L0_petsc.createVecLeft()
-                try:
-                    local_diag.set(0.0)
-                    local_values = -sponge_diag[r0:r1]
-                    if local_values.size:
-                        local_rows = np.arange(r0, r1, dtype=PETSc.IntType)
-                        local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
-                    local_diag.assemble()
-                    L0_petsc.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
-                finally:
-                    local_diag.destroy()
-            else:
-                diag = L0_petsc.getDiagonal()
-                try:
-                    diag_arr = diag.getArray()
-                    diag_arr -= sponge_diag
-                    # PETSc 3.24 can abort here on matrices that were built
-                    # without an explicit diagonal slot in every row, even when
-                    # the diagonal update is logically benign.
-                    L0_petsc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-                    L0_petsc.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
-                finally:
-                    diag.destroy()
-        else:
-            stage["skipped"] = True
-        stage["nnz"] = _matrix_nnz(L0_petsc)
+    def apply_inv_B(
+        self,
+        L0: "PETSc.Mat",
+        model: str,
+        ngp: int,
+        RHO: np.ndarray,
+        U: np.ndarray,
+        V: np.ndarray,
+        W: np.ndarray,
+        T: np.ndarray,
+        kappa: float,
+        Ma: float,
+    ) -> "PETSc.Mat":
+        _apply_inv_B_petsc(L0, model, ngp, RHO, U, V, W, T, kappa, Ma)
+        return L0
 
-    return assemble_matrix(L0_petsc)
+    def apply_sponge(self, L0: "PETSc.Mat", sponge_diag: np.ndarray) -> "PETSc.Mat":
+        from petsc4py import PETSc
+
+        from ..utils.petsc_core import _use_distributed_matrix, ownership_range
+
+        sponge_diag = np.asarray(sponge_diag, dtype=complex)
+        if _use_distributed_matrix(self.solver_cfg):
+            r0, r1 = ownership_range(L0)
+            local_diag = L0.createVecLeft()
+            try:
+                local_diag.set(0.0)
+                local_values = -sponge_diag[r0:r1]
+                if local_values.size:
+                    local_rows = np.arange(r0, r1, dtype=PETSc.IntType)
+                    local_diag.setValues(local_rows, np.asarray(local_values, dtype=complex))
+                local_diag.assemble()
+                L0.setDiagonal(local_diag, addv=PETSc.InsertMode.ADD_VALUES)
+            finally:
+                local_diag.destroy()
+            return L0
+
+        diag = L0.getDiagonal()
+        try:
+            diag_arr = diag.getArray()
+            diag_arr -= sponge_diag
+            # PETSc 3.24 can abort here on matrices that were built without an
+            # explicit diagonal slot in every row, even when the diagonal update
+            # is logically benign.
+            L0.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+            L0.setDiagonal(diag, addv=PETSc.InsertMode.INSERT_VALUES)
+        finally:
+            diag.destroy()
+        return L0
+
+    def finalize(self, L0: "PETSc.Mat") -> "PETSc.Mat":
+        from ..utils.petsc_core import assemble_matrix
+
+        return assemble_matrix(L0)
 
 
 def _assemble_block_operator(
