@@ -18,6 +18,7 @@ from linstabpy.linalg import Backend
 from linstabpy.linalg.backends import available, ensure, select
 from linstabpy.linalg.factorize import factorize
 from linstabpy.solvers import eigenvalue as eigen_core
+from linstabpy.utils.petsc_core import mumps_icntl_petsc_options
 from linstabpy.stability import eigenvalues as stability_eigenvalues
 
 
@@ -398,7 +399,13 @@ def test_mumps_blr_off_after_enabled_setup_is_not_sticky(monkeypatch) -> None:
         A_on.destroy()
 
 
-def _mumps_ordering_probe_ksp(monkeypatch, ordering: str | None):  # noqa: ANN001
+def _mumps_ordering_probe_ksp(
+    monkeypatch,
+    ordering: str | None,
+    *,
+    explicit_ordering: str | None = None,
+    legacy_icntl_7: bool = False,
+):  # noqa: ANN001
     if not backends.factor_backend_available("mumps"):
         pytest.skip("SKIPPED: missing MUMPS factor backend")
 
@@ -406,6 +413,10 @@ def _mumps_ordering_probe_ksp(monkeypatch, ordering: str | None):  # noqa: ANN00
         monkeypatch.delenv("LINSTABPY_MUMPS_ORDERING", raising=False)
     else:
         monkeypatch.setenv("LINSTABPY_MUMPS_ORDERING", ordering)
+    if legacy_icntl_7:
+        cfg = Config.load({"solver": {"mumps_icntl_7": True}}, env={})
+        for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
+            PETSc.Options().setValue(key, value)
     A = PETSc.Mat().createAIJ(size=(3, 3), comm=PETSc.COMM_SELF)
     values = {
         (0, 0): 4.0 + 0.0j,
@@ -425,7 +436,7 @@ def _mumps_ordering_probe_ksp(monkeypatch, ordering: str | None):  # noqa: ANN00
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc = ksp.getPC()
         pc.setType(PETSc.PC.Type.LU)
-        backends.apply_factor_backend(pc, "mumps")
+        backends.apply_factor_backend(pc, "mumps", mumps_ordering=explicit_ordering)
         ksp.setUp()
         return ksp, A
     except PETSc.Error as exc:
@@ -479,6 +490,59 @@ def test_mumps_ordering_unset_preserves_externally_set_icntl_7(monkeypatch) -> N
             A.destroy()
     finally:
         PETSc.Options().delValue("mat_mumps_icntl_7")
+
+
+def test_legacy_mumps_icntl_7_alias_real_wiring_sets_metis(monkeypatch) -> None:
+    expected = backends.MUMPS_ORDERING_TO_ICNTL_7["metis"]
+    ksp, A = _mumps_ordering_probe_ksp(monkeypatch, None, legacy_icntl_7=True)
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == expected
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_jsonc_mumps_ordering_wins_over_legacy_alias_real_wiring(monkeypatch) -> None:
+    cfg = Config.load(
+        {"solver": {"eigen": {"mumps_ordering": "pord"}, "mumps_icntl_7": True}},
+        env={},
+    )
+    ksp, A = _mumps_ordering_probe_ksp(
+        monkeypatch,
+        None,
+        explicit_ordering=cfg.eigen.mumps_ordering,
+        legacy_icntl_7=cfg.mpi.mumps_icntl_7,
+    )
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == backends.MUMPS_ORDERING_TO_ICNTL_7[
+            "pord"
+        ]
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
+        ksp.destroy()
+        A.destroy()
+
+
+def test_env_mumps_ordering_wins_over_jsonc_and_legacy_alias_real_wiring(monkeypatch) -> None:
+    cfg = Config.load(
+        {"solver": {"eigen": {"mumps_ordering": "pord"}, "mumps_icntl_7": True}},
+        env={"LINSTABPY_MUMPS_ORDERING": "qamd"},
+    )
+    ksp, A = _mumps_ordering_probe_ksp(
+        monkeypatch,
+        None,
+        explicit_ordering=cfg.eigen.mumps_ordering,
+        legacy_icntl_7=cfg.mpi.mumps_icntl_7,
+    )
+    try:
+        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == backends.MUMPS_ORDERING_TO_ICNTL_7[
+            "qamd"
+        ]
+    finally:
+        PETSc.Options().delValue("mat_mumps_icntl_7")
+        ksp.destroy()
+        A.destroy()
 
 
 def test_mumps_probe_and_apply_configure_lu_without_cuda_imports() -> None:

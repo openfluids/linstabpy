@@ -12,17 +12,12 @@ from typing import Any
 import numpy as np
 from petsc4py import PETSc
 
+from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
+
 DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
 DEFAULT_MUMPS_BLR = False
 DEFAULT_MUMPS_BLR_TOL = 1.0e-4
-MUMPS_ORDERING_TO_ICNTL_7 = {
-    "amd": 0,
-    "pord": 4,
-    "metis": 5,
-    "qamd": 6,
-    "auto": 7,
-}
 FACTOR_PRECISION = DEFAULT_FACTOR_PRECISION
 ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300

@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
+
 if TYPE_CHECKING:
     # Type-only import so ruff/mypy/pyright see ``PETSc`` names; at runtime,
     # ``TYPE_CHECKING`` is ``False`` so this never fires and PETSc stays
@@ -26,13 +28,16 @@ _petsc_configured = False
 def mumps_icntl_petsc_options(mpi: "MpiCfg") -> dict[str, str]:
     """Map the typed MUMPS ICNTL config to PETSc option-database entries.
 
-    ICNTL(7) keeps its historical opt-in gate (changing the ordering can change
-    factorization behavior); ICNTL(14)/ICNTL(24) are hardened by default and
-    left to PETSc/MUMPS only when set to ``None``.
+    Deprecated: ``mpi.mumps_icntl_7`` is a legacy boolean alias for
+    ``mumps_ordering=metis``.  ICNTL(7) keeps its historical opt-in gate
+    (changing the ordering can change factorization behavior), and derives the
+    METIS value from the shared ordering table so it cannot drift from the
+    canonical ``mumps_ordering`` surface.  ICNTL(14)/ICNTL(24) are hardened by
+    default and left to PETSc/MUMPS only when set to ``None``.
     """
     opts: dict[str, str] = {}
     if mpi.mumps_icntl_7:
-        opts["mat_mumps_icntl_7"] = "5"  # METIS ordering
+        opts["mat_mumps_icntl_7"] = str(MUMPS_ORDERING_TO_ICNTL_7["metis"])
     if mpi.mumps_icntl_14 is not None:
         opts["mat_mumps_icntl_14"] = str(mpi.mumps_icntl_14)
     if mpi.mumps_icntl_24 is not None:
