@@ -7,12 +7,23 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-Work toward **0.0.7**. Development happens on the `dev` branch (versioned
-`0.0.7.dev0`) and is promoted to `main` through a reviewed pull request once a
-coherent slice is green. Entries accumulate here until the next patch tag is cut.
+Nothing yet.
+
+## [0.0.7] - 2026-06-13
+
+GPU and alternative-backend groundwork plus the inexact-resolvent sweep
+machinery, all on the CPU/MUMPS-validated default path under the frozen-numerics
+invariant — no GPU backend is wired or benchmarked. Adds the MUMPS ordering and
+BLR knobs, the mixed-precision factorization config surface, per-stack build
+isolation, the parity-vs-MUMPS protocol, and the GPU decision docs (FP64 gate,
+cuDSS C-API note); the anchor-preconditioned stable-regime sweep with RSVD
+certification and EVP-guided band marking; the wavemaker structural-sensitivity
+field; run provenance and a per-run metrics schema. Reconciles the package
+version to a single `pyproject.toml` source and gives the band-marking guard a
+physical omega-plane default.
 
 ### Fixed
-- Package version source-of-truth reconciled to a single canonical source. `pyproject.toml` is now the only place the version is written, and `linstabpy.__version__` is derived from `importlib.metadata` instead of a hardcoded string that had drifted to `0.1.0` — the reserved release-candidate tag — while the build metadata said `0.0.6.dev0`. `__version__`, `importlib.metadata.version("linstabpy")`, and `linstabpy --version` now always agree with the installed distribution, guarded by a consistency test that checks every surface against `pyproject.toml`. The dev marker is `0.0.7.dev0`. (bead resolvent-sr3l)
+- Package version source-of-truth reconciled to a single canonical source. `pyproject.toml` is now the only place the version is written, and `linstabpy.__version__` is derived from `importlib.metadata` instead of a hardcoded string that had drifted to `0.1.0` — the reserved release-candidate tag — while the build metadata said `0.0.6.dev0`. `__version__`, `importlib.metadata.version("linstabpy")`, and `linstabpy --version` now always agree with the installed distribution, guarded by a consistency test that checks every surface against `pyproject.toml`. (bead resolvent-sr3l)
 
 ### Changed
 - 2-D LNSE assembly now applies the analytical `inv(B)` as a direct CSR row scaling (`data *= per-row factors`) instead of materializing a sparse diagonal and multiplying, and the SciPy raw-assembly path builds CSR natively with a single final `tocsc()` (one fewer format conversion). The assembled operator is numerically unchanged — guarded at ≤1e-10 against the validated block reference, with the seven Appendix-A oracles green — and ~26% faster on a small fd6 Blasius representative case (measured median on a shared box; no speedup claim at production scale). (bead r3uu.14.2)
