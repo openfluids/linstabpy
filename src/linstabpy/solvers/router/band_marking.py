@@ -19,13 +19,19 @@ The danger radius is read, in order, from one of these equivalent keys:
 * ``cfg["band_marking"]["danger_radius"]``;
 * ``cfg["solver"]["router"]["band_marking"]["danger_radius"]``.
 
-When omitted, the default is ``solver.eigen.backend_probe.residual_rel_max`` as
-resolved by the normal typed configuration (currently ``1e-8`` unless the solver
-configuration or environment overrides it).  This ties the pre-sweep pole guard
-to the same post-solve shifted-operator probe scale used to reject inaccurate
-factorizations, avoiding an unrelated bare constant.  Users should enlarge this
-radius in physical sweeps when they want a wider no-go band around lightly damped
-or unstable eigenvalues.
+When omitted, the default is a physical sweep-spacing radius,
+``0.5 * median(diff(sorted(unique(finite(omegas)))))``.  This marks a requested
+frequency as dangerous when a pole lies within about half of a local sweep cell,
+using the user's requested omega-plane spacing rather than an unrelated linear
+solve residual scale.  The least-damped ``abs(Im omega_eig)`` scale is
+intentionally not used: it collapses toward zero near a stability threshold,
+exactly when a near-real pole most needs a no-go band.  If fewer than two
+distinct finite requested frequencies are available, no sweep scale is available
+and the default radius is ``0.0`` (no ``"near-pole"`` labels).  NaN and infinite
+frequencies are excluded before computing the spacing, and non-uniform grids use
+the median successive spacing to avoid one large gap setting the radius.  Any
+explicit ``danger_radius`` key above overrides this default and is still
+validated as a finite non-negative omega-plane distance.
 
 Smooth regions are opt-in.  By default every non-danger point is labelled
 ``"stable"``.  A point is labelled ``"smooth"`` only if it is outside the danger
@@ -71,19 +77,27 @@ def _band_cfg(cfg: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return _as_mapping(router.get("band_marking"))
 
 
-def _danger_radius(cfg: Mapping[str, Any] | None) -> float:
+def _sweep_spacing_radius(omegas: np.ndarray) -> float:
+    finite_unique = np.unique(omegas[np.isfinite(omegas)])
+    if finite_unique.size < 2:
+        return 0.0
+    return 0.5 * float(np.median(np.diff(finite_unique)))
+
+
+def _danger_radius(cfg: Mapping[str, Any] | None, omegas: np.ndarray) -> float:
     root = _as_mapping(cfg)
-    band = _band_cfg(root)
+    direct = _as_mapping(root.get("band_marking"))
+    solver = _as_mapping(root.get("solver"))
+    router = _as_mapping(solver.get("router"))
+    nested = _as_mapping(router.get("band_marking"))
     if "danger_radius" in root:
         value = root["danger_radius"]
-    elif "danger_radius" in band:
-        value = band["danger_radius"]
+    elif "danger_radius" in direct:
+        value = direct["danger_radius"]
+    elif "danger_radius" in nested:
+        value = nested["danger_radius"]
     else:
-        from linstabpy.solvers.eigenvalue import _probe_residual_rel_max
-
-        solver = _as_mapping(root.get("solver"))
-        eigen_cfg = _as_mapping(solver.get("eigen"))
-        value = _probe_residual_rel_max(dict(eigen_cfg))
+        value = _sweep_spacing_radius(omegas)
     radius = float(value)
     if not np.isfinite(radius) or radius < 0.0:
         raise ValueError(f"danger_radius must be a finite non-negative float, got {value!r}")
@@ -128,7 +142,7 @@ def label_band(eigs: Sequence[complex], omegas: Sequence[float], cfg: Mapping[st
     """
     eig_arr = np.asarray(eigs, dtype=np.complex128).ravel()
     omega_arr = np.asarray(omegas, dtype=float).ravel()
-    radius = _danger_radius(cfg)
+    radius = _danger_radius(cfg, omega_arr)
 
     if eig_arr.size == 0:
         distances = np.full(omega_arr.shape, np.inf, dtype=float)
