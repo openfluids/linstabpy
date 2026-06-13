@@ -24,7 +24,8 @@ with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
 | `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until GPU-build recipe beads run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
 
 This section documents the intended build separation only. It is not a claim
-that the GPU branch has been built, validated, or measured.
+that the GPU branch has been built, validated, or measured. The Line-3 GPU
+FP64 decision gate is documented in `docs/GPU_FP64_GATE.md`.
 
 Backend selection precedence is:
 
