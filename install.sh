@@ -169,6 +169,29 @@ remove_venv_dir() {
     rm -rf "${target}"
 }
 
+existing_venv_python_version() {
+    if [ -d "${VENV_DIR}" ] && [ -x "${VENV_DIR}/bin/python" ]; then
+        "${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true
+    fi
+}
+
+venv_will_be_removed() {
+    # Mirrors the real venv lifecycle below: check mode never removes; install
+    # mode removes only an existing venv, either for --force or Python mismatch.
+    local existing_py=""
+    if [ "${INSTALL_MODE}" = "check" ]; then
+        return 1
+    fi
+    if [ ! -d "${VENV_DIR}" ]; then
+        return 1
+    fi
+    if [ "${FORCE_REINSTALL}" = "1" ]; then
+        return 0
+    fi
+    existing_py="$(existing_venv_python_version)"
+    [ "${existing_py}" != "${PYTHON_VERSION}" ]
+}
+
 print_dry_run_plan() {
     assert_stack_venv_is_safe
     printf 'build_stack=%s\n' "${BUILD_STACK}"
@@ -181,7 +204,7 @@ print_dry_run_plan() {
         printf 'petsc_configure_branch=cuda-strumpack-design\n'
         printf 'protected_venv=%s\n' "${DEFAULT_VENV_DIR}"
     fi
-    if [ "${FORCE_REINSTALL}" = "1" ]; then
+    if venv_will_be_removed; then
         printf 'planned_remove=%s\n' "${VENV_DIR}"
     else
         printf 'planned_remove=none\n'
