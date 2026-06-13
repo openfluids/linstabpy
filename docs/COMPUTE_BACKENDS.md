@@ -124,6 +124,63 @@ a `ValueError` naming `LINSTABPY_MUMPS_ORDERING` and the selected backend.
 Unknown ordering names also raise a `ValueError` listing the allowed values. No
 performance claim is made for any ordering choice here.
 
+## Hybrid MPI + Threaded-BLAS Placement
+
+Use one deliberate parallel shape at a time. The reference sparse-direct MUMPS
+path is pure MPI: many ranks, `OMP_NUM_THREADS=1`, and matching BLAS mirrors set
+to one. That is the validated default because MUMPS parallelism comes primarily
+from MPI ranks. A hybrid shape -- fewer MPI ranks with threaded BLAS inside each
+rank -- is a placement option for dense-heavy phases and for future many-core
+BLAS stacks such as the NVPL BLAS work tracked by the Grace-class backend path.
+This section is placement guidance only; it is not a measured speedup claim.
+
+For a workstation with `physical_cores` physical cores and `ranks` MPI ranks,
+choose
+
+```text
+threads_per_rank = physical_cores // ranks
+```
+
+Do not count SMT/HT siblings as physical cores. Keep the non-oversubscription
+invariant explicit:
+
+```text
+ranks * OMP_NUM_THREADS <= physical cores
+```
+
+A portable starting point is:
+
+```bash
+export OMP_NUM_THREADS=<threads_per_rank>
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+export OPENBLAS_NUM_THREADS="$OMP_NUM_THREADS"
+export MKL_NUM_THREADS="$OMP_NUM_THREADS"
+export NUMEXPR_NUM_THREADS="$OMP_NUM_THREADS"
+```
+
+Use pure MPI for the current CPU/MUMPS reference path, for example one rank per
+physical core and `OMP_NUM_THREADS=1`. Use hybrid placement only when the run is
+expected to spend meaningful time in threaded dense kernels, or when evaluating a
+threaded vendor BLAS stack; then reduce the number of ranks so that the product
+of ranks and threads never exceeds the physical-core count.
+
+A copy-paste sanity check for a workstation with `N` physical cores is:
+
+```bash
+physical_cores=N; ranks=<ranks>; threads_per_rank=$(( physical_cores / ranks )); \
+OMP_NUM_THREADS=$threads_per_rank OMP_PROC_BIND=close OMP_PLACES=cores \
+OPENBLAS_NUM_THREADS=$threads_per_rank MKL_NUM_THREADS=$threads_per_rank \
+NUMEXPR_NUM_THREADS=$threads_per_rank PHYSICAL_CORES=$physical_cores \
+mpirun -n "$ranks" python -c 'import os; from mpi4py import MPI; rank = MPI.COMM_WORLD.rank; ranks = MPI.COMM_WORLD.size; threads = int(os.environ["OMP_NUM_THREADS"]); affinity = len(os.sched_getaffinity(0)); physical_cores = int(os.environ["PHYSICAL_CORES"]); print(f"rank={rank} threads={threads} affinity={affinity} ranks*threads={ranks * threads} physical_cores={physical_cores}")'
+```
+
+Pass rule: each rank must report `OMP_NUM_THREADS <= affinity` for its CPU
+affinity size, and the job-level product must satisfy
+`ranks * OMP_NUM_THREADS <= physical cores`. If either condition fails, reduce
+`OMP_NUM_THREADS`, reduce the rank count, or fix the launcher binding before
+using the result.
+
 ## Current Status
 
 | Backend | Status | Notes |
