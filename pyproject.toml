@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linstabpy"
-version = "0.0.7.dev0"
+version = "0.0.7"
 description = "Stability and resolvent analysis of compressible viscous flows"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
