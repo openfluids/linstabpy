@@ -22,10 +22,35 @@ with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
 |---|---|---|---|
 | default / CPU reference | `.venv` | complex scalar PETSc/SLEPc with MUMPS, METIS, and ParMETIS downloads | This remains the only reference build. Default behavior must not change unless a separate change explicitly updates the CPU build contract. |
 | `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until GPU-build recipe beads run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
+| `superlu_dist` (manual, not in `install.sh`) | `.venv-superlu_dist` | complex scalar PETSc/SLEPc with `--download-superlu_dist` plus METIS/ParMETIS graph-partitioning downloads | `install.sh` does not ship a `superlu_dist` build stack today. Build manually: run `./install.sh --stack superlu_dist --force` only after adding the stack branch to `install.sh`, or configure PETSc directly with `--download-superlu_dist --download-metis --download-parmetis`. The GPU variant adds `--with-cuda`. Keep this isolated to `.venv-superlu_dist`; `--force` must never target `.venv`. |
 
 This section documents the intended build separation only. It is not a claim
-that the GPU branch has been built, validated, or measured. The Line-3 GPU
+that any non-default branch has been built, validated, or measured. The Line-3 GPU
 FP64 decision gate is documented in `docs/GPU_FP64_GATE.md`.
+
+### SuperLU_DIST build notes
+
+A PETSc build with SuperLU_DIST requires the graph-partitioning libraries that
+the reference stack already downloads. A minimal configure addition on top of
+the default stack is:
+
+```text
+--download-superlu_dist --download-metis --download-parmetis
+```
+
+For a CUDA-enabled build, append `--with-cuda`. Because `install.sh` does not
+yet wire this stack, the build must be done manually in an isolated directory
+and paired with a side-by-side `.venv-superlu_dist`. Do not target `.venv`.
+
+SuperLU_DIST has two distinct roles in `linstabpy` (see Current Status and
+Mixed-Precision Factorization Knob below):
+
+- **CPU mixed-precision iterative-refinement (live)**: FP32 factor with FP64
+  iterative refinement via `pc_precision single`. This is the B.4/B.6 path and
+  is not rejected.
+- **Complex sparse-direct solve on the tested CUDA build (rejected)**: the
+  complex SuperLU_DIST CUDA path produced order-one residuals. See Current
+  Status for the finding.
 
 Backend selection precedence is:
 
@@ -52,6 +77,12 @@ Today only the environment variable is enforced at factorization time. The
 JSONC `factor_precision` field is validated and carried in the typed config
 but is not yet consumed by the solver call sites; the Phase B.4
 mixed-precision iterative-refinement work wires it through.
+
+SuperLU_DIST is the only backend that currently accepts `factor_precision:
+single`. When paired with this backend, `pc_precision single` enables FP32
+factorization with FP64 iterative refinement — the CPU mixed-precision role
+that is live and not rejected. See Build-Stack Isolation above for the manual
+build recipe.
 
 This knob only exposes configuration for later mixed-precision iterative
 refinement work. It is not a production recommendation, and `double` remains the
@@ -192,7 +223,7 @@ using the result.
 |---|---|---|
 | `mumps` | Default/reference. | CPU sparse-direct path used for accepted solver results. Keep this path byte-identical unless a separate change explicitly updates the default solver contract. |
 | `strumpack` | Experimental. | STRUMPACK can be selected through PETSc as a LU factor backend. On the tested CUDA build, `KSPPREONLY+PCLU+STRUMPACK` is not accurate enough for the near-singular shifted EVP operator because static pivoting leaves a high residual. Wrapping the same LU preconditioner in right-preconditioned FGMRES recovers the shifted solve to about `4e-13` relative residual on the probe RHS and gives a Blasius temporal EVP spectrum within about `1e-10` of the MUMPS reference. |
-| `superlu_dist` | Rejected for the tested CUDA build. | The complex SuperLU_DIST path produced order-one solve residuals and an inconsistent EVP spectrum in the local CUDA build. Changing iterative-refinement and GPU-offload flags did not fix the complex solve. |
+| `superlu_dist` | Two roles — see notes. | **CPU mixed-precision IR (live)**: `factor_precision: single` uses `pc_precision single` to enable FP32 factorization with FP64 iterative refinement; this path is not rejected and is the target of the B.4/B.6 work. **Complex+CUDA GPU solve (rejected for the tested build)**: the complex SuperLU_DIST path on the local CUDA build produced order-one solve residuals and an inconsistent EVP spectrum; changing iterative-refinement and GPU-offload flags did not fix it. The rejection applies specifically to complex sparse-direct solving on that CUDA build, not to the backend wholesale. |
 | `cudss` | Not wired. | There is no `linstabpy` PETSc factor-backend interface for cuDSS today. |
 
 The STRUMPACK result is a diagnostic result, not a production default. The
@@ -236,7 +267,7 @@ No speedup claim is made here. The evidence so far is numerical:
 - STRUMPACK `PREONLY+LU` is not acceptable for this shifted EVP operator.
 - STRUMPACK `FGMRES+LU` can recover a small shifted solve and the Blasius
   temporal EVP comparison.
-- SuperLU_DIST complex CUDA solves are not reliable in the tested build.
+- SuperLU_DIST complex sparse-direct CUDA solves are not reliable in the tested build. The CPU mixed-precision iterative-refinement role (FP32 factor + FP64 refine via `pc_precision single`) is a separate live path and is not part of this rejection.
 
 Real backend adoption still needs end-to-end timings, peak memory, factorization
 reuse behavior, and repeated right-hand-side costs on the actual case sizes.
