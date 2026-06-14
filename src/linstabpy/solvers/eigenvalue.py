@@ -321,10 +321,27 @@ def _raise_eps_setup_failure(
     target: complex,
     st_solver: str,
 ) -> NoReturn:
-    """Raise a richer error when SLEPc/PETSc setup fails."""
+    """Raise a richer error when SLEPc/PETSc setup fails.
+
+    Exception-type dispatch
+    -----------------------
+    ``SystemError`` whose text contains ``"returned a result with an exception
+    set"``
+        This is petsc4py's CHKERR collapse: the real PETSc/STRUMPACK error was
+        emitted to **stderr** before petsc4py raised this bare ``SystemError``.
+        The Python exception object itself carries no useful diagnostic; to read
+        the actual PETSc error re-run capturing stderr (e.g.
+        ``python ... 2>err.txt``) or add ``-error_output_stderr`` to the PETSc
+        options.
+
+    ``PETSc.Error``
+        petsc4py translated the PETSc error code correctly; the integer code is
+        available via ``exc.ierr``.
+
+    Any other exception
+        Reported as-is; the ``message=`` line contains ``str(exc)``.
+    """
     details: list[str] = [
-        f"type={type(exc).__name__}",
-        f"message={exc}",
         f"ndof={ndof}",
         f"nev={n_modes}",
         f"ncv={ncv}",
@@ -354,9 +371,33 @@ def _raise_eps_setup_failure(
         if infog2 not in {None, "?"}:
             details.append(f"mumps_infog2={infog2}")
 
-    raise RuntimeError(
-        "SLEPc EPS.setUp failed: " + ", ".join(str(item) for item in details)
-    ) from exc
+    context = ", ".join(str(item) for item in details)
+
+    # Branch on exception type to produce a useful message.
+    _CHKERR_SENTINEL = "returned a result with an exception set"
+    if isinstance(exc, SystemError) and _CHKERR_SENTINEL in str(exc):
+        # petsc4py CHKERR collapse: the real PETSc/STRUMPACK error went to
+        # stderr only; the SystemError text is not diagnostic on its own.
+        raise RuntimeError(
+            "SLEPc EPS.setUp failed [petsc4py CHKERR collapse]: "
+            "the underlying PETSc/STRUMPACK error was NOT propagated to Python "
+            "— its stack was emitted to stderr before this SystemError was "
+            "raised.  Re-run capturing stderr (e.g. 'python ... 2>err.txt') or "
+            "add '-error_output_stderr' to PETSc options to read the real error. "
+            f"context: {context}"
+        ) from exc
+    elif isinstance(exc, PETSc.Error):
+        ierr = getattr(exc, "ierr", None)
+        code_str = f"ierr={ierr}" if ierr is not None else "ierr=?"
+        raise RuntimeError(
+            f"SLEPc EPS.setUp failed [PETSc.Error {code_str}]: "
+            f"message={exc}, {context}"
+        ) from exc
+    else:
+        raise RuntimeError(
+            f"SLEPc EPS.setUp failed [type={type(exc).__name__}]: "
+            f"message={exc}, {context}"
+        ) from exc
 
 
 def _raise_eps_solve_failure(
