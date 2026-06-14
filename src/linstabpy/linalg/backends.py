@@ -13,6 +13,7 @@ import numpy as np
 from petsc4py import PETSc
 
 from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
+from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
 
 DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
@@ -21,6 +22,7 @@ DEFAULT_MUMPS_BLR_TOL = 1.0e-4
 FACTOR_PRECISION = DEFAULT_FACTOR_PRECISION
 ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
+PRECONDITIONER_PROBE_RESIDUAL_REL_MAX = 1.0e-4
 
 
 class Backend(StrEnum):
@@ -202,21 +204,39 @@ def ensure_factor_backend_available(backend: str) -> None:
         )
 
 
+FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"})
+PRECONDITIONED_EIGEN_SOLVER_TYPES = ITERATIVE_EIGEN_SOLVER_TYPES | FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES
+
+
+def backend_probe_is_preconditioner_role(st_solver: str | None) -> bool:
+    """Return whether the factor backend is only an iterative-outer preconditioner.
+
+    In this role the backend probe's bare direct-solve residual is diagnostic:
+    the outer Krylov/SLEPc convergence test, not a standalone PREONLY+LU apply,
+    is the primary acceptance gate for the shifted solve.  A separate relaxed
+    sanity ceiling still catches catastrophically ineffective preconditioners.
+    """
+    return str(st_solver or "").strip().lower() in PRECONDITIONED_EIGEN_SOLVER_TYPES
+
+
 def should_probe_backend(
     resolved_backend: str | None,
     probe_cfg: Mapping[str, Any] | None = None,
     *,
     st_solver: str | None = None,
 ) -> bool:
-    """Return whether a resolved factor backend should run the accuracy probe."""
+    """Return whether a resolved factor backend should run the accuracy probe.
+
+    Genuine direct solves keep the historical strict direct-residual gate and
+    the default-MUMPS exemption.  Iterative-outer eigensolver families use the
+    factor backend as a preconditioner, so they still run the probe as a
+    diagnostic even for default MUMPS unless explicitly disabled.
+    """
     backend = _normalize_backend(resolved_backend)
     if backend is None:
         return False
-    # The fgmres+direct-PC families are inexact outer solves even over the
-    # default MUMPS factor backend, so they never take the default-backend
-    # probe exemption; an explicit probe_cfg "enabled" still wins either way.
-    inexact_outer = str(st_solver or "").strip().lower() in {"fgmres_lu", "strumpack_fgmres"}
-    if backend == DEFAULT_FACTOR_BACKEND and not inexact_outer:
+    preconditioner_role = backend_probe_is_preconditioner_role(st_solver)
+    if backend == DEFAULT_FACTOR_BACKEND and not preconditioner_role:
         return False
     if probe_cfg is not None and "enabled" in probe_cfg:
         return _as_bool(probe_cfg["enabled"])
@@ -405,12 +425,14 @@ __all__ = [
     "DEFAULT_FACTOR_PRECISION",
     "DEFAULT_MUMPS_BLR",
     "DEFAULT_MUMPS_BLR_TOL",
+    "PRECONDITIONER_PROBE_RESIDUAL_REL_MAX",
     "MUMPS_ORDERING_TO_ICNTL_7",
     "FACTOR_PRECISION",
     "apply_factor_backend",
     "available",
     "ensure",
     "ensure_factor_backend_available",
+    "backend_probe_is_preconditioner_role",
     "factor_backend_available",
     "resolve_factor_backend",
     "resolve_factor_precision",
