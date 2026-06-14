@@ -18,6 +18,10 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.backends import (
+    PRECONDITIONER_PROBE_RESIDUAL_REL_MAX,
+    backend_probe_is_preconditioner_role,
+)
 from linstabpy.solvers import eigenvalue as _temporal_core
 from linstabpy.solvers._eps_helpers import (
     _install_eps_monitor,
@@ -302,10 +306,13 @@ def _solve_near_target(
         backend_probe_result = probe
         residual_rel = float(probe["residual_rel"])
         residual_rel_max = cfg.eigen.backend_probe.residual_rel_max
+        preconditioner_role = backend_probe_is_preconditioner_role(st_solver)
+        probe_role = "preconditioner" if preconditioner_role else "direct"
         logger.info(
-            "Factor backend accuracy probe: backend=%s residual_abs=%.3e residual_rel=%.3e "
+            "Factor backend accuracy probe: backend=%s role=%s residual_abs=%.3e residual_rel=%.3e "
             "tol=%.3e ksp_type=%s pc_type=%s factor_solver=%s iterations=%s reason=%s",
             resolved_factor_backend,
+            probe_role,
             float(probe["residual_abs"]),
             residual_rel,
             residual_rel_max,
@@ -315,7 +322,24 @@ def _solve_near_target(
             probe["ksp_iterations"],
             probe["ksp_reason"],
         )
-        if residual_rel > residual_rel_max:
+        rejection_limit = residual_rel_max
+        if preconditioner_role:
+            # A factor backend used under an iterative outer KSP/SLEPc solve is
+            # accepted primarily by that outer convergence test.  The bare LU
+            # apply can be inexact (for example STRUMPACK compression) while a
+            # healthy FGMRES outer still drives the true shifted residual down.
+            # Keep a relaxed sanity ceiling so a completely ineffective
+            # preconditioner still fails fast without weakening the direct gate.
+            rejection_limit = max(residual_rel_max, PRECONDITIONER_PROBE_RESIDUAL_REL_MAX)
+            if residual_rel > residual_rel_max:
+                logger.info(
+                    "Factor backend probe residual %.3e exceeds direct-solve tol %.3e, "
+                    "but backend is in preconditioner role; applying relaxed sanity tol %.3e",
+                    residual_rel,
+                    residual_rel_max,
+                    rejection_limit,
+                )
+        if residual_rel > rejection_limit:
             _raise_backend_probe_failure(
                 backend=resolved_factor_backend,
                 residual_rel=residual_rel,

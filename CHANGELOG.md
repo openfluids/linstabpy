@@ -7,7 +7,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- Factor-backend accuracy probe is now role-aware: a backend used as the preconditioner inside an iterative-outer shift-invert solve (`st_solver` in `iterative`/`krylov`/`slepc`/`fgmres_lu`/`strumpack_fgmres`) is no longer rejected on its bare direct-solve residual. The strict `residual_rel_max` (~1e-8) gate is the right acceptance test for a standalone direct solve, but for a preconditioner the outer Krylov/SLEPc convergence is the real gate and a moderate (~1e-6) single-apply residual is healthy — previously this forced users to disable the probe by hand to run a STRUMPACK-preconditioned route. The genuine direct path (`mumps`/`direct`/`lu`, default-MUMPS exemption) keeps the unchanged strict gate; the preconditioner role applies a relaxed sanity ceiling so a catastrophically ineffective preconditioner still fails fast. The preconditioner-role detection reuses the shared `ITERATIVE_EIGEN_SOLVER_TYPES` set so it cannot drift from the solver-config vocabulary. (bead resolvent-xc-program-v0-1-0-r3uu.1.40)
 
 ## [0.0.7] - 2026-06-13
 
