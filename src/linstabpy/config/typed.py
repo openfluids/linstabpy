@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from linstabpy.linalg.backends import (
+    DEFAULT_AUTO_ROUTE_DOF_THRESHOLD,
     DEFAULT_FACTOR_BACKEND,
     DEFAULT_FACTOR_PRECISION,
     DEFAULT_MUMPS_BLR,
@@ -192,6 +193,15 @@ def _mumps_ordering(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> st
     if cfg is not None and "mumps_ordering" in cfg:
         return _normalize_mumps_ordering(cfg["mumps_ordering"])
     return None
+
+
+def _auto_route_dof_threshold(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> int:
+    """Resolve auto-route DOF threshold with precedence env > JSONC > default."""
+    if "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD" in env:
+        return int(env["LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD"])
+    if cfg is not None and "auto_route_dof_threshold" in cfg:
+        return int(cfg["auto_route_dof_threshold"])
+    return DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
 
 
 def _st_factor_backend(
@@ -395,6 +405,11 @@ class EigenCfg:
     weighted_norm_tol: float
     ncv: int | None
     eps_max_it_explicit: int | None
+    # Auto-route DOF threshold: carried from config so it can be used at solve time.
+    # "auto" backend intent is resolved to a concrete backend in _eigenvalues.py
+    # once ndof is known.  See resolve_auto_factor_backend() and
+    # DEFAULT_AUTO_ROUTE_DOF_THRESHOLD for provenance.
+    auto_route_dof_threshold: int
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "EigenCfg":
@@ -451,6 +466,9 @@ class EigenCfg:
             eps_max_it_explicit=_scfg_optional_int(
                 cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None
             ),
+            # auto_route_dof_threshold uses env > JSONC > default precedence,
+            # mirroring _mumps_blr / _mumps_ordering (env first, then JSONC).
+            auto_route_dof_threshold=_auto_route_dof_threshold(cfg, env),
         )
 
     def eps_max_it(self, ndof: int) -> int:
