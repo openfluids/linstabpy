@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import numbers
 import sys
@@ -21,6 +22,8 @@ from linstabpy.config import Config
 from linstabpy.linalg.backends import (
     PRECONDITIONER_PROBE_RESIDUAL_REL_MAX,
     backend_probe_is_preconditioner_role,
+    factor_backend_available,
+    resolve_auto_factor_backend,
 )
 from linstabpy.solvers import eigenvalue as _temporal_core
 from linstabpy.solvers._eps_helpers import (
@@ -233,6 +236,29 @@ def _solve_near_target(
     st.setShift(target)
     ksp = st.getKSP()
     pc = ksp.getPC()
+
+    # Auto-route: when factor_backend="auto", resolve to a concrete backend now
+    # that ndof is known.  The config carries intent "auto"; this is the only
+    # site where ndof is available before the backend is applied to the PC.
+    if cfg.eigen.st_factor_backend == "auto":
+        _strumpack_avail = factor_backend_available("strumpack")
+        _threshold = cfg.eigen.auto_route_dof_threshold
+        _concrete = resolve_auto_factor_backend(
+            ndof,
+            threshold=_threshold,
+            strumpack_available=_strumpack_avail,
+        )
+        logger.info(
+            "factor_backend=auto routing: ndof=%d threshold=%d strumpack_available=%s -> %s",
+            ndof,
+            _threshold,
+            _strumpack_avail,
+            _concrete,
+        )
+        # Replace the frozen cfg with a copy that carries the concrete backend.
+        # Only the eigen sub-object changes; no other fields are touched.
+        _eigen_concrete = dataclasses.replace(cfg.eigen, st_factor_backend=_concrete)
+        cfg = dataclasses.replace(cfg, eigen=_eigen_concrete)
 
     _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles

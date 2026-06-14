@@ -918,3 +918,113 @@ def test_iterative_linsolve_does_not_enter_factor_backend_seam(monkeypatch) -> N
         assert solver._ksp.getPC().getType() == "none"
     finally:
         solver.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Auto-route backend tests (bead r3uu.1.42)
+# ---------------------------------------------------------------------------
+
+def test_resolve_auto_factor_backend_below_threshold_yields_mumps() -> None:
+    """ndof < threshold -> mumps regardless of strumpack availability."""
+    from linstabpy.linalg.backends import resolve_auto_factor_backend
+    assert resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=True) == "mumps"
+    assert resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=False) == "mumps"
+    assert resolve_auto_factor_backend(0, threshold=224_000, strumpack_available=True) == "mumps"
+
+
+def test_resolve_auto_factor_backend_above_threshold_strumpack_available_yields_strumpack() -> None:
+    """ndof >= threshold AND strumpack_available=True (mock) -> strumpack."""
+    from linstabpy.linalg.backends import resolve_auto_factor_backend
+    assert resolve_auto_factor_backend(224_000, threshold=224_000, strumpack_available=True) == "strumpack"
+    assert resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=True) == "strumpack"
+
+
+def test_resolve_auto_factor_backend_above_threshold_strumpack_unavailable_yields_mumps() -> None:
+    """ndof >= threshold AND strumpack_available=False -> mumps fallback (the real case on this box)."""
+    from linstabpy.linalg.backends import resolve_auto_factor_backend, factor_backend_available
+    # Confirm strumpack is genuinely absent on this box so the test is live, not mocked.
+    assert not factor_backend_available("strumpack"), (
+        "STRUMPACK is available on this box — this test checks the CPU-only fallback path; "
+        "if STRUMPACK is now present, delete this guard."
+    )
+    result = resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=False)
+    assert result == "mumps"
+
+
+def test_default_resolution_still_yields_mumps(monkeypatch) -> None:
+    """Default factor_backend path is unchanged: no auto, no strumpack, just mumps."""
+    monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
+    assert backends.resolve_factor_backend(None) == "mumps"
+    cfg = Config.load({}, env={})
+    assert cfg.eigen.st_factor_backend == "mumps"
+
+
+def test_auto_backend_is_not_normalized_to_none() -> None:
+    """'auto' must be a recognized token that survives _normalize_backend (not erased like 'petsc')."""
+    from linstabpy.linalg.backends import _normalize_backend
+    assert _normalize_backend("auto") == "auto"
+    assert _normalize_backend("AUTO") == "auto"
+    # Sentinel values that SHOULD normalize to None (unchanged behavior).
+    assert _normalize_backend("petsc") is None
+    assert _normalize_backend("default") is None
+    assert _normalize_backend("none") is None
+
+
+def test_auto_route_dof_threshold_default_and_precedence(monkeypatch) -> None:
+    """Threshold precedence: env > JSONC > default constant."""
+    from linstabpy.linalg.backends import DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
+
+    # Default value.
+    cfg_default = Config.load({}, env={})
+    assert cfg_default.eigen.auto_route_dof_threshold == DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
+
+    # JSONC override.
+    cfg_jsonc = Config.load({"eigen": {"auto_route_dof_threshold": 300_000}}, env={})
+    assert cfg_jsonc.eigen.auto_route_dof_threshold == 300_000
+
+    # Env override.
+    cfg_env = Config.load({}, env={"LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD": "500000"})
+    assert cfg_env.eigen.auto_route_dof_threshold == 500_000
+
+    # Env beats JSONC.
+    cfg_env_wins = Config.load(
+        {"eigen": {"auto_route_dof_threshold": 300_000}},
+        env={"LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD": "500000"},
+    )
+    assert cfg_env_wins.eigen.auto_route_dof_threshold == 500_000
+
+
+def test_apply_factor_backend_rejects_auto_with_clear_error() -> None:
+    """'auto' must never reach apply_factor_backend — it must be resolved first."""
+    with pytest.raises(ValueError, match="factor_backend='auto' must be resolved"):
+        backends.apply_factor_backend(_FakePC(), "auto")
+
+
+def test_auto_factor_backend_end_to_end_small_operator_matches_mumps() -> None:
+    """End-to-end: factor_backend='auto' on a small operator picks mumps on this box
+    (strumpack absent) and returns the same eigenvalue as explicit mumps."""
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    op = _tiny_stability_operator()
+
+    omega_auto, _, info_auto = stability_eigenvalues(
+        op,
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={"eigen": {"st_solver": "mumps", "factor_backend": "auto"}},
+        return_info=True,
+    )
+    omega_mumps, _ = stability_eigenvalues(
+        op,
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={"eigen": {"st_solver": "mumps"}},
+    )
+
+    # The concrete backend used must be mumps (strumpack absent on this box).
+    assert info_auto["backend_probe_factor_backend"] == "mumps"
+    # The eigenvalue must be numerically identical to the plain mumps run.
+    np.testing.assert_allclose(omega_auto, omega_mumps, rtol=1.0e-10, atol=1.0e-12)

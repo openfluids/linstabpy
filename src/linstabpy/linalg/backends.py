@@ -24,6 +24,13 @@ ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
 PRECONDITIONER_PROBE_RESIDUAL_REL_MAX = 1.0e-4
 
+# DOF threshold below which MUMPS is preferred over STRUMPACK for GPU shift-invert.
+# Measured on c9 (2x NVIDIA A6000, 96 GB GPU RAM): MUMPS wins below ~224k DOF and
+# STRUMPACK wins at ~900k DOF (3.2x eigensolve speedup, |dω| = 2.4e-13).
+# The true crossover between 224k and 900k is unmeasured; this constant is a
+# tunable approximation, NOT a universal hardware-independent threshold.
+DEFAULT_AUTO_ROUTE_DOF_THRESHOLD = 224_000
+
 
 class Backend(StrEnum):
     """Known PETSc sparse-direct factor backends."""
@@ -115,6 +122,47 @@ def resolve_mumps_ordering(
     return _normalize_mumps_ordering(default)
 
 
+def resolve_auto_factor_backend(
+    ndof: int,
+    *,
+    threshold: int = DEFAULT_AUTO_ROUTE_DOF_THRESHOLD,
+    strumpack_available: bool,
+) -> str:
+    """Resolve the concrete backend for ``factor_backend="auto"`` at solve time.
+
+    Parameters
+    ----------
+    ndof:
+        Number of degrees of freedom of the operator being solved.
+    threshold:
+        DOF count at or above which STRUMPACK is preferred when available.
+        See ``DEFAULT_AUTO_ROUTE_DOF_THRESHOLD`` for provenance (c9 A6000
+        measured lower bound — tunable, not a universal constant).
+    strumpack_available:
+        Whether STRUMPACK is usable in the current PETSc build (result of
+        ``factor_backend_available("strumpack")``).  When False, the function
+        always returns ``"mumps"`` regardless of ``ndof`` — ensuring safe
+        CPU-only fallback without crashing.
+
+    Returns
+    -------
+    str
+        Either ``"strumpack"`` (iff ndof >= threshold AND strumpack_available)
+        or ``"mumps"`` (all other cases, including strumpack unavailable).
+
+    Notes
+    -----
+    The 224k default threshold is the measured c9 A6000 lower bound where MUMPS
+    stops winning; the true crossover between 224k and ~900k DOF is unmeasured.
+    Treat this as a tunable approximation, not a universal constant.
+    When STRUMPACK is not available, this function silently returns ``"mumps"``
+    — it never raises or attempts to apply an absent backend.
+    """
+    if ndof >= threshold and strumpack_available:
+        return "strumpack"
+    return "mumps"
+
+
 def apply_factor_backend(
     pc: PETSc.PC,
     backend: str | None,
@@ -128,6 +176,12 @@ def apply_factor_backend(
     """Apply ``backend`` to a PCLU after ``pc.setType('lu')``."""
     requested_backend = backend
     backend = _normalize_backend(backend)
+    if backend == "auto":
+        raise ValueError(
+            "factor_backend='auto' must be resolved to a concrete backend before "
+            "apply_factor_backend() is called.  Use resolve_auto_factor_backend() "
+            "at the solve site where ndof is known."
+        )
     blr_enabled = resolve_mumps_blr(None) if mumps_blr is None else bool(mumps_blr)
     ordering = resolve_mumps_ordering(None) if mumps_ordering is None else _normalize_mumps_ordering(mumps_ordering)
     if blr_enabled and backend != "mumps":
@@ -346,6 +400,9 @@ def _normalize_backend(value: object) -> str | None:
     text = str(value).strip().lower()
     if text in {"", "none", "null", "default", "petsc"}:
         return None
+    # "auto" is a recognized intent token, not a concrete backend — carry it through.
+    # It must be resolved to a concrete backend at solve time via
+    # resolve_auto_factor_backend() once ndof is known.
     return text
 
 
@@ -425,6 +482,7 @@ __all__ = [
     "DEFAULT_FACTOR_PRECISION",
     "DEFAULT_MUMPS_BLR",
     "DEFAULT_MUMPS_BLR_TOL",
+    "DEFAULT_AUTO_ROUTE_DOF_THRESHOLD",
     "PRECONDITIONER_PROBE_RESIDUAL_REL_MAX",
     "MUMPS_ORDERING_TO_ICNTL_7",
     "FACTOR_PRECISION",
@@ -434,6 +492,7 @@ __all__ = [
     "ensure_factor_backend_available",
     "backend_probe_is_preconditioner_role",
     "factor_backend_available",
+    "resolve_auto_factor_backend",
     "resolve_factor_backend",
     "resolve_factor_precision",
     "resolve_mumps_blr",
