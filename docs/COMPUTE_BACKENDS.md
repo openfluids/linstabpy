@@ -222,12 +222,14 @@ using the result.
 | Backend | Status | Notes |
 |---|---|---|
 | `mumps` | Default/reference. | CPU sparse-direct path used for accepted solver results. Keep this path byte-identical unless a separate change explicitly updates the default solver contract. |
-| `strumpack` | Experimental. | STRUMPACK can be selected through PETSc as a LU factor backend. On the tested CUDA build, `KSPPREONLY+PCLU+STRUMPACK` is not accurate enough for the near-singular shifted EVP operator because static pivoting leaves a high residual. Wrapping the same LU preconditioner in right-preconditioned FGMRES recovers the shifted solve to about `4e-13` relative residual on the probe RHS and gives a Blasius temporal EVP spectrum within about `1e-10` of the MUMPS reference. |
+| `strumpack` | Experimental with automatic MUMPS fallback. | STRUMPACK can be selected through PETSc as a LU factor backend, but larger shifted EVP operators can fail during `EPS.setUp`: STRUMPACK reports `ZERO_PIVOT` (PETSc err 76, surfaced as opaque `factorization failed`) when static pivoting encounters a pivot below about `sqrt(eps)·||A||_1` (~`1e-8` in the reproduced case). Tiny-pivot replacement is off and PETSc 3.24 does not expose STRUMPACK's `replace_tiny_pivots` option. `linstabpy` catches this STRUMPACK setup failure and retries once with MUMPS, whose dynamic partial pivoting factorizes the same matrices. The STRUMPACK+FGMRES path remains diagnostic for small/probe cases. |
 | `superlu_dist` | Two roles — see notes. | **CPU mixed-precision IR (live)**: `factor_precision: single` uses `pc_precision single` to enable FP32 factorization with FP64 iterative refinement; this path is not rejected and is the target of the B.4/B.6 work. **Complex+CUDA GPU solve (rejected for the tested build)**: the complex SuperLU_DIST path on the local CUDA build produced order-one solve residuals and an inconsistent EVP spectrum; changing iterative-refinement and GPU-offload flags did not fix it. The rejection applies specifically to complex sparse-direct solving on that CUDA build, not to the backend wholesale. |
 | `cudss` | Not wired. | There is no `linstabpy` PETSc factor-backend interface for cuDSS today. |
 
-The STRUMPACK result is a diagnostic result, not a production default. The
-accurate local path is:
+The STRUMPACK result is a diagnostic result, not a production default. For the
+current direct shift-invert route, STRUMPACK `ZERO_PIVOT` falls back to MUMPS
+automatically and records `factor_backend_fallback="mumps"` in the returned
+solver info. The diagnostic local recovery path is:
 
 ```text
 ST = sinvert
@@ -239,7 +241,8 @@ KSP rtol = 1e-10
 ```
 
 Do not replace the default MUMPS `PREONLY+LU` ST path with this configuration
-without a separate productization pass. That pass needs a solver-surface design,
+without a separate productization pass. A proper STRUMPACK route needs PETSc to
+expose `replace_tiny_pivots` plus FGMRES recovery, then a solver-surface design,
 failure handling, and performance measurements on the target hardware.
 
 ## Correctness Gate
@@ -264,9 +267,15 @@ the stored reference check when a PETSc build contains both backends.
 
 No speedup claim is made here. The evidence so far is numerical:
 
-- STRUMPACK `PREONLY+LU` is not acceptable for this shifted EVP operator.
+- STRUMPACK `PREONLY+LU` can fail with `ZERO_PIVOT` on larger shifted EVP
+  operators because static pivoting cannot reorder around a tiny pivot; this is
+  not fixed by 64-bit indices and is not a pure memory-size wall.
+- MUMPS factorizes the same matrices through dynamic partial pivoting, so
+  `linstabpy` falls back to MUMPS automatically for this STRUMPACK setup
+  failure.
 - STRUMPACK `FGMRES+LU` can recover a small shifted solve and the Blasius
-  temporal EVP comparison.
+  temporal EVP comparison, but enabling STRUMPACK tiny-pivot replacement through
+  PETSc is an upstream item for PETSc versions that expose that option.
 - SuperLU_DIST complex sparse-direct CUDA solves are not reliable in the tested build. The CPU mixed-precision iterative-refinement role (FP32 factor + FP64 refine via `pc_precision single`) is a separate live path and is not part of this rejection.
 
 Real backend adoption still needs end-to-end timings, peak memory, factorization

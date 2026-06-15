@@ -19,6 +19,7 @@ from linstabpy.linalg.backends import available, ensure, select
 from linstabpy.linalg.factorize import factorize
 from linstabpy.solvers import eigenvalue as eigen_core
 from linstabpy.utils.petsc_core import mumps_icntl_petsc_options
+import linstabpy.stability._eigenvalues as stability_core
 from linstabpy.stability import eigenvalues as stability_eigenvalues
 
 
@@ -855,6 +856,240 @@ def test_fgmres_lu_backend_probe_raises_on_degraded_real_solve(monkeypatch) -> N
     assert "||Kx-b||/||b||" in message
     assert re.search(r"\|\|Kx-b\|\|/\|\|b\|\| = [0-9.]+e[+-]\d+ >", message)
     assert "1.000e-08" in message
+
+
+def test_strumpack_factorization_failed_is_runtimeerror_subclass() -> None:
+    assert issubclass(eigen_core.StrumpackFactorizationFailed, RuntimeError)
+
+
+def test_strumpack_chkerr_setup_failure_raises_typed_exception() -> None:
+    class FakeA:
+        def getInfo(self):  # noqa: N802
+            return {"nz_used": 17}
+
+    class FakeEPS:
+        def getType(self):  # noqa: N802
+            return "krylovschur"
+
+    class FakeST:
+        def getType(self):  # noqa: N802
+            return "sinvert"
+
+    class FakeKSP:
+        def getType(self):  # noqa: N802
+            return "preonly"
+
+        def getPCSide(self):  # noqa: N802
+            return "right"
+
+    class FakePC:
+        def getType(self):  # noqa: N802
+            return "lu"
+
+        def getFactorSolverType(self):  # noqa: N802
+            return "strumpack"
+
+        def getFactorMatrix(self):  # noqa: N802
+            raise RuntimeError("no factor matrix in fake")
+
+    with pytest.raises(eigen_core.StrumpackFactorizationFailed) as excinfo:
+        eigen_core._raise_eps_setup_failure(
+            exc=SystemError("<method 'setUp'> returned a result with an exception set"),
+            A=FakeA(),
+            eps=FakeEPS(),
+            st=FakeST(),
+            ksp=FakeKSP(),
+            pc=FakePC(),
+            ndof=110_000,
+            n_modes=4,
+            ncv=40,
+            target=0.0 + 0.0j,
+            st_solver="mumps",
+            factor_backend="strumpack",
+        )
+
+    message = str(excinfo.value)
+    assert "ZERO_PIVOT" in message
+    assert "static pivoting" in message
+    assert "MUMPS fallback" in message
+    assert "ndof=110000" in message
+
+
+def test_strumpack_zero_pivot_falls_back_once_to_mumps(monkeypatch, caplog) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    real_apply = eigen_core.apply_factor_backend
+    calls: list[str] = []
+
+    def fail_strumpack_then_apply_mumps(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(str(backend))
+        if backend == "strumpack":
+            raise eigen_core.StrumpackFactorizationFailed("mock ZERO_PIVOT")
+        return real_apply(pc, backend, **kwargs)
+
+    monkeypatch.setattr(eigen_core, "apply_factor_backend", fail_strumpack_then_apply_mumps)
+    caplog.set_level("WARNING")
+
+    omega, _, info = stability_eigenvalues(
+        _tiny_stability_operator(),
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={"eigen": {"st_solver": "mumps", "factor_backend": "strumpack"}},
+        return_info=True,
+    )
+
+    assert omega.shape == (1,)
+    assert calls == ["strumpack", "mumps"]
+    assert info["backend_probe_factor_backend"] == "mumps"
+    assert info["factor_backend_fallback"] == "mumps"
+    assert info["factor_backend_fallback_from"] == "strumpack"
+    assert info["factor_backend_fallback_reason"] == "strumpack_zero_pivot"
+    assert "falling back once to MUMPS" in caplog.text
+
+
+def test_auto_strumpack_zero_pivot_falls_back_once_to_mumps(monkeypatch) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    real_apply = eigen_core.apply_factor_backend
+    calls: list[str] = []
+
+    def fail_strumpack_then_apply_mumps(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(str(backend))
+        if backend == "strumpack":
+            raise eigen_core.StrumpackFactorizationFailed("mock ZERO_PIVOT")
+        return real_apply(pc, backend, **kwargs)
+
+    monkeypatch.setattr(eigen_core, "apply_factor_backend", fail_strumpack_then_apply_mumps)
+    monkeypatch.setattr(
+        backends,
+        "factor_backend_available",
+        lambda backend: backend in {"mumps", "strumpack"},
+    )
+    monkeypatch.setattr(
+        stability_core,
+        "factor_backend_available",
+        lambda backend: backend == "strumpack",
+    )
+
+    omega, _, info = stability_eigenvalues(
+        _tiny_stability_operator(),
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={
+            "eigen": {
+                "st_solver": "mumps",
+                "factor_backend": "auto",
+                "auto_route_dof_threshold": 1,
+            }
+        },
+        return_info=True,
+    )
+
+    assert omega.shape == (1,)
+    assert calls == ["strumpack", "mumps"]
+    assert info["factor_backend_fallback"] == "mumps"
+    assert info["factor_backend_fallback_from"] == "strumpack"
+
+
+def test_iterative_strumpack_fgmres_fallback_forces_mumps_direct(monkeypatch) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
+
+    real_configure = stability_core._configure_st_for_eigenvalue
+    attempts: list[dict[str, object]] = []
+
+    def fail_then_configure(st_solver, ecfg, ksp, pc, st, cfg=None):  # noqa: ANN001
+        attempts.append(
+            {
+                "st_solver": st_solver,
+                "ecfg": dict(ecfg or {}),
+                "st_factor_backend": cfg.eigen.st_factor_backend if cfg is not None else None,
+                "pc_factor_solver_type": cfg.eigen.pc_factor_solver_type if cfg is not None else None,
+                "ksp_type": cfg.eigen.ksp_type if cfg is not None else None,
+                "pc_type": cfg.eigen.pc_type if cfg is not None else None,
+                "ksp_pc_side": cfg.eigen.ksp_pc_side if cfg is not None else None,
+            }
+        )
+        if len(attempts) == 1:
+            raise eigen_core.StrumpackFactorizationFailed("mock ZERO_PIVOT")
+        return real_configure(st_solver, ecfg, ksp, pc, st, cfg=cfg)
+
+    monkeypatch.setattr(stability_core, "_configure_st_for_eigenvalue", fail_then_configure)
+
+    omega, _, info = stability_eigenvalues(
+        _tiny_stability_operator(),
+        n_modes=1,
+        target=2.2 + 0.0j,
+        ncv=3,
+        solver_cfg={
+            "eigen": {
+                "st_solver": "iterative",
+                "ksp_type": "fgmres",
+                "pc_type": "lu",
+                "pc_factor_solver_type": "strumpack",
+                "ksp_pc_side": "right",
+            }
+        },
+        return_info=True,
+    )
+
+    assert omega.shape == (1,)
+    assert len(attempts) == 2
+    assert attempts[0]["st_solver"] == "iterative"
+    assert attempts[0]["st_factor_backend"] == "strumpack"
+    assert attempts[0]["pc_factor_solver_type"] == "strumpack"
+    assert attempts[0]["ksp_type"] == "fgmres"
+    assert attempts[1]["st_solver"] == "mumps"
+    assert attempts[1]["st_factor_backend"] == "mumps"
+    assert attempts[1]["pc_factor_solver_type"] == "mumps"
+    assert attempts[1]["ksp_type"] == "preonly"
+    assert attempts[1]["pc_type"] == "lu"
+    assert attempts[1]["ksp_pc_side"] == "left"
+    # Fallback ecfg selects MUMPS direct; no STRUMPACK/iterative value survives.
+    assert attempts[1]["ecfg"].get("st_solver") == "mumps"
+    assert attempts[1]["ecfg"].get("factor_backend") == "mumps"
+    assert attempts[1]["ecfg"].get("pc_factor_solver_type") != "strumpack"
+    assert info["backend_probe_factor_backend"] == "mumps"
+    assert info["st_solver"] == "mumps"
+    assert info["factor_backend_fallback"] == "mumps"
+    assert info["factor_backend_fallback_from"] == "strumpack"
+    assert info["factor_backend_fallback_reason"] == "strumpack_zero_pivot"
+
+
+def test_mumps_zero_pivot_exception_is_not_masked(monkeypatch) -> None:
+    def fail_mumps(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        raise eigen_core.StrumpackFactorizationFailed("mock failure", factor_backend="mumps")
+
+    monkeypatch.setattr(eigen_core, "apply_factor_backend", fail_mumps)
+
+    with pytest.raises(eigen_core.StrumpackFactorizationFailed):
+        stability_eigenvalues(
+            _tiny_stability_operator(),
+            n_modes=1,
+            target=2.2 + 0.0j,
+            ncv=3,
+            solver_cfg={"eigen": {"st_solver": "mumps", "factor_backend": "mumps"}},
+        )
+
+
+def test_non_strumpack_setup_failure_is_not_masked(monkeypatch) -> None:
+    def fail_unrelated(pc, backend, **kwargs):  # noqa: ANN001, ANN003
+        raise RuntimeError("unrelated setup failure")
+
+    monkeypatch.setattr(eigen_core, "apply_factor_backend", fail_unrelated)
+
+    with pytest.raises(RuntimeError, match="unrelated setup failure"):
+        stability_eigenvalues(
+            _tiny_stability_operator(),
+            n_modes=1,
+            target=2.2 + 0.0j,
+            ncv=3,
+            solver_cfg={"eigen": {"st_solver": "mumps", "factor_backend": "strumpack"}},
+        )
 
 
 def test_strumpack_fgmres_invokes_backend_probe(monkeypatch) -> None:
