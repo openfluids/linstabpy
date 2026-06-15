@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -34,6 +35,7 @@ class SweepResult:
     responses: Array
     forcings: Array
     certification_reports: tuple[CertificationReport, ...]
+    metrics: dict[str, float | int | bool] = field(default_factory=dict)
 
 
 def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
@@ -239,35 +241,67 @@ def sweep_stable_regime(
     W = np.asarray(_cfg_get(cfg, "W", np.ones(n, dtype=complex)), dtype=complex).reshape(-1)
     invW = np.asarray(_cfg_get(cfg, "invW", np.ones(n, dtype=complex)), dtype=complex).reshape(-1)
 
-    factors = tuple(
-        factorize(
+    anchor_indices = _nearest_anchor_indices(omegas, anchor_values)
+    use_symbolic_reuse = bool(_cfg_get(cfg, "reuse_symbolic", True))
+    use_block_solve = bool(_cfg_get(cfg, "use_block_solve", True))
+    metrics: dict[str, float | int | bool] = {
+        "symbolic_reuse_requested": use_symbolic_reuse,
+        "symbolic_reuse_used": False,
+        "symbolic_reuse_fallback": False,
+        "symbolic_reuse_fallback_anchor_index": -1,
+        "factorize_calls": 0,
+        "factorize_seconds": 0.0,
+        "analysis_reuse_count": 0,
+    }
+    factors_seen: list[Any] = []
+    gains = np.empty(omegas.size, dtype=float)
+    iterations = np.empty(omegas.size, dtype=int)
+    residuals = np.empty(omegas.size, dtype=float)
+    responses = np.empty((n, omegas.size), dtype=complex)
+    forcings = np.empty((n, omegas.size), dtype=complex)
+    reports: list[CertificationReport | None] = [None] * omegas.size
+
+    def factorize_anchor(anchor: complex) -> Any:
+        start = time.perf_counter()
+        fac = factorize(
             shifted_operator(L0_beta, anchor),
             env_prefix="LINSTABPY_RESOLVENT",
             solver_cfg=solver_cfg,
             cfg=factorize_cfg,
         )
-        for anchor in anchor_values
-    )
-    anchor_indices = _nearest_anchor_indices(omegas, anchor_values)
+        metrics["factorize_calls"] = int(metrics["factorize_calls"]) + 1
+        metrics["factorize_seconds"] = float(metrics["factorize_seconds"]) + time.perf_counter() - start
+        factors_seen.append(fac)
+        return fac
 
-    gains: list[float] = []
-    iterations: list[int] = []
-    residuals: list[float] = []
-    responses: list[Array] = []
-    forcings: list[Array] = []
-    reports: list[CertificationReport] = []
+    def factor_metric_sum(name: str) -> float:
+        total = 0.0
+        seen: set[int] = set()
+        for fac in factors_seen:
+            if id(fac) in seen:
+                continue
+            seen.add(id(fac))
+            total += float((getattr(fac, "metrics", None) or {}).get(name, 0.0))
+        return total
 
-    for omega, anchor_index in zip(omegas, anchor_indices, strict=True):
+    def solve_one(pos: int, factor: Any) -> None:
+        omega = omegas[pos]
+        anchor = anchor_values[int(anchor_indices[pos])]
         operator = shifted_operator(L0_beta, omega)
-        factor = factors[int(anchor_index)]
         iter_log: list[int] = []
         residual_log: list[float] = []
         adj_iter_log: list[int] = []
         adj_residual_log: list[float] = []
 
+        def precondition(rhs: Array) -> Array:
+            if use_block_solve and hasattr(factor, "solve_block"):
+                block = np.asarray(rhs, dtype=complex).reshape(-1, 1)
+                return np.asarray(factor.solve_block(block)[:, 0], dtype=complex)
+            return factor.solve(rhs)
+
         def apply_H(rhs: Array) -> Array:
             x, iters, gmres_residual = _right_preconditioned_gmres(
-                lambda z: _matvec(operator, z), factor.solve, rhs, rtol=rtol, maxiter=maxiter
+                lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
             )
             iter_log.append(iters)
             residual_log.append(max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex))))
@@ -286,9 +320,17 @@ def sweep_stable_regime(
             probes_a, probes_b = _default_probes(n)
         probe_forward_residuals = []
         probe_adjoint_residuals = []
+        used_probe_block = False
+        if use_block_solve and hasattr(factor, "solve_block") and omega == anchor and len(probes_a) > 1:
+            probe_block = np.column_stack([np.asarray(probe, dtype=complex).reshape(-1) for probe in probes_a])
+            probe_x = factor.solve_block(probe_block)
+            for probe, x in zip(probes_a, probe_x.T, strict=True):
+                probe_forward_residuals.append(_relative_residual(operator, x, np.asarray(probe, dtype=complex)))
+            used_probe_block = True
         for probe in probes_a:
-            x = apply_H(probe)
-            probe_forward_residuals.append(_relative_residual(operator, x, np.asarray(probe, dtype=complex)))
+            if not used_probe_block:
+                x = apply_H(probe)
+                probe_forward_residuals.append(_relative_residual(operator, x, np.asarray(probe, dtype=complex)))
             xa = apply_H_adj(probe)
             probe_adjoint_residuals.append(_relative_residual(operator, xa, np.asarray(probe, dtype=complex), adjoint=True))
 
@@ -296,24 +338,55 @@ def sweep_stable_regime(
         cert_cfg["probes_a"] = probes_a
         cert_cfg["probes_b"] = probes_b
         omega_gains, omega_responses, omega_forcings, report = certified_rsvd(apply_H, apply_H_adj, W, invW, cert_cfg)
-        gains.append(float(omega_gains[0]))
-        responses.append(np.asarray(omega_responses[:, 0], dtype=complex))
-        forcings.append(np.asarray(omega_forcings[:, 0], dtype=complex))
+        gains[pos] = float(omega_gains[0])
+        responses[:, pos] = np.asarray(omega_responses[:, 0], dtype=complex)
+        forcings[:, pos] = np.asarray(omega_forcings[:, 0], dtype=complex)
         all_iters = iter_log + adj_iter_log
         all_residuals = residual_log + adj_residual_log
-        iterations.append(max(all_iters) if all_iters else 0)
-        residuals.append(max(all_residuals) if all_residuals else 0.0)
-        reports.append(report)
+        iterations[pos] = max(all_iters) if all_iters else 0
+        residuals[pos] = max(all_residuals) if all_residuals else 0.0
+        reports[pos] = report
+
+    def solve_anchor_positions(anchor_i: int, factor: Any) -> None:
+        for pos in np.flatnonzero(anchor_indices == anchor_i):
+            solve_one(int(pos), factor)
+
+    first_factor = factorize_anchor(anchor_values[0])
+    refactorize_in_place = getattr(first_factor, "refactorize", None)
+    if use_symbolic_reuse and anchor_values.size > 1 and callable(refactorize_in_place):
+        for anchor_i, anchor in enumerate(anchor_values):
+            if anchor_i > 0:
+                try:
+                    first_factor.refactorize(shifted_operator(L0_beta, anchor))
+                except (PETSc.Error, NotImplementedError, ValueError):
+                    metrics["symbolic_reuse_fallback"] = True
+                    metrics["symbolic_reuse_fallback_anchor_index"] = anchor_i
+                    for fallback_i in range(anchor_i, anchor_values.size):
+                        solve_anchor_positions(fallback_i, factorize_anchor(anchor_values[fallback_i]))
+                    break
+                metrics["symbolic_reuse_used"] = True
+            solve_anchor_positions(anchor_i, first_factor)
+    else:
+        solve_anchor_positions(0, first_factor)
+        for anchor_i in range(1, anchor_values.size):
+            solve_anchor_positions(anchor_i, factorize_anchor(anchor_values[anchor_i]))
+
+    metrics["analysis_reuse_count"] = int(factor_metric_sum("refactor_count"))
+    metrics["refactor_seconds"] = factor_metric_sum("refactor_seconds")
+    metrics["solve_block_calls"] = int(factor_metric_sum("solve_block_calls"))
+    metrics["solve_block_rhs"] = int(factor_metric_sum("solve_block_rhs"))
+    metrics["solve_block_seconds"] = factor_metric_sum("solve_block_seconds")
 
     return SweepResult(
         omega=omegas,
-        gain=np.asarray(gains, dtype=float),
-        iterations=np.asarray(iterations, dtype=int),
-        residuals=np.asarray(residuals, dtype=float),
+        gain=gains,
+        iterations=iterations,
+        residuals=residuals,
         anchor_indices=anchor_indices,
-        responses=np.column_stack(responses) if responses else np.empty((n, 0), dtype=complex),
-        forcings=np.column_stack(forcings) if forcings else np.empty((n, 0), dtype=complex),
-        certification_reports=tuple(reports),
+        responses=responses,
+        forcings=forcings,
+        certification_reports=tuple(report for report in reports if report is not None),
+        metrics=metrics,
     )
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -39,6 +40,16 @@ from .backends import apply_factor_backend
 logger = logging.getLogger(__name__)
 
 
+def _aij_pattern(mat: PETSc.Mat) -> tuple[np.ndarray, np.ndarray]:
+    try:
+        indptr, indices, _ = mat.getValuesCSR()
+    except (AttributeError, PETSc.Error) as exc:
+        raise NotImplementedError(
+            "refactorize requires CSR structure access to verify an identical nonzero pattern"
+        ) from exc
+    return np.asarray(indptr, dtype=np.int64).copy(), np.asarray(indices, dtype=np.int64).copy()
+
+
 @dataclass
 class Factorization:
     """Callable wrapper for forward and adjoint solves on one factorization."""
@@ -51,6 +62,9 @@ class Factorization:
     residual: Callable[[np.ndarray, np.ndarray], float]
     _ksp: PETSc.KSP | None = None
     _mat: PETSc.Mat | None = None
+    _solve_block: Callable[[np.ndarray], np.ndarray] | None = None
+    _refactorize: Callable[[sp.spmatrix | PETSc.Mat], None] | None = None
+    metrics: dict[str, float | int] | None = None
 
     @property
     def solve_transpose(self) -> Callable[[np.ndarray], np.ndarray]:
@@ -61,6 +75,20 @@ class Factorization:
     def solve_transpose_vec(self) -> Callable[[PETSc.Vec], PETSc.Vec]:
         """Backward-compatible alias for :meth:`solve_adjoint_vec`."""
         return self.solve_adjoint_vec
+
+    def solve_block(self, rhs_block: np.ndarray) -> np.ndarray:
+        if self._solve_block is not None:
+            return self._solve_block(rhs_block)
+        block = np.asarray(rhs_block, dtype=complex)
+        block = block.reshape(-1, 1) if block.ndim == 1 else block
+        if block.ndim != 2:
+            raise ValueError(f"rhs_block must be 1-D or 2-D, got shape {block.shape}")
+        return np.column_stack([self.solve(block[:, j]) for j in range(block.shape[1])])
+
+    def refactorize(self, operator: sp.spmatrix | PETSc.Mat) -> Factorization:
+        if self._refactorize is None: raise NotImplementedError("this factorization cannot be refactorized in place")
+        self._refactorize(operator)
+        return self
 
     def destroy(self) -> None:
         """Release PETSc KSP and matrix resources owned by this wrapper."""
@@ -107,6 +135,10 @@ def factorize(
         A = operator.copy()
     else:
         A = scipy_to_petsc(operator, solver_cfg)
+    metrics: dict[str, float | int] = dict.fromkeys((
+        "refactor_count", "solve_block_calls", "solve_block_rhs", "solve_block_fallback_calls"), 0)
+    metrics.update(refactor_seconds=0.0, solve_block_seconds=0.0)
+    holder: dict[str, Factorization] = {}
 
     if env_prefix == "LINSTABPY_LINSOLVE":
         lin = cfg.linsolve
@@ -381,7 +413,101 @@ def factorize(
             x.destroy()
             b.destroy()
 
-    return Factorization(
+    def _as_rhs_block(rhs_block: np.ndarray) -> np.ndarray:
+        block = np.asarray(rhs_block, dtype=complex)
+        if block.ndim == 1:
+            block = block.reshape(-1, 1)
+        if block.ndim != 2 or block.shape[0] != n:
+            raise ValueError(f"rhs_block must have shape ({n}, k), got {block.shape}")
+        return np.ascontiguousarray(block)
+
+    def _dense_from_block(block: np.ndarray) -> PETSc.Mat:
+        r0, r1 = A.getOwnershipRange()
+        nrhs = int(block.shape[1])
+        mat = PETSc.Mat().createDense(size=((r1 - r0, n), (nrhs, nrhs)), comm=A.getComm())
+        mat.getDenseArray()[:, :] = block[r0:r1, :]
+        mat.assemble()
+        return mat
+
+    def _dense_to_numpy(mat: PETSc.Mat) -> np.ndarray:
+        if mat.getComm().getSize() == 1:
+            return np.array(mat.getDenseArray(), copy=True)
+        cols = []
+        for j in range(int(mat.getSize()[1])):
+            col = mat.getDenseColumnVec(j, "r")
+            try:
+                cols.append(vec_to_numpy(col))
+            finally:
+                mat.restoreDenseColumnVec(j, "r", col)
+        return np.column_stack(cols)
+
+    def _loop_block(block: np.ndarray, action: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+        metrics["solve_block_fallback_calls"] += 1
+        return np.column_stack([action(block[:, j]) for j in range(block.shape[1])])
+
+    def solve_block(rhs_block: np.ndarray) -> np.ndarray:
+        block = _as_rhs_block(rhs_block)
+        if solver_type not in DIRECT_SOLVER_TYPES:
+            return _loop_block(block, solve)
+        B = _dense_from_block(block)
+        X = _dense_from_block(np.zeros_like(block))
+        start = time.perf_counter()
+        try:
+            ksp.getPC().getFactorMatrix().matSolve(B, X)
+            elapsed = time.perf_counter() - start
+            metrics["solve_block_calls"] += 1
+            metrics["solve_block_rhs"] += int(block.shape[1])
+            metrics["solve_block_seconds"] += elapsed
+            return _dense_to_numpy(X)
+        except (AttributeError, PETSc.Error):
+            return _loop_block(block, solve)
+        finally:
+            X.destroy()
+            B.destroy()
+
+    def refactorize_operator(new_operator: sp.spmatrix | PETSc.Mat) -> None:
+        nonlocal A
+        nrows_new, ncols_new = _operator_shape(new_operator)
+        if (nrows_new, ncols_new) != (n, n):
+            raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
+        new_A = new_operator.copy() if _is_petsc_matrix(new_operator) else scipy_to_petsc(new_operator, solver_cfg)
+        try:
+            old_pattern = _aij_pattern(A)
+            new_pattern = _aij_pattern(new_A)
+            local_mismatch = not all(
+                np.array_equal(old, new) for old, new in zip(old_pattern, new_pattern, strict=True)
+            )
+            # Collective: reduce the mismatch flag across the communicator so every
+            # rank takes the same raise/fallback branch. The CSR comparison is rank-
+            # local; a rank raising here while others proceed into the collective
+            # ksp.setOperators()/setUp() below would split the communicator and hang.
+            comm = A.getComm()
+            if comm.getSize() > 1:
+                from mpi4py import MPI
+
+                local_mismatch = bool(comm.tompi4py().allreduce(local_mismatch, op=MPI.LOR))
+            if local_mismatch:
+                raise ValueError("refactorize requires an identical nonzero pattern")
+        except Exception:
+            new_A.destroy()
+            raise
+        old_A = A
+        start = time.perf_counter()
+        try:
+            if solver_type in DIRECT_SOLVER_TYPES:
+                pc.setFactorOrdering(reuse=True)
+            ksp.setOperators(new_A)
+            ksp.setUp()
+        except Exception:
+            new_A.destroy()
+            raise
+        A = new_A
+        metrics["refactor_count"] += 1
+        metrics["refactor_seconds"] += time.perf_counter() - start
+        holder["factor"]._mat = A
+        old_A.destroy()
+
+    factor = Factorization(
         backend=backend,
         solve=solve,
         solve_adjoint=solve_transpose,
@@ -390,7 +516,12 @@ def factorize(
         residual=residual,
         _ksp=ksp,
         _mat=A,
+        _solve_block=solve_block,
+        _refactorize=refactorize_operator,
+        metrics=metrics,
     )
+    holder["factor"] = factor
+    return factor
 
 
 # Keep ``from linstabpy.linalg import factorize`` bound to the public function
