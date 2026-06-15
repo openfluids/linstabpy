@@ -590,6 +590,47 @@ def test_absent_backend_probe_and_error_message() -> None:
     assert "docs/COMPUTE_BACKENDS.md" in message
 
 
+@pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
+def test_ensure_factor_backend_available_real_names_fail_loud_on_cpu_only(backend: str) -> None:
+    if backends.factor_backend_available(backend):
+        pytest.skip(f"SKIPPED: {backend!r} is available in this PETSc build")
+
+    with pytest.raises(RuntimeError) as excinfo:
+        backends.ensure_factor_backend_available(backend)
+
+    message = str(excinfo.value)
+    assert f"'{backend}'" in message
+    assert "Rebuild PETSc/petsc4py" in message
+    assert "docs/COMPUTE_BACKENDS.md" in message
+
+
+@pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
+def test_apply_factor_backend_real_names_fail_loud_on_cpu_only(backend: str) -> None:
+    if backends.factor_backend_available(backend):
+        pytest.skip(f"SKIPPED: {backend!r} is available in this PETSc build")
+
+    A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
+    A.setValue(0, 0, 1.0 + 0.0j)
+    A.assemble()
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_SELF)
+    try:
+        ksp.setOperators(A)
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.LU)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            backends.apply_factor_backend(pc, backend)
+
+        message = str(excinfo.value)
+        assert f"'{backend}'" in message
+        assert "Rebuild PETSc/petsc4py" in message
+        assert "docs/COMPUTE_BACKENDS.md" in message
+    finally:
+        ksp.destroy()
+        A.destroy()
+
+
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist", "cudss"])
 def test_future_backend_knob_fails_loudly_on_cpu_only_build(monkeypatch, backend) -> None:
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", backend)
