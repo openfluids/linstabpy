@@ -63,6 +63,149 @@ Backend selection precedence is:
 Requested backends are checked with a tiny complex PETSc LU setup probe. An
 unavailable backend fails loudly instead of silently falling back.
 
+### NVPL CPU BLAS/LAPACK (Grace aarch64) build notes
+
+NVIDIA Performance Libraries (NVPL) provide BLAS and LAPACK implementations
+optimised for the Grace Armv9.0-A architecture. Linking PETSc/SLEPc against
+NVPL at build time is the highest-ROI, zero-code path for accelerating dense
+CPU operations (SBP assembly, Padé construction, BLAS-heavy solver phases) on
+Grace aarch64 hardware. No code change is required; the linkage is entirely
+a configure-time choice.
+
+**When to use this:** only on a Grace aarch64 workstation with NVPL installed.
+The recipe is written here as a preparation step; on-hardware activation and
+verification are deferred to Grace hardware.
+
+**Install NVPL.** Via the OS package manager (places libraries on standard
+system paths, no further path configuration needed) or by extracting the
+standalone tarball and setting `nvpl_ROOT`:
+
+```bash
+export nvpl_ROOT=/path/to/nvpl
+export LD_LIBRARY_PATH="${nvpl_ROOT}/lib:${LD_LIBRARY_PATH}"
+export LIBRARY_PATH="${nvpl_ROOT}/lib:${LIBRARY_PATH}"
+```
+
+**Library variants.** NVPL ships four BLAS interface libraries and matching
+LAPACK libraries; choose one BLAS and one LAPACK:
+
+| Integer width | Threading | BLAS library | LAPACK library |
+|---|---|---|---|
+| LP64 (32-bit, default) | sequential | `libnvpl_blas_lp64_seq` | `libnvpl_lapack_lp64_seq` |
+| LP64 | OpenMP (GCC gomp) | `libnvpl_blas_lp64_gomp` | `libnvpl_lapack_lp64_gomp` |
+| ILP64 (64-bit) | sequential | `libnvpl_blas_ilp64_seq` | `libnvpl_lapack_ilp64_seq` |
+| ILP64 | OpenMP (GCC gomp) | `libnvpl_blas_ilp64_gomp` | `libnvpl_lapack_ilp64_gomp` |
+
+Each interface library must be paired with the shared core: `libnvpl_blas_core`
+and `libnvpl_lapack_core`.
+
+Only the LP64-sequential pair is reproduced from a published worked PETSc
+configure example; the other three rows follow NVPL's documented
+`libnvpl_{blas,lapack}_<int_type>_<threading_type>` naming convention but were
+not each seen in a worked example. Confirm the exact `.so` name on the target
+system (`ls "${nvpl_ROOT}/lib"`) before committing to an ILP64 or `_gomp`
+variant.
+
+For the default `linstabpy` case (32-bit PETSc indices, LP64 BLAS/LAPACK,
+single-threaded BLAS within each MPI rank) the sequential LP64 pair is the
+right choice. For a hybrid MPI + threaded-BLAS placement (see Hybrid MPI +
+Threaded-BLAS Placement above), switch to the `_gomp` variant and set
+`OMP_NUM_THREADS` accordingly.
+
+If you build PETSc with `--with-64-bit-blas-indices`, use the ILP64 variant
+instead. Note that MUMPS and most other PETSc external packages do not accept
+64-bit BLAS indices; prefer LP64 unless the package list has been verified.
+
+**PETSc configure.** Point PETSc at the chosen library pair with
+`--with-blaslapack-lib`. Do not set `--with-blaslapack-dir` at the same
+time — the two flags are mutually exclusive.
+
+LP64 sequential example (replace `${nvpl_ROOT}/lib` with the actual
+library directory, e.g. `/usr/lib/aarch64-linux-gnu` for a
+package-manager install):
+
+```text
+./configure \
+  --with-scalar-type=complex \
+  --with-blaslapack-lib="-L${nvpl_ROOT}/lib \
+    -lnvpl_lapack_lp64_seq -lnvpl_lapack_core \
+    -lnvpl_blas_lp64_seq   -lnvpl_blas_core"
+```
+
+Keep all other flags from the reference CPU/MUMPS stack unchanged
+(`--download-mumps`, `--download-metis`, etc.). SLEPc inherits the BLAS/LAPACK
+linkage from its parent PETSc build automatically; no separate NVPL step is
+needed for SLEPc.
+
+Because `install.sh` does not yet wire an NVPL stack, the build must be done
+manually in an isolated directory and paired with a side-by-side virtual
+environment (e.g. `.venv-nvpl`). Do not target `.venv`.
+
+**complex128 (Z) verification — deferred to Grace aarch64 hardware.**
+`linstabpy` builds with `--with-scalar-type=complex`, so all shifted solves
+use complex-double (Z) BLAS/LAPACK symbols (`zgemm`, `zgetrf`, etc.). Once
+the build completes on Grace hardware, confirm the Z symbols resolve to NVPL
+rather than a fallback implementation:
+
+```bash
+# 1. ldd on the built libpetsc shared library — look for libnvpl_blas* and
+#    libnvpl_lapack* in the output:
+ldd /path/to/petsc-install/lib/libpetsc.so | grep nvpl
+
+# 2. Check NumPy's BLAS/LAPACK wiring (if NumPy was also built against NVPL):
+.venv-nvpl/bin/python -c "import numpy; numpy.show_config()"
+
+# 3. Confirm a PETSc complex-scalar hello builds and links:
+.venv-nvpl/bin/python -c \
+  "import petsc4py; petsc4py.init(); \
+   from petsc4py import PETSc; \
+   v = PETSc.Vec().createSeq(4); v.set(1+2j); print('complex PETSc OK', v.norm())"
+```
+
+The `ldd` check is the primary gate: if `libnvpl_blas*` and
+`libnvpl_lapack*` appear in the output, the Z symbols are routing through
+NVPL. Run this on Grace before using the build for production stability or
+resolvent computations.
+
+**NumPy and SciPy.** For the Python stack, modern Meson-based NumPy/SciPy
+builds accept NVPL via:
+
+```bash
+python -m build --wheel \
+  -Csetup-args=-Dblas=nvpl-blas-lp64-omp \
+  -Csetup-args=-Dlapack=nvpl-lapack-lp64-omp
+```
+
+This is secondary to the PETSc linkage; the PETSc Z-symbol check above is
+the verification that matters for `linstabpy` correctness.
+
+<!-- SOURCES -->
+<!--
+NVPL BLAS Developer Guide — library variants (lp64/ilp64, seq/gomp), naming
+convention, libnvpl_blas_core:
+  https://docs.nvidia.com/nvpl/latest/blas/programming_model/building_and_linking.html
+  https://docs.nvidia.com/nvpl/latest/blas/packaging.html
+
+NVPL LAPACK Developer Guide — library variants, libnvpl_lapack_core:
+  https://docs.nvidia.com/nvpl/latest/lapack/programming_model/building_and_linking.html
+  https://docs.nvidia.com/nvpl/latest/lapack/index.html
+
+NVPL install / nvpl_ROOT / LD_LIBRARY_PATH:
+  https://docs.nvidia.com/nvpl/latest/install.html
+
+TACC BLAS/LAPACK guide — confirmed PETSc configure example with
+  -lnvpl_lapack_lp64_seq -lnvpl_lapack_core -lnvpl_blas_lp64_seq -lnvpl_blas_core:
+  https://docs.tacc.utexas.edu/tutorials/blas-lapack/
+
+PETSc configure BLAS/LAPACK flags (--with-blaslapack-lib, --with-64-bit-blas-indices,
+  mutual exclusivity with --with-blaslapack-dir):
+  https://petsc.org/release/install/install/
+  https://petsc.org/release/manual/blas-lapack/
+
+NVPL NumPy/SciPy Meson build (-Dblas=nvpl-blas-lp64-omp):
+  https://docs.nvidia.com/nvpl/latest/numerical-python.html
+-->
+
 ## Mixed-Precision Factorization Knob
 
 `LINSTABPY_FACTOR_PRECISION` and the matching JSONC `factor_precision` field
