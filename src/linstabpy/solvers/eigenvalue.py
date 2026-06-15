@@ -107,6 +107,15 @@ from .petsc_utils import (
 
 logger = logging.getLogger(__name__)
 
+
+class StrumpackFactorizationFailed(RuntimeError):
+    """STRUMPACK static-pivoting ZERO_PIVOT during PETSc factorization."""
+
+    def __init__(self, message: str, *, factor_backend: str = "strumpack") -> None:
+        super().__init__(message)
+        self.factor_backend = factor_backend
+
+
 FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"})
 
 
@@ -320,6 +329,7 @@ def _raise_eps_setup_failure(
     ncv: int,
     target: complex,
     st_solver: str,
+    factor_backend: str | None = None,
 ) -> NoReturn:
     """Raise a richer error when SLEPc/PETSc setup fails.
 
@@ -358,6 +368,7 @@ def _raise_eps_setup_failure(
     factor_solver = _safe_petsc_info(pc.getFactorSolverType, None)
     if factor_solver is not None and factor_solver != "?":
         details.append(f"factor_solver={factor_solver}")
+    resolved_backend = str(factor_backend or factor_solver or "").lower()
 
     factor_matrix = _safe_petsc_info(pc.getFactorMatrix, None)
     if factor_matrix is not None and factor_matrix != "?":
@@ -375,7 +386,22 @@ def _raise_eps_setup_failure(
 
     # Branch on exception type to produce a useful message.
     _CHKERR_SENTINEL = "returned a result with an exception set"
-    if isinstance(exc, SystemError) and _CHKERR_SENTINEL in str(exc):
+    ierr = getattr(exc, "ierr", None) if isinstance(exc, PETSc.Error) else None
+    is_chkerr_collapse = isinstance(exc, SystemError) and _CHKERR_SENTINEL in str(exc)
+    is_strumpack_zero_pivot = resolved_backend == "strumpack" and (
+        is_chkerr_collapse or ierr == 76
+    )
+    if is_strumpack_zero_pivot:
+        raise StrumpackFactorizationFailed(
+            "SLEPc EPS.setUp failed because STRUMPACK factorization hit "
+            "ZERO_PIVOT under static pivoting (tiny pivot below about "
+            "sqrt(eps)*||A||_1 ~= 1e-8; tiny-pivot replacement is disabled "
+            "and PETSc 3.24 does not expose replace_tiny_pivots). A MUMPS "
+            "fallback using dynamic partial pivoting is available/attempted. "
+            f"context: {context}",
+            factor_backend="strumpack",
+        ) from exc
+    if is_chkerr_collapse:
         # petsc4py CHKERR collapse: the real PETSc/STRUMPACK error went to
         # stderr only; the SystemError text is not diagnostic on its own.
         raise RuntimeError(
@@ -387,7 +413,6 @@ def _raise_eps_setup_failure(
             f"context: {context}"
         ) from exc
     elif isinstance(exc, PETSc.Error):
-        ierr = getattr(exc, "ierr", None)
         code_str = f"ierr={ierr}" if ierr is not None else "ierr=?"
         raise RuntimeError(
             f"SLEPc EPS.setUp failed [PETSc.Error {code_str}]: "

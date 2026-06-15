@@ -509,6 +509,39 @@ def _solve_near_target(
     return eigenvalues, eigenvectors
 
 
+def _mumps_direct_solver_cfg(solver_cfg: dict | None) -> dict:
+    """Return a clean MUMPS-direct ``solver_cfg`` for the STRUMPACK fallback.
+
+    Strips every STRUMPACK/iterative factor-backend selector from the eigen
+    subsection so the retried solve uses the validated MUMPS
+    ``SINVERT+PREONLY+LU`` path. Building a fresh dict (rather than overriding
+    one config channel) means no STRUMPACK setting can leak through the raw
+    ``solver_cfg``, the typed ``cfg.eigen``, or an explicit
+    ``pc_factor_solver_type``. If ``solver_cfg`` is ``None`` the fallback uses
+    MUMPS with default tolerances (acceptable for a correctness-preserving
+    fallback solve).
+    """
+    base = dict(solver_cfg) if solver_cfg else {}
+    eigen = dict(base.get("eigen", {}))
+    for key in ("ksp_rtol", "ksp_atol", "ksp_max_it", "sub_ksp_type", "sub_pc_type"):
+        eigen.pop(key, None)
+    # Set every backend/solver channel explicitly to MUMPS direct so no
+    # STRUMPACK/iterative value can survive through any config naming.
+    eigen.update(
+        {
+            "st_solver": "mumps",
+            "factor_backend": "mumps",
+            "st_factor_backend": "mumps",
+            "pc_factor_solver_type": "mumps",
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "ksp_pc_side": "left",
+        }
+    )
+    base["eigen"] = eigen
+    return base
+
+
 def eigenvalues(
     L0: sp.spmatrix | PETSc.Mat,
     n_modes: int,
@@ -559,28 +592,38 @@ def eigenvalues(
 
     temporal_operator = _scaled_operator(operator, 1j)
     omega = complex(target)
-    if return_info:
-        eigenvalues, eigenvectors, info = _solve_near_target(
+    def _attempt(scfg: dict | None, c: Config) -> tuple[np.ndarray, np.ndarray, dict]:
+        ev, evec, nfo = _solve_near_target(
             temporal_operator,
             n_modes,
             omega,
             ncv=ncv,
             initial_space=initial_space,
-            solver_cfg=solver_cfg,
-            cfg=cfg,
+            solver_cfg=scfg,
+            cfg=c,
             return_info=True,
         )
-    else:
-        eigenvalues, eigenvectors = _solve_near_target(
-            temporal_operator,
-            n_modes,
-            omega,
-            ncv=ncv,
-            initial_space=initial_space,
-            solver_cfg=solver_cfg,
-            cfg=cfg,
+        return ev, evec, (nfo if nfo is not None else {})
+
+    try:
+        eigenvalues, eigenvectors, info = _attempt(solver_cfg, cfg)
+    except _temporal_core.StrumpackFactorizationFailed:
+        # STRUMPACK static pivoting returned ZERO_PIVOT (PETSc maps it to the
+        # opaque "factorization failed"). Retry once with a clean MUMPS direct
+        # solve, whose dynamic partial pivoting handles the tiny pivot. Done at
+        # this top level (not inside _solve_near_target) so the retry rebuilds
+        # every config channel from a STRUMPACK-free dict and nothing can leak.
+        logger.warning(
+            "STRUMPACK ZERO_PIVOT during temporal EVP at ndof=%d; falling back "
+            "once to MUMPS direct solve (dynamic pivoting)",
+            ndof,
         )
-        info = {}
+        mumps_scfg = _mumps_direct_solver_cfg(solver_cfg)
+        mumps_cfg = Config.load(mumps_scfg)
+        eigenvalues, eigenvectors, info = _attempt(mumps_scfg, mumps_cfg)
+        info["factor_backend_fallback"] = "mumps"
+        info["factor_backend_fallback_from"] = "strumpack"
+        info["factor_backend_fallback_reason"] = "strumpack_zero_pivot"
     order = _nearest_order(eigenvalues, omega)
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
