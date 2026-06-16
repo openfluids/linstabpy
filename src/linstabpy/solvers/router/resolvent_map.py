@@ -321,23 +321,173 @@ def _maybe_petsc_diag(diagonal: np.ndarray, like_operator: Any, solver_cfg: Mapp
     return mat
 
 
+_REGION_VARS = ("rho", "u", "v", "w", "T")
+
+
+def _region_bounds(values: np.ndarray, raw_bounds: Any, *, axis: str, name: str) -> tuple[float, float, bool]:
+    if raw_bounds is None:
+        return float(np.min(values)), float(np.max(values)), False
+    bounds = np.asarray(raw_bounds, dtype=float).reshape(-1)
+    if bounds.size != 2:
+        raise ValueError(f"{name} {axis} bounds must contain exactly two finite values")
+    if not np.all(np.isfinite(bounds)):
+        raise ValueError(f"{name} {axis} bounds must contain exactly two finite values")
+    lower, upper = float(bounds[0]), float(bounds[1])
+    if lower > upper:
+        raise ValueError(f"{name} {axis} bounds must be increasing, got [{lower}, {upper}]")
+    return lower, upper, True
+
+
+def _region_vars(region: Mapping[str, Any], *, name: str) -> tuple[str, ...]:
+    raw_vars = region.get("vars", _REGION_VARS)
+    if raw_vars is None:
+        raw_vars = _REGION_VARS
+    if isinstance(raw_vars, str):
+        requested = (raw_vars,)
+    else:
+        try:
+            requested = tuple(raw_vars)
+        except TypeError as exc:
+            raise ValueError(f"{name} vars must be an iterable of variable names") from exc
+    if not requested:
+        raise ValueError(f"{name} vars must select at least one variable")
+    unknown = [str(var) for var in requested if str(var) not in _REGION_VARS]
+    if unknown:
+        raise ValueError(f"{name} unknown variable name(s): {unknown}; valid variables are {list(_REGION_VARS)}")
+    return tuple(str(var) for var in requested)
+
+
+def _build_region_mask(
+    mesh: Any,
+    idx: Mapping[str, Any],
+    ndof: int,
+    region_spec: Mapping[str, Any],
+    like_operator: Any,
+    solver_cfg: Mapping[str, Any],
+    *,
+    name: str = "region",
+) -> Any:
+    """Build a sharp 0/1 diagonal forcing/response mask from a user region.
+
+    The mask follows the LNSE state layout exactly: active physical points are
+    taken from ``mesh.X/Y.ravel(order="F")[mesh.used_ind]`` and variable blocks
+    from ``idx['rho_j']``, ``idx['u_j']``, ``idx['v_j']``, ``idx['w_j']``, and
+    ``idx['T_j']``.  A region mask changes the resolvent question to a
+    windowed/component-restricted gain; it is not an approximation to the global
+    unmasked gain.
+    """
+    if not isinstance(region_spec, Mapping):
+        raise ValueError(f"{name} must be a mapping with optional x, y, and vars keys")
+
+    used_ind = np.asarray(mesh.used_ind)
+    X_act = np.asarray(mesh.X, dtype=float).ravel(order="F")[used_ind]
+    Y_act = np.asarray(mesh.Y, dtype=float).ravel(order="F")[used_ind]
+    if X_act.size == 0 or Y_act.size == 0:
+        raise ValueError(f"{name} cannot build region mask: zero active points in mesh")
+    if X_act.size != Y_act.size:
+        raise ValueError(f"{name} cannot build region mask: X/Y active point count mismatch")
+    if not (np.all(np.isfinite(X_act)) and np.all(np.isfinite(Y_act))):
+        raise ValueError(f"{name} cannot build region mask: active coordinates must be finite")
+
+    x0, x1, x_explicit = _region_bounds(X_act, region_spec.get("x"), axis="x", name=name)
+    y0, y1, y_explicit = _region_bounds(Y_act, region_spec.get("y"), axis="y", name=name)
+    variables = _region_vars(region_spec, name=name)
+
+    domain_x0, domain_x1 = float(np.min(X_act)), float(np.max(X_act))
+    domain_y0, domain_y1 = float(np.min(Y_act)), float(np.max(Y_act))
+    outside_x = x_explicit and (x1 < domain_x0 or x0 > domain_x1)
+    outside_y = y_explicit and (y1 < domain_y0 or y0 > domain_y1)
+    if outside_x or outside_y:
+        raise ValueError(
+            f"{name} region is outside domain: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
+            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
+        )
+
+    point_mask = (X_act >= x0) & (X_act <= x1) & (Y_act >= y0) & (Y_act <= y1)
+    point_indices = np.nonzero(point_mask)[0]
+    if point_indices.size == 0:
+        raise ValueError(
+            f"{name} region selects zero active points: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
+            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
+        )
+
+    diag = np.zeros(int(ndof), dtype=float)
+    selected_x = X_act[point_indices]
+    selected_y = Y_act[point_indices]
+    bbox = (
+        float(np.min(selected_x)),
+        float(np.max(selected_x)),
+        float(np.min(selected_y)),
+        float(np.max(selected_y)),
+    )
+    n_total = int(X_act.size)
+    for var in variables:
+        idx_key = f"{var}_j"
+        if idx_key not in idx:
+            raise ValueError(f"{name} cannot build region mask: missing index block {idx_key!r}")
+        var_idx = np.asarray(idx[idx_key], dtype=np.int64).reshape(-1)
+        if var_idx.size != n_total:
+            raise ValueError(
+                f"{name} cannot build region mask: index block {idx_key!r} has "
+                f"{var_idx.size} entries for {n_total} active points"
+            )
+        dofs = var_idx[point_indices]
+        if np.any((dofs < 0) | (dofs >= int(ndof))):
+            raise ValueError(f"{name} cannot build region mask: index block {idx_key!r} exceeds ndof={ndof}")
+        diag[dofs] = 1.0
+        LOGGER.info(
+            "resolvent_map region_mask name=%s var=%s n_active=%d n_total=%d "
+            "bbox_x=[%.12g,%.12g] bbox_y=[%.12g,%.12g]",
+            name,
+            var,
+            int(point_indices.size),
+            n_total,
+            bbox[0],
+            bbox[1],
+            bbox[2],
+            bbox[3],
+        )
+
+    return _maybe_petsc_diag(diag, like_operator, solver_cfg)
+
+
+def _bc_mask(L0: Any, ndof: int, bc_indices: np.ndarray, solver_cfg: Mapping[str, Any]) -> Any:
+    diag = np.ones(ndof, dtype=float)
+    bc = np.asarray(bc_indices, dtype=np.int64).reshape(-1)
+    valid = bc[(bc >= 0) & (bc < ndof)]
+    diag[valid] = 0.0
+    return _maybe_petsc_diag(diag, L0, solver_cfg)
+
+
 def _forcing_response_mats(
     L0: Any,
     ndof: int,
     bc_indices: np.ndarray,
     cfg: Mapping[str, Any],
+    *,
+    mesh: Any | None = None,
+    idx: Mapping[str, Any] | None = None,
 ) -> tuple[Any, Any]:
+    solver_cfg = _solver_cfg(cfg)
     B_mat = _cfg_value(cfg, "B_mat", None)
     C_mat = _cfg_value(cfg, "C_mat", None)
-    if B_mat is not None or C_mat is not None:
-        return B_mat, C_mat
-    if not _cfg_bool(cfg, "mask_bc_forcing", True):
-        return None, None
-    diag = np.ones(ndof, dtype=float)
-    valid = bc_indices[(bc_indices >= 0) & (bc_indices < ndof)]
-    diag[valid] = 0.0
-    B_mat = _maybe_petsc_diag(diag, L0, _solver_cfg(cfg))
-    C_mat = B_mat.copy() if hasattr(B_mat, "copy") else B_mat
+    input_region = _cfg_value(cfg, "input_region", None)
+    output_region = _cfg_value(cfg, "output_region", None)
+    if (input_region is not None or output_region is not None) and (mesh is None or idx is None):
+        raise ValueError("input_region/output_region masks require mesh and idx from build_lnse_system")
+    if B_mat is None and input_region is not None:
+        B_mat = _build_region_mask(mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region")
+    if C_mat is None and output_region is not None:
+        C_mat = _build_region_mask(mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region")
+    if _cfg_bool(cfg, "mask_bc_forcing", True):
+        default_mask = None
+        if B_mat is None:
+            default_mask = _bc_mask(L0, ndof, bc_indices, solver_cfg)
+            B_mat = default_mask
+        if C_mat is None:
+            if default_mask is None:
+                default_mask = _bc_mask(L0, ndof, bc_indices, solver_cfg)
+            C_mat = default_mask.copy() if hasattr(default_mask, "copy") else default_mask
     return B_mat, C_mat
 
 
@@ -656,7 +806,14 @@ def resolvent_map(
                 )
 
             ndof = W_diag.size
-            B_mat, C_mat = _forcing_response_mats(assembly.L0, ndof, assembly.bc_indices, cfg_map)
+            B_mat, C_mat = _forcing_response_mats(
+                assembly.L0,
+                ndof,
+                assembly.bc_indices,
+                cfg_map,
+                mesh=mesh,
+                idx=assembly.idx,
+            )
             use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", True)
             filter_fn = mesh.filters.filter if use_mesh_filters and getattr(mesh, "filters", None) is not None else None
             filter_ct_fn = (

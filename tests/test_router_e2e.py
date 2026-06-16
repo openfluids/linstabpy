@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
 import pytest
 
@@ -9,6 +11,8 @@ from linstabpy.mesh import Mesh
 from linstabpy.operators.assembly import build_lnse_system
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.solvers.router.band_marking import STABLE
+
+router_map = importlib.import_module("linstabpy.solvers.router.resolvent_map")
 
 
 def _tiny_problem() -> tuple[Mesh, BaseFlow]:
@@ -62,6 +66,13 @@ def _chu_weights(mesh: Mesh, base_flow: BaseFlow) -> np.ndarray:
     return W_diag
 
 
+def _phase_aligned(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    inner = np.vdot(reference, candidate)
+    if np.isclose(inner, 0.0):
+        return candidate
+    return candidate * np.exp(-1j * np.angle(inner))
+
+
 def test_tiny_baseflow_resolvent_map_matches_direct_oracle() -> None:
     pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     pytest.importorskip("slepc4py", reason="SKIPPED: missing SLEPc stack")
@@ -105,3 +116,69 @@ def test_tiny_baseflow_resolvent_map_matches_direct_oracle() -> None:
     )
 
     np.testing.assert_allclose(result.gain[0, 0], direct_gains[0], rtol=1.0e-7, atol=1.0e-7)
+
+
+def test_full_domain_region_mask_matches_unmasked_resolvent_gain_and_mode() -> None:
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+    pytest.importorskip("slepc4py", reason="SKIPPED: missing SLEPc stack")
+
+    from linstabpy.resolvent.analysis import resolvent_analysis
+
+    mesh, base_flow = _tiny_problem()
+    cfg = _cfg(mesh)
+    beta = 0.1
+    omega = 0.2
+    L0, idx, bc_indices = build_lnse_system(
+        mesh,
+        base_flow,
+        kx=beta,
+        model="2D",
+        bc_recipe=cfg["bc_recipe"],
+        bc_penalty=float(cfg["bc_penalty"]),
+        backend="scipy",
+        solver_cfg=cfg,
+    )
+    W_diag = _chu_weights(mesh, base_flow)
+    region_cfg = {**cfg, "input_region": {}, "output_region": {}}
+    B_mat, C_mat = router_map._forcing_response_mats(
+        L0,
+        W_diag.size,
+        np.asarray(bc_indices, dtype=np.int64),
+        region_cfg,
+        mesh=mesh,
+        idx=idx,
+    )
+
+    assert np.allclose(B_mat.diagonal(), 1.0, rtol=0.0, atol=0.0)
+    assert np.allclose(C_mat.diagonal(), 1.0, rtol=0.0, atol=0.0)
+
+    unmasked_gains, unmasked_responses, unmasked_forcings = resolvent_analysis(
+        L0,
+        omega,
+        1,
+        W_diag,
+        solver_cfg=cfg,
+    )
+    masked_gains, masked_responses, masked_forcings = resolvent_analysis(
+        L0,
+        omega,
+        1,
+        W_diag,
+        B_mat=B_mat,
+        C_mat=C_mat,
+        solver_cfg=cfg,
+    )
+
+    assert np.allclose(masked_gains[0], unmasked_gains[0], rtol=1.0e-12, atol=1.0e-12)
+    assert np.allclose(
+        _phase_aligned(masked_responses[:, 0], unmasked_responses[:, 0]),
+        unmasked_responses[:, 0],
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
+    assert np.allclose(
+        _phase_aligned(masked_forcings[:, 0], unmasked_forcings[:, 0]),
+        unmasked_forcings[:, 0],
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
