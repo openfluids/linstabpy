@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Resolvent sweep routing helpers."""
 
-from . import band_marking, certification
+from . import band_marking, certification, recycling
 from .band_marking import BandMarks, label_band, mark_unstable_band
 from .certification import (
     CertificationReport,
@@ -40,6 +40,7 @@ __all__ = [
     "label_band",
     "mark_unstable_band",
     "randomized_resolvent_svd",
+    "recycling",
     "sweep_stable_regime",
 ]
 
