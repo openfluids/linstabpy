@@ -1,12 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Adaptive pre-sweep anchor placement for stable-regime resolvent sweeps.
-
-The chooser is intentionally a pure PRE-sweep helper: it reads a requested
-frequency grid, S6 :class:`~linstabpy.solvers.router.band_marking.BandMarks`,
-and optional measured FGMRES probe data, then returns a fixed anchor set for the
-caller to pass into :func:`linstabpy.solvers.router.stable_sweep.sweep_stable_regime`.
-No in-sweep state or per-RHS information is used here.
-"""
+"""Adaptive pre-sweep anchor placement for stable-regime resolvent sweeps."""
 
 from __future__ import annotations
 
@@ -19,6 +12,7 @@ import numpy as np
 from linstabpy.solvers.router.band_marking import BandMarks
 
 Array = np.ndarray
+Cfg = Mapping[str, Any] | object | None
 
 COARSE_TRIGGER = "coarse"
 EVP_DISTANCE_TRIGGER = "evp_distance"
@@ -29,20 +23,13 @@ FGMRES_RESIDUAL_TRIGGER = "fgmres_residual"
 @dataclass(frozen=True)
 class IterProbeResult:
     """Measured FGMRES work at one sample frequency."""
-
     iterations: int = 0
     residual: float = 0.0
 
 
 @dataclass(frozen=True)
 class AnchorTriggerRecord:
-    """Provenance for one final anchor returned by the adaptive chooser.
-
-    ``inserted`` is ``False`` for anchors belonging to the initial coarse set.
-    ``triggers`` records why the anchor is present or, for a coarse anchor, why
-    it was retained/annotated when a triggering sample was already covered.
-    """
-
+    """Provenance for one final anchor returned by the adaptive chooser."""
     omega: complex
     sample_omega: complex
     triggers: tuple[str, ...]
@@ -59,98 +46,47 @@ class AnchorTriggerRecord:
         """Backward-compatible single-string view of ``triggers``."""
         return "+".join(self.triggers)
 
-    def as_dict(self) -> dict[str, Any]:
-        """Return a JSON-friendly record for logs or manifests."""
-        return {
-            "omega": self.omega,
-            "sample_omega": self.sample_omega,
-            "triggers": self.triggers,
-            "trigger": self.trigger,
-            "inserted": self.inserted,
-            "evp_distance": self.evp_distance,
-            "evp_radius": self.evp_radius,
-            "fgmres_iterations": self.fgmres_iterations,
-            "fgmres_residual": self.fgmres_residual,
-            "nearest_anchor_before": self.nearest_anchor_before,
-            "nearest_anchor_distance_before": self.nearest_anchor_distance_before,
-        }
 
-
-IterProbe = Callable[[complex, Array, Mapping[str, Any] | object | None], IterProbeResult | Mapping[str, Any] | Sequence[Any] | None]
+IterProbe = Callable[[complex, Array, Cfg], IterProbeResult | None]
 
 
 def choose_anchors_adaptive(
     omega_range: Sequence[complex] | Array,
     band_marks: BandMarks | None,
-    cfg: Mapping[str, Any] | object | None,
+    cfg: Cfg,
 ) -> tuple[Array, tuple[AnchorTriggerRecord, ...]]:
     """Choose a deterministic adaptive anchor set before a stable sweep.
 
-    Parameters
-    ----------
-    omega_range:
-        Requested forcing frequencies for the sweep.  Values are sorted and
-        de-duplicated before selecting the coarse set and sample points.
-    band_marks:
-        S6 band-marking output.  Only ``BandMarks.omegas``, ``distances``, and
-        ``danger_radius`` are read.  If ``None``, the EVP-distance trigger is
-        disabled unless an explicit finite radius and distances are supplied by
-        a future caller.
-    cfg:
-        Mapping/object with optional ``adaptive_anchors`` subsection.  Common
-        keys are ``coarse_anchor_count`` (default: 2), ``coarse_anchors``,
-        ``sample_omegas``, ``evp_distance_radius`` (default:
-        ``band_marks.danger_radius``), ``fgmres_iter_threshold`` (default: 40),
-        ``fgmres_residual_threshold`` (default: 1e-6), and an injectable
-        ``iter_probe``/``fgmres_probe`` callable.  Without a callable, a cheap
-        deterministic probe reads optional measured arrays/mappings from cfg and
-        otherwise returns zero iterations/residual.
-
-    Returns
-    -------
-    (anchors, records)
-        ``anchors`` is a sorted complex-valued NumPy array.  ``records`` has one
-        :class:`AnchorTriggerRecord` per final anchor, including the initial
-        coarse anchors (``trigger == "coarse"``) and all adaptive insertions.
+    ``cfg`` may define the canonical keys at top level or inside an
+    ``adaptive_anchors`` subsection: ``coarse_anchor_count``,
+    ``coarse_anchors``, ``sample_omegas``, ``evp_distance_radius``,
+    ``fgmres_iter_threshold``, ``fgmres_residual_threshold``,
+    ``min_insert_spacing``, ``duplicate_tol``, ``max_insertions``,
+    ``enable_evp_distance``, ``enable_fgmres_probe``, ``iter_probe``,
+    ``fgmres_iterations``, and ``fgmres_residuals``.
     """
     omega_grid = _sort_unique_complex(_as_1d_complex(omega_range, "omega_range"))
-    initial_anchors = _initial_anchors(omega_grid, cfg)
+    records = [
+        AnchorTriggerRecord(omega=complex(anchor), sample_omega=complex(anchor), triggers=(COARSE_TRIGGER,), inserted=False)
+        for anchor in _initial_anchors(omega_grid, cfg)
+    ]
+    anchors = np.asarray([record.omega for record in records], dtype=complex)
+
     samples = _sample_omegas(omega_grid, cfg)
     evp_radius = _evp_radius(band_marks, cfg)
-    iter_threshold = _threshold(
-        _cfg_first(cfg, ("fgmres_iter_threshold", "iter_threshold", "iterations_threshold")),
-        default=40.0,
-        name="fgmres_iter_threshold",
-    )
+    iter_threshold = _threshold(_cfg_get(cfg, "fgmres_iter_threshold"), default=40.0, name="fgmres_iter_threshold")
     residual_threshold = _threshold(
-        _cfg_first(cfg, ("fgmres_residual_threshold", "residual_threshold", "relres_threshold")),
+        _cfg_get(cfg, "fgmres_residual_threshold"),
         default=1.0e-6,
         name="fgmres_residual_threshold",
     )
-    min_insert_spacing = _nonnegative_float(
-        _cfg_first(cfg, ("min_insert_spacing", "anchor_min_spacing"), default=0.0),
-        "min_insert_spacing",
-    )
-    duplicate_tol = _nonnegative_float(
-        _cfg_first(cfg, ("duplicate_tol", "anchor_duplicate_tol"), default=1.0e-12),
-        "duplicate_tol",
-    )
-    max_insertions_raw = _cfg_first(cfg, ("max_insertions", "max_adaptive_insertions"), default=None)
+    min_insert_spacing = _nonnegative_float(_cfg_get(cfg, "min_insert_spacing", 0.0), "min_insert_spacing")
+    duplicate_tol = _nonnegative_float(_cfg_get(cfg, "duplicate_tol", 1.0e-12), "duplicate_tol")
+    max_insertions_raw = _cfg_get(cfg, "max_insertions")
     max_insertions = None if max_insertions_raw is None else _nonnegative_int(max_insertions_raw, "max_insertions")
-    enable_evp = _as_bool(_cfg_first(cfg, ("enable_evp_distance", "use_evp_distance"), default=True))
-    enable_fgmres = _as_bool(_cfg_first(cfg, ("enable_fgmres_probe", "use_fgmres_probe"), default=True))
-    probe_fn = _cfg_first(cfg, ("iter_probe", "fgmres_probe"), default=None)
-
-    records = [
-        AnchorTriggerRecord(
-            omega=complex(anchor),
-            sample_omega=complex(anchor),
-            triggers=(COARSE_TRIGGER,),
-            inserted=False,
-        )
-        for anchor in initial_anchors
-    ]
-    anchors = np.asarray([record.omega for record in records], dtype=complex)
+    enable_evp = _as_bool(_cfg_get(cfg, "enable_evp_distance", True))
+    enable_fgmres = _as_bool(_cfg_get(cfg, "enable_fgmres_probe", True))
+    probe_fn = _cfg_get(cfg, "iter_probe")
     insertions = 0
 
     for sample in samples:
@@ -168,17 +104,9 @@ def choose_anchors_adaptive(
             continue
 
         nearest_i, nearest_anchor, nearest_distance = _nearest_anchor(sample, anchors)
-        spacing_tol = max(min_insert_spacing, duplicate_tol)
-        if nearest_distance <= spacing_tol:
+        if nearest_distance <= max(min_insert_spacing, duplicate_tol):
             records[nearest_i] = _annotate_record(
-                records[nearest_i],
-                sample=sample,
-                triggers=tuple(triggers),
-                evp_distance=evp_distance,
-                evp_radius=evp_radius,
-                probe=probe,
-                nearest_anchor_before=nearest_anchor,
-                nearest_distance_before=nearest_distance,
+                records[nearest_i], sample, tuple(triggers), evp_distance, evp_radius, probe, nearest_anchor, nearest_distance
             )
             continue
         if max_insertions is not None and insertions >= max_insertions:
@@ -203,41 +131,27 @@ def choose_anchors_adaptive(
         anchors = np.asarray([record.omega for record in records], dtype=complex)
 
     records = _sort_records(records)
-    anchors = np.asarray([record.omega for record in records], dtype=complex)
-    return anchors, tuple(records)
+    return np.asarray([record.omega for record in records], dtype=complex), tuple(records)
 
 
-def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
+def _cfg_get(cfg: Cfg, key: str, default: Any = None) -> Any:
     if cfg is None:
         return default
     if isinstance(cfg, Mapping):
         if key in cfg:
-            return cfg[key]
-        nested = cfg.get("adaptive_anchors")
-        if isinstance(nested, Mapping) and key in nested:
-            return nested[key]
-        solver = cfg.get("solver")
-        router = solver.get("router") if isinstance(solver, Mapping) else None
-        nested = router.get("adaptive_anchors") if isinstance(router, Mapping) else None
-        if isinstance(nested, Mapping) and key in nested:
-            return nested[key]
-        return default
-    if hasattr(cfg, key):
-        return getattr(cfg, key)
-    nested = getattr(cfg, "adaptive_anchors", None)
-    if isinstance(nested, Mapping) and key in nested:
-        return nested[key]
-    if nested is not None and hasattr(nested, key):
-        return getattr(nested, key)
-    return default
-
-
-def _cfg_first(cfg: Mapping[str, Any] | object | None, keys: Sequence[str], default: Any = None) -> Any:
-    for key in keys:
-        value = _cfg_get(cfg, key, None)
-        if value is not None:
-            return value
-    return default
+            value = cfg[key]
+        else:
+            nested = cfg.get("adaptive_anchors")
+            value = nested.get(key, default) if isinstance(nested, Mapping) else default
+    elif hasattr(cfg, key):
+        value = getattr(cfg, key)
+    else:
+        nested = getattr(cfg, "adaptive_anchors", None)
+        if isinstance(nested, Mapping):
+            value = nested.get(key, default)
+        else:
+            value = getattr(nested, key, default) if nested is not None else default
+    return default if value is None else value
 
 
 def _as_bool(value: Any) -> bool:
@@ -259,8 +173,7 @@ def _as_1d_complex(values: Sequence[complex] | Array, name: str) -> Array:
     arr = np.asarray(values, dtype=complex).reshape(-1)
     if arr.size == 0:
         raise ValueError(f"{name} must contain at least one value")
-    finite = np.isfinite(arr.real) & np.isfinite(arr.imag)
-    if not bool(np.all(finite)):
+    if not bool(np.all(np.isfinite(arr.real) & np.isfinite(arr.imag))):
         raise ValueError(f"{name} must contain only finite values")
     return arr
 
@@ -273,15 +186,11 @@ def _sort_records(records: Sequence[AnchorTriggerRecord]) -> list[AnchorTriggerR
     return sorted(records, key=lambda record: (record.omega.real, record.omega.imag))
 
 
-def _initial_anchors(omega_grid: Array, cfg: Mapping[str, Any] | object | None) -> Array:
-    raw = _cfg_first(cfg, ("coarse_anchors", "initial_anchors", "anchors"), default=None)
+def _initial_anchors(omega_grid: Array, cfg: Cfg) -> Array:
+    raw = _cfg_get(cfg, "coarse_anchors")
     if raw is not None:
         return _sort_unique_complex(_as_1d_complex(raw, "coarse_anchors"))
-    count = _positive_int(
-        _cfg_first(cfg, ("coarse_anchor_count", "initial_anchor_count", "anchor_count"), default=min(2, omega_grid.size)),
-        "coarse_anchor_count",
-    )
-    count = min(count, omega_grid.size)
+    count = min(_positive_int(_cfg_get(cfg, "coarse_anchor_count", min(2, omega_grid.size)), "coarse_anchor_count"), omega_grid.size)
     return omega_grid[_coarse_indices(omega_grid, count)]
 
 
@@ -292,20 +201,17 @@ def _coarse_indices(omega_grid: Array, count: int) -> Array:
     while indices.size < count:
         candidates = np.setdiff1d(np.arange(omega_grid.size, dtype=int), indices, assume_unique=True)
         distances = np.min(np.abs(omega_grid[candidates, None] - omega_grid[indices][None, :]), axis=1)
-        chosen = int(candidates[int(np.argmax(distances))])
-        indices = np.sort(np.r_[indices, chosen].astype(int))
+        indices = np.sort(np.r_[indices, candidates[int(np.argmax(distances))]].astype(int))
     return indices.astype(int)
 
 
-def _sample_omegas(omega_grid: Array, cfg: Mapping[str, Any] | object | None) -> Array:
-    raw = _cfg_first(cfg, ("sample_omegas", "probe_omegas", "samples"), default=None)
-    if raw is None:
-        return omega_grid.copy()
-    return _sort_unique_complex(_as_1d_complex(raw, "sample_omegas"))
+def _sample_omegas(omega_grid: Array, cfg: Cfg) -> Array:
+    raw = _cfg_get(cfg, "sample_omegas")
+    return omega_grid.copy() if raw is None else _sort_unique_complex(_as_1d_complex(raw, "sample_omegas"))
 
 
-def _evp_radius(band_marks: BandMarks | None, cfg: Mapping[str, Any] | object | None) -> float:
-    raw = _cfg_first(cfg, ("evp_distance_radius", "distance_radius", "near_pole_radius", "danger_radius"), default=None)
+def _evp_radius(band_marks: BandMarks | None, cfg: Cfg) -> float:
+    raw = _cfg_get(cfg, "evp_distance_radius")
     if raw is None:
         raw = getattr(band_marks, "danger_radius", 0.0) if band_marks is not None else 0.0
     radius = float(raw)
@@ -321,14 +227,10 @@ def _band_distance_at(sample: complex, band_marks: BandMarks | None) -> float:
     distances = np.asarray(band_marks.distances, dtype=float).reshape(-1)
     if omegas.size != distances.size:
         raise ValueError("band_marks.omegas and band_marks.distances must have the same length")
-    if omegas.size == 0:
-        return float("inf")
     finite = np.isfinite(omegas.real) & np.isfinite(omegas.imag) & np.isfinite(distances)
-    if not bool(np.any(finite)):
+    if omegas.size == 0 or not bool(np.any(finite)):
         return float("inf")
-    valid_omegas = omegas[finite]
-    valid_distances = distances[finite]
-    return float(valid_distances[int(np.argmin(np.abs(valid_omegas - sample)))])
+    return float(distances[finite][int(np.argmin(np.abs(omegas[finite] - sample)))])
 
 
 def _threshold(raw: Any, *, default: float, name: str) -> float:
@@ -367,7 +269,6 @@ def _nearest_anchor(sample: complex, anchors: Array) -> tuple[int, complex, floa
 
 def _annotate_record(
     record: AnchorTriggerRecord,
-    *,
     sample: complex,
     triggers: tuple[str, ...],
     evp_distance: float,
@@ -376,11 +277,10 @@ def _annotate_record(
     nearest_anchor_before: complex,
     nearest_distance_before: float,
 ) -> AnchorTriggerRecord:
-    merged = tuple(dict.fromkeys((*record.triggers, *triggers)))
     return replace(
         record,
         sample_omega=sample,
-        triggers=merged,
+        triggers=tuple(dict.fromkeys((*record.triggers, *triggers))),
         evp_distance=evp_distance,
         evp_radius=evp_radius,
         fgmres_iterations=probe.iterations,
@@ -390,111 +290,42 @@ def _annotate_record(
     )
 
 
-def _probe_result(
-    sample: complex,
-    anchors: Array,
-    omega_grid: Array,
-    cfg: Mapping[str, Any] | object | None,
-    probe_fn: Any,
-) -> IterProbeResult:
-    if probe_fn is None:
-        raw = _cheap_probe_from_cfg(sample, omega_grid, cfg)
-    else:
-        raw = _call_probe(probe_fn, sample, anchors, cfg)
+def _probe_result(sample: complex, anchors: Array, omega_grid: Array, cfg: Cfg, probe_fn: Any) -> IterProbeResult:
+    raw = _cheap_probe_from_cfg(sample, omega_grid, cfg) if probe_fn is None else _call_probe(probe_fn, sample, anchors, cfg)
     return _coerce_probe_result(raw)
 
 
-def _call_probe(probe_fn: Callable[..., Any], sample: complex, anchors: Array, cfg: Mapping[str, Any] | object | None) -> Any:
-    attempts = (
-        (sample, anchors, cfg),
-        (sample, anchors),
-        (sample,),
-    )
-    last_error: TypeError | None = None
-    for args in attempts:
-        try:
-            return probe_fn(*args)
-        except TypeError as exc:
-            last_error = exc
-    assert last_error is not None
-    raise last_error
+def _call_probe(probe_fn: IterProbe, sample: complex, anchors: Array, cfg: Cfg) -> IterProbeResult | None:
+    return probe_fn(sample, anchors, cfg)
 
 
-def _cheap_probe_from_cfg(sample: complex, omega_grid: Array, cfg: Mapping[str, Any] | object | None) -> IterProbeResult:
-    iterations = _measurement_at(
-        _cfg_first(cfg, ("fgmres_iterations", "iterations", "iter_measurements"), default=None),
-        sample,
-        omega_grid,
-        cfg,
-        default=0.0,
-    )
-    residual = _measurement_at(
-        _cfg_first(cfg, ("fgmres_residuals", "residuals", "residual_measurements"), default=None),
-        sample,
-        omega_grid,
-        cfg,
-        default=0.0,
-    )
+def _cheap_probe_from_cfg(sample: complex, omega_grid: Array, cfg: Cfg) -> IterProbeResult:
+    iterations = _measurement_at(_cfg_get(cfg, "fgmres_iterations"), sample, omega_grid, default=0.0)
+    residual = _measurement_at(_cfg_get(cfg, "fgmres_residuals"), sample, omega_grid, default=0.0)
     return IterProbeResult(iterations=int(iterations), residual=float(residual))
 
 
-def _measurement_at(
-    raw: Any,
-    sample: complex,
-    omega_grid: Array,
-    cfg: Mapping[str, Any] | object | None,
-    *,
-    default: float,
-) -> float:
+def _measurement_at(raw: Any, sample: complex, omega_grid: Array, *, default: float) -> float:
     if raw is None:
         return default
-    if isinstance(raw, Mapping):
-        if sample in raw:
-            return float(raw[sample])
-        if sample.imag == 0.0 and sample.real in raw:
-            return float(raw[sample.real])
-        keys = np.asarray([complex(key) for key in raw.keys()], dtype=complex)
-        if keys.size == 0:
-            return default
-        key = list(raw.keys())[int(np.argmin(np.abs(keys - sample)))]
-        return float(raw[key])
-
     values = np.asarray(raw, dtype=float).reshape(-1)
     if values.size == 0:
         return default
-    measurement_omegas_raw = _cfg_first(
-        cfg,
-        ("fgmres_measurement_omegas", "measurement_omegas", "probe_measurement_omegas"),
-        default=None,
-    )
-    measurement_omegas = omega_grid if measurement_omegas_raw is None else _as_1d_complex(measurement_omegas_raw, "measurement_omegas")
-    if measurement_omegas.size != values.size:
-        if omega_grid.size == values.size:
-            measurement_omegas = omega_grid
-        else:
-            raise ValueError("FGMRES measurement arrays must align with measurement_omegas or omega_range")
-    return float(values[int(np.argmin(np.abs(measurement_omegas - sample)))])
+    if values.size != omega_grid.size:
+        raise ValueError("FGMRES measurement arrays must align with omega_range")
+    return float(values[int(np.argmin(np.abs(omega_grid - sample)))])
 
 
-def _coerce_probe_result(raw: IterProbeResult | Mapping[str, Any] | Sequence[Any] | None) -> IterProbeResult:
+def _coerce_probe_result(raw: IterProbeResult | None) -> IterProbeResult:
     if raw is None:
-        return IterProbeResult()
-    if isinstance(raw, IterProbeResult):
-        result = raw
-    elif isinstance(raw, Mapping):
-        iterations = raw.get("iterations", raw.get("iters", raw.get("fgmres_iterations", 0)))
-        residual = raw.get("residual", raw.get("rel_residual", raw.get("fgmres_residual", 0.0)))
-        result = IterProbeResult(iterations=int(iterations), residual=float(residual))
-    else:
-        values = list(raw)
-        if len(values) < 2:
-            raise ValueError("iter_probe sequence result must contain (iterations, residual)")
-        result = IterProbeResult(iterations=int(values[0]), residual=float(values[1]))
-    if result.iterations < 0:
+        raw = IterProbeResult()
+    if not isinstance(raw, IterProbeResult):
+        raise TypeError("iter_probe must return IterProbeResult or None")
+    if raw.iterations < 0:
         raise ValueError("iter_probe returned negative iterations")
-    if not np.isfinite(result.residual) or result.residual < 0.0:
+    if not np.isfinite(raw.residual) or raw.residual < 0.0:
         raise ValueError("iter_probe returned a non-finite or negative residual")
-    return result
+    return raw
 
 
 __all__ = [
