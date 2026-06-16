@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -41,6 +42,21 @@ def _cost_metrics() -> dict[str, object]:
         "cost_hardware_tag": "test",
         "cost_git_sha": "test",
     }
+
+
+def _region_mesh_idx() -> tuple[SimpleNamespace, dict[str, np.ndarray], int]:
+    # Shape is (Ny, Nx).  Fortran order maps (y=0, x=1) to point index 2;
+    # C order would map it to point index 1, so the single-cell test guards
+    # the project layout convention directly.
+    X = np.array([[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]])
+    Y = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    ngp = X.size
+    idx = {
+        f"{var}_j": np.arange(i * ngp, (i + 1) * ngp, dtype=np.int64)
+        for i, var in enumerate(("rho", "u", "v", "w", "T"))
+    }
+    mesh = SimpleNamespace(X=X, Y=Y, used_ind=np.arange(ngp, dtype=np.int64))
+    return mesh, idx, 5 * ngp
 
 
 def _install_fake_seams(monkeypatch: pytest.MonkeyPatch, *, labels: tuple[str, ...] = (STABLE,)) -> None:
@@ -159,3 +175,64 @@ def test_failure_tolerance_and_npz_resume_retries_only_failed_points(
     np.testing.assert_allclose(resumed.gain, [[1.0, 2.0]])
     assert resumed.reason_code.tolist() == [[0, 0]]
     assert [record["status"] for record in resumed.point_records] == ["skipped", "ok"]
+
+
+def test_region_mask_uses_fortran_order_single_variable_cell() -> None:
+    mesh, idx, ndof = _region_mesh_idx()
+    mask = router_map._build_region_mask(
+        mesh,
+        idx,
+        ndof,
+        {"x": [1.0, 1.0], "y": [0.0, 0.0], "vars": ["v"]},
+        sp.eye(ndof, format="csc"),
+        {},
+        name="input_region",
+    )
+
+    active = np.flatnonzero(mask.diagonal())
+
+    assert active.tolist() == [int(idx["v_j"][2])]
+    assert active.tolist() != [int(idx["v_j"][1])]
+
+
+@pytest.mark.parametrize(
+    ("region", "match"),
+    [
+        ({"x": [10.0, 11.0], "vars": ["u"]}, "outside domain"),
+        ({"x": [0.4, 0.6], "y": [0.4, 0.6], "vars": ["u"]}, "zero active points"),
+        ({"vars": ["pressure"]}, "unknown variable"),
+    ],
+)
+def test_region_mask_loud_fails_for_bad_specs(region: dict[str, object], match: str) -> None:
+    mesh, idx, ndof = _region_mesh_idx()
+
+    with pytest.raises(ValueError, match=match):
+        router_map._build_region_mask(
+            mesh,
+            idx,
+            ndof,
+            region,
+            sp.eye(ndof, format="csc"),
+            {},
+            name="output_region",
+        )
+
+
+def test_region_mask_logs_variable_coverage(caplog: pytest.LogCaptureFixture) -> None:
+    mesh, idx, ndof = _region_mesh_idx()
+
+    with caplog.at_level("INFO", logger=router_map.LOGGER.name):
+        router_map._build_region_mask(
+            mesh,
+            idx,
+            ndof,
+            {"x": [1.0, 1.0], "y": [0.0, 1.0], "vars": ["u", "T"]},
+            sp.eye(ndof, format="csc"),
+            {},
+            name="input_region",
+        )
+
+    assert "resolvent_map region_mask name=input_region var=u n_active=2 n_total=6" in caplog.text
+    assert "resolvent_map region_mask name=input_region var=T n_active=2 n_total=6" in caplog.text
+    assert "bbox_x=[1,1]" in caplog.text
+    assert "bbox_y=[0,1]" in caplog.text
