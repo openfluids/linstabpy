@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Resolvent sweep routing helpers."""
 
-from . import anchors, band_marking, certification, recycling
+from . import anchors, band_marking, break_even, certification, recycling
 from .anchors import AnchorTriggerRecord, IterProbeResult, choose_anchors_adaptive
+from .break_even import BreakEvenProbeResult, RoutingDecision, break_even_decision
 from .band_marking import BandMarks, label_band, mark_unstable_band
 from .certification import (
     CertificationReport,
@@ -27,14 +28,18 @@ _LAZY_EXPORTS = {
 __all__ = [
     "AnchorTriggerRecord",
     "BandMarks",
+    "BreakEvenProbeResult",
     "CertificationReport",
     "OperatingPoint",
     "CheckResult",
     "IterProbeResult",
+    "RoutingDecision",
     "SweepResult",
     "SymbolicProbeResult",
     "anchors",
     "band_marking",
+    "break_even",
+    "break_even_decision",
     "certification",
     "stable_sweep",
     "certified_rsvd",
