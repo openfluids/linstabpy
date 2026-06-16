@@ -17,6 +17,12 @@ from linstabpy.linalg.backends import factor_backend_available
 from linstabpy.linalg.factorize import Factorization, factorize
 from linstabpy.linalg.shifted import shifted_operator
 from linstabpy.solvers.router.certification import CertificationReport, certified_rsvd
+from linstabpy.solvers.router.recycling import (
+    combine_recycle_bases,
+    empty_recycle_basis,
+    prepare_recycle_subspace,
+    recycled_right_preconditioned_gmres,
+)
 from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
 
@@ -104,6 +110,29 @@ def _compressed_anchor_controls(cfg: Mapping[str, Any] | object | None) -> tuple
         }
         measure_exact_lu = True
     return enabled, options if enabled else {}, measure_exact_lu
+
+
+def _recycling_controls(cfg: Mapping[str, Any] | object | None) -> tuple[bool, int, float]:
+    raw = _cfg_get(cfg, "recycling", None)
+    if raw is None:
+        raw = _cfg_get(cfg, "gcrodr_recycling", None)
+    if raw is None:
+        raw = _cfg_get(cfg, "recycle", False)
+    if isinstance(raw, Mapping):
+        enabled = _as_bool(_cfg_lookup(raw, "enabled", "enable", default=True))
+        max_dim = int(_cfg_lookup(raw, "max_dim", "recycle_dim", "dim", default=8))
+        orth_tol = float(_cfg_lookup(raw, "orth_tol", "orthogonalization_tol", default=1.0e-12))
+    else:
+        enabled = _as_bool(raw)
+        max_dim = 8
+        orth_tol = 1.0e-12
+    if max_dim < 0:
+        raise ValueError("recycling max_dim must be nonnegative")
+    if enabled and max_dim == 0:
+        raise ValueError("recycling max_dim must be positive when recycling is enabled")
+    if orth_tol <= 0.0:
+        raise ValueError("recycling orth_tol must be positive")
+    return enabled, max_dim, orth_tol
 
 
 @contextmanager
@@ -430,6 +459,9 @@ def sweep_stable_regime(
     solver_cfg = _cfg_get(cfg, "solver_cfg", None)
     factorize_cfg = _cfg_get(cfg, "factorize_cfg", None)
     compressed_anchor, strumpack_options, measure_exact_lu = _compressed_anchor_controls(cfg)
+    recycling_enabled, recycling_max_dim, recycling_orth_tol = _recycling_controls(cfg)
+    if recycling_enabled and compressed_anchor:
+        raise ValueError("recycling and compressed anchors are not combined in this evaluation path")
     active_solver_cfg = _with_direct_factor_backend(solver_cfg, "strumpack") if compressed_anchor else solver_cfg
     active_factorize_cfg = (
         _factorize_cfg_with_backend(factorize_cfg, active_solver_cfg, "strumpack")
@@ -457,6 +489,26 @@ def sweep_stable_regime(
         "compressed_factor_bytes": float("nan"),
         "exact_lu_fill_bytes": float("nan"),
         "compression_note": "compressed anchors disabled",
+        "recycling_requested": recycling_enabled,
+        "recycle_max_dim": recycling_max_dim if recycling_enabled else 0,
+        "recycle_fixed_per_pass": True,
+        "recycle_basis_updates": 0,
+        "recycle_forward_rank_max": 0,
+        "recycle_adjoint_rank_max": 0,
+        "recycle_forward_rank_final": 0,
+        "recycle_adjoint_rank_final": 0,
+        "recycle_setup_matvecs_total": 0,
+        "matvecs_total": 0,
+        "matvecs_total_unrecycled": 0,
+        "matvecs_total_recycled": 0,
+        "matvecs_total_actual": 0,
+        "matvecs_delta_recycled_minus_baseline": 0,
+        "gmres_iterations_total": 0,
+        "gmres_iterations_total_unrecycled": 0,
+        "gmres_iterations_total_recycled": 0,
+        "gmres_iterations_total_actual": 0,
+        "gmres_iterations_delta_recycled_minus_baseline": 0,
+        "recycling_note": "recycling enabled" if recycling_enabled else "recycling disabled",
     }
     compression_samples: list[tuple[float | None, float | None, float | None, str]] = []
     factors_seen: list[Any] = []
@@ -509,7 +561,30 @@ def sweep_stable_regime(
             total += float((getattr(fac, "metrics", None) or {}).get(name, 0.0))
         return total
 
-    def solve_one(pos: int, factor: Any) -> None:
+    def add_int_metric(name: str, amount: int) -> None:
+        metrics[name] = int(metrics[name]) + int(amount)
+
+    def record_unrecycled_counts(iters: int, *, actual: bool) -> None:
+        add_int_metric("matvecs_total", iters)
+        add_int_metric("matvecs_total_unrecycled", iters)
+        add_int_metric("gmres_iterations_total", iters)
+        add_int_metric("gmres_iterations_total_unrecycled", iters)
+        if actual:
+            add_int_metric("matvecs_total_actual", iters)
+            add_int_metric("gmres_iterations_total_actual", iters)
+
+    def record_recycled_setup(matvecs: int) -> None:
+        add_int_metric("recycle_setup_matvecs_total", matvecs)
+        add_int_metric("matvecs_total_recycled", matvecs)
+        add_int_metric("matvecs_total_actual", matvecs)
+
+    def record_recycled_counts(iters: int, matvecs: int) -> None:
+        add_int_metric("matvecs_total_recycled", matvecs)
+        add_int_metric("matvecs_total_actual", matvecs)
+        add_int_metric("gmres_iterations_total_recycled", iters)
+        add_int_metric("gmres_iterations_total_actual", iters)
+
+    def solve_one(pos: int, factor: Any, forward_basis: Array, adjoint_basis: Array) -> tuple[Array, Array]:
         omega = omegas[pos]
         anchor = anchor_values[int(anchor_indices[pos])]
         operator = shifted_operator(L0_beta, omega)
@@ -517,6 +592,28 @@ def sweep_stable_regime(
         residual_log: list[float] = []
         adj_iter_log: list[int] = []
         adj_residual_log: list[float] = []
+        forward_candidates = empty_recycle_basis(n)
+        adjoint_candidates = empty_recycle_basis(n)
+        forward_recycle = None
+        adjoint_recycle = None
+        if recycling_enabled:
+            forward_recycle = prepare_recycle_subspace(
+                lambda z: _matvec(operator, z),
+                forward_basis,
+                n=n,
+                max_dim=recycling_max_dim,
+                orth_tol=recycling_orth_tol,
+            )
+            adjoint_recycle = prepare_recycle_subspace(
+                lambda z: _adjoint_matvec(operator, z),
+                adjoint_basis,
+                n=n,
+                max_dim=recycling_max_dim,
+                orth_tol=recycling_orth_tol,
+            )
+            record_recycled_setup(forward_recycle.setup_matvecs + adjoint_recycle.setup_matvecs)
+            metrics["recycle_forward_rank_max"] = max(int(metrics["recycle_forward_rank_max"]), forward_recycle.rank)
+            metrics["recycle_adjoint_rank_max"] = max(int(metrics["recycle_adjoint_rank_max"]), adjoint_recycle.rank)
 
         def precondition(rhs: Array) -> Array:
             if use_block_solve and not compressed_anchor and hasattr(factor, "solve_block"):
@@ -525,17 +622,75 @@ def sweep_stable_regime(
             return factor.solve(rhs)
 
         def apply_H(rhs: Array) -> Array:
-            x, iters, gmres_residual = _right_preconditioned_gmres(
-                lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
-            )
+            nonlocal forward_candidates
+            if recycling_enabled:
+                baseline = _right_preconditioned_gmres(
+                    lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
+                )
+                record_unrecycled_counts(baseline[1], actual=False)
+                recycled = recycled_right_preconditioned_gmres(
+                    lambda z: _matvec(operator, z),
+                    precondition,
+                    rhs,
+                    rtol=rtol,
+                    maxiter=maxiter,
+                    recycle=forward_recycle,
+                    candidate_dim=recycling_max_dim,
+                    orth_tol=recycling_orth_tol,
+                )
+                record_recycled_counts(recycled.iterations, recycled.matvecs)
+                forward_candidates = combine_recycle_bases(
+                    forward_candidates,
+                    recycled.candidate_basis,
+                    max_dim=recycling_max_dim,
+                    n=n,
+                    orth_tol=recycling_orth_tol,
+                )
+                x = recycled.x
+                iters = recycled.iterations
+                gmres_residual = recycled.residual
+            else:
+                x, iters, gmres_residual = _right_preconditioned_gmres(
+                    lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
+                )
+                record_unrecycled_counts(iters, actual=True)
             iter_log.append(iters)
             residual_log.append(max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex))))
             return x
 
         def apply_H_adj(rhs: Array) -> Array:
-            x, iters, gmres_residual = _right_preconditioned_gmres(
-                lambda z: _adjoint_matvec(operator, z), factor.solve_adjoint, rhs, rtol=rtol, maxiter=maxiter
-            )
+            nonlocal adjoint_candidates
+            if recycling_enabled:
+                baseline = _right_preconditioned_gmres(
+                    lambda z: _adjoint_matvec(operator, z), factor.solve_adjoint, rhs, rtol=rtol, maxiter=maxiter
+                )
+                record_unrecycled_counts(baseline[1], actual=False)
+                recycled = recycled_right_preconditioned_gmres(
+                    lambda z: _adjoint_matvec(operator, z),
+                    factor.solve_adjoint,
+                    rhs,
+                    rtol=rtol,
+                    maxiter=maxiter,
+                    recycle=adjoint_recycle,
+                    candidate_dim=recycling_max_dim,
+                    orth_tol=recycling_orth_tol,
+                )
+                record_recycled_counts(recycled.iterations, recycled.matvecs)
+                adjoint_candidates = combine_recycle_bases(
+                    adjoint_candidates,
+                    recycled.candidate_basis,
+                    max_dim=recycling_max_dim,
+                    n=n,
+                    orth_tol=recycling_orth_tol,
+                )
+                x = recycled.x
+                iters = recycled.iterations
+                gmres_residual = recycled.residual
+            else:
+                x, iters, gmres_residual = _right_preconditioned_gmres(
+                    lambda z: _adjoint_matvec(operator, z), factor.solve_adjoint, rhs, rtol=rtol, maxiter=maxiter
+                )
+                record_unrecycled_counts(iters, actual=True)
             adj_iter_log.append(iters)
             adj_residual_log.append(max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex), adjoint=True)))
             return x
@@ -579,9 +734,33 @@ def sweep_stable_regime(
         residuals[pos] = max(all_residuals) if all_residuals else 0.0
         reports[pos] = report
 
+        if not recycling_enabled:
+            return forward_basis, adjoint_basis
+        next_forward = combine_recycle_bases(
+            forward_candidates,
+            forward_basis,
+            max_dim=recycling_max_dim,
+            n=n,
+            orth_tol=recycling_orth_tol,
+        )
+        next_adjoint = combine_recycle_bases(
+            adjoint_candidates,
+            adjoint_basis,
+            max_dim=recycling_max_dim,
+            n=n,
+            orth_tol=recycling_orth_tol,
+        )
+        if next_forward.shape[1] > 0 or next_adjoint.shape[1] > 0:
+            add_int_metric("recycle_basis_updates", 1)
+        metrics["recycle_forward_rank_final"] = next_forward.shape[1]
+        metrics["recycle_adjoint_rank_final"] = next_adjoint.shape[1]
+        return next_forward, next_adjoint
+
     def solve_anchor_positions(anchor_i: int, factor: Any) -> None:
+        forward_basis = empty_recycle_basis(n)
+        adjoint_basis = empty_recycle_basis(n)
         for pos in np.flatnonzero(anchor_indices == anchor_i):
-            solve_one(int(pos), factor)
+            forward_basis, adjoint_basis = solve_one(int(pos), factor, forward_basis, adjoint_basis)
 
     first_factor = factorize_anchor(anchor_values[0])
     refactorize_in_place = getattr(first_factor, "refactorize", None)
@@ -632,6 +811,12 @@ def sweep_stable_regime(
         if ranks:
             metrics["effective_rank"] = float(np.mean(ranks))
         metrics["compression_note"] = "; ".join(notes)
+
+    if recycling_enabled:
+        metrics["matvecs_delta_recycled_minus_baseline"] = int(metrics["matvecs_total_recycled"]) - int(metrics["matvecs_total"])
+        metrics["gmres_iterations_delta_recycled_minus_baseline"] = int(metrics["gmres_iterations_total_recycled"]) - int(
+            metrics["gmres_iterations_total"]
+        )
 
     return SweepResult(
         omega=omegas,
