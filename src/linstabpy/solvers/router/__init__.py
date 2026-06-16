@@ -15,6 +15,7 @@ from .certification import (
     derive_solve_tolerance,
     randomized_resolvent_svd,
 )
+from .ram_autoselect import OperatingPoint, SymbolicProbeResult, ram_autoselect
 
 _LAZY_EXPORTS = {
     "SweepResult": "linstabpy.solvers.router.stable_sweep",
@@ -25,8 +26,10 @@ _LAZY_EXPORTS = {
 __all__ = [
     "BandMarks",
     "CertificationReport",
+    "OperatingPoint",
     "CheckResult",
     "SweepResult",
+    "SymbolicProbeResult",
     "band_marking",
     "certification",
     "stable_sweep",
@@ -39,6 +42,7 @@ __all__ = [
     "derive_solve_tolerance",
     "label_band",
     "mark_unstable_band",
+    "ram_autoselect",
     "randomized_resolvent_svd",
     "recycling",
     "sweep_stable_regime",
