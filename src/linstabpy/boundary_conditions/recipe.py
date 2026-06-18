@@ -21,12 +21,12 @@ from .dirichlet import (
     _VARIABLE_MAP,
     _collect_dirichlet_indices,
     _set_diagonal_entries_csc,
+    _set_diagonal_entries_csr,
     _zero_cols_csc,
     _zero_rows_csr,
-    apply_dirichlet,
     apply_dirichlet_petsc,
 )
-from .neumann import _collect_neumann_indices, apply_neumann, apply_neumann_petsc
+from .neumann import _apply_neumann_csr, _collect_neumann_indices, apply_neumann_petsc
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
     from petsc4py import PETSc
@@ -90,15 +90,7 @@ class BCRecipe:
         penalty: float = 1e4,
     ) -> tuple[sp.csc_matrix, np.ndarray]:
         """Apply this recipe to a SciPy LNSE operator."""
-        return _apply_bc_recipe_impl(
-            L0,
-            mesh,
-            idx,
-            self,
-            penalty=penalty,
-            dirichlet_fn=apply_dirichlet,
-            neumann_fn=apply_neumann,
-        )
+        return _apply_bc_recipe_scipy(L0, mesh, idx, self, penalty=penalty)
 
     def apply_to_petsc(
         self,
@@ -178,6 +170,108 @@ def _validate_rule_symbols(bc_type: str, borders: str, variables: str) -> None:
             raise ValueError(
                 f"Unknown variable character '{variable}'; expected one of 'r', 'u', 'v', 'w', 'T'"
             )
+
+
+def _zero_csr_columns_in_rows(
+    mat: sp.csr_matrix,
+    rows: np.ndarray,
+    cols: np.ndarray,
+) -> None:
+    """Zero selected columns, restricted to rows modified during the CSR BC batch."""
+    rows = np.unique(np.asarray(rows, dtype=int))
+    cols = np.unique(np.asarray(cols, dtype=int))
+    if rows.size == 0 or cols.size == 0:
+        return
+
+    col_mask = np.zeros(mat.shape[1], dtype=bool)
+    col_mask[cols] = True
+    for row in rows:
+        start = mat.indptr[row]
+        stop = mat.indptr[row + 1]
+        if start == stop:
+            continue
+        local = col_mask[mat.indices[start:stop]]
+        if np.any(local):
+            mat.data[start:stop][local] = 0
+
+
+def _apply_bc_recipe_scipy(
+    L0: sp.csc_matrix,
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    recipe: BCRecipe,
+    *,
+    penalty: float,
+) -> tuple[sp.csc_matrix, np.ndarray]:
+    """Apply a SciPy BC recipe with one CSC→CSR→CSC format context."""
+    if not recipe.rules:
+        return L0.tocsc(), np.array([], dtype=np.int64)
+
+    all_bc: list[np.ndarray] = []
+    dirichlet_columns: list[np.ndarray] = []
+    for rule in recipe.rules:
+        if rule.type == "dirichlet":
+            bc_idx = _collect_dirichlet_indices(idx, rule.borders, rule.variables, mesh.ngp)
+            if bc_idx.size:
+                dirichlet_columns.append(bc_idx)
+
+    # Zero original Dirichlet columns once in CSC before entering the CSR row
+    # replacement loop. Later Neumann rows may still reintroduce entries in
+    # those columns, matching the legacy sequential Dirichlet→Neumann semantics.
+    # tocsc() returns the same object when L0 is already CSC, so copy before the
+    # in-place column zeroing to leave the caller's pre-BC operator untouched.
+    L0_csc = L0.tocsc()
+    if L0_csc is L0:
+        L0_csc = L0_csc.copy()
+    if dirichlet_columns:
+        _zero_cols_csc(L0_csc, np.unique(np.concatenate(dirichlet_columns)))
+    L0_csr = L0_csc.tocsr()
+
+    modified_rows = np.array([], dtype=int)
+    for rule in recipe.rules:
+        # Recipe order is intentional. Later rules physically replace rows
+        # written by earlier rules, which is how mixed corner policies are
+        # expressed without adding a separate precedence field to JSONC.
+        bc_type = rule.type
+        borders = rule.borders
+        variables = rule.variables
+
+        if bc_type == "dirichlet":
+            bc_idx = _collect_dirichlet_indices(idx, borders, variables, mesh.ngp)
+            if bc_idx.size:
+                _zero_rows_csr(L0_csr, bc_idx)
+                # Original matrix entries in every Dirichlet column were
+                # already zeroed above. This targeted pass supplies the only
+                # remaining sequential effect: a later Dirichlet rule must zero
+                # entries inserted by earlier CSR row replacements.
+                _zero_csr_columns_in_rows(L0_csr, modified_rows, bc_idx)
+                L0_csr = _set_diagonal_entries_csr(L0_csr, bc_idx, penalty)
+                modified_rows = np.union1d(modified_rows, bc_idx)
+        elif bc_type == "neumann":
+            L0_csr, bc_idx = _apply_neumann_csr(
+                L0_csr,
+                mesh,
+                idx,
+                borders,
+                variables,
+                penalty=penalty,
+                exclude_corners=rule.exclude_corners,
+                curvilinear_normals=rule.curvilinear_normals,
+            )
+            if bc_idx.size:
+                modified_rows = np.union1d(modified_rows, bc_idx)
+        else:
+            raise ValueError(f"Unknown BC type {bc_type!r}; expected 'dirichlet' or 'neumann'")
+
+        all_bc.append(bc_idx)
+
+    if all_bc:
+        bc_indices = np.unique(np.concatenate(all_bc))
+    else:
+        bc_indices = np.array([], dtype=np.int64)
+
+    L0_csr.eliminate_zeros()
+    return L0_csr.tocsc(), bc_indices
 
 
 def _apply_bc_recipe_impl(

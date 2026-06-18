@@ -7,7 +7,11 @@ import numpy as np
 import pytest
 from petsc4py import PETSc
 
-from linstabpy.linalg.backends import shifted_ksp_probe_residual, should_probe_backend
+from linstabpy.linalg.backends import (
+    backend_probe_is_preconditioner_role,
+    shifted_ksp_probe_residual,
+    should_probe_backend,
+)
 from linstabpy.solvers import eigenvalue
 from linstabpy.stability import eigenvalues as stability_eigenvalues
 
@@ -83,6 +87,19 @@ def test_should_probe_backend_truth_table(resolved_backend, probe_cfg, expected)
     assert should_probe_backend(resolved_backend, probe_cfg) is expected
 
 
+@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+def test_should_probe_backend_treats_iterative_outer_as_preconditioner_role(st_solver) -> None:
+    assert backend_probe_is_preconditioner_role(st_solver) is True
+    assert should_probe_backend("mumps", {}, st_solver=st_solver) is True
+    assert should_probe_backend("mumps", {"enabled": False}, st_solver=st_solver) is False
+
+
+@pytest.mark.parametrize("st_solver", ["mumps", "direct", "lu", None])
+def test_should_probe_backend_keeps_direct_default_mumps_exemption(st_solver) -> None:
+    assert backend_probe_is_preconditioner_role(st_solver) is False
+    assert should_probe_backend("mumps", {}, st_solver=st_solver) is False
+
+
 def test_temporal_default_mumps_path_does_not_invoke_probe(monkeypatch) -> None:
     monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
 
@@ -107,8 +124,8 @@ def test_temporal_backend_probe_failure_raises_clear_error(monkeypatch) -> None:
         eigenvalue,
         "shifted_ksp_probe_residual",
         lambda ksp: {
-            "residual_abs": 5.0,
-            "residual_rel": 2.5,
+            "residual_abs": 1.0e-6,
+            "residual_rel": 1.0e-6,
             "ksp_iterations": 1,
             "ksp_reason": 1,
             "ksp_type": "preonly",
@@ -133,5 +150,90 @@ def test_temporal_backend_probe_failure_raises_clear_error(monkeypatch) -> None:
 
     message = str(excinfo.value)
     assert "factor backend 'strumpack' failed accuracy probe" in message
-    assert "||Kx-b||/||b|| = 2.500e+00 > 1.000e-08" in message
+    assert "||Kx-b||/||b|| = 1.000e-06 > 1.000e-08" in message
     assert "set eigen.backend_probe.enabled=false to override" in message
+
+
+@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+def test_temporal_backend_probe_preconditioner_role_does_not_reject_moderate_residual(
+    monkeypatch, st_solver
+) -> None:
+    monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
+    monkeypatch.setattr(eigenvalue, "apply_factor_backend", lambda *args, **kwargs: "strumpack")
+    monkeypatch.setattr(
+        eigenvalue,
+        "shifted_ksp_probe_residual",
+        lambda ksp: {
+            "residual_abs": 1.0e-6,
+            "residual_rel": 1.0e-6,
+            "ksp_iterations": 1,
+            "ksp_reason": 1,
+            "ksp_type": "fgmres",
+            "pc_type": "lu",
+            "pc_factor_solver_type": "strumpack",
+        },
+    )
+    operator = np.diag([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j])
+    eigen_cfg = {
+        "st_solver": st_solver,
+        "factor_backend": "strumpack",
+        "pc_type": "lu",
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.0e-12,
+        "ksp_max_it": 20,
+        "backend_probe": {"residual_rel_max": 1.0e-8},
+    }
+
+    omega, _ = stability_eigenvalues(
+        operator,
+        n_modes=1,
+        target=2.2j,
+        solver_cfg={"eigen": eigen_cfg},
+    )
+
+    assert omega.shape == (1,)
+
+
+@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+def test_temporal_backend_probe_preconditioner_role_still_rejects_catastrophic_residual(
+    monkeypatch, st_solver
+) -> None:
+    # The relaxed preconditioner-role ceiling is a SANITY bound, not a free pass:
+    # a residual above PRECONDITIONER_PROBE_RESIDUAL_REL_MAX (~1e-4) means the
+    # factor backend is doing essentially nothing as a preconditioner and must
+    # still fail fast. This pins the safety claim behind the relaxation.
+    monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
+    monkeypatch.setattr(eigenvalue, "apply_factor_backend", lambda *args, **kwargs: "strumpack")
+    monkeypatch.setattr(
+        eigenvalue,
+        "shifted_ksp_probe_residual",
+        lambda ksp: {
+            "residual_abs": 1.0e-1,
+            "residual_rel": 1.0e-1,
+            "ksp_iterations": 1,
+            "ksp_reason": 1,
+            "ksp_type": "fgmres",
+            "pc_type": "lu",
+            "pc_factor_solver_type": "strumpack",
+        },
+    )
+    operator = np.diag([1.0 + 0.0j, 2.0 + 0.0j, 3.0 + 0.0j])
+    eigen_cfg = {
+        "st_solver": st_solver,
+        "factor_backend": "strumpack",
+        "pc_type": "lu",
+        "ksp_type": "gmres",
+        "ksp_rtol": 1.0e-12,
+        "ksp_max_it": 20,
+        "backend_probe": {"residual_rel_max": 1.0e-8},
+    }
+
+    with pytest.raises(RuntimeError) as excinfo:
+        stability_eigenvalues(
+            operator,
+            n_modes=1,
+            target=2.2j,
+            solver_cfg={"eigen": eigen_cfg},
+        )
+
+    assert "failed accuracy probe" in str(excinfo.value)

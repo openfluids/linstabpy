@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+import numbers
 import sys
 import time
 
@@ -17,6 +19,12 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.linalg.backends import (
+    PRECONDITIONER_PROBE_RESIDUAL_REL_MAX,
+    backend_probe_is_preconditioner_role,
+    factor_backend_available,
+    resolve_auto_factor_backend,
+)
 from linstabpy.solvers import eigenvalue as _temporal_core
 from linstabpy.solvers._eps_helpers import (
     _install_eps_monitor,
@@ -54,6 +62,46 @@ from linstabpy.solvers.spatial_eig import _eigs_generalized
 from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_finite_number(name: str, value: float | complex) -> None:
+    if isinstance(value, bool) or not isinstance(value, numbers.Number):
+        raise TypeError(f"{name} must be a finite number")
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+
+
+def _validate_sparse_square_operator(
+    name: str,
+    operator: sp.spmatrix | PETSc.Mat,
+) -> int:
+    if not (_is_petsc_matrix(operator) or sp.issparse(operator) or isinstance(operator, np.ndarray)):
+        raise TypeError(f"{name} must be a 2-D array, sparse matrix, or PETSc Mat")
+    shape = _operator_shape(operator) if not isinstance(operator, np.ndarray) else operator.shape
+    if len(shape) != 2:
+        raise ValueError(f"{name} must be a 2-D operator")
+    nrows, ncols = shape
+    if nrows != ncols:
+        raise ValueError(f"{name} must be a square matrix")
+    return nrows
+
+
+def _validate_n_modes(n_modes: int, ndof: int) -> None:
+    if isinstance(n_modes, bool) or not isinstance(n_modes, numbers.Integral):
+        raise TypeError("n_modes must be an integer >= 1")
+    if n_modes < 1:
+        raise ValueError("n_modes must be >= 1")
+    if n_modes > ndof:
+        raise ValueError("n_modes cannot exceed matrix size")
+
+
+def _validate_weight_vector(name: str, value: np.ndarray, ndof: int) -> np.ndarray:
+    vector = np.asarray(value)
+    if vector.ndim != 1:
+        raise ValueError(f"{name} must be a 1-D vector")
+    if vector.size != ndof:
+        raise ValueError(f"{name} length must match operator size {ndof}")
+    return vector
 
 
 def _solve_near_target(
@@ -189,6 +237,29 @@ def _solve_near_target(
     ksp = st.getKSP()
     pc = ksp.getPC()
 
+    # Auto-route: when factor_backend="auto", resolve to a concrete backend now
+    # that ndof is known.  The config carries intent "auto"; this is the only
+    # site where ndof is available before the backend is applied to the PC.
+    if cfg.eigen.st_factor_backend == "auto":
+        _strumpack_avail = factor_backend_available("strumpack")
+        _threshold = cfg.eigen.auto_route_dof_threshold
+        _concrete = resolve_auto_factor_backend(
+            ndof,
+            threshold=_threshold,
+            strumpack_available=_strumpack_avail,
+        )
+        logger.info(
+            "factor_backend=auto routing: ndof=%d threshold=%d strumpack_available=%s -> %s",
+            ndof,
+            _threshold,
+            _strumpack_avail,
+            _concrete,
+        )
+        # Replace the frozen cfg with a copy that carries the concrete backend.
+        # Only the eigen sub-object changes; no other fields are touched.
+        _eigen_concrete = dataclasses.replace(cfg.eigen, st_factor_backend=_concrete)
+        cfg = dataclasses.replace(cfg, eigen=_eigen_concrete)
+
     _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
     # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
@@ -256,15 +327,18 @@ def _solve_near_target(
     probe_enabled = cfg.eigen.backend_probe.enabled
     probe_cfg = {"enabled": probe_enabled} if probe_enabled is not None else {}
     backend_probe_result: dict[str, float | int | str | None] | None = None
-    if _temporal_core.should_probe_backend(resolved_factor_backend, probe_cfg):
+    if _temporal_core.should_probe_backend(resolved_factor_backend, probe_cfg, st_solver=st_solver):
         probe = _temporal_core.shifted_ksp_probe_residual(st.getKSP())
         backend_probe_result = probe
         residual_rel = float(probe["residual_rel"])
         residual_rel_max = cfg.eigen.backend_probe.residual_rel_max
+        preconditioner_role = backend_probe_is_preconditioner_role(st_solver)
+        probe_role = "preconditioner" if preconditioner_role else "direct"
         logger.info(
-            "Factor backend accuracy probe: backend=%s residual_abs=%.3e residual_rel=%.3e "
+            "Factor backend accuracy probe: backend=%s role=%s residual_abs=%.3e residual_rel=%.3e "
             "tol=%.3e ksp_type=%s pc_type=%s factor_solver=%s iterations=%s reason=%s",
             resolved_factor_backend,
+            probe_role,
             float(probe["residual_abs"]),
             residual_rel,
             residual_rel_max,
@@ -274,7 +348,24 @@ def _solve_near_target(
             probe["ksp_iterations"],
             probe["ksp_reason"],
         )
-        if residual_rel > residual_rel_max:
+        rejection_limit = residual_rel_max
+        if preconditioner_role:
+            # A factor backend used under an iterative outer KSP/SLEPc solve is
+            # accepted primarily by that outer convergence test.  The bare LU
+            # apply can be inexact (for example STRUMPACK compression) while a
+            # healthy FGMRES outer still drives the true shifted residual down.
+            # Keep a relaxed sanity ceiling so a completely ineffective
+            # preconditioner still fails fast without weakening the direct gate.
+            rejection_limit = max(residual_rel_max, PRECONDITIONER_PROBE_RESIDUAL_REL_MAX)
+            if residual_rel > residual_rel_max:
+                logger.info(
+                    "Factor backend probe residual %.3e exceeds direct-solve tol %.3e, "
+                    "but backend is in preconditioner role; applying relaxed sanity tol %.3e",
+                    residual_rel,
+                    residual_rel_max,
+                    rejection_limit,
+                )
+        if residual_rel > rejection_limit:
             _raise_backend_probe_failure(
                 backend=resolved_factor_backend,
                 residual_rel=residual_rel,
@@ -418,6 +509,39 @@ def _solve_near_target(
     return eigenvalues, eigenvectors
 
 
+def _mumps_direct_solver_cfg(solver_cfg: dict | None) -> dict:
+    """Return a clean MUMPS-direct ``solver_cfg`` for the STRUMPACK fallback.
+
+    Strips every STRUMPACK/iterative factor-backend selector from the eigen
+    subsection so the retried solve uses the validated MUMPS
+    ``SINVERT+PREONLY+LU`` path. Building a fresh dict (rather than overriding
+    one config channel) means no STRUMPACK setting can leak through the raw
+    ``solver_cfg``, the typed ``cfg.eigen``, or an explicit
+    ``pc_factor_solver_type``. If ``solver_cfg`` is ``None`` the fallback uses
+    MUMPS with default tolerances (acceptable for a correctness-preserving
+    fallback solve).
+    """
+    base = dict(solver_cfg) if solver_cfg else {}
+    eigen = dict(base.get("eigen", {}))
+    for key in ("ksp_rtol", "ksp_atol", "ksp_max_it", "sub_ksp_type", "sub_pc_type"):
+        eigen.pop(key, None)
+    # Set every backend/solver channel explicitly to MUMPS direct so no
+    # STRUMPACK/iterative value can survive through any config naming.
+    eigen.update(
+        {
+            "st_solver": "mumps",
+            "factor_backend": "mumps",
+            "st_factor_backend": "mumps",
+            "pc_factor_solver_type": "mumps",
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "ksp_pc_side": "left",
+        }
+    )
+    base["eigen"] = eigen
+    return base
+
+
 def eigenvalues(
     L0: sp.spmatrix | PETSc.Mat,
     n_modes: int,
@@ -458,33 +582,48 @@ def eigenvalues(
     modes:
         Right eigenvectors corresponding to ``omega``.
     """
+    ndof = _validate_sparse_square_operator("L0", L0)
+    _validate_n_modes(n_modes, ndof)
+    _validate_finite_number("target", target)
+    if W_diag is not None:
+        _validate_weight_vector("W_diag", W_diag, ndof)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
 
     temporal_operator = _scaled_operator(operator, 1j)
     omega = complex(target)
-    if return_info:
-        eigenvalues, eigenvectors, info = _solve_near_target(
+    def _attempt(scfg: dict | None, c: Config) -> tuple[np.ndarray, np.ndarray, dict]:
+        ev, evec, nfo = _solve_near_target(
             temporal_operator,
             n_modes,
             omega,
             ncv=ncv,
             initial_space=initial_space,
-            solver_cfg=solver_cfg,
-            cfg=cfg,
+            solver_cfg=scfg,
+            cfg=c,
             return_info=True,
         )
-    else:
-        eigenvalues, eigenvectors = _solve_near_target(
-            temporal_operator,
-            n_modes,
-            omega,
-            ncv=ncv,
-            initial_space=initial_space,
-            solver_cfg=solver_cfg,
-            cfg=cfg,
+        return ev, evec, (nfo if nfo is not None else {})
+
+    try:
+        eigenvalues, eigenvectors, info = _attempt(solver_cfg, cfg)
+    except _temporal_core.StrumpackFactorizationFailed:
+        # STRUMPACK static pivoting returned ZERO_PIVOT (PETSc maps it to the
+        # opaque "factorization failed"). Retry once with a clean MUMPS direct
+        # solve, whose dynamic partial pivoting handles the tiny pivot. Done at
+        # this top level (not inside _solve_near_target) so the retry rebuilds
+        # every config channel from a STRUMPACK-free dict and nothing can leak.
+        logger.warning(
+            "STRUMPACK ZERO_PIVOT during temporal EVP at ndof=%d; falling back "
+            "once to MUMPS direct solve (dynamic pivoting)",
+            ndof,
         )
-        info = {}
+        mumps_scfg = _mumps_direct_solver_cfg(solver_cfg)
+        mumps_cfg = Config.load(mumps_scfg)
+        eigenvalues, eigenvectors, info = _attempt(mumps_scfg, mumps_cfg)
+        info["factor_backend_fallback"] = "mumps"
+        info["factor_backend_fallback_from"] = "strumpack"
+        info["factor_backend_fallback_reason"] = "strumpack_zero_pivot"
     order = _nearest_order(eigenvalues, omega)
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
@@ -571,6 +710,11 @@ def adjoint_eigenvalues(
         eigenvalues so that ``adjoint_omegas == conj(temporal_omegas)``.
         Default is False (raw adjoint eigenvalue convention).
     """
+    ndof = _validate_sparse_square_operator("L0", L0)
+    _validate_n_modes(n_modes, ndof)
+    _validate_finite_number("target", target)
+    _validate_weight_vector("W_diag", W_diag, ndof)
+    _validate_weight_vector("invW_diag", invW_diag, ndof)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     operator, _ = _check_inputs_shape(L0, n_modes)
     if _is_petsc_matrix(operator):
@@ -628,6 +772,14 @@ def spatial_eigenvalues(
         modes : ndarray, shape (N, n_modes)
             Right eigenvectors.
     """
+    ndof = _validate_sparse_square_operator("Lc", Lc)
+    _validate_n_modes(n_modes, ndof)
+    for name, operator in (("Lw", Lw), ("R", R)):
+        other_ndof = _validate_sparse_square_operator(name, operator)
+        if other_ndof != ndof:
+            raise ValueError(f"{name} shape must match Lc shape")
+    _validate_finite_number("omega", omega)
+    _validate_finite_number("target", target)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     lhs = Lc.copy() if _is_petsc_matrix(Lc) else sp.csc_matrix(Lc, dtype=complex)
     if _is_petsc_matrix(lhs):

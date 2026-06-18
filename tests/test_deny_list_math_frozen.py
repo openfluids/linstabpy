@@ -111,7 +111,11 @@ def math_signature(path: Path) -> str:
 _FROZEN_SIGNATURES = {
     "coefficients": "d1c819cd693ff221c5e36298f3b6076fe61691271d8cb75b92d18e4c54271722",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
-    "mesh": "2930daa5892136c84a8ca00383fd76961462ca2a791ec555a02bcdb1dfbc3c67",
+    # mesh re-baselined for bead r3uu.3.2: Mesh.create gained an
+    # argument-validation preamble (two new module-level validators + one call;
+    # zero math statements changed). Evidence: all 13 oracle/harness files green
+    # (154 passed) at the re-baseline commit; user-approved 2026-06-12.
+    "mesh": "8ab8227af5b90ebe7981caaa553ee3009c140e6cde4dd59c81b1e9236a2c9185",
     "sbp": "1ff8cfe68c6a3e464c2b76a7ebe5c77175a06f2868020d0a06f5b60d2036efc1",
     "sbp_generator": "42827492ac4806916ee246aa7046c706fc312c8521187c74fb280f73acd45beb",
 }

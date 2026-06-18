@@ -13,7 +13,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from linstabpy.linalg.backends import DEFAULT_FACTOR_BACKEND, _as_bool
+from linstabpy.linalg.backends import (
+    DEFAULT_AUTO_ROUTE_DOF_THRESHOLD,
+    DEFAULT_FACTOR_BACKEND,
+    DEFAULT_FACTOR_PRECISION,
+    DEFAULT_MUMPS_BLR,
+    DEFAULT_MUMPS_BLR_TOL,
+    _as_bool,
+    _normalize_factor_precision,
+    _normalize_mumps_blr_tol,
+    _normalize_mumps_ordering,
+)
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
 from linstabpy.utils.jsonc import load_jsonc
 
@@ -153,6 +163,47 @@ def _factor_backend(
     return _normalize_backend(default)
 
 
+def _factor_precision(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> str:
+    if "LINSTABPY_FACTOR_PRECISION" in env:
+        return _normalize_factor_precision(env["LINSTABPY_FACTOR_PRECISION"])
+    if cfg is not None and "factor_precision" in cfg:
+        return _normalize_factor_precision(cfg["factor_precision"])
+    return DEFAULT_FACTOR_PRECISION
+
+
+def _mumps_blr(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> bool:
+    if "LINSTABPY_MUMPS_BLR" in env:
+        return _as_bool(env["LINSTABPY_MUMPS_BLR"])
+    if cfg is not None and "mumps_blr" in cfg:
+        return _as_bool(cfg["mumps_blr"])
+    return DEFAULT_MUMPS_BLR
+
+
+def _mumps_blr_tol(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> float:
+    if "LINSTABPY_MUMPS_BLR_TOL" in env:
+        return _normalize_mumps_blr_tol(env["LINSTABPY_MUMPS_BLR_TOL"])
+    if cfg is not None and "mumps_blr_tol" in cfg:
+        return _normalize_mumps_blr_tol(cfg["mumps_blr_tol"])
+    return DEFAULT_MUMPS_BLR_TOL
+
+
+def _mumps_ordering(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> str | None:
+    if "LINSTABPY_MUMPS_ORDERING" in env:
+        return _normalize_mumps_ordering(env["LINSTABPY_MUMPS_ORDERING"])
+    if cfg is not None and "mumps_ordering" in cfg:
+        return _normalize_mumps_ordering(cfg["mumps_ordering"])
+    return None
+
+
+def _auto_route_dof_threshold(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> int:
+    """Resolve auto-route DOF threshold with precedence env > JSONC > default."""
+    if "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD" in env:
+        return int(env["LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD"])
+    if cfg is not None and "auto_route_dof_threshold" in cfg:
+        return int(cfg["auto_route_dof_threshold"])
+    return DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
+
+
 def _st_factor_backend(
     st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
 ) -> str | None:
@@ -173,6 +224,20 @@ def _st_factor_backend(
             env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
             default=pc_factor_solver_type if pc_factor_solver_type else DEFAULT_FACTOR_BACKEND,
         )
+    if st_solver == "strumpack_fgmres":
+        return _factor_backend(
+            cfg,
+            env,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default="strumpack",
+        )
+    if st_solver == "fgmres_lu":
+        return _factor_backend(
+            cfg,
+            env,
+            env_var="LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
+            default=DEFAULT_FACTOR_BACKEND,
+        )
     return None
 
 
@@ -180,6 +245,10 @@ def _st_factor_backend(
 class LinSolveCfg:
     type: str
     factor_backend: str | None
+    factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
+    mumps_ordering: str | None
     ksp_type: str
     pc_type: str
     ksp_pc_side: str
@@ -203,6 +272,10 @@ class LinSolveCfg:
             factor_backend=_factor_backend(
                 cfg, env, env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE", default="mumps"
             ),
+            factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
             ksp_type=_scfg(cfg, "ksp_type", env, f"{prefix}_KSP_TYPE", "fgmres"),
             pc_type=_scfg(cfg, "pc_type", env, f"{prefix}_PC_TYPE", "asm"),
             ksp_pc_side=_scfg(cfg, "ksp_pc_side", env, f"{prefix}_KSP_PC_SIDE", "right"),
@@ -306,6 +379,10 @@ class EigenCfg:
     backend_probe: BackendProbeCfg
     st_solver: str
     st_factor_backend: str | None
+    factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
+    mumps_ordering: str | None
     pc_factor_solver_type: str
     cond_warn: bool
     cond_warn_max_n: int
@@ -328,6 +405,11 @@ class EigenCfg:
     weighted_norm_tol: float
     ncv: int | None
     eps_max_it_explicit: int | None
+    # Auto-route DOF threshold: carried from config so it can be used at solve time.
+    # "auto" backend intent is resolved to a concrete backend in _eigenvalues.py
+    # once ndof is known.  See resolve_auto_factor_backend() and
+    # DEFAULT_AUTO_ROUTE_DOF_THRESHOLD for provenance.
+    auto_route_dof_threshold: int
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "EigenCfg":
@@ -340,6 +422,10 @@ class EigenCfg:
             backend_probe=BackendProbeCfg.from_mapping(cfg.get("backend_probe", {}) if cfg else {}),
             st_solver=st_solver,
             st_factor_backend=_st_factor_backend(st_solver, cfg, env),
+            factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
             pc_factor_solver_type=pc_factor_solver_type,
             cond_warn=_scfg_bool(cfg, "cond_warn", env, "LINSTABPY_EIGEN_COND_WARN", True),
             cond_warn_max_n=_scfg_int(
@@ -364,7 +450,11 @@ class EigenCfg:
             monitor=_scfg_bool(cfg, "monitor", env, "LINSTABPY_EIGEN_MONITOR", False),
             monitor_every=_scfg_int(cfg, "monitor_every", env, "LINSTABPY_EIGEN_MONITOR_EVERY", 10),
             true_residual=_scfg_bool(
-                cfg, "true_residual", env, "LINSTABPY_EIGEN_TRUE_RESIDUAL", st_solver == "inexact"
+                cfg,
+                "true_residual",
+                env,
+                "LINSTABPY_EIGEN_TRUE_RESIDUAL",
+                st_solver in {"inexact", "fgmres_lu", "strumpack_fgmres"},
             ),
             extract_all_converged=_scfg_bool(
                 cfg, "extract_all_converged", env, "LINSTABPY_EIGEN_EXTRACT_ALL_CONVERGED", False
@@ -376,6 +466,9 @@ class EigenCfg:
             eps_max_it_explicit=_scfg_optional_int(
                 cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None
             ),
+            # auto_route_dof_threshold uses env > JSONC > default precedence,
+            # mirroring _mumps_blr / _mumps_ordering (env first, then JSONC).
+            auto_route_dof_threshold=_auto_route_dof_threshold(cfg, env),
         )
 
     def eps_max_it(self, ndof: int) -> int:
@@ -390,12 +483,23 @@ class EigenCfg:
 class SpatialCfg:
     st_solver: str
     factor_backend: str | None
+    factor_precision: str
+    mumps_blr: bool
+    mumps_blr_tol: float
+    mumps_ordering: str | None
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "SpatialCfg":
         st_solver = _scfg(cfg, "st_solver", env, "LINSTABPY_SPATIAL_ST_SOLVER", "mumps")
         default = "mumps" if st_solver == "mumps" else None
-        return cls(st_solver=st_solver, factor_backend=_factor_backend(cfg, env, default=default))
+        return cls(
+            st_solver=st_solver,
+            factor_backend=_factor_backend(cfg, env, default=default),
+            factor_precision=_factor_precision(cfg, env),
+            mumps_blr=_mumps_blr(cfg, env),
+            mumps_blr_tol=_mumps_blr_tol(cfg, env),
+            mumps_ordering=_mumps_ordering(cfg, env),
+        )
 
 
 @dataclass(frozen=True)
@@ -443,6 +547,13 @@ class MeshCfg:
 
 @dataclass(frozen=True)
 class MpiCfg:
+    """MPI/PETSc init-time options.
+
+    ``mumps_icntl_7`` is a deprecated compatibility alias for the canonical
+    ``mumps_ordering=metis`` surface; keep accepting it, but prefer the named
+    ordering knob for new configs.
+    """
+
     petsc_matrix_mode: str
     root_scatter: bool
     mumps_icntl_7: bool

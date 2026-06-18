@@ -19,6 +19,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
 
 def _zero_rows_csr(mat: sp.csr_matrix, rows: np.ndarray) -> None:
     """Zero rows in a CSR matrix by clearing stored data values."""
+    rows = np.asarray(rows, dtype=int)
+    if rows.size == 0:
+        return
     starts = mat.indptr[rows]
     ends = mat.indptr[rows + 1]
     idx = np.concatenate([np.arange(s, e) for s, e in zip(starts, ends)])
@@ -28,6 +31,9 @@ def _zero_rows_csr(mat: sp.csr_matrix, rows: np.ndarray) -> None:
 
 def _zero_cols_csc(mat: sp.csc_matrix, cols: np.ndarray) -> None:
     """Zero columns in a CSC matrix by clearing stored data values."""
+    cols = np.asarray(cols, dtype=int)
+    if cols.size == 0:
+        return
     starts = mat.indptr[cols]
     ends = mat.indptr[cols + 1]
     idx = np.concatenate([np.arange(s, e) for s, e in zip(starts, ends)])
@@ -59,6 +65,36 @@ def _set_diagonal_entries_csc(
     if missing:
         missing_idx = np.asarray(missing, dtype=int)
         mat = mat + sp.csc_matrix(
+            (np.full(missing_idx.size, value), (missing_idx, missing_idx)),
+            shape=mat.shape,
+        )
+    return mat
+
+
+def _set_diagonal_entries_csr(
+    mat: sp.csr_matrix,
+    indices: np.ndarray,
+    value: float | complex,
+) -> sp.csr_matrix:
+    """Set selected diagonal entries, reusing existing CSR slots when present."""
+    indices = np.unique(np.asarray(indices, dtype=int))
+    if indices.size == 0:
+        return mat
+
+    missing: list[int] = []
+    for row in indices:
+        start = mat.indptr[row]
+        stop = mat.indptr[row + 1]
+        cols = mat.indices[start:stop]
+        hit = np.flatnonzero(cols == row)
+        if hit.size:
+            mat.data[start + int(hit[0])] = value
+        else:
+            missing.append(int(row))
+
+    if missing:
+        missing_idx = np.asarray(missing, dtype=int)
+        mat = mat + sp.csr_matrix(
             (np.full(missing_idx.size, value), (missing_idx, missing_idx)),
             shape=mat.shape,
         )

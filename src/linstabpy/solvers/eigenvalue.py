@@ -1,22 +1,48 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Temporal and adjoint eigenvalue solvers using SLEPc EPS.
 
-Solver configuration — ``solver.eigen`` section in JSONC
----------------------------------------------------------
+Solver configuration uses the ``solver.eigen`` JSONC section.  For direct
+shift-invert paths, ``factor_backend`` selects the PETSc LU factor backend.
+On the reference direct path (``st_solver`` of ``mumps``/``direct``/``lu``)
+the resolution order is ``solver.eigen.factor_backend``, then
+``LINSTABPY_FACTOR_BACKEND``, then the ``mumps`` default — the per-solver
+``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`` override is *not* consulted on
+that path.  That per-solver override participates only for the iterative
+eigensolver with ``pc_type="lu"`` and for ``st_solver="strumpack_fgmres"``
+(whose default is ``strumpack``).
+Requested backends are checked with a small complex PETSc LU probe and an
+unavailable backend fails loudly instead of falling back.  See
+``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
+
+Current backend status is deliberately conservative: ``mumps`` is the default
+and reference path; ``strumpack`` is experimental and currently documented only
+for the diagnostic FGMRES+LU configuration; ``superlu_dist`` is rejected for the
+tested CUDA build; and ``cudss`` is not wired to the ``linstabpy`` PETSc factor
+interface.
+
+The experimental factorization knobs are environment-enforced today:
+``LINSTABPY_FACTOR_PRECISION`` (``single`` only with ``superlu_dist``),
+``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
+``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
+when requested with the wrong backend, and make no performance claim.  Matching
+JSONC fields are validated and carried in the typed config but are not yet
+consumed by the solver call sites for factorization setup.
 
 ``st_solver`` selects the shift-invert inner linear solver:
 
-* ``"mumps"`` (default) — direct LU via MUMPS.  Robust, memory-heavy.
-  Requires ~3 TiB at stride-1 for the SWBLI LNSE operator.
+* ``"mumps"`` (default) — direct LU through the configured factor backend,
+  with MUMPS as the reference default.
 * ``"iterative"`` / ``"krylov"`` / ``"slepc"`` — configurable Krylov inner
   solver with a wide choice of preconditioners (including ASM, BJacobi,
-  FieldSplit).  Parameters are read from the *top-level* ``solver.eigen``
-  section keys (``ksp_type``, ``pc_type``, …).
-* ``"inexact"`` — FGMRES + ASM + local ILU inner solver tuned for
-  memory-constrained large-DOF runs.  Parameters live in the nested
-  ``solver.eigen.inexact`` sub-dict so they do not collide with the
-  ``"iterative"`` key names.  Memory scales with preconditioner storage
-  instead of the LU factor, giving 5–20× lower peak RSS at stride-1.
+  FieldSplit).  Parameters are read from the top-level ``solver.eigen``
+  section keys (``ksp_type``, ``pc_type``, ...).
+* ``"inexact"`` — FGMRES + ASM + local ILU inner solver.  Parameters live in
+  the nested ``solver.eigen.inexact`` sub-dict so they do not collide with the
+  ``"iterative"`` key names.
+* ``"strumpack_fgmres"`` — FGMRES outer KSP with a direct-LU PC whose default
+  factor backend is STRUMPACK.  The portable ``"fgmres_lu"`` selector uses the
+  same path with the configured ``factor_backend``.  Both selectors read
+  ``ksp_rtol``, ``ksp_atol``, and ``ksp_max_it`` from ``solver.eigen.inexact``.
 
 JSONC schema for ``"inexact"`` mode::
 
@@ -36,10 +62,10 @@ JSONC schema for ``"inexact"`` mode::
       }
     }
 
-``true_residual`` defaults to ``True`` when ``st_solver == "inexact"``.
-Inexact inner solves can satisfy the preconditioned residual while the
-true residual remains large; forcing true-residual checks at convergence
-time catches this case.
+``true_residual`` defaults to ``True`` when ``st_solver`` is ``"inexact"``,
+``"fgmres_lu"``, or ``"strumpack_fgmres"``.  Inexact inner solves can satisfy
+the preconditioned residual while the true residual remains large; forcing
+true-residual checks at convergence time catches this case.
 """
 
 from __future__ import annotations
@@ -80,6 +106,17 @@ from .petsc_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class StrumpackFactorizationFailed(RuntimeError):
+    """STRUMPACK static-pivoting ZERO_PIVOT during PETSc factorization."""
+
+    def __init__(self, message: str, *, factor_backend: str = "strumpack") -> None:
+        super().__init__(message)
+        self.factor_backend = factor_backend
+
+
+FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"})
 
 
 def _apply_ksp_jsonc_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
@@ -292,11 +329,29 @@ def _raise_eps_setup_failure(
     ncv: int,
     target: complex,
     st_solver: str,
+    factor_backend: str | None = None,
 ) -> NoReturn:
-    """Raise a richer error when SLEPc/PETSc setup fails."""
+    """Raise a richer error when SLEPc/PETSc setup fails.
+
+    Exception-type dispatch
+    -----------------------
+    ``SystemError`` whose text contains ``"returned a result with an exception
+    set"``
+        This is petsc4py's CHKERR collapse: the real PETSc/STRUMPACK error was
+        emitted to **stderr** before petsc4py raised this bare ``SystemError``.
+        The Python exception object itself carries no useful diagnostic; to read
+        the actual PETSc error re-run capturing stderr (e.g.
+        ``python ... 2>err.txt``) or add ``-error_output_stderr`` to the PETSc
+        options.
+
+    ``PETSc.Error``
+        petsc4py translated the PETSc error code correctly; the integer code is
+        available via ``exc.ierr``.
+
+    Any other exception
+        Reported as-is; the ``message=`` line contains ``str(exc)``.
+    """
     details: list[str] = [
-        f"type={type(exc).__name__}",
-        f"message={exc}",
         f"ndof={ndof}",
         f"nev={n_modes}",
         f"ncv={ncv}",
@@ -313,6 +368,7 @@ def _raise_eps_setup_failure(
     factor_solver = _safe_petsc_info(pc.getFactorSolverType, None)
     if factor_solver is not None and factor_solver != "?":
         details.append(f"factor_solver={factor_solver}")
+    resolved_backend = str(factor_backend or factor_solver or "").lower()
 
     factor_matrix = _safe_petsc_info(pc.getFactorMatrix, None)
     if factor_matrix is not None and factor_matrix != "?":
@@ -326,9 +382,47 @@ def _raise_eps_setup_failure(
         if infog2 not in {None, "?"}:
             details.append(f"mumps_infog2={infog2}")
 
-    raise RuntimeError(
-        "SLEPc EPS.setUp failed: " + ", ".join(str(item) for item in details)
-    ) from exc
+    context = ", ".join(str(item) for item in details)
+
+    # Branch on exception type to produce a useful message.
+    _CHKERR_SENTINEL = "returned a result with an exception set"
+    ierr = getattr(exc, "ierr", None) if isinstance(exc, PETSc.Error) else None
+    is_chkerr_collapse = isinstance(exc, SystemError) and _CHKERR_SENTINEL in str(exc)
+    is_strumpack_zero_pivot = resolved_backend == "strumpack" and (
+        is_chkerr_collapse or ierr == 76
+    )
+    if is_strumpack_zero_pivot:
+        raise StrumpackFactorizationFailed(
+            "SLEPc EPS.setUp failed because STRUMPACK factorization hit "
+            "ZERO_PIVOT under static pivoting (tiny pivot below about "
+            "sqrt(eps)*||A||_1 ~= 1e-8; tiny-pivot replacement is disabled "
+            "and PETSc 3.24 does not expose replace_tiny_pivots). A MUMPS "
+            "fallback using dynamic partial pivoting is available/attempted. "
+            f"context: {context}",
+            factor_backend="strumpack",
+        ) from exc
+    if is_chkerr_collapse:
+        # petsc4py CHKERR collapse: the real PETSc/STRUMPACK error went to
+        # stderr only; the SystemError text is not diagnostic on its own.
+        raise RuntimeError(
+            "SLEPc EPS.setUp failed [petsc4py CHKERR collapse]: "
+            "the underlying PETSc/STRUMPACK error was NOT propagated to Python "
+            "— its stack was emitted to stderr before this SystemError was "
+            "raised.  Re-run capturing stderr (e.g. 'python ... 2>err.txt') or "
+            "add '-error_output_stderr' to PETSc options to read the real error. "
+            f"context: {context}"
+        ) from exc
+    elif isinstance(exc, PETSc.Error):
+        code_str = f"ierr={ierr}" if ierr is not None else "ierr=?"
+        raise RuntimeError(
+            f"SLEPc EPS.setUp failed [PETSc.Error {code_str}]: "
+            f"message={exc}, {context}"
+        ) from exc
+    else:
+        raise RuntimeError(
+            f"SLEPc EPS.setUp failed [type={type(exc).__name__}]: "
+            f"message={exc}, {context}"
+        ) from exc
 
 
 def _raise_eps_solve_failure(
@@ -378,11 +472,21 @@ def _configure_st_for_eigenvalue(
 ) -> None:
     """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
 
+    Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` JSONC,
+    ``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE``, ``LINSTABPY_FACTOR_BACKEND``,
+    then the path default.  Availability is probe-checked and unavailable
+    backends fail loudly; see ``docs/COMPUTE_BACKENDS.md``.  The environment
+    knobs ``LINSTABPY_FACTOR_PRECISION``, ``LINSTABPY_MUMPS_BLR`` with
+    ``LINSTABPY_MUMPS_BLR_TOL``, and ``LINSTABPY_MUMPS_ORDERING`` are enforced
+    only from the environment at factorization time today; matching JSONC
+    fields are carried but not consumed by this setup path.
+
     Parameters
     ----------
     st_solver:
         One of ``"mumps"``, ``"direct"``, ``"lu"``, ``"iterative"``,
-        ``"krylov"``, ``"slepc"``, or ``"inexact"``.
+        ``"krylov"``, ``"slepc"``, ``"inexact"``, ``"fgmres_lu"``, or
+        ``"strumpack_fgmres"``.
     ecfg:
         The ``solver.eigen`` JSONC sub-dict (may be empty or ``None``).
     ksp:
@@ -475,6 +579,23 @@ def _configure_st_for_eigenvalue(
             except PETSc.Error:
                 pass
 
+    elif st_solver in FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES:
+        inexact_cfg = cfg.eigen.inexact
+        ksp.setType(PETSc.KSP.Type.FGMRES)
+        ksp.setTolerances(
+            rtol=inexact_cfg.ksp_rtol,
+            atol=inexact_cfg.ksp_atol,
+            max_it=inexact_cfg.ksp_max_it,
+        )
+        ksp.setErrorIfNotConverged(True)
+        pc.setType(PETSc.PC.Type.LU)
+        apply_factor_backend(
+            pc,
+            cfg.eigen.st_factor_backend,
+            options_prefix=ksp.getOptionsPrefix() or "",
+        )
+        _apply_ksp_jsonc_options(ksp, {"gmres_restart": (ecfg or {}).get("gmres_restart")})
+
     elif st_solver in INEXACT_EIGEN_SOLVER_TYPES:
         # Inexact shift-invert: FGMRES outer + ASM subdomain + local ILU.
         # Memory scales with preconditioner storage, not with the LU factor.
@@ -534,7 +655,7 @@ def _configure_st_for_eigenvalue(
     else:
         raise ValueError(
             f"Unsupported st_solver={st_solver!r}; "
-            "expected mumps|direct|lu|iterative|krylov|slepc|inexact"
+            "expected mumps|direct|lu|iterative|krylov|slepc|inexact|fgmres_lu|strumpack_fgmres"
         )
 
 
@@ -546,6 +667,8 @@ def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:
     if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         if cfg.eigen.pc_type != "lu":
             return None
+        return cfg.eigen.st_factor_backend
+    if st_solver in FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES:
         return cfg.eigen.st_factor_backend
     return None
 
@@ -629,6 +752,11 @@ _DEPRECATED_EXPORTS = {
 
 
 def __getattr__(name: str):  # noqa: ANN201
+    """Lazily expose deprecated public eigenvalue wrappers.
+
+    The active backend/knob documentation for these wrappers is the module
+    docstring above and ``docs/COMPUTE_BACKENDS.md``.
+    """
     if name in _DEPRECATED_EXPORTS:
         import importlib
         import warnings
@@ -647,4 +775,5 @@ def __getattr__(name: str):  # noqa: ANN201
 
 
 def __dir__() -> list[str]:
+    """Return module attributes including deprecated public wrappers."""
     return sorted(set(globals()) | set(_DEPRECATED_EXPORTS))

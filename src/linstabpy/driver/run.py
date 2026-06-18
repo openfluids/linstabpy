@@ -47,6 +47,7 @@ from linstabpy.stability.acceptance import (
     evaluate_stability_acceptance,
 )
 from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
 
 RUNTIME_NPZ_CONTRACT_KEYS = (
     "omega",
@@ -118,6 +119,22 @@ RUNTIME_NPZ_CONTRACT_KEYS = (
     "provenance_linstabpy_git_sha",
     "provenance_factor_backend",
     "provenance_factor_precision",
+    "git_sha",
+    "config_md5",
+    "hostname",
+    "compute_mode",
+    "mpi_stack",
+    "cost_wall_total_s",
+    "cost_wall_assemble_s",
+    "cost_wall_factor_s",
+    "cost_wall_solve_s",
+    "cost_peak_rss_bytes",
+    "cost_peak_gpu_mem_bytes",
+    "cost_mpi_ranks",
+    "cost_gpus",
+    "cost_petsc_options",
+    "cost_hardware_tag",
+    "cost_git_sha",
 )
 """Critical keys that runtime ``.npz`` outputs must continue to expose.
 
@@ -162,24 +179,6 @@ def _config_hash(config_dict: dict) -> str:
     return hashlib.sha256(json.dumps(config_dict, sort_keys=True).encode()).hexdigest()
 
 
-def _git_head_sha() -> str:
-    """Return the current git HEAD SHA, or 'unknown' on failure."""
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:
-        pass
-    return "unknown"
-
-
 def _first_env(*names: str, default: str | None = None) -> str | None:
     """Return the first non-empty environment value across ``names``."""
     for name in names:
@@ -192,19 +191,37 @@ def _first_env(*names: str, default: str | None = None) -> str | None:
     return default
 
 
-def _output_npz_path() -> Path:
+def _runtime_config_path() -> Path:
+    """Return the configured runtime config path without loading it."""
+    return Path(
+        _first_env(
+            "LINSTABPY_CASE_CONFIG",
+            "LINSTABPY_CASE2_CONFIG",
+            "LINSTABPY_CASE1_CONFIG",
+            default=str(Path.cwd() / "configs" / "parity_config.jsonc"),
+        )
+    )
+
+
+def _output_npz_path(provenance: dict[str, str] | None = None) -> Path:
     """Return the per-run output archive path.
 
-    Defaults to the current study working directory, but allows the timing
-    harness to isolate concurrent runs by providing a unique target path.
+    Defaults to the current study working directory with provenance embedded,
+    but allows the timing harness to isolate concurrent runs by providing a
+    unique target path.
     """
     raw = _first_env(
         "LINSTABPY_CASE_OUTPUT_NPZ",
         "LINSTABPY_CASE2_OUTPUT_NPZ",
         "LINSTABPY_CASE1_OUTPUT_NPZ",
-        default=str(Path.cwd() / f"{_log_prefix()}.npz"),
     )
-    return Path(raw).resolve()
+    if raw is not None:
+        return Path(raw).resolve()
+    if provenance is None:
+        provenance = collect_provenance(_runtime_config_path())
+    config_md5 = provenance["config_md5"]
+    sha8 = provenance["git_sha"][:8]
+    return (Path.cwd() / f"{_log_prefix()}_{config_md5}_{sha8}.npz").resolve()
 
 
 def _log_prefix() -> str:
@@ -525,18 +542,12 @@ class _RuntimeConfigSource:
     config: dict
     config_hash: str
     git_sha: str
+    provenance: dict[str, str]
 
 
 def _stage_load_runtime_config() -> _RuntimeConfigSource:
     """Load the JSONC runtime config and immutable provenance strings."""
-    config_path = Path(
-        _first_env(
-            "LINSTABPY_CASE_CONFIG",
-            "LINSTABPY_CASE2_CONFIG",
-            "LINSTABPY_CASE1_CONFIG",
-            default=str(Path.cwd() / "configs" / "parity_config.jsonc"),
-        )
-    )
+    config_path = _runtime_config_path()
     config: dict = {}
     if config_path.exists():
         config = load_jsonc(config_path)
@@ -554,11 +565,13 @@ def _stage_load_runtime_config() -> _RuntimeConfigSource:
     ):
         raise FileNotFoundError(f"case config file not found: {config_path}")
 
+    provenance = collect_provenance(config_path)
     return _RuntimeConfigSource(
         config_path=config_path,
         config=config,
         config_hash=_config_hash(config),
-        git_sha=_git_head_sha(),
+        git_sha=provenance["git_sha"],
+        provenance=provenance,
     )
 
 
@@ -1209,13 +1222,13 @@ def _stage_evaluate_stability_acceptance(
 def run() -> None:
     """Run the shared case pipeline and write the requested NPZ artifact."""
     t0 = time.perf_counter()
-    output_npz = _output_npz_path()
     _log("starting compute")
     comm = PETSc.COMM_WORLD
     rank = comm.getRank()
     size = comm.getSize()
 
     config_source = _stage_load_runtime_config()
+    output_npz = _output_npz_path(config_source.provenance)
     config = config_source.config
     config_hash = config_source.config_hash
     git_sha = config_source.git_sha
@@ -1589,6 +1602,7 @@ def run() -> None:
             heartbeat_seconds=heartbeat_seconds,
             peak_rss_bytes=_peak_rss_total_bytes,
             stage_wall=_STAGE_WALL,
+            provenance=config_source.provenance,
             payload=dict(
                 omega=omega,
                 direct_modes=direct_modes,

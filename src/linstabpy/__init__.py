@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """linstabpy: Stability and resolvent analysis of compressible viscous flows."""
 
-__version__ = "0.1.0"
+from importlib import metadata
+
+try:
+    __version__ = metadata.version("linstabpy")
+except metadata.PackageNotFoundError:
+    __version__ = "0.0.0+dev"
 
 # Public API — lazy via PEP 562 __getattr__. Importing linstabpy must NOT
 # initialize PETSc/MPI, because pure-math test jobs run without an MPI stack
@@ -13,8 +18,10 @@ _LAZY_EXPORTS = {
     "compute_chu_norm": "linstabpy.operators.energy_norm",
     "temporal_eigenvalues": ("linstabpy.stability._eigenvalues", "eigenvalues"),
     "adjoint_eigenvalues": "linstabpy.stability._eigenvalues",
+    "wavemaker": "linstabpy.stability.sensitivity",
     "resolvent_analysis": "linstabpy.resolvent.analysis",
     "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
+    "resolvent_map": "linstabpy.solvers.router.resolvent_map",
     "BaseFlow": "linstabpy.baseflow",
     "load_blasius": "linstabpy.baseflow",
     "load_cavity": "linstabpy.baseflow",
