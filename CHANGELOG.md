@@ -7,6 +7,19 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+- Regime-(b) discounted resolvent is now wired into `resolvent_map`: `NEAR_POLE`
+  band points are computed through the validated discounted path
+  `resolvent_analysis(L0, omega, ..., gamma=γ)` (forming `L0 - (γ + iω)I`) instead of
+  raising `NotImplementedError` or falling back to the singular direct resolvent. This
+  makes the unstable-stripe region of a gain map finite/well-posed (the CP1
+  well-posedness property, bead r3uu.3.12). The discount γ is taken from cfg
+  `regime_b_discount_gamma` (must be > 0) or defaults to `0.25` (validated to tame a
+  ~1e5 near-pole blow-up to ~4.0); each regime-b point records `resolvent_discount_gamma`
+  and is hard-gated to a finite gain (a non-finite stripe gain raises rather than passing
+  silently). The γ=0 regime-a path is unchanged and bit-identical — the seven Appendix-A
+  oracles and existing `resolvent_map` e2e tests are untouched. (toward N1 / v1.0.0-rc2)
+
 ## [1.0.0-rc1] - 2026-06-18
 
 Physics-campaign freeze release candidate: the turnkey `resolvent_map(base_flow,
