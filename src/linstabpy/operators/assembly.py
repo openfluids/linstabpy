@@ -1476,6 +1476,21 @@ def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
     return idx
 
 
+def _row_scaled_derivative_csr(
+    coeff: np.ndarray,
+    cache: _CSRDerivativeCache,
+) -> sp.csr_matrix:
+    """Return ``diag(coeff) @ cache.csr`` without leaving CSR format."""
+    data = np.empty(cache.csr.nnz, dtype=complex)
+    np.multiply(coeff[cache.row_indices], cache.csr.data, out=data)
+    return sp.csr_matrix(
+        (data, cache.csr.indices, cache.csr.indptr),
+        shape=cache.csr.shape,
+        dtype=complex,
+        copy=False,
+    )
+
+
 def _build_block_csr(
     ngp: int,
     a0: np.ndarray,
@@ -1515,39 +1530,94 @@ def _build_block_csr(
         (has_axx, axx, d2z_cache),
         (has_axy, axy, d2rz_cache),
     ]
-    total_nnz = (ngp if has_a0 else 0) + sum(
-        cache.csr.nnz for enabled, _, cache in derivative_terms if enabled and cache.csr.nnz
-    )
-    if total_nnz == 0:
+    enabled_terms = [
+        (coeff, cache) for enabled, coeff, cache in derivative_terms if enabled and cache.csr.nnz
+    ]
+    if not (has_a0 or enabled_terms):
         return sp.csr_matrix((ngp, ngp), dtype=complex)
 
-    rows = np.empty(total_nnz, dtype=np.int64)
-    cols = np.empty(total_nnz, dtype=np.int64)
-    data = np.empty(total_nnz, dtype=complex)
-    offset = 0
+    contribution_count = int(has_a0) + len(enabled_terms)
+    if contribution_count <= 2:
+        block: sp.csr_matrix | None = None
+        term_count = 0
+        if has_a0:
+            index_dtype = np.int32 if ngp <= np.iinfo(np.int32).max else np.int64
+            block = sp.csr_matrix(
+                (
+                    np.array(a0, dtype=complex, copy=True),
+                    np.arange(ngp, dtype=index_dtype),
+                    np.arange(ngp + 1, dtype=index_dtype),
+                ),
+                shape=(ngp, ngp),
+                dtype=complex,
+                copy=False,
+            )
+            term_count = 1
+        for coeff, cache in enabled_terms:
+            term = _row_scaled_derivative_csr(coeff, cache)
+            block = term if block is None else block + term
+            term_count += 1
+        if block is None:
+            return sp.csr_matrix((ngp, ngp), dtype=complex)
+        if term_count == 1 and not has_a0:
+            # ``term`` shares derivative-cache indices/indptr; detach before cleanup.
+            block = block.copy()
+    else:
+        # CSR-native direct fill: build this block's indptr/indices per call.
+        # Deliberately NOT memoized across calls — a module cache keyed on object
+        # ids / buffer addresses is unsafe under allocator address reuse (a freed
+        # derivative cache's address can be reused by a different sparsity pattern,
+        # silently returning a wrong operator). The per-call layout cost is O(nnz)
+        # arithmetic with no COO sort, which is the actual win over the old path.
+        row_nnz = np.zeros(ngp, dtype=np.int64)
+        if has_a0:
+            row_nnz += 1
+        for _, cache in enabled_terms:
+            row_nnz += cache.row_nnz
+        total_nnz = int(row_nnz.sum())
+        if total_nnz == 0:
+            return sp.csr_matrix((ngp, ngp), dtype=complex)
 
-    if has_a0:
-        stop = offset + ngp
-        diag_idx = np.arange(ngp, dtype=np.int64)
-        rows[offset:stop] = diag_idx
-        cols[offset:stop] = diag_idx
-        data[offset:stop] = a0
-        offset = stop
+        index_dtype = np.int32 if max(total_nnz, ngp) <= np.iinfo(np.int32).max else np.int64
+        indptr64 = np.empty(ngp + 1, dtype=np.int64)
+        indptr64[0] = 0
+        np.cumsum(row_nnz, out=indptr64[1:])
+        indptr = indptr64.astype(index_dtype, copy=True)
+        indices = np.empty(total_nnz, dtype=index_dtype)
+        row_offsets = np.zeros(ngp, dtype=np.int64)
+        diag_positions = None
 
-    for enabled, coeff, cache in derivative_terms:
-        if not enabled or cache.csr.nnz == 0:
-            continue
-        stop = offset + cache.csr.nnz
-        rows[offset:stop] = cache.row_indices
-        cols[offset:stop] = cache.csr.indices
-        np.multiply(coeff[cache.row_indices], cache.csr.data, out=data[offset:stop])
-        offset = stop
+        if has_a0:
+            diag_positions = indptr64[:-1].copy()
+            indices[diag_positions] = np.arange(ngp, dtype=index_dtype)
+            row_offsets += 1
 
-    block = sp.csr_matrix(
-        (data, (rows, cols)),
-        shape=(ngp, ngp),
-        dtype=complex,
-    )
+        term_positions = []
+        for _, cache in enabled_terms:
+            term_starts = indptr64[:-1] + row_offsets
+            within_row = np.arange(cache.csr.nnz, dtype=np.int64) - cache.csr.indptr[
+                cache.row_indices
+            ]
+            positions = term_starts[cache.row_indices] + within_row
+            indices[positions] = cache.csr.indices
+            term_positions.append(positions)
+            row_offsets += cache.row_nnz
+
+        data = np.empty(indices.size, dtype=complex)
+        if diag_positions is not None:
+            data[diag_positions] = a0
+
+        for (coeff, cache), positions in zip(enabled_terms, term_positions, strict=True):
+            term_data = np.empty(cache.csr.nnz, dtype=complex)
+            np.multiply(coeff[cache.row_indices], cache.csr.data, out=term_data)
+            data[positions] = term_data
+
+        block = sp.csr_matrix(
+            (data, indices.copy(), indptr.copy()),
+            shape=(ngp, ngp),
+            dtype=complex,
+            copy=False,
+        )
     block.sum_duplicates()
     block.eliminate_zeros()
     block.sort_indices()
