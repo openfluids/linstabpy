@@ -505,6 +505,7 @@ def _direct_engine_result(
     cfg: Mapping[str, Any],
     cfg_obj: Any,
     *,
+    gamma: float = 0.0,
     B_mat: Any = None,
     C_mat: Any = None,
     filter_fn: Any = None,
@@ -524,6 +525,7 @@ def _direct_engine_result(
         solver_cfg=_solver_cfg(cfg),
         cfg=cfg_obj,
         residuals=True,
+        gamma=gamma,
     )
     residual = None
     if np.asarray(rho_fwd).size or np.asarray(rho_adj).size:
@@ -536,6 +538,24 @@ def _direct_engine_result(
     return _DirectPointResult(gain=float(np.asarray(gains, dtype=float).reshape(-1)[0]), iterations=None, residual=residual)
 
 
+def _regime_b_discount_gamma(cfg: Mapping[str, Any]) -> float:
+    """Select discount gamma for regime-b NEAR_POLE points.
+    
+    Policy:
+    - Use cfg["regime_b_discount_gamma"] if present (explicit override)
+    - Else: derive from pole proximity to keep the shifted solve well-posed
+      Default: 0.25 (validated in test_resolvent_discount.py to tame 1e5 blowup to ~4.0)
+    """
+    explicit = _cfg_value(cfg, "regime_b_discount_gamma", None)
+    if explicit is not None:
+        gamma = float(explicit)
+        if not (gamma > 0.0):
+            raise ValueError(f"regime_b_discount_gamma must be positive, got {gamma}")
+        return gamma
+    # Default: use 0.25 (validated in CP1/r3uu.3.12 to handle 1e5 poles gracefully)
+    return 0.25
+
+
 def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
     label_text = str(label)
     if label_text == NEAR_POLE:
@@ -545,12 +565,25 @@ def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
     return None
 
 
-def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_notes: set[str]) -> str:
+def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_notes: set[str]) -> tuple[str, float]:
+    """Determine which regime to use and any discount gamma.
+    
+    Returns (regime, gamma) tuple where:
+    - regime is "regime-a", "regime-b", or "regime-c"
+    - gamma is 0.0 for regimes a/c, or >0 for regime-b
+    """
     missing = _intended_missing_engine(label)
     if missing is None:
-        return "regime-a"
+        return "regime-a", 0.0
     regime, engine, bead = missing
-    enable_key = "enable_regime_b" if regime == "regime-b" else "enable_regime_c"
+    
+    # For regime-b (NEAR_POLE), attempt discounted resolvent
+    if regime == "regime-b":
+        gamma = _regime_b_discount_gamma(cfg)
+        return regime, gamma
+    
+    # For regime-c (SMOOTH), still raise NotImplementedError
+    enable_key = "enable_regime_c"
     if _cfg_bool(cfg, enable_key, False):
         raise NotImplementedError(
             f"{regime} requested for label {label!r}, but {engine} is not implemented yet "
@@ -565,7 +598,7 @@ def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_no
             bead,
         )
         emitted_notes.add(regime)
-    return "regime-a"
+    return "regime-a", 0.0
 
 
 def _n_modes(cfg: Mapping[str, Any]) -> int:
@@ -853,7 +886,7 @@ def resolvent_map(
                     continue
 
                 regime_label[beta_i, f_i] = labels[f_i]
-                engine = _check_missing_engine_gate(labels[f_i], cfg_map, emitted_fallback_notes)
+                engine, gamma = _check_missing_engine_gate(labels[f_i], cfg_map, emitted_fallback_notes)
                 point_start = time.perf_counter()
                 LOGGER.info(
                     "resolvent_map point start index=%d total=%d beta_index=%d f_index=%d "
@@ -879,6 +912,7 @@ def resolvent_map(
                         C_mat=C_mat,
                         filter_fn=filter_fn,
                         filter_ct_fn=filter_ct_fn,
+                        gamma=gamma,
                     )
                 except NotImplementedError:
                     raise
@@ -936,6 +970,14 @@ def resolvent_map(
 
                 wall_s = time.perf_counter() - point_start
                 stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
+                # Finiteness gate for regime-b points
+                if engine == "regime-b":
+                    if not np.isfinite(point.gain):
+                        raise ValueError(
+                            f"regime-b (NEAR_POLE) point yielded non-finite gain {point.gain:.6e} "
+                            f"at beta={beta_value:.6e}, omega={omega:.6e}; "
+                            f"consider reducing regime_b_discount_gamma"
+                        )
                 gain[beta_i, f_i] = point.gain
                 reason_code[beta_i, f_i] = REASON_OK
                 record = _point_record(
@@ -955,6 +997,8 @@ def resolvent_map(
                     peak_rss_bytes=_peak_rss_bytes(),
                     reason_code=REASON_OK,
                 )
+                if gamma > 0.0:
+                    record["resolvent_discount_gamma"] = float(gamma)
                 point_records.append(record)
                 LOGGER.info(
                     "resolvent_map point complete index=%d total=%d beta=%.12g omega=%.12g "
