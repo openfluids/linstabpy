@@ -7,7 +7,7 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-## [0.1.0-rc] - 2026-06-18
+## [1.0.0-rc1] - 2026-06-18
 
 Physics-campaign freeze release candidate: the turnkey `resolvent_map(base_flow,
 beta_range, f_range, cfg)` entry point (base-flow in, (β,f) gain map + cost metrics out)
