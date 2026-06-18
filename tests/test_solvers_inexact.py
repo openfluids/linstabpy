@@ -150,3 +150,72 @@ class TestInexactOverrides:
         _, st, ksp, pc, _ = _make_st_ksp_pc()
         with pytest.raises(ValueError, match="inexact"):
             _configure_st_for_eigenvalue("bogus_solver", {}, ksp, pc, st)
+
+
+# ---------------------------------------------------------------------------
+# Tests for _raise_eps_setup_failure exception-type dispatch
+# ---------------------------------------------------------------------------
+
+from linstabpy.solvers.eigenvalue import _raise_eps_setup_failure  # noqa: E402
+
+
+class TestRaiseEpsSetupFailureDispatch:
+    """Verify _raise_eps_setup_failure branches on exception type correctly.
+
+    All calls use real (tiny) PETSc/SLEPc objects so that the _safe_petsc_info
+    helpers succeed; only the ``exc`` argument is fabricated.
+    """
+
+    def _call(self, exc: Exception) -> None:
+        """Call _raise_eps_setup_failure with a fabricated exc and real objects."""
+        eps, st, ksp, pc, A = _make_st_ksp_pc()
+        _raise_eps_setup_failure(
+            exc=exc,
+            A=A,
+            eps=eps,
+            st=st,
+            ksp=ksp,
+            pc=pc,
+            ndof=12345,
+            n_modes=4,
+            ncv=20,
+            target=0.1 + 0.0j,
+            st_solver="mumps",
+        )
+
+    def test_system_error_chkerr_collapse_flags_collapse(self):
+        """SystemError with CHKERR sentinel must name the collapse + stderr guidance."""
+        exc = SystemError("_cppyy.gbl.Cxx_Object returned a result with an exception set")
+        with pytest.raises(RuntimeError, match="CHKERR collapse"):
+            self._call(exc)
+
+    def test_system_error_chkerr_collapse_has_stderr_guidance(self):
+        """SystemError collapse message must mention stderr."""
+        exc = SystemError("foo returned a result with an exception set")
+        with pytest.raises(RuntimeError, match="stderr"):
+            self._call(exc)
+
+    def test_system_error_chkerr_collapse_preserves_context(self):
+        """SystemError collapse message must still carry ndof and backend context."""
+        exc = SystemError("bar returned a result with an exception set")
+        with pytest.raises(RuntimeError, match="ndof=12345") as exc_info:
+            self._call(exc)
+        msg = str(exc_info.value)
+        assert "st_solver=mumps" in msg
+
+    def test_petsc_error_names_integer_code(self):
+        """PETSc.Error must produce a message naming the integer error code."""
+        petsc_exc = PETSc.Error(92)
+        with pytest.raises(RuntimeError, match=r"ierr=92") as exc_info:
+            self._call(petsc_exc)
+        msg = str(exc_info.value)
+        # Context fields must still be present.
+        assert "ndof=12345" in msg
+
+    def test_plain_runtime_error_reports_message(self):
+        """A plain RuntimeError must still report its own message unchanged."""
+        exc = RuntimeError("boom")
+        with pytest.raises(RuntimeError, match="boom") as exc_info:
+            self._call(exc)
+        msg = str(exc_info.value)
+        assert "ndof=12345" in msg

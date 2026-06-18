@@ -20,6 +20,22 @@ COST_KEYS = {
     "cost_git_sha",
 }
 
+STAMPED_PROVENANCE_KEYS = {
+    "git_sha",
+    "config_md5",
+    "hostname",
+    "compute_mode",
+    "mpi_stack",
+    "python_version",
+    "numpy_version",
+    "scipy_version",
+    "petsc4py_version",
+    "slepc4py_version",
+    "petsc_arch",
+    "mumps_version",
+    "mpi_impl",
+}
+
 PROVENANCE_KEYS = {
     "stability_all_omega",
     "stability_all_postcheck_rel",
@@ -71,7 +87,7 @@ def test_save_and_load_results_preserve_provenance_and_cost_keys(tmp_path, monke
     )
 
     with load_results(output_npz) as data:
-        assert set(data.files) == PROVENANCE_KEYS | COST_KEYS
+        assert set(data.files) == PROVENANCE_KEYS | COST_KEYS | STAMPED_PROVENANCE_KEYS
         for key, expected in payload.items():
             _assert_npz_value_unchanged(data[key], expected)
 
@@ -84,5 +100,5 @@ def test_save_and_load_results_preserve_provenance_and_cost_keys(tmp_path, monke
         assert data["cost_mpi_ranks"].item() >= 1
         assert data["cost_gpus"].item() == 0
         assert isinstance(data["cost_petsc_options"].item(), str)
-        assert data["cost_hardware_tag"].item() == ""
+        assert data["cost_hardware_tag"].item() == "unknown"
         assert isinstance(data["cost_git_sha"].item(), str)

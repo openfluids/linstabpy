@@ -3,6 +3,7 @@
 import inspect
 import json
 import math
+import socket
 
 import numpy as np
 
@@ -141,3 +142,12 @@ def test_hardware_tag_from_env(monkeypatch):
     result = collect_cost_metrics({}, git_sha="test", peak_rss_bytes=0)
 
     assert result["cost_hardware_tag"] == "testbox"
+
+
+def test_hardware_tag_default_is_unknown_not_hostname(monkeypatch):
+    monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+
+    result = collect_cost_metrics({}, git_sha="test", peak_rss_bytes=0)
+
+    assert result["cost_hardware_tag"] == "unknown"
+    assert result["cost_hardware_tag"] != socket.gethostname()

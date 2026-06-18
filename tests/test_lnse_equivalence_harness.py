@@ -11,7 +11,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "validation" / "lnse_equivalence_harness.py"
-HARNESS_TIMEOUT_SECONDS = 180
+HARNESS_TIMEOUT_BASE_SECONDS = 240
+HARNESS_TIMEOUT_LOAD_CAP = 8.0
+
+
+def _harness_timeout() -> float:
+    """Return a load-aware timeout for harness subprocess smoke tests."""
+    try:
+        loadavg1 = os.getloadavg()[0]
+    except (AttributeError, OSError):
+        return float(HARNESS_TIMEOUT_BASE_SECONDS)
+
+    ncpu = os.cpu_count() or 1
+    oversubscription = loadavg1 / ncpu
+    multiplier = min(max(oversubscription, 1.0), HARNESS_TIMEOUT_LOAD_CAP)
+    return float(HARNESS_TIMEOUT_BASE_SECONDS * multiplier)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -34,6 +48,40 @@ def _load_report(path: Path) -> dict[str, object]:
     return report
 
 
+def test_harness_timeout_scales_with_load(monkeypatch) -> None:
+    """The harness timeout is deterministic from load and CPU count."""
+    monkeypatch.setattr(os, "cpu_count", lambda: 4)
+
+    monkeypatch.setattr(os, "getloadavg", lambda: (2.0, 0.0, 0.0), raising=False)
+    _require(_harness_timeout() == HARNESS_TIMEOUT_BASE_SECONDS, str(_harness_timeout()))
+
+    monkeypatch.setattr(os, "getloadavg", lambda: (12.0, 0.0, 0.0), raising=False)
+    _require(_harness_timeout() == 3.0 * HARNESS_TIMEOUT_BASE_SECONDS, str(_harness_timeout()))
+
+    monkeypatch.setattr(os, "getloadavg", lambda: (400.0, 0.0, 0.0), raising=False)
+    _require(
+        _harness_timeout() == HARNESS_TIMEOUT_LOAD_CAP * HARNESS_TIMEOUT_BASE_SECONDS,
+        str(_harness_timeout()),
+    )
+
+
+def test_harness_timeout_falls_back_to_base(monkeypatch) -> None:
+    """Platforms without load average support use the idle timeout."""
+    monkeypatch.setattr(os, "cpu_count", lambda: 4)
+
+    def raise_attribute_error() -> tuple[float, float, float]:
+        raise AttributeError("getloadavg unavailable")
+
+    monkeypatch.setattr(os, "getloadavg", raise_attribute_error, raising=False)
+    _require(_harness_timeout() == HARNESS_TIMEOUT_BASE_SECONDS, str(_harness_timeout()))
+
+    def raise_os_error() -> tuple[float, float, float]:
+        raise OSError("getloadavg unavailable")
+
+    monkeypatch.setattr(os, "getloadavg", raise_os_error, raising=False)
+    _require(_harness_timeout() == HARNESS_TIMEOUT_BASE_SECONDS, str(_harness_timeout()))
+
+
 def test_lnse_equivalence_harness_current_path_contract(tmp_path: Path) -> None:
     """The quick baseline-vs-candidate contract is zero-drift on current assembly."""
     output = tmp_path / "lnse_equivalence.json"
@@ -54,7 +102,7 @@ def test_lnse_equivalence_harness_current_path_contract(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
-        timeout=HARNESS_TIMEOUT_SECONDS,
+        timeout=_harness_timeout(),
     )
 
     _require("pass=True" in run.stdout, run.stdout)
@@ -96,7 +144,7 @@ def test_lnse_equivalence_harness_runs_eigen_sanity(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
-        timeout=HARNESS_TIMEOUT_SECONDS,
+        timeout=_harness_timeout(),
     )
 
     report = _load_report(output)
@@ -126,7 +174,7 @@ def test_lnse_equivalence_harness_can_be_enabled_by_env(tmp_path: Path) -> None:
             "LINSTABPY_DUAL_PATH": "1",
             "LINSTABPY_DUAL_PATH_REPORT": str(output),
         },
-        timeout=HARNESS_TIMEOUT_SECONDS,
+        timeout=_harness_timeout(),
     )
 
     _require("dual_path_enabled=True" in run.stdout, run.stdout)

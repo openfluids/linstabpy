@@ -28,6 +28,7 @@ Frantz, R. A. S., Loiseau, J.-Ch., & Robinet, J.-Ch. (2023). Krylov
 from __future__ import annotations
 
 import logging
+import numbers
 from collections.abc import Callable
 
 import numpy as np
@@ -51,10 +52,41 @@ logger = logging.getLogger(__name__)
 
 def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
     """Return the square-system size for SciPy or PETSc operators."""
+    if not (_is_petsc_matrix(operator) or sp.issparse(operator)):
+        raise TypeError("L0 must be a 2-D sparse matrix or PETSc Mat")
     nrows, ncols = _operator_shape(operator)
     if nrows != ncols:
         raise ValueError("L0 must be a square matrix")
     return nrows
+
+
+def _validate_finite_number(name: str, value: float | complex) -> None:
+    if isinstance(value, bool) or not isinstance(value, numbers.Number):
+        raise TypeError(f"{name} must be a finite number")
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+
+
+def _validate_resolvent_inputs(
+    L0: sp.spmatrix | PETSc.Mat,
+    omega: float | complex,
+    n_modes: int,
+    W_diag: np.ndarray,
+    gamma: float | complex,
+) -> int:
+    if isinstance(n_modes, bool) or not isinstance(n_modes, numbers.Integral):
+        raise TypeError("n_modes must be an integer >= 1")
+    if n_modes < 1:
+        raise ValueError("n_modes must be >= 1")
+    _validate_finite_number("omega", omega)
+    _validate_finite_number("gamma", gamma)
+    ndof = _operator_ndof(L0)
+    W = np.asarray(W_diag)
+    if W.ndim != 1:
+        raise ValueError("W_diag must be a 1-D vector")
+    if W.size != ndof:
+        raise ValueError(f"W_diag length must match L0 size {ndof}")
+    return ndof
 
 
 def resolvent_analysis(
@@ -150,6 +182,7 @@ def resolvent_analysis(
     info : dict, optional
         Returned only when ``return_info=True``.
     """
+    _validate_resolvent_inputs(L0, omega, n_modes, W_diag, gamma)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     gains, responses, forcings, rho_fwd, rho_adj = _resolvent_analysis_impl(
         L0,

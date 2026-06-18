@@ -94,6 +94,10 @@ TOP_LEVEL_ALLOWED = frozenset(
         "baseflow_preprocess",
         "omega_targets",
         "direct_ksp",
+        "factor_precision",
+        "mumps_blr",
+        "mumps_blr_tol",
+        "mumps_ordering",
         "schema_version",
     }
 )
@@ -142,6 +146,7 @@ _NUMERIC_FIELDS = frozenset(
         "y_stretch_yi",
         "omega_shift_fallback",
         "spatial_omega_imag_shift",
+        "mumps_blr_tol",
     }
 )
 
@@ -154,6 +159,7 @@ _BOOL_FIELDS = frozenset(
         "run_stability",
         "run_resolvent",
         "use_omega_shift_fallback",
+        "mumps_blr",
     }
 )
 
@@ -163,6 +169,8 @@ _STRING_FIELDS = frozenset(
         "assembly_backend",
         "output_root",
         "base_config",
+        "factor_precision",
+        "mumps_ordering",
         "schema_version",
         "$include",
     }

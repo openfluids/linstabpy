@@ -627,6 +627,28 @@ instead of silently falling back to MUMPS or PETSc native LU.
 See `docs/COMPUTE_BACKENDS.md` for the backend audit, version floors, and the
 current GPU go/no-go notes.
 
+### Resolvent region masks
+
+`resolvent_map` accepts optional `input_region` and `output_region` dictionaries
+that build sharp diagonal forcing/response masks from physical coordinates and
+state variables. Omitted keys mean the full extent and all variables. Example
+configuration fragment, assuming the usual example variables `base_flow` and
+`case_cfg` are already loaded:
+
+```python
+from linstabpy import resolvent_map
+
+cfg = {
+    **case_cfg,
+    "input_region": {"x": [0.02, 0.06], "y": [0.0, 0.01], "vars": ["u", "v", "w", "T"]},
+    "output_region": {"x": [0.04, 0.08], "vars": ["rho", "u", "v", "w", "T"]},
+}
+result = resolvent_map(base_flow, beta_range=[20.0], f_range=[0.15], cfg=cfg)
+```
+
+A windowed/component-restricted gain changes the forcing/response question; it is
+not an approximation of the global unmasked gain.
+
 ### Boundary-condition acceptance
 
 Returned stability modes are postchecked against:

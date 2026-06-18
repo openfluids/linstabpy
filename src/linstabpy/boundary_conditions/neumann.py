@@ -198,6 +198,57 @@ def _build_neumann_rows(
     return row_entries
 
 
+def _insert_neumann_rows_csr(
+    L0: sp.csr_matrix,
+    row_entries: list[tuple[int, np.ndarray, np.ndarray]],
+) -> sp.csr_matrix:
+    """Insert prebuilt Neumann replacement rows into a CSR operator."""
+    if not row_entries:
+        return L0
+
+    bc_rows = np.concatenate(
+        [np.full(cols.size, row_id, dtype=int) for row_id, cols, _ in row_entries]
+    )
+    bc_cols = np.concatenate([cols for _, cols, _ in row_entries])
+    bc_vals = np.concatenate([vals for _, _, vals in row_entries])
+    return L0 + sp.csr_matrix((bc_vals, (bc_rows, bc_cols)), shape=L0.shape)
+
+
+def _apply_neumann_csr(
+    L0: sp.csr_matrix,
+    mesh: Mesh,
+    idx: dict[str, np.ndarray],
+    borders: str,
+    variables: str,
+    penalty: float = 1e4,
+    *,
+    exclude_corners: bool = False,
+    curvilinear_normals: bool = False,
+) -> tuple[sp.csr_matrix, np.ndarray]:
+    """Apply Neumann boundary conditions to a CSR LNSE operator."""
+    ngp = mesh.ngp
+    index_set, index_mesh, border_tags = _collect_neumann_indices(
+        idx, borders, variables, ngp, exclude_corners=exclude_corners
+    )
+
+    if index_set.size == 0:
+        return L0, np.array([], dtype=int)
+
+    _zero_rows_csr(L0, index_set)
+
+    row_entries = _build_neumann_rows(
+        mesh,
+        index_set,
+        index_mesh,
+        border_tags,
+        ngp,
+        penalty,
+        curvilinear_normals=curvilinear_normals,
+    )
+    L0 = _insert_neumann_rows_csr(L0, row_entries)
+    return L0, index_set
+
+
 def apply_neumann(
     L0: sp.csc_matrix,
     mesh: Mesh,
@@ -225,7 +276,6 @@ def apply_neumann(
 
     L0 = L0.tocsr()
     _zero_rows_csr(L0, index_set)
-    L0 = L0.tocsc()
 
     row_entries = _build_neumann_rows(
         mesh,
@@ -236,14 +286,7 @@ def apply_neumann(
         penalty,
         curvilinear_normals=curvilinear_normals,
     )
-
-    if row_entries:
-        bc_rows = np.concatenate(
-            [np.full(cols.size, row_id, dtype=int) for row_id, cols, _ in row_entries]
-        )
-        bc_cols = np.concatenate([cols for _, cols, _ in row_entries])
-        bc_vals = np.concatenate([vals for _, _, vals in row_entries])
-        L0 = L0 + sp.csc_matrix((bc_vals, (bc_rows, bc_cols)), shape=L0.shape)
+    L0 = _insert_neumann_rows_csr(L0, row_entries).tocsc()
 
     L0.eliminate_zeros()
     return L0, index_set
