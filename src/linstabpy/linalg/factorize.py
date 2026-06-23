@@ -50,6 +50,87 @@ def _aij_pattern(mat: PETSc.Mat) -> tuple[np.ndarray, np.ndarray]:
     return np.asarray(indptr, dtype=np.int64).copy(), np.asarray(indices, dtype=np.int64).copy()
 
 
+def _run_adjoint_self_test(
+    solve_func: Callable[[np.ndarray], np.ndarray],
+    solve_adjoint_func: Callable[[np.ndarray], np.ndarray],
+    n: int,
+    k: int = 3,
+) -> float:
+    """Run k random complex probe pairs to detect adjoint defect.
+    
+    Returns max defect over all probes:
+      defect_i = |<solve(a_i), b_i> - <a_i, solve_adjoint(b_i)>| 
+                 / max(|<solve(a_i), b_i>|, |<a_i, solve_adjoint(b_i)>|, 1e-300)
+    """
+    max_defect = 0.0
+    rng = np.random.RandomState(42)  # deterministic for reproducibility
+    
+    for _ in range(k):
+        a = rng.randn(n) + 1j * rng.randn(n)
+        b = rng.randn(n) + 1j * rng.randn(n)
+        
+        x1 = solve_func(a)
+        x2 = solve_adjoint_func(b)
+        
+        lhs = np.vdot(x1, b)  # conjugate-aware: conj(x1) . b
+        rhs = np.vdot(a, x2)  # conjugate-aware: conj(a) . x2
+        
+        denominator = max(np.abs(lhs), np.abs(rhs), 1.0e-300)
+        defect = np.abs(lhs - rhs) / denominator
+        max_defect = max(max_defect, defect)
+    
+    return max_defect
+
+
+def _run_oracle_residual(
+    solve_adjoint_func: Callable[[np.ndarray], np.ndarray],
+    A_H: PETSc.Mat,
+    n: int,
+    k: int = 3,
+) -> float:
+    """Run k random RHS through the healed adjoint and measure ||A_H @ x - b|| / ||b||.
+    
+    The oracle uses A_H (the stored Hermitian transpose) to validate that the
+    healed solve_adjoint path (which is a forward-solve on A_H) produces correct results.
+    """
+    max_residual = 0.0
+    rng = np.random.RandomState(43)  # different seed for oracle
+    
+    def _rhs_vec_from_numpy_local(rhs: np.ndarray) -> PETSc.Vec:
+        rhs_arr = np.asarray(rhs, dtype=complex)
+        b = A_H.createVecLeft()
+        r0, r1 = b.getOwnershipRange()
+        if r1 > r0:
+            rows = np.arange(r0, r1, dtype=PETSc.IntType)
+            b.setValues(rows, rhs_arr[r0:r1], addv=PETSc.InsertMode.INSERT_VALUES)
+        b.assemblyBegin()
+        b.assemblyEnd()
+        return b
+    
+    for _ in range(k):
+        b_arr = rng.randn(n) + 1j * rng.randn(n)
+        x_arr = solve_adjoint_func(b_arr)
+        
+        # Compute residual using matvec
+        b_vec = _rhs_vec_from_numpy_local(b_arr)
+        x_vec = _rhs_vec_from_numpy_local(x_arr)
+        r = b_vec.duplicate()
+        
+        try:
+            A_H.mult(x_vec, r)
+            r.axpy(-1.0, b_vec)
+            residual_abs = float(r.norm(PETSc.NormType.NORM_2))
+            rhs_norm = float(b_vec.norm(PETSc.NormType.NORM_2))
+            residual = residual_abs / max(rhs_norm, 1.0e-300)
+            max_residual = max(max_residual, residual)
+        finally:
+            r.destroy()
+            x_vec.destroy()
+            b_vec.destroy()
+    
+    return max_residual
+
+
 @dataclass
 class Factorization:
     """Callable wrapper for forward and adjoint solves on one factorization."""
@@ -135,10 +216,14 @@ def factorize(
         A = operator.copy()
     else:
         A = scipy_to_petsc(operator, solver_cfg)
-    metrics: dict[str, float | int] = dict.fromkeys((
+    metrics: dict[str, float | int | bool] = dict.fromkeys((
         "refactor_count", "solve_block_calls", "solve_block_rhs", "solve_block_fallback_calls"), 0)
     metrics.update(refactor_seconds=0.0, solve_block_seconds=0.0)
-    holder: dict[str, Factorization] = {}
+    metrics["dual_factor_active"] = False
+    metrics["adjoint_self_test_defect"] = 0.0
+    metrics["adjoint_healed_defect"] = 0.0
+    metrics["adjoint_oracle_residual"] = 0.0
+    holder: dict[str, object] = {}
 
     if env_prefix == "LINSTABPY_LINSOLVE":
         lin = cfg.linsolve
@@ -364,8 +449,8 @@ def factorize(
         ksp.solve(rhs, x)
         return x
 
-    def solve_transpose_vec(rhs: PETSc.Vec) -> PETSc.Vec:
-        """Solve ``A^H x = rhs`` while preserving PETSc vector distribution."""
+    def solve_transpose_vec_original(rhs: PETSc.Vec) -> PETSc.Vec:
+        """Solve ``A^H x = rhs`` using solveTranspose with conjugation."""
         _check_vec_size(rhs)
         b = rhs.copy()
         x = rhs.duplicate()
@@ -388,10 +473,10 @@ def factorize(
         finally:
             b.destroy()
 
-    def solve_transpose(rhs: np.ndarray) -> np.ndarray:
+    def solve_transpose_original(rhs: np.ndarray) -> np.ndarray:
         b = _rhs_vec_from_numpy(rhs)
         try:
-            x = solve_transpose_vec(b)
+            x = solve_transpose_vec_original(b)
             try:
                 return vec_to_numpy(x)
             finally:
@@ -507,12 +592,105 @@ def factorize(
         holder["factor"]._mat = A
         old_A.destroy()
 
+    # --- DUAL-FACTOR AUTO-HEAL LOGIC ---
+    # Lazy adjoint self-test: run on first adjoint use via a wrapper.
+    adjoint_test_done = False
+    
+    def _maybe_run_adjoint_test_and_heal() -> None:
+        """Run self-test on first adjoint use, trigger healing if needed."""
+        nonlocal adjoint_test_done
+        if adjoint_test_done:
+            return
+        adjoint_test_done = True
+        
+        # Run self-test with original paths
+        defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
+        metrics["adjoint_self_test_defect"] = defect
+        
+        adjoint_tol = 1.0e-10
+        if defect <= adjoint_tol:
+            # Keep the original single-factor path
+            metrics["dual_factor_active"] = False
+            return
+        
+        # Defect exceeded tolerance: trigger AUTO-HEAL
+        logger.info(
+            "Adjoint self-test defect %.3e > tolerance %.3e; "
+            "activating dual-factor healing for A^H",
+            defect, adjoint_tol
+        )
+        
+        # Build the A^H factor through the SAME factorize() machinery (identical
+        # backend, options, assembly) -- NOT a hand-rolled KSP, which proved
+        # fragile on STRUMPACK. A FORWARD solve on A^H is exactly the adjoint
+        # A^{-H}. Build A^H from the PRISTINE operator: `A` above is the copy the
+        # forward factorization owns (a backend may equilibrate it in place), so
+        # transpose the caller's untouched operator instead.
+        if _is_petsc_matrix(operator):
+            A_H = operator.hermitianTranspose()
+        else:
+            A_H = operator.conj().T.tocsc()
+        factor_H = factorize(A_H, env_prefix=env_prefix, solver_cfg=solver_cfg, cfg=cfg)
+        solve_H = factor_H.solve
+        holder["factor_H"] = factor_H
+
+        # TRUTH-GATE (catches a wrong A^H such as a plain transpose): re-run the
+        # adjoint identity <A^{-1} a, b> == <a, A_H^{-1} b> with the HEALED path.
+        # For a non-normal complex operator a plain-transpose A_H leaves this
+        # defect O(0.1), so the heal is rejected. A residual-only check
+        # (||A_H x - b||) is self-consistent and would PASS a plain transpose, so
+        # it cannot be the wiring gate -- this identity is.
+        healed_defect = _run_adjoint_self_test(solve, solve_H, n, k=3)
+        metrics["adjoint_healed_defect"] = healed_defect
+        if healed_defect > adjoint_tol:
+            factor_H.destroy()
+            del holder["factor_H"]
+            raise RuntimeError(
+                f"Dual-factor heal failed: adjoint identity defect {healed_defect:.3e} "
+                f"> tolerance {adjoint_tol:.3e} after rebuilding A^H -- the adjoint "
+                "operator is not the Hermitian transpose (plain transpose?)."
+            )
+
+        # Secondary oracle (A^H factorization quality): ||A_H x - b|| / ||b||
+        # against the concrete A^H matvec, independent of the factor's own claim.
+        oracle_residual = _run_oracle_residual(solve_H, factor_H._mat, n, k=3)
+        metrics["adjoint_oracle_residual"] = oracle_residual
+        oracle_tol = 1.0e-8
+        if oracle_residual > oracle_tol:
+            factor_H.destroy()
+            del holder["factor_H"]
+            raise RuntimeError(
+                f"Adjoint oracle residual {oracle_residual:.3e} > tolerance {oracle_tol:.3e}; "
+                "dual-factor healing failed (A^H factorization inaccurate)."
+            )
+
+        # Both gates passed: redirect the adjoint solves to the healed dual factor.
+        metrics["dual_factor_active"] = True
+        logger.info(
+            "Dual-factor healing activated: healed adjoint defect %.3e, oracle residual %.3e",
+            healed_defect, oracle_residual,
+        )
+
+    # Wrap the adjoint solves: lazy self-test/heal on first use, then route through
+    # the healed dual factor (a FORWARD solve on A^H) when active.
+    def solve_transpose_vec_wrapped(rhs: PETSc.Vec) -> PETSc.Vec:
+        _maybe_run_adjoint_test_and_heal()
+        if metrics.get("dual_factor_active"):
+            return holder["factor_H"].solve_vec(rhs)
+        return solve_transpose_vec_original(rhs)
+
+    def solve_transpose_wrapped(rhs: np.ndarray) -> np.ndarray:
+        _maybe_run_adjoint_test_and_heal()
+        if metrics.get("dual_factor_active"):
+            return holder["factor_H"].solve(rhs)
+        return solve_transpose_original(rhs)
+    
     factor = Factorization(
         backend=backend,
         solve=solve,
-        solve_adjoint=solve_transpose,
+        solve_adjoint=solve_transpose_wrapped,
         solve_vec=solve_vec,
-        solve_adjoint_vec=solve_transpose_vec,
+        solve_adjoint_vec=solve_transpose_vec_wrapped,
         residual=residual,
         _ksp=ksp,
         _mat=A,
