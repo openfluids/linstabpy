@@ -152,18 +152,24 @@ def _strumpack_adjoint_identity_defect(L0: sp.spmatrix, *, compressed: bool) -> 
     return float(abs(lhs - rhs) / max(abs(lhs), np.finfo(float).tiny))
 
 
-def test_compressed_anchor_strumpack_refuses_uncertifiable_adjoint_and_records_defect() -> None:
-    """RECORDED FINDING (measured on real STRUMPACK, c9, 2026-06-16) — bead r3uu.14.9.
+def test_compressed_anchor_strumpack_certifies_via_dual_factor_heal() -> None:
+    """UPDATED 2026-06-23 (bead r3uu.14.17 — dual-factor adjoint heal) — validated on c9.
 
-    STRUMPACK's transpose-solve is a non-conjugate transpose for complex operators, so
-    the compressed/approximate anchor factor is NOT a certifiable free-adjoint: the
-    adjoint identity defect is ~3.2e-2, five orders of magnitude above the 1e-10
-    certification tolerance.  The defect is IDENTICAL with BLR compression on and off
-    (3.178e-2 vs 3.178e-2), so it is a STRUMPACK complex-adjoint property, NOT a
-    compression artifact; MUMPS gives ~3e-16.  S7 check #3 therefore correctly FAILS,
-    and the compressed-anchor sweep correctly REFUSES (raises) rather than silently
-    using an uncertified factor.  The compression hypothesis cannot be tested in the
-    certified sweep because of this prior backend-adjoint blocker.
+    HISTORICAL FINDING (bead r3uu.14.9, measured on c9 2026-06-16): STRUMPACK's complex
+    transpose-solve is a non-conjugate transpose, so the bare adjoint identity defect was
+    ~3.2e-2 (MUMPS ~3e-16) and the compressed-anchor sweep correctly REFUSED rather than
+    use an uncertified adjoint.
+
+    That backend-adjoint blocker is now REMOVED: ``factorize`` auto-detects the adjoint
+    defect on first adjoint use and, for a defective backend, FORWARD-solves an explicitly
+    factored ``K^H`` (the dual factorization). Measured on real STRUMPACK (c9, 2026-06-23):
+    the raw transpose-solve defect is ~0.72, the heal activates, and the healed adjoint
+    identity drops to ~6e-16. So the compressed-anchor sweep now CERTIFIES (returns a
+    ``SweepResult``) instead of refusing.
+
+    CAVEAT (capacity lever): the heal builds the ``K^H`` factor at full accuracy
+    (uncompressed), so the certified adjoint is exact but does NOT inherit BLR
+    compression — the memory saving applies to the forward factor, not the healed adjoint.
     """
     if not factor_backend_available("strumpack"):
         pytest.skip("SKIPPED: strumpack backend unavailable")
@@ -175,15 +181,10 @@ def test_compressed_anchor_strumpack_refuses_uncertifiable_adjoint_and_records_d
     anchors = np.array([1.0], dtype=complex)
     cfg = _cfg(L0.shape[0])
 
-    # The certified compressed-anchor sweep must REFUSE: S7 check #3 fails on the
-    # approximate factor, so certified_rsvd raises rather than returning a result.
-    with pytest.raises(RuntimeError, match="adjoint_of_approx_factor"):
-        stable_sweep.sweep_stable_regime(L0, omegas, anchors, cfg)
+    # The dual-factor heal certifies the adjoint, so the sweep no longer refuses.
+    result = stable_sweep.sweep_stable_regime(L0, omegas, anchors, cfg)
+    assert result is not None
 
-    # Record the measured adjoint defect (the finding): decisively above tolerance,
-    # and a backend property rather than a compression artifact.
-    defect_compressed = _strumpack_adjoint_identity_defect(L0, compressed=True)
-    defect_uncompressed = _strumpack_adjoint_identity_defect(L0, compressed=False)
-    assert defect_compressed > 1.0e-3
-    # compression on vs off changes nothing -> not a compression artifact
-    assert defect_compressed == pytest.approx(defect_uncompressed, rel=1.0e-6)
+    # The healed adjoint identity is at machine precision (was ~3.2e-2 unhealed).
+    defect = _strumpack_adjoint_identity_defect(L0, compressed=False)
+    assert defect < 1.0e-10
