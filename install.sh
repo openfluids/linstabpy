@@ -1456,6 +1456,16 @@ if [ "${FORCE_REINSTALL}" = "1" ] && [ -d "${VENV_DIR}" ]; then
     remove_venv_dir "${VENV_DIR}"
 fi
 
+if [ "${FORCE_REINSTALL}" = "1" ]; then
+    # uv caches the COMPILED petsc/slepc sdists and reuses them even when the
+    # configure options change (e.g. adding --with-openmp / --with-cuda). That is a
+    # silent stale-build trap: the regression that built STRUMPACK without OpenMP
+    # survived because a rebuild reused the cached, OpenMP-less PETSc. On --force,
+    # evict those cache entries so PETSC_CONFIGURE_OPTIONS below actually take effect.
+    warn "Evicting cached petsc/slepc builds so configure options take effect (--force)"
+    "${UV_BIN}" cache clean petsc slepc >/dev/null 2>&1 || true
+fi
+
 if [ -d "${VENV_DIR}" ]; then
     EXISTING_PY="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
     if [ "${EXISTING_PY}" != "${PYTHON_VERSION}" ]; then
@@ -1528,7 +1538,14 @@ if [ "${BUILD_STACK}" = "default" ]; then
         "--download-parmetis"
     )
 else
+    # --with-openmp is MANDATORY for the GPU stack. STRUMPACK uses OpenMP both for
+    # CPU-side multifrontal threading AND to schedule dense fronts onto the GPU.
+    # Omitting it builds STRUMPACK serial ("running serially, no OpenMP support!"),
+    # which makes the factorization single-threaded on the CPU and leaves the GPU
+    # idle even at scale. (Regression root-caused & fixed 2026-06-25; the post-install
+    # verify below now hard-fails if OpenMP/CUDA/STRUMPACK are missing.)
     _PETSC_CONF_OPTS+=(
+        "--with-openmp"
         "--with-cuda"
         "--download-strumpack"
         "--download-metis"
@@ -1939,9 +1956,40 @@ print("  linstabpy …", flush=True)
 import linstabpy
 print(f"  linstabpy    = {linstabpy.__version__}", flush=True)
 
+# GPU-stack hard gate: a build that drops OpenMP/CUDA/STRUMPACK makes STRUMPACK
+# run serially with the GPU idle (the 2026-06-25 regression). Fail the install
+# loudly rather than ship a silently CPU-only "GPU" venv.
+import os as _os
+if _os.environ.get("LINSTABPY_EXPECT_GPU") == "1":
+    print("  GPU-stack build config (OpenMP / CUDA / STRUMPACK) …", flush=True)
+    import petsc4py as _p4
+    _pdir = _p4.get_config().get("PETSC_DIR", "")
+    _conf_h = _os.path.join(_pdir, "include", "petscconf.h")
+    with open(_conf_h) as _fh:
+        _conf = _fh.read()
+    _missing = [name for name, tok in (
+        ("OpenMP", "PETSC_HAVE_OPENMP"),
+        ("CUDA", "PETSC_HAVE_CUDA"),
+        ("STRUMPACK", "PETSC_HAVE_STRUMPACK"),
+    ) if f"#define {tok} 1" not in _conf]
+    if _missing:
+        print(
+            "FATAL: GPU stack PETSc is missing " + ", ".join(_missing)
+            + ". STRUMPACK will run serially with the GPU idle. "
+            "Rebuild with: bash install.sh --stack gpu-strumpack --force",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print("    OpenMP + CUDA + STRUMPACK present ✓", flush=True)
+
 print()
 print("  All checks passed.", flush=True)
 PY
+# Tell the verify snippet to hard-gate OpenMP/CUDA/STRUMPACK for non-default
+# (GPU) stacks, so a serial/OpenMP-less STRUMPACK build can never ship silently.
+if [ "${BUILD_STACK}" != "default" ]; then
+    export LINSTABPY_EXPECT_GPU=1
+fi
 linstabpy_run_verify "${PY_BIN}" "${_verify_snippet}"
 _verify_rc=$?
 rm -f "${_verify_snippet}"
