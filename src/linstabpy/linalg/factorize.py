@@ -607,7 +607,14 @@ def factorize(
         adjoint_test_done = True
         
         # Run self-test with original paths
-        defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
+        try:
+            defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
+        except Exception as exc:
+            logger.info(
+                "Adjoint self-test transpose-solve failed (%s); treating native transpose as defective and activating dual-factor heal",
+                exc
+            )
+            defect = float("inf")
         metrics["adjoint_self_test_defect"] = defect
         
         adjoint_tol = 1.0e-10

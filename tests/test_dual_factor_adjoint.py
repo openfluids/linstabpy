@@ -179,3 +179,55 @@ def test_self_test_detects_defective_adjoint_and_passes_true_adjoint() -> None:
     factor_T = factorize(L0.T.tocsc())
     bad_defect = _run_adjoint_self_test(factor.solve, factor_T.solve, 8, k=3)
     assert bad_defect > 1.0e-6
+
+
+def test_heal_engages_when_transpose_self_test_raises() -> None:
+    """Heal activates when adjoint self-test RAISES (divergent KSP), not just finite-defect."""
+    import unittest.mock as mock
+    from linstabpy.linalg.factorize import _run_adjoint_self_test
+    
+    L0 = _operator(6)
+    
+    # Count how many times the monkeypatched self-test is called
+    call_count = [0]
+    original_self_test = _run_adjoint_self_test
+    
+    def mock_self_test(solve_func, solve_adjoint_func, n, k=3):
+        """First call raises (simulating STRUMPACK divergence); subsequent calls delegate to real impl."""
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call (the initial adjoint test in _maybe_run_adjoint_test_and_heal)
+            raise RuntimeError("KSP DIVERGED_ITS: transpose solve failed to converge")
+        # Subsequent calls (the truth-gate and any other validations) use the real implementation
+        return original_self_test(solve_func, solve_adjoint_func, n, k)
+    
+    # Patch the self-test at the module level so factorize sees it
+    with mock.patch('linstabpy.linalg.factorize._run_adjoint_self_test', side_effect=mock_self_test):
+        factor = factorize(L0)
+        
+        # Trigger adjoint use, which runs the self-test
+        rhs = np.random.randn(6) + 1j * np.random.randn(6)
+        result = factor.solve_adjoint(rhs)
+        
+        # Should not raise; heal should have engaged
+        assert result is not None
+        assert factor.metrics["dual_factor_active"] is True
+        
+        # The self-test was called at least twice: once (raised), then by truth-gate
+        assert call_count[0] >= 2
+    
+    # Verify the adjoint result is sensible: match it against dense numpy solve
+    factor_unpatched = factorize(L0)
+    rhs = np.random.randn(6) + 1j * np.random.randn(6)
+    
+    # Get the adjoint via the healed dual-factor path
+    x_healed = factor.solve_adjoint(rhs)
+    
+    # Get the adjoint via the unpatched (MUMPS, correct) path
+    x_reference = factor_unpatched.solve_adjoint(rhs)
+    
+    # They should match to reasonable tolerance
+    assert np.allclose(x_healed, x_reference, atol=1.0e-9, rtol=1.0e-8)
+    
+    factor_unpatched.destroy()
+    factor.destroy()
