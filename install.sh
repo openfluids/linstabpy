@@ -1463,7 +1463,10 @@ if [ "${FORCE_REINSTALL}" = "1" ]; then
     # survived because a rebuild reused the cached, OpenMP-less PETSc. On --force,
     # evict those cache entries so PETSC_CONFIGURE_OPTIONS below actually take effect.
     warn "Evicting cached petsc/slepc builds so configure options take effect (--force)"
-    "${UV_BIN}" cache clean petsc slepc >/dev/null 2>&1 || true
+    # Clear the Python bindings too: a cached petsc4py/slepc4py built against a
+    # differently-configured PETSc (e.g. with vs without MUMPS) fails to import with
+    # "undefined symbol". Rebuilding all four together keeps the ABI consistent.
+    "${UV_BIN}" cache clean petsc slepc petsc4py slepc4py >/dev/null 2>&1 || true
 fi
 
 if [ -d "${VENV_DIR}" ]; then
@@ -1544,10 +1547,16 @@ else
     # which makes the factorization single-threaded on the CPU and leaves the GPU
     # idle even at scale. (Regression root-caused & fixed 2026-06-25; the post-install
     # verify below now hard-fails if OpenMP/CUDA/STRUMPACK are missing.)
+    # The GPU stack is an ALL-BACKENDS venv: it must carry MUMPS (and SuperLU_DIST)
+    # alongside STRUMPACK so a single venv can run the CPU(MUMPS)-vs-GPU(STRUMPACK)
+    # comparison in one process, and so the prebuilt petsc4py (which references MUMPS
+    # symbols, e.g. MatMumpsGetRinfog) links. Dropping MUMPS here breaks petsc4py import.
     _PETSC_CONF_OPTS+=(
         "--with-openmp"
         "--with-cuda"
         "--download-strumpack"
+        "--download-mumps"
+        "--download-superlu_dist"
         "--download-metis"
         "--download-parmetis"
         "--download-ptscotch"
@@ -1971,6 +1980,7 @@ if _os.environ.get("LINSTABPY_EXPECT_GPU") == "1":
         ("OpenMP", "PETSC_HAVE_OPENMP"),
         ("CUDA", "PETSC_HAVE_CUDA"),
         ("STRUMPACK", "PETSC_HAVE_STRUMPACK"),
+        ("MUMPS", "PETSC_HAVE_MUMPS"),
     ) if f"#define {tok} 1" not in _conf]
     if _missing:
         print(
