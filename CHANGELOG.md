@@ -7,18 +7,47 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc2] - 2026-06-25
+
+GPU-resolvent dual-factorization adjoint heal + amortized stable-sweep wired
+into the turnkey gain-map driver. On an NVIDIA A6000, the healed GPU backend
+resolvent gain and modes match the MUMPS CPU reference to ~2e-14. Regime-(b)
+discounted resolvent and amortized stable-sweep solver acceleration are
+validated and wired into the `resolvent_map` entry point. Turnkey gain-map
+scripts (`run_gain_map.py` / `fig_gain_map.py`) are now shipped as public
+examples.
+
 ### Added
-- Regime-(b) discounted resolvent is now wired into `resolvent_map`: `NEAR_POLE`
-  band points are computed through the validated discounted path
-  `resolvent_analysis(L0, omega, ..., gamma=γ)` (forming `L0 - (γ + iω)I`) instead of
-  raising `NotImplementedError` or falling back to the singular direct resolvent. This
-  makes the unstable-stripe region of a gain map finite/well-posed (the CP1
-  well-posedness property, bead r3uu.3.12). The discount γ is taken from cfg
-  `regime_b_discount_gamma` (must be > 0) or defaults to `0.25` (validated to tame a
-  ~1e5 near-pole blow-up to ~4.0); each regime-b point records `resolvent_discount_gamma`
-  and is hard-gated to a finite gain (a non-finite stripe gain raises rather than passing
-  silently). The γ=0 regime-a path is unchanged and bit-identical — the seven Appendix-A
-  oracles and existing `resolvent_map` e2e tests are untouched. (toward N1 / v1.0.0-rc2)
+- Turnkey gain-map driver scripts: `examples/case_studies/case1_song/scripts/run_gain_map.py`
+  (compute (β,f) gain map end-to-end, resumable) and `fig_gain_map.py` (plot and
+  annotate the result). Both read the Song 2023 box base flow and are self-contained
+  executables shipped as public-facing Case 1 examples.
+- Regime-(b) discounted-resolvent wiring into `resolvent_map`: NEAR_POLE band points
+  compute the stabilized resolvent via `L0 - (γ + iω)I` (default γ=0.25, user-configurable);
+  every regime-b point records `resolvent_discount_gamma` and is hard-gated to a finite gain.
+  The regime-a direct path (γ=0) is unchanged and bit-identical to existing runs.
+- Amortized stable-sweep solver acceleration into `resolvent_map`: factorizations are
+  refactorized across anchor blocks (sparsity reuse), and RSVD probe blocks route through
+  `solve_block` (PETSc `MatMatSolve` multi-RHS). Time savings reported in per-run metrics.
+
+### Fixed
+- **GPU resolvent adjoint heal via dual factorization:** STRUMPACK's complex transpose-solve
+  is not a true adjoint (defect ~3.2e-2). The sweep now engages a dual-factorization heal:
+  the operator is factored twice (once forward, once transpose) and the transpose solve
+  routes through the transposed factor, recovering the true adjoint to machine precision
+  (~2e-14 on an A6000; matching MUMPS). Dual-factor mode is transparent and automatic;
+  its engagement is logged. Validated on an A6000 with Song 2023 base flow: leading gain
+  and structural-sensitivity modes match the MUMPS reference. This closes the GPU-resolvent
+  correctness blocker (bead r3uu.14.17). CPU/MUMPS path unchanged (still single-factor).
+- `wire factor_backend` into iterative LU preconditioner: the shift-invert solver now passes
+  the selected `factor_backend` (e.g. STRUMPACK) through to the PETSc LU preconditioner
+  (`KSP` path), instead of always falling back to MUMPS, so GPU-accelerated FGMRES
+  preconditioners route to the GPU backend. Validated on c9 A6000 with complex resolvent:
+  residuals match the direct path to ~2e-14.
+
+### Changed
+- Case 1 Song base flow is now genericised in the config comment: `song_box_evp.jsonc`
+  reads "Song SWBLI box" (removed author name).
 
 ## [1.0.0-rc1] - 2026-06-18
 
