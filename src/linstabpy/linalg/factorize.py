@@ -338,6 +338,9 @@ def factorize(
                 f"Invalid {env_prefix}_KSP_PC_SIDE '{pc_side}'; expected left|right|symmetric"
             )
         pc.setType(pc_type)
+        if pc_type == "lu":
+            factor_backend = lin.factor_backend
+            apply_factor_backend(pc, factor_backend, options_prefix=ksp.getOptionsPrefix() or "")
         ksp.setTolerances(rtol=ksp_rtol, atol=ksp_atol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
 
