@@ -3,6 +3,29 @@
   // Runtime code should use this as default and only diverge when
   // explicit environment overrides are provided.
   // Paths are relative to examples/case_studies/case1_song/ (the case working directory).
+  //
+  // ============================ DISSIPATION WARNING ============================
+  // This config carries NO SBP operator dissipation (it is a MATLAB-parity
+  // oracle: dissipation would break bit-level parity with LinStab2D).
+  //
+  // Any EVP *or* resolvent config DERIVED from this one for the physical box
+  // base flow MUST enable SBP dissipation, or grid-scale odd/even (sawtooth)
+  // modes contaminate the result. TWO ENTRY POINTS, OPPOSITE ε KEYS:
+  //
+  //   * EVP / driver path (driver/run.py, perf_memory stability sweep):
+  //       numerics.operator_dissipation = {
+  //         "enabled": true, "epsilon": 0.10, "apply_to_stability": true }
+  //     ε lives INSIDE operator_dissipation (driver/run.py:1323). The schema
+  //     REJECTS a top-level dissipation_epsilon here.
+  //
+  //   * resolvent_map router path (solvers/router/resolvent_map.py):
+  //       numerics.operator_dissipation = { "enabled": true }   // builds Q_diss
+  //       top-level  dissipation_epsilon > 0                     // router reads ε here
+  //
+  // Symptoms if omitted: EVP -> spurious high-growth eigenvalues; resolvent ->
+  // near-singular high-β stripes. Same mechanism in both. See
+  // tests/test_sbp_dissipation.py and the resolvent_map.py module docstring.
+  // ===========================================================================
 
   "paths": {
     // Directory containing x/y/rho/u/v/w/T/sponge .npy files.
