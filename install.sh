@@ -1551,10 +1551,18 @@ else
     # alongside STRUMPACK so a single venv can run the CPU(MUMPS)-vs-GPU(STRUMPACK)
     # comparison in one process, and so the prebuilt petsc4py (which references MUMPS
     # symbols, e.g. MatMumpsGetRinfog) links. Dropping MUMPS here breaks petsc4py import.
+    # SLATE (+ its blaspp/lapackpp deps) is MANDATORY for GPU offload of the LARGE
+    # distributed dense fronts. Without it STRUMPACK warns "SLATE is required for full
+    # GPU support" and falls back to ScaLAPACK on the CPU for the root front: at multi-
+    # rank that blows host RAM (~112 GB) and SystemError-crashes, and at single rank it
+    # leaves the GPU mostly idle (~3.7 GB) and runs for hours. (Root-caused 2026-06-26.)
     _PETSC_CONF_OPTS+=(
         "--with-openmp"
         "--with-cuda"
         "--download-strumpack"
+        "--download-slate"
+        "--download-blaspp"
+        "--download-lapackpp"
         "--download-mumps"
         "--download-superlu_dist"
         "--download-metis"
@@ -1970,7 +1978,7 @@ print(f"  linstabpy    = {linstabpy.__version__}", flush=True)
 # loudly rather than ship a silently CPU-only "GPU" venv.
 import os as _os
 if _os.environ.get("LINSTABPY_EXPECT_GPU") == "1":
-    print("  GPU-stack build config (OpenMP / CUDA / STRUMPACK) …", flush=True)
+    print("  GPU-stack build config (OpenMP / CUDA / STRUMPACK / SLATE) …", flush=True)
     import petsc4py as _p4
     _pdir = _p4.get_config().get("PETSC_DIR", "")
     _conf_h = _os.path.join(_pdir, "include", "petscconf.h")
@@ -1981,16 +1989,21 @@ if _os.environ.get("LINSTABPY_EXPECT_GPU") == "1":
         ("CUDA", "PETSC_HAVE_CUDA"),
         ("STRUMPACK", "PETSC_HAVE_STRUMPACK"),
         ("MUMPS", "PETSC_HAVE_MUMPS"),
+        # SLATE: GPU-capable ScaLAPACK replacement. Absent → STRUMPACK does the large
+        # distributed dense fronts on CPU (root-front crash at -n>1, idle GPU at -n1).
+        ("SLATE", "PETSC_HAVE_SLATE"),
     ) if f"#define {tok} 1" not in _conf]
     if _missing:
         print(
             "FATAL: GPU stack PETSc is missing " + ", ".join(_missing)
-            + ". STRUMPACK will run serially with the GPU idle. "
+            + ". Without SLATE the large dense fronts fall back to CPU ScaLAPACK "
+            "(root-front crash at multi-rank, idle GPU at single rank); without "
+            "OpenMP STRUMPACK runs serially. "
             "Rebuild with: bash install.sh --stack gpu-strumpack --force",
             file=sys.stderr,
         )
         sys.exit(1)
-    print("    OpenMP + CUDA + STRUMPACK present ✓", flush=True)
+    print("    OpenMP + CUDA + STRUMPACK + SLATE present ✓", flush=True)
 
 print()
 print("  All checks passed.", flush=True)
