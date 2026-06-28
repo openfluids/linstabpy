@@ -901,7 +901,31 @@ def resolvent_map(
             assembly = _assemble_beta_operator(mesh, base_flow, float(beta_value), cfg_map)
             stage_wall["assemble_operator_bc"] = stage_wall.get("assemble_operator_bc", 0.0) + assembly.wall_s
             band_start = time.perf_counter()
-            marks = _mark_unstable_band(assembly.L0, f, cfg_map)
+            if _analysis_bool(cfg_map, "skip_band_marking", False):
+                # Opt-in: skip the band-marking EVP and label every frequency
+                # regime-a (stable interior). The band-marking eigenproblem uses a
+                # real shift sigma=-median(omega) that sits near the spectrum; its
+                # shift-invert does not scale on GPU at high resolution (the
+                # well-conditioned imaginary-shift resolvent solve does). For a base
+                # flow / frequency range known to be away from global-mode poles
+                # this avoids that full-size EVP. WARNING: a frequency that is in
+                # fact near a pole is then handled by the certified resolvent
+                # directly (no regime-b discounting), so only enable it when the
+                # stable-regime assumption holds.
+                omega_arr = np.asarray(f, dtype=float).reshape(-1)
+                marks = BandMarks(
+                    omegas=omega_arr,
+                    labels=np.full(omega_arr.shape, STABLE, dtype=object),
+                    distances=np.full(omega_arr.shape, np.inf),
+                    danger_radius=0.0,
+                )
+                LOGGER.info(
+                    "resolvent_map: band-marking SKIPPED (skip_band_marking=true) "
+                    "-> all %d frequencies labelled regime-a",
+                    omega_arr.size,
+                )
+            else:
+                marks = _mark_unstable_band(assembly.L0, f, cfg_map)
             stage_wall["stability"] = stage_wall.get("stability", 0.0) + time.perf_counter() - band_start
             labels = np.asarray(marks.labels, dtype=str).reshape(-1)
             if labels.size != f.size:
