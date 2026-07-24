@@ -141,6 +141,30 @@ def test_regime_c_toggle_defaults_off_and_enabled_raises(
         )
 
 
+def test_skip_band_marking_bypasses_evp_and_forces_regime_a(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Fake seams would label SMOOTH if band-marking ran; the override below turns
+    # any call into a hard failure, so a green test proves the EVP was skipped.
+    _install_fake_seams(monkeypatch, labels=(SMOOTH,))
+
+    def _must_not_run(*_args, **_kwargs):
+        raise AssertionError("_mark_unstable_band called despite skip_band_marking=true")
+
+    monkeypatch.setattr(router_map, "_mark_unstable_band", _must_not_run)
+
+    with caplog.at_level("INFO"):
+        result = router_map.resolvent_map(
+            object(), [0.1], [1.0, 2.0], {"mesh": object(), "skip_band_marking": True}
+        )
+
+    # EVP skipped -> every frequency is regime-a and the certified engine still runs.
+    assert result.regime_label.tolist() == [[STABLE, STABLE]]
+    assert all(rec["engine"] == "regime-a" for rec in result.point_records)
+    assert "band-marking SKIPPED" in caplog.text
+    np.testing.assert_allclose(result.gain, [[1.0, 2.0]])
+
+
 def test_failure_tolerance_and_npz_resume_retries_only_failed_points(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

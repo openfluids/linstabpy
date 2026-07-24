@@ -6,6 +6,29 @@ assembles one LNSE operator per beta, asks the band-marker for the intended
 frequency-band labels, and computes every point through the certified direct
 ``resolvent_analysis`` path because the discounted and ROM regime engines do not
 exist yet.
+
+SBP sawtooth dissipation (required for clean gain maps)
+-------------------------------------------------------
+Without operator-level SBP dissipation the assembled operator carries
+grid-scale (odd/even "sawtooth") modes.  These show up in a gain map as
+spurious near-singular resonances at high spanwise wavenumber -- bright
+horizontal stripes (constant ``beta``, all low frequencies) whose gain can be
+many decades above the physical OM-1 / LU-S responses.  To suppress them this
+path needs BOTH halves of the dissipation, set independently:
+
+* ``numerics.operator_dissipation = {"enabled": true, ...}`` -- builds the SBP
+  dissipation operators ``Q_diss_x/Q_diss_y`` onto the mesh.
+* top-level ``dissipation_epsilon`` (alias ``eps_resolv``) > 0 -- the strength
+  by which ``build_lnse_system`` subtracts ``Q_diss`` from ``L0``.
+
+GOTCHA: this router reads the strength from the *top-level* ``dissipation_epsilon``,
+NOT from ``operator_dissipation.epsilon`` (that nested field is consumed by the
+non-router case2 assembly path).  Enabling ``operator_dissipation`` alone, or
+setting ``dissipation_epsilon`` without enabling ``operator_dissipation``, is a
+silent no-op -- the operator is unchanged.  ``epsilon`` must clear the sawtooth
+poles yet stay below the physical-mode scale (for the Song SWBLI fd4 stride-4
+case the sweet spot is ``~0.10``; ``1.0`` over-damps the real OM-1/LU-S ridges
+by ~100x).
 """
 
 from __future__ import annotations
@@ -18,14 +41,16 @@ import sys
 import time
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.solvers.router.anchors import choose_anchors_adaptive
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
+from linstabpy.solvers.router.stable_sweep import sweep_stable_regime
 
 LOGGER = logging.getLogger(__name__)
 
@@ -148,6 +173,30 @@ def _as_bool(value: Any, *, name: str) -> bool:
 def _cfg_bool(cfg: Mapping[str, Any], key: str, default: bool = False) -> bool:
     value = _cfg_value(cfg, key, default)
     return _as_bool(value, name=key)
+
+
+def _analysis_cfg(cfg: Mapping[str, Any]) -> Mapping[str, Any]:
+    return _as_mapping(cfg.get("analysis"))
+
+
+def _analysis_bool(cfg: Mapping[str, Any], key: str, default: bool = False) -> bool:
+    analysis = _analysis_cfg(cfg)
+    value = analysis.get(key, _cfg_value(cfg, key, default))
+    return _as_bool(value, name=f"analysis.{key}")
+
+
+def _stable_sweep_cfg(cfg: Mapping[str, Any], W_diag: np.ndarray, cfg_obj: Any) -> dict[str, Any]:
+    analysis = _analysis_cfg(cfg)
+    sweep_cfg: dict[str, Any] = {}
+    sweep_cfg.update(cfg)
+    sweep_cfg.update(analysis)
+    W = np.asarray(W_diag, dtype=complex).reshape(-1)
+    sweep_cfg["W"] = W
+    sweep_cfg["invW"] = 1.0 / W
+    sweep_cfg["solver_cfg"] = _solver_cfg(cfg)
+    if cfg_obj is not None:
+        sweep_cfg["factorize_cfg"] = cfg_obj
+    return sweep_cfg
 
 
 def _normalise_cfg(cfg: Mapping[str, Any] | str | Path | object | None) -> tuple[Mapping[str, Any], Any]:
@@ -505,6 +554,7 @@ def _direct_engine_result(
     cfg: Mapping[str, Any],
     cfg_obj: Any,
     *,
+    gamma: float = 0.0,
     B_mat: Any = None,
     C_mat: Any = None,
     filter_fn: Any = None,
@@ -524,6 +574,7 @@ def _direct_engine_result(
         solver_cfg=_solver_cfg(cfg),
         cfg=cfg_obj,
         residuals=True,
+        gamma=gamma,
     )
     residual = None
     if np.asarray(rho_fwd).size or np.asarray(rho_adj).size:
@@ -536,6 +587,24 @@ def _direct_engine_result(
     return _DirectPointResult(gain=float(np.asarray(gains, dtype=float).reshape(-1)[0]), iterations=None, residual=residual)
 
 
+def _regime_b_discount_gamma(cfg: Mapping[str, Any]) -> float:
+    """Select discount gamma for regime-b NEAR_POLE points.
+    
+    Policy:
+    - Use cfg["regime_b_discount_gamma"] if present (explicit override)
+    - Else: derive from pole proximity to keep the shifted solve well-posed
+      Default: 0.25 (validated in test_resolvent_discount.py to tame 1e5 blowup to ~4.0)
+    """
+    explicit = _cfg_value(cfg, "regime_b_discount_gamma", None)
+    if explicit is not None:
+        gamma = float(explicit)
+        if not (gamma > 0.0):
+            raise ValueError(f"regime_b_discount_gamma must be positive, got {gamma}")
+        return gamma
+    # Default: use 0.25 (validated in CP1/r3uu.3.12 to handle 1e5 poles gracefully)
+    return 0.25
+
+
 def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
     label_text = str(label)
     if label_text == NEAR_POLE:
@@ -545,12 +614,25 @@ def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
     return None
 
 
-def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_notes: set[str]) -> str:
+def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_notes: set[str]) -> tuple[str, float]:
+    """Determine which regime to use and any discount gamma.
+    
+    Returns (regime, gamma) tuple where:
+    - regime is "regime-a", "regime-b", or "regime-c"
+    - gamma is 0.0 for regimes a/c, or >0 for regime-b
+    """
     missing = _intended_missing_engine(label)
     if missing is None:
-        return "regime-a"
+        return "regime-a", 0.0
     regime, engine, bead = missing
-    enable_key = "enable_regime_b" if regime == "regime-b" else "enable_regime_c"
+    
+    # For regime-b (NEAR_POLE), attempt discounted resolvent
+    if regime == "regime-b":
+        gamma = _regime_b_discount_gamma(cfg)
+        return regime, gamma
+    
+    # For regime-c (SMOOTH), still raise NotImplementedError
+    enable_key = "enable_regime_c"
     if _cfg_bool(cfg, enable_key, False):
         raise NotImplementedError(
             f"{regime} requested for label {label!r}, but {engine} is not implemented yet "
@@ -565,7 +647,7 @@ def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_no
             bead,
         )
         emitted_notes.add(regime)
-    return "regime-a"
+    return "regime-a", 0.0
 
 
 def _n_modes(cfg: Mapping[str, Any]) -> int:
@@ -583,8 +665,29 @@ def _store_path(cfg: Mapping[str, Any]) -> Path | None:
     return Path(raw)
 
 
+def _json_safe(value: object) -> object:
+    if isinstance(value, np.ndarray):
+        arr = np.asarray(value)
+        if np.iscomplexobj(arr):
+            return {"real": arr.real.tolist(), "imag": arr.imag.tolist()}
+        return arr.tolist()
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, complex):
+        return {"real": float(value.real), "imag": float(value.imag)}
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "__dict__"):
+        return _json_safe(vars(value))
+    return value
+
+
 def _json_records(records: list[dict[str, object]]) -> np.ndarray:
-    return np.asarray([json.dumps(record, sort_keys=True) for record in records], dtype=str)
+    return np.asarray([json.dumps(_json_safe(record), sort_keys=True) for record in records], dtype=str)
 
 
 def _records_from_json_array(values: np.ndarray) -> list[dict[str, object]]:
@@ -760,6 +863,7 @@ def resolvent_map(
     total_points = int(beta.size * f.size)
     n_modes = _n_modes(cfg_map)
     emitted_fallback_notes: set[str] = set()
+    use_amortized_stable_sweep = _analysis_bool(cfg_map, "amortized_stable_sweep", False)
 
     with _heartbeat("resolvent_map", cfg_map):
         for beta_i, beta_value in enumerate(beta):
@@ -797,7 +901,31 @@ def resolvent_map(
             assembly = _assemble_beta_operator(mesh, base_flow, float(beta_value), cfg_map)
             stage_wall["assemble_operator_bc"] = stage_wall.get("assemble_operator_bc", 0.0) + assembly.wall_s
             band_start = time.perf_counter()
-            marks = _mark_unstable_band(assembly.L0, f, cfg_map)
+            if _analysis_bool(cfg_map, "skip_band_marking", False):
+                # Opt-in: skip the band-marking EVP and label every frequency
+                # regime-a (stable interior). The band-marking eigenproblem uses a
+                # real shift sigma=-median(omega) that sits near the spectrum; its
+                # shift-invert does not scale on GPU at high resolution (the
+                # well-conditioned imaginary-shift resolvent solve does). For a base
+                # flow / frequency range known to be away from global-mode poles
+                # this avoids that full-size EVP. WARNING: a frequency that is in
+                # fact near a pole is then handled by the certified resolvent
+                # directly (no regime-b discounting), so only enable it when the
+                # stable-regime assumption holds.
+                omega_arr = np.asarray(f, dtype=float).reshape(-1)
+                marks = BandMarks(
+                    omegas=omega_arr,
+                    labels=np.full(omega_arr.shape, STABLE, dtype=object),
+                    distances=np.full(omega_arr.shape, np.inf),
+                    danger_radius=0.0,
+                )
+                LOGGER.info(
+                    "resolvent_map: band-marking SKIPPED (skip_band_marking=true) "
+                    "-> all %d frequencies labelled regime-a",
+                    omega_arr.size,
+                )
+            else:
+                marks = _mark_unstable_band(assembly.L0, f, cfg_map)
             stage_wall["stability"] = stage_wall.get("stability", 0.0) + time.perf_counter() - band_start
             labels = np.asarray(marks.labels, dtype=str).reshape(-1)
             if labels.size != f.size:
@@ -819,8 +947,128 @@ def resolvent_map(
             filter_ct_fn = (
                 mesh.filters.filter_ct if use_mesh_filters and getattr(mesh, "filters", None) is not None else None
             )
+            regime_label[beta_i, :] = labels
+            sweep_completed: set[int] = set()
+
+            stable_indices = [
+                int(f_i)
+                for f_i, label in enumerate(labels)
+                if str(label) == STABLE
+                and not (np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK)
+            ]
+            can_use_sweep = (
+                use_amortized_stable_sweep
+                and stable_indices
+                and B_mat is None
+                and C_mat is None
+                and filter_fn is None
+                and filter_ct_fn is None
+            )
+            if can_use_sweep:
+                sweep_start = time.perf_counter()
+                stable_omegas = np.asarray(f[stable_indices], dtype=complex)
+                sweep_cfg = _stable_sweep_cfg(cfg_map, W_diag, cfg_obj)
+                try:
+                    anchors, anchor_records = choose_anchors_adaptive(stable_omegas, marks, sweep_cfg)
+                    sweep = sweep_stable_regime(assembly.L0, stable_omegas, anchors, sweep_cfg)
+                except Exception as exc:  # noqa: BLE001 - fallback to certified direct path per point.
+                    wall_s = time.perf_counter() - sweep_start
+                    stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
+                    LOGGER.exception(
+                        "resolvent_map stable sweep failed beta_index=%d beta=%.12g points=%d "
+                        "exception_class=%s action=direct-fallback",
+                        beta_i,
+                        float(beta_value),
+                        len(stable_indices),
+                        exc.__class__.__name__,
+                    )
+                else:
+                    wall_s = time.perf_counter() - sweep_start
+                    stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
+                    sweep_omegas = np.asarray(sweep.omega, dtype=complex).reshape(-1)
+                    sweep_gains = np.asarray(sweep.gain, dtype=float).reshape(-1)
+                    sweep_iterations = np.asarray(sweep.iterations).reshape(-1)
+                    sweep_residuals = np.asarray(sweep.residuals, dtype=float).reshape(-1)
+                    if (
+                        sweep_omegas.size != len(stable_indices)
+                        or sweep_gains.size != len(stable_indices)
+                        or sweep_iterations.size != len(stable_indices)
+                        or sweep_residuals.size != len(stable_indices)
+                    ):
+                        LOGGER.error(
+                            "resolvent_map stable sweep returned mismatched result lengths "
+                            "beta_index=%d expected=%d omega=%d gain=%d iterations=%d residuals=%d "
+                            "action=direct-fallback",
+                            beta_i,
+                            len(stable_indices),
+                            sweep_omegas.size,
+                            sweep_gains.size,
+                            sweep_iterations.size,
+                            sweep_residuals.size,
+                        )
+                    else:
+                        response_modes = np.asarray(sweep.responses)
+                        forcing_modes = np.asarray(sweep.forcings)
+                        reports = tuple(sweep.certification_reports)
+                        for local_i, f_i in enumerate(stable_indices):
+                            omega = f[f_i]
+                            if not (
+                                np.isclose(sweep_omegas[local_i], complex(omega))
+                                and np.isfinite(sweep_gains[local_i])
+                                and np.isfinite(sweep_residuals[local_i])
+                            ):
+                                LOGGER.error(
+                                    "resolvent_map stable sweep point invalid index=%d beta=%.12g "
+                                    "omega=%.12g action=direct-fallback",
+                                    _point_index(beta_i, f_i, f.size),
+                                    float(beta_value),
+                                    float(omega),
+                                )
+                                continue
+                            gain[beta_i, f_i] = float(sweep_gains[local_i])
+                            reason_code[beta_i, f_i] = REASON_OK
+                            record = _point_record(
+                                status="ok",
+                                point_index=_point_index(beta_i, f_i, f.size),
+                                beta_i=beta_i,
+                                f_i=f_i,
+                                beta=float(beta_value),
+                                omega=float(omega),
+                                total=total_points,
+                                regime_label=labels[f_i],
+                                engine="stable-sweep",
+                                leading_gain=float(sweep_gains[local_i]),
+                                iterations=int(sweep_iterations[local_i]),
+                                residual=float(sweep_residuals[local_i]),
+                                wall_s=wall_s / max(len(stable_indices), 1),
+                                peak_rss_bytes=_peak_rss_bytes(),
+                                reason_code=REASON_OK,
+                            )
+                            if response_modes.ndim >= 2 and response_modes.shape[1] > local_i:
+                                record["response"] = response_modes[:, local_i].copy()
+                            if forcing_modes.ndim >= 2 and forcing_modes.shape[1] > local_i:
+                                record["forcing"] = forcing_modes[:, local_i].copy()
+                            if len(reports) > local_i:
+                                record["certification_report"] = reports[local_i]
+                            record["sweep_metrics"] = dict(sweep.metrics)
+                            record["anchor_omegas"] = np.asarray(anchors, dtype=complex).copy()
+                            record["anchor_records"] = anchor_records
+                            point_records.append(record)
+                            sweep_completed.add(f_i)
+                        _save_store(
+                            store,
+                            beta=beta,
+                            f=f,
+                            gain=gain,
+                            regime_label=regime_label,
+                            reason_code=reason_code,
+                            failure_records=failure_records,
+                            point_records=point_records,
+                        )
 
             for f_i, omega in enumerate(f):
+                if f_i in sweep_completed:
+                    continue
                 if np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK:
                     LOGGER.info(
                         "resolvent_map point skipped index=%d total=%d beta=%.12g omega=%.12g "
@@ -853,7 +1101,7 @@ def resolvent_map(
                     continue
 
                 regime_label[beta_i, f_i] = labels[f_i]
-                engine = _check_missing_engine_gate(labels[f_i], cfg_map, emitted_fallback_notes)
+                engine, gamma = _check_missing_engine_gate(labels[f_i], cfg_map, emitted_fallback_notes)
                 point_start = time.perf_counter()
                 LOGGER.info(
                     "resolvent_map point start index=%d total=%d beta_index=%d f_index=%d "
@@ -879,6 +1127,7 @@ def resolvent_map(
                         C_mat=C_mat,
                         filter_fn=filter_fn,
                         filter_ct_fn=filter_ct_fn,
+                        gamma=gamma,
                     )
                 except NotImplementedError:
                     raise
@@ -936,6 +1185,14 @@ def resolvent_map(
 
                 wall_s = time.perf_counter() - point_start
                 stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
+                # Finiteness gate for regime-b points
+                if engine == "regime-b":
+                    if not np.isfinite(point.gain):
+                        raise ValueError(
+                            f"regime-b (NEAR_POLE) point yielded non-finite gain {point.gain:.6e} "
+                            f"at beta={beta_value:.6e}, omega={omega:.6e}; "
+                            f"consider reducing regime_b_discount_gamma"
+                        )
                 gain[beta_i, f_i] = point.gain
                 reason_code[beta_i, f_i] = REASON_OK
                 record = _point_record(
@@ -955,6 +1212,8 @@ def resolvent_map(
                     peak_rss_bytes=_peak_rss_bytes(),
                     reason_code=REASON_OK,
                 )
+                if gamma > 0.0:
+                    record["resolvent_discount_gamma"] = float(gamma)
                 point_records.append(record)
                 LOGGER.info(
                     "resolvent_map point complete index=%d total=%d beta=%.12g omega=%.12g "
