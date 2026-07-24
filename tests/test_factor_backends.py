@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import importlib
 import re
 import sys
 
@@ -1168,12 +1167,52 @@ def test_strumpack_fgmres_invokes_backend_probe(monkeypatch) -> None:
     assert calls == ["apply:strumpack", "probe:fgmres"]
 
 
-def test_iterative_linsolve_does_not_enter_factor_backend_seam(monkeypatch) -> None:
-    def fail_apply(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise AssertionError("direct factor seam should not run for iterative linsolve")
+def test_iterative_lu_uses_requested_factor_backend(monkeypatch) -> None:
+    if not backends.factor_backend_available("mumps"):
+        pytest.skip("SKIPPED: missing MUMPS factor backend")
 
-    factorize_module = importlib.import_module("linstabpy.linalg.factorize")
-    monkeypatch.setattr(factorize_module, "apply_factor_backend", fail_apply)
+    monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
+    operator = sp.csr_matrix(
+        [
+            [4.0 + 0.5j, 0.25 - 0.1j, 0.0 + 0.0j],
+            [0.5 + 0.2j, 3.0 - 0.25j, 0.0 - 0.3j],
+            [0.0 + 0.0j, 0.1 + 0.4j, 2.0 + 0.75j],
+        ],
+        dtype=complex,
+    )
+
+    solver = factorize(
+        operator,
+        solver_cfg={
+            "linsolve": {
+                "type": "iterative",
+                "ksp_type": "fgmres",
+                "pc_type": "lu",
+                "ksp_pc_side": "right",
+                "factor_backend": "mumps",
+                "ksp_max_it": 10,
+            }
+        },
+    )
+    try:
+        assert solver.backend == "PETSc-iterative"
+        assert solver._ksp is not None
+        assert solver._ksp.getType() == "fgmres"
+        assert solver._ksp.getPC().getType() == "lu"
+        assert isinstance(solver._ksp.getPC().getFactorMatrix().getMumpsIcntl(7), int)
+    finally:
+        solver.destroy()
+
+
+def test_iterative_non_lu_pc_does_not_enter_factor_backend_seam(monkeypatch) -> None:
+    # The factor-backend seam must run ONLY for a top-level LU PC. With any other
+    # PC (here pc_type="none") the iterative branch must NOT call
+    # apply_factor_backend -- the `if pc_type == "lu"` guard is what keeps the
+    # factor_backend wire-in surgical (complements the lu-positive test above).
+    def fail_apply(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("factor seam must not run for a non-LU iterative PC")
+
+    monkeypatch.setattr("linstabpy.linalg.factorize.apply_factor_backend", fail_apply)
     operator = sp.eye(2, format="csr", dtype=complex)
 
     solver = factorize(

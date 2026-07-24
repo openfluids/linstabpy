@@ -379,6 +379,24 @@ def assemble_matrix(matrix: PETSc.Mat) -> PETSc.Mat:
     return matrix
 
 
+def _local_row_nnz_split(
+    local_csr: sp.csr_matrix, r0: int, r1: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-row diagonal/off-diagonal nonzero counts for a locally-owned CSR slice.
+
+    Columns in ``[r0, r1)`` land in the MPI-AIJ diagonal block; all others in the
+    off-diagonal block. Returns two ``int64`` arrays of length ``r1 - r0`` ready
+    for ``create_distributed_aij(nnz_diag=..., nnz_offdiag=...)``. The cumulative
+    sum keyed on ``indptr`` counts per row correctly even for empty rows.
+    """
+    indptr = local_csr.indptr
+    in_diag = (local_csr.indices >= r0) & (local_csr.indices < r1)
+    csum = np.concatenate(([0], np.cumsum(in_diag, dtype=np.int64)))
+    diag = csum[indptr[1:]] - csum[indptr[:-1]]
+    offdiag = np.diff(indptr).astype(np.int64) - diag
+    return diag, offdiag
+
+
 def scipy_to_petsc_distributed(
     mat: sp.spmatrix,
     *,
@@ -388,11 +406,36 @@ def scipy_to_petsc_distributed(
 
     This is a transitional helper: it still requires a SciPy matrix object but
     inserts only the locally-owned row slice into the PETSc matrix on each rank.
+
+    The matrix is preallocated with the exact per-row diagonal/off-diagonal
+    nonzero counts. Without this, the row-by-row insert reallocates on nearly
+    every row (~O(nnz^2)) and stalls for hours at full resolution (e.g. ~9e5 DOF
+    SWBLI operators) before the factorization can even begin.
     """
+    PETSc = _get_petsc()
+    comm = comm or PETSc.COMM_WORLD
     csr = sp.csr_matrix(mat, dtype=complex)
-    matrix = create_distributed_aij(csr.shape, comm=comm)
-    r0, r1 = ownership_range(matrix)
-    insert_local_csr_rows(matrix, csr[r0:r1], row_start=r0)
+    nrows = csr.shape[0]
+    # Row ownership matching PETSc's default layout (PetscSplitOwnership): the
+    # first (nrows % size) ranks own one extra row. Computing it here lets each
+    # rank split its rows into diagonal/off-diagonal blocks consistently with the
+    # partition create_distributed_aij derives internally.
+    size, rank = comm.getSize(), comm.getRank()
+    base, rem = divmod(nrows, size)
+    local_n = base + (1 if rank < rem else 0)
+    r0 = rank * base + min(rank, rem)
+    r1 = r0 + local_n
+
+    local = csr[r0:r1]
+    d_nnz, o_nnz = _local_row_nnz_split(local, r0, r1)
+    matrix = create_distributed_aij(csr.shape, comm=comm, nnz_diag=d_nnz, nnz_offdiag=o_nnz)
+
+    rm0, rm1 = ownership_range(matrix)
+    if (rm0, rm1) != (r0, r1):  # defensive: layouts must agree (raises on all ranks)
+        raise RuntimeError(
+            f"ownership mismatch: computed [{r0}, {r1}) vs PETSc [{rm0}, {rm1})"
+        )
+    insert_local_csr_rows(matrix, local, row_start=r0)
     return assemble_matrix(matrix)
 
 
