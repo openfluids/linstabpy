@@ -9,23 +9,22 @@ import subprocess  # nosec B404 - tests execute the checked-in harness script.
 import sys
 from pathlib import Path
 
+from tests._subprocess_timeout import LOAD_MULTIPLIER_CAP, load_aware_timeout
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "validation" / "lnse_equivalence_harness.py"
 HARNESS_TIMEOUT_BASE_SECONDS = 240
-HARNESS_TIMEOUT_LOAD_CAP = 8.0
+HARNESS_TIMEOUT_LOAD_CAP = LOAD_MULTIPLIER_CAP
 
 
 def _harness_timeout() -> float:
-    """Return a load-aware timeout for harness subprocess smoke tests."""
-    try:
-        loadavg1 = os.getloadavg()[0]
-    except (AttributeError, OSError):
-        return float(HARNESS_TIMEOUT_BASE_SECONDS)
+    """Return a load-aware timeout for harness subprocess smoke tests.
 
-    ncpu = os.cpu_count() or 1
-    oversubscription = loadavg1 / ncpu
-    multiplier = min(max(oversubscription, 1.0), HARNESS_TIMEOUT_LOAD_CAP)
-    return float(HARNESS_TIMEOUT_BASE_SECONDS * multiplier)
+    Delegates to the shared helper so the other subprocess tests cannot drift to a
+    different policy -- this file had the load-aware timeout and its siblings did
+    not, which is why they, and not this one, timed out on a busy node.
+    """
+    return load_aware_timeout(HARNESS_TIMEOUT_BASE_SECONDS)
 
 
 def _require(condition: bool, message: str) -> None:

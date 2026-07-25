@@ -246,6 +246,11 @@ def test_mumps_blr_ordering_variant_matches_baseline(
     # MUMPS/PETSc options are process-global.  Run each lossy BLR/ordering
     # variant in a child process so the rest of the suite still sees the
     # frozen, knobs-off baseline path.
+    #
+    # Imported here, not at module scope: this file re-executes itself as a plain
+    # script (see __main__ below), where the `tests` package is not importable.
+    from tests._subprocess_timeout import load_aware_timeout
+
     proc = subprocess.run(
         [sys.executable, __file__, variant.name],
         cwd=os.getcwd(),
@@ -253,7 +258,10 @@ def test_mumps_blr_ordering_variant_matches_baseline(
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=120,
+        # Hang guard, not a performance assertion. The former hard 120 s left ~1.4x
+        # headroom over this variant's own runtime on a loaded machine, so it timed
+        # out spuriously whenever the node was shared. See tests/_subprocess_timeout.py.
+        timeout=load_aware_timeout(300),
         check=False,
     )
     if proc.returncode == 77:

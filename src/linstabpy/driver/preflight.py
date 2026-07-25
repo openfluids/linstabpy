@@ -191,6 +191,37 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 )
             )
 
+    # Band-marking backend trap. resolvent_map runs a mandatory band-marking EVP, and
+    # that EVP reads solver.eigen -- NOT solver.resolvent. A config that scales up only
+    # the resolvent backend leaves the EVP on the default direct solver, which at full
+    # resolution does not appear to fail: it simply never finishes. The run looks like a
+    # slow resolvent sweep for hours before anyone suspects the EVP.
+    if run_res and isinstance(solver, Mapping):
+        skip_band = bool(
+            _get(config, "analysis.skip_band_marking", _get(config, "skip_band_marking", False))
+        )
+        res_sub = solver.get("resolvent")
+        if not isinstance(res_sub, Mapping):
+            res_sub = solver.get("linsolve")
+        res_backend = res_sub.get("factor_backend") if isinstance(res_sub, Mapping) else None
+        eigen_sub = solver.get("eigen")
+        eigen_backend = eigen_sub.get("factor_backend") if isinstance(eigen_sub, Mapping) else None
+        solver_backend = solver.get("factor_backend")
+        eigen_resolved = eigen_backend or solver_backend
+        if not skip_band and res_backend and not eigen_resolved:
+            out.append(
+                Advisory(
+                    "BAND-MARKING-BACKEND",
+                    "warning",
+                    f"the resolvent backend is set to '{res_backend}' but the band-marking EVP "
+                    "reads solver.eigen, which is unset and will fall back to the default "
+                    "direct solver; at full resolution this stalls rather than errors",
+                    "set solver.factor_backend (applies to every stage), or set "
+                    "solver.eigen.factor_backend explicitly, or set analysis.skip_band_marking "
+                    "= true if the stable-regime assumption genuinely holds for this sweep",
+                )
+            )
+
     return out
 
 

@@ -32,7 +32,22 @@
     "stride_eta": 1,
     "fd_order": 4,
     "beta": 0.0,
-    "alpha_filter": 0.0
+    "alpha_filter": 0.0,
+
+    // Artificial (sawtooth) dissipation. REQUIRED for any run that produces a
+    // result. The bare finite-difference operator admits an odd-even mode that
+    // the discretisation cannot see, which shows up as spurious eigenvalues near
+    // the poles, streaks around beta ~ 90-135, and gain maxima inflated by orders
+    // of magnitude. It does not fail loudly -- it returns confident numbers.
+    //
+    // epsilon IS RESOLUTION-DEPENDENT AND MUST BE RE-TUNED ON YOUR MESH. The value
+    // below is a starting point, not a default that transfers. Tune it by raising
+    // epsilon until the quantity you care about stops moving, then verify the
+    // result is insensitive across a range around that value.
+    "operator_dissipation": {
+      "enabled": true,
+      "epsilon": 0.02
+    }
   },
 
   "bc": {
