@@ -34,6 +34,14 @@ from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
 from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.mesh import Mesh
+from linstabpy.driver.preflight import (
+    config_advisories,
+    format_advisories,
+    format_banner,
+    format_summary,
+    result_advisories,
+)
+from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
@@ -1322,8 +1330,14 @@ def run() -> None:
     od_enabled = bool(od_cfg.get("enabled", False))
     od_epsilon = float(od_cfg.get("epsilon", 0.0))
     od_order_diss = int(od_cfg.get("order_diss", fd_order))
-    od_apply_to_stability = bool(od_cfg.get("apply_to_stability", True))
-    od_apply_to_resolvent = bool(od_cfg.get("apply_to_resolvent", False))
+    # Defaults live in mesh.sbp, not here: re-declaring them locally is what let the
+    # stability/resolvent asymmetry drift apart unnoticed.
+    od_apply_to_stability = bool(
+        od_cfg.get("apply_to_stability", DISSIPATION_APPLY_DEFAULTS["apply_to_stability"])
+    )
+    od_apply_to_resolvent = bool(
+        od_cfg.get("apply_to_resolvent", DISSIPATION_APPLY_DEFAULTS["apply_to_resolvent"])
+    )
     od_transition_fraction = float(
         od_cfg.get("transition_fraction", DISSIPATION_DEFAULTS["transition_fraction"])
     )
@@ -1417,6 +1431,34 @@ def run() -> None:
         f"root_assembly={use_root_operator} "
         f"matrix_mode={matrix_mode}"
     )
+
+    # Banner + preflight. Reports EFFECTIVE values, because the recurring failure mode is
+    # a config that asks for something the driver then declines to do -- most of all the
+    # per-stage dissipation, whose effective epsilon is what the operator actually sees.
+    if rank == 0:
+        for line in format_banner(
+            {
+                "case_dir": case_dir,
+                "mpi_ranks": size,
+                "stride (ksi, eta)": f"{stride_ksi}, {stride_eta}",
+                "fd_order": fd_order,
+                "beta": beta,
+                "omega_target": omega_target,
+                "stages": f"stability={run_stability} resolvent={run_resolvent}",
+                "dissipation enabled": od_enabled,
+                "epsilon (requested)": od_epsilon,
+                "epsilon -> stability": eps_stab,
+                "epsilon -> resolvent": eps_resolv,
+                "st_solver": st_solver,
+                "factor_backend": factor_backend_provenance,
+                "git_sha": git_sha,
+            }
+        ).splitlines():
+            _log(line)
+        for line in format_advisories(
+            config_advisories(config), title="preflight advisories"
+        ).splitlines():
+            _log(line)
 
     # ------------------------------------------------------------------
     # 2) Load one case snapshot (x, y, rho, u, v, w, T, sponge) and
@@ -1595,6 +1637,41 @@ def run() -> None:
         stability_postcheck_target_distance = acceptance_result.postcheck_target_distance
         stability_acceptance = acceptance_result.acceptance
         _conj_diag = acceptance_result.conjugate_diagnostic
+
+        # Closing summary: what came out, and whether to trust it. This belongs in the
+        # LOG and not only in the NPZ -- reading verdicts back out of artifacts with
+        # ad-hoc scripts is precisely the cost this layer removes.
+        _post = result_advisories(
+            gains=gains if np.size(gains) else None,
+            residuals=[
+                r
+                for r in (
+                    np.max(resolvent_rho_fwd) if np.size(resolvent_rho_fwd) else None,
+                    np.max(resolvent_rho_adj) if np.size(resolvent_rho_adj) else None,
+                )
+                if r is not None
+            ]
+            or None,
+            dissipation_effective=bool(eps_resolv > 0.0) if run_resolvent else None,
+        )
+        for line in format_summary(
+            {
+                "ndof": mesh.ngp * 5,
+                "leading gain": f"{float(np.max(gains)):.6g}" if np.size(gains) else "n/a",
+                "eigenvalues returned": int(np.size(omega)),
+                "resolvent residual (fwd, adj)": (
+                    f"{float(np.max(resolvent_rho_fwd)):.3e}, "
+                    f"{float(np.max(resolvent_rho_adj)):.3e}"
+                    if np.size(resolvent_rho_fwd) and np.size(resolvent_rho_adj)
+                    else "n/a"
+                ),
+                "epsilon -> resolvent (effective)": eps_resolv,
+                "peak RSS [bytes]": _peak_rss_total_bytes,
+            },
+            _post,
+        ).splitlines():
+            _log(line)
+
         from linstabpy.driver.io import save_results
 
         save_results(

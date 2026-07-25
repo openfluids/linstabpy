@@ -293,7 +293,10 @@ def test_default_off_provenance(monkeypatch, tmp_path):
         assert data["numerics_operator_dissipation_epsilon"].item() == 0.0
         assert data["numerics_operator_dissipation_order_diss"].item() == 4
         assert data["numerics_operator_dissipation_apply_to_stability"].item() is True
-        assert data["numerics_operator_dissipation_apply_to_resolvent"].item() is False
+        # Default is True for BOTH stages (mesh.sbp.DISSIPATION_APPLY_DEFAULTS). It was
+        # previously False for the resolvent, so enabling dissipation gave a damped EVP
+        # and a BARE resolvent -- silently, and only for the stage nobody was watching.
+        assert data["numerics_operator_dissipation_apply_to_resolvent"].item() is True
         assert data["numerics_operator_dissipation_transition_fraction"].item() == 0.05
         assert data["numerics_operator_dissipation_endpoint_exponent"].item() == 2.0
         assert data["numerics_operator_dissipation_interior_value"].item() == 1.0
@@ -339,7 +342,10 @@ def test_enabled_provenance(monkeypatch, tmp_path):
         assert data["numerics_operator_dissipation_epsilon"].item() == 0.1
         assert data["numerics_operator_dissipation_order_diss"].item() == 6
         assert data["numerics_operator_dissipation_apply_to_stability"].item() is True
-        assert data["numerics_operator_dissipation_apply_to_resolvent"].item() is False
+        # Default is True for BOTH stages (mesh.sbp.DISSIPATION_APPLY_DEFAULTS). It was
+        # previously False for the resolvent, so enabling dissipation gave a damped EVP
+        # and a BARE resolvent -- silently, and only for the stage nobody was watching.
+        assert data["numerics_operator_dissipation_apply_to_resolvent"].item() is True
         assert data["numerics_operator_dissipation_transition_fraction"].item() == 0.05
         assert data["numerics_operator_dissipation_endpoint_exponent"].item() == 2.0
         assert data["numerics_operator_dissipation_interior_value"].item() == 1.0

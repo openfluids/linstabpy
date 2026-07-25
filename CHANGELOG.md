@@ -8,6 +8,48 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 ## [Unreleased]
 
 ### Changed
+- **BREAKING (default):** `numerics.operator_dissipation.apply_to_resolvent` now
+  defaults to `true` instead of `false`, matching `apply_to_stability`. Previously,
+  enabling dissipation gave a damped eigenvalue problem and a **bare** resolvent
+  operator — a combination that runs to completion and returns grid-scale sawtooth
+  (spurious high-wavenumber streaks, gains orders of magnitude too large) with nothing
+  in the log to indicate it. Configs that deliberately want an undamped resolvent must
+  now set `apply_to_resolvent: false` explicitly. No config shipped with the project
+  changes behaviour: every one that runs a resolvent either disables dissipation or sets
+  the switch explicitly. Both defaults now live in one place,
+  `config.defaults.DISSIPATION_APPLY_DEFAULTS`, so the driver and the preflight checks
+  cannot disagree about them.
+- `solver.factor_backend` is now honoured as a fallback for all solver stages
+  (`linsolve`, `resolvent`, and the shift-invert eigen path). It was previously read by
+  nothing: every resolver receives a *sub*-config, so a key at solver level silently did
+  nothing — one symptom being a run intended for GPU that executed entirely on CPU. It
+  sits at the bottom of the precedence chain (per-stage key > environment >
+  `solver.factor_backend` > built-in default), so no configuration that resolved before
+  resolves differently now. Route-specific defaults (for example `strumpack_fgmres`
+  requiring `strumpack`) are unaffected.
+
+### Added
+- Preflight and post-run advisories (`driver.preflight`), reported in the run log. Each
+  advisory names a concrete remedy rather than only a symptom. Preflight covers:
+  dissipation enabled but not reaching a stage that is about to run; no dissipation at
+  all; dissipation enabled with `epsilon = 0`; a spanwise wavenumber inside the band
+  where grid-scale sawtooth dominates while undamped; a base flow that is not normalised
+  to the canonical freestream (`rho = u = T = 1`); a shadowed `factor_backend`; and a
+  strided (reduced-resolution) mesh. Post-run checks flag a leading gain far above the
+  physical scale for these cases and a postcheck residual above tolerance.
+- A run **banner** and closing **summary** in the log, reporting *effective* values —
+  including the per-stage dissipation epsilon actually applied — so a run's real
+  configuration and the trustworthiness of its result are visible without loading the
+  output archive.
+- Translation of opaque factorization failures into actionable messages. A MUMPS
+  workspace exhaustion (`INFOG(1) = -9`) previously surfaced only as
+  `SLEPc EPS.setUp failed`; it now names the cause and the remedy (`ICNTL(14)`).
+
+### Fixed
+- The Streaky-BL MATLAB parity test guarded only one of the two references it needs, so
+  restoring the parity bundle while the base-flow data directory was still absent turned
+  a clean skip into a hard error that resembled a numerical disagreement. The guard now
+  checks every reference and announces which one is missing.
 - PETSc is now imported lazily by `linalg.backends`, `linalg.factorize`,
   `linalg.shifted`, and `solvers.router.stable_sweep`, matching the existing
   `utils.petsc_core` pattern. Importing these modules — or the
