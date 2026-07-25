@@ -1,0 +1,87 @@
+// =============================================================================
+// Ziming Song 31.6 deg SWBLI EVP -- epsilon ladder rung (stride-4, eps=0.02).
+// fd4, stride 4/4, betaL=19.04, sigma=0 (correct target for a marginal flow;
+// verified shift-independent: sigma=0 and sigma=-0.05j converge to the same
+// leading mode to 7 digits).
+//
+// SOLVER SETTINGS ARE JOB-30's PROVEN-CONVERGING SET (eps_tol=1e-6, ncv=160,
+// conv_test=rel). Do NOT set solver.eigen.true_residual here: forcing SLEPc to
+// converge on the physical operator's residual is non-convergent for this flow
+// (the marginal mode sits at omega~0, so a relative test divides by ~0 and an
+// absolute test is hopeless against ||L0||~1e10). All six rungs previously
+// timed out at 45 min that way (c8 jobs 31/32/33) and wrote nothing.
+// Trustworthiness comes instead from the INDEPENDENT postcheck oracle that
+// linstabpy always writes (res = i*L0 x - omega x, recomputed from the assembled
+// operator); tools/compare_evp_to_song316.py gates on that.
+//
+// LADDER PURPOSE: epsilon adds artificial damping (L0 - eps*Q_diss), so an
+// over-damped epsilon biases omega_i downward. Selection rule is INSENSITIVITY
+// of omega_i to epsilon (a plateau) -- NEVER best-match to Ziming's value.
+// eps=0.0 is the bare-operator anchor: it is the rung MOST exposed to sawtooth,
+// so its contamination is the EXPECTED outcome and its verdict must be ignored.
+// =============================================================================
+{
+  "paths": {
+    "case_dir": "data/song_31.6/converted"
+  },
+
+  "physics": {
+    "Re": 100000.0,
+    "Ma": 2.15,
+    "Pr": 0.72,
+    "kappa": 1.4,
+    "T_0": 153.33,
+    "zero_spanwise": false,
+    "zero_mu_t_derivs": false,
+    "use_matlab_sponge_aux": false,
+    "sponge": {
+      "enabled": true,
+      "preset": "case1_smooth_half"
+    }
+  },
+
+  "numerics": {
+    "stride_ksi": 4,
+    "stride_eta": 4,
+    "fd_order": 4,
+    "beta": 19.04,
+    "alpha_filter": 0.0,
+    "operator_dissipation": {
+      "enabled": true,
+      "epsilon": 0.02,
+      "apply_to_stability": true
+    }
+  },
+
+  "bc": {
+    "penalty": 100000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+      {"type": "neumann", "borders": "b", "variables": "T"},
+      {"type": "neumann", "borders": "r", "variables": "ruvwT"}
+    ]
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.1,
+    "run_stability": true,
+    "run_resolvent": false,
+    "use_raw_eigs": false,
+    "n_modes_stability": 40,
+    "omega_target": {"real": 0.0, "imag": 0.0}
+  },
+
+  "solver": {
+    "petsc_matrix_mode": "distributed",
+    "eigen": {
+      "st_solver": "mumps",
+      "eps_tol": 1e-6,
+      "ncv": 160,
+      "conv_test": "rel"
+    },
+    "linsolve": {"type": "mumps"}
+  }
+}
