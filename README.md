@@ -84,7 +84,7 @@ Do not mix MPI stacks in one environment. PETSc, SLEPc, `mpi4py`, and the runtim
 Clone the repository and run the native checks:
 
 ```bash
-git clone https://github.com/ricardofrantz/linstabpy.git
+git clone https://github.com/openfluids/linstabpy.git
 cd linstabpy
 
 bash diagnose.sh
@@ -393,7 +393,7 @@ and are unaffected.
 ## Quick start
 
 ```bash
-git clone https://github.com/ricardofrantz/linstabpy.git
+git clone https://github.com/openfluids/linstabpy.git
 cd linstabpy
 
 bash diagnose.sh

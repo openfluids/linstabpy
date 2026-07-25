@@ -25,7 +25,7 @@ body:
       label: How to reproduce
       description: Exact commands that trigger the bug from a fresh clone.
       placeholder: |
-        git clone https://github.com/ricardofrantz/linstabpy.git
+        git clone https://github.com/openfluids/linstabpy.git
         cd linstabpy
         bash install.sh
         .venv/bin/python -m examples.example_1_blasius
