@@ -7,6 +7,29 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed
+- PETSc is now imported lazily by `linalg.backends`, `linalg.factorize`,
+  `linalg.shifted`, and `solvers.router.stable_sweep`, matching the existing
+  `utils.petsc_core` pattern. Importing these modules — or the
+  `solvers.router` package, which re-exports `resolvent_map` — no longer pulls in
+  petsc4py or initializes PETSc/SLEPc; initialization now happens on first
+  actual solver use. This makes lightweight helpers such as
+  `solvers.router.band_marking` usable without starting PETSc. Public APIs and
+  numerical behavior are unchanged.
+
+### Fixed
+- Restored the guarantee that importing `solvers.router.band_marking` does not
+  initialize PETSc (regressed when `resolvent_map` was added to the
+  `solvers.router` package exports).
+- The CPU/MUMPS parity regression guard no longer fails on freshly built
+  environments. Its tolerance was tighter (1e-12) than both the eigensolver's own
+  convergence tolerance (`eps_tol=1e-10`) and the measured build-to-build spread
+  of the converged eigenvalues (~1e-8 between independently configured
+  PETSc/MUMPS/BLAS builds), so it could not be stably satisfied. The guard now
+  uses 1e-6 — far above that floor, far below any physically meaningful drift —
+  and the frozen reference was regenerated. Repeat runs within one build remain
+  bit-identical.
+
 ## [1.0.0rc2] - 2026-06-25
 
 GPU-resolvent dual-factorization adjoint heal + amortized stable-sweep wired

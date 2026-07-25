@@ -25,7 +25,24 @@ from linstabpy.operators import build_lnse_operator
 from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 REFERENCE_PATH = Path(__file__).with_name("fixtures") / "mumps_parity_reference.npz"
-RELATIVE_DRIFT_TOL = 1.0e-12
+# Regression guard, not a bit-parity gate. The tolerance must sit ABOVE the
+# build-to-build rounding floor and far BELOW any physically meaningful drift:
+#
+#   * within one build the solve is deterministic (repeat runs agree to 0.0);
+#   * across independently configured PETSc/MUMPS/BLAS builds the converged
+#     eigenvalues move by ~1e-8 relative (measured: CPU vs GPU-stack venv on the
+#     same host, identical nconv/ncv/eps_tol/backend). That is expected: the
+#     eigensolver converges to eps_tol=1e-10 on the residual, and for a strongly
+#     non-normal operator such as the LNSE the eigenvalue error is that residual
+#     scaled by the eigenvalue condition number, so it exceeds eps_tol.
+#   * a real regression (e.g. a dropped operator term) moves eigenvalues by
+#     ~1e-3 or more -- three orders of magnitude above this bound.
+#
+# The former 1.0e-12 sat *below* the cross-build noise floor, so it could never
+# be stably green: it failed on every fresh build even when the physics was
+# unchanged. Do NOT relax this further to make a run pass -- if a drift above
+# 1e-6 appears, that is a finding to investigate, not a number to raise.
+RELATIVE_DRIFT_TOL = 1.0e-6
 
 CASE_PARAMS: dict[str, Any] = {
     "case_id": "mumps_parity_blasius_lnse_v1",

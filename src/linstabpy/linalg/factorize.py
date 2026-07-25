@@ -15,14 +15,10 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import scipy.sparse as sp
-
-from ..utils.petsc_init import init_petsc_from_argv
-
-init_petsc_from_argv()
-from petsc4py import PETSc
 
 from linstabpy.config import Config
 
@@ -35,12 +31,39 @@ from ..solvers.petsc_utils import (
     vec_to_numpy,
 )
 from ..utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_LINEAR_SOLVER_TYPES
+from ..utils.petsc_init import init_petsc_from_argv
 from .backends import apply_factor_backend
+
+if TYPE_CHECKING:
+    # Type-only import; ``from __future__ import annotations`` keeps every
+    # ``PETSc.*`` annotation below a string, so importing this module does not
+    # pull in petsc4py or initialize PETSc.
+    from petsc4py import PETSc  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
 
+# Lazy PETSc accessor (mirrors ``linstabpy.utils.petsc_core``). Functions here
+# bind it locally with ``PETSc = _get_petsc()``; nested closures then inherit
+# that binding from the enclosing scope. PEP 562 ``__getattr__`` covers external
+# ``from ... import PETSc`` users but never same-module global lookups.
+def __getattr__(name):  # noqa: ANN001, ANN201
+    if name == "PETSc":
+        return _get_petsc()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _get_petsc():  # noqa: ANN202
+    """Return PETSc, triggering the lazy import/init on first use."""
+    init_petsc_from_argv()
+    from petsc4py import PETSc as _imp_PETSc
+
+    globals()["PETSc"] = _imp_PETSc
+    return _imp_PETSc
+
+
 def _aij_pattern(mat: PETSc.Mat) -> tuple[np.ndarray, np.ndarray]:
+    PETSc = _get_petsc()
     try:
         indptr, indices, _ = mat.getValuesCSR()
     except (AttributeError, PETSc.Error) as exc:
@@ -93,9 +116,10 @@ def _run_oracle_residual(
     The oracle uses A_H (the stored Hermitian transpose) to validate that the
     healed solve_adjoint path (which is a forward-solve on A_H) produces correct results.
     """
+    PETSc = _get_petsc()
     max_residual = 0.0
     rng = np.random.RandomState(43)  # different seed for oracle
-    
+
     def _rhs_vec_from_numpy_local(rhs: np.ndarray) -> PETSc.Vec:
         rhs_arr = np.asarray(rhs, dtype=complex)
         b = A_H.createVecLeft()
@@ -203,6 +227,9 @@ def factorize(
         ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
         subsection override the corresponding env vars.
     """
+    # Bound once here; the nested solve/refactorize closures below inherit this
+    # binding from the enclosing scope, so they need no lazy lookup of their own.
+    PETSc = _get_petsc()
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
 

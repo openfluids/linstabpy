@@ -7,13 +7,44 @@ import os
 from collections.abc import Mapping
 from enum import StrEnum
 from functools import cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from petsc4py import PETSc
 
 from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
 from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
+
+if TYPE_CHECKING:
+    # Type-only import so annotations resolve for type checkers; at runtime
+    # ``TYPE_CHECKING`` is False, so importing this module stays PETSc-free.
+    from petsc4py import PETSc  # noqa: F401
+
+
+# Lazy PETSc accessor, mirroring ``linstabpy.utils.petsc_core``. External
+# callers reach ``PETSc`` through PEP 562 ``__getattr__``; functions *inside*
+# this module must bind it locally via ``PETSc = _get_petsc()`` because
+# ``__getattr__`` does not fire for same-module ``LOAD_GLOBAL`` lookups.
+def __getattr__(name):  # noqa: ANN001, ANN201
+    if name == "PETSc":
+        from linstabpy.utils.petsc_init import init_petsc_from_argv
+
+        init_petsc_from_argv()
+        from petsc4py import PETSc as _imp_PETSc
+
+        globals()["PETSc"] = _imp_PETSc
+        return _imp_PETSc
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _get_petsc():  # noqa: ANN202
+    """Return PETSc, triggering the lazy import on first use."""
+    from linstabpy.utils.petsc_init import init_petsc_from_argv
+
+    init_petsc_from_argv()
+    from petsc4py import PETSc as _imp_PETSc
+
+    globals()["PETSc"] = _imp_PETSc
+    return _imp_PETSc
 
 DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
@@ -212,6 +243,7 @@ def apply_factor_backend(
             f"backend 'superlu_dist' (got backend {backend!r})"
         )
     ensure_factor_backend_available(backend)
+    PETSc = _get_petsc()
     opts = PETSc.Options()
     key = f"{options_prefix}pc_factor_mat_solver_type"
     precision_key = f"{options_prefix}pc_precision"
@@ -250,6 +282,7 @@ def apply_factor_backend(
 def ensure_factor_backend_available(backend: str) -> None:
     """Raise a clear error if PETSc cannot set up a tiny LU with ``backend``."""
     if not factor_backend_available(backend):
+        PETSc = _get_petsc()
         version = PETSc.Sys.getVersion()
         raise RuntimeError(
             f"PETSc factor backend '{backend}' is not available in this build "
@@ -349,6 +382,7 @@ def factor_backend_available(backend: str) -> bool:
     backend = _normalize_backend(backend)
     if backend is None:
         return True
+    PETSc = _get_petsc()
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
     A.assemble()
@@ -466,6 +500,7 @@ def _fill_deterministic_rhs(vec: PETSc.Vec, *, rhs_seed: int) -> None:
 
 
 def _safe_call(method):  # noqa: ANN001
+    PETSc = _get_petsc()
     try:
         return method()
     except (AttributeError, PETSc.Error):
