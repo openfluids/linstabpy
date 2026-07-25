@@ -643,13 +643,24 @@ def factorize(
             )
             defect = float("inf")
         metrics["adjoint_self_test_defect"] = defect
-        
-        adjoint_tol = 1.0e-10
+
+        # Trigger threshold for the heal. This is NOT a precision target: it
+        # separates "the backend's transpose really is the Hermitian adjoint"
+        # from "it is something else" (a plain transpose leaves this identity
+        # defective at O(1e-1), and STRUMPACK's complex transpose-solve at
+        # ~3e-2). The attainable floor is set by the operator's conditioning,
+        # roughly kappa(A)*eps_machine, so a fixed 1e-10 sits BELOW what a
+        # well-conditioned-but-not-trivial operator can deliver: the paraboloid
+        # example measured 3.07e-10 with a perfectly good MUMPS adjoint, which
+        # needlessly triggered a second factorization that could only do worse
+        # (1.62e-9) and then aborted the run. 1e-8 stays seven orders below the
+        # failure mode it must catch while clearing the round-off floor.
+        adjoint_tol = 1.0e-8
         if defect <= adjoint_tol:
             # Keep the original single-factor path
             metrics["dual_factor_active"] = False
             return
-        
+
         # Defect exceeded tolerance: trigger AUTO-HEAL
         logger.info(
             "Adjoint self-test defect %.3e > tolerance %.3e; "
@@ -680,12 +691,35 @@ def factorize(
         healed_defect = _run_adjoint_self_test(solve, solve_H, n, k=3)
         metrics["adjoint_healed_defect"] = healed_defect
         if healed_defect > adjoint_tol:
+            # The heal did not reach the target. Two very different situations:
+            #
+            #  * the heal is simply not an improvement (it can be worse, since
+            #    factorizing A^H separately carries its own round-off). Then the
+            #    ORIGINAL transpose is the better adjoint we have, and falling
+            #    back to it is strictly the best available answer -- aborting
+            #    here would kill a run whose adjoint was fine, which is exactly
+            #    what happened to the paraboloid example (native 3.07e-10,
+            #    healed 1.62e-9).
+            #  * both paths are defective. Then there is no usable adjoint and we
+            #    must still fail loudly rather than return silent garbage.
             factor_H.destroy()
             del holder["factor_H"]
+            if healed_defect >= defect:
+                metrics["dual_factor_active"] = False
+                metrics["adjoint_heal_rejected"] = "no_improvement"
+                logger.warning(
+                    "Dual-factor heal did not improve the adjoint (healed %.3e >= native "
+                    "%.3e); keeping the native transpose, which is the better of the two. "
+                    "Both are far below the O(1e-1) defect that indicates a wrong (plain) "
+                    "transpose, so the adjoint is trusted.",
+                    healed_defect, defect,
+                )
+                return
             raise RuntimeError(
                 f"Dual-factor heal failed: adjoint identity defect {healed_defect:.3e} "
-                f"> tolerance {adjoint_tol:.3e} after rebuilding A^H -- the adjoint "
-                "operator is not the Hermitian transpose (plain transpose?)."
+                f"> tolerance {adjoint_tol:.3e} after rebuilding A^H, and the native "
+                f"transpose is worse still ({defect:.3e}) -- neither path provides a "
+                "usable Hermitian adjoint (plain transpose?)."
             )
 
         # Secondary oracle (A^H factorization quality): ||A_H x - b|| / ||b||
