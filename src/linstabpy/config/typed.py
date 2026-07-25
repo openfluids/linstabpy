@@ -205,11 +205,18 @@ def _auto_route_dof_threshold(cfg: Mapping[str, Any] | None, env: Mapping[str, s
 
 
 def _st_factor_backend(
-    st_solver: str, cfg: Mapping[str, Any] | None, env: Mapping[str, str]
+    st_solver: str,
+    cfg: Mapping[str, Any] | None,
+    env: Mapping[str, str],
+    solver_default: str | None = None,
 ) -> str | None:
     if st_solver in DIRECT_SOLVER_TYPES:
         if st_solver == DEFAULT_FACTOR_BACKEND:
-            return _factor_backend(cfg, env, default=DEFAULT_FACTOR_BACKEND)
+            # Generic direct route: a solver-level factor_backend is a real preference and
+            # should apply here. This is the path that used to strand the band-marking EVP
+            # on CPU MUMPS while the resolvent ran elsewhere.
+            return _factor_backend(cfg, env, default=solver_default or DEFAULT_FACTOR_BACKEND)
+        # st_solver already names a backend; do not override it from solver level.
         return _factor_backend(cfg, env, default=None)
     if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         pc_type = _scfg(cfg, "pc_type", env, "LINSTABPY_EIGEN_PC_TYPE", "asm")
@@ -265,12 +272,19 @@ class LinSolveCfg:
 
     @classmethod
     def from_mapping(
-        cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str], prefix: str
+        cls,
+        cfg: Mapping[str, Any] | None,
+        env: Mapping[str, str],
+        prefix: str,
+        solver_default: str | None = None,
     ) -> "LinSolveCfg":
         return cls(
             type=_scfg(cfg, "type", env, f"{prefix}_TYPE", "mumps"),
             factor_backend=_factor_backend(
-                cfg, env, env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE", default="mumps"
+                cfg,
+                env,
+                env_var=f"{prefix}_PC_FACTOR_SOLVER_TYPE",
+                default=solver_default or "mumps",
             ),
             factor_precision=_factor_precision(cfg, env),
             mumps_blr=_mumps_blr(cfg, env),
@@ -412,7 +426,12 @@ class EigenCfg:
     auto_route_dof_threshold: int
 
     @classmethod
-    def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "EigenCfg":
+    def from_mapping(
+        cls,
+        cfg: Mapping[str, Any] | None,
+        env: Mapping[str, str],
+        solver_default: str | None = None,
+    ) -> "EigenCfg":
         st_solver = _scfg(cfg, "st_solver", env, "LINSTABPY_EIGEN_ST_SOLVER", "mumps")
         pc_factor_solver_type = _scfg(
             cfg, "pc_factor_solver_type", env, "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", ""
@@ -421,7 +440,7 @@ class EigenCfg:
             inexact=InexactCfg.from_mapping(cfg.get("inexact", {}) if cfg else {}),
             backend_probe=BackendProbeCfg.from_mapping(cfg.get("backend_probe", {}) if cfg else {}),
             st_solver=st_solver,
-            st_factor_backend=_st_factor_backend(st_solver, cfg, env),
+            st_factor_backend=_st_factor_backend(st_solver, cfg, env, solver_default),
             factor_precision=_factor_precision(cfg, env),
             mumps_blr=_mumps_blr(cfg, env),
             mumps_blr_tol=_mumps_blr_tol(cfg, env),
@@ -606,13 +625,27 @@ class Config:
         linsolve_sub = _subsection(solver, "LINSTABPY_LINSOLVE")
         resolvent_sub = _subsection(solver, "LINSTABPY_RESOLVENT")
         eigen_sub = _subsection(solver, "LINSTABPY_EIGEN")
+        # A `factor_backend` at solver level used to be read by NOTHING: every resolver is
+        # handed a SUB-config, so the key silently did nothing (once costing a run that was
+        # meant to be on GPU and executed entirely on CPU). It now acts as the lowest-priority
+        # fallback -- below the per-stage key and below the environment -- so no configuration
+        # that resolves today resolves differently.
+        solver_default = (
+            _normalize_backend(solver.get("factor_backend"))
+            if isinstance(solver, Mapping) and "factor_backend" in solver
+            else None
+        )
         return cls(
-            linsolve=LinSolveCfg.from_mapping(linsolve_sub, env, "LINSTABPY_LINSOLVE"),
+            linsolve=LinSolveCfg.from_mapping(
+                linsolve_sub, env, "LINSTABPY_LINSOLVE", solver_default
+            ),
             resolvent=ResolventCfg(
-                linear=LinSolveCfg.from_mapping(resolvent_sub, env, "LINSTABPY_RESOLVENT"),
+                linear=LinSolveCfg.from_mapping(
+                    resolvent_sub, env, "LINSTABPY_RESOLVENT", solver_default
+                ),
                 eps=ResolventEpsCfg.from_mapping(_resolvent_eps_subsection(solver), env),
             ),
-            eigen=EigenCfg.from_mapping(eigen_sub, env),
+            eigen=EigenCfg.from_mapping(eigen_sub, env, solver_default),
             spatial=SpatialCfg.from_mapping(_spatial_subsection(solver), env),
             mesh=MeshCfg.from_mapping(solver, env),
             mpi=MpiCfg.from_mapping(solver, env),
