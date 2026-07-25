@@ -4,14 +4,14 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from math import nan
 
 from petsc4py import PETSc
 
 
-def _gpu_memory_bytes(cost_gpus: int) -> float:
-    if cost_gpus <= 0:
-        return nan
+def _gpu_memory_bytes_cupy() -> float:
+    """Device-wide used GPU memory via cupy, or nan when cupy is unavailable."""
     try:
         import cupy as cp  # type: ignore[import-not-found]
 
@@ -19,6 +19,57 @@ def _gpu_memory_bytes(cost_gpus: int) -> float:
         return float(total_bytes - free_bytes)
     except Exception:
         return nan
+
+
+def _gpu_memory_bytes_nvidia_smi() -> float:
+    """Device-wide used GPU memory via nvidia-smi, or nan when it is unusable.
+
+    Fallback for builds without cupy. ``nvidia-smi`` ships with the driver, so it
+    is present wherever CUDA runs, and it exposes only a byte count -- no host
+    name, no device serial -- so it does not weaken the deliberate policy that
+    artifacts carry no machine identity (see ``cost_hardware_tag`` below).
+    """
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return nan
+    values = [line.strip() for line in out.splitlines() if line.strip()]
+    if not values:
+        return nan
+    try:
+        # Device 0, matching cupy's cp.cuda.Device() default. MiB -> bytes.
+        return float(values[0]) * 1024.0 * 1024.0
+    except ValueError:
+        return nan
+
+
+def _gpu_memory_bytes(cost_gpus: int) -> float:
+    """Used GPU memory for a declared-GPU run, nan when no GPU is declared.
+
+    NOT a peak, despite the field name this feeds: it is a single device-wide
+    reading taken when the artifact is written, so it includes memory held by
+    other processes on the same card. Treat it as an order-of-magnitude
+    occupancy figure, not as this run's high-water mark.
+
+    Previously this had a cupy-only implementation wrapped in a bare
+    ``except Exception``, so on any build without cupy -- which includes the
+    reference CPU and GPU virtual environments -- it returned nan for every run,
+    indistinguishable from "no GPU declared". A silent hole that looks like a
+    legitimate value is the worst shape for a provenance field, so nvidia-smi is
+    tried before giving up.
+    """
+    if cost_gpus <= 0:
+        return nan
+    value = _gpu_memory_bytes_cupy()
+    if value == value:  # not nan
+        return value
+    return _gpu_memory_bytes_nvidia_smi()
 
 
 def _petsc_options_string() -> str:

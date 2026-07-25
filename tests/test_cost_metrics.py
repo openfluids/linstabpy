@@ -6,6 +6,7 @@ import math
 import socket
 
 import numpy as np
+import pytest
 
 import linstabpy.utils.cost_metrics as cost_metrics_module
 from linstabpy.driver.io import _stage_write_npz
@@ -51,6 +52,60 @@ def test_cpu_only_gpu_mem_is_nan(monkeypatch):
 
     assert math.isnan(result["cost_peak_gpu_mem_bytes"])
     assert result["cost_gpus"] == 0
+
+
+def test_gpu_mem_falls_back_to_nvidia_smi_when_cupy_missing(monkeypatch):
+    # Regression guard for a SILENT hole. _gpu_memory_bytes used to have a
+    # cupy-only body wrapped in a bare `except Exception`, so on any build without
+    # cupy -- including both reference virtual environments -- every declared-GPU
+    # run reported nan, indistinguishable from "no GPU declared". Assert that with
+    # cupy unavailable the nvidia-smi fallback is what produces the number.
+    monkeypatch.setattr(cost_metrics_module, "_gpu_memory_bytes_cupy", lambda: math.nan)
+    monkeypatch.setattr(
+        cost_metrics_module, "_gpu_memory_bytes_nvidia_smi", lambda: 1234.0 * 1024 * 1024
+    )
+
+    assert cost_metrics_module._gpu_memory_bytes(1) == 1234.0 * 1024 * 1024
+    # Still nan when no GPU is declared -- the fallback must not invent a value.
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes(0))
+
+
+def test_gpu_mem_prefers_cupy_when_available(monkeypatch):
+    monkeypatch.setattr(cost_metrics_module, "_gpu_memory_bytes_cupy", lambda: 42.0)
+    monkeypatch.setattr(
+        cost_metrics_module,
+        "_gpu_memory_bytes_nvidia_smi",
+        lambda: pytest.fail("nvidia-smi must not run when cupy succeeded"),
+    )
+
+    assert cost_metrics_module._gpu_memory_bytes(1) == 42.0
+
+
+def test_gpu_mem_is_nan_when_both_probes_fail(monkeypatch):
+    # Fail-closed: if neither probe works the field must be nan, never a guess.
+    monkeypatch.setattr(cost_metrics_module, "_gpu_memory_bytes_cupy", lambda: math.nan)
+    monkeypatch.setattr(cost_metrics_module, "_gpu_memory_bytes_nvidia_smi", lambda: math.nan)
+
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes(1))
+
+
+def test_nvidia_smi_probe_handles_missing_binary(monkeypatch):
+    # nvidia-smi absent (CPU-only host) must yield nan, not an exception that
+    # would take down the whole save path.
+    def _boom(*a, **k):
+        raise FileNotFoundError("nvidia-smi")
+
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", _boom)
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
+
+
+def test_nvidia_smi_probe_parses_mib_to_bytes(monkeypatch):
+    class _Result:
+        stdout = "1887\n107\n"
+
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", lambda *a, **k: _Result())
+    # Device 0 only, matching cupy's cp.cuda.Device() default, converted MiB -> bytes.
+    assert cost_metrics_module._gpu_memory_bytes_nvidia_smi() == 1887.0 * 1024 * 1024
 
 
 def test_factor_is_nan():
