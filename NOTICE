@@ -6,6 +6,9 @@ This product is a Python port and derivative of LinStab2D
 (https://github.com/LinStab2D/LinStab2D), copyright E. Martini and
 O. T. Schmidt, licensed under GPL-3.0.
 
+As a derivative work, linstabpy is distributed under the same license as
+LinStab2D: GPL-3.0-only. See LICENSE for the full, unmodified text.
+
 The upstream LinStab2D source tree is not bundled with linstabpy. Users
 who want the upstream MATLAB code or reference base flows can clone it
 themselves; see the README "Fetching reference base flows" section for
