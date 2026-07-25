@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import scipy.sparse as sp
@@ -26,8 +26,36 @@ from linstabpy.solvers.router.recycling import (
 from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
 
-init_petsc_from_argv()
-from petsc4py import PETSc
+if TYPE_CHECKING:
+    # Type-only import; ``from __future__ import annotations`` keeps every
+    # ``PETSc.*`` annotation below a string, so importing this module does not
+    # pull in petsc4py or initialize PETSc. This matters because
+    # ``linstabpy.solvers.router.__init__`` eagerly re-exports ``resolvent_map``,
+    # which imports this module -- so an eager PETSc import here would make even
+    # ``from linstabpy.solvers.router import band_marking`` start PETSc. Guarded by
+    # tests/test_band_marking.py::
+    #   test_explicit_radius_label_band_import_does_not_initialize_petsc
+    from petsc4py import PETSc  # noqa: F401
+
+
+# Lazy PETSc accessor (mirrors ``linstabpy.utils.petsc_core``). Functions here
+# bind it locally with ``PETSc = _get_petsc()``; nested closures inherit that
+# binding from the enclosing scope. PEP 562 ``__getattr__`` serves external
+# ``from ... import PETSc`` users but never same-module global lookups.
+def __getattr__(name):  # noqa: ANN001, ANN201
+    if name == "PETSc":
+        return _get_petsc()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _get_petsc():  # noqa: ANN202
+    """Return PETSc, triggering the lazy import/init on first use."""
+    init_petsc_from_argv()
+    from petsc4py import PETSc as _imp_PETSc
+
+    globals()["PETSc"] = _imp_PETSc
+    return _imp_PETSc
+
 
 Array = np.ndarray
 MetricValue = float | int | bool | str
@@ -137,6 +165,7 @@ def _recycling_controls(cfg: Mapping[str, Any] | object | None) -> tuple[bool, i
 
 @contextmanager
 def _temporary_petsc_options(options: Mapping[str, str]):
+    PETSc = _get_petsc()
     opts = PETSc.Options()
     old_values: dict[str, str | None] = {}
     try:
@@ -171,6 +200,7 @@ def _operator_size(operator: sp.spmatrix | PETSc.Mat) -> int:
 
 
 def _matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
+    PETSc = _get_petsc()
     x_arr = np.asarray(x, dtype=complex).reshape(-1)
     if _is_petsc_matrix(operator):
         b = operator.createVecRight()
@@ -191,6 +221,7 @@ def _matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
 
 
 def _adjoint_matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
+    PETSc = _get_petsc()
     x_arr = np.asarray(x, dtype=complex).reshape(-1)
     if _is_petsc_matrix(operator):
         b = operator.createVecLeft()
@@ -254,6 +285,7 @@ def _factorize_cfg_with_backend(factorize_cfg: Any, solver_cfg: Mapping[str, Any
 
 
 def _factor_info(factor: Any) -> dict[str, float]:
+    PETSc = _get_petsc()
     ksp = getattr(factor, "_ksp", None)
     if ksp is None:
         return {}
@@ -451,6 +483,9 @@ def sweep_stable_regime(
     reuse the same :class:`~linstabpy.linalg.factorize.Factorization` object;
     adjoint preconditioning calls ``Factorization.solve_adjoint``.
     """
+    # Bound once here; the nested solve closures below inherit this binding from
+    # the enclosing scope, so they need no lazy lookup of their own.
+    PETSc = _get_petsc()
     omegas = _as_1d_complex(omega_block, "omega_block")
     anchor_values = _as_1d_complex(anchors, "anchors")
     n = _operator_size(L0_beta)

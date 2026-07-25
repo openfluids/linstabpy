@@ -108,7 +108,9 @@ def test_regeneration_refuses_polluted_linstabpy_env(monkeypatch: pytest.MonkeyP
 def test_perturbed_reference_trips_relative_drift_guard() -> None:
     reference = _load_reference()
     perturbed = reference["leading_eigenvalues"].copy()
-    perturbed[0] *= 1.0 + 1.0e-10
+    # Perturbation must exceed RELATIVE_DRIFT_TOL (1e-6) for the guard to trip;
+    # 1e-4 is still far below the ~1e-3 shift a real operator regression causes.
+    perturbed[0] *= 1.0 + 1.0e-4
 
     with pytest.raises(AssertionError, match="relative drift exceeds"):
         assert_within_relative_drift(
