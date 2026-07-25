@@ -46,9 +46,9 @@ dev = [{include-group = "test"}]
 parity = ["h5py"]
 
 [project.urls]
-Repository = "https://github.com/ricardofrantz/linstabpy"
-Documentation = "https://github.com/ricardofrantz/linstabpy#readme"
-Issues = "https://github.com/ricardofrantz/linstabpy/issues"
+Repository = "https://github.com/openfluids/linstabpy"
+Documentation = "https://github.com/openfluids/linstabpy#readme"
+Issues = "https://github.com/openfluids/linstabpy/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

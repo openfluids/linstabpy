@@ -11,8 +11,8 @@ authors:
     family-names: Frantz
   - given-names: Gabriel
     family-names: Hamada
-repository-code: 'https://github.com/ricardofrantz/linstabpy'
-url: 'https://github.com/ricardofrantz/linstabpy'
+repository-code: 'https://github.com/openfluids/linstabpy'
+url: 'https://github.com/openfluids/linstabpy'
 license: GPL-3.0-only
 # TODO when the first tagged release lands on Zenodo, add the
 # following three keys with concrete values (placeholders below

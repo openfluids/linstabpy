@@ -311,8 +311,8 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.5...HEAD
-[0.0.5]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.4...v0.0.5
-[0.0.4]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.3...v0.0.4
-[0.0.3]: https://github.com/ricardofrantz/linstabpy/compare/v0.0.1...v0.0.3
-[0.0.1]: https://github.com/ricardofrantz/linstabpy/releases/tag/v0.0.1
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/openfluids/linstabpy/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/openfluids/linstabpy/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/openfluids/linstabpy/compare/v0.0.1...v0.0.3
+[0.0.1]: https://github.com/openfluids/linstabpy/releases/tag/v0.0.1
