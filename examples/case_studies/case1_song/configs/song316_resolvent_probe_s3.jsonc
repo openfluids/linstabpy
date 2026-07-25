@@ -1,0 +1,110 @@
+// =============================================================================
+// Ziming Song 31.6 deg SWBLI RESOLVENT -- single-point cost probe, stride 3.
+//
+// PURPOSE (not a deliverable): measure the wall time of ONE resolvent point on
+// the validated 31.6 deg base flow so the (beta, f) gain-map grid can be sized
+// from a measurement instead of a guess. Also verifies that the resolvent stage
+// runs at all on this case and that dissipation actually reaches the resolvent
+// operator.
+//
+// PROVENANCE: byte-identical to configs/song316_evp_s3_eps002.jsonc -- the
+// config whose stride-1 sibling reproduced Ziming's leading eigenvalue to 0.26%
+// -- EXCEPT for the analysis/dissipation switches listed below. Same base flow,
+// same loader, same mesh, same BCs, same fd order, same sponge, same epsilon.
+//
+// DELTAS vs the EVP config:
+//   analysis.run_stability   true -> false   (this run produces a gain, not eigs)
+//   analysis.run_resolvent   false -> true
+//   analysis.n_modes_resolvent  (new) 1      leading gain only; that is what the
+//                                            gain map plots
+//   analysis.omega_target    0 -> 2*pi*0.1   see NONDIMENSIONALIZATION below
+//   numerics.operator_dissipation.apply_to_resolvent  (new) true
+//
+// WHY apply_to_resolvent MUST BE SET: driver/run.py:1326 defaults it to FALSE,
+// and eps_resolv is gated on it (run.py:1336). A config carrying only
+// apply_to_stability therefore runs the resolvent on the BARE operator, which is
+// the grid-scale sawtooth failure mode (spurious high-beta near-pole stripes,
+// gain blown up to ~1e6). Verify it landed by reading
+// solver_apply_to_resolvent_effective from the output NPZ -- do not trust this
+// comment.
+//
+// NONDIMENSIONALIZATION: analysis.omega_target overrides the St/ratio_l formula
+// at run.py:1270-1273 outright, so omega is given directly in operator-native
+// units and ratio_l plays no role. Native omega is omega*X_sh/U_inf: the EVP
+// resolution ladder showed our eigenvalue equals Ziming's times exactly 80, and
+// 80 = X_sh/mm (her grid is in millimetres, ours in units of X_sh = 80 mm).
+// Hence f*X_sh/U_inf = omega_native/(2*pi), and this probe sits at
+// f*X_sh/U_inf = 0.1 -> omega_native = 0.6283185307179586.
+// Native beta is likewise beta*X_sh: her beta = 0.238/mm -> 0.238*80 = 19.04,
+// the value already used and validated by the EVP ladder.
+//
+// RESOLUTION (Operating Rule 1): stride 3 is 200x67, a COST PROBE, not a result.
+// The publishable map is a separate, higher-resolution run.
+// =============================================================================
+{
+  "paths": {
+    "case_dir": "data/song_31.6/converted"
+  },
+
+  "physics": {
+    "Re": 100000.0,
+    "Ma": 2.15,
+    "Pr": 0.72,
+    "kappa": 1.4,
+    "T_0": 153.33,
+    "zero_spanwise": false,
+    "zero_mu_t_derivs": false,
+    "use_matlab_sponge_aux": false,
+    "sponge": {
+      "enabled": true,
+      "preset": "case1_smooth_half"
+    }
+  },
+
+  "numerics": {
+    "stride_ksi": 3,
+    "stride_eta": 3,
+    "fd_order": 4,
+    "beta": 19.04,
+    "alpha_filter": 0.0,
+    "operator_dissipation": {
+      "enabled": true,
+      "epsilon": 0.02,
+      "apply_to_stability": true,
+      "apply_to_resolvent": true
+    }
+  },
+
+  "bc": {
+    "penalty": 100000000.0,
+    "recipe": [
+      {"type": "dirichlet", "borders": "lt", "variables": "ruvwT"},
+      {"type": "dirichlet", "borders": "b", "variables": "ruvw"},
+      {"type": "neumann", "borders": "b", "variables": "T"},
+      {"type": "neumann", "borders": "r", "variables": "ruvwT"}
+    ]
+  },
+
+  "analysis": {
+    "ratio_uinf": 1.0,
+    "ratio_l": 0.1,
+    "St": 0.1,
+    "run_stability": false,
+    "run_resolvent": true,
+    "use_raw_eigs": false,
+    "n_modes_stability": 40,
+    "n_modes_resolvent": 1,
+    "omega_target": {"real": 0.6283185307179586, "imag": 0.0}
+  },
+
+  "solver": {
+    "petsc_matrix_mode": "distributed",
+    "eigen": {
+      "st_solver": "mumps",
+      "eps_tol": 1e-6,
+      "ncv": 160,
+      "conv_test": "rel"
+    },
+    "linsolve": {"type": "mumps"}
+  }
+}
