@@ -45,7 +45,40 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   workspace exhaustion (`INFOG(1) = -9`) previously surfaced only as
   `SLEPc EPS.setUp failed`; it now names the cause and the remedy (`ICNTL(14)`).
 
+- A **band-marking backend** advisory. `resolvent_map` runs a mandatory band-marking
+  eigenvalue problem, and that eigenproblem reads `solver.eigen` — not
+  `solver.resolvent`. A configuration that moved only the resolvent onto a scalable
+  backend therefore left the eigenproblem on the default direct solver, where at full
+  resolution it does not fail but simply never finishes; the run looks like a slow
+  resolvent sweep for hours. The advisory names the three ways out (`solver.factor_backend`,
+  an explicit `solver.eigen.factor_backend`, or `analysis.skip_band_marking`).
+- A source-wide lint (`tests/test_mpi_collective_lint.py`) rejecting MPI collectives
+  inside rank-0-only regions, in both the `if rank == 0:` and `if rank != 0: return`
+  forms. Such a call deadlocks every multi-rank run while remaining invisible to the
+  serial test suite, which runs at size 1. The lint ships with positive controls, since
+  a lint never shown to fire cannot be distinguished from one that cannot fire.
+
 ### Fixed
+- The freestream-normalisation check and the MUMPS error translation were defined but
+  never called: both shipped with full unit-test coverage and zero call sites, so
+  neither ran in production. They are now invoked from the driver and the eigensolver
+  respectively, and a test asserts that every advisory producer is reachable from the
+  runtime — unit tests establish that a guard works, not that anything calls it.
+- Subprocess timeouts in the test suite are now load-aware everywhere, via a single
+  shared helper. One test file already scaled its timeout with load average; its two
+  siblings used hard limits of 120 s and 60 s, leaving as little as 1.4x headroom over
+  the test's own runtime. On a shared or busy machine those expired and surfaced as
+  test *failures*, indistinguishable from a numerical disagreement — a contributor
+  running the suite with a browser open would see phantom errors. These timeouts guard
+  against a hang; they are not performance assertions, so the bases are deliberately
+  generous. The helper documents a limitation found in practice: load average counts
+  runnable processes and does not detect memory-bandwidth starvation, so a co-resident
+  memory-bound job slowed a test run ~3x while the computed multiplier was 1.17x.
+- `production_case_template.jsonc`, the file the documentation tells a new user to copy
+  for a production run, shipped with no `operator_dissipation` block at all. A first
+  production run made from it was sawtooth-contaminated with nothing in the log to say
+  so. It now enables dissipation and documents that `epsilon` must be re-tuned at the
+  target resolution rather than inherited.
 - The Streaky-BL MATLAB parity test guarded only one of the two references it needs, so
   restoring the parity bundle while the base-flow data directory was still absent turned
   a clean skip into a hard error that resembled a numerical disagreement. The guard now

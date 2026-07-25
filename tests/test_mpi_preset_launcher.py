@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from tests._subprocess_timeout import load_aware_timeout
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "examples/case_studies/case2_lui/run_case_once.sh"
 CONFIG = REPO_ROOT / "examples/case_studies/case2_lui/configs/parity_config.jsonc"
@@ -74,7 +76,7 @@ def test_real_2rank_mpiexec_smoke():
         [mpiexec_path, "-n", "2", "echo", "ok"],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=load_aware_timeout(60),
     )
     assert result.returncode == 0
     assert "ok" in result.stdout

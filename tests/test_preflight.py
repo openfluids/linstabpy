@@ -143,6 +143,34 @@ def test_backend_shadowing_note():
     assert "BACKEND-SHADOWED" not in codes(config_advisories(cfg2))
 
 
+def test_band_marking_backend_trap():
+    """The full-resolution 'stall': resolvent scaled up, band-marking EVP left behind."""
+    cfg = _cfg()
+    cfg["solver"] = {"resolvent": {"factor_backend": "strumpack"}}
+    assert "BAND-MARKING-BACKEND" in codes(config_advisories(cfg))
+
+
+@pytest.mark.parametrize(
+    "solver,extra,reason",
+    [
+        ({"resolvent": {"factor_backend": "strumpack"}, "eigen": {"factor_backend": "mumps"}},
+         {}, "eigen backend set explicitly"),
+        ({"factor_backend": "strumpack", "resolvent": {"factor_backend": "strumpack"}},
+         {}, "solver-level backend covers eigen"),
+        ({"resolvent": {"factor_backend": "strumpack"}},
+         {"analysis": {"skip_band_marking": True}}, "band marking skipped outright"),
+        ({}, {}, "no backend set at all -- nothing to mismatch"),
+    ],
+    ids=["eigen-explicit", "solver-level", "skipped", "no-backend"],
+)
+def test_band_marking_backend_not_flagged_when_covered(solver, extra, reason):
+    cfg = _cfg()
+    cfg["solver"] = solver
+    for key, value in extra.items():
+        cfg.setdefault(key, {}).update(value)
+    assert "BAND-MARKING-BACKEND" not in codes(config_advisories(cfg)), reason
+
+
 # --------------------------------------------------------------------------------------
 # Base flow normalisation
 # --------------------------------------------------------------------------------------
@@ -245,6 +273,48 @@ def test_config_advisories_never_raise(cfg):
     assert isinstance(result, list)
 
 
+ADVISORY_PRODUCERS = [
+    "config_advisories",
+    "baseflow_advisories",
+    "result_advisories",
+    "translate_solver_error",
+]
+
+
+def test_every_advisory_producer_is_called_from_the_runtime():
+    """A guard nothing calls is worse than no guard: it reads as coverage.
+
+    Every test above this line passes whether or not the driver ever invokes these
+    functions. That gap is not hypothetical -- `baseflow_advisories` and
+    `translate_solver_error` shipped with 37 green tests and zero call sites, so the
+    freestream-normalisation gate and the MUMPS error translation never ran in
+    production. This test asserts reachability, which unit tests structurally cannot.
+
+    A bare import does not count; the name must appear applied to arguments.
+    """
+    import pathlib
+    import re
+
+    from linstabpy.driver import preflight as _pf
+
+    pkg = pathlib.Path(_pf.__file__).parent.parent
+    sources = {
+        path: path.read_text(encoding="utf-8")
+        for path in pkg.rglob("*.py")
+        if path.name != "preflight.py"
+    }
+    unwired = [
+        fn
+        for fn in ADVISORY_PRODUCERS
+        if not any(re.search(rf"\b{fn}\s*\(", text) for text in sources.values())
+    ]
+    assert not unwired, (
+        "advisory producers defined but never called from the runtime: "
+        f"{unwired}. Wire them into driver/run.py (or the relevant stage) or delete "
+        "them -- an unreachable guard is dead weight that looks like safety."
+    )
+
+
 def test_every_advisory_carries_a_remedy():
     """A warning without a remedy is the thing this layer exists to replace."""
     produced: list[Advisory] = []
@@ -268,6 +338,66 @@ def test_every_advisory_carries_a_remedy():
         assert a.message and a.message.strip(), f"empty message: {a.code}"
         assert a.remedy and a.remedy.strip(), f"advisory without a remedy: {a.code}"
         assert a.severity in {"warning", "note"}, f"bad severity: {a.severity}"
+
+
+# --------------------------------------------------------------------------------------
+# The advisory layer against reality: every config this repository ships
+# --------------------------------------------------------------------------------------
+
+
+def _shipped_configs():
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    found = sorted(
+        set(root.glob("examples/**/*.jsonc")) | set(root.glob("configs/**/*.jsonc"))
+    )
+    return found
+
+
+def test_advisories_survive_every_shipped_config():
+    """Synthetic dicts prove logic; only the real corpus proves it does not explode."""
+    from linstabpy.utils.jsonc import load_jsonc
+
+    configs = _shipped_configs()
+    assert configs, "SKIPPED-BY-EMPTINESS GUARD: no shipped .jsonc found -- wrong root?"
+    for path in configs:
+        cfg = load_jsonc(str(path))
+        result = config_advisories(cfg)
+        assert isinstance(result, list), path
+
+
+def test_no_shipped_config_depends_on_the_old_resolvent_dissipation_default():
+    """Pins the blast radius of flipping apply_to_resolvent to True.
+
+    The claim when that default changed was 'no shipped config changes behaviour'.
+    That was an analysis; this makes it a test. A config that trips
+    DISS-RESOLVENT-OFF is one that asks for dissipation and then withholds it from
+    the resolvent -- exactly what the old default did silently.
+    """
+    from linstabpy.utils.jsonc import load_jsonc
+
+    offenders = [
+        path.name
+        for path in _shipped_configs()
+        if "DISS-RESOLVENT-OFF" in codes(config_advisories(load_jsonc(str(path))))
+    ]
+    assert not offenders, f"configs running the resolvent on the bare operator: {offenders}"
+
+
+def test_the_production_template_does_not_ship_a_trap():
+    """A file named 'production template' is what a new user copies first.
+
+    It shipped with no dissipation block at all, so the very first production run a
+    newcomer made would be sawtooth-contaminated with nothing in the log to say so.
+    """
+    from linstabpy.utils.jsonc import load_jsonc
+
+    templates = [p for p in _shipped_configs() if "production_case_template" in p.name]
+    assert templates, "production template not found -- was it renamed?"
+    for path in templates:
+        found = codes(config_advisories(load_jsonc(str(path))))
+        assert "DISS-ABSENT" not in found, f"{path.name} still ships without dissipation"
 
 
 # --------------------------------------------------------------------------------------

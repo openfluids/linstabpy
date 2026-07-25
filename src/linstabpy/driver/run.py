@@ -35,6 +35,7 @@ from linstabpy.config import Config
 from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
 from linstabpy.mesh import Mesh
 from linstabpy.driver.preflight import (
+    baseflow_advisories,
     config_advisories,
     format_advisories,
     format_banner,
@@ -1487,6 +1488,17 @@ def run() -> None:
     sponge = loaded_case.sponge
     sponge_enabled = loaded_case.sponge_enabled
     sponge_source = loaded_case.sponge_source
+
+    # Freestream normalisation gate. The canonical convention is rho = u = T = 1 in the
+    # freestream; a base flow scaled any other way runs to completion and returns numbers
+    # that mean nothing. Checked here, immediately after load, so it costs one array max()
+    # and reports before any operator is built.
+    if rank == 0:
+        for line in format_advisories(
+            baseflow_advisories(baseflow.RHO, baseflow.U, baseflow.T),
+            title="base-flow normalisation",
+        ).splitlines():
+            _log(line)
 
     # ------------------------------------------------------------------
     # 3) Build a computational mesh, then deform it to physical X/Y.

@@ -83,6 +83,7 @@ from petsc4py import PETSc
 from slepc4py import SLEPc
 
 from linstabpy.config import Config
+from linstabpy.driver.preflight import translate_solver_error
 from linstabpy.linalg import backends as _backends
 from linstabpy.linalg.backends import (
     apply_factor_backend,
@@ -384,6 +385,14 @@ def _raise_eps_setup_failure(
 
     context = ", ".join(str(item) for item in details)
 
+    # Translate known-opaque backend codes into an actionable remedy. Appended to
+    # `context` rather than to each branch below, so every raise path carries it and
+    # none can drift out of sync. Without this, MUMPS INFOG(1)=-9 reaches the user as
+    # a bare integer whose fix (raise ICNTL(14)) is not guessable from the message.
+    _translated = translate_solver_error(context)
+    if _translated is not None:
+        context = f"{context}\n  {_translated.render()}"
+
     # Branch on exception type to produce a useful message.
     _CHKERR_SENTINEL = "returned a result with an exception set"
     ierr = getattr(exc, "ierr", None) if isinstance(exc, PETSc.Error) else None
@@ -618,11 +627,23 @@ def _configure_st_for_eigenvalue(
         if pc_type in {"asm", "gasm"}:
             pc.setASMOverlap(asm_overlap)
 
-            # Sub-KSP configuration (type and sub-PC) must be deferred until after
-            # the matrix is available (i.e. after eps.setUp()).  We store the
-            # desired sub-PC settings on the helper object so _eigs_near_target
-            # can apply them post-setUp.  For the common single-rank / test-matrix
-            # case we attempt the call immediately but catch the "no matrix" error.
+            # KNOWN LIMITATION (documented, deliberately not fixed -- see ISSUES.md
+            # "ASM/BJacobi sub-PC settings are silently dropped").
+            #
+            # getASMSubKSP() requires the matrix, which does not exist until
+            # eps.setUp().  Called here it raises PETSc.Error ierr=58, so the except
+            # branch below discards `sub_pc_type` and `pc_factor_levels` and the solve
+            # proceeds with PETSc's defaults.  PETSc's default sub-PC happens to be
+            # "ilu", which masks the type being dropped, but the requested fill level
+            # is NOT applied: a config asking for ILU(2) receives ILU(0).
+            #
+            # This affects preconditioner strength -> iteration count -> reported cost.
+            # It does not affect the converged answer (the outer FGMRES runs with
+            # setErrorIfNotConverged(True)).
+            #
+            # An earlier version of this comment claimed the settings were stored and
+            # re-applied post-setUp by _eigs_near_target.  No such storage or
+            # re-application exists anywhere in the package.
             def _apply_asm_sub_pc(pc_obj=pc):
                 try:
                     sub_ksps = pc_obj.getASMSubKSP()
