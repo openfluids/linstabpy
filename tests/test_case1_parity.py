@@ -8,6 +8,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
+from tests._matlab_parity import matlab_parity, require_matlab_reference
+
+# Every test in this module compares against MATLAB-derived reference data, which
+# this repository does not ship. Deselected by default; see tests/_matlab_parity.py.
+pytestmark = matlab_parity
 from scipy.io import loadmat
 from scipy.optimize import linear_sum_assignment
 
@@ -22,10 +28,15 @@ MAT_MODE7 = CASE1_DIR / "reference" / "matlab" / "MATLAB_results" / "eigenvector
 
 def _load_stability_npz() -> dict[str, np.ndarray]:
     candidates = [PY_NPZ, PY_STABILITY_NPZ]
-    missing = [p for p in candidates + [MAT_SPEC, MAT_MODE7] if not p.exists()]
-    if missing:
-        msg = ", ".join(str(p) for p in missing)
-        pytest.skip(f"Case 1 parity inputs missing: {msg}. Run case1 first.")
+    require_matlab_reference(
+        *candidates,
+        MAT_SPEC,
+        MAT_MODE7,
+        description=(
+            "the Case 1 MATLAB spectrum/eigenvector references and the linstabpy "
+            "stability output (run case1 first to produce the latter)"
+        ),
+    )
 
     for path in candidates:
         with np.load(path, allow_pickle=False) as data:

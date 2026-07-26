@@ -64,6 +64,26 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   neither ran in production. They are now invoked from the driver and the eigensolver
   respectively, and a test asserts that every advisory producer is reachable from the
   runtime — unit tests establish that a guard works, not that anything calls it.
+- ASM/BJacobi sub-preconditioner settings on the `inexact` shift-invert path are now
+  actually applied. They were configured before `eps.setUp()`, where PETSc cannot yet
+  materialise sub-solvers (`ierr=58`), and the error was swallowed — so `sub_pc_type`
+  and `pc_factor_levels` were discarded. PETSc's default sub-PC is also `ilu`, which
+  masked the type being dropped, but the fill level was not masked: a config asking for
+  ILU(2) ran with ILU(0). The settings are now applied immediately after `eps.setUp()`,
+  failures raise instead of downgrading, and the realized type and fill level are logged
+  rather than assumed. This mirrors what `linalg.factorize` already did for the linsolve
+  path. Only `st_solver: "inexact"` reached the defect — no shipped configuration selects
+  it — so no previously reported result changes.
+- MATLAB-parity tests are **opt-in**. This repository ships no MATLAB reference data,
+  so the seven tests that compare against it called `pytest.skip` when it was absent —
+  which is every machine but the two the data lives on. A run reporting
+  "1361 passed, 13 skipped" read as near-total coverage without disclosing that seven
+  of those skips could never be satisfied by anything in the repository. They now carry
+  a `matlab_parity` marker, deselected by default, and are requested explicitly with
+  `LINSTABPY_MATLAB_PARITY=1 pytest -m matlab_parity`. When requested, a missing
+  reference is a **failure**, not a skip: a comparison you asked for that quietly does
+  not run is indistinguishable from one that passed. A default run now reports
+  6 skips, every one an absent optional backend — a true statement about the machine.
 - Subprocess timeouts in the test suite are now load-aware everywhere, via a single
   shared helper. One test file already scaled its timeout with load average; its two
   siblings used hard limits of 120 s and 60 s, leaving as little as 1.4x headroom over

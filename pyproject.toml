@@ -55,4 +55,13 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: tests taking > 30s (deselect with -m 'not slow')"]
+markers = [
+  "slow: tests taking > 30s (deselect with -m 'not slow')",
+  "matlab_parity: compares against MATLAB-derived reference data, which this repository does not ship. Deselected by default; run with LINSTABPY_MATLAB_PARITY=1 pytest -m matlab_parity",
+]
+# Deselect the MATLAB-parity tests by default. They are not skipped -- they are not
+# collected, so they cannot pad the skip count of a default run. Reference data for
+# them is deliberately not committed, so on almost every machine those skips could
+# never be satisfied, and a suite reporting them as "skipped" overstated its own
+# coverage. A user-supplied -m on the command line takes precedence over this.
+addopts = "-m 'not matlab_parity'"

@@ -471,6 +471,53 @@ def _reorder_info_residuals(info: dict[str, object], order: np.ndarray) -> None:
             info[key] = arr[order]
 
 
+def _make_sub_pc_applier(
+    *,
+    pc: "PETSc.PC",
+    pc_type: str,
+    sub_pc_type: str,
+    factor_levels: int,
+):
+    """Build a deferred applier for ASM/BJacobi sub-preconditioner settings.
+
+    Must be invoked AFTER ``eps.setUp()``: PETSc only materialises sub-solvers once
+    the operator is attached, so calling ``getASMSubKSP()`` earlier raises ierr=58.
+
+    Errors are not swallowed. The returned callable raises if the configured stack
+    cannot be realized, and returns what it actually applied so the caller can record
+    the realized values rather than the requested ones.
+    """
+
+    def apply() -> dict[str, object]:
+        sub_ksps = pc.getASMSubKSP() if pc_type in {"asm", "gasm"} else pc.getBJacobiSubKSP()
+        for sub_ksp in sub_ksps:
+            sub_ksp.setType("preonly")
+            sub_pc = sub_ksp.getPC()
+            sub_pc.setType(sub_pc_type)
+            if sub_pc_type in {"ilu", "icc"}:
+                sub_pc.setFactorLevels(factor_levels)
+        realized_levels = None
+        if sub_ksps:
+            realized_pc = sub_ksps[0].getPC()
+            realized_type = realized_pc.getType()
+            if realized_type != sub_pc_type:
+                raise RuntimeError(
+                    f"sub-PC type mismatch: configured {sub_pc_type!r}, realized "
+                    f"{realized_type!r}. The preconditioner actually used must match the "
+                    f"one requested, or reported iteration counts and cost are not "
+                    f"attributable to the configuration."
+                )
+            if sub_pc_type in {"ilu", "icc"}:
+                realized_levels = factor_levels
+        return {
+            "sub_pc_type": sub_pc_type,
+            "pc_factor_levels": realized_levels,
+            "n_sub_ksp": len(sub_ksps),
+        }
+
+    return apply
+
+
 def _configure_st_for_eigenvalue(
     st_solver: str,
     ecfg: dict | None,
@@ -478,7 +525,7 @@ def _configure_st_for_eigenvalue(
     pc: "PETSc.PC",
     st: "SLEPc.ST",
     cfg: Config | None = None,
-) -> None:
+):
     """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
 
     Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` JSONC,
@@ -504,9 +551,17 @@ def _configure_st_for_eigenvalue(
         PC object obtained from ``ksp.getPC()``.
     st:
         The SLEPc ST object (unused in this helper but kept for future use).
+
+    Returns
+    -------
+    callable or None
+        A deferred applier for ASM/BJacobi sub-preconditioner settings, which the
+        caller MUST invoke after ``eps.setUp()``. ``None`` when the chosen path has no
+        sub-preconditioner to configure.
     """
     if ecfg is None:
         ecfg = {}
+    deferred_sub_pc = None
     cfg = cfg if cfg is not None else Config.load({"solver": {"eigen": ecfg}})
 
     if st_solver in DIRECT_SOLVER_TYPES:
@@ -633,51 +688,39 @@ def _configure_st_for_eigenvalue(
             # getASMSubKSP() requires the matrix, which does not exist until
             # eps.setUp().  Called here it raises PETSc.Error ierr=58, so the except
             # branch below discards `sub_pc_type` and `pc_factor_levels` and the solve
-            # proceeds with PETSc's defaults.  PETSc's default sub-PC happens to be
-            # "ilu", which masks the type being dropped, but the requested fill level
-            # is NOT applied: a config asking for ILU(2) receives ILU(0).
+            # getASMSubKSP()/getBJacobiSubKSP() need the matrix, which does not exist
+            # until eps.setUp().  Calling them here raises PETSc ierr=58, so this used
+            # to swallow the error and lose `sub_pc_type` and `pc_factor_levels`
+            # entirely: PETSc's default sub-PC is also "ilu", which masked the type
+            # being dropped, while the fill level was not -- a config asking for ILU(2)
+            # silently received ILU(0).
             #
-            # This affects preconditioner strength -> iteration count -> reported cost.
-            # It does not affect the converged answer (the outer FGMRES runs with
-            # setErrorIfNotConverged(True)).
-            #
-            # An earlier version of this comment claimed the settings were stored and
-            # re-applied post-setUp by _eigs_near_target.  No such storage or
-            # re-application exists anywhere in the package.
-            def _apply_asm_sub_pc(pc_obj=pc):
-                try:
-                    sub_ksps = pc_obj.getASMSubKSP()
-                    for sk in sub_ksps:
-                        sub_pc = sk.getPC()
-                        sub_pc.setType(sub_pc_type)
-                        if sub_pc_type == "ilu":
-                            sub_pc.setFactorLevels(factor_levels)
-                        sk.setType("preonly")
-                except PETSc.Error:
-                    pass
-
-            _apply_asm_sub_pc()
+            # Instead, hand the caller a deferred applier to run after eps.setUp(),
+            # which is what linalg/factorize.py already does for the linsolve path
+            # (see its comment at the ksp.setUp() call).  No error is swallowed: if the
+            # realized stack cannot be made to match the configured one, that is a
+            # failure, not a silent downgrade.
+            deferred_sub_pc = _make_sub_pc_applier(
+                pc=pc,
+                pc_type=pc_type,
+                sub_pc_type=sub_pc_type,
+                factor_levels=factor_levels,
+            )
         elif pc_type == "bjacobi":
-
-            def _apply_bjacobi_sub_pc(pc_obj=pc):
-                try:
-                    sub_ksps = pc_obj.getBJacobiSubKSP()
-                    for sk in sub_ksps:
-                        sub_pc = sk.getPC()
-                        sub_pc.setType(sub_pc_type)
-                        if sub_pc_type == "ilu":
-                            sub_pc.setFactorLevels(factor_levels)
-                        sk.setType("preonly")
-                except PETSc.Error:
-                    pass
-
-            _apply_bjacobi_sub_pc()
+            deferred_sub_pc = _make_sub_pc_applier(
+                pc=pc,
+                pc_type=pc_type,
+                sub_pc_type=sub_pc_type,
+                factor_levels=factor_levels,
+            )
 
     else:
         raise ValueError(
             f"Unsupported st_solver={st_solver!r}; "
             "expected mumps|direct|lu|iterative|krylov|slepc|inexact|fgmres_lu|strumpack_fgmres"
         )
+
+    return deferred_sub_pc
 
 
 def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:

@@ -6,6 +6,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tests._matlab_parity import matlab_parity, require_matlab_reference
+
+# Every test in this module compares against MATLAB-derived reference data, which
+# this repository does not ship. Deselected by default; see tests/_matlab_parity.py.
+pytestmark = matlab_parity
+
 try:
     import h5py
 except (
@@ -21,10 +27,14 @@ MAT_RES = CASE1_DIR / "reference" / "matlab" / "MATLAB_exports_resolvent" / "res
 
 
 def _require_inputs() -> None:
-    missing = [p for p in (PY_NPZ, MAT_RES) if not p.exists()]
-    if missing:
-        msg = ", ".join(str(p) for p in missing)
-        pytest.skip(f"Case 1 resolvent parity inputs missing: {msg}. Run case1 first.")
+    require_matlab_reference(
+        PY_NPZ,
+        MAT_RES,
+        description=(
+            "the Case 1 MATLAB resolvent SVD reference and the linstabpy case1 output "
+            "(run case1 first to produce the latter)"
+        ),
+    )
 
 
 def _as_complex(arr: np.ndarray) -> np.ndarray:
