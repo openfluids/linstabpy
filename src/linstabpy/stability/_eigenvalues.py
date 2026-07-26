@@ -260,7 +260,7 @@ def _solve_near_target(
         _eigen_concrete = dataclasses.replace(cfg.eigen, st_factor_backend=_concrete)
         cfg = dataclasses.replace(cfg, eigen=_eigen_concrete)
 
-    _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
+    _deferred_sub_pc = _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
     # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
     # Re-apply FieldSplit IS setup here since the helper cannot access ndof/A.
@@ -321,6 +321,21 @@ def _solve_near_target(
             ncv=ncv,
             target=target,
             st_solver=st_solver,
+        )
+
+    # ASM/BJacobi sub-preconditioner settings can only be applied now: PETSc
+    # materialises the sub-solvers during eps.setUp(). Applying them earlier silently
+    # discarded them (ierr=58), so a config asking for ILU(2) ran with ILU(0) --
+    # affecting iteration count and therefore any cost figure attributed to the config.
+    # Recorded rather than assumed, so the reported stack is the realized one.
+    realized_sub_pc: dict[str, object] | None = None
+    if _deferred_sub_pc is not None:
+        realized_sub_pc = _deferred_sub_pc()
+        logger.info(
+            "  ST sub-PC applied post-setUp: type=%s, factor_levels=%s, n_sub_ksp=%s",
+            realized_sub_pc.get("sub_pc_type"),
+            realized_sub_pc.get("pc_factor_levels"),
+            realized_sub_pc.get("n_sub_ksp"),
         )
 
     resolved_factor_backend = cfg.eigen.st_factor_backend

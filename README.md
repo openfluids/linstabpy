@@ -430,11 +430,37 @@ Collect the test suite:
 .venv/bin/python -m pytest --collect-only tests
 ```
 
-The current expected collection size is `535` tests. Run the suite with:
+Run the suite with:
 
 ```bash
 .venv/bin/python -m pytest tests/
 ```
+
+#### MATLAB-parity tests are opt-in
+
+This repository does **not** ship MATLAB reference data — neither the raw `.mat`
+exports nor the derived `.npz` bundles. The tests that compare against that data
+are therefore **deselected by default** via the `matlab_parity` marker, and run
+only when you ask for them:
+
+```bash
+LINSTABPY_MATLAB_PARITY=1 .venv/bin/python -m pytest -m matlab_parity
+```
+
+Two consequences are deliberate:
+
+- **A default run reports no skips it cannot justify.** These tests are
+  *deselected*, not skipped, so they never pad the skip count. Every skip in a
+  default run is an absent optional backend (STRUMPACK, CUDA, `superlu_dist`) —
+  a true statement about the machine you are on.
+- **Requesting them means they must run.** With `LINSTABPY_MATLAB_PARITY=1`, a
+  missing reference is a **failure**, not a skip. A requested comparison that
+  quietly does not execute is indistinguishable from one that passed.
+
+Supply the reference data through `LINSTABPY_BASEFLOW_DATA_DIR`, the
+`martini_examples/` export directory, `LINSTABPY_TEST_REFERENCE_SPECTRUM`, and the
+`scripts/validation/martini2024/fixtures/` bundles. The failure message names the
+exact paths it wanted.
 
 ### Canonical example runner
 

@@ -4,10 +4,10 @@
 import numpy as np
 import pytest
 
-from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
-
 from linstabpy.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
+from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
 from linstabpy.mesh import Mesh
+from tests._matlab_parity import matlab_parity, require_matlab_reference
 from tests._paths import martini_fixture
 
 
@@ -117,8 +117,10 @@ class TestBlasiusLoader:
         )
 
 
-# MATLAB-export parity check; the reference bundle is kept out of the repository
-# and not distributed. Skips cleanly when the bundle is absent.
+# MATLAB-export parity check. The reference data is deliberately not committed, so
+# this is opt-in: deselected by default, and a FAILURE rather than a skip once
+# LINSTABPY_MATLAB_PARITY=1 asks for it.
+@matlab_parity
 def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
     # This test needs TWO references, and the guard must cover BOTH. Checking only the
     # npz bundle meant that restoring it -- while the .mat base-flow directory stayed
@@ -126,13 +128,11 @@ def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
     # numerical parity failure. A partially satisfied guard is worse than an unsatisfied
     # one, because it hides which reference is actually missing.
     bundle_path = martini_fixture("example_3_Streaky_BL_results_base.npz")
-    missing = []
-    if not bundle_path.exists():
-        missing.append(f"MATLAB parity bundle: {bundle_path}")
-    if not _BASEFLOW_DATA_DIR.is_dir():
-        missing.append(f"MATLAB base-flow data directory: {_BASEFLOW_DATA_DIR}")
-    if missing:
-        pytest.skip("SKIPPED, missing reference(s) -> " + "; ".join(missing))
+    require_matlab_reference(
+        bundle_path,
+        _BASEFLOW_DATA_DIR,
+        description="the Streaky-BL MATLAB parity bundle and base-flow data directory",
+    )
     bundle = np.load(bundle_path, allow_pickle=False)
 
     class _MeshView:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
 from linstabpy.driver.preflight import (
     SAWTOOTH_GAIN_SCALE,
     Advisory,
@@ -30,7 +31,6 @@ from linstabpy.driver.preflight import (
     result_advisories,
     translate_solver_error,
 )
-from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
 
 
 def codes(advisories) -> set[str]:

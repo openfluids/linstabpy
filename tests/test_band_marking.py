@@ -11,6 +11,7 @@ import pytest
 
 from linstabpy.solvers.router import band_marking
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, label_band
+from tests._matlab_parity import matlab_parity, require_matlab_reference
 
 
 def test_label_band_distances_labels_and_threshold_are_config_driven() -> None:
@@ -153,11 +154,19 @@ def test_label_band_smooth_region_is_explicit_only() -> None:
 
 def _load_reference_spectrum_from_env() -> np.ndarray:
     ref = os.environ.get("LINSTABPY_TEST_REFERENCE_SPECTRUM")
-    if not ref or not Path(ref).exists():
-        pytest.skip(f"SKIPPED: missing reference CSV LINSTABPY_TEST_REFERENCE_SPECTRUM={ref!r}")
+    if not ref:
+        require_matlab_reference(
+            Path("LINSTABPY_TEST_REFERENCE_SPECTRUM-is-unset"),
+            description="the MATLAB reference spectrum CSV (LINSTABPY_TEST_REFERENCE_SPECTRUM)",
+        )
+    require_matlab_reference(
+        Path(ref), description="the MATLAB reference spectrum CSV"
+    )
     return np.loadtxt(ref, comments="#")
 
 
+# Compares band marking against the MATLAB reference spectrum, which is not committed.
+@matlab_parity
 def test_reference_spectrum_marks_unstable_stripe_and_excludes_far_field() -> None:
     data = np.atleast_2d(_load_reference_spectrum_from_env())
     growth = data[:, 1]
