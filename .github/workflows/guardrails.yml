@@ -52,22 +52,25 @@ jobs:
         run: ruff format --check .
 
   pure-math-tests:
-    name: Pure-math tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    name: Pure-math tests (py${{ matrix.python-version }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        # Was pinned to whatever .python-version held (3.13), so neither the
-        # latest release nor the >=3.10 floor in pyproject.toml was exercised.
+        # Linux only. This repo is private, where GitHub bills macOS minutes at
+        # 10x and Linux at 1x -- a macOS leg cost more than the whole rest of
+        # the workflow. These are pure-math tests with no platform-specific
+        # code paths, so the coverage lost is close to nil. Revisit if the repo
+        # goes public, where minutes are free.
+        #
+        # Was pinned to whatever .python-version held (3.13), so the latest
+        # release was never exercised. 3.14 is non-blocking: petsc4py ships no
+        # wheels and builds from source, so a failure there need not be about
+        # this code.
         python-version: ["3.13"]
         include:
-          # 3.14 is the current release. Non-blocking for now: petsc4py ships no
-          # wheels and builds from source, so a failure here may say nothing
-          # about this code. Promote it into the list above once it is green.
-          - os: ubuntu-latest
-            python-version: "3.14"
+          - python-version: "3.14"
             experimental: true
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental == true }}
 
     steps:

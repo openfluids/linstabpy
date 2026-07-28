@@ -5,18 +5,6 @@ updates:
     schedule:
       interval: weekly
 
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      python-dev-tooling:
-        patterns:
-          - "ruff"
-          - "mypy"
-          - "pytest*"
-          - "hypothesis"
-
   # This repo ships a Dockerfile; without this the base image never gets
   # security updates, which is the part of the stack least likely to be
   # noticed by hand.
@@ -24,3 +12,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # No `pip` ecosystem on purpose. Updating uv.lock forces a full re-resolve,
+  # which builds petsc4py from source; that needs a BLAS the Dependabot
+  # container does not have, so every Python update run fails with
+  # "Could not find a functional BLAS" after burning several minutes. Those
+  # runs can never succeed, so they are pure cost on a private repo.
+  #
+  # Dependabot *alerts* stay on, so vulnerabilities are still visible -- they
+  # just have to be applied by hand (or from an environment with PETSc) until
+  # petsc4py is out of the locked resolution.
