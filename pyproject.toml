@@ -53,6 +53,35 @@ Issues = "https://github.com/openfluids/linstabpy/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# petsc4py and slepc4py publish no wheels -- only sdists whose build compiles
+# PETSc/SLEPc from source. Resolving the lock therefore tried to build PETSc
+# just to read package metadata, which needs a matched MPI toolchain and a
+# BLAS. That fails anywhere those are absent: every Dependabot run died with
+# "Could not find a functional BLAS", so security updates for pillow, pygments
+# and pytest could never be proposed.
+#
+# Declaring the metadata here lets uv resolve without building. The edges below
+# reproduce exactly what the built sdists reported in the previous lock, so the
+# dependency graph is unchanged -- only the way uv learns it. (Note PyPI's
+# static requires-dist for petsc4py omits `petsc`; the built metadata includes
+# it, and that is what the lock recorded.)
+#
+# slepc4py additionally pins a matching petsc4py minor per release. That pairing
+# is deliberately not reproduced here, because the versions that actually matter
+# are the ones built against the system PETSc/SLEPc (see PETSC.md and the CI
+# Docker image), not whatever the lock records.
+[[tool.uv.dependency-metadata]]
+name = "petsc4py"
+requires-dist = ["numpy", "petsc"]
+
+[[tool.uv.dependency-metadata]]
+name = "slepc4py"
+requires-dist = ["numpy", "petsc4py"]
+
+[[tool.uv.dependency-metadata]]
+name = "petsc"
+requires-dist = []
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
