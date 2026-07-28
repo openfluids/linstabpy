@@ -1,17 +1,19 @@
-# LinStabPy
-
 ![linstabpy banner](docs/assets/readme-banner-v2.jpg)
 
-*Sparse linear stability and resolvent analysis of compressible viscous flows, in Python.*
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
-LinStabPy builds the linearized compressible Navier–Stokes operators for
-two-dimensional structured base flows and solves the eigenvalue and resolvent
-problems through PETSc/SLEPc with sparse direct factorization (MUMPS). It began
-as a Python port of the MATLAB `LinStab2D` code (Martini and Schmidt, 2024) and
-has grown into a standalone framework: it adopts the operator abstractions of
-`resolvent4py` (Padovan et al., 2025), extends the discretization to
-fd2/fd4/fd6/fd8 summation-by-parts operators, and verifies the assembled operator
-against independent derivations rather than against MATLAB output alone.
+`linstabpy` performs sparse linear stability and resolvent analysis of
+compressible viscous flows. It builds the linearized compressible Navier–Stokes
+operators for two-dimensional structured base flows and solves the eigenvalue and
+resolvent problems through PETSc/SLEPc with sparse direct factorization (MUMPS).
+
+It began as a Python port of the MATLAB `LinStab2D` code (Martini and Schmidt,
+2024) and has grown into a standalone framework: it adopts the operator
+abstractions of `resolvent4py` (Padovan et al., 2025), extends the discretization
+to fd2/fd4/fd6/fd8 summation-by-parts operators, and verifies the assembled
+operator against independent derivations rather than against MATLAB output alone.
 
 Memory was the original motivation. Stability and resolvent analysis of 2D base
 flows produces large linear systems, and MATLAB's dense `backslash` path scales
