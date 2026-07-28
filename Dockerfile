@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # petsc4py/slepc4py require PETSc configured with complex scalars and MUMPS.
 # The petsc extra downloads and compiles PETSc, SLEPc, and MUMPS from source;
