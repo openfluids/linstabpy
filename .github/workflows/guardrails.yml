@@ -52,12 +52,23 @@ jobs:
         run: ruff format --check .
 
   pure-math-tests:
-    name: Pure-math tests (${{ matrix.os }})
+    name: Pure-math tests (${{ matrix.os }}, py${{ matrix.python-version }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        # Was pinned to whatever .python-version held (3.13), so neither the
+        # latest release nor the >=3.10 floor in pyproject.toml was exercised.
+        python-version: ["3.13"]
+        include:
+          # 3.14 is the current release. Non-blocking for now: petsc4py ships no
+          # wheels and builds from source, so a failure here may say nothing
+          # about this code. Promote it into the list above once it is green.
+          - os: ubuntu-latest
+            python-version: "3.14"
+            experimental: true
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
 
     steps:
       - name: Check out repository
@@ -66,7 +77,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version-file: .python-version
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: python -m pip install --upgrade uv
