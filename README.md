@@ -1,6 +1,6 @@
 # LinStabPy
 
-![LinStabPy banner](docs/assets/linstabpy-banner.png)
+![linstabpy banner](docs/assets/readme-banner-v2.jpg)
 
 *Sparse linear stability and resolvent analysis of compressible viscous flows, in Python.*
 
