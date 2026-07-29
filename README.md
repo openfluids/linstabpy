@@ -1433,6 +1433,14 @@ Chu, B.-T. (1965). On the energy transfer to small disturbances in fluid flow
 Schmid, P. J. & Henningson, D. S. (2001). *Stability and Transition in Shear
 Flows*. Springer.
 
+## Contributing
+
+Contributions are welcome, and questions and bug reports count — install
+problems especially. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the
+checks CI runs, and the
+[openfluids Code of Conduct](https://github.com/openfluids/.github/blob/main/CODE_OF_CONDUCT.md)
+for how we work together.
+
 ## License and citation
 
 LinStabPy is distributed under **GPL-3.0-only**. The license is inherited from its
