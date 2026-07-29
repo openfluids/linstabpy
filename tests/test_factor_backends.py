@@ -12,14 +12,14 @@ import scipy.sparse as sp
 from petsc4py import PETSc
 
 import linstabpy.linalg.backends as backends
+import linstabpy.stability._eigenvalues as stability_core
 from linstabpy.config import Config
 from linstabpy.linalg import Backend
 from linstabpy.linalg.backends import available, ensure, select
 from linstabpy.linalg.factorize import factorize
 from linstabpy.solvers import eigenvalue as eigen_core
-from linstabpy.utils.petsc_core import mumps_icntl_petsc_options
-import linstabpy.stability._eigenvalues as stability_core
 from linstabpy.stability import eigenvalues as stability_eigenvalues
+from linstabpy.utils.petsc_core import mumps_icntl_petsc_options
 
 
 def test_linalg_backend_registry_imports_and_availability() -> None:
@@ -155,21 +155,25 @@ def test_factor_precision_double_is_inert_by_default(monkeypatch) -> None:
         monkeypatch, "mumps", factor_precision="double"
     )
 
-    assert absent_options.set_calls == explicit_options.set_calls == [
-        ("pc_factor_mat_solver_type", "mumps")
-    ]
-    assert absent_options.del_calls == explicit_options.del_calls == [
-        "mat_mumps_icntl_35",
-        "mat_mumps_cntl_7",
-        "pc_factor_mat_solver_type",
-    ]
+    assert (
+        absent_options.set_calls
+        == explicit_options.set_calls
+        == [("pc_factor_mat_solver_type", "mumps")]
+    )
+    assert (
+        absent_options.del_calls
+        == explicit_options.del_calls
+        == [
+            "mat_mumps_icntl_35",
+            "mat_mumps_cntl_7",
+            "pc_factor_mat_solver_type",
+        ]
+    )
     assert absent_pc.factor_solver_type == explicit_pc.factor_solver_type == "mumps"
 
 
 def test_factor_precision_single_superlu_dist_sets_pc_precision(monkeypatch) -> None:
-    options, pc = _apply_with_fake_options(
-        monkeypatch, "superlu_dist", factor_precision="single"
-    )
+    options, pc = _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="single")
 
     assert options.set_calls == [
         ("pc_factor_mat_solver_type", "superlu_dist"),
@@ -188,17 +192,23 @@ def test_mumps_blr_default_off_keeps_options_db_byte_identical(monkeypatch) -> N
         monkeypatch, "mumps", mumps_blr=False, mumps_blr_tol=1.0e-2
     )
 
-    assert absent_options.set_calls == explicit_off_options.set_calls == [
-        ("pc_factor_mat_solver_type", "mumps")
-    ]
+    assert (
+        absent_options.set_calls
+        == explicit_off_options.set_calls
+        == [("pc_factor_mat_solver_type", "mumps")]
+    )
     # The off path clears any leftover BLR options (no-op when absent) so a
     # prior BLR-enabled setup cannot leak into this one, then removes the
     # solver-type key as before. Nothing is ever *set* besides the backend.
-    assert absent_options.del_calls == explicit_off_options.del_calls == [
-        "mat_mumps_icntl_35",
-        "mat_mumps_cntl_7",
-        "pc_factor_mat_solver_type",
-    ]
+    assert (
+        absent_options.del_calls
+        == explicit_off_options.del_calls
+        == [
+            "mat_mumps_icntl_35",
+            "mat_mumps_cntl_7",
+            "pc_factor_mat_solver_type",
+        ]
+    )
     assert absent_pc.factor_solver_type == explicit_off_pc.factor_solver_type == "mumps"
 
 
@@ -223,7 +233,11 @@ def test_mumps_ordering_enabled_sets_icntl_7(monkeypatch) -> None:
         ("pc_factor_mat_solver_type", "mumps"),
         ("mat_mumps_icntl_7", "4"),
     ]
-    assert options.del_calls == ["mat_mumps_icntl_35", "mat_mumps_cntl_7", "pc_factor_mat_solver_type"]
+    assert options.del_calls == [
+        "mat_mumps_icntl_35",
+        "mat_mumps_cntl_7",
+        "pc_factor_mat_solver_type",
+    ]
     assert pc.factor_solver_type == "mumps"
 
 
@@ -515,9 +529,10 @@ def test_jsonc_mumps_ordering_wins_over_legacy_alias_real_wiring(monkeypatch) ->
         legacy_icntl_7=cfg.mpi.mumps_icntl_7,
     )
     try:
-        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == backends.MUMPS_ORDERING_TO_ICNTL_7[
-            "pord"
-        ]
+        assert (
+            ksp.getPC().getFactorMatrix().getMumpsIcntl(7)
+            == backends.MUMPS_ORDERING_TO_ICNTL_7["pord"]
+        )
     finally:
         PETSc.Options().delValue("mat_mumps_icntl_7")
         ksp.destroy()
@@ -536,9 +551,10 @@ def test_env_mumps_ordering_wins_over_jsonc_and_legacy_alias_real_wiring(monkeyp
         legacy_icntl_7=cfg.mpi.mumps_icntl_7,
     )
     try:
-        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == backends.MUMPS_ORDERING_TO_ICNTL_7[
-            "qamd"
-        ]
+        assert (
+            ksp.getPC().getFactorMatrix().getMumpsIcntl(7)
+            == backends.MUMPS_ORDERING_TO_ICNTL_7["qamd"]
+        )
     finally:
         PETSc.Options().delValue("mat_mumps_icntl_7")
         ksp.destroy()
@@ -785,9 +801,7 @@ def test_strumpack_fgmres_cp5_probe_policy_is_active() -> None:
     assert backends.should_probe_backend("mumps", st_solver="strumpack_fgmres")
     assert not backends.should_probe_backend("mumps")
     # An explicit probe_cfg switch still wins over the family default.
-    assert not backends.should_probe_backend(
-        "mumps", {"enabled": False}, st_solver="fgmres_lu"
-    )
+    assert not backends.should_probe_backend("mumps", {"enabled": False}, st_solver="fgmres_lu")
 
 
 def _tiny_stability_operator() -> np.ndarray:
@@ -1048,7 +1062,9 @@ def test_iterative_strumpack_fgmres_fallback_forces_mumps_direct(monkeypatch) ->
                 "st_solver": st_solver,
                 "ecfg": dict(ecfg or {}),
                 "st_factor_backend": cfg.eigen.st_factor_backend if cfg is not None else None,
-                "pc_factor_solver_type": cfg.eigen.pc_factor_solver_type if cfg is not None else None,
+                "pc_factor_solver_type": cfg.eigen.pc_factor_solver_type
+                if cfg is not None
+                else None,
                 "ksp_type": cfg.eigen.ksp_type if cfg is not None else None,
                 "pc_type": cfg.eigen.pc_type if cfg is not None else None,
                 "ksp_pc_side": cfg.eigen.ksp_pc_side if cfg is not None else None,
@@ -1239,24 +1255,39 @@ def test_iterative_non_lu_pc_does_not_enter_factor_backend_seam(monkeypatch) -> 
 # Auto-route backend tests (bead r3uu.1.42)
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_auto_factor_backend_below_threshold_yields_mumps() -> None:
     """ndof < threshold -> mumps regardless of strumpack availability."""
     from linstabpy.linalg.backends import resolve_auto_factor_backend
-    assert resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=True) == "mumps"
-    assert resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=False) == "mumps"
+
+    assert (
+        resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=True) == "mumps"
+    )
+    assert (
+        resolve_auto_factor_backend(100_000, threshold=224_000, strumpack_available=False)
+        == "mumps"
+    )
     assert resolve_auto_factor_backend(0, threshold=224_000, strumpack_available=True) == "mumps"
 
 
 def test_resolve_auto_factor_backend_above_threshold_strumpack_available_yields_strumpack() -> None:
     """ndof >= threshold AND strumpack_available=True (mock) -> strumpack."""
     from linstabpy.linalg.backends import resolve_auto_factor_backend
-    assert resolve_auto_factor_backend(224_000, threshold=224_000, strumpack_available=True) == "strumpack"
-    assert resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=True) == "strumpack"
+
+    assert (
+        resolve_auto_factor_backend(224_000, threshold=224_000, strumpack_available=True)
+        == "strumpack"
+    )
+    assert (
+        resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=True)
+        == "strumpack"
+    )
 
 
 def test_resolve_auto_factor_backend_above_threshold_strumpack_unavailable_yields_mumps() -> None:
     """ndof >= threshold AND strumpack_available=False -> mumps fallback (the real case on this box)."""
-    from linstabpy.linalg.backends import resolve_auto_factor_backend, factor_backend_available
+    from linstabpy.linalg.backends import factor_backend_available, resolve_auto_factor_backend
+
     # Confirm strumpack is genuinely absent on this box so the test is live, not mocked.
     assert not factor_backend_available("strumpack"), (
         "STRUMPACK is available on this box — this test checks the CPU-only fallback path; "
@@ -1277,6 +1308,7 @@ def test_default_resolution_still_yields_mumps(monkeypatch) -> None:
 def test_auto_backend_is_not_normalized_to_none() -> None:
     """'auto' must be a recognized token that survives _normalize_backend (not erased like 'petsc')."""
     from linstabpy.linalg.backends import _normalize_backend
+
     assert _normalize_backend("auto") == "auto"
     assert _normalize_backend("AUTO") == "auto"
     # Sentinel values that SHOULD normalize to None (unchanged behavior).

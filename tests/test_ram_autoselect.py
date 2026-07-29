@@ -50,7 +50,9 @@ def _fake_probe(fill_count: int, calls: list[tuple[tuple[int, int], int]] | None
     return probe
 
 
-def _selection_cfg(fill_count: int, budget: int, calls: list[tuple[tuple[int, int], int]] | None = None) -> dict[str, Any]:
+def _selection_cfg(
+    fill_count: int, budget: int, calls: list[tuple[tuple[int, int], int]] | None = None
+) -> dict[str, Any]:
     return {
         "available_ram_bytes": budget,
         "memory_fraction": 1.0,
@@ -145,7 +147,10 @@ def test_ram_autoselect_never_mutates_or_returns_physics_knobs() -> None:
         "beta_range": (0.0, 2.0),
         "frequency_range": (0.1, 0.8),
     }
-    physics_before = {key: physics_cfg[key] for key in ("grid", "fd_order", "n_modes", "beta_range", "frequency_range")}
+    physics_before = {
+        key: physics_cfg[key]
+        for key in ("grid", "fd_order", "n_modes", "beta_range", "frequency_range")
+    }
 
     point = ram_autoselect(_pattern(), physics_cfg)
 

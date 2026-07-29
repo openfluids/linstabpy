@@ -149,7 +149,9 @@ def test_forward_and_adjoint_reuse_same_anchor_factorization(monkeypatch):
 
     assert len(recorder.factors) == 1
     factor = recorder.factors[0]
-    assert all(forward.__self__ is factor and adjoint.__self__ is factor for forward, adjoint in seen_pairs)
+    assert all(
+        forward.__self__ is factor and adjoint.__self__ is factor for forward, adjoint in seen_pairs
+    )
 
 
 def test_sweep_through_production_factorize_seam():

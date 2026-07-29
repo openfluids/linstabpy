@@ -151,7 +151,9 @@ def test_deterministic_linearity_positive_and_adaptive_negative():
 def test_multi_seed_rsvd_positive_and_single_seed_disagreement_negative():
     _k, h, _probes_a, _probes_b = _problem()
     w = np.ones(h.shape[0])
-    ok = check_multi_seed_rsvd(lambda x: h @ x, lambda x: h.conj().T @ x, w, w, (5, 6, 7), oversample=3)
+    ok = check_multi_seed_rsvd(
+        lambda x: h @ x, lambda x: h.conj().T @ x, w, w, (5, 6, 7), oversample=3
+    )
     assert ok.passed
 
     # Planted defect: stateless input-dependent drift makes the randomized
@@ -162,7 +164,9 @@ def test_multi_seed_rsvd_positive_and_single_seed_disagreement_negative():
     def seed_sensitive_apply(x):
         return h @ x + 5.0e-2 * np.linalg.norm(x) * drift
 
-    bad = check_multi_seed_rsvd(seed_sensitive_apply, lambda x: h.conj().T @ x, w, w, (5, 6, 7), oversample=3)
+    bad = check_multi_seed_rsvd(
+        seed_sensitive_apply, lambda x: h.conj().T @ x, w, w, (5, 6, 7), oversample=3
+    )
     assert not bad.passed
 
 

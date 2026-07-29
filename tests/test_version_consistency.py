@@ -9,7 +9,6 @@ from pathlib import Path
 
 import linstabpy
 
-
 _VERSION_RE = re.compile(r'^version\s*=\s*"([^"]+)"\s*$', re.MULTILINE)
 
 

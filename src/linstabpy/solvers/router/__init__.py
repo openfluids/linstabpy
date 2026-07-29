@@ -3,9 +3,8 @@
 
 from . import anchors, band_marking, break_even, certification, recycling
 from .anchors import AnchorTriggerRecord, IterProbeResult, choose_anchors_adaptive
-from .break_even import BreakEvenProbeResult, RoutingDecision, break_even_decision
 from .band_marking import BandMarks, label_band, mark_unstable_band
-from .resolvent_map import RouterResult, resolvent_map
+from .break_even import BreakEvenProbeResult, RoutingDecision, break_even_decision
 from .certification import (
     CertificationReport,
     CheckResult,
@@ -19,6 +18,7 @@ from .certification import (
     randomized_resolvent_svd,
 )
 from .ram_autoselect import OperatingPoint, SymbolicProbeResult, ram_autoselect
+from .resolvent_map import RouterResult, resolvent_map
 
 _LAZY_EXPORTS = {
     "RouterResult": "linstabpy.solvers.router.resolvent_map",

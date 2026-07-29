@@ -6,7 +6,13 @@ import pytest
 import scipy.sparse as sp
 
 from linstabpy.solvers.router import band_marking
-from linstabpy.solvers.router.band_marking import BandMarks, NEAR_POLE, STABLE, label_band, mark_unstable_band
+from linstabpy.solvers.router.band_marking import (
+    NEAR_POLE,
+    STABLE,
+    BandMarks,
+    label_band,
+    mark_unstable_band,
+)
 
 
 def _assert_same_band_marks(actual: BandMarks, expected: BandMarks) -> None:
@@ -20,7 +26,14 @@ def _assert_same_band_marks(actual: BandMarks, expected: BandMarks) -> None:
     ("band_cfg", "expected"),
     [
         (
-            {"n_modes": 3, "evp_n_modes": 9, "ncv": 11, "evp_ncv": 19, "target": 1.25, "evp_target": -7.0},
+            {
+                "n_modes": 3,
+                "evp_n_modes": 9,
+                "ncv": 11,
+                "evp_ncv": 19,
+                "target": 1.25,
+                "evp_target": -7.0,
+            },
             {"n_modes": 3, "ncv": 11, "target": 1.25 + 0.0j},
         ),
         (

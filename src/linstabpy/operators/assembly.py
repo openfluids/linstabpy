@@ -1595,9 +1595,9 @@ def _build_block_csr(
         term_positions = []
         for _, cache in enabled_terms:
             term_starts = indptr64[:-1] + row_offsets
-            within_row = np.arange(cache.csr.nnz, dtype=np.int64) - cache.csr.indptr[
-                cache.row_indices
-            ]
+            within_row = (
+                np.arange(cache.csr.nnz, dtype=np.int64) - cache.csr.indptr[cache.row_indices]
+            )
             positions = term_starts[cache.row_indices] + within_row
             indices[positions] = cache.csr.indices
             term_positions.append(positions)

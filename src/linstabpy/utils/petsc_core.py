@@ -432,9 +432,7 @@ def scipy_to_petsc_distributed(
 
     rm0, rm1 = ownership_range(matrix)
     if (rm0, rm1) != (r0, r1):  # defensive: layouts must agree (raises on all ranks)
-        raise RuntimeError(
-            f"ownership mismatch: computed [{r0}, {r1}) vs PETSc [{rm0}, {rm1})"
-        )
+        raise RuntimeError(f"ownership mismatch: computed [{r0}, {r1}) vs PETSc [{rm0}, {rm1})")
     insert_local_csr_rows(matrix, local, row_start=r0)
     return assemble_matrix(matrix)
 

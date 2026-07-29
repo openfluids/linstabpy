@@ -47,7 +47,9 @@ def _operator(n: int = 6) -> sp.csc_matrix:
     lower = 0.04 - 0.02j + 0.005 * np.arange(n - 1)
     upper = -0.03 + 0.015j - 0.004 * np.arange(n - 1)
     far = np.full(n - 2, 0.01 + 0.01j, dtype=complex)
-    return sp.diags([far, lower, diagonal, upper, -0.5 * far], [-2, -1, 0, 1, 2], format="csc", dtype=complex)
+    return sp.diags(
+        [far, lower, diagonal, upper, -0.5 * far], [-2, -1, 0, 1, 2], format="csc", dtype=complex
+    )
 
 
 def _cfg(n: int) -> dict:
@@ -101,7 +103,9 @@ def test_compressed_anchor_branch_uses_approx_factor_adjoint_and_reports_measure
         return real_certified_rsvd(apply_h, apply_h_adj, W, invW, cert_cfg)
 
     monkeypatch.setattr(stable_sweep, "factorize", fake_factorize)
-    monkeypatch.setattr(stable_sweep, "factor_backend_available", lambda backend: backend == "mumps")
+    monkeypatch.setattr(
+        stable_sweep, "factor_backend_available", lambda backend: backend == "mumps"
+    )
     monkeypatch.setattr(stable_sweep, "certified_rsvd", recording_certified_rsvd)
 
     result = stable_sweep.sweep_stable_regime(L0, omegas, anchors, cfg)
@@ -111,7 +115,9 @@ def test_compressed_anchor_branch_uses_approx_factor_adjoint_and_reports_measure
         assert cert_cfg["approx_solve"].__self__ is cert_cfg["approx_solve_adjoint"].__self__
         assert cert_cfg["approx_solve_adjoint"].__name__ == "solve_adjoint"
         assert cert_cfg["adjoint_factor_tol"] == pytest.approx(cfg["actual_solve_tol"])
-    assert all(report.checks["adjoint_of_approx_factor"].passed for report in result.certification_reports)
+    assert all(
+        report.checks["adjoint_of_approx_factor"].passed for report in result.certification_reports
+    )
     assert result.metrics["compressed_anchor_requested"] is True
     assert result.metrics["compression_ratio"] == pytest.approx(0.5)
     assert result.metrics["effective_rank"] == pytest.approx(3.0)

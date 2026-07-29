@@ -140,12 +140,29 @@ def check_forward_adjoint_consistency(
     if f_tol <= 0.0 or a_tol <= 0.0:
         raise ValueError("forward_tol and adjoint_tol must be positive")
     tol_mismatch = abs(f_tol - a_tol) / max(abs(f_tol), abs(a_tol), np.finfo(float).tiny)
-    residual_mismatch = float(np.max(np.abs(f - a) / np.maximum(np.maximum(f, a), np.finfo(float).tiny)))
+    residual_mismatch = float(
+        np.max(np.abs(f - a) / np.maximum(np.maximum(f, a), np.finfo(float).tiny))
+    )
     f_tol_violation = float(np.max(f / f_tol))
     a_tol_violation = float(np.max(a / a_tol))
-    measured = max(tol_mismatch / consistency_tol, residual_mismatch / consistency_tol, f_tol_violation, a_tol_violation)
-    passed = tol_mismatch <= consistency_tol and residual_mismatch <= consistency_tol and f_tol_violation <= 1.0 and a_tol_violation <= 1.0
-    return CheckResult(passed, measured, 1.0, "max normalized tol/residual mismatch or realized-residual tolerance violation")
+    measured = max(
+        tol_mismatch / consistency_tol,
+        residual_mismatch / consistency_tol,
+        f_tol_violation,
+        a_tol_violation,
+    )
+    passed = (
+        tol_mismatch <= consistency_tol
+        and residual_mismatch <= consistency_tol
+        and f_tol_violation <= 1.0
+        and a_tol_violation <= 1.0
+    )
+    return CheckResult(
+        passed,
+        measured,
+        1.0,
+        "max normalized tol/residual mismatch or realized-residual tolerance violation",
+    )
 
 
 def check_adjoint_of_approx_factor(
@@ -191,7 +208,9 @@ def check_deterministic_linearity(
     return CheckResult(measured <= tol, measured, tol, "max relative linearity defect")
 
 
-def _apply_weighted_normal(apply_H: Apply, apply_H_adj: Apply, W: Array, invW: Array, v: Array) -> Array:
+def _apply_weighted_normal(
+    apply_H: Apply, apply_H_adj: Apply, W: Array, invW: Array, v: Array
+) -> Array:
     return invW * apply_H_adj(W * apply_H(v))
 
 
@@ -218,9 +237,16 @@ def randomized_resolvent_svd(
     k = min(n, max(int(n_modes), 1) + max(int(oversample), 0))
     rng = np.random.default_rng(int(seed))
     omega = rng.standard_normal((n, k)) + 1j * rng.standard_normal((n, k))
-    y = np.column_stack([_apply_weighted_normal(apply_H, apply_H_adj, Wv, invWv, omega[:, j]) for j in range(k)])
+    y = np.column_stack(
+        [_apply_weighted_normal(apply_H, apply_H_adj, Wv, invWv, omega[:, j]) for j in range(k)]
+    )
     q, _ = np.linalg.qr(y, mode="reduced")
-    aq = np.column_stack([_apply_weighted_normal(apply_H, apply_H_adj, Wv, invWv, q[:, j]) for j in range(q.shape[1])])
+    aq = np.column_stack(
+        [
+            _apply_weighted_normal(apply_H, apply_H_adj, Wv, invWv, q[:, j])
+            for j in range(q.shape[1])
+        ]
+    )
     small = q.conj().T @ aq
     eigvals, eigvecs = np.linalg.eig(small)
     order = np.argsort(np.real(eigvals))[::-1]
@@ -256,7 +282,9 @@ def check_multi_seed_rsvd(
     if len(seeds) < 2:
         raise ValueError("at least two seeds are required")
     runs = [
-        randomized_resolvent_svd(apply_H, apply_H_adj, W, invW, n_modes=n_modes, oversample=oversample, seed=s)
+        randomized_resolvent_svd(
+            apply_H, apply_H_adj, W, invW, n_modes=n_modes, oversample=oversample, seed=s
+        )
         for s in seeds
     ]
     ref_gain = runs[0][0][0]
@@ -264,7 +292,9 @@ def check_multi_seed_rsvd(
     defects = []
     for gains, _responses, forcings in runs[1:]:
         gain_defect = abs(gains[0] - ref_gain) / max(abs(ref_gain), np.finfo(float).tiny)
-        corr = abs(np.vdot(ref_mode, forcings[:, 0])) / max(_norm(ref_mode) * _norm(forcings[:, 0]), np.finfo(float).tiny)
+        corr = abs(np.vdot(ref_mode, forcings[:, 0])) / max(
+            _norm(ref_mode) * _norm(forcings[:, 0]), np.finfo(float).tiny
+        )
         mode_defect = max(0.0, 1.0 - float(corr))
         defects.append(max(gain_defect / gain_tol, mode_defect / mode_tol))
     measured = float(np.max(defects)) if defects else 0.0
@@ -298,8 +328,12 @@ def certified_rsvd(
 
     probes_a = _cfg_get(cfg, "probes_a")
     probes_b = _cfg_get(cfg, "probes_b")
-    forward_linearity = check_deterministic_linearity(apply_H, probes_a, probes_b, tol=linearity_tol)
-    adjoint_linearity = check_deterministic_linearity(apply_H_adj, probes_a, probes_b, tol=linearity_tol)
+    forward_linearity = check_deterministic_linearity(
+        apply_H, probes_a, probes_b, tol=linearity_tol
+    )
+    adjoint_linearity = check_deterministic_linearity(
+        apply_H_adj, probes_a, probes_b, tol=linearity_tol
+    )
     linearity = CheckResult(
         forward_linearity.passed and adjoint_linearity.passed,
         max(forward_linearity.measured, adjoint_linearity.measured),

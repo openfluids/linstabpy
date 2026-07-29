@@ -46,6 +46,7 @@ def _get_petsc():  # noqa: ANN202
     globals()["PETSc"] = _imp_PETSc
     return _imp_PETSc
 
+
 DEFAULT_FACTOR_BACKEND = "mumps"
 DEFAULT_FACTOR_PRECISION = "double"
 DEFAULT_MUMPS_BLR = False
@@ -214,7 +215,11 @@ def apply_factor_backend(
             "at the solve site where ndof is known."
         )
     blr_enabled = resolve_mumps_blr(None) if mumps_blr is None else bool(mumps_blr)
-    ordering = resolve_mumps_ordering(None) if mumps_ordering is None else _normalize_mumps_ordering(mumps_ordering)
+    ordering = (
+        resolve_mumps_ordering(None)
+        if mumps_ordering is None
+        else _normalize_mumps_ordering(mumps_ordering)
+    )
     if blr_enabled and backend != "mumps":
         raise ValueError(
             "LINSTABPY_MUMPS_BLR is only supported with backend 'mumps' "
@@ -292,7 +297,9 @@ def ensure_factor_backend_available(backend: str) -> None:
 
 
 FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"})
-PRECONDITIONED_EIGEN_SOLVER_TYPES = ITERATIVE_EIGEN_SOLVER_TYPES | FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES
+PRECONDITIONED_EIGEN_SOLVER_TYPES = (
+    ITERATIVE_EIGEN_SOLVER_TYPES | FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES
+)
 
 
 def backend_probe_is_preconditioner_role(st_solver: str | None) -> bool:
@@ -444,9 +451,7 @@ def _normalize_factor_precision(value: object) -> str:
     text = str(value).strip().lower()
     if text in {"double", "single"}:
         return text
-    raise ValueError(
-        f"Invalid LINSTABPY_FACTOR_PRECISION={value!r}; expected 'double' or 'single'"
-    )
+    raise ValueError(f"Invalid LINSTABPY_FACTOR_PRECISION={value!r}; expected 'double' or 'single'")
 
 
 def _normalize_mumps_ordering(value: object) -> str | None:
@@ -458,9 +463,7 @@ def _normalize_mumps_ordering(value: object) -> str | None:
     if text in MUMPS_ORDERING_TO_ICNTL_7:
         return text
     allowed = ", ".join(sorted(MUMPS_ORDERING_TO_ICNTL_7))
-    raise ValueError(
-        f"Invalid LINSTABPY_MUMPS_ORDERING={value!r}; allowed values: {allowed}"
-    )
+    raise ValueError(f"Invalid LINSTABPY_MUMPS_ORDERING={value!r}; allowed values: {allowed}")
 
 
 def _normalize_mumps_blr_tol(value: object) -> float:

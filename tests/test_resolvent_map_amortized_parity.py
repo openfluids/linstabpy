@@ -39,14 +39,18 @@ def _install_small_router_seams(monkeypatch: pytest.MonkeyPatch) -> list[float]:
             danger_radius=0.0,
         ),
     )
-    monkeypatch.setattr(router_map, "_forcing_response_mats", lambda *_args, **_kwargs: (None, None))
+    monkeypatch.setattr(
+        router_map, "_forcing_response_mats", lambda *_args, **_kwargs: (None, None)
+    )
 
     def direct_gain(omega: float) -> float:
         return float(10.0 + omega)
 
     def fake_direct(_L0, omega, *_args, **_kwargs):
         direct_calls.append(float(omega))
-        return router_map._DirectPointResult(gain=direct_gain(float(omega)), iterations=7, residual=2.0e-10)
+        return router_map._DirectPointResult(
+            gain=direct_gain(float(omega)), iterations=7, residual=2.0e-10
+        )
 
     def fake_choose(omega_range, band_marks, cfg):
         assert band_marks is not None
@@ -63,14 +67,18 @@ def _install_small_router_seams(monkeypatch: pytest.MonkeyPatch) -> list[float]:
             anchor_indices=np.zeros(omegas.size, dtype=int),
             responses=np.zeros((3, omegas.size), dtype=complex),
             forcings=np.zeros((3, omegas.size), dtype=complex),
-            certification_reports=tuple(SimpleNamespace(certified=True) for _ in range(omegas.size)),
+            certification_reports=tuple(
+                SimpleNamespace(certified=True) for _ in range(omegas.size)
+            ),
             metrics={"factorize_calls": 2, "gmres_iterations_total_actual": 9},
         )
 
     monkeypatch.setattr(router_map, "_direct_engine_result", fake_direct)
     monkeypatch.setattr(router_map, "choose_anchors_adaptive", fake_choose, raising=False)
     monkeypatch.setattr(router_map, "sweep_stable_regime", fake_sweep, raising=False)
-    monkeypatch.setattr(router_map, "_collect_cost_metrics", lambda _stage_wall: {"cost_wall_total_s": 0.0})
+    monkeypatch.setattr(
+        router_map, "_collect_cost_metrics", lambda _stage_wall: {"cost_wall_total_s": 0.0}
+    )
     return direct_calls
 
 

@@ -132,7 +132,9 @@ def _solve_with_backend(
     return omega, modes, info
 
 
-def _assert_existing_acceptance_gate_passes(omega: np.ndarray, info: dict[str, Any]) -> dict[str, Any]:
+def _assert_existing_acceptance_gate_passes(
+    omega: np.ndarray, info: dict[str, Any]
+) -> dict[str, Any]:
     result = evaluate_stability_acceptance(
         omega,
         np.asarray(info["postcheck_residual_rel"], dtype=float),
@@ -164,7 +166,9 @@ def _factor_memory_probe(
     factor_precision: str = "double",
 ) -> dict[str, Any]:
     shifted = (1j * operator - TARGET * sp.eye(operator.shape[0], format="csc")).tocsc()
-    mat = scipy_to_petsc(shifted, {"eigen": _solver_options(backend, factor_precision=factor_precision)})
+    mat = scipy_to_petsc(
+        shifted, {"eigen": _solver_options(backend, factor_precision=factor_precision)}
+    )
     ksp = PETSc.KSP().create(comm=PETSc.COMM_WORLD)
     prefix = f"parity_{backend}_"
     ksp.setOptionsPrefix(prefix)
@@ -281,7 +285,9 @@ def _comparison_record(
             "matched_eigenvalue_distances": match_errors,
         },
     }
-    record.update(_factor_memory_probe(operator, candidate_backend, factor_precision=factor_precision))
+    record.update(
+        _factor_memory_probe(operator, candidate_backend, factor_precision=factor_precision)
+    )
     return record
 
 
@@ -297,7 +303,9 @@ def _assert_parity_record(record: dict[str, Any]) -> None:
 
 def _emit(record: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
     with capsys.disabled():
-        print("PARITY_RECORD " + json.dumps(record, default=_json_default, sort_keys=True), flush=True)
+        print(
+            "PARITY_RECORD " + json.dumps(record, default=_json_default, sort_keys=True), flush=True
+        )
 
 
 def test_mumps_vs_mumps_self_consistency(capsys: pytest.CaptureFixture[str]) -> None:

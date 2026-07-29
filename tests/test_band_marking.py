@@ -23,7 +23,15 @@ def test_label_band_distances_labels_and_threshold_are_config_driven() -> None:
     np.testing.assert_allclose(marks.distances, np.abs(omegas - 10.0))
     assert marks.danger_radius == pytest.approx(2.0)
     # Strict '< radius': the two points exactly at the radius remain stable.
-    assert marks.labels.tolist() == [STABLE, STABLE, NEAR_POLE, NEAR_POLE, NEAR_POLE, STABLE, STABLE]
+    assert marks.labels.tolist() == [
+        STABLE,
+        STABLE,
+        NEAR_POLE,
+        NEAR_POLE,
+        NEAR_POLE,
+        STABLE,
+        STABLE,
+    ]
 
     narrower = label_band(eigs, omegas, {"danger_radius": 0.5})
     assert narrower.labels.tolist() == [STABLE, STABLE, STABLE, NEAR_POLE, STABLE, STABLE, STABLE]
@@ -91,7 +99,9 @@ def test_default_danger_radius_is_zero_when_no_sweep_scale_available() -> None:
         ({"solver": {"router": {"band_marking": {"danger_radius": 0.5}}}}, 0.5),
     ],
 )
-def test_explicit_danger_radius_precedence_and_zero_value(cfg: dict[str, object], expected: float) -> None:
+def test_explicit_danger_radius_precedence_and_zero_value(
+    cfg: dict[str, object], expected: float
+) -> None:
     marks = label_band([-1.0 + 0.0j], [1.0], cfg)
 
     assert marks.danger_radius == pytest.approx(expected)
@@ -159,9 +169,7 @@ def _load_reference_spectrum_from_env() -> np.ndarray:
             Path("LINSTABPY_TEST_REFERENCE_SPECTRUM-is-unset"),
             description="the MATLAB reference spectrum CSV (LINSTABPY_TEST_REFERENCE_SPECTRUM)",
         )
-    require_matlab_reference(
-        Path(ref), description="the MATLAB reference spectrum CSV"
-    )
+    require_matlab_reference(Path(ref), description="the MATLAB reference spectrum CSV")
     return np.loadtxt(ref, comments="#")
 
 

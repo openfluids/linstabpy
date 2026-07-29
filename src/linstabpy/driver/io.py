@@ -97,7 +97,9 @@ def save_results(
                     "\n".join(f"- {error}" for error in schema_errors),
                 )
                 sidecar_payload["schema_errors"] = schema_errors
-            serializable_payload = {k: _jsonify_metrics_value(v) for k, v in sidecar_payload.items()}
+            serializable_payload = {
+                k: _jsonify_metrics_value(v) for k, v in sidecar_payload.items()
+            }
             with open(sidecar, "w") as fh:
                 json.dump(serializable_payload, fh, indent=2, sort_keys=True)
     _log_stage("save_results", stage_start)

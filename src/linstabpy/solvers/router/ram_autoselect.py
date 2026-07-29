@@ -17,7 +17,7 @@ frequency/wavenumber ranges are never read or changed.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -69,7 +69,9 @@ class OperatingPoint:
     precision: Precision
 
 
-def ram_autoselect(L0_pattern: sp.spmatrix | Any, cfg: Mapping[str, Any] | object | None) -> OperatingPoint:
+def ram_autoselect(
+    L0_pattern: sp.spmatrix | Any, cfg: Mapping[str, Any] | object | None
+) -> OperatingPoint:
     """Choose a direct or compressed-sweep operating point from pattern and RAM.
 
     Parameters
@@ -87,7 +89,12 @@ def ram_autoselect(L0_pattern: sp.spmatrix | Any, cfg: Mapping[str, Any] | objec
     pattern = _as_csc_pattern(L0_pattern)
     n = int(pattern.shape[0])
     nnz = int(pattern.nnz)
-    budget = int(_available_ram_bytes(cfg) * _positive_float(_cfg_get(cfg, "memory_fraction", _DEFAULT_MEMORY_FRACTION), "memory_fraction"))
+    budget = int(
+        _available_ram_bytes(cfg)
+        * _positive_float(
+            _cfg_get(cfg, "memory_fraction", _DEFAULT_MEMORY_FRACTION), "memory_fraction"
+        )
+    )
     if budget <= 0:
         raise ValueError("usable RAM budget must be positive")
 
@@ -111,16 +118,19 @@ def ram_autoselect(L0_pattern: sp.spmatrix | Any, cfg: Mapping[str, Any] | objec
         ranks=base_ranks,
         precision="double",
     )
-    if _footprint_bytes(
-        n=n,
-        nnz=nnz,
-        probe=probe,
-        precision=direct.precision,
-        ranks=direct.ranks,
-        restart=direct.restart,
-        compression_ratio=1.0,
-        cfg=cfg,
-    ) <= budget:
+    if (
+        _footprint_bytes(
+            n=n,
+            nnz=nnz,
+            probe=probe,
+            precision=direct.precision,
+            ranks=direct.ranks,
+            restart=direct.restart,
+            compression_ratio=1.0,
+            cfg=cfg,
+        )
+        <= budget
+    ):
         return direct
 
     rank_candidates = _rank_candidates(cfg, base_ranks)
@@ -187,7 +197,9 @@ def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = No
 
 
 def _available_ram_bytes(cfg: Mapping[str, Any] | object | None) -> int:
-    injected = _cfg_first(cfg, ("available_ram_bytes", "ram_bytes", "available_memory_bytes", "memory_budget_bytes"))
+    injected = _cfg_first(
+        cfg, ("available_ram_bytes", "ram_bytes", "available_memory_bytes", "memory_budget_bytes")
+    )
     if injected is not None:
         return _positive_int(injected, "available_ram_bytes")
 
@@ -240,7 +252,9 @@ def _as_csc_pattern(matrix: sp.spmatrix | Any) -> sp.csc_matrix:
     elif hasattr(matrix, "getValuesCSR") and hasattr(matrix, "getSize"):
         comm = matrix.getComm() if hasattr(matrix, "getComm") else None
         if comm is not None and hasattr(comm, "getSize") and int(comm.getSize()) != 1:
-            raise NotImplementedError("PETSc ram_autoselect probe supports serial AIJ matrices only")
+            raise NotImplementedError(
+                "PETSc ram_autoselect probe supports serial AIJ matrices only"
+            )
         rows, cols = matrix.getSize()
         indptr, indices, _values = matrix.getValuesCSR()
         pattern = sp.csr_matrix(
@@ -261,9 +275,15 @@ def _as_csc_pattern(matrix: sp.spmatrix | Any) -> sp.csc_matrix:
     return pattern
 
 
-def _symbolic_analysis_probe(pattern: sp.spmatrix, cfg: Mapping[str, Any] | object | None) -> SymbolicProbeResult:
+def _symbolic_analysis_probe(
+    pattern: sp.spmatrix, cfg: Mapping[str, Any] | object | None
+) -> SymbolicProbeResult:
     pattern = _as_csc_pattern(pattern)
-    reorder = str(_cfg_get(cfg, "probe_reorder", _cfg_get(cfg, "reorder", _DEFAULT_REORDER))).strip().lower()
+    reorder = (
+        str(_cfg_get(cfg, "probe_reorder", _cfg_get(cfg, "reorder", _DEFAULT_REORDER)))
+        .strip()
+        .lower()
+    )
     if reorder not in _SPLU_REORDER:
         reorder = _DEFAULT_REORDER
     probe_matrix = _well_conditioned_matrix_with_pattern(pattern)
@@ -334,7 +354,9 @@ def _footprint_bytes(
         "operator_value_multiplier",
     )
     operator_bytes_prior = nnz * operator_multiplier * scalar_bytes
-    measured_factor_bytes = probe.fill_count * probe.bytes_per_nonzero * value_scale * compression_ratio
+    measured_factor_bytes = (
+        probe.fill_count * probe.bytes_per_nonzero * value_scale * compression_ratio
+    )
     krylov_bytes = max(0, int(restart)) * n * scalar_bytes
     return float((operator_bytes_prior + measured_factor_bytes + krylov_bytes) / ranks)
 
@@ -374,11 +396,20 @@ def _precision_candidates(cfg: Mapping[str, Any] | object | None) -> tuple[Preci
     return tuple(dict.fromkeys(values))
 
 
-def _compression_candidates(cfg: Mapping[str, Any] | object | None) -> tuple[tuple[float, ...], tuple[float, ...]]:
-    levels = tuple(float(item) for item in _cfg_get(cfg, "compression_levels", _DEFAULT_COMPRESSION_LEVELS))
-    ratios = tuple(float(item) for item in _cfg_get(cfg, "compression_memory_ratios", _DEFAULT_COMPRESSION_MEMORY_RATIOS))
+def _compression_candidates(
+    cfg: Mapping[str, Any] | object | None,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    levels = tuple(
+        float(item) for item in _cfg_get(cfg, "compression_levels", _DEFAULT_COMPRESSION_LEVELS)
+    )
+    ratios = tuple(
+        float(item)
+        for item in _cfg_get(cfg, "compression_memory_ratios", _DEFAULT_COMPRESSION_MEMORY_RATIOS)
+    )
     if len(levels) != len(ratios):
-        raise ValueError("compression_levels and compression_memory_ratios must have the same length")
+        raise ValueError(
+            "compression_levels and compression_memory_ratios must have the same length"
+        )
     if not levels:
         raise ValueError("compression_levels must not be empty")
     for level in levels:

@@ -65,7 +65,9 @@ def _now_tag() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _build_axes(n_freq: int, n_beta: int, cfg: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _build_axes(
+    n_freq: int, n_beta: int, cfg: dict[str, Any]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     if n_freq < 1:
         raise ValueError("--n-freq must be >= 1")
     if n_beta < 1:
@@ -99,7 +101,11 @@ def _load_case_and_mesh(case_dir: Path, cfg: dict[str, Any]):
     sponge_cfg = physics.get("sponge") if isinstance(physics.get("sponge"), dict) else None
     native_sponge_cfg = sponge_cfg if bool((sponge_cfg or {}).get("enabled", False)) else None
     sponge_mat = _case_path(
-        _cfg_get(cfg, "paths.case_inputs_mat", "reference/matlab/MATLAB_exports_resolvent/case_inputs_used.mat")
+        _cfg_get(
+            cfg,
+            "paths.case_inputs_mat",
+            "reference/matlab/MATLAB_exports_resolvent/case_inputs_used.mat",
+        )
     )
     use_matlab_sponge_aux = bool(physics.get("use_matlab_sponge_aux", False))
 

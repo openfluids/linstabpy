@@ -59,7 +59,9 @@ def _region_mesh_idx() -> tuple[SimpleNamespace, dict[str, np.ndarray], int]:
     return mesh, idx, 5 * ngp
 
 
-def _install_fake_seams(monkeypatch: pytest.MonkeyPatch, *, labels: tuple[str, ...] = (STABLE,)) -> None:
+def _install_fake_seams(
+    monkeypatch: pytest.MonkeyPatch, *, labels: tuple[str, ...] = (STABLE,)
+) -> None:
     monkeypatch.setattr(router_map, "_heartbeat", lambda _stage, _cfg: nullcontext())
     monkeypatch.setattr(router_map, "_resolve_mesh", lambda _base_flow, _cfg: object())
     monkeypatch.setattr(router_map, "_compute_w_diag", lambda _mesh, _base_flow, _cfg: np.ones(3))
@@ -91,7 +93,8 @@ def test_public_import_and_router_result_shape(monkeypatch: pytest.MonkeyPatch) 
     _install_fake_seams(monkeypatch, labels=(STABLE,))
 
     from linstabpy import resolvent_map
-    from linstabpy.solvers.router import RouterResult, resolvent_map as router_export
+    from linstabpy.solvers.router import RouterResult
+    from linstabpy.solvers.router import resolvent_map as router_export
 
     assert resolvent_map is router_map.resolvent_map
     assert router_export is router_map.resolvent_map
@@ -120,7 +123,9 @@ def test_public_import_and_router_result_shape(monkeypatch: pytest.MonkeyPatch) 
 )
 def test_resolvent_map_validates_empty_and_nan_ranges(beta_range, f_range, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        router_map.resolvent_map(object(), beta_range, f_range, {"mesh": object(), "W_diag": np.ones(3)})
+        router_map.resolvent_map(
+            object(), beta_range, f_range, {"mesh": object(), "W_diag": np.ones(3)}
+        )
 
 
 def test_regime_c_toggle_defaults_off_and_enabled_raises(

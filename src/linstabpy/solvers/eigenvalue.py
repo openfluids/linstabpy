@@ -397,9 +397,7 @@ def _raise_eps_setup_failure(
     _CHKERR_SENTINEL = "returned a result with an exception set"
     ierr = getattr(exc, "ierr", None) if isinstance(exc, PETSc.Error) else None
     is_chkerr_collapse = isinstance(exc, SystemError) and _CHKERR_SENTINEL in str(exc)
-    is_strumpack_zero_pivot = resolved_backend == "strumpack" and (
-        is_chkerr_collapse or ierr == 76
-    )
+    is_strumpack_zero_pivot = resolved_backend == "strumpack" and (is_chkerr_collapse or ierr == 76)
     if is_strumpack_zero_pivot:
         raise StrumpackFactorizationFailed(
             "SLEPc EPS.setUp failed because STRUMPACK factorization hit "
@@ -424,13 +422,11 @@ def _raise_eps_setup_failure(
     elif isinstance(exc, PETSc.Error):
         code_str = f"ierr={ierr}" if ierr is not None else "ierr=?"
         raise RuntimeError(
-            f"SLEPc EPS.setUp failed [PETSc.Error {code_str}]: "
-            f"message={exc}, {context}"
+            f"SLEPc EPS.setUp failed [PETSc.Error {code_str}]: message={exc}, {context}"
         ) from exc
     else:
         raise RuntimeError(
-            f"SLEPc EPS.setUp failed [type={type(exc).__name__}]: "
-            f"message={exc}, {context}"
+            f"SLEPc EPS.setUp failed [type={type(exc).__name__}]: message={exc}, {context}"
         ) from exc
 
 
