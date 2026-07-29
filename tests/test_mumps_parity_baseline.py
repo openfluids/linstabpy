@@ -61,8 +61,7 @@ def assert_within_relative_drift(
     assert len(matched_actual) == expected.size
     assert len(set(matched_actual)) == expected.size
     assert all(rel_drift <= rtol for rel_drift in rel_drifts), (
-        f"relative drift exceeds {rtol:.1e}: matched pairs "
-        f"(actual, expected, rel_drift)={pairs}"
+        f"relative drift exceeds {rtol:.1e}: matched pairs (actual, expected, rel_drift)={pairs}"
     )
 
 

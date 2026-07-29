@@ -63,13 +63,9 @@ def _validate_create_inputs(
     except ValueError as exc:
         raise ValueError(f"fd_order is invalid: {exc}") from exc
     if nx < required_points:
-        raise ValueError(
-            f"nx must be >= {required_points} for fd_order={fd_order} SBP stencil"
-        )
+        raise ValueError(f"nx must be >= {required_points} for fd_order={fd_order} SBP stencil")
     if ny < required_points:
-        raise ValueError(
-            f"ny must be >= {required_points} for fd_order={fd_order} SBP stencil"
-        )
+        raise ValueError(f"ny must be >= {required_points} for fd_order={fd_order} SBP stencil")
 
 
 @dataclass(frozen=True)

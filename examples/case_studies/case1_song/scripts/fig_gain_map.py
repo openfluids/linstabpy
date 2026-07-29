@@ -67,7 +67,11 @@ def render(input_npz: Path, output_png: Path) -> Path:
     output_png.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(7.2, 4.8), constrained_layout=True)
     mesh = ax.pcolormesh(
-        f_nondim, beta_nondim, sigma_sq, shading="auto", cmap="viridis",
+        f_nondim,
+        beta_nondim,
+        sigma_sq,
+        shading="auto",
+        cmap="viridis",
         norm=LogNorm(vmin=max(vmin, vmax * 1e-6), vmax=vmax),
     )
     cbar = fig.colorbar(mesh, ax=ax)
@@ -91,8 +95,14 @@ def render(input_npz: Path, output_png: Path) -> Path:
 
 def _synthetic_gain(f_nondim: np.ndarray, beta_nondim: np.ndarray) -> np.ndarray:
     F, B = np.meshgrid(f_nondim, beta_nondim)
-    om_1 = np.exp(-((np.log10(F) - np.log10(2.0)) ** 2) / (2.0 * 0.18**2) - ((B - 45.0) ** 2) / (2.0 * 14.0**2))
-    lu_s = 0.85 * np.exp(-((np.log10(F) - np.log10(1.0e-4)) ** 2) / (2.0 * 0.22**2) - ((B - 165.0) ** 2) / (2.0 * 18.0**2))
+    om_1 = np.exp(
+        -((np.log10(F) - np.log10(2.0)) ** 2) / (2.0 * 0.18**2)
+        - ((B - 45.0) ** 2) / (2.0 * 14.0**2)
+    )
+    lu_s = 0.85 * np.exp(
+        -((np.log10(F) - np.log10(1.0e-4)) ** 2) / (2.0 * 0.22**2)
+        - ((B - 165.0) ** 2) / (2.0 * 18.0**2)
+    )
     return om_1 + lu_s + 0.02
 
 

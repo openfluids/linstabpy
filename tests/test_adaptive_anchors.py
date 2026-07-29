@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.solvers.router import stable_sweep
 from linstabpy.solvers.router.anchors import (
     EVP_DISTANCE_TRIGGER,
     FGMRES_ITERATIONS_TRIGGER,
@@ -13,8 +14,7 @@ from linstabpy.solvers.router.anchors import (
     IterProbeResult,
     choose_anchors_adaptive,
 )
-from linstabpy.solvers.router.band_marking import BandMarks, NEAR_POLE, STABLE
-from linstabpy.solvers.router import stable_sweep
+from linstabpy.solvers.router.band_marking import NEAR_POLE, STABLE, BandMarks
 from linstabpy.solvers.router.certification import certified_rsvd
 
 LOGGER = logging.getLogger(__name__)
@@ -81,7 +81,9 @@ def _direct_mumps_gain_map(L0, omegas, cfg):
                     "approx_solve_adjoint": factor.solve_adjoint,
                 }
             )
-            omega_gains, *_ = certified_rsvd(apply_h, apply_h_adj, cfg["W"], cfg["invW"], direct_cfg)
+            omega_gains, *_ = certified_rsvd(
+                apply_h, apply_h_adj, cfg["W"], cfg["invW"], direct_cfg
+            )
             gains.append(float(omega_gains[0]))
         finally:
             factor.destroy()
@@ -206,7 +208,9 @@ def test_adaptive_anchors_feed_stable_sweep_and_log_fixed_baseline_measurement(c
             "fgmres_residual_threshold": np.inf,
         },
     )
-    fixed_uniform_baseline = np.linspace(float(omegas.real.min()), float(omegas.real.max()), omegas.size)
+    fixed_uniform_baseline = np.linspace(
+        float(omegas.real.min()), float(omegas.real.max()), omegas.size
+    )
 
     with caplog.at_level(logging.INFO):
         LOGGER.info(
@@ -224,4 +228,7 @@ def test_adaptive_anchors_feed_stable_sweep_and_log_fixed_baseline_measurement(c
     assert len(adaptive_anchors) == 3
     assert len(fixed_uniform_baseline) == 5
     assert any(record.inserted and EVP_DISTANCE_TRIGGER in record.triggers for record in records)
-    assert "adaptive_anchor_measurement adaptive_factorizations=3 fixed_uniform_factorizations=5" in caplog.text
+    assert (
+        "adaptive_anchor_measurement adaptive_factorizations=3 fixed_uniform_factorizations=5"
+        in caplog.text
+    )

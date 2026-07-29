@@ -32,8 +32,7 @@ from petsc4py import PETSc
 from linstabpy.baseflow import load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
-from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
-from linstabpy.mesh import Mesh
+from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
 from linstabpy.driver.preflight import (
     baseflow_advisories,
     config_advisories,
@@ -42,7 +41,8 @@ from linstabpy.driver.preflight import (
     format_summary,
     result_advisories,
 )
-from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
+from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
+from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm

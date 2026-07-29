@@ -23,6 +23,7 @@ FGMRES_RESIDUAL_TRIGGER = "fgmres_residual"
 @dataclass(frozen=True)
 class IterProbeResult:
     """Measured FGMRES work at one sample frequency."""
+
     iterations: int = 0
     residual: float = 0.0
 
@@ -30,6 +31,7 @@ class IterProbeResult:
 @dataclass(frozen=True)
 class AnchorTriggerRecord:
     """Provenance for one final anchor returned by the adaptive chooser."""
+
     omega: complex
     sample_omega: complex
     triggers: tuple[str, ...]
@@ -67,23 +69,36 @@ def choose_anchors_adaptive(
     """
     omega_grid = _sort_unique_complex(_as_1d_complex(omega_range, "omega_range"))
     records = [
-        AnchorTriggerRecord(omega=complex(anchor), sample_omega=complex(anchor), triggers=(COARSE_TRIGGER,), inserted=False)
+        AnchorTriggerRecord(
+            omega=complex(anchor),
+            sample_omega=complex(anchor),
+            triggers=(COARSE_TRIGGER,),
+            inserted=False,
+        )
         for anchor in _initial_anchors(omega_grid, cfg)
     ]
     anchors = np.asarray([record.omega for record in records], dtype=complex)
 
     samples = _sample_omegas(omega_grid, cfg)
     evp_radius = _evp_radius(band_marks, cfg)
-    iter_threshold = _threshold(_cfg_get(cfg, "fgmres_iter_threshold"), default=40.0, name="fgmres_iter_threshold")
+    iter_threshold = _threshold(
+        _cfg_get(cfg, "fgmres_iter_threshold"), default=40.0, name="fgmres_iter_threshold"
+    )
     residual_threshold = _threshold(
         _cfg_get(cfg, "fgmres_residual_threshold"),
         default=1.0e-6,
         name="fgmres_residual_threshold",
     )
-    min_insert_spacing = _nonnegative_float(_cfg_get(cfg, "min_insert_spacing", 0.0), "min_insert_spacing")
+    min_insert_spacing = _nonnegative_float(
+        _cfg_get(cfg, "min_insert_spacing", 0.0), "min_insert_spacing"
+    )
     duplicate_tol = _nonnegative_float(_cfg_get(cfg, "duplicate_tol", 1.0e-12), "duplicate_tol")
     max_insertions_raw = _cfg_get(cfg, "max_insertions")
-    max_insertions = None if max_insertions_raw is None else _nonnegative_int(max_insertions_raw, "max_insertions")
+    max_insertions = (
+        None
+        if max_insertions_raw is None
+        else _nonnegative_int(max_insertions_raw, "max_insertions")
+    )
     enable_evp = _as_bool(_cfg_get(cfg, "enable_evp_distance", True))
     enable_fgmres = _as_bool(_cfg_get(cfg, "enable_fgmres_probe", True))
     probe_fn = _cfg_get(cfg, "iter_probe")
@@ -92,9 +107,18 @@ def choose_anchors_adaptive(
     for sample in samples:
         sample = complex(sample)
         evp_distance = _band_distance_at(sample, band_marks)
-        probe = _probe_result(sample, anchors, omega_grid, cfg, probe_fn) if enable_fgmres else IterProbeResult()
+        probe = (
+            _probe_result(sample, anchors, omega_grid, cfg, probe_fn)
+            if enable_fgmres
+            else IterProbeResult()
+        )
         triggers: list[str] = []
-        if enable_evp and np.isfinite(evp_radius) and evp_radius > 0.0 and evp_distance < evp_radius:
+        if (
+            enable_evp
+            and np.isfinite(evp_radius)
+            and evp_radius > 0.0
+            and evp_distance < evp_radius
+        ):
             triggers.append(EVP_DISTANCE_TRIGGER)
         if enable_fgmres and probe.iterations > iter_threshold:
             triggers.append(FGMRES_ITERATIONS_TRIGGER)
@@ -106,7 +130,14 @@ def choose_anchors_adaptive(
         nearest_i, nearest_anchor, nearest_distance = _nearest_anchor(sample, anchors)
         if nearest_distance <= max(min_insert_spacing, duplicate_tol):
             records[nearest_i] = _annotate_record(
-                records[nearest_i], sample, tuple(triggers), evp_distance, evp_radius, probe, nearest_anchor, nearest_distance
+                records[nearest_i],
+                sample,
+                tuple(triggers),
+                evp_distance,
+                evp_radius,
+                probe,
+                nearest_anchor,
+                nearest_distance,
             )
             continue
         if max_insertions is not None and insertions >= max_insertions:
@@ -190,7 +221,12 @@ def _initial_anchors(omega_grid: Array, cfg: Cfg) -> Array:
     raw = _cfg_get(cfg, "coarse_anchors")
     if raw is not None:
         return _sort_unique_complex(_as_1d_complex(raw, "coarse_anchors"))
-    count = min(_positive_int(_cfg_get(cfg, "coarse_anchor_count", min(2, omega_grid.size)), "coarse_anchor_count"), omega_grid.size)
+    count = min(
+        _positive_int(
+            _cfg_get(cfg, "coarse_anchor_count", min(2, omega_grid.size)), "coarse_anchor_count"
+        ),
+        omega_grid.size,
+    )
     return omega_grid[_coarse_indices(omega_grid, count)]
 
 
@@ -199,15 +235,23 @@ def _coarse_indices(omega_grid: Array, count: int) -> Array:
         return np.array([0], dtype=int)
     indices = np.unique(np.rint(np.linspace(0, omega_grid.size - 1, count)).astype(int))
     while indices.size < count:
-        candidates = np.setdiff1d(np.arange(omega_grid.size, dtype=int), indices, assume_unique=True)
-        distances = np.min(np.abs(omega_grid[candidates, None] - omega_grid[indices][None, :]), axis=1)
+        candidates = np.setdiff1d(
+            np.arange(omega_grid.size, dtype=int), indices, assume_unique=True
+        )
+        distances = np.min(
+            np.abs(omega_grid[candidates, None] - omega_grid[indices][None, :]), axis=1
+        )
         indices = np.sort(np.r_[indices, candidates[int(np.argmax(distances))]].astype(int))
     return indices.astype(int)
 
 
 def _sample_omegas(omega_grid: Array, cfg: Cfg) -> Array:
     raw = _cfg_get(cfg, "sample_omegas")
-    return omega_grid.copy() if raw is None else _sort_unique_complex(_as_1d_complex(raw, "sample_omegas"))
+    return (
+        omega_grid.copy()
+        if raw is None
+        else _sort_unique_complex(_as_1d_complex(raw, "sample_omegas"))
+    )
 
 
 def _evp_radius(band_marks: BandMarks | None, cfg: Cfg) -> float:
@@ -290,17 +334,27 @@ def _annotate_record(
     )
 
 
-def _probe_result(sample: complex, anchors: Array, omega_grid: Array, cfg: Cfg, probe_fn: Any) -> IterProbeResult:
-    raw = _cheap_probe_from_cfg(sample, omega_grid, cfg) if probe_fn is None else _call_probe(probe_fn, sample, anchors, cfg)
+def _probe_result(
+    sample: complex, anchors: Array, omega_grid: Array, cfg: Cfg, probe_fn: Any
+) -> IterProbeResult:
+    raw = (
+        _cheap_probe_from_cfg(sample, omega_grid, cfg)
+        if probe_fn is None
+        else _call_probe(probe_fn, sample, anchors, cfg)
+    )
     return _coerce_probe_result(raw)
 
 
-def _call_probe(probe_fn: IterProbe, sample: complex, anchors: Array, cfg: Cfg) -> IterProbeResult | None:
+def _call_probe(
+    probe_fn: IterProbe, sample: complex, anchors: Array, cfg: Cfg
+) -> IterProbeResult | None:
     return probe_fn(sample, anchors, cfg)
 
 
 def _cheap_probe_from_cfg(sample: complex, omega_grid: Array, cfg: Cfg) -> IterProbeResult:
-    iterations = _measurement_at(_cfg_get(cfg, "fgmres_iterations"), sample, omega_grid, default=0.0)
+    iterations = _measurement_at(
+        _cfg_get(cfg, "fgmres_iterations"), sample, omega_grid, default=0.0
+    )
     residual = _measurement_at(_cfg_get(cfg, "fgmres_residuals"), sample, omega_grid, default=0.0)
     return IterProbeResult(iterations=int(iterations), residual=float(residual))
 

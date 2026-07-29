@@ -18,7 +18,6 @@ from petsc4py import PETSc
 
 from linstabpy.linalg.backends import MUMPS_ORDERING_TO_ICNTL_7, factor_backend_available
 from linstabpy.solvers.petsc_utils import scipy_to_petsc
-
 from tests.test_parity_vs_mumps import (
     TARGET,
     _assert_existing_acceptance_gate_passes,
@@ -156,7 +155,9 @@ def _mumps_variant_record(
         pytest.skip(f"SKIPPED: MUMPS variant {variant.name} unsupported during factor probe: {exc}")
     except RuntimeError as exc:
         if "MUMPS" in str(exc) or "mumps" in str(exc):
-            pytest.skip(f"SKIPPED: MUMPS variant {variant.name} unsupported during factor probe: {exc}")
+            pytest.skip(
+                f"SKIPPED: MUMPS variant {variant.name} unsupported during factor probe: {exc}"
+            )
         raise
     # Recompute the MUMPS-specific factor probe under the same variant knobs so
     # the record contains ICNTL(7), BLR tolerance, factor nonzeros, and memory.
@@ -208,10 +209,14 @@ def _run_variant_in_child_process(variant: MumpsVariant) -> dict[str, Any]:
         try:
             candidate_omega, _, candidate_info = _solve_with_backend(operator, bc_indices, "mumps")
         except PETSc.Error as exc:
-            pytest.skip(f"SKIPPED: MUMPS variant {variant.name} unsupported during EVP solve: {exc}")
+            pytest.skip(
+                f"SKIPPED: MUMPS variant {variant.name} unsupported during EVP solve: {exc}"
+            )
         except RuntimeError as exc:
             if "MUMPS" in str(exc) or "mumps" in str(exc):
-                pytest.skip(f"SKIPPED: MUMPS variant {variant.name} unsupported during EVP solve: {exc}")
+                pytest.skip(
+                    f"SKIPPED: MUMPS variant {variant.name} unsupported during EVP solve: {exc}"
+                )
             raise
 
         _assert_existing_acceptance_gate_passes(reference_omega, reference_info)

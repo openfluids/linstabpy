@@ -61,7 +61,9 @@ def _operator(n: int = 6) -> sp.csc_matrix:
     lower = 0.045 - 0.025j + 0.003 * np.arange(n - 1)
     upper = -0.035 + 0.02j - 0.002 * np.arange(n - 1)
     far = np.full(n - 2, 0.012 - 0.006j, dtype=complex)
-    return sp.diags([far, lower, diagonal, upper, 0.4 * far], [-2, -1, 0, 1, 2], format="csc", dtype=complex)
+    return sp.diags(
+        [far, lower, diagonal, upper, 0.4 * far], [-2, -1, 0, 1, 2], format="csc", dtype=complex
+    )
 
 
 def _cfg(n: int, *, recycling: bool = False) -> dict:
@@ -112,7 +114,9 @@ def _direct_mumps_gain_map(L0: sp.spmatrix, omegas: np.ndarray) -> np.ndarray:
     return np.asarray(gains)
 
 
-def test_recycling_is_opt_in_and_off_path_records_only_unrecycled_counts(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_recycling_is_opt_in_and_off_path_records_only_unrecycled_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     L0 = _operator()
     omegas = np.array([0.96, 1.0, 1.04], dtype=complex)
     anchors = np.array([1.0], dtype=complex)
@@ -127,7 +131,9 @@ def test_recycling_is_opt_in_and_off_path_records_only_unrecycled_counts(monkeyp
     assert result.metrics["matvecs_total_unrecycled"] == result.metrics["matvecs_total"]
     assert result.metrics["matvecs_total_actual"] == result.metrics["matvecs_total"]
     assert result.metrics["matvecs_total_recycled"] == 0
-    assert result.metrics["gmres_iterations_total_actual"] == result.metrics["gmres_iterations_total"]
+    assert (
+        result.metrics["gmres_iterations_total_actual"] == result.metrics["gmres_iterations_total"]
+    )
     assert result.metrics["gmres_iterations_total_recycled"] == 0
     assert len(recorder.factors) == anchors.size
     assert all(report.passed for report in result.certification_reports)
@@ -147,8 +153,15 @@ def test_recycled_sweep_matches_s1_and_direct_mumps_oracle_with_linearity_and_co
     recycled = stable_sweep.sweep_stable_regime(L0, omegas, anchors, recycling_cfg)
     direct = _direct_mumps_gain_map(L0, omegas)
 
-    np.testing.assert_allclose(recycled.gain, baseline.gain, rtol=recycling_cfg["sigma_tol"], atol=recycling_cfg["sigma_tol"])
-    np.testing.assert_allclose(recycled.gain, direct, rtol=recycling_cfg["sigma_tol"], atol=recycling_cfg["sigma_tol"])
+    np.testing.assert_allclose(
+        recycled.gain,
+        baseline.gain,
+        rtol=recycling_cfg["sigma_tol"],
+        atol=recycling_cfg["sigma_tol"],
+    )
+    np.testing.assert_allclose(
+        recycled.gain, direct, rtol=recycling_cfg["sigma_tol"], atol=recycling_cfg["sigma_tol"]
+    )
     for report in recycled.certification_reports:
         linearity = report.checks["deterministic_tol_linearity"]
         assert linearity.passed
@@ -166,7 +179,10 @@ def test_recycled_sweep_matches_s1_and_direct_mumps_oracle_with_linearity_and_co
     assert metrics["gmres_iterations_total"] == metrics["gmres_iterations_total_unrecycled"] > 0
     assert metrics["gmres_iterations_total_recycled"] > 0
     assert metrics["gmres_iterations_total_actual"] == metrics["gmres_iterations_total_recycled"]
-    assert metrics["matvecs_delta_recycled_minus_baseline"] == metrics["matvecs_total_recycled"] - metrics["matvecs_total"]
+    assert (
+        metrics["matvecs_delta_recycled_minus_baseline"]
+        == metrics["matvecs_total_recycled"] - metrics["matvecs_total"]
+    )
     assert metrics["gmres_iterations_delta_recycled_minus_baseline"] == (
         metrics["gmres_iterations_total_recycled"] - metrics["gmres_iterations_total"]
     )

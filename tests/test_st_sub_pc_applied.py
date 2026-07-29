@@ -59,9 +59,7 @@ def test_sub_ksp_query_fails_before_setup() -> None:
 def test_configured_fill_level_is_realized(levels: int) -> None:
     """ILU(k) requested must be ILU(k) applied -- this is the bug that shipped."""
     ksp, pc = _asm_ksp()
-    apply = _make_sub_pc_applier(
-        pc=pc, pc_type="asm", sub_pc_type="ilu", factor_levels=levels
-    )
+    apply = _make_sub_pc_applier(pc=pc, pc_type="asm", sub_pc_type="ilu", factor_levels=levels)
     ksp.setUp()
 
     realized = apply()
@@ -101,9 +99,7 @@ def test_no_silent_default_when_levels_differ() -> None:
     seen = []
     for levels in (0, 2):
         ksp, pc = _asm_ksp()
-        apply = _make_sub_pc_applier(
-            pc=pc, pc_type="asm", sub_pc_type="ilu", factor_levels=levels
-        )
+        apply = _make_sub_pc_applier(pc=pc, pc_type="asm", sub_pc_type="ilu", factor_levels=levels)
         ksp.setUp()
         seen.append(apply()["pc_factor_levels"])
     assert seen == [0, 2], seen

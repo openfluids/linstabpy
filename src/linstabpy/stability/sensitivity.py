@@ -110,7 +110,9 @@ def _pair_modes(
     return pairs
 
 
-def _pointwise_magnitude(vector: np.ndarray, grid_shape: tuple[int, int], n_components: int) -> np.ndarray:
+def _pointwise_magnitude(
+    vector: np.ndarray, grid_shape: tuple[int, int], n_components: int
+) -> np.ndarray:
     ny, nx = grid_shape
     n_grid = ny * nx
     magnitude_sq = np.zeros((ny, nx), dtype=float)

@@ -94,7 +94,12 @@ def test_tiny_baseflow_resolvent_map_matches_direct_oracle() -> None:
     assert any(record["engine"] == "regime-a" for record in result.point_records)
     assert result.failure_records == []
     assert result.cost_metrics["cost_mpi_ranks"] >= 1
-    for key in ("cost_wall_total_s", "cost_wall_assemble_s", "cost_wall_solve_s", "cost_peak_rss_bytes"):
+    for key in (
+        "cost_wall_total_s",
+        "cost_wall_assemble_s",
+        "cost_wall_solve_s",
+        "cost_peak_rss_bytes",
+    ):
         assert key in result.cost_metrics
 
     L0, _idx, _bc = build_lnse_system(

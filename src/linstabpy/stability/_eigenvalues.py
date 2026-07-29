@@ -75,7 +75,9 @@ def _validate_sparse_square_operator(
     name: str,
     operator: sp.spmatrix | PETSc.Mat,
 ) -> int:
-    if not (_is_petsc_matrix(operator) or sp.issparse(operator) or isinstance(operator, np.ndarray)):
+    if not (
+        _is_petsc_matrix(operator) or sp.issparse(operator) or isinstance(operator, np.ndarray)
+    ):
         raise TypeError(f"{name} must be a 2-D array, sparse matrix, or PETSc Mat")
     shape = _operator_shape(operator) if not isinstance(operator, np.ndarray) else operator.shape
     if len(shape) != 2:
@@ -607,6 +609,7 @@ def eigenvalues(
 
     temporal_operator = _scaled_operator(operator, 1j)
     omega = complex(target)
+
     def _attempt(scfg: dict | None, c: Config) -> tuple[np.ndarray, np.ndarray, dict]:
         ev, evec, nfo = _solve_near_target(
             temporal_operator,

@@ -199,7 +199,9 @@ def _stable_sweep_cfg(cfg: Mapping[str, Any], W_diag: np.ndarray, cfg_obj: Any) 
     return sweep_cfg
 
 
-def _normalise_cfg(cfg: Mapping[str, Any] | str | Path | object | None) -> tuple[Mapping[str, Any], Any]:
+def _normalise_cfg(
+    cfg: Mapping[str, Any] | str | Path | object | None,
+) -> tuple[Mapping[str, Any], Any]:
     """Return a plain mapping for router keys and a Config-compatible object.
 
     ``Config`` objects are passed through to the resolver while router-specific
@@ -268,7 +270,9 @@ def _resolve_mesh(base_flow: Any, cfg: Mapping[str, Any]) -> Any:
     if mesh is not None:
         return mesh
 
-    mesh_cfg = _as_mapping(cfg.get("mesh_config")) or _as_mapping(_cfg_value(cfg, "mesh_config", {}))
+    mesh_cfg = _as_mapping(cfg.get("mesh_config")) or _as_mapping(
+        _cfg_value(cfg, "mesh_config", {})
+    )
     if mesh_cfg:
         from linstabpy.mesh import Mesh
 
@@ -279,7 +283,9 @@ def _resolve_mesh(base_flow: Any, cfg: Mapping[str, Any]) -> Any:
             nx=int(mesh_cfg.get("nx", cfg.get("nx", nx))),
             ny=int(mesh_cfg.get("ny", cfg.get("ny", ny))),
             fd_order=int(mesh_cfg.get("fd_order", cfg.get("fd_order", 4))),
-            y_symmetry=_as_bool(mesh_cfg.get("y_symmetry", cfg.get("y_symmetry", False)), name="y_symmetry"),
+            y_symmetry=_as_bool(
+                mesh_cfg.get("y_symmetry", cfg.get("y_symmetry", False)), name="y_symmetry"
+            ),
             x_periodicity=_as_bool(
                 mesh_cfg.get("x_periodicity", cfg.get("x_periodicity", False)),
                 name="x_periodicity",
@@ -322,7 +328,9 @@ def _assembly_kwargs(cfg: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _assemble_beta_operator(mesh: Any, base_flow: Any, beta: float, cfg: Mapping[str, Any]) -> _AssemblyResult:
+def _assemble_beta_operator(
+    mesh: Any, base_flow: Any, beta: float, cfg: Mapping[str, Any]
+) -> _AssemblyResult:
     from linstabpy.operators.assembly import build_lnse_system
 
     kwargs = _assembly_kwargs(cfg)
@@ -361,7 +369,9 @@ def _is_petsc_matrix(operator: Any) -> bool:
     return hasattr(operator, "getInfo") and hasattr(operator, "getSize")
 
 
-def _maybe_petsc_diag(diagonal: np.ndarray, like_operator: Any, solver_cfg: Mapping[str, Any]) -> Any:
+def _maybe_petsc_diag(
+    diagonal: np.ndarray, like_operator: Any, solver_cfg: Mapping[str, Any]
+) -> Any:
     mat = sp.diags(np.asarray(diagonal, dtype=float), format="csc")
     if _is_petsc_matrix(like_operator):
         from linstabpy.solvers.petsc_utils import scipy_to_petsc
@@ -373,7 +383,9 @@ def _maybe_petsc_diag(diagonal: np.ndarray, like_operator: Any, solver_cfg: Mapp
 _REGION_VARS = ("rho", "u", "v", "w", "T")
 
 
-def _region_bounds(values: np.ndarray, raw_bounds: Any, *, axis: str, name: str) -> tuple[float, float, bool]:
+def _region_bounds(
+    values: np.ndarray, raw_bounds: Any, *, axis: str, name: str
+) -> tuple[float, float, bool]:
     if raw_bounds is None:
         return float(np.min(values)), float(np.max(values)), False
     bounds = np.asarray(raw_bounds, dtype=float).reshape(-1)
@@ -402,7 +414,9 @@ def _region_vars(region: Mapping[str, Any], *, name: str) -> tuple[str, ...]:
         raise ValueError(f"{name} vars must select at least one variable")
     unknown = [str(var) for var in requested if str(var) not in _REGION_VARS]
     if unknown:
-        raise ValueError(f"{name} unknown variable name(s): {unknown}; valid variables are {list(_REGION_VARS)}")
+        raise ValueError(
+            f"{name} unknown variable name(s): {unknown}; valid variables are {list(_REGION_VARS)}"
+        )
     return tuple(str(var) for var in requested)
 
 
@@ -482,7 +496,9 @@ def _build_region_mask(
             )
         dofs = var_idx[point_indices]
         if np.any((dofs < 0) | (dofs >= int(ndof))):
-            raise ValueError(f"{name} cannot build region mask: index block {idx_key!r} exceeds ndof={ndof}")
+            raise ValueError(
+                f"{name} cannot build region mask: index block {idx_key!r} exceeds ndof={ndof}"
+            )
         diag[dofs] = 1.0
         LOGGER.info(
             "resolvent_map region_mask name=%s var=%s n_active=%d n_total=%d "
@@ -523,11 +539,17 @@ def _forcing_response_mats(
     input_region = _cfg_value(cfg, "input_region", None)
     output_region = _cfg_value(cfg, "output_region", None)
     if (input_region is not None or output_region is not None) and (mesh is None or idx is None):
-        raise ValueError("input_region/output_region masks require mesh and idx from build_lnse_system")
+        raise ValueError(
+            "input_region/output_region masks require mesh and idx from build_lnse_system"
+        )
     if B_mat is None and input_region is not None:
-        B_mat = _build_region_mask(mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region")
+        B_mat = _build_region_mask(
+            mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region"
+        )
     if C_mat is None and output_region is not None:
-        C_mat = _build_region_mask(mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region")
+        C_mat = _build_region_mask(
+            mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region"
+        )
     if _cfg_bool(cfg, "mask_bc_forcing", True):
         default_mask = None
         if B_mat is None:
@@ -584,12 +606,16 @@ def _direct_engine_result(
                 float(np.max(np.abs(rho_adj))) if np.asarray(rho_adj).size else 0.0,
             )
         )
-    return _DirectPointResult(gain=float(np.asarray(gains, dtype=float).reshape(-1)[0]), iterations=None, residual=residual)
+    return _DirectPointResult(
+        gain=float(np.asarray(gains, dtype=float).reshape(-1)[0]),
+        iterations=None,
+        residual=residual,
+    )
 
 
 def _regime_b_discount_gamma(cfg: Mapping[str, Any]) -> float:
     """Select discount gamma for regime-b NEAR_POLE points.
-    
+
     Policy:
     - Use cfg["regime_b_discount_gamma"] if present (explicit override)
     - Else: derive from pole proximity to keep the shifted solve well-posed
@@ -614,9 +640,11 @@ def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
     return None
 
 
-def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_notes: set[str]) -> tuple[str, float]:
+def _check_missing_engine_gate(
+    label: object, cfg: Mapping[str, Any], emitted_notes: set[str]
+) -> tuple[str, float]:
     """Determine which regime to use and any discount gamma.
-    
+
     Returns (regime, gamma) tuple where:
     - regime is "regime-a", "regime-b", or "regime-c"
     - gamma is 0.0 for regimes a/c, or >0 for regime-b
@@ -625,12 +653,12 @@ def _check_missing_engine_gate(label: object, cfg: Mapping[str, Any], emitted_no
     if missing is None:
         return "regime-a", 0.0
     regime, engine, bead = missing
-    
+
     # For regime-b (NEAR_POLE), attempt discounted resolvent
     if regime == "regime-b":
         gamma = _regime_b_discount_gamma(cfg)
         return regime, gamma
-    
+
     # For regime-c (SMOOTH), still raise NotImplementedError
     enable_key = "enable_regime_c"
     if _cfg_bool(cfg, enable_key, False):
@@ -687,7 +715,9 @@ def _json_safe(value: object) -> object:
 
 
 def _json_records(records: list[dict[str, object]]) -> np.ndarray:
-    return np.asarray([json.dumps(_json_safe(record), sort_keys=True) for record in records], dtype=str)
+    return np.asarray(
+        [json.dumps(_json_safe(record), sort_keys=True) for record in records], dtype=str
+    )
 
 
 def _records_from_json_array(values: np.ndarray) -> list[dict[str, object]]:
@@ -719,7 +749,10 @@ def _load_store(
             cached_f = np.asarray(data["f"], dtype=float).reshape(-1)
             if cached_beta.shape != beta.shape or cached_f.shape != f.shape:
                 raise ValueError("range shape mismatch")
-            if not (np.allclose(cached_beta, beta, rtol=0.0, atol=0.0) and np.allclose(cached_f, f, rtol=0.0, atol=0.0)):
+            if not (
+                np.allclose(cached_beta, beta, rtol=0.0, atol=0.0)
+                and np.allclose(cached_f, f, rtol=0.0, atol=0.0)
+            ):
                 raise ValueError("range value mismatch")
             gain = np.asarray(data["gain"], dtype=float).reshape(beta.size, f.size)
             labels = np.asarray(data["regime_label"], dtype=str).reshape(beta.size, f.size)
@@ -897,9 +930,13 @@ def resolvent_map(
                     point_records.append(record)
                 continue
 
-            LOGGER.info("resolvent_map assembling beta_index=%d beta=%.12g", beta_i, float(beta_value))
+            LOGGER.info(
+                "resolvent_map assembling beta_index=%d beta=%.12g", beta_i, float(beta_value)
+            )
             assembly = _assemble_beta_operator(mesh, base_flow, float(beta_value), cfg_map)
-            stage_wall["assemble_operator_bc"] = stage_wall.get("assemble_operator_bc", 0.0) + assembly.wall_s
+            stage_wall["assemble_operator_bc"] = (
+                stage_wall.get("assemble_operator_bc", 0.0) + assembly.wall_s
+            )
             band_start = time.perf_counter()
             if _analysis_bool(cfg_map, "skip_band_marking", False):
                 # Opt-in: skip the band-marking EVP and label every frequency
@@ -926,7 +963,9 @@ def resolvent_map(
                 )
             else:
                 marks = _mark_unstable_band(assembly.L0, f, cfg_map)
-            stage_wall["stability"] = stage_wall.get("stability", 0.0) + time.perf_counter() - band_start
+            stage_wall["stability"] = (
+                stage_wall.get("stability", 0.0) + time.perf_counter() - band_start
+            )
             labels = np.asarray(marks.labels, dtype=str).reshape(-1)
             if labels.size != f.size:
                 raise ValueError(
@@ -943,9 +982,15 @@ def resolvent_map(
                 idx=assembly.idx,
             )
             use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", True)
-            filter_fn = mesh.filters.filter if use_mesh_filters and getattr(mesh, "filters", None) is not None else None
+            filter_fn = (
+                mesh.filters.filter
+                if use_mesh_filters and getattr(mesh, "filters", None) is not None
+                else None
+            )
             filter_ct_fn = (
-                mesh.filters.filter_ct if use_mesh_filters and getattr(mesh, "filters", None) is not None else None
+                mesh.filters.filter_ct
+                if use_mesh_filters and getattr(mesh, "filters", None) is not None
+                else None
             )
             regime_label[beta_i, :] = labels
             sweep_completed: set[int] = set()
@@ -954,7 +999,9 @@ def resolvent_map(
                 int(f_i)
                 for f_i, label in enumerate(labels)
                 if str(label) == STABLE
-                and not (np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK)
+                and not (
+                    np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK
+                )
             ]
             can_use_sweep = (
                 use_amortized_stable_sweep
@@ -969,7 +1016,9 @@ def resolvent_map(
                 stable_omegas = np.asarray(f[stable_indices], dtype=complex)
                 sweep_cfg = _stable_sweep_cfg(cfg_map, W_diag, cfg_obj)
                 try:
-                    anchors, anchor_records = choose_anchors_adaptive(stable_omegas, marks, sweep_cfg)
+                    anchors, anchor_records = choose_anchors_adaptive(
+                        stable_omegas, marks, sweep_cfg
+                    )
                     sweep = sweep_stable_regime(assembly.L0, stable_omegas, anchors, sweep_cfg)
                 except Exception as exc:  # noqa: BLE001 - fallback to certified direct path per point.
                     wall_s = time.perf_counter() - sweep_start
@@ -1101,7 +1150,9 @@ def resolvent_map(
                     continue
 
                 regime_label[beta_i, f_i] = labels[f_i]
-                engine, gamma = _check_missing_engine_gate(labels[f_i], cfg_map, emitted_fallback_notes)
+                engine, gamma = _check_missing_engine_gate(
+                    labels[f_i], cfg_map, emitted_fallback_notes
+                )
                 point_start = time.perf_counter()
                 LOGGER.info(
                     "resolvent_map point start index=%d total=%d beta_index=%d f_index=%d "

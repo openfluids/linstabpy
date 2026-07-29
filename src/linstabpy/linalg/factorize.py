@@ -80,28 +80,28 @@ def _run_adjoint_self_test(
     k: int = 3,
 ) -> float:
     """Run k random complex probe pairs to detect adjoint defect.
-    
+
     Returns max defect over all probes:
-      defect_i = |<solve(a_i), b_i> - <a_i, solve_adjoint(b_i)>| 
+      defect_i = |<solve(a_i), b_i> - <a_i, solve_adjoint(b_i)>|
                  / max(|<solve(a_i), b_i>|, |<a_i, solve_adjoint(b_i)>|, 1e-300)
     """
     max_defect = 0.0
     rng = np.random.RandomState(42)  # deterministic for reproducibility
-    
+
     for _ in range(k):
         a = rng.randn(n) + 1j * rng.randn(n)
         b = rng.randn(n) + 1j * rng.randn(n)
-        
+
         x1 = solve_func(a)
         x2 = solve_adjoint_func(b)
-        
+
         lhs = np.vdot(x1, b)  # conjugate-aware: conj(x1) . b
         rhs = np.vdot(a, x2)  # conjugate-aware: conj(a) . x2
-        
+
         denominator = max(np.abs(lhs), np.abs(rhs), 1.0e-300)
         defect = np.abs(lhs - rhs) / denominator
         max_defect = max(max_defect, defect)
-    
+
     return max_defect
 
 
@@ -112,7 +112,7 @@ def _run_oracle_residual(
     k: int = 3,
 ) -> float:
     """Run k random RHS through the healed adjoint and measure ||A_H @ x - b|| / ||b||.
-    
+
     The oracle uses A_H (the stored Hermitian transpose) to validate that the
     healed solve_adjoint path (which is a forward-solve on A_H) produces correct results.
     """
@@ -130,16 +130,16 @@ def _run_oracle_residual(
         b.assemblyBegin()
         b.assemblyEnd()
         return b
-    
+
     for _ in range(k):
         b_arr = rng.randn(n) + 1j * rng.randn(n)
         x_arr = solve_adjoint_func(b_arr)
-        
+
         # Compute residual using matvec
         b_vec = _rhs_vec_from_numpy_local(b_arr)
         x_vec = _rhs_vec_from_numpy_local(x_arr)
         r = b_vec.duplicate()
-        
+
         try:
             A_H.mult(x_vec, r)
             r.axpy(-1.0, b_vec)
@@ -151,7 +151,7 @@ def _run_oracle_residual(
             r.destroy()
             x_vec.destroy()
             b_vec.destroy()
-    
+
     return max_residual
 
 
@@ -191,7 +191,8 @@ class Factorization:
         return np.column_stack([self.solve(block[:, j]) for j in range(block.shape[1])])
 
     def refactorize(self, operator: sp.spmatrix | PETSc.Mat) -> Factorization:
-        if self._refactorize is None: raise NotImplementedError("this factorization cannot be refactorized in place")
+        if self._refactorize is None:
+            raise NotImplementedError("this factorization cannot be refactorized in place")
         self._refactorize(operator)
         return self
 
@@ -243,8 +244,9 @@ def factorize(
         A = operator.copy()
     else:
         A = scipy_to_petsc(operator, solver_cfg)
-    metrics: dict[str, float | int | bool] = dict.fromkeys((
-        "refactor_count", "solve_block_calls", "solve_block_rhs", "solve_block_fallback_calls"), 0)
+    metrics: dict[str, float | int | bool] = dict.fromkeys(
+        ("refactor_count", "solve_block_calls", "solve_block_rhs", "solve_block_fallback_calls"), 0
+    )
     metrics.update(refactor_seconds=0.0, solve_block_seconds=0.0)
     metrics["dual_factor_active"] = False
     metrics["adjoint_self_test_defect"] = 0.0
@@ -585,7 +587,11 @@ def factorize(
         nrows_new, ncols_new = _operator_shape(new_operator)
         if (nrows_new, ncols_new) != (n, n):
             raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
-        new_A = new_operator.copy() if _is_petsc_matrix(new_operator) else scipy_to_petsc(new_operator, solver_cfg)
+        new_A = (
+            new_operator.copy()
+            if _is_petsc_matrix(new_operator)
+            else scipy_to_petsc(new_operator, solver_cfg)
+        )
         try:
             old_pattern = _aij_pattern(A)
             new_pattern = _aij_pattern(new_A)
@@ -625,21 +631,21 @@ def factorize(
     # --- DUAL-FACTOR AUTO-HEAL LOGIC ---
     # Lazy adjoint self-test: run on first adjoint use via a wrapper.
     adjoint_test_done = False
-    
+
     def _maybe_run_adjoint_test_and_heal() -> None:
         """Run self-test on first adjoint use, trigger healing if needed."""
         nonlocal adjoint_test_done
         if adjoint_test_done:
             return
         adjoint_test_done = True
-        
+
         # Run self-test with original paths
         try:
             defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
         except Exception as exc:
             logger.info(
                 "Adjoint self-test transpose-solve failed (%s); treating native transpose as defective and activating dual-factor heal",
-                exc
+                exc,
             )
             defect = float("inf")
         metrics["adjoint_self_test_defect"] = defect
@@ -665,9 +671,10 @@ def factorize(
         logger.info(
             "Adjoint self-test defect %.3e > tolerance %.3e; "
             "activating dual-factor healing for A^H",
-            defect, adjoint_tol
+            defect,
+            adjoint_tol,
         )
-        
+
         # Build the A^H factor through the SAME factorize() machinery (identical
         # backend, options, assembly) -- NOT a hand-rolled KSP, which proved
         # fragile on STRUMPACK. A FORWARD solve on A^H is exactly the adjoint
@@ -712,7 +719,8 @@ def factorize(
                     "%.3e); keeping the native transpose, which is the better of the two. "
                     "Both are far below the O(1e-1) defect that indicates a wrong (plain) "
                     "transpose, so the adjoint is trusted.",
-                    healed_defect, defect,
+                    healed_defect,
+                    defect,
                 )
                 return
             raise RuntimeError(
@@ -739,7 +747,8 @@ def factorize(
         metrics["dual_factor_active"] = True
         logger.info(
             "Dual-factor healing activated: healed adjoint defect %.3e, oracle residual %.3e",
-            healed_defect, oracle_residual,
+            healed_defect,
+            oracle_residual,
         )
 
     # Wrap the adjoint solves: lazy self-test/heal on first use, then route through
@@ -755,7 +764,7 @@ def factorize(
         if metrics.get("dual_factor_active"):
             return holder["factor_H"].solve(rhs)
         return solve_transpose_original(rhs)
-    
+
     factor = Factorization(
         backend=backend,
         solve=solve,

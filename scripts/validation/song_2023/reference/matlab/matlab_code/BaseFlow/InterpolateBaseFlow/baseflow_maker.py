@@ -1,9 +1,5 @@
-from scipy.io import loadmat, savemat
-import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter
 import numpy as np
-from pathlib import Path
-
+from scipy.io import savemat
 
 print("Creating base flow ...")
 #### these variables will be modified by the bash script
@@ -22,7 +18,6 @@ T = np.load(f"{casepath}/T.npy")
 sponge = np.zeros(np.shape(x))
 
 
-savemat(f'{savepath}/BaseFlows/base_flow.mat', {'rho' : rho, 'u' : u, 'v' :v , 'w' : w, 'T' : T})
-savemat(f'{savepath}/mesh.mat', {'x' : x, 'y' : y})
-savemat(f'{savepath}/sponge.mat', {'sponge_aux' : sponge})
-
+savemat(f"{savepath}/BaseFlows/base_flow.mat", {"rho": rho, "u": u, "v": v, "w": w, "T": T})
+savemat(f"{savepath}/mesh.mat", {"x": x, "y": y})
+savemat(f"{savepath}/sponge.mat", {"sponge_aux": sponge})

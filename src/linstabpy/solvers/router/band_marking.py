@@ -122,7 +122,9 @@ def _smooth_regions(cfg: Mapping[str, Any] | None) -> tuple[tuple[float, float],
     return tuple(regions)
 
 
-def label_band(eigs: Sequence[complex], omegas: Sequence[float], cfg: Mapping[str, Any] | None = None) -> BandMarks:
+def label_band(
+    eigs: Sequence[complex], omegas: Sequence[float], cfg: Mapping[str, Any] | None = None
+) -> BandMarks:
     """Label requested real frequencies by distance to a supplied EVP spectrum.
 
     Parameters
@@ -193,7 +195,9 @@ def _evp_eigenvalues(
     )
 
 
-def mark_unstable_band(L0_beta: Any, f_range: Sequence[float], cfg: Mapping[str, Any] | None = None) -> BandMarks:
+def mark_unstable_band(
+    L0_beta: Any, f_range: Sequence[float], cfg: Mapping[str, Any] | None = None
+) -> BandMarks:
     """Compute EVP values near a beta slice and label the requested band.
 
     This is intentionally a thin wrapper around :func:`linstabpy.stability.eigenvalues`;
@@ -204,7 +208,11 @@ def mark_unstable_band(L0_beta: Any, f_range: Sequence[float], cfg: Mapping[str,
     omega_arr = np.asarray(f_range, dtype=float).ravel()
     # Poles sit at -omega_eig, so eigenvalues relevant to the requested real
     # frequencies live near the NEGATED band center in the EVP omega plane.
-    target = complex(_get_first(band, "target", "evp_target", default=-np.median(omega_arr) if omega_arr.size else 0.0))
+    target = complex(
+        _get_first(
+            band, "target", "evp_target", default=-np.median(omega_arr) if omega_arr.size else 0.0
+        )
+    )
     n_modes = int(_get_first(band, "n_modes", "evp_n_modes", default=8))
     ncv = _get_first(band, "ncv", "evp_ncv", default=None)
     solver_cfg = root.get("solver", root if root else None)

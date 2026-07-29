@@ -87,7 +87,9 @@ def test_should_probe_backend_truth_table(resolved_backend, probe_cfg, expected)
     assert should_probe_backend(resolved_backend, probe_cfg) is expected
 
 
-@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+@pytest.mark.parametrize(
+    "st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"]
+)
 def test_should_probe_backend_treats_iterative_outer_as_preconditioner_role(st_solver) -> None:
     assert backend_probe_is_preconditioner_role(st_solver) is True
     assert should_probe_backend("mumps", {}, st_solver=st_solver) is True
@@ -154,7 +156,9 @@ def test_temporal_backend_probe_failure_raises_clear_error(monkeypatch) -> None:
     assert "set eigen.backend_probe.enabled=false to override" in message
 
 
-@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+@pytest.mark.parametrize(
+    "st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"]
+)
 def test_temporal_backend_probe_preconditioner_role_does_not_reject_moderate_residual(
     monkeypatch, st_solver
 ) -> None:
@@ -194,7 +198,9 @@ def test_temporal_backend_probe_preconditioner_role_does_not_reject_moderate_res
     assert omega.shape == (1,)
 
 
-@pytest.mark.parametrize("st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"])
+@pytest.mark.parametrize(
+    "st_solver", ["iterative", "krylov", "slepc", "fgmres_lu", "strumpack_fgmres"]
+)
 def test_temporal_backend_probe_preconditioner_role_still_rejects_catastrophic_residual(
     monkeypatch, st_solver
 ) -> None:

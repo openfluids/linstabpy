@@ -40,10 +40,26 @@ import linstabpy
 #: so widely that a lint over them would be noise rather than signal.
 COLLECTIVES = frozenset(
     {
-        "allreduce", "Allreduce", "bcast", "Bcast", "barrier", "Barrier",
-        "gather", "Gather", "Gatherv", "allgather", "Allgather", "Allgatherv",
-        "scatter", "Scatter", "Scatterv", "reduce", "Reduce", "Reduce_scatter",
-        "alltoall", "Alltoall",
+        "allreduce",
+        "Allreduce",
+        "bcast",
+        "Bcast",
+        "barrier",
+        "Barrier",
+        "gather",
+        "Gather",
+        "Gatherv",
+        "allgather",
+        "Allgather",
+        "Allgatherv",
+        "scatter",
+        "Scatter",
+        "Scatterv",
+        "reduce",
+        "Reduce",
+        "Reduce_scatter",
+        "alltoall",
+        "Alltoall",
     }
 )
 

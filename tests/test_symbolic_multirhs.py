@@ -65,10 +65,16 @@ def test_symbolic_once_matches_recompute_and_reuses_analysis() -> None:
     omegas = anchors.copy()
     cfg = _cfg(L0.shape[0])
 
-    recompute = stable_sweep.sweep_stable_regime(L0, omegas, anchors, {**cfg, "reuse_symbolic": False})
-    symbolic = stable_sweep.sweep_stable_regime(L0, omegas, anchors, {**cfg, "reuse_symbolic": True})
+    recompute = stable_sweep.sweep_stable_regime(
+        L0, omegas, anchors, {**cfg, "reuse_symbolic": False}
+    )
+    symbolic = stable_sweep.sweep_stable_regime(
+        L0, omegas, anchors, {**cfg, "reuse_symbolic": True}
+    )
 
-    np.testing.assert_allclose(symbolic.gain, recompute.gain, rtol=cfg["sigma_tol"], atol=cfg["sigma_tol"])
+    np.testing.assert_allclose(
+        symbolic.gain, recompute.gain, rtol=cfg["sigma_tol"], atol=cfg["sigma_tol"]
+    )
     assert symbolic.metrics["symbolic_reuse_used"] is True
     assert symbolic.metrics["symbolic_reuse_fallback"] is False
     assert symbolic.metrics["analysis_reuse_count"] == anchors.size - 1
@@ -88,7 +94,9 @@ def test_factorization_solve_block_matches_single_rhs_loop() -> None:
     )
     try:
         block_solution = fac.solve_block(rhs_block)
-        loop_solution = np.column_stack([fac.solve(rhs_block[:, j]) for j in range(rhs_block.shape[1])])
+        loop_solution = np.column_stack(
+            [fac.solve(rhs_block[:, j]) for j in range(rhs_block.shape[1])]
+        )
     finally:
         fac.destroy()
 
@@ -126,7 +134,9 @@ def test_sweep_falls_back_when_refactorize_raises(monkeypatch: pytest.MonkeyPatc
         return _ScipyFactorization(operator)
 
     monkeypatch.setattr(stable_sweep, "factorize", normal_factorize)
-    recompute = stable_sweep.sweep_stable_regime(L0, omegas, anchors, {**cfg, "reuse_symbolic": False})
+    recompute = stable_sweep.sweep_stable_regime(
+        L0, omegas, anchors, {**cfg, "reuse_symbolic": False}
+    )
 
     calls: list[_ScipyFactorization] = []
 
@@ -137,9 +147,13 @@ def test_sweep_falls_back_when_refactorize_raises(monkeypatch: pytest.MonkeyPatc
         return factor
 
     monkeypatch.setattr(stable_sweep, "factorize", raising_first_factorize)
-    fallback = stable_sweep.sweep_stable_regime(L0, omegas, anchors, {**cfg, "reuse_symbolic": True})
+    fallback = stable_sweep.sweep_stable_regime(
+        L0, omegas, anchors, {**cfg, "reuse_symbolic": True}
+    )
 
-    np.testing.assert_allclose(fallback.gain, recompute.gain, rtol=cfg["sigma_tol"], atol=cfg["sigma_tol"])
+    np.testing.assert_allclose(
+        fallback.gain, recompute.gain, rtol=cfg["sigma_tol"], atol=cfg["sigma_tol"]
+    )
     assert fallback.metrics["symbolic_reuse_fallback"] is True
     assert fallback.metrics["symbolic_reuse_fallback_anchor_index"] == 1
     assert fallback.metrics["symbolic_reuse_used"] is False

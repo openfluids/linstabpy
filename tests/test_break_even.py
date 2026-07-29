@@ -9,7 +9,11 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.solvers.router.break_even import BreakEvenProbeResult, _timing_probe, break_even_decision
+from linstabpy.solvers.router.break_even import (
+    BreakEvenProbeResult,
+    _timing_probe,
+    break_even_decision,
+)
 
 
 def _pattern(n: int = 6) -> sp.csc_matrix:
@@ -47,7 +51,9 @@ def test_break_even_is_reproducible_and_probe_timings_drive_crossover() -> None:
     calls: list[tuple[tuple[int, int], int]] = []
     cfg = {
         "k_anchors": 3,
-        "break_even_probe": _fake_probe(t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=2, calls=calls),
+        "break_even_probe": _fake_probe(
+            t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=2, calls=calls
+        ),
     }
 
     decision = break_even_decision(pattern, 3, cfg)
@@ -70,7 +76,9 @@ def test_break_even_is_reproducible_and_probe_timings_drive_crossover() -> None:
         3,
         {
             "k_anchors": 3,
-            "break_even_probe": _fake_probe(t_fact_seconds=10.0, t_apply_seconds=0.25, iterations=2),
+            "break_even_probe": _fake_probe(
+                t_fact_seconds=10.0, t_apply_seconds=0.25, iterations=2
+            ),
         },
     )
     assert cheaper_apply.crossover_nf == pytest.approx(3.0 / (1.0 - (2.0 * 0.25 / 10.0)))
@@ -124,6 +132,8 @@ def test_real_splu_probe_measures_factorization_and_representative_solve() -> No
     assert probe.iterations == 1
 
     decision = break_even_decision(pattern, 1, {"k_anchors": 1, "representative_iterations": 1})
-    expected = decision.k_anchors / (1.0 - decision.iterations * decision.t_apply_seconds / decision.t_fact_seconds)
+    expected = decision.k_anchors / (
+        1.0 - decision.iterations * decision.t_apply_seconds / decision.t_fact_seconds
+    )
     assert decision.crossover_nf == pytest.approx(expected)
     assert "scipy-splu" in decision.note

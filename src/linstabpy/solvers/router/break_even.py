@@ -28,7 +28,12 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .ram_autoselect import _DEFAULT_REORDER, _SPLU_REORDER, _as_csc_pattern, _well_conditioned_matrix_with_pattern
+from .ram_autoselect import (
+    _DEFAULT_REORDER,
+    _SPLU_REORDER,
+    _as_csc_pattern,
+    _well_conditioned_matrix_with_pattern,
+)
 
 RoutingPath = Literal["direct", "fgmres-sweep"]
 Timer = Callable[[], float]
@@ -121,10 +126,16 @@ def break_even_decision(
     )
 
 
-def _timing_probe(pattern: sp.spmatrix, cfg: Mapping[str, Any] | object | None) -> BreakEvenProbeResult:
+def _timing_probe(
+    pattern: sp.spmatrix, cfg: Mapping[str, Any] | object | None
+) -> BreakEvenProbeResult:
     """Measure one sparse-LU factorization and one representative apply."""
     pattern = _as_csc_pattern(pattern)
-    reorder = str(_cfg_get(cfg, "probe_reorder", _cfg_get(cfg, "reorder", _DEFAULT_REORDER))).strip().lower()
+    reorder = (
+        str(_cfg_get(cfg, "probe_reorder", _cfg_get(cfg, "reorder", _DEFAULT_REORDER)))
+        .strip()
+        .lower()
+    )
     if reorder not in _SPLU_REORDER:
         reorder = _DEFAULT_REORDER
     timer = _timer(cfg)
@@ -193,7 +204,9 @@ def _k_anchors(cfg: Mapping[str, Any] | object | None) -> int:
         try:
             return _positive_int(len(anchors), "anchors")
         except TypeError as exc:
-            raise ValueError("anchors must be a sized collection when k_anchors is not provided") from exc
+            raise ValueError(
+                "anchors must be a sized collection when k_anchors is not provided"
+            ) from exc
     return 1
 
 

@@ -41,7 +41,9 @@ def _dense_oracle_problem() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndar
     order = np.argsort(direct_eigs.real)
     direct_eigs = direct_eigs[order]
     direct_modes = direct_modes[:, order]
-    adj_order = np.array([np.argmin(np.abs(direct_eigs[i] - np.conj(adjoint_eigs))) for i in range(ndof)])
+    adj_order = np.array(
+        [np.argmin(np.abs(direct_eigs[i] - np.conj(adjoint_eigs))) for i in range(ndof)]
+    )
     return direct_eigs, direct_modes, adjoint_eigs[adj_order], adjoint_modes[:, adj_order], weight
 
 
@@ -110,14 +112,22 @@ def test_wavemaker_matches_independent_dense_oracle():
         distances = np.abs(direct_value - np.conj(adjoint_eigs))
         j = int(np.argmin(distances))
         assert distances[j] < 1e-8
-        qd = direct_modes[:, i] / np.sqrt(np.real(np.vdot(direct_modes[:, i], weight * direct_modes[:, i])))
-        qa = adjoint_modes[:, j] / np.sqrt(np.real(np.vdot(adjoint_modes[:, j], weight * adjoint_modes[:, j])))
+        qd = direct_modes[:, i] / np.sqrt(
+            np.real(np.vdot(direct_modes[:, i], weight * direct_modes[:, i]))
+        )
+        qa = adjoint_modes[:, j] / np.sqrt(
+            np.real(np.vdot(adjoint_modes[:, j], weight * adjoint_modes[:, j]))
+        )
         divisor = abs(np.vdot(qa, weight * qd))
         mag_d = np.zeros((2, 2), dtype=float)
         mag_a = np.zeros((2, 2), dtype=float)
         for component in range(2):
-            direct_block = qd[component * n_grid : (component + 1) * n_grid].reshape((2, 2), order="F")
-            adjoint_block = qa[component * n_grid : (component + 1) * n_grid].reshape((2, 2), order="F")
+            direct_block = qd[component * n_grid : (component + 1) * n_grid].reshape(
+                (2, 2), order="F"
+            )
+            adjoint_block = qa[component * n_grid : (component + 1) * n_grid].reshape(
+                (2, 2), order="F"
+            )
             mag_d += np.abs(direct_block) ** 2
             mag_a += np.abs(adjoint_block) ** 2
         expected.append(np.sqrt(mag_d) * np.sqrt(mag_a) / divisor)
@@ -143,7 +153,9 @@ def test_pairing_loud_fail_lists_offending_eigenvalues():
 def test_logging_contains_per_mode_pairing_table(caplog: pytest.LogCaptureFixture):
     direct_eigs, direct_modes, adjoint_eigs, adjoint_modes, weight = _dense_oracle_problem()
     caplog.set_level(logging.INFO, logger="linstabpy.stability.sensitivity")
-    wavemaker(direct_modes[:, :2], adjoint_modes[:, :2], direct_eigs[:2], adjoint_eigs[:2], weight, (2, 2))
+    wavemaker(
+        direct_modes[:, :2], adjoint_modes[:, :2], direct_eigs[:2], adjoint_eigs[:2], weight, (2, 2)
+    )
     text = caplog.text
     assert "lambda_dir=" in text
     assert "lambda_adj=" in text
@@ -166,7 +178,11 @@ def test_fortran_order_reshape_guard():
     qd = direct[:, 0] / np.linalg.norm(direct[:, 0])
     qa = adjoint[:, 0] / np.linalg.norm(adjoint[:, 0])
     divisor = abs(np.vdot(qa, qd))
-    expected_fortran = np.abs(qd.reshape((3, 2), order="F")) * np.abs(qa.reshape((3, 2), order="F")) / divisor
-    expected_c = np.abs(qd.reshape((3, 2), order="C")) * np.abs(qa.reshape((3, 2), order="C")) / divisor
+    expected_fortran = (
+        np.abs(qd.reshape((3, 2), order="F")) * np.abs(qa.reshape((3, 2), order="F")) / divisor
+    )
+    expected_c = (
+        np.abs(qd.reshape((3, 2), order="C")) * np.abs(qa.reshape((3, 2), order="C")) / divisor
+    )
     np.testing.assert_allclose(result["zeta"][0], expected_fortran)
     assert not np.allclose(result["zeta"][0], expected_c)

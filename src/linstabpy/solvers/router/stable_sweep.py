@@ -106,13 +106,17 @@ def _cfg_lookup(mapping: Mapping[str, Any], *keys: str, default: Any = None) -> 
     return default
 
 
-def _compressed_anchor_controls(cfg: Mapping[str, Any] | object | None) -> tuple[bool, dict[str, str], bool]:
+def _compressed_anchor_controls(
+    cfg: Mapping[str, Any] | object | None,
+) -> tuple[bool, dict[str, str], bool]:
     raw = _cfg_get(cfg, "compressed_anchor", None)
     if raw is None:
         raw = _cfg_get(cfg, "compressed_anchors", False)
     if isinstance(raw, Mapping):
         enabled = _as_bool(_cfg_lookup(raw, "enabled", "enable", default=True))
-        compression = str(_cfg_lookup(raw, "compression", "compression_type", default="blr")).strip().lower()
+        compression = (
+            str(_cfg_lookup(raw, "compression", "compression_type", default="blr")).strip().lower()
+        )
         rel_tol = float(_cfg_lookup(raw, "rel_tol", "compression_rel_tol", default=1.0e-4))
         measure_exact_lu = _as_bool(_cfg_lookup(raw, "measure_exact_lu", default=True))
         optional_keys = {
@@ -241,19 +245,27 @@ def _adjoint_matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
     return np.asarray(operator.conjugate().transpose() @ x_arr, dtype=complex).reshape(-1)
 
 
-def _relative_residual(operator: sp.spmatrix | PETSc.Mat, x: Array, rhs: Array, *, adjoint: bool = False) -> float:
+def _relative_residual(
+    operator: sp.spmatrix | PETSc.Mat, x: Array, rhs: Array, *, adjoint: bool = False
+) -> float:
     residual = (_adjoint_matvec(operator, x) if adjoint else _matvec(operator, x)) - rhs
     return float(np.linalg.norm(residual) / max(np.linalg.norm(rhs), np.finfo(float).tiny))
 
 
-def _with_direct_factor_backend(solver_cfg: Mapping[str, Any] | None, backend: str) -> dict[str, Any]:
+def _with_direct_factor_backend(
+    solver_cfg: Mapping[str, Any] | None, backend: str
+) -> dict[str, Any]:
     base: dict[str, Any] = {} if solver_cfg is None else deepcopy(dict(solver_cfg))
     if "solver" in base:
         solver = deepcopy(dict(base.get("solver") or {}))
         base["solver"] = solver
     else:
         solver = base
-    source = solver.get("resolvent") if isinstance(solver.get("resolvent"), Mapping) else solver.get("linsolve", {})
+    source = (
+        solver.get("resolvent")
+        if isinstance(solver.get("resolvent"), Mapping)
+        else solver.get("linsolve", {})
+    )
     section = deepcopy(dict(source)) if isinstance(source, Mapping) else {}
     section.update({"type": "direct", "factor_backend": backend})
     if backend != "mumps":
@@ -262,7 +274,9 @@ def _with_direct_factor_backend(solver_cfg: Mapping[str, Any] | None, backend: s
     return base if base else {"solver": {"resolvent": section}}
 
 
-def _factorize_cfg_with_backend(factorize_cfg: Any, solver_cfg: Mapping[str, Any] | None, backend: str) -> Any:
+def _factorize_cfg_with_backend(
+    factorize_cfg: Any, solver_cfg: Mapping[str, Any] | None, backend: str
+) -> Any:
     from linstabpy.config import Config
 
     if factorize_cfg is None:
@@ -281,7 +295,9 @@ def _factorize_cfg_with_backend(factorize_cfg: Any, solver_cfg: Mapping[str, Any
         )
         return replace(cfg_obj, resolvent=replace(cfg_obj.resolvent, linear=linear))
     except AttributeError as exc:
-        raise TypeError("factorize_cfg must be a linstabpy.config.Config-compatible object") from exc
+        raise TypeError(
+            "factorize_cfg must be a linstabpy.config.Config-compatible object"
+        ) from exc
 
 
 def _factor_info(factor: Any) -> dict[str, float]:
@@ -293,7 +309,11 @@ def _factor_info(factor: Any) -> dict[str, float]:
         mat = ksp.getPC().getFactorMatrix()
     except (AttributeError, PETSc.Error):
         return {}
-    for info_type in (PETSc.Mat.InfoType.GLOBAL_SUM, PETSc.Mat.InfoType.GLOBAL_MAX, PETSc.Mat.InfoType.LOCAL):
+    for info_type in (
+        PETSc.Mat.InfoType.GLOBAL_SUM,
+        PETSc.Mat.InfoType.GLOBAL_MAX,
+        PETSc.Mat.InfoType.LOCAL,
+    ):
         try:
             return {str(key): float(value) for key, value in mat.getInfo(info_type).items()}
         except (AttributeError, PETSc.Error):
@@ -339,7 +359,9 @@ def _factor_effective_rank(factor: Any) -> tuple[float | None, str]:
     return None, "effective rank not extractable via current API"
 
 
-def _exact_lu_fill_bytes(operator: sp.spmatrix | PETSc.Mat, solver_cfg: Mapping[str, Any] | None) -> tuple[float | None, str]:
+def _exact_lu_fill_bytes(
+    operator: sp.spmatrix | PETSc.Mat, solver_cfg: Mapping[str, Any] | None
+) -> tuple[float | None, str]:
     if not factor_backend_available("mumps"):
         return None, "exact-LU fill bytes not extractable: MUMPS backend unavailable"
     exact_solver_cfg = _with_direct_factor_backend(solver_cfg, "mumps")
@@ -462,7 +484,9 @@ def _cert_cfg(
         # factor.solve_adjoint is the adjoint of that approximate factor, not of
         # an ideal exact-LU factor.
         "linearity_tol": float(_cfg_get(cfg, "linearity_tol", 1.0e-10)),
-        "adjoint_factor_tol": float(_cfg_get(cfg, "adjoint_factor_tol", adjoint_factor_tol_default)),
+        "adjoint_factor_tol": float(
+            _cfg_get(cfg, "adjoint_factor_tol", adjoint_factor_tol_default)
+        ),
         "consistency_tol": float(_cfg_get(cfg, "consistency_tol", 1.0)),
         "seed_gain_tol": float(_cfg_get(cfg, "seed_gain_tol", _cfg_get(cfg, "sigma_tol", 1.0e-8))),
         "seed_mode_tol": float(_cfg_get(cfg, "seed_mode_tol", 1.0e-6)),
@@ -496,8 +520,12 @@ def sweep_stable_regime(
     compressed_anchor, strumpack_options, measure_exact_lu = _compressed_anchor_controls(cfg)
     recycling_enabled, recycling_max_dim, recycling_orth_tol = _recycling_controls(cfg)
     if recycling_enabled and compressed_anchor:
-        raise ValueError("recycling and compressed anchors are not combined in this evaluation path")
-    active_solver_cfg = _with_direct_factor_backend(solver_cfg, "strumpack") if compressed_anchor else solver_cfg
+        raise ValueError(
+            "recycling and compressed anchors are not combined in this evaluation path"
+        )
+    active_solver_cfg = (
+        _with_direct_factor_backend(solver_cfg, "strumpack") if compressed_anchor else solver_cfg
+    )
     active_factorize_cfg = (
         _factorize_cfg_with_backend(factorize_cfg, active_solver_cfg, "strumpack")
         if compressed_anchor
@@ -557,7 +585,9 @@ def sweep_stable_regime(
     def record_compression_sample(operator: sp.spmatrix | PETSc.Mat, factor: Any) -> None:
         if not compressed_anchor:
             return
-        compressed_bytes, compressed_source = _factor_memory_bytes(factor, allow_fill_estimate=False)
+        compressed_bytes, compressed_source = _factor_memory_bytes(
+            factor, allow_fill_estimate=False
+        )
         exact_bytes, exact_source = (
             _exact_lu_fill_bytes(operator, active_solver_cfg)
             if measure_exact_lu
@@ -565,8 +595,7 @@ def sweep_stable_regime(
         )
         effective_rank, rank_source = _factor_effective_rank(factor)
         note = (
-            f"compressed={compressed_source}; exact_lu={exact_source}; "
-            f"effective_rank={rank_source}"
+            f"compressed={compressed_source}; exact_lu={exact_source}; effective_rank={rank_source}"
         )
         compression_samples.append((compressed_bytes, exact_bytes, effective_rank, note))
 
@@ -581,7 +610,9 @@ def sweep_stable_regime(
                 cfg=active_factorize_cfg,
             )
         metrics["factorize_calls"] = int(metrics["factorize_calls"]) + 1
-        metrics["factorize_seconds"] = float(metrics["factorize_seconds"]) + time.perf_counter() - start
+        metrics["factorize_seconds"] = (
+            float(metrics["factorize_seconds"]) + time.perf_counter() - start
+        )
         factors_seen.append(fac)
         record_compression_sample(operator, fac)
         return fac
@@ -619,7 +650,9 @@ def sweep_stable_regime(
         add_int_metric("gmres_iterations_total_recycled", iters)
         add_int_metric("gmres_iterations_total_actual", iters)
 
-    def solve_one(pos: int, factor: Any, forward_basis: Array, adjoint_basis: Array) -> tuple[Array, Array]:
+    def solve_one(
+        pos: int, factor: Any, forward_basis: Array, adjoint_basis: Array
+    ) -> tuple[Array, Array]:
         omega = omegas[pos]
         anchor = anchor_values[int(anchor_indices[pos])]
         operator = shifted_operator(L0_beta, omega)
@@ -647,8 +680,12 @@ def sweep_stable_regime(
                 orth_tol=recycling_orth_tol,
             )
             record_recycled_setup(forward_recycle.setup_matvecs + adjoint_recycle.setup_matvecs)
-            metrics["recycle_forward_rank_max"] = max(int(metrics["recycle_forward_rank_max"]), forward_recycle.rank)
-            metrics["recycle_adjoint_rank_max"] = max(int(metrics["recycle_adjoint_rank_max"]), adjoint_recycle.rank)
+            metrics["recycle_forward_rank_max"] = max(
+                int(metrics["recycle_forward_rank_max"]), forward_recycle.rank
+            )
+            metrics["recycle_adjoint_rank_max"] = max(
+                int(metrics["recycle_adjoint_rank_max"]), adjoint_recycle.rank
+            )
 
         def precondition(rhs: Array) -> Array:
             if use_block_solve and not compressed_anchor and hasattr(factor, "solve_block"):
@@ -690,14 +727,20 @@ def sweep_stable_regime(
                 )
                 record_unrecycled_counts(iters, actual=True)
             iter_log.append(iters)
-            residual_log.append(max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex))))
+            residual_log.append(
+                max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex)))
+            )
             return x
 
         def apply_H_adj(rhs: Array) -> Array:
             nonlocal adjoint_candidates
             if recycling_enabled:
                 baseline = _right_preconditioned_gmres(
-                    lambda z: _adjoint_matvec(operator, z), factor.solve_adjoint, rhs, rtol=rtol, maxiter=maxiter
+                    lambda z: _adjoint_matvec(operator, z),
+                    factor.solve_adjoint,
+                    rhs,
+                    rtol=rtol,
+                    maxiter=maxiter,
                 )
                 record_unrecycled_counts(baseline[1], actual=False)
                 recycled = recycled_right_preconditioned_gmres(
@@ -723,11 +766,20 @@ def sweep_stable_regime(
                 gmres_residual = recycled.residual
             else:
                 x, iters, gmres_residual = _right_preconditioned_gmres(
-                    lambda z: _adjoint_matvec(operator, z), factor.solve_adjoint, rhs, rtol=rtol, maxiter=maxiter
+                    lambda z: _adjoint_matvec(operator, z),
+                    factor.solve_adjoint,
+                    rhs,
+                    rtol=rtol,
+                    maxiter=maxiter,
                 )
                 record_unrecycled_counts(iters, actual=True)
             adj_iter_log.append(iters)
-            adj_residual_log.append(max(gmres_residual, _relative_residual(operator, x, np.asarray(rhs, dtype=complex), adjoint=True)))
+            adj_residual_log.append(
+                max(
+                    gmres_residual,
+                    _relative_residual(operator, x, np.asarray(rhs, dtype=complex), adjoint=True),
+                )
+            )
             return x
 
         probes_a, probes_b = _cfg_get(cfg, "probes_a"), _cfg_get(cfg, "probes_b")
@@ -736,18 +788,32 @@ def sweep_stable_regime(
         probe_forward_residuals = []
         probe_adjoint_residuals = []
         used_probe_block = False
-        if use_block_solve and not compressed_anchor and hasattr(factor, "solve_block") and omega == anchor and len(probes_a) > 1:
-            probe_block = np.column_stack([np.asarray(probe, dtype=complex).reshape(-1) for probe in probes_a])
+        if (
+            use_block_solve
+            and not compressed_anchor
+            and hasattr(factor, "solve_block")
+            and omega == anchor
+            and len(probes_a) > 1
+        ):
+            probe_block = np.column_stack(
+                [np.asarray(probe, dtype=complex).reshape(-1) for probe in probes_a]
+            )
             probe_x = factor.solve_block(probe_block)
             for probe, x in zip(probes_a, probe_x.T, strict=True):
-                probe_forward_residuals.append(_relative_residual(operator, x, np.asarray(probe, dtype=complex)))
+                probe_forward_residuals.append(
+                    _relative_residual(operator, x, np.asarray(probe, dtype=complex))
+                )
             used_probe_block = True
         for probe in probes_a:
             if not used_probe_block:
                 x = apply_H(probe)
-                probe_forward_residuals.append(_relative_residual(operator, x, np.asarray(probe, dtype=complex)))
+                probe_forward_residuals.append(
+                    _relative_residual(operator, x, np.asarray(probe, dtype=complex))
+                )
             xa = apply_H_adj(probe)
-            probe_adjoint_residuals.append(_relative_residual(operator, xa, np.asarray(probe, dtype=complex), adjoint=True))
+            probe_adjoint_residuals.append(
+                _relative_residual(operator, xa, np.asarray(probe, dtype=complex), adjoint=True)
+            )
 
         cert_cfg = _cert_cfg(
             cfg,
@@ -759,7 +825,9 @@ def sweep_stable_regime(
         )
         cert_cfg["probes_a"] = probes_a
         cert_cfg["probes_b"] = probes_b
-        omega_gains, omega_responses, omega_forcings, report = certified_rsvd(apply_H, apply_H_adj, W, invW, cert_cfg)
+        omega_gains, omega_responses, omega_forcings, report = certified_rsvd(
+            apply_H, apply_H_adj, W, invW, cert_cfg
+        )
         gains[pos] = float(omega_gains[0])
         responses[:, pos] = np.asarray(omega_responses[:, 0], dtype=complex)
         forcings[:, pos] = np.asarray(omega_forcings[:, 0], dtype=complex)
@@ -811,7 +879,9 @@ def sweep_stable_regime(
                     metrics["symbolic_reuse_fallback"] = True
                     metrics["symbolic_reuse_fallback_anchor_index"] = anchor_i
                     for fallback_i in range(anchor_i, anchor_values.size):
-                        solve_anchor_positions(fallback_i, factorize_anchor(anchor_values[fallback_i]))
+                        solve_anchor_positions(
+                            fallback_i, factorize_anchor(anchor_values[fallback_i])
+                        )
                     break
                 metrics["symbolic_reuse_used"] = True
             solve_anchor_positions(anchor_i, first_factor)
@@ -826,9 +896,15 @@ def sweep_stable_regime(
     metrics["solve_block_rhs"] = int(factor_metric_sum("solve_block_rhs"))
     metrics["solve_block_seconds"] = factor_metric_sum("solve_block_seconds")
     if compressed_anchor:
-        compressed_total = sum(value for value, _exact, _rank, _note in compression_samples if value is not None)
-        exact_total = sum(value for _compressed, value, _rank, _note in compression_samples if value is not None)
-        ranks = [rank for _compressed, _exact, rank, _note in compression_samples if rank is not None]
+        compressed_total = sum(
+            value for value, _exact, _rank, _note in compression_samples if value is not None
+        )
+        exact_total = sum(
+            value for _compressed, value, _rank, _note in compression_samples if value is not None
+        )
+        ranks = [
+            rank for _compressed, _exact, rank, _note in compression_samples if rank is not None
+        ]
         notes = []
         for _compressed, _exact, _rank, note in compression_samples:
             if note not in notes:
@@ -840,7 +916,9 @@ def sweep_stable_regime(
         if compressed_total > 0.0 and exact_total > 0.0:
             ratio = float(compressed_total / exact_total)
             metrics["compression_ratio"] = ratio
-            notes.append("compression helped" if ratio < 1.0 else "compression ratio >= 1 on this operator")
+            notes.append(
+                "compression helped" if ratio < 1.0 else "compression ratio >= 1 on this operator"
+            )
         else:
             notes.append("ratio not extractable via current API")
         if ranks:
@@ -848,10 +926,12 @@ def sweep_stable_regime(
         metrics["compression_note"] = "; ".join(notes)
 
     if recycling_enabled:
-        metrics["matvecs_delta_recycled_minus_baseline"] = int(metrics["matvecs_total_recycled"]) - int(metrics["matvecs_total"])
-        metrics["gmres_iterations_delta_recycled_minus_baseline"] = int(metrics["gmres_iterations_total_recycled"]) - int(
-            metrics["gmres_iterations_total"]
-        )
+        metrics["matvecs_delta_recycled_minus_baseline"] = int(
+            metrics["matvecs_total_recycled"]
+        ) - int(metrics["matvecs_total"])
+        metrics["gmres_iterations_delta_recycled_minus_baseline"] = int(
+            metrics["gmres_iterations_total_recycled"]
+        ) - int(metrics["gmres_iterations_total"])
 
     return SweepResult(
         omega=omegas,

@@ -28,7 +28,9 @@ def _solver_cfg() -> dict[str, object]:
     }
 
 
-def _operator(n: int, *, diagonal_shift: complex = 0.0j, rank0_extra: bool = False) -> sp.csc_matrix:
+def _operator(
+    n: int, *, diagonal_shift: complex = 0.0j, rank0_extra: bool = False
+) -> sp.csc_matrix:
     diagonal = 4.0 + 0.1j + diagonal_shift + 0.01 * np.arange(n)
     lower = -0.25 + 0.02j + 0.001 * np.arange(n - 1)
     upper = -0.15 - 0.03j - 0.001j * np.arange(n - 1)
@@ -49,7 +51,9 @@ def _local_pattern(mat: PETSc.Mat) -> tuple[np.ndarray, np.ndarray]:
 def _patterns_equal(left: PETSc.Mat, right: PETSc.Mat) -> bool:
     left_indptr, left_indices = _local_pattern(left)
     right_indptr, right_indices = _local_pattern(right)
-    return bool(np.array_equal(left_indptr, right_indptr) and np.array_equal(left_indices, right_indices))
+    return bool(
+        np.array_equal(left_indptr, right_indptr) and np.array_equal(left_indices, right_indices)
+    )
 
 
 def test_refactorize_pattern_guard_raises_collectively_for_rank_local_mismatch() -> None:

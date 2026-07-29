@@ -83,7 +83,9 @@ def test_resolvent_dissipation_off_not_flagged_when_resolvent_not_run():
 
 
 def test_stability_dissipation_off_is_flagged():
-    cfg = _cfg(analysis__run_stability=True, numerics__operator_dissipation__apply_to_stability=False)
+    cfg = _cfg(
+        analysis__run_stability=True, numerics__operator_dissipation__apply_to_stability=False
+    )
     assert "DISS-STABILITY-OFF" in codes(config_advisories(cfg))
 
 
@@ -127,7 +129,9 @@ def test_sawtooth_beta_band_flagged_only_without_dissipation():
     assert "BETA-SAWTOOTH-BAND" not in codes(config_advisories(outside))
 
 
-@pytest.mark.parametrize("sk,se,expected", [(1, 1, False), (2, 1, True), (1, 3, True), (4, 4, True)])
+@pytest.mark.parametrize(
+    "sk,se,expected", [(1, 1, False), (2, 1, True), (1, 3, True), (4, 4, True)]
+)
 def test_stride_note(sk, se, expected):
     cfg = _cfg(numerics__stride_ksi=sk, numerics__stride_eta=se)
     assert ("STRIDE-NOT-FINAL" in codes(config_advisories(cfg))) is expected
@@ -153,12 +157,21 @@ def test_band_marking_backend_trap():
 @pytest.mark.parametrize(
     "solver,extra,reason",
     [
-        ({"resolvent": {"factor_backend": "strumpack"}, "eigen": {"factor_backend": "mumps"}},
-         {}, "eigen backend set explicitly"),
-        ({"factor_backend": "strumpack", "resolvent": {"factor_backend": "strumpack"}},
-         {}, "solver-level backend covers eigen"),
-        ({"resolvent": {"factor_backend": "strumpack"}},
-         {"analysis": {"skip_band_marking": True}}, "band marking skipped outright"),
+        (
+            {"resolvent": {"factor_backend": "strumpack"}, "eigen": {"factor_backend": "mumps"}},
+            {},
+            "eigen backend set explicitly",
+        ),
+        (
+            {"factor_backend": "strumpack", "resolvent": {"factor_backend": "strumpack"}},
+            {},
+            "solver-level backend covers eigen",
+        ),
+        (
+            {"resolvent": {"factor_backend": "strumpack"}},
+            {"analysis": {"skip_band_marking": True}},
+            "band marking skipped outright",
+        ),
         ({}, {}, "no backend set at all -- nothing to mismatch"),
     ],
     ids=["eigen-explicit", "solver-level", "skipped", "no-backend"],
@@ -349,9 +362,7 @@ def _shipped_configs():
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parents[1]
-    found = sorted(
-        set(root.glob("examples/**/*.jsonc")) | set(root.glob("configs/**/*.jsonc"))
-    )
+    found = sorted(set(root.glob("examples/**/*.jsonc")) | set(root.glob("configs/**/*.jsonc")))
     return found
 
 

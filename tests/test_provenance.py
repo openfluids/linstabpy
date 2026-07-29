@@ -144,7 +144,9 @@ def test_default_output_path_embeds_config_md5_and_git_sha8(tmp_path, monkeypatc
 
     output = _output_npz_path(provenance)
 
-    assert output == (tmp_path / f"caseX_{provenance['config_md5']}_{provenance['git_sha'][:8]}.npz")
+    assert output == (
+        tmp_path / f"caseX_{provenance['config_md5']}_{provenance['git_sha'][:8]}.npz"
+    )
 
 
 def test_explicit_output_path_is_honored_unchanged(tmp_path, monkeypatch):

@@ -45,7 +45,16 @@ _INT = (Integral, np.integer)
 _REAL = (Real, np.floating, np.integer)
 _REAL_NULLABLE = (Real, np.floating, np.integer, type(None))
 _ARRAY = (list, tuple, np.ndarray)
-_ARRAY_OR_SCALAR = (list, tuple, np.ndarray, Real, np.floating, np.integer, complex, np.complexfloating)
+_ARRAY_OR_SCALAR = (
+    list,
+    tuple,
+    np.ndarray,
+    Real,
+    np.floating,
+    np.integer,
+    complex,
+    np.complexfloating,
+)
 
 SCHEMA: dict[str, dict[str, FieldSpec]] = {
     "provenance": {
@@ -115,9 +124,10 @@ QUALITY_VARIANTS: dict[str, tuple[str, ...]] = {
     "resolvent": ("gains",),
 }
 
-METRICS_SIDECAR_KEYS = frozenset(
-    key for fields in SCHEMA.values() for key in fields
-) | {"cost_hardware_tag", "cost_git_sha"}
+METRICS_SIDECAR_KEYS = frozenset(key for fields in SCHEMA.values() for key in fields) | {
+    "cost_hardware_tag",
+    "cost_git_sha",
+}
 
 
 def validate_metrics(d: Mapping[str, Any]) -> list[str]:
@@ -138,9 +148,7 @@ def validate_metrics(d: Mapping[str, Any]) -> list[str]:
             value = d[key]
             if not isinstance(value, spec.types):
                 expected = _type_name(spec.types)
-                errors.append(
-                    f"{section}.{key}: expected {expected}, got {type(value).__name__}"
-                )
+                errors.append(f"{section}.{key}: expected {expected}, got {type(value).__name__}")
     return errors
 
 
