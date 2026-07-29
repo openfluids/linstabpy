@@ -10,6 +10,12 @@ import numpy as np
 from linstabpy.utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
+# mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
+# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
+# Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
+# Enforced by tests/test_mpi_thread_level.py.
+import mpi4py.MPI  # noqa: F401
 from petsc4py import PETSc
 from slepc4py import SLEPc
 

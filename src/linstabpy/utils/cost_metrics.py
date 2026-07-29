@@ -7,6 +7,12 @@ import os
 import subprocess
 from math import nan
 
+# mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
+# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
+# Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
+# Enforced by tests/test_mpi_thread_level.py.
+import mpi4py.MPI  # noqa: F401
 from petsc4py import PETSc
 
 
