@@ -59,6 +59,22 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   a lint never shown to fire cannot be distinguished from one that cannot fire.
 
 ### Fixed
+- MPI is now initialised at `MPI_THREAD_MULTIPLE` on every import path, restoring the
+  STRUMPACK factorization backend. Whichever library calls `MPI_Init` first fixes the
+  thread level for the process, and it can only be *requested* at init — never raised
+  afterwards. `mpi4py` requests `MPI_THREAD_MULTIPLE`, PETSc only
+  `MPI_THREAD_FUNNELED`. `utils.petsc_init.init_petsc_from_argv` already imported
+  `mpi4py` first, but seven modules imported `petsc4py`/`slepc4py` at *module scope*
+  and bypassed it, so whichever of them was imported first decided the level. When
+  PETSc won, `MatGetFactor_aij_strumpack()` failed with PETSc error 57 and `SLATE
+  requires MPI_THREAD_MULTIPLE`, taking the whole STRUMPACK/GPU route out of service —
+  8 of 14 failures in the GPU test venv had this single cause, and none of them
+  reported anything about MPI. The guard is a plain `import mpi4py.MPI`, chosen over a
+  first-party helper module because isort orders third-party imports above first-party
+  ones: a `linstabpy.*` guard could not stay above `petsc4py`, and `ruff --fix` would
+  have silently reordered the fix away. `mpi4py` sorts above `petsc4py` on its own.
+  `tests/test_mpi_thread_level.py` enforces the ordering as a source-wide AST lint plus
+  a runtime thread-level assertion that skips loudly without petsc4py.
 - The freestream-normalisation check and the MUMPS error translation were defined but
   never called: both shipped with full unit-test coverage and zero call sites, so
   neither ran in production. They are now invoked from the driver and the eigensolver
