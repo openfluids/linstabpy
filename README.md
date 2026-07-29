@@ -1,4 +1,4 @@
-![linstabpy banner](docs/assets/readme-banner-v2.jpg)
+![linstabpy banner](docs/assets/readme-banner-v3.jpg)
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
