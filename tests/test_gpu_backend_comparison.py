@@ -144,28 +144,49 @@ def test_strumpack_fgmres_matches_mumps_temporal_reference() -> None:
     _assert_existing_acceptance_gate_passes(omega, info)
 
 
-def test_strumpack_preonly_fails_backend_probe_fast(monkeypatch) -> None:
+def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
+    """STRUMPACK's bare (PREONLY) LU apply is accurate enough to clear the probe.
+
+    This test used to assert the opposite -- that STRUMPACK under a direct
+    PREONLY solve was too inexact (compression) and had to be REJECTED by the
+    backend probe.  That premise is falsified on the current build.  Measured on
+    c9, PETSc 3.24.2, job 535, at this exact shift and problem:
+
+        strumpack     ||Kx-b||/||b|| = 1.979e-12     <- 4 decades inside the gate
+        superlu_dist  ||Kx-b||/||b|| = 1.852e-06
+        mumps         probe skipped (trusted default)
+
+    1.979e-12 sits far below the 1e-8 default gate, so no RuntimeError is raised
+    and the old `pytest.raises` failed with DID NOT RAISE.  The backend got
+    better; the expectation went stale.
+
+    Asserting the new behaviour rather than deleting the test keeps the
+    regression guard: if a STRUMPACK or PETSc upgrade reintroduces a lossy bare
+    LU apply, the accuracy assertions below fail loudly instead of the loss
+    passing unnoticed into a gain map.
+    """
     if not factor_backend_available("strumpack"):
         pytest.skip("SKIPPED: STRUMPACK/CUDA factor backend unavailable")
 
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", "strumpack")
-    L0, _ = _build_blasius_temporal_problem()
+    L0, bc_indices = _build_blasius_temporal_problem()
 
-    with pytest.raises(RuntimeError) as excinfo:
-        temporal_eigenvalues(
-            L0,
-            N_MODES,
-            TARGET,
-            ncv=NCV,
-            solver_cfg={
-                "eigen": {
-                    "st_solver": "mumps",
-                    "eps_tol": 1.0e-10,
-                    "eps_max_it": 7500,
-                }
-            },
-        )
+    omega, _, info = temporal_eigenvalues(
+        L0,
+        N_MODES,
+        TARGET,
+        ncv=NCV,
+        solver_cfg={
+            "eigen": {
+                "st_solver": "mumps",
+                "eps_tol": 1.0e-10,
+                "eps_max_it": 7500,
+            }
+        },
+        return_info=True,
+    )
 
-    message = str(excinfo.value)
-    assert "factor backend 'strumpack' failed accuracy probe" in message
-    assert "set eigen.backend_probe.enabled=false to override" in message
+    # Clearing the probe is not enough on its own -- a backend could pass the
+    # single-RHS probe and still return the wrong spectrum.  Gate on the answer.
+    _assert_spectrum_matches_reference(omega, atol=1.0e-9)
+    _assert_existing_acceptance_gate_passes(omega, info)

@@ -332,43 +332,81 @@ def test_mumps_vs_mumps_self_consistency(capsys: pytest.CaptureFixture[str]) -> 
     _assert_parity_record(record)
 
 
-def test_superlu_dist_single_precision_vs_mumps_cpu_hard_path(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_factor_precision_single_is_refused_rather_than_silently_downgraded() -> None:
+    """Asking for a single-precision factor must fail loudly, not lie.
+
+    This replaces ``test_superlu_dist_single_precision_vs_mumps_cpu_hard_path``,
+    whose premise was measured false on c9 (PETSc 3.24.2).  That test believed it
+    was comparing an FP32 factor against the MUMPS FP64 reference.  It was not:
+
+    * job 535 -- SuperLU_DIST with ``factor_precision`` "single" and "double"
+      returned BIT-IDENTICAL results: ``||Kx-b||/||b||`` = 1.852e-06 both ways,
+      eigenvalues agreeing to all 12 printed digits;
+    * job 536 -- the only lever in the code is the PETSc ``-pc_precision``
+      option, and after ``pc.setFromOptions()`` + ``ksp.setUp()`` that key is
+      still sitting unconsumed in the options database.
+
+    So the knob never did anything, and the 1.852e-06 the old test tripped over
+    was SuperLU_DIST's ordinary *double*-precision accuracy at this shift -- not
+    an FP32 effect.  Relaxing the probe threshold to make it pass, which is what
+    the failure superficially invites, would have silenced a real accuracy
+    signal to accommodate a feature that does not exist.
+
+    ``apply_factor_backend`` now refuses the request outright.  This test pins
+    that refusal: when a genuine mechanism lands, it will fail and must be
+    rewritten into a real FP32-vs-FP64 comparison.
+    """
+    from linstabpy.linalg.backends import apply_factor_backend
+
     if not factor_backend_available("superlu_dist"):
         pytest.skip("SKIPPED: superlu_dist not in this PETSc build")
-    if not factor_backend_available("mumps"):
-        pytest.skip("SKIPPED: mumps (the parity reference) not in this PETSc build")
 
+    # No operator needed: the refusal fires before any factorization work.
+    ksp = PETSc.KSP().create(comm=PETSc.COMM_SELF)
+    try:
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.LU)
+        with pytest.raises(NotImplementedError) as excinfo:
+            apply_factor_backend(pc, "superlu_dist", factor_precision="single")
+    finally:
+        ksp.destroy()
+
+    message = str(excinfo.value)
+    assert "factor_precision='single' is not supported" in message
+    assert "silently be computed in double precision" in message
+
+
+def test_superlu_dist_is_rejected_by_the_backend_probe_at_a_hard_shift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The accuracy gate must actually reject a backend that solves badly.
+
+    Measured on c9 at this problem and shift (TARGET = -0.1j, which sits close
+    to the spectrum and so makes ``K = L0 - sigma*I`` ill-conditioned), job 535:
+
+        mumps         probe skipped (trusted default)
+        strumpack     ||Kx-b||/||b|| = 1.979e-12
+        superlu_dist  ||Kx-b||/||b|| = 1.852e-06   <- six decades worse
+
+    SuperLU_DIST also returned visibly wrong eigenvalues there: imaginary parts
+    differing from the MUMPS and STRUMPACK answers in the third significant
+    digit.  This is backend-specific and shift-specific -- at an easier shift
+    the same backend reaches 1.189e-13 -- which is exactly why the per-solve
+    probe exists rather than a static allow-list.
+
+    Guarding the rejection keeps the safety net honest: if the probe is ever
+    loosened or bypassed, this test fails instead of a wrong spectrum flowing
+    silently into a gain map.
+    """
+    if not factor_backend_available("superlu_dist"):
+        pytest.skip("SKIPPED: superlu_dist not in this PETSc build")
+
+    monkeypatch.delenv("LINSTABPY_FACTOR_PRECISION", raising=False)
     operator, bc_indices = _build_blasius_temporal_problem()
-    reference_omega, _, reference_info = _solve_with_backend(operator, bc_indices, "mumps")
 
-    # The current eigenvalue seam consumes -pc_precision from the PETSc/options
-    # environment at factorization time, not from solver_cfg JSONC.  Set it only
-    # around the SuperLU_DIST candidate solve so the MUMPS reference remains the
-    # double-precision baseline.
-    monkeypatch.setenv("LINSTABPY_FACTOR_PRECISION", "single")
-    candidate_omega, _, candidate_info = _solve_with_backend(
-        operator,
-        bc_indices,
-        "superlu_dist",
-        factor_precision="single",
-    )
+    with pytest.raises(RuntimeError) as excinfo:
+        _solve_with_backend(operator, bc_indices, "superlu_dist")
 
-    assert candidate_info["backend_probe_ran"] is True
-    assert candidate_info["backend_probe_pc_factor_solver_type"] == "superlu_dist"
-    _assert_existing_acceptance_gate_passes(reference_omega, reference_info)
-    _assert_existing_acceptance_gate_passes(candidate_omega, candidate_info)
-    record = _comparison_record(
-        "superlu_dist_single_vs_mumps",
-        operator,
-        reference_omega,
-        reference_info,
-        candidate_omega,
-        candidate_info,
-        candidate_backend="superlu_dist",
-        factor_precision="single",
-    )
-    _emit(record, capsys)
-    _assert_parity_record(record)
+    message = str(excinfo.value)
+    assert "factor backend 'superlu_dist' failed accuracy probe" in message
+    assert "set eigen.backend_probe.enabled=false to override" in message

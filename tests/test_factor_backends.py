@@ -647,19 +647,48 @@ def test_apply_factor_backend_real_names_fail_loud_on_cpu_only(backend: str) -> 
 
 
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist", "cudss"])
-def test_future_backend_knob_fails_loudly_on_cpu_only_build(monkeypatch, backend) -> None:
+def test_future_backend_knob_is_honoured_and_absence_fails_loudly(monkeypatch, backend) -> None:
+    """The backend knob is always honoured; an ABSENT backend must fail loudly.
+
+    Previously this asserted ``not factor_backend_available(backend)``
+    unconditionally, which encoded "the build is CPU-only" as a fact about the
+    world.  That is false on the all-backends GPU venv, where STRUMPACK and
+    SuperLU_DIST are both present, so the test failed for describing the build
+    rather than for any defect (measured on c9: 2 of the 3 parameters failed,
+    ``cudss`` passing only because cuDSS genuinely is not built).
+
+    The invariant worth guarding does not depend on the build: the knob must be
+    honoured either way, and the *unavailable* case must raise an actionable
+    error instead of silently falling back to MUMPS.  A silent fallback would
+    hand back a run labelled with a backend that never ran -- the same class of
+    defect as a default that lies.  So branch on the measured availability and
+    assert the appropriate half; neither branch is skipped, so both build types
+    get real coverage.
+    """
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", backend)
     operator = sp.eye(2, format="csr", dtype=complex)
 
+    # Build-independent: the knob is honoured regardless of what is installed.
     assert backends.resolve_factor_backend(None) == backend
-    assert not backends.factor_backend_available(backend)
-    with pytest.raises(RuntimeError) as excinfo:
-        factorize(operator, solver_cfg={"linsolve": {"type": "direct"}})
 
-    message = str(excinfo.value)
-    assert f"PETSc factor backend '{backend}' is not available" in message
-    assert "Rebuild PETSc/petsc4py" in message
-    assert "docs/COMPUTE_BACKENDS.md" in message
+    if backends.factor_backend_available(backend):
+        # Present in this build: it must actually be usable and must be the
+        # backend that really ran -- not a quiet substitution.
+        solver = factorize(operator, solver_cfg={"linsolve": {"type": "direct"}})
+        try:
+            assert solver._ksp is not None
+            assert solver._ksp.getPC().getFactorSolverType() == backend
+        finally:
+            solver.destroy()
+    else:
+        # Absent from this build: fail loudly, and say how to fix it.
+        with pytest.raises(RuntimeError) as excinfo:
+            factorize(operator, solver_cfg={"linsolve": {"type": "direct"}})
+
+        message = str(excinfo.value)
+        assert f"PETSc factor backend '{backend}' is not available" in message
+        assert "Rebuild PETSc/petsc4py" in message
+        assert "docs/COMPUTE_BACKENDS.md" in message
 
 
 def test_direct_linsolve_uses_mumps_backend(monkeypatch) -> None:
@@ -1285,16 +1314,32 @@ def test_resolve_auto_factor_backend_above_threshold_strumpack_available_yields_
 
 
 def test_resolve_auto_factor_backend_above_threshold_strumpack_unavailable_yields_mumps() -> None:
-    """ndof >= threshold AND strumpack_available=False -> mumps fallback (the real case on this box)."""
-    from linstabpy.linalg.backends import factor_backend_available, resolve_auto_factor_backend
+    """ndof >= threshold AND strumpack_available=False -> mumps fallback.
 
-    # Confirm strumpack is genuinely absent on this box so the test is live, not mocked.
-    assert not factor_backend_available("strumpack"), (
-        "STRUMPACK is available on this box — this test checks the CPU-only fallback path; "
-        "if STRUMPACK is now present, delete this guard."
+    The routing decision under test is a pure function of its two arguments, so
+    it is exercised directly.  The old version first asserted
+    ``not factor_backend_available("strumpack")`` "so the test is live, not
+    mocked", which tied a pure-logic check to what happened to be installed on
+    the runner: on the all-backends GPU venv STRUMPACK *is* present, so the
+    guard fired and the fallback branch below was never reached.  The guard's
+    own message said "if STRUMPACK is now present, delete this guard" -- but
+    deleting it alone would leave the intent unrecorded, so it is replaced by
+    passing ``strumpack_available=False`` explicitly, which is what the branch
+    means and is true on every build.
+
+    Live STRUMPACK behaviour is covered where it belongs, against a real solve,
+    in tests/test_gpu_backend_comparison.py.
+    """
+    from linstabpy.linalg.backends import resolve_auto_factor_backend
+
+    assert resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=False) == (
+        "mumps"
     )
-    result = resolve_auto_factor_backend(900_000, threshold=224_000, strumpack_available=False)
-    assert result == "mumps"
+    # Sibling half of the same branch: below threshold is mumps too, so the
+    # assertion above cannot pass for the wrong reason.
+    assert resolve_auto_factor_backend(1_000, threshold=224_000, strumpack_available=False) == (
+        "mumps"
+    )
 
 
 def test_default_resolution_still_yields_mumps(monkeypatch) -> None:
