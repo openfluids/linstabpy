@@ -247,6 +247,33 @@ def apply_factor_backend(
             "LINSTABPY_FACTOR_PRECISION=single is only supported with "
             f"backend 'superlu_dist' (got backend {backend!r})"
         )
+    if precision == "single":
+        # MEASURED 2026-07-30 on PETSc 3.24.2 (c9, job 536): the only lever this
+        # code has for single-precision factors is the `-pc_precision` option
+        # written below, and PETSc never consumes it -- after pc.setFromOptions()
+        # + ksp.setUp() the key is still sitting unread in the options database.
+        # The observable consequence (job 535) is that "single" and "double"
+        # produce BIT-IDENTICAL results: residual 1.852e-06 either way, and
+        # eigenvalues agreeing to all 12 printed digits.
+        #
+        # So the knob did nothing while reporting success -- the caller asked for
+        # a single-precision factor and silently got a double-precision one. That
+        # is the failure mode AGENTS.md calls out (a default that silently lies),
+        # and it is worse than no feature at all because provenance then records
+        # `factor_precision=single` for a run that was double throughout.
+        #
+        # Refuse instead. When a real mechanism exists (a PETSc release exposing
+        # single-precision SuperLU_DIST factors through petsc4py, or a direct
+        # SuperLU_DIST option), wire it here and delete this guard -- do NOT
+        # delete the guard on its own.
+        raise NotImplementedError(
+            "factor_precision='single' is not supported: this build drives it "
+            "through the PETSc '-pc_precision' option, which PETSc "
+            f"{'.'.join(str(v) for v in _get_petsc().Sys.getVersion())} ignores, "
+            "so the factor would silently be computed in double precision. "
+            "Use factor_precision='double' (the default). Tracked by the "
+            "mixed-precision bead; see docs/COMPUTE_BACKENDS.md."
+        )
     ensure_factor_backend_available(backend)
     PETSc = _get_petsc()
     opts = PETSc.Options()
