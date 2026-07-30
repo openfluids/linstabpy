@@ -631,9 +631,20 @@ def test_absent_backend_probe_and_error_message() -> None:
 
 
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
-def test_ensure_factor_backend_available_real_names_fail_loud_on_cpu_only(backend: str) -> None:
+def test_ensure_factor_backend_available_reports_the_truth_either_way(backend: str) -> None:
+    """Absent -> loud, actionable RuntimeError.  Present -> returns quietly.
+
+    This used to ``pytest.skip`` whenever the backend WAS available, which is
+    honest (the reason is announced) but meant the all-backends venv got no
+    coverage of this function in either direction: the absent branch was skipped
+    there, and the present branch was asserted nowhere.  Both halves are cheap,
+    so assert whichever one applies instead of standing down.
+    """
     if backends.factor_backend_available(backend):
-        pytest.skip(f"SKIPPED: {backend!r} is available in this PETSc build")
+        # Present: the guard must NOT raise. A false alarm here would block a
+        # perfectly good backend at solve time.
+        backends.ensure_factor_backend_available(backend)
+        return
 
     with pytest.raises(RuntimeError) as excinfo:
         backends.ensure_factor_backend_available(backend)
@@ -645,10 +656,14 @@ def test_ensure_factor_backend_available_real_names_fail_loud_on_cpu_only(backen
 
 
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
-def test_apply_factor_backend_real_names_fail_loud_on_cpu_only(backend: str) -> None:
-    if backends.factor_backend_available(backend):
-        pytest.skip(f"SKIPPED: {backend!r} is available in this PETSc build")
+def test_apply_factor_backend_reports_the_truth_either_way(backend: str) -> None:
+    """Absent -> loud RuntimeError.  Present -> the backend is actually applied.
 
+    Same reasoning as the sibling above: skipping on an all-backends build left
+    the "it really works when present" half unasserted everywhere, so a silent
+    substitution of another backend would have gone unnoticed on exactly the
+    machine that has the backends.
+    """
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
     A.assemble()
@@ -658,6 +673,11 @@ def test_apply_factor_backend_real_names_fail_loud_on_cpu_only(backend: str) -> 
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc = ksp.getPC()
         pc.setType(PETSc.PC.Type.LU)
+
+        if backends.factor_backend_available(backend):
+            assert backends.apply_factor_backend(pc, backend) == backend
+            assert pc.getFactorSolverType() == backend
+            return
 
         with pytest.raises(RuntimeError) as excinfo:
             backends.apply_factor_backend(pc, backend)
@@ -823,9 +843,24 @@ def test_strumpack_fgmres_path_matches_plain_mumps_direct_when_available() -> No
         direct_A.destroy()
 
 
-def test_strumpack_fgmres_missing_backend_fails_loudly() -> None:
+def test_strumpack_fgmres_backend_reports_the_truth_either_way() -> None:
+    """strumpack_fgmres: absent STRUMPACK -> loud error; present -> builds a KSP.
+
+    Third and last member of the "skip when the backend is available" family
+    (the siblings are the two ``..._reports_the_truth_either_way`` tests above).
+    Skipping was announced rather than silent, so nothing was hidden -- but it
+    left the strumpack_fgmres selector completely unexercised on the one venv
+    that actually has STRUMPACK, which is where it matters most.
+    """
     if backends.factor_backend_available("strumpack"):
-        pytest.skip("STRUMPACK factor backend is available in this PETSc build")
+        ksp, A = _tiny_shifted_ksp("strumpack_fgmres")
+        try:
+            # The selector must really reach STRUMPACK, not quietly fall back.
+            assert ksp.getPC().getFactorSolverType() == "strumpack"
+        finally:
+            ksp.destroy()
+            A.destroy()
+        return
 
     with pytest.raises(RuntimeError) as excinfo:
         ksp, A = _tiny_shifted_ksp("strumpack_fgmres")
