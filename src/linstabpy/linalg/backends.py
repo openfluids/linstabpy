@@ -266,6 +266,11 @@ def apply_factor_backend(
         # single-precision SuperLU_DIST factors through petsc4py, or a direct
         # SuperLU_DIST option), wire it here and delete this guard -- do NOT
         # delete the guard on its own.
+        #
+        # NOTE: this makes the `precision == "single"` branches further down
+        # (writing and then deleting `pc_precision`) unreachable. They are kept
+        # on purpose as the wiring point for that future mechanism, so the shape
+        # of the fix is obvious; they are not live code today.
         raise NotImplementedError(
             "factor_precision='single' is not supported: this build drives it "
             "through the PETSc '-pc_precision' option, which PETSc "

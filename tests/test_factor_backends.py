@@ -172,14 +172,39 @@ def test_factor_precision_double_is_inert_by_default(monkeypatch) -> None:
     assert absent_pc.factor_solver_type == explicit_pc.factor_solver_type == "mumps"
 
 
-def test_factor_precision_single_superlu_dist_sets_pc_precision(monkeypatch) -> None:
-    options, pc = _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="single")
+def test_factor_precision_single_is_refused_not_silently_downgraded(monkeypatch) -> None:
+    """Requesting a single-precision factor must raise, not quietly give double.
 
-    assert options.set_calls == [
-        ("pc_factor_mat_solver_type", "superlu_dist"),
-        ("pc_precision", "single"),
-    ]
-    assert options.del_calls == ["pc_precision", "pc_factor_mat_solver_type"]
+    This test previously asserted that ``apply_factor_backend`` WROTE
+    ``("pc_precision", "single")`` into the options database -- and it passed,
+    for years, while the feature did nothing at all.  That is the whole lesson:
+    it checked that an option was *written*, never that it had an *effect*.  A
+    fake options object cannot tell the difference, so the no-op sailed through.
+
+    What the option actually does was measured on c9, PETSc 3.24.2:
+    job 536 shows ``pc_precision`` still sitting unconsumed in the options
+    database after ``pc.setFromOptions()`` + ``ksp.setUp()``, and job 535 shows
+    "single" and "double" returning bit-identical results (residual 1.852e-06
+    both ways, eigenvalues equal to 12 digits).
+
+    So the request is now refused outright rather than silently downgraded.
+    When a real mechanism exists, this test fails and must be rewritten to
+    assert the FP32 factor's measured effect -- not that an option was set.
+    """
+    with pytest.raises(NotImplementedError) as excinfo:
+        _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="single")
+
+    message = str(excinfo.value)
+    assert "factor_precision='single' is not supported" in message
+    assert "silently be computed in double precision" in message
+
+
+def test_factor_precision_double_still_writes_only_the_backend_option(monkeypatch) -> None:
+    """The default (double) path is untouched by the single-precision refusal."""
+    options, pc = _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="double")
+
+    assert options.set_calls == [("pc_factor_mat_solver_type", "superlu_dist")]
+    assert options.del_calls == ["pc_factor_mat_solver_type"]
     assert pc.factor_solver_type == "superlu_dist"
 
 
