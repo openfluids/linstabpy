@@ -186,7 +186,19 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
         return_info=True,
     )
 
+    # The probe must have actually run on STRUMPACK -- otherwise "it passed"
+    # could just mean the probe was skipped, which would assert nothing.
+    assert info["backend_probe_ran"] is True
+    assert info["backend_probe_factor_backend"] == "strumpack"
+
+    # Pin the measured accuracy, not merely "no exception".  1.979e-12 on job
+    # 535; the gate is 1e-8.  A regression that degrades the bare LU apply back
+    # towards the old lossy behaviour trips this even if it still clears 1e-8.
+    assert info["backend_probe_residual_rel"] < 1.0e-9, (
+        f"STRUMPACK PREONLY probe residual {info['backend_probe_residual_rel']:.3e} "
+        "regressed; measured 1.979e-12 on PETSc 3.24.2 (c9 job 535)"
+    )
+
     # Clearing the probe is not enough on its own -- a backend could pass the
     # single-RHS probe and still return the wrong spectrum.  Gate on the answer.
     _assert_spectrum_matches_reference(omega, atol=1.0e-9)
-    _assert_existing_acceptance_gate_passes(omega, info)
