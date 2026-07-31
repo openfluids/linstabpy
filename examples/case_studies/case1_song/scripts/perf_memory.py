@@ -12,11 +12,11 @@ from __future__ import annotations
 import csv
 import json
 import os
+import pathlib
 import platform
 import re
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import threading
@@ -875,9 +875,22 @@ def _report_payload(
     return {
         "generated_at_utc": _now_utc(),
         "git_commit": _git_commit(),
-        "hostname": socket.gethostname(),
+        # Opt-in only, mirroring utils/provenance._hostname and
+        # cost_metrics.cost_hardware_tag: this report is a shareable artifact,
+        # so it must not carry machine identity unless asked. Set
+        # LINSTABPY_HOSTNAME to record a (preferably generic) label.
+        "hostname": os.getenv("LINSTABPY_HOSTNAME", "unknown").strip() or "unknown",
         "platform": platform.platform(),
-        "config_path": str(config_path),
+        # Basename, not the absolute path: an absolute config path embeds the
+        # home directory and therefore the username, which AGENTS.md's
+        # public/private one-line test calls out by name (/home/<user>, ...).
+        # The file name is what identifies the run; the directory is machine
+        # detail. Full path stays available under the same opt-in.
+        "config_path": (
+            str(config_path)
+            if os.getenv("LINSTABPY_HOSTNAME")
+            else pathlib.Path(str(config_path)).name
+        ),
         "cases": report_cases,
         "ok_count": sum(case["status"] == "ok" for case in report_cases),
         "fail_count": sum(case["status"] != "ok" for case in report_cases),
