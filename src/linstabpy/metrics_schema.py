@@ -75,7 +75,15 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
     "problem": {
         "case": FieldSpec(_STRING),
         "fd_order": FieldSpec(_INT),
+        # `stride` is a single number by contract, but the mesh is strided
+        # independently in ksi and eta. The emitter sets `stride` to the common
+        # value when they agree and -1 when they do not, and always emits both
+        # axes here so an anisotropic run is never reported as if one axis
+        # governed both. Optional: they are additions, so an older sidecar
+        # without them is still valid.
         "stride": FieldSpec(_INT),
+        "stride_ksi": FieldSpec(_INT, required=False),
+        "stride_eta": FieldSpec(_INT, required=False),
         "nx": FieldSpec(_INT),
         "ny": FieldSpec(_INT),
         "ndof": FieldSpec(_INT),
