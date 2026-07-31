@@ -154,3 +154,51 @@ def test_explicit_output_path_is_honored_unchanged(tmp_path, monkeypatch):
     monkeypatch.setenv("LINSTABPY_CASE_OUTPUT_NPZ", str(explicit))
 
     assert _output_npz_path({"config_md5": "ignored", "git_sha": "ignored"}) == explicit.resolve()
+
+
+def test_provenance_carries_no_machine_identity_by_default(monkeypatch) -> None:
+    """No provenance field may leak the host name unless explicitly asked for.
+
+    ``cost_hardware_tag`` has enforced this policy for a long time, guarded by
+    ``test_cost_metrics.py::test_hardware_tag_default_is_unknown_not_hostname``.
+    ``hostname`` sat in the very same artifact calling ``socket.gethostname()``
+    unconditionally, so every sidecar shipped the fully-qualified host name
+    beside the field that was carefully withholding it -- one was found in a
+    saved gain-map sidecar (``map_s2/pt_b9_f0.metrics.json``).
+
+    The guard was real; it just had a sibling nobody had checked. This test is
+    that sibling's guard, and it sweeps EVERY field rather than naming one, so
+    the next field added cannot walk around the policy the same way.
+    """
+    import socket
+
+    monkeypatch.delenv("LINSTABPY_HOSTNAME", raising=False)
+
+    provenance = collect_provenance(None)
+
+    real_host = socket.gethostname()
+    short_host = real_host.split(".")[0]
+
+    assert provenance["hostname"] == "unknown"
+    for key, value in provenance.items():
+        assert real_host not in value, f"provenance[{key!r}] leaks the host name"
+        # Guard the short form too: a bare "c9"-style name would otherwise slip
+        # through a check written only against the FQDN. Skip absurdly short
+        # host names, which would match everything and make the test useless.
+        if len(short_host) >= 4:
+            assert short_host not in value, f"provenance[{key!r}] leaks the short host name"
+
+
+def test_provenance_hostname_is_recorded_when_explicitly_requested(monkeypatch) -> None:
+    """The opt-in still works: private runs can label which machine ran them.
+
+    Withholding the host name by default must not remove the ability to tell
+    c8 from c9 in a cost study -- it just makes recording it a deliberate act.
+    """
+    monkeypatch.setenv("LINSTABPY_HOSTNAME", "workstation-A")
+    assert collect_provenance(None)["hostname"] == "workstation-A"
+
+    # Blank or whitespace-only must fall back, never emit an empty field that
+    # would read as "no machine" while actually meaning "misconfigured".
+    monkeypatch.setenv("LINSTABPY_HOSTNAME", "   ")
+    assert collect_provenance(None)["hostname"] == "unknown"

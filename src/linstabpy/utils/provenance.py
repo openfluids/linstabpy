@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import socket
 import subprocess
 import sys
 from collections.abc import Callable
@@ -130,12 +129,35 @@ def _mpi_impl() -> str:
     return _probe_string(probe)
 
 
+def _hostname() -> str:
+    """Machine label for artifacts: opt-in, never the real host name by default.
+
+    Artifacts are shared -- they travel with papers, get committed, and are the
+    intended Zenodo/companion-data product -- so nothing here may carry machine
+    identity unless the operator asks for it. ``cost_hardware_tag`` in
+    ``utils/cost_metrics.py`` already implements exactly this policy (default
+    ``"unknown"``, opt-in through an environment variable) and is guarded by
+    ``test_hardware_tag_default_is_unknown_not_hostname``.
+
+    This field did not follow it. It called ``socket.gethostname()``
+    unconditionally, so every artifact carried the fully-qualified host name
+    right next to the field that was carefully withholding it -- a real one was
+    found in a saved gain-map sidecar. The privacy guard was real but had a
+    sibling that walked straight around it.
+
+    Set ``LINSTABPY_HOSTNAME`` to record a label deliberately. Prefer a
+    generic one ("workstation A", "gpu-node") over the real host name for
+    anything that may become public; see AGENTS.md, public/private boundary.
+    """
+    return os.getenv("LINSTABPY_HOSTNAME", "unknown").strip() or "unknown"
+
+
 def collect_provenance(config_path: str | Path | None) -> dict[str, str]:
     """Collect provenance fields stored in runtime artifacts."""
     provenance = {
         "git_sha": _git_head_sha(),
         "config_md5": _config_md5(config_path),
-        "hostname": socket.gethostname(),
+        "hostname": _hostname(),
         "compute_mode": _compute_mode_from_env(),
         "mpi_stack": os.getenv("LINSTABPY_MPI_STACK", "unknown").strip() or "unknown",
         "python_version": sys.version.split()[0],
