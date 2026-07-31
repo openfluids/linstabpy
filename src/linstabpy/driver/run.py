@@ -715,6 +715,16 @@ class _AssemblyStageResult:
     overlap_indices: np.ndarray
     column_zeroed_dirichlet_indices: np.ndarray
     constrained_dirichlet_indices: np.ndarray
+    #: Nonzeros in the assembled stability operator (after BCs).
+    #:
+    #: Carried out of this stage rather than only written to the log line
+    #: "operator assembled with BCs: shape=..., nnz=...".  It is a required
+    #: field of the metrics sidecar's `problem` block, and because it was
+    #: local to this function the sidecar shipped it missing -- so the gain-map
+    #: sweep had to recover it by grepping the driver's own log output.  A
+    #: number the cost study depends on should be returned, not parsed back out
+    #: of prose (Front H).
+    nnz: int
 
 
 def _stage_assemble_operators(
@@ -751,6 +761,12 @@ def _stage_assemble_operators(
         bc_indices = EMPTY_INT64
         L0_resolv = L0
         bc_analysis = analyze_bc_recipe(mesh, idx, bc_recipe)
+        # This rank holds a placeholder, so its nonzero count is 0 and is NOT
+        # the operator's real nnz. Only rank 0 writes the metrics sidecar, and
+        # rank 0 always takes the else-branch below, so the reported nnz is
+        # always the measured one. Set here purely so the field is defined on
+        # every rank rather than raising NameError at the return.
+        nnz = int(L0.nnz)
     else:
         stage_start = _stage_start()
         _log("assembling LNSE operator")
@@ -867,6 +883,7 @@ def _stage_assemble_operators(
         overlap_indices=overlap_indices,
         column_zeroed_dirichlet_indices=column_zeroed_dirichlet_indices,
         constrained_dirichlet_indices=constrained_dirichlet_indices,
+        nnz=nnz,
     )
 
 
@@ -1705,6 +1722,32 @@ def run() -> None:
                 St=St,
                 beta=beta,
                 fd_order=fd_order,
+                # --- metrics sidecar `problem` block (Front H) -------------------
+                # These shipped missing, so every metrics.json had `problem: {}`
+                # and the driver logged a schema-validation failure for each run.
+                # The cost study was being assembled from the NPZ instead, with
+                # ndof/nnz recovered by grepping the driver's own log line -- a
+                # workaround that breaks the moment the log wording changes.
+                case=case_dir.name,
+                nx=int(mesh.X.shape[1]),
+                ny=int(mesh.X.shape[0]),
+                ndof=int(mesh.ngp * 5),
+                nnz=int(assembly_result.nnz),
+                # beta here is the nondimensional spanwise wavenumber beta*L, so
+                # the streamwise-independent spanwise wavelength is lambda/L =
+                # 2*pi/beta. Cross-check against STATUS.md: beta*L = 19.2 gives
+                # 2*pi/19.2 = 0.327, matching the recorded lambda/L ~ 0.327.
+                # beta = 0 is a legitimate 2D run (infinite spanwise wavelength);
+                # report inf rather than dividing by zero.
+                lambda_over_L=float(2.0 * np.pi / beta) if beta != 0.0 else float("inf"),
+                # One `stride` is required by the schema, but the mesh is strided
+                # independently in ksi and eta. Emit the common value when they
+                # agree; when they do not, -1 flags "not a single number" instead
+                # of silently reporting one axis as if it governed both. The two
+                # real values are always emitted alongside.
+                stride=int(stride_ksi) if stride_ksi == stride_eta else -1,
+                stride_ksi=int(stride_ksi),
+                stride_eta=int(stride_eta),
                 alpha_filter=np.array(str(alpha_filter)),
                 use_matlab_sponge_aux=use_matlab_sponge_aux,
                 sponge_enabled=sponge_enabled,
@@ -1847,7 +1890,14 @@ def run() -> None:
                 solver_apply_to_resolvent_effective=np.bool_(eps_resolv > 0.0),
                 provenance_config_hash=np.bytes_(config_hash[:16].encode()),
                 provenance_linstabpy_git_sha=np.bytes_(git_sha.encode()),
-                provenance_factor_backend=np.array(str(factor_backend_provenance)),
+                # Plain str, not np.array(str(...)): the metrics sidecar is built
+                # from this payload dict before it reaches np.savez, and the
+                # schema requires a string here -- a 0-d ndarray produced
+                # "provenance_factor_backend: expected str or str_, got ndarray"
+                # on every single run. np.savez stores a str as a 0-d '<U' array
+                # exactly as before, so the NPZ contract and `.item()` readers
+                # are unchanged.
+                provenance_factor_backend=str(factor_backend_provenance),
                 provenance_factor_precision=np.array(FACTOR_PRECISION),
                 stability_missing_conjugate_partner_indices=np.asarray(
                     _conj_diag["missing_partner_indices"], dtype=np.int32
