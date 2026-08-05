@@ -321,6 +321,7 @@ class ResolventEpsCfg:
     monitor: bool
     monitor_every: int
     ncv: int | None
+    forcing_norm: str
 
     @classmethod
     def from_mapping(
@@ -338,6 +339,7 @@ class ResolventEpsCfg:
                 cfg, "monitor_every", env, "LINSTABPY_RESOLVENT_EPS_MONITOR_EVERY", 10
             ),
             ncv=int(cfg["ncv"]) if cfg is not None and "ncv" in cfg else None,
+            forcing_norm=_scfg(cfg, "forcing_norm", env, "LINSTABPY_RESOLVENT_FORCING_NORM", "chu"),
         )
 
 

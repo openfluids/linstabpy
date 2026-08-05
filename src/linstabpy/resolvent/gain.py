@@ -31,9 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 class WeightedNormalOperator:
-    """PETSc MatShell context for ``invW * H^H * W * H``."""
+    """PETSc MatShell context for weighted resolvent gain eigenproblem.
 
-    def __init__(self, op: ResolventOperator, W_diag: np.ndarray, ndof: int) -> None:
+    Computes either invW * H^H * W * H (when forcing_norm="chu") or
+    H^H * W * H (when forcing_norm="l2").
+    """
+
+    def __init__(
+        self, op: ResolventOperator, W_diag: np.ndarray, ndof: int, forcing_norm: str = "chu"
+    ) -> None:
         self.op = op
         W_vec = np.asarray(W_diag, dtype=float)
         if W_vec.ndim != 1 or W_vec.size != ndof:
@@ -43,6 +49,9 @@ class WeightedNormalOperator:
         invW_vec = 1.0 / W_vec
         self.W_vec = W_vec
         self.invW_vec = invW_vec
+        if forcing_norm not in ("chu", "l2"):
+            raise ValueError(f"forcing_norm must be 'chu' or 'l2', got {forcing_norm!r}")
+        self.forcing_norm = forcing_norm
         self.ndof = ndof
 
     def mult(self, mat, x, y):  # noqa: ANN001, ANN201
@@ -53,7 +62,10 @@ class WeightedNormalOperator:
         v = op.apply(v)
         v = W_vec * v
         v = op.apply_adjoint(v)
-        weighted = invW_vec * v
+        if self.forcing_norm == "chu":
+            weighted = invW_vec * v
+        else:  # forcing_norm == "l2"
+            weighted = v
         if y.getComm().getSize() == 1:
             y.setArray(weighted)
         else:
@@ -87,17 +99,20 @@ def compute_leading_gains(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute leading weighted resolvent gains and modes."""
     # ------------------------------------------------------------------
-    # 4. Build PETSc MatShell for HtrH(v) = invW * H^H * W * H(v)
+    # 4. Build PETSc MatShell for the weighted normal operator.
+    #    With forcing_norm="chu": HtrH(v) = invW * H^H * W * H(v)
+    #    With forcing_norm="l2":  HtrH(v) = H^H * W * H(v)
     # ------------------------------------------------------------------
-    weighted_op = WeightedNormalOperator(op, W_diag, ndof)
+    forcing_norm = cfg.resolvent.eps.forcing_norm
+    weighted_op = WeightedNormalOperator(op, W_diag, ndof, forcing_norm)
     W_vec = weighted_op.W_vec
     invW_vec = weighted_op.invW_vec
 
     htrh_shell = weighted_op.create_shell()
 
     # ------------------------------------------------------------------
-    # 5. SLEPc EPS on HtrH.  This keeps the MATLAB-parity formulation: solve
-    #    the weighted normal operator, then recover response modes through H.
+    # 5. SLEPc EPS on the weighted normal operator.  This keeps the MATLAB-parity
+    #    formulation: solve the eigenproblem, then recover response modes through H.
     # ------------------------------------------------------------------
     ncv = _resolve_resolvent_ncv(ndof, n_modes, cfg.resolvent.eps.ncv)
     eps_tol = cfg.resolvent.eps.eps_tol
@@ -162,7 +177,12 @@ def compute_leading_gains(
             gains[i] = sigma
 
             forcing = vec_to_numpy(vr)
-            norm_sq = float(np.real(np.vdot(forcing, W_vec * forcing)))
+            if forcing_norm == "chu":
+                # Normalize in W-inner product for Chu norm
+                norm_sq = float(np.real(np.vdot(forcing, W_vec * forcing)))
+            else:  # forcing_norm == "l2"
+                # Normalize in plain L2 norm for l2
+                norm_sq = float(np.real(np.vdot(forcing, forcing)))
             if norm_sq > 0.0:
                 forcing = forcing / np.sqrt(norm_sq)
             forcings[:, i] = forcing

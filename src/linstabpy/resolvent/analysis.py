@@ -182,7 +182,10 @@ def resolvent_analysis(
     responses : ndarray, shape (ndof, n_modes)
         Optimal response modes (columns), normalised in the *W*-inner product.
     forcings : ndarray, shape (ndof, n_modes)
-        Optimal forcing modes (columns), normalised in the *W*-inner product.
+        Optimal forcing modes (columns). Normalisation is determined by
+        ``solver_cfg["resolvent"]["eigen"]["forcing_norm"]``: normalised in the
+        *W*-inner product if ``"chu"`` (default), or in the plain L2 norm if
+        ``"l2"``.
     rho_fwd, rho_adj : ndarray, optional
         Returned only when ``residuals=True``.
     info : dict, optional
@@ -277,6 +280,7 @@ def _resolvent_analysis_impl(
                 invW_vec,
                 op.apply,
                 op.apply_adjoint,
+                cfg.resolvent.eps.forcing_norm,
             )
 
         return gains, responses, forcings, rho_fwd, rho_adj
@@ -292,6 +296,7 @@ def _compute_resolvent_svd_residuals_from_apply(
     invW_vec: np.ndarray,
     apply_H: Callable[[np.ndarray], np.ndarray],
     apply_H_adj: Callable[[np.ndarray], np.ndarray],
+    forcing_norm: str = "chu",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute SVD residuals from already-constructed resolvent actions."""
     n_modes = gains.shape[0]
@@ -315,20 +320,48 @@ def _compute_resolvent_svd_residuals_from_apply(
         # resolvent/docs/mpi_resolvent_residual_investigation.md.
         return float(np.sqrt(max(np.real(residual.conj() @ (W_vec * residual)), 0.0)))
 
+    def _l2_norm(residual: np.ndarray) -> float:
+        # Plain L2 norm: sqrt(r^H r). Used for both numerator and denominator
+        # to maintain consistency, regardless of the forcing norm choice.
+        return float(np.sqrt(max(np.real(residual.conj() @ residual), 0.0)))
+
+    # Select the norm function based on forcing_norm
+    if forcing_norm == "chu":
+        norm_fn = _w_norm
+        denominator_norm_fn = _w_norm
+    else:  # forcing_norm == "l2"
+        norm_fn = _l2_norm
+        denominator_norm_fn = _l2_norm
+
     for i in range(n_modes):
         sigma = gains[i]
         v_i = forcings[:, i]
         u_i = responses[:, i]
-        # W-norm: sqrt(v^H W v). For properly W-normalised forcing modes this
-        # equals 1, but computing it keeps the residuals meaningful after any
-        # filter projection or small eigensolver normalization drift.
-        w_norm_v = max(_w_norm(v_i), 1e-300)
+        # Compute norm of v_i using the same norm as the residuals.
+        # For "chu": sqrt(v^H W v); for "l2": sqrt(v^H v).
+        # For properly normalised forcing modes this equals 1, but computing it
+        # keeps the residuals meaningful after any filter projection or small
+        # eigensolver normalization drift.
+        norm_v = max(denominator_norm_fn(v_i), 1e-300)
 
         Hv = apply_H(v_i)
-        rho_fwd[i] = _w_norm(Hv - sigma * u_i) / (sigma * w_norm_v)
+        rho_fwd[i] = norm_fn(Hv - sigma * u_i) / (sigma * norm_v)
 
+        # The adjoint relation the singular triplet satisfies depends on which
+        # operator was actually solved, and the two differ by exactly invW:
+        #
+        #   chu:  M = invW H^H W H,  M v = s^2 v  =>  invW H^H (W u) = s v
+        #   l2:   M =      H^H W H,  M v = s^2 v  =>       H^H (W u) = s v
+        #
+        # Both follow from u = H v / s together with H^H W H v = s^2 v. Keeping
+        # the invW in the l2 branch measures a relation the l2 triplet does not
+        # satisfy -- it evaluates to s*||(invW - I) v||, large whenever W is not
+        # the identity, so the adjoint gate would reject every l2 run. Checked
+        # numerically on a dense 6x6 fixture with W spanning 1e-3..1e3: the
+        # correct form gives 1e-13 where the other gives 6e+04.
         HH_Wu = apply_H_adj(W_vec * u_i)
-        rho_adj[i] = _w_norm(invW_vec * HH_Wu - sigma * v_i) / (sigma * w_norm_v)
+        adj_image = invW_vec * HH_Wu if forcing_norm == "chu" else HH_Wu
+        rho_adj[i] = norm_fn(adj_image - sigma * v_i) / (sigma * norm_v)
 
         print(f"{i + 1:>4}  {sigma:>14.6g}  {rho_fwd[i]:>12.4e}  {rho_adj[i]:>12.4e}")
 
