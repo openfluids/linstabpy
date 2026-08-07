@@ -21,6 +21,7 @@ import pytest
 
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
 from linstabpy.driver.preflight import (
+    METRIC_COUPLING_GATE,
     SAWTOOTH_GAIN_SCALE,
     Advisory,
     baseflow_advisories,
@@ -28,6 +29,7 @@ from linstabpy.driver.preflight import (
     format_advisories,
     format_banner,
     format_summary,
+    metric_cross_coupling,
     result_advisories,
     translate_solver_error,
 )
@@ -118,15 +120,54 @@ def test_enabled_with_zero_epsilon_is_flagged():
     assert "DISS-EPS-ZERO" in codes(config_advisories(cfg))
 
 
-def test_sawtooth_beta_band_flagged_only_without_dissipation():
-    hot = _cfg(numerics__beta=110.0, numerics__operator_dissipation={"enabled": False})
-    assert "BETA-SAWTOOTH-BAND" in codes(config_advisories(hot))
-    # Damped run in the same band: the band is not itself an error.
-    damped = _cfg(numerics__beta=110.0)
-    assert "BETA-SAWTOOTH-BAND" not in codes(config_advisories(damped))
-    # Outside the band, undamped: DISS-ABSENT fires but not the band warning.
+def test_no_advisory_depends_on_beta():
+    """beta must not trigger a sawtooth warning at any value.
+
+    A BETA-SAWTOOTH-BAND advisory used to fire for beta in 90-135 without effective
+    dissipation. It was withdrawn 2026-08-07: the band had never actually been run
+    with the bare operator, and when it was (beta = 110, two resolutions) the gain
+    came out 1.3098e+02 against 1.3099e+02 damped -- 0.008%. Whether the odd-even
+    mode exists is decided by the MESH, not by the spanwise wavenumber, so no
+    advisory here may key on beta.
+
+    This is the inverse of the old test on purpose. If someone reintroduces a
+    beta-keyed warning, this fails.
+    """
+    inside = _cfg(numerics__beta=110.0, numerics__operator_dissipation={"enabled": False})
     outside = _cfg(numerics__beta=19.04, numerics__operator_dissipation={"enabled": False})
-    assert "BETA-SAWTOOTH-BAND" not in codes(config_advisories(outside))
+    assert codes(config_advisories(inside)) == codes(config_advisories(outside))
+    assert not any("BETA" in c for c in codes(config_advisories(inside)))
+    # Damped, inside the old band: still nothing beta-specific.
+    assert not any("BETA" in c for c in codes(config_advisories(_cfg(numerics__beta=110.0))))
+
+
+def test_metric_cross_coupling_separates_rectilinear_from_curvilinear():
+    """Zero for a tensor mesh -- exactly, not approximately -- and O(1) once bent.
+
+    The rectilinear case is the load-bearing one: x depends only on xi and y only on
+    eta, so the cross-metrics are identically zero and the odd-even mode has nowhere
+    to live. Stretching must not change that, which is why the tensor mesh below is
+    strongly graded in y and still expected to read zero.
+    """
+    xi = np.linspace(0.0, 2.0, 40)
+    eta = np.geomspace(1.0e-4, 1.0, 30)  # 4 decades of stretching
+    X_rect, Y_rect = np.meshgrid(xi, eta, indexing="ij")
+    assert metric_cross_coupling(X_rect, Y_rect) == pytest.approx(0.0, abs=1e-14)
+    assert metric_cross_coupling(X_rect, Y_rect) < METRIC_COUPLING_GATE
+
+    # Bend it: the wall rises with x, so x-lines are no longer straight in y.
+    Y_curv = Y_rect + 0.3 * np.sin(np.pi * X_rect / 2.0)
+    assert metric_cross_coupling(X_rect, Y_curv) > METRIC_COUPLING_GATE
+
+    # A shear that tilts x-lines is caught through the other ratio.
+    X_shear = X_rect + 0.5 * Y_rect
+    assert metric_cross_coupling(X_shear, Y_rect) > METRIC_COUPLING_GATE
+
+
+def test_metric_cross_coupling_rejects_a_degenerate_mesh():
+    flat = np.zeros((5, 5))
+    with pytest.raises(ValueError, match="degenerate"):
+        metric_cross_coupling(flat, flat)
 
 
 @pytest.mark.parametrize(
