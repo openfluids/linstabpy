@@ -126,8 +126,11 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 "warning",
                 "dissipation is enabled but apply_to_resolvent is false, so the resolvent "
                 "runs on the BARE operator while the eigenvalue problem does not",
-                "set numerics.operator_dissipation.apply_to_resolvent = true, or accept "
-                "grid-scale sawtooth in the gain (spurious high-beta streaks, gain ~1e6)",
+                "set numerics.operator_dissipation.apply_to_resolvent = true so the two "
+                "stages agree, or set enabled = false so the artifact records that BOTH "
+                "ran bare; a silent difference between the two stages is a defect "
+                "whatever its size, and on a mesh with nonzero metric cross-coupling it "
+                "is not small",
             )
         )
     if run_stab and od_enabled and not a2s:
