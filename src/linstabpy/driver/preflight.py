@@ -38,17 +38,40 @@ __all__ = [
     "format_advisories",
     "format_banner",
     "format_summary",
+    "metric_cross_coupling",
     "result_advisories",
     "translate_solver_error",
 ]
 
-# The spanwise band where grid-scale sawtooth dominates on this operator family.
-# Documented from repeated SWBLI runs: inside it, an under-damped operator produces
-# near-pole streaks that look like a physical high-beta response.
+# WITHDRAWN 2026-08-07 -- kept only so an old import does not break.
+#
+# This encoded a claim that no measurement supported: that grid-scale sawtooth
+# "dominates" for beta in 90-135. It was checked directly, by running the bare
+# operator at beta = 110 at two resolutions (the band had never been entered
+# undamped): the gain came out 1.3098e+02 against 1.3099e+02 damped, a difference
+# of 0.008%. Every gain map in the source project stops at beta = 80 with a maximum
+# of 689.9, and a controlled bare-vs-damped comparison at a single point measured
+# 1.2%. There is no band.
+#
+# What actually decides whether the odd-even mode exists is the MESH -- see
+# `metric_cross_coupling` below. Nothing in this module uses this constant any more.
 SAWTOOTH_BETA_BAND = (90.0, 135.0)
-# A leading Chu-norm gain above this is not a physical amplification on the cases this
-# code targets; it is the signature of an under-damped odd-even mode.
+
+# A leading Chu-norm gain above this is far outside the O(1e2-1e3) these cases
+# produce, so it is worth a warning -- but the warning no longer asserts a cause.
+# The historical "gain ~1e6 means sawtooth" reading was a conflation: on a globally
+# UNSTABLE base flow the plain resolvent has poles on the real omega axis and the
+# gain diverges for an honest reason (a missing discount, not missing dissipation).
 SAWTOOTH_GAIN_SCALE = 1.0e5
+
+#: Metric cross-coupling above which the mesh mixes grid-scale content between its
+#: two directions, so the operator admits an odd-even mode that dissipation or a
+#: filter must control. Measured on five meshes: 7e-18, 2e-17 and 2e-18 on
+#: rectilinear ones (Savarino 300x300, Song 600x200 box, MATLAB box) against 2.6e-01
+#: on curvilinear ones (curved-wall LES, and the same field on a coarser mesh).
+#: Sixteen orders of magnitude, so any threshold in 1e-10..1e-3 separates them
+#: identically; 1e-8 is chosen only because it is far from both.
+METRIC_COUPLING_GATE = 1.0e-8
 # Freestream normalisation: rho = u = T = 1. A base flow that misses this by more than
 # the tolerance has been scaled with the wrong convention, which silently invalidates
 # every eigenvalue and gain computed from it.
@@ -119,14 +142,23 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
             )
         )
     if (run_stab or run_res) and not od_enabled:
+        # Deliberately phrased as "measure it", not "you are wrong". Whether the bare
+        # operator admits the odd-even mode at all depends on the MESH: a rectilinear
+        # tensor mesh has zero metric cross-coupling and cannot support it, and on
+        # such a mesh dissipation has measured 0.008%-1.4% on the gain for +15% nnz
+        # and roughly triple the wall time. Warning unconditionally taught people to
+        # scroll past this, which is how a real case gets waved through.
         out.append(
             Advisory(
                 "DISS-ABSENT",
                 "warning",
-                "no artificial dissipation: the bare finite-difference operator admits an "
-                "odd-even (sawtooth) mode that contaminates eigenvalues and gains",
-                "set numerics.operator_dissipation.enabled = true and tune epsilon AT THIS "
-                "RESOLUTION; a value tuned on a coarser grid does not transfer",
+                "no artificial dissipation: on a mesh whose two directions exchange "
+                "grid-scale content, the bare operator admits an odd-even (sawtooth) mode "
+                "that contaminates eigenvalues and gains",
+                "check the mesh with metric_cross_coupling(): above "
+                f"{METRIC_COUPLING_GATE:.0e} enable numerics.operator_dissipation and tune "
+                "epsilon AT THIS MESH (a value tuned on another grid does not transfer); "
+                "at or below it, record the coupling and run undamped on purpose",
             )
         )
     if od_enabled and od_eps == 0.0:
@@ -141,20 +173,11 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
             )
         )
 
-    beta = _get(config, "numerics.beta", None)
-    if isinstance(beta, (int, float)) and not isinstance(beta, bool):
-        lo, hi = SAWTOOTH_BETA_BAND
-        if lo <= abs(float(beta)) <= hi and (not od_enabled or od_eps <= 0.0):
-            out.append(
-                Advisory(
-                    "BETA-SAWTOOTH-BAND",
-                    "warning",
-                    f"beta = {beta} lies in the {lo:g}-{hi:g} band where grid-scale sawtooth "
-                    "dominates, and this run has no effective dissipation",
-                    "enable dissipation and re-tune epsilon before interpreting any structure "
-                    "found at this spanwise wavenumber",
-                )
-            )
+    # The BETA-SAWTOOTH-BAND advisory that used to sit here is REMOVED, not disabled.
+    # It fired on beta in 90-135 with no effective dissipation, on the strength of a
+    # claim that no run supported; when the band was finally entered with the bare
+    # operator the effect measured 0.008%. A warning that fires on correct runs is
+    # worse than no warning, because it trains the reader to ignore the channel.
 
     sk = _get(config, "numerics.stride_ksi", 1)
     se = _get(config, "numerics.stride_eta", 1)
@@ -265,6 +288,62 @@ def baseflow_advisories(
         )
     return out
 
+
+
+def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
+    """How strongly does this mesh mix the two directions at the grid scale?
+
+    Returns ``max(|dx/deta|)/max(|dx/dxi|)`` and its transpose, whichever is larger --
+    a dimensionless number that is **exactly zero** for a rectilinear tensor mesh and
+    O(1) for a body-fitted curvilinear one.
+
+    Why this is the quantity that matters. The full 2-D metric transform builds
+
+        Dx_new = Ji11 * Dx + Ji12 * Dy      Ji12 = -(Dx @ y) / detJ
+        Dy_new = Ji21 * Dx + Ji22 * Dy      Ji21 = -(Dy @ x) / detJ
+
+    On a rectilinear mesh ``x = x(xi)`` and ``y = y(eta)``, so ``Dx @ y`` and ``Dy @ x``
+    vanish identically: each derivative is a pure rescaling of its own one-dimensional
+    stencil and the two directions' grid-scale null spaces never meet. The odd-even mode
+    has nowhere to live. Bend the mesh and those terms become O(1) -- the x-derivative
+    now contains the y-stencil, the second derivatives acquire the cross terms
+    ``Dxy = Dx @ Dy`` and ``Dyx = Dy @ Dx``, and the operator supports a mode that
+    neither one-dimensional stencil admits alone.
+
+    **Stretching is not what does it; bending is.** A mesh may stretch by two orders of
+    magnitude in the wall-normal direction and still return exactly zero here.
+
+    Measured on five meshes: 7e-18, 2e-17, 2e-18 (rectilinear) against 2.6e-01 twice
+    (curvilinear). The same at 2nd, 4th and 6th order, because this is a property of the
+    mapping and not of the stencil -- which also means it can be computed before any
+    operator is assembled.
+
+    Parameters
+    ----------
+    X, Y : np.ndarray
+        Physical coordinates on the computational grid, same 2-D shape.
+
+    Returns
+    -------
+    float
+        Cross-coupling. Compare against :data:`METRIC_COUPLING_GATE`.
+    """
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y, dtype=float)
+    if X.shape != Y.shape or X.ndim != 2:
+        raise ValueError(f"X and Y must be the same 2-D shape, got {X.shape} and {Y.shape}")
+
+    dx_dxi = np.abs(np.diff(X, axis=0)).max()
+    dx_deta = np.abs(np.diff(X, axis=1)).max()
+    dy_dxi = np.abs(np.diff(Y, axis=0)).max()
+    dy_deta = np.abs(np.diff(Y, axis=1)).max()
+
+    # Guard a degenerate direction rather than dividing by zero: a mesh with no extent
+    # along one axis is not curvilinear, it is broken, and that is a different error.
+    if dx_dxi <= 0.0 or dy_deta <= 0.0:
+        raise ValueError("degenerate mesh: no extent along one computational direction")
+
+    return float(max(dx_deta / dx_dxi, dy_dxi / dy_deta))
 
 def result_advisories(
     *,
