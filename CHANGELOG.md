@@ -7,6 +7,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc3] - 2026-08-10
+
 ### Changed
 - **BREAKING (default):** `numerics.operator_dissipation.apply_to_resolvent` now
   defaults to `true` instead of `false`, matching `apply_to_stability`. Previously,
@@ -195,7 +197,7 @@ examples.
 - Case 1 Song base flow is now genericised in the config comment: `song_box_evp.jsonc`
   reads "Song SWBLI box" (removed author name).
 
-## [1.0.0-rc1] - 2026-06-18
+## [1.0.0rc1] - 2026-06-18
 
 Physics-campaign freeze release candidate: the turnkey `resolvent_map(base_flow,
 beta_range, f_range, cfg)` entry point (base-flow in, (β,f) gain map + cost metrics out)
@@ -434,7 +436,10 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc3...HEAD
+[1.0.0rc3]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc2...v1.0.0rc3
+[1.0.0rc2]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc1...v1.0.0rc2
+[1.0.0rc1]: https://github.com/openfluids/linstabpy/releases/tag/v1.0.0rc1
 [0.0.5]: https://github.com/openfluids/linstabpy/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/openfluids/linstabpy/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/openfluids/linstabpy/compare/v0.0.1...v0.0.3
