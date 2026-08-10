@@ -59,6 +59,18 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   a lint never shown to fire cannot be distinguished from one that cannot fire.
 
 ### Fixed
+- The single-point resolvent path now honours `input_region` and `output_region`, and no
+  longer forces the response mask to equal the forcing mask. `driver.run._stage_run_resolvent`
+  built its own boundary-condition-only diagonal and then set `C_mat = B_mat.copy()`, so two
+  things went wrong at once and neither said anything: a config naming a forcing region ran
+  with no region at all, because only `solvers.router.resolvent_map` ever read those keys; and
+  even a correct region was copied onto the response, which turns an asymmetric problem
+  (restricted forcing, free response) into a different one. Both paths now call the same
+  `_forcing_response_mats` helper, so one config key means one thing everywhere, and `C`
+  defaults to the boundary-condition mask rather than to `B`. Runs that set no region are
+  unchanged: `B` and `C` are still the boundary-condition mask, asserted byte-for-byte by a
+  regression test. `scripts/validation/song_2023/song_2023.py` builds its masks separately and
+  cannot honour a region, so it now raises instead of ignoring the key.
 - MPI is now initialised at `MPI_THREAD_MULTIPLE` on every import path, restoring the
   STRUMPACK factorization backend. Whichever library calls `MPI_Init` first fixes the
   thread level for the process, and it can only be *requested* at init — never raised

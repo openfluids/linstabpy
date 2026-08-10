@@ -1256,6 +1256,14 @@ def main() -> None:
     args = _parse_args()
     config_path = _resolve_config_path(args.config)
     cfg = load_jsonc(config_path)
+    for region_key in ("input_region", "output_region"):
+        if region_key in cfg:
+            raise ValueError(
+                f"song_2023.py does not honour {region_key!r}: run_case() builds a plain "
+                "BC-only forcing/response mask and has no mesh/idx wiring to apply a region "
+                "mask. Remove this key from the config, or use the driver/run.py or "
+                "resolvent_map single-point/sweep paths, which do honour it."
+            )
     baseflow_input = _resolve_baseflow_input_options(cfg)
     n_modes_stability_request = _resolve_stability_request_count(cfg)
     omega_target, frequency_source = _resolve_frequency_target(cfg)
