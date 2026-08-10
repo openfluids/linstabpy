@@ -7,6 +7,20 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Fixed
+- A forcing/response region now **composes** with the boundary-condition mask instead of
+  replacing it. `mask_bc_forcing` defaults to `true` so that constrained rows are never
+  forced, but supplying `input_region` or `output_region` used to skip that default
+  entirely (the mask was only built when the region matrix was `None`), so a region
+  reaching a wall or inlet forced the very rows that encode the boundary condition. A
+  boundary-condition row is a constraint, not an equation: forcing it makes the penalty
+  term fight the condition it encodes, and the resulting gain is not a physical response.
+  The region now says *where the user wants to force* and the boundary-condition mask says
+  *where forcing has meaning*, with the number of dropped rows logged. A region that
+  selects only constrained rows raises instead of returning an all-zero operator, and
+  `mask_bc_forcing: false` still allows forcing them deliberately. No configuration
+  shipped with the project sets either region key, so no shipped run changes.
+
 ## [1.0.0rc3] - 2026-08-10
 
 ### Changed

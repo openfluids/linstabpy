@@ -429,6 +429,7 @@ def _build_region_mask(
     solver_cfg: Mapping[str, Any],
     *,
     name: str = "region",
+    bc_indices: np.ndarray | None = None,
 ) -> Any:
     """Build a sharp 0/1 diagonal forcing/response mask from a user region.
 
@@ -513,6 +514,30 @@ def _build_region_mask(
             bbox[3],
         )
 
+    if bc_indices is not None:
+        # A boundary-condition row is a constraint, not an equation, so forcing it is
+        # meaningless: the penalty makes the response violate the very condition it
+        # encodes. The region and the BC mask therefore COMPOSE -- the region says
+        # where the user wants to force, the BC mask says where forcing has meaning.
+        # Without this a region mask silently switches off `mask_bc_forcing`, which
+        # defaults to true precisely to keep forcing off those rows.
+        bc = np.asarray(bc_indices, dtype=np.int64).reshape(-1)
+        bc = bc[(bc >= 0) & (bc < int(ndof))]
+        removed = int(np.count_nonzero(diag[bc]))
+        diag[bc] = 0.0
+        LOGGER.info(
+            "resolvent_map region_mask name=%s composed with bc mask: "
+            "%d of %d selected dofs dropped as boundary-condition rows",
+            name,
+            removed,
+            removed + int(np.count_nonzero(diag)),
+        )
+        if not np.any(diag):
+            raise ValueError(
+                f"{name} selects only boundary-condition rows: after composing with the "
+                "BC mask nothing is left to force. Widen the region, or set "
+                "mask_bc_forcing=false to force constrained rows deliberately."
+            )
     return _maybe_petsc_diag(diag, like_operator, solver_cfg)
 
 
@@ -542,13 +567,17 @@ def _forcing_response_mats(
         raise ValueError(
             "input_region/output_region masks require mesh and idx from build_lnse_system"
         )
+    compose_bc = _cfg_bool(cfg, "mask_bc_forcing", True)
+    region_bc = bc_indices if compose_bc else None
     if B_mat is None and input_region is not None:
         B_mat = _build_region_mask(
-            mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region"
+            mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region",
+            bc_indices=region_bc,
         )
     if C_mat is None and output_region is not None:
         C_mat = _build_region_mask(
-            mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region"
+            mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region",
+            bc_indices=region_bc,
         )
     if _cfg_bool(cfg, "mask_bc_forcing", True):
         default_mask = None
