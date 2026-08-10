@@ -47,7 +47,8 @@ from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.resolvent.analysis import resolvent_analysis
-from linstabpy.solvers.petsc_utils import _is_petsc_matrix, scipy_to_petsc, vec_to_numpy
+from linstabpy.solvers.petsc_utils import _is_petsc_matrix, vec_to_numpy
+from linstabpy.solvers.router.resolvent_map import _forcing_response_mats
 from linstabpy.stability._eigenvalues import _solve_near_target
 from linstabpy.stability._eigenvalues import eigenvalues as temporal_eigenvalues
 from linstabpy.stability.acceptance import (
@@ -912,6 +913,8 @@ def _stage_run_resolvent(
     run_resolvent: bool,
     L0_resolv,
     mesh: Mesh,
+    idx: dict,
+    config: dict,
     W_diag: np.ndarray,
     omega_target: complex,
     n_modes_resolvent: int,
@@ -927,11 +930,18 @@ def _stage_run_resolvent(
 
     stage_start = _stage_start()
     _log(f"running resolvent: omega_target={omega_target:.8g}, modes={n_modes_resolvent}")
-    B_diag = np.ones(ndof, dtype=float)
-    B_diag[total_bc_indices] = 0.0
-    B_mat_sp = sp.diags(B_diag, format="csc")
-    B_mat = scipy_to_petsc(B_mat_sp, solver_cfg) if hasattr(L0_resolv, "getInfo") else B_mat_sp
-    C_mat = B_mat.copy()
+    # Reuse the resolvent_map region-masking logic so this single-point path
+    # honours `input_region`/`output_region` and independent B/C the same way
+    # the multi-point sweep does, instead of hand-rolling a BC-only mask that
+    # silently ignores those config keys (B == C == BC mask when unset).
+    B_mat, C_mat = _forcing_response_mats(
+        L0_resolv,
+        ndof,
+        total_bc_indices,
+        config,
+        mesh=mesh,
+        idx=idx,
+    )
     with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
         gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis(
             L0_resolv,
@@ -1587,6 +1597,8 @@ def run() -> None:
         run_resolvent=run_resolvent,
         L0_resolv=L0_resolv,
         mesh=mesh,
+        idx=idx,
+        config=config,
         W_diag=W_diag,
         omega_target=omega_target,
         n_modes_resolvent=n_modes_resolvent,
