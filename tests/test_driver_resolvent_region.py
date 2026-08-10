@@ -161,3 +161,82 @@ def test_stage_run_resolvent_default_path_matches_bc_only_mask(monkeypatch) -> N
     np.testing.assert_array_equal(C_diag, expected)
     assert np.array_equal(B_diag, C_diag)
 
+
+
+def test_stage_run_resolvent_region_composes_with_bc_mask(monkeypatch) -> None:
+    """A region does not switch off `mask_bc_forcing`: the two compose.
+
+    Forcing a boundary-condition row is meaningless -- the row encodes a constraint,
+    not an equation -- so a DOF that is both inside the region and constrained must
+    end up zero in B.  Before the fix a region mask replaced the BC mask outright and
+    those rows were forced.
+    """
+    mesh, idx, ndof = _region_mesh_idx()
+    calls: list[dict] = []
+    _capture_resolvent_analysis(monkeypatch, calls)
+    monkeypatch.setattr(run_module, "_log", lambda message: None)
+    monkeypatch.setattr(run_module, "_log_stage", lambda *a, **k: None)
+
+    # Points 2..5 have x >= 1.0, so v-DOFs 14..17 are inside the region.
+    # Constrain 14 -- inside the region AND a boundary-condition row.
+    v_j = idx["v_j"]
+    x_flat = mesh.X.ravel(order="F")
+    inside = v_j[x_flat >= 1.0]
+    constrained_inside = int(inside[0])
+    total_bc_indices = np.array([constrained_inside], dtype=np.int64)
+
+    run_module._stage_run_resolvent(
+        run_resolvent=True,
+        L0_resolv=_FakeMat(),
+        mesh=mesh,
+        idx=idx,
+        config={"input_region": {"x": [1.0, 2.0], "vars": ["v"]}},
+        W_diag=np.ones(ndof),
+        omega_target=0.1 + 0j,
+        n_modes_resolvent=1,
+        total_bc_indices=total_bc_indices,
+        solver_cfg={},
+        cfg=None,
+        heartbeat_seconds=0.0,
+    )
+
+    B_diag = np.asarray(calls[0]["B_mat"].diagonal())
+    # The constrained DOF is inside the region yet must be zero.
+    assert B_diag[constrained_inside] == 0.0
+    # Its unconstrained neighbours in the same region are still forced, so the
+    # region itself has not been thrown away.
+    assert np.all(B_diag[inside[1:]] != 0.0)
+
+
+def test_region_mask_opt_out_of_bc_composition(monkeypatch) -> None:
+    """`mask_bc_forcing: false` still allows forcing constrained rows deliberately."""
+    mesh, idx, ndof = _region_mesh_idx()
+    calls: list[dict] = []
+    _capture_resolvent_analysis(monkeypatch, calls)
+    monkeypatch.setattr(run_module, "_log", lambda message: None)
+    monkeypatch.setattr(run_module, "_log_stage", lambda *a, **k: None)
+
+    v_j = idx["v_j"]
+    inside = v_j[mesh.X.ravel(order="F") >= 1.0]
+    constrained_inside = int(inside[0])
+
+    run_module._stage_run_resolvent(
+        run_resolvent=True,
+        L0_resolv=_FakeMat(),
+        mesh=mesh,
+        idx=idx,
+        config={
+            "input_region": {"x": [1.0, 2.0], "vars": ["v"]},
+            "mask_bc_forcing": False,
+        },
+        W_diag=np.ones(ndof),
+        omega_target=0.1 + 0j,
+        n_modes_resolvent=1,
+        total_bc_indices=np.array([constrained_inside], dtype=np.int64),
+        solver_cfg={},
+        cfg=None,
+        heartbeat_seconds=0.0,
+    )
+
+    B_diag = np.asarray(calls[0]["B_mat"].diagonal())
+    assert B_diag[constrained_inside] != 0.0
