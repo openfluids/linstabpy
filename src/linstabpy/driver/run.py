@@ -10,7 +10,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import resource as _resource_module
@@ -922,6 +922,7 @@ def _stage_run_resolvent(
     solver_cfg: dict,
     cfg: Config | None = None,
     heartbeat_seconds: float,
+    base_flow: Any | None = None,
 ) -> _ResolventStageResult:
     """Run resolvent analysis and its SVD postcheck for one target frequency."""
     ndof = mesh.ngp * 5
@@ -933,7 +934,10 @@ def _stage_run_resolvent(
     # Reuse the resolvent_map region-masking logic so this single-point path
     # honours `input_region`/`output_region` and independent B/C the same way
     # the multi-point sweep does, instead of hand-rolling a BC-only mask that
-    # silently ignores those config keys (B == C == BC mask when unset).
+    # silently ignores those config keys (B == C == BC mask when unset).  When
+    # `input_region.space == "conservative_momentum"` this also needs the base
+    # flow (rho_bar, u_bar, v_bar, w_bar, kappa, Ma); `base_flow=None` is fine
+    # for every other region kind (the default primitive diagonal mask).
     B_mat, C_mat = _forcing_response_mats(
         L0_resolv,
         ndof,
@@ -941,6 +945,7 @@ def _stage_run_resolvent(
         config,
         mesh=mesh,
         idx=idx,
+        base_flow=base_flow,
     )
     with _stage_heartbeat("resolvent", interval_seconds=heartbeat_seconds):
         gains, responses, forcings, rho_fwd, rho_adj = resolvent_analysis(
@@ -1606,6 +1611,7 @@ def run() -> None:
         solver_cfg=solver_cfg,
         cfg=cfg_obj,
         heartbeat_seconds=heartbeat_seconds,
+        base_flow=baseflow,
     )
     gains = resolvent_result.gains
     responses = resolvent_result.responses
