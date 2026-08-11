@@ -420,6 +420,54 @@ def _region_vars(region: Mapping[str, Any], *, name: str) -> tuple[str, ...]:
     return tuple(str(var) for var in requested)
 
 
+def _select_region_points(
+    mesh: Any, region_spec: Mapping[str, Any], *, name: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    """Resolve the x/y box of a region spec into active-point indices.
+
+    Returns ``(point_indices, X_act, Y_act, n_total)`` where ``point_indices``
+    indexes into the active-point arrays ``X_act``/``Y_act`` (and, by the
+    same convention, ``idx['{var}_j']`` blocks and base-flow arrays restricted
+    to ``mesh.used_ind``).  Shared by the diagonal primitive-variable mask
+    (:func:`_build_region_mask`) and the conservative-momentum forcing matrix
+    (:func:`_build_conservative_momentum_region`).
+    """
+    if not isinstance(region_spec, Mapping):
+        raise ValueError(f"{name} must be a mapping with optional x, y, and vars keys")
+
+    used_ind = np.asarray(mesh.used_ind)
+    X_act = np.asarray(mesh.X, dtype=float).ravel(order="F")[used_ind]
+    Y_act = np.asarray(mesh.Y, dtype=float).ravel(order="F")[used_ind]
+    if X_act.size == 0 or Y_act.size == 0:
+        raise ValueError(f"{name} cannot build region mask: zero active points in mesh")
+    if X_act.size != Y_act.size:
+        raise ValueError(f"{name} cannot build region mask: X/Y active point count mismatch")
+    if not (np.all(np.isfinite(X_act)) and np.all(np.isfinite(Y_act))):
+        raise ValueError(f"{name} cannot build region mask: active coordinates must be finite")
+
+    x0, x1, x_explicit = _region_bounds(X_act, region_spec.get("x"), axis="x", name=name)
+    y0, y1, y_explicit = _region_bounds(Y_act, region_spec.get("y"), axis="y", name=name)
+
+    domain_x0, domain_x1 = float(np.min(X_act)), float(np.max(X_act))
+    domain_y0, domain_y1 = float(np.min(Y_act)), float(np.max(Y_act))
+    outside_x = x_explicit and (x1 < domain_x0 or x0 > domain_x1)
+    outside_y = y_explicit and (y1 < domain_y0 or y0 > domain_y1)
+    if outside_x or outside_y:
+        raise ValueError(
+            f"{name} region is outside domain: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
+            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
+        )
+
+    point_mask = (X_act >= x0) & (X_act <= x1) & (Y_act >= y0) & (Y_act <= y1)
+    point_indices = np.nonzero(point_mask)[0]
+    if point_indices.size == 0:
+        raise ValueError(
+            f"{name} region selects zero active points: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
+            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
+        )
+    return point_indices, X_act, Y_act, int(X_act.size)
+
+
 def _build_region_mask(
     mesh: Any,
     idx: Mapping[str, Any],
@@ -440,40 +488,8 @@ def _build_region_mask(
     windowed/component-restricted gain; it is not an approximation to the global
     unmasked gain.
     """
-    if not isinstance(region_spec, Mapping):
-        raise ValueError(f"{name} must be a mapping with optional x, y, and vars keys")
-
-    used_ind = np.asarray(mesh.used_ind)
-    X_act = np.asarray(mesh.X, dtype=float).ravel(order="F")[used_ind]
-    Y_act = np.asarray(mesh.Y, dtype=float).ravel(order="F")[used_ind]
-    if X_act.size == 0 or Y_act.size == 0:
-        raise ValueError(f"{name} cannot build region mask: zero active points in mesh")
-    if X_act.size != Y_act.size:
-        raise ValueError(f"{name} cannot build region mask: X/Y active point count mismatch")
-    if not (np.all(np.isfinite(X_act)) and np.all(np.isfinite(Y_act))):
-        raise ValueError(f"{name} cannot build region mask: active coordinates must be finite")
-
-    x0, x1, x_explicit = _region_bounds(X_act, region_spec.get("x"), axis="x", name=name)
-    y0, y1, y_explicit = _region_bounds(Y_act, region_spec.get("y"), axis="y", name=name)
+    point_indices, X_act, Y_act, n_total = _select_region_points(mesh, region_spec, name=name)
     variables = _region_vars(region_spec, name=name)
-
-    domain_x0, domain_x1 = float(np.min(X_act)), float(np.max(X_act))
-    domain_y0, domain_y1 = float(np.min(Y_act)), float(np.max(Y_act))
-    outside_x = x_explicit and (x1 < domain_x0 or x0 > domain_x1)
-    outside_y = y_explicit and (y1 < domain_y0 or y0 > domain_y1)
-    if outside_x or outside_y:
-        raise ValueError(
-            f"{name} region is outside domain: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
-            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
-        )
-
-    point_mask = (X_act >= x0) & (X_act <= x1) & (Y_act >= y0) & (Y_act <= y1)
-    point_indices = np.nonzero(point_mask)[0]
-    if point_indices.size == 0:
-        raise ValueError(
-            f"{name} region selects zero active points: requested x=[{x0}, {x1}] y=[{y0}, {y1}], "
-            f"domain x=[{domain_x0}, {domain_x1}] y=[{domain_y0}, {domain_y1}]"
-        )
 
     diag = np.zeros(int(ndof), dtype=float)
     selected_x = X_act[point_indices]
@@ -484,7 +500,6 @@ def _build_region_mask(
         float(np.min(selected_y)),
         float(np.max(selected_y)),
     )
-    n_total = int(X_act.size)
     for var in variables:
         idx_key = f"{var}_j"
         if idx_key not in idx:
@@ -549,6 +564,106 @@ def _bc_mask(L0: Any, ndof: int, bc_indices: np.ndarray, solver_cfg: Mapping[str
     return _maybe_petsc_diag(diag, L0, solver_cfg)
 
 
+_CONSERVATIVE_MOMENTUM_SPACE = "conservative_momentum"
+
+
+def _build_conservative_momentum_region(
+    mesh: Any,
+    idx: Mapping[str, Any],
+    ndof: int,
+    region_spec: Mapping[str, Any],
+    base_flow: Any,
+    like_operator: Any,
+    solver_cfg: Mapping[str, Any],
+    *,
+    name: str = "input_region",
+    bc_indices: np.ndarray | None = None,
+) -> tuple[Any, np.ndarray, dict[str, Any]]:
+    """Build the whitened conservative-momentum forcing matrix for a region.
+
+    The optimisation variable becomes the CONSERVATIVE momentum forcing
+    ``f_c = (f_rou, f_rov, f_row)`` with a mass-weighted L2 norm, instead of
+    a primitive-variable diagonal mask.  See
+    ``linstabpy.resolvent.conservative_forcing`` for the physics and the
+    whitening trick that lets this reuse the existing square ``B_mat``
+    resolvent machinery unchanged (``forcing_norm="l2"``).
+    """
+    from linstabpy.resolvent.conservative_forcing import (
+        build_conservative_momentum_matrix,
+        validate_conservative_momentum_vars,
+    )
+
+    if not isinstance(region_spec, Mapping):
+        raise ValueError(f"{name} must be a mapping with optional x, y, and vars keys")
+    if base_flow is None:
+        raise ValueError(
+            f"{name} space='{_CONSERVATIVE_MOMENTUM_SPACE}' requires the base flow "
+            "(rho_bar, u_bar, v_bar, w_bar, kappa, Ma) but none was supplied"
+        )
+
+    # The whitening below is only correct when the gain machinery applies the
+    # IDENTITY forcing norm to the coefficient vector. The config default is
+    # "chu", which would silently re-weight the whitened coefficients and
+    # produce a wrong sigma with no error -- exactly the silent-norm failure
+    # this forcing space exists to remove. Fail loudly instead.
+    from linstabpy.config import Config
+
+    resolved_norm = Config.load(dict(solver_cfg) if solver_cfg else {}).resolvent.eps.forcing_norm
+    if resolved_norm != "l2":
+        raise ValueError(
+            f"{name} space='{_CONSERVATIVE_MOMENTUM_SPACE}' requires forcing_norm='l2' "
+            f"(the mass weighting is baked into the whitened B matrix), but the "
+            f"config resolves forcing_norm={resolved_norm!r}. Set "
+            "resolvent.eigen.forcing_norm to 'l2'."
+        )
+
+    momentum_vars = validate_conservative_momentum_vars(region_spec.get("vars"), name=name)
+    point_indices, _X_act, _Y_act, _n_total = _select_region_points(mesh, region_spec, name=name)
+
+    used_ind = np.asarray(mesh.used_ind)
+    p = used_ind
+    rho_bar_active = np.asarray(base_flow.RHO, dtype=float).ravel(order="F")[p]
+    u_bar_active = np.asarray(base_flow.U, dtype=float).ravel(order="F")[p]
+    v_bar_active = np.asarray(base_flow.V, dtype=float).ravel(order="F")[p]
+    w_bar_active = np.asarray(base_flow.W, dtype=float).ravel(order="F")[p]
+    w_int_active = np.asarray(mesh.W, dtype=float).ravel(order="F")[p]
+
+    excluded_dofs = None
+    if bc_indices is not None:
+        bc = np.asarray(bc_indices, dtype=np.int64).reshape(-1)
+        excluded_dofs = bc[(bc >= 0) & (bc < int(ndof))]
+
+    B_tilde, momentum_dewhiten, info = build_conservative_momentum_matrix(
+        idx,
+        ndof,
+        point_indices,
+        rho_bar_active,
+        u_bar_active,
+        v_bar_active,
+        w_bar_active,
+        w_int_active,
+        base_flow.kappa,
+        base_flow.Ma,
+        momentum_vars=momentum_vars,
+        excluded_dofs=excluded_dofs,
+    )
+    LOGGER.info(
+        "resolvent_map region_mask name=%s space=%s vars=%s n_region=%d n_momentum_dofs=%d "
+        "forcing_norm=mass-weighted-L2 (whitened, run as forcing_norm='l2')",
+        name,
+        _CONSERVATIVE_MOMENTUM_SPACE,
+        momentum_vars,
+        info["n_region"],
+        int(info["momentum_dofs"].size),
+    )
+
+    if _is_petsc_matrix(like_operator):
+        from linstabpy.solvers.petsc_utils import scipy_to_petsc
+
+        return scipy_to_petsc(B_tilde, solver_cfg), momentum_dewhiten, info
+    return B_tilde, momentum_dewhiten, info
+
+
 def _forcing_response_mats(
     L0: Any,
     ndof: int,
@@ -557,6 +672,7 @@ def _forcing_response_mats(
     *,
     mesh: Any | None = None,
     idx: Mapping[str, Any] | None = None,
+    base_flow: Any | None = None,
 ) -> tuple[Any, Any]:
     solver_cfg = _solver_cfg(cfg)
     B_mat = _cfg_value(cfg, "B_mat", None)
@@ -569,7 +685,27 @@ def _forcing_response_mats(
         )
     compose_bc = _cfg_bool(cfg, "mask_bc_forcing", True)
     region_bc = bc_indices if compose_bc else None
-    if B_mat is None and input_region is not None:
+    input_space = None
+    if isinstance(input_region, Mapping):
+        input_space = input_region.get("space")
+    if input_space is not None and input_space != _CONSERVATIVE_MOMENTUM_SPACE:
+        raise ValueError(
+            f"input_region space={input_space!r} is not recognised; the only "
+            f"supported value is '{_CONSERVATIVE_MOMENTUM_SPACE}' (omit the key "
+            "for the primitive-variable diagonal mask)"
+        )
+    if isinstance(output_region, Mapping) and output_region.get("space") is not None:
+        raise ValueError(
+            "output_region does not support 'space': the response norm is the Chu "
+            "energy on primitive variables; 'space' is a forcing-side "
+            "(input_region) concept only"
+        )
+    if B_mat is None and input_region is not None and input_space == _CONSERVATIVE_MOMENTUM_SPACE:
+        B_mat, _momentum_dewhiten, _info = _build_conservative_momentum_region(
+            mesh, idx, ndof, input_region, base_flow, L0, solver_cfg, name="input_region",
+            bc_indices=region_bc,
+        )
+    elif B_mat is None and input_region is not None:
         B_mat = _build_region_mask(
             mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region",
             bc_indices=region_bc,
@@ -1009,6 +1145,7 @@ def resolvent_map(
                 cfg_map,
                 mesh=mesh,
                 idx=assembly.idx,
+                base_flow=base_flow,
             )
             use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", True)
             filter_fn = (
