@@ -17,11 +17,12 @@ OUTPUTS:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_jsonc, parse_complex_list, parse_int_list
+from linstabpy.utils.jsonc import load_config, parse_complex_list, parse_int_list
 
 from examples._helpers import (
     apply_figure_layout,
@@ -41,8 +42,13 @@ from examples._helpers import (
 )
 
 SCRIPT = Path(__file__).resolve()
-OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
-OUTPUT_PNG = SCRIPT.with_suffix(".png")
+_EXAMPLE_STEM = os.environ.get("LINSTABPY_EXAMPLE_STEM", SCRIPT.stem)
+_EXAMPLE_DIR = SCRIPT.parent
+CONFIG_PATH = Path(
+    os.environ.get("LINSTABPY_EXAMPLE_CONFIG", str(_EXAMPLE_DIR / f"{_EXAMPLE_STEM}.yaml"))
+)
+OUTPUT_NPZ = _EXAMPLE_DIR / f"{_EXAMPLE_STEM}.npz"
+OUTPUT_PNG = _EXAMPLE_DIR / f"{_EXAMPLE_STEM}.png"
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SPATIAL = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_spatial.png")
 OUTPUT_SPECTRA = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_spectra.png")
@@ -163,21 +169,18 @@ def _apply_streaky_sponge(mesh: Mesh, cfg: dict) -> None:
 
 
 def _compute_spatial_residuals(
-    Lc,
-    Lw,
+    L,
     R,
-    omega_spatial: complex,
     spatial_alpha: np.ndarray,
     spatial_modes: np.ndarray,
 ) -> np.ndarray:
-    """Compute residuals for the spatial generalized eigenproblem."""
-    A = Lc + omega_spatial * Lw
+    """Compute residuals for ``L q = alpha R q`` after Dirichlet rows."""
     residuals = []
     for alpha, q in zip(
         np.asarray(spatial_alpha, dtype=complex).reshape(-1),
         np.asarray(spatial_modes, dtype=complex).T,
     ):
-        numer = np.linalg.norm(A @ q - alpha * (R @ q))
+        numer = np.linalg.norm(L @ q - alpha * (R @ q))
         denom = max(abs(alpha) * float(np.linalg.norm(q)), 1e-300)
         residuals.append(float(numer / denom))
     return np.asarray(residuals, dtype=float)
@@ -232,8 +235,10 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
         and "omega_spatial" in results
         and "spatial_residuals" not in results
     ):
-        from linstabpy.boundary_conditions.dirichlet import apply_dirichlet_spatial
-        from linstabpy.operators.spatial import build_spatial_operator
+        from linstabpy.operators.spatial import (
+            build_spatial_operator,
+            spatial_lhs_with_dirichlet,
+        )
 
         mesh, baseflow = ensure_problem()
         _apply_streaky_sponge(mesh, mini_cfg)
@@ -243,13 +248,21 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
             model="2D",
             floquet_exp=float(results["floquet_exp"]),
         )
-        Lc, R, _ = apply_dirichlet_spatial(Lc, R, idx, "tb", "uvwT", mesh.ngp)
         omega_spatial = complex(np.asarray(results["omega_spatial"]).reshape(-1)[0])
-        results["spatial_residuals"] = _compute_spatial_residuals(
+        L, R, _ = spatial_lhs_with_dirichlet(
             Lc,
             Lw,
             R,
             omega_spatial,
+            idx,
+            "tb",
+            "uvwT",
+            mesh.ngp,
+            use_petsc=False,
+        )
+        results["spatial_residuals"] = _compute_spatial_residuals(
+            L,
+            R,
             np.asarray(results["spatial_alpha"]),
             np.asarray(results["spatial_modes"]),
         )
@@ -321,12 +334,14 @@ def _compute(cfg: dict) -> None:
     from linstabpy.boundary_conditions.dirichlet import (
         apply_dirichlet,
         apply_dirichlet_petsc,
-        apply_dirichlet_spatial,
-        apply_dirichlet_spatial_petsc,
     )
     from linstabpy.operators.assembly import build_lnse_operator, build_lnse_operator_petsc
     from linstabpy.operators.energy_norm import compute_chu_norm
-    from linstabpy.operators.spatial import build_spatial_operator, build_spatial_operator_petsc
+    from linstabpy.operators.spatial import (
+        build_spatial_operator,
+        build_spatial_operator_petsc,
+        spatial_lhs_with_dirichlet,
+    )
     from linstabpy.solvers.petsc_utils import petsc_to_scipy
     from linstabpy.stability import eigenvalues as temporal_eigenvalues
     from linstabpy.stability import spatial_eigenvalues
@@ -469,7 +484,7 @@ def _compute(cfg: dict) -> None:
             if "temporal_omega" not in results:
                 raise ValueError(
                     "Spatial Example 3 run requires temporal_omega in the existing "
-                    "NPZ or run_temporal=true in the JSONC config."
+                    "NPZ or run_temporal=true in the YAML config."
                 )
             temporal_omega = np.asarray(results["temporal_omega"], dtype=complex)
 
@@ -486,7 +501,6 @@ def _compute(cfg: dict) -> None:
                 floquet_exp=floquet_exp,
                 solver_cfg=solver_cfg,
             )
-            Lc, R, _ = apply_dirichlet_spatial_petsc(Lc, R, idx, borders, variables, mesh.ngp)
         else:
             Lc, R, Lw, idx = build_spatial_operator(
                 mesh,
@@ -494,22 +508,32 @@ def _compute(cfg: dict) -> None:
                 model="2D",
                 floquet_exp=floquet_exp,
             )
-            Lc, R, _ = apply_dirichlet_spatial(Lc, R, idx, borders, variables, mesh.ngp)
-        spatial_alpha, spatial_modes = spatial_eigenvalues(
+        L, R, _ = spatial_lhs_with_dirichlet(
             Lc,
             Lw,
             R,
             omega_spatial,
+            idx,
+            borders,
+            variables,
+            mesh.ngp,
+            use_petsc=use_petsc_assembly,
+        )
+        # Combine first, then BC. Pass omega=0 so spatial_eigenvalues
+        # does not add omega*Lw a second time.
+        spatial_alpha, spatial_modes = spatial_eigenvalues(
+            L,
+            Lw,
+            R,
+            0.0,
             n_modes,
             alpha_target,
             ncv=arnoldi_ncv,
             solver_cfg=solver_cfg,
         )
         spatial_residuals = _compute_spatial_residuals(
-            _to_scipy_matrix(Lc),
-            _to_scipy_matrix(Lw),
+            _to_scipy_matrix(L),
             _to_scipy_matrix(R),
-            omega_spatial,
             spatial_alpha,
             spatial_modes,
         )
@@ -853,7 +877,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
 
 
 def main() -> None:
-    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
+    cfg = load_config(CONFIG_PATH)
     data = _load_existing_npz()
     if not data:
         print(format_cache_recompute_message(OUTPUT_NPZ, None))

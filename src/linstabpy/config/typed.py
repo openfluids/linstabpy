@@ -25,7 +25,7 @@ from linstabpy.linalg.backends import (
     _normalize_mumps_ordering,
 )
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 _TRUE = {"1", "true", "yes", "on"}
 _OPTIONAL_INT_SENTINELS = {"", "none", "null", "default", "petsc"}
@@ -614,15 +614,15 @@ class Config:
     @classmethod
     def load(
         cls,
-        jsonc_path_or_dict: str | Path | Mapping[str, Any] | None,
+        yaml_path_or_dict: str | Path | Mapping[str, Any] | None,
         env: Mapping[str, str] = os.environ,
     ) -> "Config":
-        if isinstance(jsonc_path_or_dict, (str, Path)):
-            raw = load_jsonc(jsonc_path_or_dict)
-        elif jsonc_path_or_dict is None:
+        if isinstance(yaml_path_or_dict, (str, Path)):
+            raw = load_config(yaml_path_or_dict)
+        elif yaml_path_or_dict is None:
             raw = {}
         else:
-            raw = jsonc_path_or_dict
+            raw = yaml_path_or_dict
         solver = _solver_mapping(raw)
         linsolve_sub = _subsection(solver, "LINSTABPY_LINSOLVE")
         resolvent_sub = _subsection(solver, "LINSTABPY_RESOLVENT")

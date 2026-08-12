@@ -43,11 +43,11 @@ for _path_entry in (ROOT / "src", ROOT):
     if _s not in sys.path:
         sys.path.insert(0, _s)
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 SCRIPT = Path(__file__).resolve()
 CASE_DIR = SCRIPT.parent
-DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases_fd4_tol_sweep.jsonc"
+DEFAULT_CONFIG = CASE_DIR / "perf_memory_cases_fd4_tol_sweep.yaml"
 DEFAULT_JSON = CASE_DIR / "output" / "run_campaign_latest.json"
 DEFAULT_CSV = CASE_DIR / "output" / "run_campaign_table.csv"
 DEFAULT_LOG_DIR = CASE_DIR / "output" / "logs"
@@ -871,7 +871,7 @@ def main() -> int:
         or os.getenv("LINSTABPY_CASE2_PERF_CONFIG", "").strip()
     )
     config_path = Path(_cfg_raw).resolve() if _cfg_raw else DEFAULT_CONFIG.resolve()
-    cfg = load_jsonc(config_path)
+    cfg = load_config(config_path)
     config_dir = config_path.parent
 
     outputs = dict(cfg.get("outputs", {}))
@@ -890,7 +890,7 @@ def main() -> int:
         config_dir, str(defaults.get("python_exe", sys.executable)), CASE_DIR
     )
     default_base_config = defaults.get(
-        "base_config", default_env.get("LINSTABPY_CASE_CONFIG", "parity_config.jsonc")
+        "base_config", default_env.get("LINSTABPY_CASE_CONFIG", "parity_config.yaml")
     )
     default_case_workdir = _resolve_input_path(
         config_dir,
@@ -943,7 +943,7 @@ def main() -> int:
             effective_case.get("base_config", default_base_config),
             CASE_DIR,
         )
-        base_config = load_jsonc(base_config_path)
+        base_config = load_config(base_config_path)
         case_config = _build_case_config(base_config, effective_case)
         _write_json(case_cfg_path, case_config)
         case_report["resolved_config"] = case_config

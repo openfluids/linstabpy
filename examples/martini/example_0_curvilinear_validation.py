@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from linstabpy.mesh import Mesh
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -208,7 +208,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
     apply_figure_layout(fig, rect=(0.0, 0.08, 1.0, 0.93), pad=0.8)
     save_figure(fig, OUTPUT_PNG)
 
-    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
+    cfg = load_config(SCRIPT.with_suffix(".yaml"))
     cmesh = _build_computational_mesh(cfg)
     fig_mesh, axes_mesh = plt.subplots(
         1,
@@ -272,7 +272,7 @@ def ensure_artifact(data: dict[str, np.ndarray]) -> None:
 
 
 def main() -> None:
-    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
+    cfg = load_config(SCRIPT.with_suffix(".yaml"))
     raw = load_or_compute(
         OUTPUT_NPZ,
         lambda: compute(cfg),

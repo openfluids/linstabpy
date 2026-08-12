@@ -7,7 +7,15 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+- `load_config` loaded YAML case files. `load_jsonc` stayed as a one-cycle alias.
+- `examples/sawtooth` added the Lui 2022 field on a packed stride-2 300 x 340 mesh.
+- Four paper Example 3 YAML files reused `example_3_streaky_bl.py`.
+- `load_grid_fields` reads a primitive field set from a npy directory or one npz.
+  `load_hamada_case` still wraps the curved-mesh stride guard and the MATLAB sponge.
+
 ### Changed
+- Case files under `examples/` used YAML. The loader rejected a leftover `.jsonc` suffix.
 - Moved the Martini, Song, and Savarino cases to `examples/martini`,
   `examples/song`, and `examples/savarino`.
 - Packed the Song reference fields as float64 npz. The 32 deg field uses
@@ -17,6 +25,9 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - Raised the tracked-file size limit from 50 MiB to 60 MiB for that file.
 
 ### Fixed
+- The Floquet shift also updated D2RZ. The default mode matched LinStab2D.
+- The spatial EVP finite-differenced L in kx, not in the Floquet exponent.
+- Example 3 applied spatial Dirichlet after Lc + omega Lw.
 - A forcing/response region now **composes** with the boundary-condition mask instead of
   replacing it. `mask_bc_forcing` defaults to `true` so that constrained rows are never
   forced, but supplying `input_region` or `output_region` used to skip that default

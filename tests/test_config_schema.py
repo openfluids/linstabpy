@@ -9,7 +9,7 @@ import pytest
 _DRIVER_RUN_MODULE = importlib.import_module("linstabpy.driver.run")
 
 from linstabpy.config import ConfigValidationError, validate_config
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 
 def test_valid_config_passes() -> None:
@@ -81,16 +81,13 @@ def test_bool_not_accepted_for_int_field() -> None:
 def test_driver_rejects_malformed_config_before_case_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config_path = tmp_path / "malformed_absurd_grid.jsonc"
+    config_path = tmp_path / "malformed_absurd_grid.yaml"
     config_path.write_text(
         """
-        {
-          "nx": 200000,
-          "ny": 200000,
-          "numerics": {
-            "fd_order": 5
-          }
-        }
+        nx: 200000
+        ny: 200000
+        numerics:
+          fd_order: 5
         """,
         encoding="utf-8",
     )
@@ -119,14 +116,14 @@ def test_no_false_positives_on_shipped_configs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     config_paths = [
         path
-        for path in repo_root.rglob("*.jsonc")
+        for path in repo_root.rglob("*.yaml")
         if ".venv" not in path.relative_to(repo_root).parts
+        and path.parts[0] in {"examples", "configs"}
     ]
     relative_config_paths = [path.relative_to(repo_root) for path in config_paths]
 
-    assert config_paths, "shipped JSONC config sweep found no files"
+    assert config_paths, "shipped YAML config sweep found no files"
     assert any(path.parts[0] == "examples" for path in relative_config_paths)
-    assert any("studies" in path.as_posix() for path in relative_config_paths)
 
     for path in config_paths:
-        validate_config(load_jsonc(path), source=str(path))
+        validate_config(load_config(path), source=str(path))

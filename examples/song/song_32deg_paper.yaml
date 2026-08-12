@@ -1,0 +1,43 @@
+# Song 32 deg EVP as quoted in the supplement: fd2, full grid, no filter, no sponge.
+paths:
+  fields: song_32deg.npz
+  output_npz: song_32deg_paper.npz
+Re: 1.0e5
+Ma: 2.15
+Pr: 0.72
+kappa: 1.4
+T_0: 153.33
+beta: 19.2
+St: 0.0
+n_modes_stability: 20
+stability_search_extra_modes: 4
+n_modes_resolvent: 10
+run_stability: true
+run_resolvent: false
+fd_order: 2
+stride_ksi: 1
+stride_eta: 1
+penalty: 1.0e8
+alpha_filter: none
+baseflow_input:
+  transpose_input: true
+  zero_spanwise: false
+baseflow_preprocess:
+  enabled: false
+bc:
+  penalty: 1.0e8
+  recipe:
+    - {type: dirichlet, borders: lt, variables: ruvwT}
+    - {type: dirichlet, borders: b, variables: ruvw}
+    - {type: neumann, borders: b, variables: T}
+    - {type: neumann, borders: r, variables: ruvwT}
+assembly_backend: auto
+solver:
+  petsc_matrix_mode: distributed
+  linsolve:
+    type: mumps
+  eigen:
+    st_solver: mumps
+    eps_tol: 1.0e-4
+    ncv: 120
+    conv_test: rel

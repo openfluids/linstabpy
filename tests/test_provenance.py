@@ -43,7 +43,7 @@ def _git_rev_parse_head() -> str:
 def test_collect_provenance_has_stable_typed_fields(tmp_path, monkeypatch):
     monkeypatch.delenv("LINSTABPY_COMPUTE_MODE", raising=False)
     monkeypatch.delenv("LINSTABPY_MPI_STACK", raising=False)
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     first_bytes = b'{"alpha": 1}\n'
     config_path.write_bytes(first_bytes)
 
@@ -68,7 +68,7 @@ def test_collect_provenance_has_stable_typed_fields(tmp_path, monkeypatch):
 
 
 def test_collect_provenance_validates_compute_mode(tmp_path, monkeypatch):
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     config_path.write_text("{}\n")
     monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", "quantum")
 
@@ -78,7 +78,7 @@ def test_collect_provenance_validates_compute_mode(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("mode", ["cpu", "gpu", "mixed"])
 def test_collect_provenance_accepts_supported_compute_modes(tmp_path, monkeypatch, mode):
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     config_path.write_text("{}\n")
     monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", mode)
 
@@ -100,7 +100,7 @@ def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
 
 def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkeypatch):
     monkeypatch.setenv("LINSTAB2D_GPUS", "0")
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     raw_config = b'{"beta": 3}\n'
     config_path.write_bytes(raw_config)
     provenance = collect_provenance(config_path)
@@ -132,7 +132,7 @@ def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkey
 
 
 def test_default_output_path_embeds_config_md5_and_git_sha8(tmp_path, monkeypatch):
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     raw_config = b'{"gamma": 4}\n'
     config_path.write_bytes(raw_config)
     provenance = collect_provenance(config_path)

@@ -212,9 +212,9 @@ def _normalise_cfg(
     if isinstance(cfg, Mapping):
         return cfg, None
     if isinstance(cfg, (str, Path)):
-        from linstabpy.utils.jsonc import load_jsonc
+        from linstabpy.utils.jsonc import load_config
 
-        loaded = load_jsonc(cfg)
+        loaded = load_config(cfg)
         return loaded, None
     return {}, cfg
 

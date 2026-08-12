@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 
 def _package_version() -> str:
@@ -80,7 +80,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                         "LINSTABPY_CASE1_CONFIG",
                     )
                     if config_path_raw is not None:
-                        current_config = load_jsonc(Path(config_path_raw))
+                        current_config = load_config(Path(config_path_raw))
                         current_hash = runtime._config_hash(current_config)[:16]
                         current_sha = runtime._git_head_sha()
                         cached_hash = (

@@ -1,32 +1,56 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""JSONC (JSON with comments) loader and config-value parsers.
+"""YAML case-file loader and config-value parsers.
 
-Provides a single ``load_jsonc()`` entry point used by examples,
-validation cases, and results pipelines to read ``.jsonc`` parameter
-files that drive all linstabpy runs.
+``load_config()`` reads ``.yaml`` / ``.yml`` case files. ``load_jsonc()``
+is a one-cycle alias of the same function.
 """
 
 from __future__ import annotations
 
-import json
+import re
 from pathlib import Path
 
+import yaml
 
-def load_jsonc(path: str | Path) -> dict:
-    """Load a JSONC file (JSON with ``//`` and ``/* */`` comments)."""
-    text = Path(path).read_text(encoding="utf-8")
-    cleaned = _strip_jsonc_comments(text)
-    data = json.loads(cleaned)
+# YAML 1.2 needs a signed exponent (1.0e+5). Case files use 1e5 and 1.0e5.
+_SCI_FLOAT = re.compile(
+    r"^[-+]?(?:[0-9][0-9_]*)?(?:\.[0-9_]*)?[eE][-+]?[0-9]+$"
+)
+
+
+class _CaseLoader(yaml.SafeLoader):
+    """Safe YAML loader that also accepts unsigned scientific floats."""
+
+
+_CaseLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    _SCI_FLOAT,
+    list("-+0123456789."),
+)
+
+
+def load_config(path: str | Path) -> dict:
+    """Load a YAML case file. Suffix must be .yaml or .yml."""
+    src = Path(path)
+    suffix = src.suffix.lower()
+    if suffix not in {".yaml", ".yml"}:
+        raise ValueError(f"Case file must use a .yaml suffix: {src}")
+    data = yaml.load(src.read_text(encoding="utf-8"), Loader=_CaseLoader)
     if not isinstance(data, dict):
-        raise ValueError(f"Top-level JSONC object must be a dict: {path}")
+        raise ValueError(f"Top-level YAML value must be a mapping: {src}")
     return data
 
 
+def load_jsonc(path: str | Path) -> dict:
+    """Load a YAML case file. Same as load_config."""
+    return load_config(path)
+
+
 def parse_complex(value) -> complex:
-    """Convert a JSONC-friendly value to a Python complex number.
+    """Convert a YAML-friendly value to a Python complex number.
 
     Accepts:
-    - ``[real, imag]`` list  (the canonical JSONC representation)
+    - ``[real, imag]`` list
     - a plain number (int or float, treated as real)
     - a string parseable by ``complex()``
     """
@@ -42,80 +66,10 @@ def parse_complex(value) -> complex:
 
 
 def parse_complex_list(value) -> list[complex]:
-    """Convert a list of JSONC-friendly values to a list of complex numbers.
-
-    Each element can be anything accepted by :func:`parse_complex`.
-    """
+    """Convert a list of YAML-friendly values to a list of complex numbers."""
     return [parse_complex(v) for v in value]
 
 
 def parse_int_list(value) -> list[int]:
-    """Convert a list of JSONC-friendly values to a list of positive ints."""
+    """Convert a list of YAML-friendly values to a list of positive ints."""
     return [max(1, int(v)) for v in value]
-
-
-# ------------------------------------------------------------------
-# Internal
-# ------------------------------------------------------------------
-
-
-def _strip_jsonc_comments(text: str) -> str:
-    """Remove ``//`` and ``/* */`` comments while preserving string literals."""
-    out: list[str] = []
-    i = 0
-    n = len(text)
-    in_string = False
-    in_line_comment = False
-    in_block_comment = False
-    escape = False
-
-    while i < n:
-        ch = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
-
-        if in_line_comment:
-            if ch == "\n":
-                in_line_comment = False
-                out.append(ch)
-            i += 1
-            continue
-
-        if in_block_comment:
-            if ch == "*" and nxt == "/":
-                in_block_comment = False
-                i += 2
-            else:
-                i += 1
-            continue
-
-        if in_string:
-            out.append(ch)
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == '"':
-                in_string = False
-            i += 1
-            continue
-
-        if ch == '"':
-            in_string = True
-            out.append(ch)
-            i += 1
-            continue
-
-        if ch == "/" and nxt == "/":
-            in_line_comment = True
-            i += 2
-            continue
-
-        if ch == "/" and nxt == "*":
-            in_block_comment = True
-            i += 2
-            continue
-
-        out.append(ch)
-        i += 1
-
-    return "".join(out)

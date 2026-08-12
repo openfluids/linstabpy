@@ -33,7 +33,7 @@ right exactly one should correlate well and the other should not.  If NEITHER do
 is the finding, and no amount of sign-flipping fixes it.
 
 Usage (inside the case directory, via the normal run environment):
-    LINSTABPY_CASE1_CONFIG=<oracle>.jsonc python mode_oracle.py
+    LINSTABPY_CASE1_CONFIG=<oracle>.yaml python mode_oracle.py
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def main() -> int:
 
     run_module._stage_run_resolvent = oracle_stage
     os.environ.setdefault(
-        "LINSTABPY_CASE1_CONFIG", str(HERE / "savarino_point_f2_b45.jsonc")
+        "LINSTABPY_CASE1_CONFIG", str(HERE / "savarino_point_f2_b45.yaml")
     )
     from linstabpy.driver.run import run as compute
 

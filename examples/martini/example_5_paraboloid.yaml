@@ -1,0 +1,53 @@
+# Example 5: Paraboloid resolvent analysis
+# Curvilinear transformation to a parabolic physical grid,
+# axisymmetric model, m=5 azimuthal Fourier mode.
+
+# Grid
+nx: 100
+ny: 100
+fd_order: 4
+alpha_filter: 0.0
+xrange: [-1.0, 0.0]
+yrange: [0.0, 1.0]
+y_symmetry: true
+x_periodicity: false
+
+# Physical domain
+Lx: 2.25
+Ly: 1.5
+
+# Sponge (defined on pre-conformal coordinates)
+sponge:
+  amplitude: 5.0
+  xs_offset: 0.1
+  xs_trans_fraction: 0.1    # xs_trans = Lx / 10
+  ys_offset: 0.1
+  ys_trans: 0.1
+
+# Analysis (resolvent)
+omega: 0.0
+omega_shift_fallback: 1.0e-4       # small imag shift when omega=0 is singular
+use_omega_shift_fallback: true
+n_modes: 3
+m: 5
+model: axy
+
+# Assembly backend:
+# - "scipy" is the robust cross-machine baseline
+# - "petsc" is an explicit opt-in for the validated local axy PETSc path
+# - avoid "auto" for installation baselines; it may select host-sensitive paths
+assembly_backend: scipy
+
+# Forcing mask: zero these variables in the B/C matrices
+forcing_zero_vars: ["T", "rho"]
+
+# Boundary conditions
+bc:
+  recipe:
+    - {type: dirichlet, borders: ltr, variables: uvwT}
+
+# Solver configuration
+solver:
+  petsc_matrix_mode: auto
+  linsolve:
+    type: mumps

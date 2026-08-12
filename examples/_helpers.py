@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 
 # Re-export from canonical location for callers that import from here.
-from linstabpy.utils.jsonc import load_jsonc  # noqa: F401
+from linstabpy.utils.jsonc import load_config  # noqa: F401
 
 
 def load_or_compute(

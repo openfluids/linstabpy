@@ -14,7 +14,7 @@ SCRIPT = Path(__file__).resolve()
 
 def _prepare_env() -> None:
     """Runtime env defaults for ``results_runtime``."""
-    config_path = os.getenv("LINSTABPY_CASE_CONFIG", str(SCRIPT.parent / "parity_config.jsonc"))
+    config_path = os.getenv("LINSTABPY_CASE_CONFIG", str(SCRIPT.parent / "parity_config.yaml"))
     output_npz = os.getenv("LINSTABPY_CASE_OUTPUT_NPZ", str(SCRIPT.with_suffix(".npz")))
     os.environ.setdefault("LINSTABPY_CASE_LOG_PREFIX", "run")
     os.environ.setdefault("LINSTABPY_CASE_CONFIG", config_path)

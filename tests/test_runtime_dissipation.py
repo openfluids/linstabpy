@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 
 import numpy as np
+import yaml
 
 
 def _install_optional_petsc_stubs() -> None:
@@ -165,27 +167,16 @@ def test_runtime_empty_defaults_are_shared_typed_arrays():
 
 
 def _write_config(config_path, operator_dissipation: str | None = None) -> None:
-    operator_block = ""
+    numerics: dict = {"alpha_filter": "none", "fd_order": 4}
     if operator_dissipation is not None:
-        operator_block = f',\n            "operator_dissipation": {operator_dissipation}'
-
-    config_path.write_text(
-        f"""
-        {{
-          "paths": {{"case_dir": "."}},
-          "analysis": {{
-            "run_stability": false,
-            "run_resolvent": false
-          }},
-          "numerics": {{
-            "alpha_filter": "none",
-            "fd_order": 4{operator_block}
-          }},
-          "solver": {{}}
-        }}
-        """,
-        encoding="utf-8",
-    )
+        numerics["operator_dissipation"] = json.loads(operator_dissipation)
+    payload = {
+        "paths": {"case_dir": "."},
+        "analysis": {"run_stability": False, "run_resolvent": False},
+        "numerics": numerics,
+        "solver": {},
+    }
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
 
 def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=None, stem="case"):
@@ -201,7 +192,7 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
         kappa=1.4,
         Ma=2.0,
     )
-    config_path = tmp_path / f"{stem}.jsonc"
+    config_path = tmp_path / f"{stem}.yaml"
     output_path = tmp_path / f"{stem}.npz"
     _write_config(config_path, operator_dissipation)
 
@@ -424,18 +415,22 @@ def test_cache_invalidation_on_config_change(monkeypatch, tmp_path):
     # We must re-create the monkeypatch environment for the second run.
     # _run_compute writes config_path and output_path based on stem.
     # Change the config so the hash differs.
-    config_path = tmp_path / "cachetest.jsonc"
+    config_path = tmp_path / "cachetest.yaml"
     config_path.write_text(
-        """{
-          "paths": {"case_dir": "."},
-          "analysis": {"run_stability": false, "run_resolvent": false},
-          "numerics": {
-            "alpha_filter": "none",
-            "fd_order": 4,
-            "operator_dissipation": {"enabled": true, "epsilon": 0.5}
-          },
-          "solver": {}
-        }""",
+        """
+        paths:
+          case_dir: "."
+        analysis:
+          run_stability: false
+          run_resolvent: false
+        numerics:
+          alpha_filter: none
+          fd_order: 4
+          operator_dissipation:
+            enabled: true
+            epsilon: 0.5
+        solver: {}
+        """,
         encoding="utf-8",
     )
 

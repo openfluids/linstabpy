@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -494,7 +494,7 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
 
 
 def main():
-    cfg = load_jsonc(SCRIPT.with_suffix(".jsonc"))
+    cfg = load_config(SCRIPT.with_suffix(".yaml"))
     data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
     plot(data)
 

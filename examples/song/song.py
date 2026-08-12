@@ -36,7 +36,7 @@ from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
 from linstabpy.resolvent.analysis import resolvent_analysis  # noqa: E402
 from linstabpy.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
 from linstabpy.stability import eigenvalues as temporal_eigenvalues  # noqa: E402
-from linstabpy.utils.jsonc import load_jsonc, parse_complex  # noqa: E402
+from linstabpy.utils.jsonc import load_config, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
 from .baseflow_loader import load_my_case  # noqa: E402
@@ -47,7 +47,7 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_direct_modes.png")
 OUTPUT_RESOLVENT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_resolvent.png")
-DEFAULT_CONFIG_PATH = SCRIPT.parent / "song_32deg.jsonc"
+DEFAULT_CONFIG_PATH = SCRIPT.parent / "song_32deg.yaml"
 MATLAB_REF_DIR = SCRIPT.parent / "reference" / "matlab" / "matlab_reference"
 MATLAB_EIG_DIR = MATLAB_REF_DIR / "EigModes"
 MATLAB_SPLIT_DIR = MATLAB_REF_DIR / "ziming_split"
@@ -70,7 +70,7 @@ def _get_memory_mb() -> float:
 
 
 def _resolve_frequency_target(cfg: dict) -> tuple[complex, str]:
-    """Resolve the spectral target frequency from JSONC configuration.
+    """Resolve the spectral target frequency from the YAML configuration.
 
     Supported forms:
     - explicit ``omega_target`` (preferred, direct solver input)
@@ -106,10 +106,10 @@ def _resolve_frequency_target(cfg: dict) -> tuple[complex, str]:
 
 
 def _resolve_baseflow_input_options(cfg: dict) -> dict[str, bool]:
-    """Resolve Song baseflow-loader layout options from JSONC.
+    """Resolve Song baseflow-loader layout options from YAML.
 
     Song's saved `.npy` fields follow the original MATLAB export layout, not
-    the repo-wide `(ny, nx)` mesh convention. Expose that explicitly in JSONC
+    the repo-wide `(ny, nx)` mesh convention. Expose that explicitly in YAML
     so the validation case does not silently assemble the mesh with swapped
     physical edges.
     """
@@ -1231,7 +1231,7 @@ def _parse_args() -> argparse.Namespace:
         "--config",
         type=Path,
         default=None,
-        help="Path to a JSONC config file. Defaults to song_2023.jsonc next to this module.",
+        help="Path to a YAML config file. Defaults to song_32deg.yaml next to this module.",
     )
     return parser.parse_args()
 
@@ -1240,7 +1240,7 @@ def _resolve_config_path(cli_config_path: Path | None = None) -> Path:
     """Return the Song configuration path.
 
     Preferred selection is the explicit ``--config`` CLI argument so all run
-    settings live in JSONC files rather than environment variables.
+    settings live in YAML files rather than environment variables.
     """
     if cli_config_path is not None:
         return cli_config_path.expanduser().resolve()
@@ -1251,11 +1251,19 @@ def _resolve_config_path(cli_config_path: Path | None = None) -> Path:
 
 
 def main() -> None:
-    """Load parameters from song_2023.jsonc, run the case if needed, then plot."""
+    """Load parameters from song_32deg.yaml, run the case if needed, then plot."""
     case_dir = Path(__file__).resolve().parent
     args = _parse_args()
     config_path = _resolve_config_path(args.config)
-    cfg = load_jsonc(config_path)
+    cfg = load_config(config_path)
+    paths = cfg.get("paths") if isinstance(cfg.get("paths"), dict) else {}
+    fields_path = paths.get("fields") or paths.get("case_dir")
+    if fields_path:
+        fields = Path(str(fields_path)).expanduser()
+        case_dir = fields if fields.is_absolute() else (config_path.parent / fields)
+    output_npz = Path(str(paths["output_npz"])) if paths.get("output_npz") else OUTPUT_NPZ
+    if not output_npz.is_absolute():
+        output_npz = config_path.parent / output_npz
     for region_key in ("input_region", "output_region"):
         if region_key in cfg:
             raise ValueError(
@@ -1273,7 +1281,7 @@ def main() -> None:
         St = float(cfg["frequency_target"]["St"])
     else:
         St = 0.0
-    data = _load_existing_npz(OUTPUT_NPZ)
+    data = _load_existing_npz(output_npz)
     required = {"X", "Y", "U", "omega", "direct_modes", "gains", "responses", "forcings", "beta"}
     if not required.issubset(data):
         bc_recipe = cfg.get("bc", {}).get("recipe")
@@ -1304,16 +1312,16 @@ def main() -> None:
             penalty=cfg["penalty"],
             alpha_filter=cfg.get("alpha_filter", "none"),
             assembly_backend=cfg.get("assembly_backend"),
-            output_npz=str(OUTPUT_NPZ),
+            output_npz=str(output_npz),
             bc_recipe=bc_recipe,
             solver_cfg=cfg.get("solver"),
             preprocess_cfg=cfg.get("baseflow_preprocess"),
             transpose_input=baseflow_input["transpose_input"],
             zero_spanwise=baseflow_input["zero_spanwise"],
         )
-        data = _load_existing_npz(OUTPUT_NPZ)
+        data = _load_existing_npz(output_npz)
     if not required.issubset(data):
-        raise RuntimeError(f"Failed to generate {OUTPUT_NPZ}")
+        raise RuntimeError(f"Failed to generate {output_npz}")
     _plot(data, overlay_cfg=cfg.get("spectrum_overlay"))
 
 

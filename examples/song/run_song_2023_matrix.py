@@ -14,12 +14,12 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parent
 REPO = SCRIPT.parents[2]
-CONFIG_PATH = SONG_DIR / "song_32deg.jsonc"
+CONFIG_PATH = SONG_DIR / "song_32deg.yaml"
 CANONICAL_OUTPUTS = (
     SONG_DIR / "song_2023.npz",
     SONG_DIR / "song_2023.log",
@@ -137,12 +137,12 @@ def main() -> None:
         "--config",
         type=Path,
         default=CONFIG_PATH,
-        help="Path to a Song matrix JSONC file (default: song_2023_matrix.jsonc).",
+        help="Path to a Song matrix YAML file (default: song_2023_matrix.yaml).",
     )
     parser.add_argument(
         "--reduced",
         action="store_true",
-        help="Apply reduced_overrides from song_2023_matrix.jsonc for a faster diagnostic run.",
+        help="Apply reduced_overrides from song_2023_matrix.yaml for a faster diagnostic run.",
     )
     parser.add_argument(
         "--variants",
@@ -152,8 +152,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg_path = args.config.expanduser().resolve()
-    cfg = load_jsonc(cfg_path)
-    base_cfg = load_jsonc(REPO / cfg["base_config"])
+    cfg = load_config(cfg_path)
+    base_cfg = load_config(REPO / cfg["base_config"])
     if args.reduced and "reduced_overrides" in cfg:
         base_cfg = _deep_merge(base_cfg, cfg["reduced_overrides"])
     output_root = REPO / cfg["output_root"]
@@ -169,7 +169,7 @@ def main() -> None:
         run_dir.mkdir(parents=True, exist_ok=True)
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
-        config_path = run_dir / "song_2023.variant.jsonc"
+        config_path = run_dir / "song_2023.variant.yaml"
         config_path.write_text(
             json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
