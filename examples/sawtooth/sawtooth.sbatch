@@ -14,4 +14,5 @@ ROOT="${SLURM_SUBMIT_DIR}"
 PY="${LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}"
 export PYTHONPATH="$ROOT/src:$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 cd "$ROOT"
+echo "resolution=packed stride-2 300x340  dissipation=on epsilon=0.10"
 mpiexec -n 4 "$PY" -m examples.sawtooth.sawtooth

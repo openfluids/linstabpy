@@ -7,6 +7,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc4] - 2026-08-13
+
 ### Added
 - `load_config` loaded YAML case files.
 - `load_case_fields` reads a packed npy directory or one npz.
@@ -485,7 +487,8 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc3...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc4...HEAD
+[1.0.0rc4]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc3...v1.0.0rc4
 [1.0.0rc3]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc2...v1.0.0rc3
 [1.0.0rc2]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc1...v1.0.0rc2
 [1.0.0rc1]: https://github.com/openfluids/linstabpy/releases/tag/v1.0.0rc1
