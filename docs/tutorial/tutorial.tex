@@ -182,11 +182,11 @@ At the end of this tutorial you will have:
 \begin{itemize}[leftmargin=2em]
   \item installed or checked the local \texttt{linstabpy} runtime,
   \item run a fast smoke example before starting expensive examples,
-  \item run each Martini example from its paired Python and JSONC files,
+  \item run each Martini example from its paired Python and YAML files,
   \item understand where reusable code, examples, studies, and validation assets live,
   \item use the single example runner for serial, parity, and MPI-safe runs,
   \item run the MATLAB-parity comparison for the Martini examples,
-  \item run the Song 2023 baseline and its JSONC-driven validation matrices,
+  \item run the Song 2023 baseline and its YAML-driven validation scripts,
   \item learned how to copy a case and adjust parameters for a new study.
 \end{itemize}
 
@@ -232,31 +232,31 @@ The import package is \code{linstabpy}. The repository and distribution name are
 Most runnable studies in this repository follow a paired-file pattern:
 
 \begin{outputbox}
-examples/example_1_blasius.py
-examples/example_1_blasius.jsonc
+examples/martini/example_1_blasius.py
+examples/martini/example_1_blasius.yaml
 \end{outputbox}
 
-The Python file contains the workflow. The JSONC file contains the run parameters. For first modifications, change the JSONC file or copy the pair. Avoid hardcoding study parameters inside the package code.
+The Python file contains the workflow. The YAML file contains the run parameters. For first modifications, change the YAML file or copy the pair. Avoid hardcoding study parameters inside the package code.
 
 \begin{notebox}
-You may not be familiar with JSONC. It is JSON with comments, and it is used here deliberately even though plain JSON is more common. These examples are numerical cases, so the case definition should be readable and reviewable: Reynolds number, Mach number, grid size, boundary conditions, sponge parameters, forcing masks, solver targets, and PETSc/MPI choices all belong in a visible input file. The comments explain why a parameter exists and whether it comes from the Martini reference case or from the Python port. Plain JSON would remove those explanations, command-line flags would hide too much state in long commands or shell history, and Python config files would mix data with executable code.
+Case files are YAML with comments. Reynolds number, Mach number, grid size, boundary conditions, sponge parameters, forcing masks, solver targets, and PETSc/MPI choices belong in that file. The comments say why a parameter exists and whether it comes from the Martini reference case. Command-line flags hide too much state. A Python config file would mix data with executable code.
 \end{notebox}
 
 The examples also follow a cache pattern:
 
 \begin{commandbox}
-.venv/bin/python -m examples.example_1_blasius
+.venv/bin/python -m examples.martini.example_1_blasius
 \end{commandbox}
 
 If the matching \code{.npz} already exists, the script usually loads it and plots. To recompute, remove the matching \code{.npz} and rerun:
 
 \begin{commandbox}
-rm -f examples/example_1_blasius.npz
-.venv/bin/python -m examples.example_1_blasius
+rm -f examples/martini/example_1_blasius.npz
+.venv/bin/python -m examples.martini.example_1_blasius
 \end{commandbox}
 
 \begin{warningbox}
-The full examples can be memory- and time-intensive. Start with the smoke run and the cached outputs before deleting large \code{.npz} artifacts.
+The full examples can be memory- and time-intensive. Start with a reduced YAML grid and the cached outputs before deleting large \code{.npz} artifacts.
 \end{warningbox}
 
 \subsection*{Where files belong}
@@ -265,14 +265,12 @@ The top-level directories have distinct roles. Keep reusable package code, runna
 
 \begin{outputbox}
 src/linstabpy/      importable Python package
-examples/           runnable examples; generated .npz/.png ignored
+examples/           runnable examples and tracked PNGs
+examples/martini/   Martini examples and MATLAB field constructors
 examples/song/      Song / Robinet SWBLI EVP case
 examples/savarino/  Savarino 30.8 deg resolvent case
-scripts/ci/ and scripts/tools/
-examples/martini/
-                    MATLAB-to-Python conversion and parity tooling
-scripts/            repository guardrails and maintenance utilities
-scripts/ci/     thin install/diagnose/benchmark harness
+examples/sawtooth/  Lui 2022 suction-side SWBLI
+scripts/            tracked-size and public-provenance checks
 docs/tutorial/      tutorial source and generated PDF
 \end{outputbox}
 
@@ -292,34 +290,34 @@ bash run_all_examples.sh --clean --example 1 --skip-parity
 For MPI runs, enable \code{--mpi}. If \code{-n/--ranks} is omitted, the runner starts from half of the detected physical cores. The runner also sets one OpenMP/BLAS thread per rank unless those variables were already set by the caller.
 
 \begin{commandbox}
-bash run_all_examples.sh --mpi -m examples.example_1_blasius_smoke
-bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
+bash run_all_examples.sh --mpi -m examples.martini.example_1_blasius
+bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
 \end{commandbox}
 
 \begin{notebox}
 The previous separate MPI wrapper has been folded into \code{run_all_examples.sh}. Override the MPI launcher or default rank count with \code{LINSTABPY_MPIEXEC} and \code{LINSTABPY_MPI_RANKS} when a machine needs explicit runtime paths.
 \end{notebox}
 
-\section*{4. First run: Blasius smoke test}
+\section*{4. First run: Blasius}
 
-The fastest first test uses the same physics path as the Blasius example but on a smaller grid.
+The first complete example is the Blasius resolvent. Copy the YAML and reduce \code{nx} and \code{ny} if you want a cheaper first run.
 
 \begin{commandbox}
-.venv/bin/python -m examples.example_1_blasius_smoke
+.venv/bin/python -m examples.martini.example_1_blasius
 \end{commandbox}
 
 Expected outputs:
 
 \begin{outputbox}
-examples/example_1_blasius_smoke.npz
-examples/example_1_blasius_smoke.png
+examples/martini/example_1_blasius.npz
+examples/martini/example_1_blasius.png
 \end{outputbox}
 
-The smoke JSONC file is:
+The YAML file is:
 
 \begin{outputbox}
-examples/example_1_blasius_smoke.jsonc
+examples/martini/example_1_blasius.yaml
 \end{outputbox}
 
 Use it to understand the basic blocks: flow parameters, grid size, sponge, forcing mask, boundary-condition recipe, assembly backend, and solver settings.
@@ -670,7 +668,7 @@ After the example artifacts exist, compare Python outputs with extracted MATLAB 
 The machine-readable registry is:
 
 \begin{outputbox}
-examples/martini/martini_cases.jsonc
+examples/martini/martini_cases.yaml
 \end{outputbox}
 
 The current reports are written under:
@@ -697,28 +695,28 @@ The Song 2023 case is a validation workflow for an oblique shock / boundary-laye
 The main files are:
 
 \begin{outputbox}
-examples/song/song_2023.py
-examples/song/song_2023.jsonc
-examples/song/song_2023.sh
+examples/song/song.py
+examples/song/song_32deg.yaml
+examples/song/song.sh
 \end{outputbox}
 
 Run the baseline through the wrapper:
 
 \begin{commandbox}
-bash examples/song/song_2023.sh
+bash examples/song/song.sh
 \end{commandbox}
 
-The baseline JSONC contains the physical parameters, finite-difference order, stride, preprocessing, boundary conditions, and solver settings.
+The baseline YAML contains the physical parameters, finite-difference order, stride, preprocessing, boundary conditions, and solver settings.
 
 \begin{snippetbox}
-"Re": 1e5,
-"Ma": 2.15,
-"beta": 19.2,
-"fd_order": 2,
-"stride_ksi": 1,
-"stride_eta": 1,
-"run_stability": true,
-"run_resolvent": false
+Re: 1.0e5
+Ma: 2.15
+beta: 19.2
+fd_order: 2
+stride_ksi: 1
+stride_eta: 1
+run_stability: true
+run_resolvent: false
 \end{snippetbox}
 
 Boundary conditions:
@@ -733,65 +731,53 @@ Boundary conditions:
 Expected canonical outputs:
 
 \begin{outputbox}
-examples/song/song_2023.npz
-examples/song/song_2023.log
-examples/song/song_2023.png
-examples/song/song_2023_baseflow.png
-examples/song/song_2023_support_direct_modes.png
+examples/song/song_32deg.npz
+examples/song/song_fig1_baseflow.png
+examples/song/song_fig2_spectrum.png
+examples/song/song_fig3_eigenmode.png
 \end{outputbox}
 
 \section*{8. Song validation matrices}
 
-Use JSONC matrix files when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
+Use the Song YAML generators when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
 
 \begin{outputbox}
-examples/song/song_2023_matrix.jsonc
-examples/song/order_convergence.jsonc
-examples/song/song_2023_order_preflight.jsonc
-examples/song/song_2023_scaling.jsonc
-examples/song/fd4_sensitivity.jsonc
-examples/song/shift_scan.jsonc
-examples/song/shifted_ksp_matrix.jsonc
+examples/song/run_song_2023_matrix.py
+examples/song/run_song_2023_order_preflight.py
+examples/song/run_song_2023_scaling.py
 \end{outputbox}
 
 Run the solver/preprocessing matrix:
 
 \begin{commandbox}
-.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_matrix
+.venv/bin/python examples/song/run_song_2023_matrix.py
 \end{commandbox}
 
-Run the finite-difference order preflight before the full order convergence study:
+Run the finite-difference order preflight before a full order study:
 
 \begin{commandbox}
-.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_preflight
-\end{commandbox}
-
-Run the order convergence study only on a machine with enough memory for the configured guard:
-
-\begin{commandbox}
-.venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_convergence
-.venv/bin/python examples/song/plot_order_convergence.py
+.venv/bin/python examples/song/run_song_2023_order_preflight.py
 \end{commandbox}
 
 \begin{warningbox}
-The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{examples/song/order_convergence.jsonc} before running it.
+A full Song order study can require many gigabytes of memory. Check the generated YAML before submitting it.
 \end{warningbox}
 
 \section*{9. How to adjust a shipped case}
 
-For small experiments, copy the closest Python/JSONC pair into a working location. This keeps the shipped examples intact.
+For small experiments, copy the closest Python/YAML pair into a working location. This keeps the shipped examples intact.
 
 \begin{commandbox}
 mkdir -p tutorial/work
-cp examples/example_1_blasius.py tutorial/work/my_blasius.py
-cp examples/example_1_blasius_smoke.jsonc tutorial/work/my_blasius.jsonc
+cp examples/martini/example_1_blasius.py tutorial/work/my_blasius.py
+cp examples/martini/example_1_blasius.yaml tutorial/work/my_blasius.yaml
 PYTHONPATH=src:. .venv/bin/python tutorial/work/my_blasius.py
 \end{commandbox}
 
 Then edit:
 
 \begin{outputbox}
-tutorial/work/my_blasius.jsonc
+tutorial/work/my_blasius.yaml
 \end{outputbox}
 
 Good first changes:
@@ -800,12 +786,12 @@ Good first changes:
   \item reduce \code{nx} and \code{ny} for fast tests,
   \item change \code{n_modes} only after the first successful run,
   \item change \code{fd_order} one value at a time,
-  \item keep \code{assembly_backend: "scipy"} until the case works,
-  \item keep solver settings in JSONC.
+  \item keep \code{assembly_backend: scipy} until the case works,
+  \item keep solver settings in YAML.
 \end{itemize}
 
 \begin{notebox}
-The copied Python file uses \code{SCRIPT.with_suffix(".jsonc")}. That is why \path{my_blasius.py} reads \path{my_blasius.jsonc} automatically when the names match.
+The copied Python file uses \code{SCRIPT.with_suffix(".yaml")}. That is why \path{my_blasius.py} reads \path{my_blasius.yaml} automatically when the names match.
 \end{notebox}
 
 \section*{10. How to start a new case}
@@ -814,8 +800,8 @@ Use this checklist before writing new package code:
 
 \begin{itemize}[leftmargin=2em]
   \item choose the closest existing case: Blasius for 2-D resolvent, jet/paraboloid for axisymmetric resolvent, streaky/cavity for EVP branches, Song for SWBLI validation;
-  \item copy the Python/JSONC pair into a study directory;
-  \item keep all physical and numerical parameters in the JSONC file;
+  \item copy the Python/YAML pair into a study directory;
+  \item keep all physical and numerical parameters in the YAML file;
   \item load base-flow data through a small loader rather than hardcoded absolute paths;
   \item define the boundary-condition recipe explicitly;
   \item run a reduced grid first;
@@ -826,7 +812,7 @@ Use this checklist before writing new package code:
 For MATLAB-backed parity, add a registry entry only after the reference bundle location is known:
 
 \begin{outputbox}
-examples/martini/martini_cases.jsonc
+examples/martini/martini_cases.yaml
 \end{outputbox}
 
 \section*{11. Common first-run problems}
@@ -836,7 +822,7 @@ examples/martini/martini_cases.jsonc
   \item If a run appears to use the wrong Python, use \code{.venv/bin/python} explicitly.
   \item If a full example is too slow, run the smoke or reduced-grid variant first.
   \item If a parity report says a MATLAB NPZ bundle is missing, generate or provide the bundle; do not change tolerances to hide the missing input.
-  \item If a high-order run changes behavior, compare \code{fd_order} values through a JSONC matrix instead of editing operator code first.
+  \item If a high-order run changes behavior, compare \code{fd_order} values through a YAML matrix instead of editing operator code first.
 \end{itemize}
 
 \section*{12. Build this tutorial}

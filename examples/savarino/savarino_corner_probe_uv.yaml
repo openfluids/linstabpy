@@ -4,38 +4,38 @@ paths:
   # Point this at the directory written by savarino_to_npy.py.
   case_dir: data/converted
 physics:
-  Re: 100000.0
-  Ma: 2.15
-  Pr: 0.72
-  kappa: 1.4
-  T_0: 156.92
+  Re: 100000.0           # Reynolds number based on X_sh
+  Ma: 2.15               # freestream Mach
+  Pr: 0.72               # Prandtl number
+  kappa: 1.4             # ratio of specific heats
+  T_0: 156.92            # reference temperature [K]
   zero_spanwise: false
   zero_mu_t_derivs: false
   use_matlab_sponge_aux: false
   sponge:
-    enabled: false
+    enabled: false       # use the packed sponge only
 numerics:
-  stride_ksi: 1
+  stride_ksi: 1          # 1 = as packed
   stride_eta: 1
-  fd_order: 4
-  beta: 0.0
-  alpha_filter: 0.0
+  fd_order: 4            # SBP interior order
+  beta: 0.0              # spanwise wavenumber (0 = 2-D)
+  alpha_filter: 0.0      # implicit filter; 0 keeps the filter real
   operator_dissipation:
-    enabled: false
+    enabled: false       # rectilinear mesh; leak ~ 1e-17
     epsilon: 0.0
     apply_to_stability: true
     apply_to_resolvent: true
 bc:
   penalty: 100000000.0
   recipe:
-    - {type: dirichlet, borders: lt, variables: ruvwT}
-    - {type: dirichlet, borders: b, variables: ruvw}
-    - {type: neumann, borders: b, variables: T}
-    - {type: neumann, borders: r, variables: ruvwT}
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T}         # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT}     # outflow
 analysis:
   ratio_uinf: 1.0
   ratio_l: 0.1
-  St: 0.1
+  St: 0.1                # unused while omega_target is set
   run_stability: false
   run_resolvent: true
   use_raw_eigs: false

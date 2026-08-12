@@ -21,20 +21,20 @@ numerics:
   floquet_shift: matlab_parity
   operator_dissipation:
     enabled: true
-    epsilon: 0.10
+    epsilon: 0.10    # sawtooth damping; re-tune if the mesh leaks
     apply_to_stability: true
     apply_to_resolvent: false
 bc:
   penalty: 1000000.0
   recipe:
-    - {type: dirichlet, borders: lt, variables: ruvwT}
-    - {type: dirichlet, borders: b, variables: ruvw}
-    - {type: neumann, borders: b, variables: T, exclude_corners: true}
-    - {type: neumann, borders: r, variables: ruvwT, exclude_corners: true}
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T, exclude_corners: true}  # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT, exclude_corners: true}  # outflow
 analysis:
   ratio_uinf: 1.0
   ratio_l: 0.1
-  St: 0.1
+  St: 0.1            # unused while omega_target is set
   n_modes_stability: 20
   n_modes_resolvent: 1
   run_stability: true

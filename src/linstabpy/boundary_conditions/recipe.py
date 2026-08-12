@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Declarative boundary-condition recipe applicator.
 
-Reads a list of BC rule dicts (typically from a JSONC config) and
+Reads a list of BC rule dicts (typically from a YAML config) and
 applies them sequentially to the LNSE operator, returning the
 combined BC index set.
 """
@@ -34,7 +34,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
 
 @dataclass(frozen=True)
 class BCRule:
-    """Normalized boundary-condition rule from a JSONC-compatible recipe entry."""
+    """Normalized boundary-condition rule from a YAML-compatible recipe entry."""
 
     type: str
     borders: str
@@ -76,7 +76,7 @@ class BCRecipe:
         cls,
         recipe: "BCRecipe | Sequence[Mapping[str, Any]]",
     ) -> "BCRecipe":
-        """Build a recipe from the current JSONC-compatible list of rule dicts."""
+        """Build a recipe from the current YAML-compatible list of rule dicts."""
         if isinstance(recipe, BCRecipe):
             return recipe
         return cls(tuple(BCRule.from_mapping(rule) for rule in recipe))
@@ -231,7 +231,7 @@ def _apply_bc_recipe_scipy(
     for rule in recipe.rules:
         # Recipe order is intentional. Later rules physically replace rows
         # written by earlier rules, which is how mixed corner policies are
-        # expressed without adding a separate precedence field to JSONC.
+        # expressed without adding a separate precedence field to YAML.
         bc_type = rule.type
         borders = rule.borders
         variables = rule.variables
@@ -290,7 +290,7 @@ def _apply_bc_recipe_impl(
     for rule in recipe.rules:
         # Recipe order is intentional. Later rules physically replace rows
         # written by earlier rules, which is how mixed corner policies are
-        # expressed without adding a separate precedence field to JSONC.
+        # expressed without adding a separate precedence field to YAML.
         bc_type = rule.type
         borders = rule.borders
         variables = rule.variables
@@ -335,7 +335,7 @@ def apply_bc_recipe(
     recipe: BCRecipe | Sequence[Mapping[str, Any]],
     penalty: float = 1e4,
 ) -> tuple[sp.csc_matrix, np.ndarray]:
-    """Apply a declarative BC recipe from a JSONC config.
+    """Apply a declarative BC recipe from a YAML config.
 
     Parameters
     ----------

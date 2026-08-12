@@ -786,7 +786,7 @@ class TestRecipeAnalysis:
         with pytest.raises(ValueError, match="Dirichlet rules only"):
             apply_bc_recipe_spatial(Lc.copy(), R.copy(), mesh, idx, recipe)
 
-    def test_case1_recipe_overlap_and_effective_sets(self, small_mesh_2d, uniform_baseflow):
+    def test_swbli_recipe_overlap_and_effective_sets(self, small_mesh_2d, uniform_baseflow):
         mesh = small_mesh_2d
         bf = uniform_baseflow
         _, idx = build_lnse_operator(mesh, bf, kx=0.0)
@@ -922,7 +922,7 @@ class TestRecipeAnalysis:
             if row_petsc[int(dof)] == pytest.approx(penalty):
                 pytest.fail(f"PETSc overlap row {dof} kept the earlier Dirichlet penalty")
 
-    def test_case1_recipe_neumann_exclude_corners_removes_cross_type_overlap(
+    def test_swbli_recipe_neumann_exclude_corners_removes_cross_type_overlap(
         self,
         small_mesh_2d,
         uniform_baseflow,

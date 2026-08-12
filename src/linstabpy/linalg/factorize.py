@@ -222,7 +222,7 @@ def factorize(
     env_prefix:
         Environment prefix controlling solver options.
     solver_cfg:
-        Optional solver config dict (from JSONC ``"solver"`` section).
+        Optional solver config dict (from YAML ``"solver"`` section).
         When provided, the appropriate subsection is selected based on
         ``env_prefix``: ``"resolvent"`` subsection for
         ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the

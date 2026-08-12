@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Lenient schema checks for fully merged YAML configuration dictionaries."""
+"""Lenient schema checks for fully merged YAML case dictionaries."""
 
 from __future__ import annotations
 
@@ -11,17 +11,19 @@ class ConfigValidationError(ValueError):
     pass
 
 
+# Nested blocks plus the Martini mesh keys that generated-mesh cases still
+# keep at the top level. Flat Song keys stay until that driver is wrapped.
 TOP_LEVEL_ALLOWED = frozenset(
     {
-        "defaults",
-        "cases",
-        "outputs",
-        "$include",
-        "output_root",
-        "base_config",
+        "paths",
+        "physics",
+        "numerics",
+        "analysis",
+        "preprocess",
         "bc",
         "solver",
-        "variants",
+        "cases",
+        "schema_version",
         "fd_order",
         "alpha_filter",
         "assembly_backend",
@@ -31,12 +33,7 @@ TOP_LEVEL_ALLOWED = frozenset(
         "ny",
         "x_periodicity",
         "sponge",
-        "memory_guard",
         "y_symmetry",
-        "paths",
-        "physics",
-        "numerics",
-        "analysis",
         "Re",
         "Ma",
         "Pr",
@@ -44,7 +41,6 @@ TOP_LEVEL_ALLOWED = frozenset(
         "T_0",
         "omega",
         "forcing_zero_vars",
-        "reduced_overrides",
         "St",
         "m",
         "omega_target",
@@ -60,10 +56,6 @@ TOP_LEVEL_ALLOWED = frozenset(
         "yrange",
         "Lx",
         "Ly",
-        "parity_tolerances",
-        "examples",
-        "trials",
-        "assembly_backends",
         "coarsen",
         "x_cavity_start",
         "L_cavity",
@@ -92,13 +84,6 @@ TOP_LEVEL_ALLOWED = frozenset(
         "penalty",
         "baseflow_input",
         "baseflow_preprocess",
-        "omega_targets",
-        "direct_ksp",
-        "factor_precision",
-        "mumps_blr",
-        "mumps_blr_tol",
-        "mumps_ordering",
-        "schema_version",
     }
 )
 

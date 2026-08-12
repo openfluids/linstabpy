@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 
 import pytest
-
-_DRIVER_RUN_MODULE = importlib.import_module("linstabpy.driver.run")
 
 from linstabpy.config import ConfigValidationError, validate_config
 from linstabpy.utils.yaml_io import load_config
@@ -43,12 +40,10 @@ def test_fd_order_enum_accepts_valid(fd_order: int) -> None:
 
 def test_fd_order_checked_recursively() -> None:
     cfg = {
-        "defaults": {
-            "case_defaults": {
-                "config_overrides": {
-                    "numerics": {
-                        "fd_order": 5,
-                    },
+        "solver": {
+            "eigen": {
+                "numerics": {
+                    "fd_order": 5,
                 },
             },
         },
@@ -57,7 +52,7 @@ def test_fd_order_checked_recursively() -> None:
     with pytest.raises(ConfigValidationError) as exc_info:
         validate_config(cfg)
 
-    assert "defaults.case_defaults.config_overrides.numerics.fd_order" in str(exc_info.value)
+    assert "solver.eigen.numerics.fd_order" in str(exc_info.value)
 
 
 def test_unknown_top_level_key_rejected_with_name() -> None:
@@ -81,6 +76,13 @@ def test_bool_not_accepted_for_int_field() -> None:
 def test_driver_rejects_malformed_config_before_case_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import importlib
+
+    try:
+        _DRIVER_RUN_MODULE = importlib.import_module("linstabpy.driver.run")
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"driver.run needs PETSc/mpi4py: {exc}")
+
     config_path = tmp_path / "malformed_absurd_grid.yaml"
     config_path.write_text(
         """
@@ -112,14 +114,23 @@ def test_driver_rejects_malformed_config_before_case_loading(
     assert case_load_calls == 0
 
 
+def test_campaign_leftover_keys_are_rejected() -> None:
+    with pytest.raises(ConfigValidationError, match="defaults"):
+        validate_config({"defaults": {}})
+    with pytest.raises(ConfigValidationError, match="mumps_ordering"):
+        validate_config({"mumps_ordering": "metis"})
+
+
 def test_no_false_positives_on_shipped_configs() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    config_paths = [
-        path
-        for path in repo_root.rglob("*.yaml")
-        if ".venv" not in path.relative_to(repo_root).parts
-        and path.parts[0] in {"examples", "configs"}
-    ]
+    config_paths = []
+    for path in repo_root.rglob("*.yaml"):
+        relative = path.relative_to(repo_root)
+        if ".venv" in relative.parts:
+            continue
+        if relative.parts[0] not in {"examples", "configs"}:
+            continue
+        config_paths.append(path)
     relative_config_paths = [path.relative_to(repo_root) for path in config_paths]
 
     assert config_paths, "shipped YAML config sweep found no files"

@@ -22,7 +22,7 @@ from linstabpy.utils._solver_cfg import (
 
 
 def test_solver_config_dict_overrides_environment(monkeypatch) -> None:
-    """JSONC solver values have precedence over environment fallbacks."""
+    """YAML solver values have precedence over environment fallbacks."""
     monkeypatch.setenv("LINSTABPY_EXAMPLE_KEY", "env-value")
 
     assert _scfg({"mode": "LOCAL"}, "mode", "LINSTABPY_EXAMPLE_KEY", "auto") == "local"
@@ -169,8 +169,12 @@ def test_mumps_icntl_petsc_options_hardened_defaults() -> None:
     assert _mumps_opts({}) == {"mat_mumps_icntl_14": "100", "mat_mumps_icntl_24": "1"}
 
 
-def test_mumps_icntl_petsc_options_icntl7_gate_and_overrides() -> None:
-    assert _mumps_opts({"mumps_icntl_7": True})["mat_mumps_icntl_7"] == "5"
+def test_mumps_icntl_7_alias_is_rejected() -> None:
+    with pytest.raises(ValueError, match="mumps_ordering"):
+        Config.load({"solver": {"mumps_icntl_7": True}}, env={})
+
+
+def test_mumps_icntl_petsc_options_overrides() -> None:
     assert _mumps_opts({"mumps_icntl_14": 200})["mat_mumps_icntl_14"] == "200"
     assert _mumps_opts({"mumps_icntl_24": 7})["mat_mumps_icntl_24"] == "7"
 

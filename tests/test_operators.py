@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from examples.martini.matlab_baseflow import load_blasius
+from tests.make_test_baseflow import make_test_baseflow
 from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
@@ -2238,7 +2238,7 @@ class TestSpatialOperator:
         Y_new = 30.0 * np.sinh(s * mesh.Y / 30.0) / np.sinh(s)
         mesh = mesh.deform(Y_new=Y_new)
 
-        bf = load_blasius(mesh.X, mesh.Y, Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15)
+        bf = make_test_baseflow(mesh.X, mesh.Y, Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, T_0=288.15)
         sutherland_air(bf)
 
         Lc_sp, R_sp, _, idx = build_spatial_operator(mesh, bf, model="2D")

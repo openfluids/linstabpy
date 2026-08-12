@@ -89,30 +89,11 @@ def uniform_baseflow(small_mesh_2d):
 
 
 @pytest.fixture
-def blasius_baseflow_small():
-    """Blasius on a 30x20 mesh, Re=1e4, Ma=0.3."""
-    from examples.martini.matlab_baseflow import load_blasius
-    from linstabpy.baseflow import sutherland_air
-    from linstabpy.mesh import Mesh
+def test_baseflow_small(small_mesh_2d):
+    """Manufactured shear layer on the small 2-D mesh."""
+    from tests.make_test_baseflow import make_test_baseflow
 
-    mesh = Mesh.create(
-        xrange=(200.0, 300.0),
-        yrange=(0.0, 30.0),
-        nx=30,
-        ny=20,
-        fd_order=4,
-    )
-    bf = load_blasius(
-        mesh.X,
-        mesh.Y,
-        Re=1e4,
-        Ma=0.3,
-        Pr=0.7,
-        kappa=1.4,
-        T_0=288.15,
-    )
-    sutherland_air(bf)
-    return mesh, bf
+    return small_mesh_2d, make_test_baseflow(small_mesh_2d.X, small_mesh_2d.Y)
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Solver configuration policy shared by PETSc/SLEPc callers.
 
-The precedence is intentionally simple: JSONC values win, then environment
+The precedence is intentionally simple: YAML values win, then environment
 variables, then the project default.  Keeping that rule here avoids small
 differences between eigenvalue, resolvent, and linear-solve paths.
 """
@@ -13,7 +13,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-# Public JSONC still accepts the historical names.  These sets are the policy
+# Public YAML still accepts the historical names.  These sets are the policy
 # boundary used by solver modules; adding a new family should happen here first.
 DIRECT_SOLVER_TYPES = frozenset({"mumps", "direct", "lu"})
 ITERATIVE_LINEAR_SOLVER_TYPES = frozenset({"iterative", "krylov", "petsc"})
@@ -25,7 +25,7 @@ INEXACT_EIGEN_SOLVER_TYPES = frozenset({"inexact"})
 class SolverConfig(Mapping[str, Any]):
     """Typed view over the legacy ``solver_cfg`` mapping.
 
-    The public JSONC surface is still a plain dictionary.  This wrapper gives
+    The public YAML surface is still a plain dictionary.  This wrapper gives
     solver-policy code one place to resolve subsections and env fallbacks while
     preserving the existing ``dict`` methods that current callers use.
     """
@@ -53,7 +53,7 @@ class SolverConfig(Mapping[str, Any]):
         """Return the solver subsection selected by an environment-prefix family.
 
         Resolvent solves reuse the linear-solver policy by default, but may
-        override it in ``solver.resolvent``.  This preserves old JSONC files
+        override it in ``solver.resolvent``.  This preserves old YAML files
         while giving resolvent sweeps their own tuning surface.
         """
         if env_prefix == "LINSTABPY_RESOLVENT":

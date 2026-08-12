@@ -13,14 +13,20 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - `examples/sawtooth` added the Lui 2022 field on a packed stride-2 300 x 340 mesh.
 - Four paper Example 3 YAML files reused `example_3_streaky_bl.py`.
 - Martini MATLAB field constructors moved to `examples/martini/matlab_baseflow.py`.
+- `build_runtime_payload` grouped the runtime NPZ keys before `save_results`.
 
 ### Removed
 - `load_jsonc`, `load_hamada_case`, `results_runtime`, and the solver import shims.
 - The `run/` campaign kit and the broken Docker PETSc CI job.
-- `Dockerfile`, `docs/DEVELOPMENT.md`, and `docs/runtime_npz_contract.md`.
+- The `mumps_icntl_7` boolean alias. Use `mumps_ordering: metis`.
+- The unused `Dockerfile` that did not configure PETSc.
 
 ### Changed
 - Case files under `examples/` used YAML. The loader rejected a leftover `.jsonc` suffix.
+- Shipped YAML files now comment each key. `validation_cases.yaml` is YAML.
+- Comments and the tutorial now say YAML, not JSONC.
+- Omit-list coverage on this box is 72 percent. `fail_under` stays off.
+- Sponge presets dropped the `case1_` prefix.
 - Moved the Martini, Song, and Savarino cases to `examples/martini`,
   `examples/song`, and `examples/savarino`.
 - Packed the Song reference fields as float64 npz. The 32 deg field uses

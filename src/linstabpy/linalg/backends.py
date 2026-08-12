@@ -88,7 +88,7 @@ def resolve_factor_backend(
     env_var: str | None = None,
     default: str | None = DEFAULT_FACTOR_BACKEND,
 ) -> str | None:
-    """Resolve a direct-factor backend from JSONC, env vars, then default."""
+    """Resolve a direct-factor backend from YAML, env vars, then default."""
     if cfg is not None and "factor_backend" in cfg:
         return _normalize_backend(cfg["factor_backend"])
     if env_var is not None and env_var in os.environ:
@@ -104,7 +104,7 @@ def resolve_factor_precision(
     env_var: str = "LINSTABPY_FACTOR_PRECISION",
     default: str = DEFAULT_FACTOR_PRECISION,
 ) -> str:
-    """Resolve direct-factor precision with precedence env > JSONC > default."""
+    """Resolve direct-factor precision with precedence env > YAML > default."""
     if env_var in os.environ:
         return _normalize_factor_precision(os.environ[env_var])
     if cfg is not None and "factor_precision" in cfg:
@@ -118,7 +118,7 @@ def resolve_mumps_blr(
     env_var: str = "LINSTABPY_MUMPS_BLR",
     default: bool = DEFAULT_MUMPS_BLR,
 ) -> bool:
-    """Resolve the MUMPS BLR switch with precedence env > JSONC > default."""
+    """Resolve the MUMPS BLR switch with precedence env > YAML > default."""
     if env_var in os.environ:
         return _as_bool(os.environ[env_var])
     if cfg is not None and "mumps_blr" in cfg:
@@ -132,7 +132,7 @@ def resolve_mumps_blr_tol(
     env_var: str = "LINSTABPY_MUMPS_BLR_TOL",
     default: float = DEFAULT_MUMPS_BLR_TOL,
 ) -> float:
-    """Resolve the MUMPS BLR tolerance with precedence env > JSONC > default."""
+    """Resolve the MUMPS BLR tolerance with precedence env > YAML > default."""
     if env_var in os.environ:
         return _normalize_mumps_blr_tol(os.environ[env_var])
     if cfg is not None and "mumps_blr_tol" in cfg:
@@ -146,7 +146,7 @@ def resolve_mumps_ordering(
     env_var: str = "LINSTABPY_MUMPS_ORDERING",
     default: str | None = None,
 ) -> str | None:
-    """Resolve MUMPS ordering with precedence env > JSONC > default."""
+    """Resolve MUMPS ordering with precedence env > YAML > default."""
     if env_var in os.environ:
         return _normalize_mumps_ordering(os.environ[env_var])
     if cfg is not None and "mumps_ordering" in cfg:
@@ -302,10 +302,8 @@ def apply_factor_backend(
     if ordering is not None:
         opts.setValue(ordering_key, str(MUMPS_ORDERING_TO_ICNTL_7[ordering]))
     # Unlike the BLR keys (which only linstabpy writes), mat_mumps_icntl_7 has
-    # legitimate external writers: the legacy mpi.mumps_icntl_7 gate installed
-    # by petsc_core and user-supplied CLI options. When this knob is unset it
-    # expresses no opinion and must NOT clear the key, or it would silently
-    # neutralize those explicit ordering requests.
+    # legitimate external writers: user-supplied CLI options. When this knob
+    # is unset it expresses no opinion and must NOT clear the key.
     try:
         pc.setFromOptions()
         pc.setFactorSolverType(backend)

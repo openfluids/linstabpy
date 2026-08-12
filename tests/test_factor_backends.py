@@ -279,7 +279,7 @@ def test_mumps_blr_rejects_non_mumps_backend(monkeypatch, backend) -> None:
     assert "mumps" in message
 
 
-def test_mumps_blr_env_beats_jsonc_and_default(monkeypatch) -> None:
+def test_mumps_blr_env_beats_yaml_and_default(monkeypatch) -> None:
     monkeypatch.delenv("LINSTABPY_MUMPS_BLR", raising=False)
     monkeypatch.delenv("LINSTABPY_MUMPS_BLR_TOL", raising=False)
 
@@ -301,7 +301,7 @@ def test_mumps_blr_env_beats_jsonc_and_default(monkeypatch) -> None:
     assert cfg.linsolve.mumps_blr_tol == pytest.approx(4.0e-3)
 
 
-def test_mumps_ordering_env_beats_jsonc_and_default(monkeypatch) -> None:
+def test_mumps_ordering_env_beats_yaml_and_default(monkeypatch) -> None:
     monkeypatch.delenv("LINSTABPY_MUMPS_ORDERING", raising=False)
 
     assert backends.resolve_mumps_ordering(None) is None
@@ -443,7 +443,6 @@ def _mumps_ordering_probe_ksp(
     ordering: str | None,
     *,
     explicit_ordering: str | None = None,
-    legacy_icntl_7: bool = False,
 ):  # noqa: ANN001
     if not backends.factor_backend_available("mumps"):
         pytest.skip("SKIPPED: missing MUMPS factor backend")
@@ -452,10 +451,6 @@ def _mumps_ordering_probe_ksp(
         monkeypatch.delenv("LINSTABPY_MUMPS_ORDERING", raising=False)
     else:
         monkeypatch.setenv("LINSTABPY_MUMPS_ORDERING", ordering)
-    if legacy_icntl_7:
-        cfg = Config.load({"solver": {"mumps_icntl_7": True}}, env={})
-        for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
-            PETSc.Options().setValue(key, value)
     A = PETSc.Mat().createAIJ(size=(3, 3), comm=PETSc.COMM_SELF)
     values = {
         (0, 0): 4.0 + 0.0j,
@@ -517,8 +512,7 @@ def test_mumps_ordering_unset_leaves_mumps_default_after_ksp_setup(monkeypatch) 
 
 def test_mumps_ordering_unset_preserves_externally_set_icntl_7(monkeypatch) -> None:
     """An unset knob expresses no opinion: it must not clobber an icntl_7 value
-    installed by external writers (the legacy mpi.mumps_icntl_7 gate in
-    petsc_core, or user-supplied CLI options)."""
+    installed by user-supplied CLI options."""
     PETSc.Options().setValue("mat_mumps_icntl_7", "5")
     try:
         ksp, A = _mumps_ordering_probe_ksp(monkeypatch, None)
@@ -531,27 +525,12 @@ def test_mumps_ordering_unset_preserves_externally_set_icntl_7(monkeypatch) -> N
         PETSc.Options().delValue("mat_mumps_icntl_7")
 
 
-def test_legacy_mumps_icntl_7_alias_real_wiring_sets_metis(monkeypatch) -> None:
-    expected = backends.MUMPS_ORDERING_TO_ICNTL_7["metis"]
-    ksp, A = _mumps_ordering_probe_ksp(monkeypatch, None, legacy_icntl_7=True)
-    try:
-        assert ksp.getPC().getFactorMatrix().getMumpsIcntl(7) == expected
-    finally:
-        PETSc.Options().delValue("mat_mumps_icntl_7")
-        ksp.destroy()
-        A.destroy()
-
-
-def test_jsonc_mumps_ordering_wins_over_legacy_alias_real_wiring(monkeypatch) -> None:
-    cfg = Config.load(
-        {"solver": {"eigen": {"mumps_ordering": "pord"}, "mumps_icntl_7": True}},
-        env={},
-    )
+def test_yaml_mumps_ordering_reaches_mumps(monkeypatch) -> None:
+    cfg = Config.load({"solver": {"eigen": {"mumps_ordering": "pord"}}}, env={})
     ksp, A = _mumps_ordering_probe_ksp(
         monkeypatch,
         None,
         explicit_ordering=cfg.eigen.mumps_ordering,
-        legacy_icntl_7=cfg.mpi.mumps_icntl_7,
     )
     try:
         assert (
@@ -564,16 +543,15 @@ def test_jsonc_mumps_ordering_wins_over_legacy_alias_real_wiring(monkeypatch) ->
         A.destroy()
 
 
-def test_env_mumps_ordering_wins_over_jsonc_and_legacy_alias_real_wiring(monkeypatch) -> None:
+def test_env_mumps_ordering_wins_over_yaml(monkeypatch) -> None:
     cfg = Config.load(
-        {"solver": {"eigen": {"mumps_ordering": "pord"}, "mumps_icntl_7": True}},
+        {"solver": {"eigen": {"mumps_ordering": "pord"}}},
         env={"LINSTABPY_MUMPS_ORDERING": "qamd"},
     )
     ksp, A = _mumps_ordering_probe_ksp(
         monkeypatch,
         None,
         explicit_ordering=cfg.eigen.mumps_ordering,
-        legacy_icntl_7=cfg.mpi.mumps_icntl_7,
     )
     try:
         assert (
@@ -1423,22 +1401,22 @@ def test_auto_backend_is_not_normalized_to_none() -> None:
 
 
 def test_auto_route_dof_threshold_default_and_precedence(monkeypatch) -> None:
-    """Threshold precedence: env > JSONC > default constant."""
+    """Threshold precedence: env > YAML > default constant."""
     from linstabpy.linalg.backends import DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
 
     # Default value.
     cfg_default = Config.load({}, env={})
     assert cfg_default.eigen.auto_route_dof_threshold == DEFAULT_AUTO_ROUTE_DOF_THRESHOLD
 
-    # JSONC override.
-    cfg_jsonc = Config.load({"eigen": {"auto_route_dof_threshold": 300_000}}, env={})
-    assert cfg_jsonc.eigen.auto_route_dof_threshold == 300_000
+    # YAML override.
+    cfg_yaml = Config.load({"eigen": {"auto_route_dof_threshold": 300_000}}, env={})
+    assert cfg_yaml.eigen.auto_route_dof_threshold == 300_000
 
     # Env override.
     cfg_env = Config.load({}, env={"LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD": "500000"})
     assert cfg_env.eigen.auto_route_dof_threshold == 500_000
 
-    # Env beats JSONC.
+    # Env beats YAML.
     cfg_env_wins = Config.load(
         {"eigen": {"auto_route_dof_threshold": 300_000}},
         env={"LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD": "500000"},

@@ -72,6 +72,32 @@ def test_load_case_fields_stride_and_transpose(tmp_path: Path) -> None:
     assert bf.U.shape == X.shape
 
 
+def test_load_case_fields_boundary_sponge(tmp_path: Path) -> None:
+    packed = _write_fields(tmp_path)
+    _X, _Y, _bf, sponge, info = load_case_fields(
+        packed,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        preprocess={
+            "enabled": True,
+            "sponge": {
+                "scale": 1.0,
+                "boundary": {
+                    "enabled": True,
+                    "mode": "add",
+                    "points": [2, 0, 0, 0],
+                    "amplitudes": [1.0, 0.0, 0.0, 0.0],
+                },
+            },
+        },
+    )
+    assert float(sponge.max()) > 0.0
+    assert "boundary_sponge" in " ".join(info["applied"])
+
+
 def test_load_case_fields_filter_changes_u(tmp_path: Path) -> None:
     packed = _write_fields(tmp_path)
     data = np.load(packed)

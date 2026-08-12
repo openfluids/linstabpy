@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Generalized eigensolvers for spatial stability using SLEPc EPS.
 
-Solver configuration uses the ``solver.spatial`` JSONC section, falling back to
+Solver configuration uses the ``solver.spatial`` YAML section, falling back to
 ``solver.eigen`` for compatibility.  Direct shift-invert uses ``factor_backend``
-to select the PETSc LU factor backend.  Resolution order is JSONC
+to select the PETSc LU factor backend.  Resolution order is YAML
 ``factor_backend``, then ``LINSTABPY_FACTOR_BACKEND``, then the call-site
 default (``mumps`` for the reference direct path).  Requested backends are
 checked with a small complex PETSc LU probe and an unavailable backend fails
@@ -21,7 +21,7 @@ The experimental factorization knobs are environment-enforced today:
 ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
 ``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
 when requested with the wrong backend, and make no performance claim.  Matching
-JSONC fields are validated and carried in the typed config but are not yet
+YAML fields are validated and carried in the typed config but are not yet
 consumed by the solver call sites for factorization setup.
 """
 
@@ -89,13 +89,13 @@ def _eigs_generalized(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur.
 
-    Direct shift-invert resolves ``factor_backend`` from JSONC, then
+    Direct shift-invert resolves ``factor_backend`` from YAML, then
     ``LINSTABPY_FACTOR_BACKEND``, then the path default.  Backend availability
     is probe-checked and failures are loud; see ``docs/COMPUTE_BACKENDS.md``.
     The factorization knobs ``LINSTABPY_FACTOR_PRECISION``,
     ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
     ``LINSTABPY_MUMPS_ORDERING`` are environment-enforced today.  Matching
-    JSONC fields are carried but not consumed by this setup path.
+    YAML fields are carried but not consumed by this setup path.
     """
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")

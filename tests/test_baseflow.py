@@ -60,6 +60,29 @@ class TestSutherlandAir:
         np.testing.assert_allclose(bf.c2, expected, rtol=1e-12)
 
 
+@pytest.fixture
+def blasius_baseflow_small():
+    """Blasius on a 30x20 mesh, Re=1e4, Ma=0.3."""
+    mesh = Mesh.create(
+        xrange=(200.0, 300.0),
+        yrange=(0.0, 30.0),
+        nx=30,
+        ny=20,
+        fd_order=4,
+    )
+    bf = load_blasius(
+        mesh.X,
+        mesh.Y,
+        Re=1e4,
+        Ma=0.3,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+    )
+    sutherland_air(bf)
+    return mesh, bf
+
+
 # ---------------------------------------------------------------------------
 # TestBlasiusLoader
 # ---------------------------------------------------------------------------

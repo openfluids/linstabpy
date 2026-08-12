@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Typed configuration seam for solver policy.
 
-This module mirrors the legacy ``utils._solver_cfg`` JSONC/env/default
+This module mirrors the ``utils._solver_cfg`` YAML/env/default
 resolution surface without migrating call sites yet.
 """
 
@@ -196,7 +196,7 @@ def _mumps_ordering(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> st
 
 
 def _auto_route_dof_threshold(cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> int:
-    """Resolve auto-route DOF threshold with precedence env > JSONC > default."""
+    """Resolve auto-route DOF threshold with precedence env > YAML > default."""
     if "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD" in env:
         return int(env["LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD"])
     if cfg is not None and "auto_route_dof_threshold" in cfg:
@@ -487,8 +487,8 @@ class EigenCfg:
             eps_max_it_explicit=_scfg_optional_int(
                 cfg, "eps_max_it", env, "LINSTABPY_EIGEN_EPS_MAX_IT", None
             ),
-            # auto_route_dof_threshold uses env > JSONC > default precedence,
-            # mirroring _mumps_blr / _mumps_ordering (env first, then JSONC).
+            # auto_route_dof_threshold uses env > YAML > default precedence,
+            # mirroring _mumps_blr / _mumps_ordering (env first, then YAML).
             auto_route_dof_threshold=_auto_route_dof_threshold(cfg, env),
         )
 
@@ -568,30 +568,27 @@ class MeshCfg:
 
 @dataclass(frozen=True)
 class MpiCfg:
-    """MPI/PETSc init-time options.
-
-    ``mumps_icntl_7`` is a deprecated compatibility alias for the canonical
-    ``mumps_ordering=metis`` surface; keep accepting it, but prefer the named
-    ordering knob for new configs.
-    """
+    """MPI/PETSc init-time options."""
 
     petsc_matrix_mode: str
     root_scatter: bool
-    mumps_icntl_7: bool
     mumps_icntl_14: int | None
     mumps_icntl_24: int | None
 
     @classmethod
     def from_mapping(cls, cfg: Mapping[str, Any] | None, env: Mapping[str, str]) -> "MpiCfg":
+        if cfg is not None and "mumps_icntl_7" in cfg:
+            raise ValueError("mumps_icntl_7 is gone. Set mumps_ordering: metis.")
+        if "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7" in env:
+            raise ValueError(
+                "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7 is gone. Set LINSTABPY_MUMPS_ORDERING=metis."
+            )
         return cls(
             petsc_matrix_mode=_scfg(
                 cfg, "petsc_matrix_mode", env, "LINSTABPY_PETSC_MATRIX_MODE", "auto"
             ),
             root_scatter=_scfg_bool(
                 cfg, "root_scatter", env, "LINSTABPY_PETSC_ROOT_SCATTER", False
-            ),
-            mumps_icntl_7=_scfg_bool(
-                cfg, "mumps_icntl_7", env, "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7", False
             ),
             mumps_icntl_14=_scfg_optional_int(
                 cfg, "mumps_icntl_14", env, "LINSTABPY_PETSC_MUMPS_ICNTL_14", 100

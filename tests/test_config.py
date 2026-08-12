@@ -715,17 +715,6 @@ FIELD_SPECS = [
         "on",
     ),
     FieldSpec(
-        "_solver_cfg.py:mumps_icntl_7",
-        "mpi.mumps_icntl_7",
-        "ROOT",
-        "mumps_icntl_7",
-        "LINSTABPY_PETSC_SET_MUMPS_ICNTL_7",
-        False,
-        _scfg_bool,
-        True,
-        "yes",
-    ),
-    FieldSpec(
         "_solver_cfg.py:mumps_icntl_14",
         "mpi.mumps_icntl_14",
         "ROOT",
@@ -851,7 +840,7 @@ def test_differential_oracle_defaults(spec: FieldSpec) -> None:
 
 
 @pytest.mark.parametrize("spec", FIELD_SPECS, ids=lambda s: s.field)
-def test_differential_oracle_jsonc_overrides(spec: FieldSpec) -> None:
+def test_differential_oracle_yaml_overrides(spec: FieldSpec) -> None:
     raw = _raw_with(spec, spec.json_value)
     typed = Config.load(raw)
     assert _field(typed, spec.field) == _expected(spec, raw)
@@ -867,7 +856,7 @@ def test_differential_oracle_env_overrides(
 
 
 @pytest.mark.parametrize("spec", FIELD_SPECS, ids=lambda s: s.field)
-def test_jsonc_beats_env(monkeypatch: pytest.MonkeyPatch, spec: FieldSpec) -> None:
+def test_yaml_beats_env(monkeypatch: pytest.MonkeyPatch, spec: FieldSpec) -> None:
     monkeypatch.setenv(spec.env_var, spec.env_value)
     raw = _raw_with(spec, spec.json_value)
     typed = Config.load(raw)
@@ -877,7 +866,7 @@ def test_jsonc_beats_env(monkeypatch: pytest.MonkeyPatch, spec: FieldSpec) -> No
 @pytest.mark.parametrize(
     "site,field,key,env_var,json_value,env_value", RAW_VALUE_SPECS, ids=lambda row: row[1]
 )
-def test_raw_string_fields_jsonc_and_env(
+def test_raw_string_fields_yaml_and_env(
     monkeypatch: pytest.MonkeyPatch,
     site: str,
     field: str,
@@ -951,7 +940,7 @@ def test_eigen_st_factor_backend_matches_live_reader(
     assert Config.load({}).eigen.st_factor_backend == _resolve_st_factor_backend(st_solver, {})
 
 
-def test_eigen_st_factor_backend_jsonc_beats_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_eigen_st_factor_backend_yaml_beats_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "mumps")
     raw = {
         "eigen": {
@@ -977,7 +966,7 @@ def test_resolvent_eps_subsection_falls_back_to_linsolve() -> None:
     )
 
 
-def test_eigen_inexact_matches_plain_cast_jsonc_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_eigen_inexact_matches_plain_cast_yaml_reader(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LINSTABPY_EIGEN_INEXACT_KSP_TYPE", "lowercase-env-ignored")
     raw = {
         "eigen": {
@@ -1020,7 +1009,7 @@ def test_eigen_backend_probe_matches_live_reader() -> None:
         assert Config.load(raw).eigen.backend_probe.enabled == _as_bool(value)
 
 
-def test_ncv_jsonc_only_and_env_has_no_effect(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ncv_yaml_only_and_env_has_no_effect(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LINSTABPY_RESOLVENT_EPS_NCV", "41")
     monkeypatch.setenv("LINSTABPY_EIGEN_NCV", "52")
     assert Config.load({}).resolvent.eps.ncv is None

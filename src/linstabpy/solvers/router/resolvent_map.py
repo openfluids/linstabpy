@@ -205,7 +205,7 @@ def _normalise_cfg(
     """Return a plain mapping for router keys and a Config-compatible object.
 
     ``Config`` objects are passed through to the resolver while router-specific
-    keys are unavailable unless the caller supplied a mapping or JSONC path.
+    keys are unavailable unless the caller supplied a mapping or YAML path.
     """
     if cfg is None:
         return {}, None
@@ -1040,7 +1040,7 @@ def resolvent_map(
         Non-empty finite one-dimensional ranges.  Values in ``f_range`` are the
         angular frequencies forwarded to ``resolvent_analysis``.
     cfg:
-        Mapping, JSONC path, typed ``Config`` object, or ``None``.  Router keys
+        Mapping, YAML path, typed ``Config`` object, or ``None``.  Router keys
         may be placed at top level or under ``router`` / ``solver.router``.
 
     Returns
