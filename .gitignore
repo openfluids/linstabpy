@@ -58,3 +58,6 @@ src/linstabpy/data/baseflows
 run/*.jsonc
 run/output/
 run/*.bak_*
+
+# private planning notes — never ship
+plan.md
