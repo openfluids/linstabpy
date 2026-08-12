@@ -389,7 +389,7 @@ cp ~/linstab2d-reference/BaseFlows/*.mat src/linstabpy/data/baseflows/BaseFlows/
 
 If neither is in place, the Martini examples raise a `FileNotFoundError` with the
 exact instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. All non-Martini examples
-(Case 1 Song, Case 2) ship their own base flows under `examples/case_studies/`
+(Song and Savarino) ship their own base flows under `examples/song/` and `examples/savarino/`
 and are unaffected.
 
 ## Quick start
@@ -461,7 +461,7 @@ Two consequences are deliberate:
 
 Supply the reference data through `LINSTABPY_BASEFLOW_DATA_DIR`, the
 `martini_examples/` export directory, `LINSTABPY_TEST_REFERENCE_SPECTRUM`, and the
-`scripts/validation/martini2024/fixtures/` bundles. The failure message names the
+`examples/martini/` bundles. The failure message names the
 exact paths it wanted.
 
 ### Canonical example runner
@@ -521,16 +521,13 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
 |   |-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
 |   `-- results_runtime.py         Package runtime used by case study drivers
-|-- examples/                      Runnable examples; generated .npz/.png ignored
-|   |-- case_studies/              Larger validation and SWBLI case workflows
-|   |   |-- case1_song/            Song/Robinet-style case with MATLAB parity assets
-|   |   `-- case2_lui/             Larger curvilinear SWBLI configs and docs
-|   `-- example_*.py               Martini-style compact examples
-|-- scripts/                       Repository guardrails and validation utilities
+|-- examples/                      Public cases; generated .npz/.png ignored
+|   |-- martini/                   Six Martini examples, tools, and MATLAB fixtures
+|   |-- song/                      Song / Robinet SWBLI EVP case
+|   `-- savarino/                  Savarino 30.8 deg resolvent case
+|-- scripts/                       Repository guardrails
 |   |-- ci/                        Thin install/diagnose/benchmark harness
-|   `-- validation/                Reproducibility harnesses and compact fixtures
-|       |-- martini2024/           Martini parity fixtures, tools, and reports
-|       `-- operator_fixtures/     Compact operator-parity fixtures and schema
+|   `-- tools/                     One-off conversion and debug helpers
 |-- docs/                          Architecture, install, audit, and tutorial docs
 |-- tests/                         Pytest suite and shared path helpers
 |-- install.sh                     Main installer
@@ -539,11 +536,10 @@ For a maintainer map of where numerical policy belongs, see
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
 
-Keep reusable code under `src/linstabpy/`, runnable examples under `examples/`,
-case-study workflows under `examples/case_studies/`, and validation harnesses
-under `scripts/validation/`. Generated example outputs, campaign `output/`
-directories, runtime caches, and build metadata are ignored rather than
-represented as tracked layout.
+Keep reusable code under `src/linstabpy/` and the three public cases under
+`examples/martini`, `examples/song`, and `examples/savarino`. Generated
+example outputs, campaign directories, runtime caches, and build metadata
+are ignored rather than represented as tracked layout.
 
 Optional reference MATLAB code and `.mat` base-flow files may be placed under
 `src/linstabpy/data/baseflows`, or supplied through `LINSTABPY_BASEFLOW_DATA_DIR`.
@@ -564,8 +560,7 @@ guardrails workflow. Ignored local outputs above the report threshold are listed
 separately so they can be cleaned or archived without blocking normal source
 commits.
 
-Compact validation fixtures belong under `scripts/validation/operator_fixtures/`
-or `scripts/validation/martini2024/fixtures/`. Raw MATLAB exports such as
+Compact Martini fixtures belong under `examples/martini/`. Raw MATLAB exports such as
 `operator_convention.mat` and `coefficients_raw.mat` are intentionally not
 tracked when they exceed the 50 MiB policy.
 
@@ -1018,7 +1013,7 @@ Python counterparts:
 
 ### Operator parity matrix
 
-Canonical machine-readable source: `scripts/validation/martini2024/tools/operator_matrix.json`.
+Canonical machine-readable source: `examples/martini/operator_matrix.json`.
 
 Status semantics:
 
@@ -1049,7 +1044,7 @@ is `pass` with `missing_required = 0`.
 
 ### Branch coverage matrix
 
-Canonical machine-readable source: `scripts/validation/martini2024/tools/branch_matrix.json`.
+Canonical machine-readable source: `examples/martini/branch_matrix.json`.
 
 Target dimensions:
 
@@ -1067,7 +1062,7 @@ Total combinations:
 
 All required combinations must be `validated`. Combinations omitted from `records`
 default to `pending`. Scope is controlled by `required_exclusions` in
-`scripts/validation/martini2024/tools/branch_matrix.json`. Current scoped gate
+`examples/martini/branch_matrix.json`. Current scoped gate
 status is `pass` with `5` required validated combinations and `91` required
 exclusions.
 
@@ -1084,19 +1079,19 @@ exclusions.
 Example-level parity:
 
 ```bash
-.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
+.venv/bin/python examples/martini/compare_martini_examples.py
 ```
 
 Allow incomplete optional matrix entries while enforcing required scoped gates:
 
 ```bash
-python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
+python examples/martini/check_parity_matrices.py --allow-incomplete
 ```
 
 Strict CI gate:
 
 ```bash
-python scripts/validation/martini2024/tools/check_parity_matrices.py
+python examples/martini/check_parity_matrices.py
 ```
 
 Some parity tests compare against MATLAB reference export bundles (raw `.mat`
@@ -1119,7 +1114,7 @@ in a different order, which flips the last floating-point bit, and the generaliz
 eigensolver amplifies that bit into eigenvalue movement of order `~1e-12`. That is
 ordinary conditioning of the eigenproblem, not a loss of accuracy: the eigenpair
 residual stays below `1e-6` and every parity check above passes at its stated
-tolerance. `scripts/validation/lnse_equivalence_harness.py` compares assembly
+tolerance. Assembly comparison uses the LNSE equivalence helper. It compares assembly
 paths against this contract.
 
 Practical rule: order-sensitive checks must allow at least the solver's eigenvalue
@@ -1157,39 +1152,14 @@ Key fixes that made parity stable:
 Run from the repository root:
 
 ```bash
-bash examples/case_studies/case1_song/case1.sh
+bash examples/song/song.sh
 ```
 
-Primary outputs:
+`examples/song/` is the Song / Robinet case. See that README for the
+base-flow convention, figure scripts, and the 31.6 deg comparison.
 
-- `examples/case_studies/case1_song/case1.npz`
-- `examples/case_studies/case1_song/output/case1_operator_stage_parity.json`
-- `examples/case_studies/case1_song/output/case1_spectrum_parity.json`
-- `examples/case_studies/case1_song/output/case1_resolvent_parity.json`
-- parity figures under `examples/case_studies/case1_song/output/`
-
-`examples/case_studies/case1_song/` is the canonical Case 1 study path.
-
-Environment overrides:
-
-| Variable | Default | Use |
-|---|---:|---|
-| `LINSTABPY_CASE1_CASE_DIR` | `data/baseflow` | Case data directory, relative to `examples/case_studies/case1_song/` unless absolute. |
-| `LINSTABPY_CASE1_RUN_RESOLVENT` | `false` | Enable or disable resolvent computation. |
-| `LINSTABPY_CASE1_RUN_STABILITY` | `true` | Enable or disable temporal stability computation. |
-| `LINSTABPY_CASE1_N_MODES` | `100` | Number of stability modes requested. |
-| `LINSTABPY_CASE1_N_MODES_RESOLVENT` | `10` | Number of resolvent modes requested. |
-| `LINSTABPY_CASE1_STRIDE_KSI` | `1` | Mesh stride in the first computational coordinate. |
-| `LINSTABPY_CASE1_STRIDE_ETA` | `1` | Mesh stride in the second computational coordinate. |
-| `LINSTABPY_CASE1_BC_PENALTY` | `1e8` | Boundary-condition penalty used by the case driver. |
-
-Spectrum comparison from the repository root:
-
-```bash
-.venv/bin/python examples/case_studies/case1_song/scripts/check_spectrum.py \
-  --python-npz examples/case_studies/case1_song/case1.npz \
-  --matlab-spectrum examples/case_studies/case1_song/reference/matlab/MATLAB_results/spectrum.mat
-```
+`examples/savarino/` is the Savarino 30.8 deg resolvent case. See that
+README for the Zenodo fetch and the gain-map plot.
 
 Solver strategy A, the robust baseline:
 
@@ -1210,18 +1180,6 @@ Solver strategy B, the scalable path:
 
 Practical rule: validate reduced grids with Strategy A, then move to Strategy B
 for cases that do not fit direct factorization.
-
-### Case 2
-
-Case 2 has its own active campaign files. Do not duplicate their content in the
-top-level README.
-
-- `examples/case_studies/case2_lui/docs/PLAN.md`: current phase plan, acceptance criteria, open blockers, and campaign state.
-- `examples/case_studies/case2_lui/docs/REFERENCE.md`: stable technical background, governing equations, parameter map, physical framing, and references.
-- `examples/case_studies/case2_lui/docs/README.md`: operational commands and artifact layout.
-
-Read them in that order before changing Case 2 numerics. As with Case 1,
-`examples/case_studies/case2_lui/` is the canonical Case 2 study namespace.
 
 ## Troubleshooting
 
@@ -1353,9 +1311,9 @@ Current expected result: `535` collected tests.
 Run MATLAB parity checks with:
 
 ```bash
-.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
-python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete
-python scripts/validation/martini2024/tools/check_parity_matrices.py
+.venv/bin/python examples/martini/compare_martini_examples.py
+python examples/martini/check_parity_matrices.py --allow-incomplete
+python examples/martini/check_parity_matrices.py
 ```
 
 Packaging:

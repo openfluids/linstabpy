@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.validation.martini2024.tools.matlab_source_parity import (
+from examples.martini.matlab_source_parity import (
     TOTAL,
     audit,
 )

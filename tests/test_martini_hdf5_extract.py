@@ -11,7 +11,7 @@ from tests._matlab_parity import matlab_parity
 # this repository does not ship. Deselected by default; see tests/_matlab_parity.py.
 pytestmark = matlab_parity
 
-from scripts.validation.martini2024.tools.matlab_hdf5 import extract_file
+from examples.martini.matlab_hdf5 import extract_file
 from tests._matlab_parity import matlab_parity, require_matlab_reference
 from tests._paths import martini_export
 

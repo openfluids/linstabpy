@@ -7,6 +7,15 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed
+- Moved the Martini, Song, and Savarino cases to `examples/martini`,
+  `examples/song`, and `examples/savarino`.
+- Packed the Song reference fields as float64 npz. The 32 deg field uses
+  velocity / c_inf and temperature / T_inf.
+- Packed Martini mode arrays as complex64. The largest file is
+  `example_3_Streaky_BL_results_temporal_modes.npz`.
+- Raised the tracked-file size limit from 50 MiB to 60 MiB for that file.
+
 ### Fixed
 - A forcing/response region now **composes** with the boundary-condition mask instead of
   replacing it. `mask_bc_forcing` defaults to `true` so that constrained rows are never

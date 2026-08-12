@@ -266,17 +266,17 @@ The top-level directories have distinct roles. Keep reusable package code, runna
 \begin{outputbox}
 src/linstabpy/      importable Python package
 examples/           runnable examples; generated .npz/.png ignored
-examples/case_studies/case1_song/      SWBLI study: configs, data/baseflow, reference, scripts
-examples/case_studies/case2_lui/      TCFD campaign: configs, data/baseflow, scripts, docs
-scripts/validation/ reproducibility harnesses, fixtures, reports, references
-scripts/validation/martini2024/tools/
+examples/song/      Song / Robinet SWBLI EVP case
+examples/savarino/  Savarino 30.8 deg resolvent case
+scripts/ci/ and scripts/tools/
+examples/martini/
                     MATLAB-to-Python conversion and parity tooling
 scripts/            repository guardrails and maintenance utilities
 scripts/ci/     thin install/diagnose/benchmark harness
 docs/tutorial/      tutorial source and generated PDF
 \end{outputbox}
 
-Do not put reusable solver code under \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{examples/case_studies/}, and validation assets under \path{scripts/validation/}. Generated outputs such as example \code{.npz}/\code{.png} files, case-study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
+Do not put reusable solver code under \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{examples/}, and validation assets under \path{scripts/}. Generated outputs such as example \code{.npz}/\code{.png} files, case-study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
 
 \subsection*{Use one example runner}
 
@@ -664,20 +664,20 @@ Example 5  gains and mapped domain    mapping scaling is fixed in Python
 After the example artifacts exist, compare Python outputs with extracted MATLAB bundles:
 
 \begin{commandbox}
-.venv/bin/python scripts/validation/martini2024/tools/compare_martini_examples.py
+.venv/bin/python examples/martini/compare_martini_examples.py
 \end{commandbox}
 
 The machine-readable registry is:
 
 \begin{outputbox}
-scripts/validation/martini2024/tools/martini_cases.jsonc
+examples/martini/martini_cases.jsonc
 \end{outputbox}
 
 The current reports are written under:
 
 \begin{outputbox}
-scripts/validation/martini2024/reports/martini_parity_latest.json
-scripts/validation/martini2024/reports/martini_parity_table.csv
+examples/martini/martini_parity_latest.json
+examples/martini/martini_parity_table.csv
 \end{outputbox}
 
 \begin{warningbox}
@@ -697,15 +697,15 @@ The Song 2023 case is a validation workflow for an oblique shock / boundary-laye
 The main files are:
 
 \begin{outputbox}
-scripts/validation/song_2023/song_2023.py
-scripts/validation/song_2023/configs/song_2023.jsonc
-scripts/validation/song_2023/song_2023.sh
+examples/song/song_2023.py
+examples/song/song_2023.jsonc
+examples/song/song_2023.sh
 \end{outputbox}
 
 Run the baseline through the wrapper:
 
 \begin{commandbox}
-bash scripts/validation/song_2023/song_2023.sh
+bash examples/song/song_2023.sh
 \end{commandbox}
 
 The baseline JSONC contains the physical parameters, finite-difference order, stride, preprocessing, boundary conditions, and solver settings.
@@ -733,11 +733,11 @@ Boundary conditions:
 Expected canonical outputs:
 
 \begin{outputbox}
-scripts/validation/song_2023/song_2023.npz
-scripts/validation/song_2023/song_2023.log
-scripts/validation/song_2023/song_2023.png
-scripts/validation/song_2023/song_2023_baseflow.png
-scripts/validation/song_2023/song_2023_support_direct_modes.png
+examples/song/song_2023.npz
+examples/song/song_2023.log
+examples/song/song_2023.png
+examples/song/song_2023_baseflow.png
+examples/song/song_2023_support_direct_modes.png
 \end{outputbox}
 
 \section*{8. Song validation matrices}
@@ -745,13 +745,13 @@ scripts/validation/song_2023/song_2023_support_direct_modes.png
 Use JSONC matrix files when you want to compare solver choices, preprocessing choices, or finite-difference orders without overwriting the baseline case.
 
 \begin{outputbox}
-scripts/validation/song_2023/configs/song_2023_matrix.jsonc
-scripts/validation/song_2023/configs/order_convergence.jsonc
-scripts/validation/song_2023/configs/song_2023_order_preflight.jsonc
-scripts/validation/song_2023/configs/song_2023_scaling.jsonc
-scripts/validation/song_2023/configs/fd4_sensitivity.jsonc
-scripts/validation/song_2023/configs/shift_scan.jsonc
-scripts/validation/song_2023/configs/shifted_ksp_matrix.jsonc
+examples/song/song_2023_matrix.jsonc
+examples/song/order_convergence.jsonc
+examples/song/song_2023_order_preflight.jsonc
+examples/song/song_2023_scaling.jsonc
+examples/song/fd4_sensitivity.jsonc
+examples/song/shift_scan.jsonc
+examples/song/shifted_ksp_matrix.jsonc
 \end{outputbox}
 
 Run the solver/preprocessing matrix:
@@ -770,11 +770,11 @@ Run the order convergence study only on a machine with enough memory for the con
 
 \begin{commandbox}
 .venv/bin/python -m scripts.validation.song_2023.scripts.run_song_2023_order_convergence
-.venv/bin/python scripts/validation/song_2023/scripts/plot_order_convergence.py
+.venv/bin/python examples/song/plot_order_convergence.py
 \end{commandbox}
 
 \begin{warningbox}
-The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{scripts/validation/song_2023/configs/order_convergence.jsonc} before running it.
+The full Song order-convergence study can require many gigabytes of memory. Check \code{memory_guard} in \path{examples/song/order_convergence.jsonc} before running it.
 \end{warningbox}
 
 \section*{9. How to adjust a shipped case}
@@ -826,7 +826,7 @@ Use this checklist before writing new package code:
 For MATLAB-backed parity, add a registry entry only after the reference bundle location is known:
 
 \begin{outputbox}
-scripts/validation/martini2024/tools/martini_cases.jsonc
+examples/martini/martini_cases.jsonc
 \end{outputbox}
 
 \section*{11. Common first-run problems}

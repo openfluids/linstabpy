@@ -30,7 +30,7 @@ from linstabpy.operators.assembly import (
     _prepare_coefficients,
     build_lnse_operator,
 )
-from tests._paths import case_fixture
+from tests._paths import unpack_song_baseflow
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ CASES = (
 
 
 def _case_dir() -> Path:
-    return case_fixture("case1") / "data" / "baseflow"
+    return unpack_song_baseflow()
 
 
 def _apply_case1_bcs(

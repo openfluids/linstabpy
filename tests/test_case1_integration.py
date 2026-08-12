@@ -14,14 +14,9 @@ from linstabpy.operators.assembly import build_lnse_operator, build_lnse_system
 from linstabpy.operators.energy_norm import compute_chu_norm
 from linstabpy.stability import eigenvalues as temporal_eigenvalues
 from linstabpy.utils.petsc_core import compare_petsc_against_scipy, petsc_matvec_residual
-from tests._paths import case_fixture
+from tests._paths import unpack_song_baseflow
 
-CASE_DIR = case_fixture("case1")
-BASEFLOW_DIR = CASE_DIR / "data" / "baseflow"
-
-pytestmark = pytest.mark.skipif(
-    not BASEFLOW_DIR.exists(), reason=f"Case 1 data is not present: {BASEFLOW_DIR}"
-)
+BASEFLOW_DIR = unpack_song_baseflow()
 
 
 def test_load_hamada_case_shapes() -> None:

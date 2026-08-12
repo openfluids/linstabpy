@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name={jobname}
+#SBATCH --output={workdir}/slurm-%j.out
+#SBATCH --error={workdir}/slurm-%j.err
+#SBATCH --partition={partition}
+#SBATCH --time=04:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task={nranks}
+set -euo pipefail
+# activate your linstabpy environment here (module load / source .venv/bin/activate)
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+cd {case_dir}
+echo "SHA=$(git -C {repo_root} rev-parse HEAD)  BETA={beta}  F={freq}"
+LINSTABPY_CASE1_CONFIG={config} \
+LINSTABPY_CASE1_OUTPUT_NPZ={output_npz} \
+mpiexec -n {nranks} python -u -c "from linstabpy.driver.run import run; run()"
+echo "DONE {jobname}"

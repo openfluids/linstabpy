@@ -8,8 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_TRACKED_LIMIT_MIB = 50.0
-DEFAULT_IGNORED_REPORT_LIMIT_MIB = 50.0
+# 60 MiB is set by examples/martini/example_3_Streaky_BL_results_temporal_modes.npz
+# after the complex64 pack. GitHub rejects files at 100 MB.
+DEFAULT_TRACKED_LIMIT_MIB = 60.0
+DEFAULT_IGNORED_REPORT_LIMIT_MIB = 60.0
 
 
 def _repo_root() -> Path:

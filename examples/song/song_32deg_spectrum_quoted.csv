@@ -1,0 +1,5 @@
+# Quoted lead pair at beta=19.2 from TCFD_linstabpy2026/supp.tex.
+# Full 20-mode table is not in the machine-readable Song drop.
+source,omega_r,omega_i
+song,0.0,0.05417
+linstabpy,0.0,0.05696

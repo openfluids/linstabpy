@@ -20,7 +20,7 @@ from linstabpy.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
-from scripts.validation.martini2024.tools.symbolic_compressible_nse import (
+from examples.martini.symbolic_compressible_nse import (
     cartesian_lnse_coefficients_from_nse,
     cartesian_operator_coefficients,
     cartesian_symbol_table,
@@ -806,10 +806,8 @@ def run_parity(
 
 _FROZEN_REFERENCE = (
     Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "validation"
-    / "martini2024"
-    / "tools"
+    / "examples"
+    / "martini"
     / "coefficients_reference_base.py"
 )
 
@@ -1133,7 +1131,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("scripts/validation/martini2024/output/operator_symbolic_parity.json"),
+        default=Path("examples/martini/operator_symbolic_parity.json"),
     )
     parser.add_argument("--allow-fail", action="store_true")
     args = parser.parse_args()

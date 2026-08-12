@@ -33,17 +33,17 @@ else
   PYTHON="$DEFAULT_PYTHON"
 fi
 
-EXAMPLES_DIR="$REPO/examples"
-PARITY_SCRIPT="$REPO/scripts/validation/martini2024/tools/compare_martini_examples.py"
+EXAMPLES_DIR="$REPO/examples/martini"
+PARITY_SCRIPT="$REPO/examples/martini/compare_martini_examples.py"
 export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 EXAMPLE_SPECS=(
-  "0|example_0_curvilinear_validation|examples.example_0_curvilinear_validation|Example 0: curvilinear derivative validation"
-  "1|example_1_blasius|examples.example_1_blasius|Example 1: Blasius boundary layer resolvent"
-  "2|example_2_jet|examples.example_2_jet|Example 2: turbulent jet resolvent"
-  "3|example_3_streaky_bl|examples.example_3_streaky_bl|Example 3: streaky boundary layer (temporal + spatial)"
-  "4|example_4_cavity|examples.example_4_cavity|Example 4: cavity direct and adjoint eigenvalues"
-  "5|example_5_paraboloid|examples.example_5_paraboloid|Example 5: paraboloid resolvent"
+  "0|example_0_curvilinear_validation|examples.martini.example_0_curvilinear_validation|Example 0: curvilinear derivative validation"
+  "1|example_1_blasius|examples.martini.example_1_blasius|Example 1: Blasius boundary layer resolvent"
+  "2|example_2_jet|examples.martini.example_2_jet|Example 2: turbulent jet resolvent"
+  "3|example_3_streaky_bl|examples.martini.example_3_streaky_bl|Example 3: streaky boundary layer (temporal + spatial)"
+  "4|example_4_cavity|examples.martini.example_4_cavity|Example 4: cavity direct and adjoint eigenvalues"
+  "5|example_5_paraboloid|examples.martini.example_5_paraboloid|Example 5: paraboloid resolvent"
 )
 
 EXTRA_EXAMPLE_SPECS=()

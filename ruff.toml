@@ -7,9 +7,8 @@ extend-exclude = [
     ".venv",
     "docs/tutorial",
     "src/linstabpy/data",
-    "examples/case_studies/*/data",
-    "examples/case_studies/*/reference",
-    "scripts/validation/song_2023/reference",
+    "examples/song",
+    "examples/savarino",
 ]
 
 [lint]
@@ -43,7 +42,7 @@ ignore = [
 # function bodies; type annotations reference them at module level.
 "examples/**" = ["F821", "F841"]
 # Validation harness uses similar lazy-import + ad-hoc helper patterns.
-"scripts/validation/**" = ["F821", "F841"]
+"examples/martini/**" = ["F821", "F841"]
 "scripts/tools/**" = ["F841"]
 # sbp_generator.py is a frozen validated-math file (Invariant A,
 # test_deny_list_math_frozen.py). Its pre-existing unused `a_i2` (F841) in the
