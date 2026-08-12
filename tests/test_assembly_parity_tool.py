@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Smoke tests for the assembly parity CLI."""
+"""Tests for the assembly parity CLI."""
 
 from __future__ import annotations
 

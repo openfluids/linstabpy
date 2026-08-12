@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Smoke tests for Case 1 case integration."""
+"""Integration tests for the Case 1 case wiring."""
 
 from __future__ import annotations
 

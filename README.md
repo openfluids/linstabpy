@@ -138,7 +138,7 @@ record the Python version printed by `install.sh --check`.
 uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
 works from Python.
 
-`benchmark.sh` runs a small smoke benchmark and writes benchmark artifacts under
+`benchmark.sh` runs a small benchmark and writes benchmark artifacts under
 `benchmark_runs/<run-id>/`.
 
 By default, the installer does not call `sudo` or a package manager. If required
@@ -186,7 +186,7 @@ can bypass the patched `.venv` and try to rebuild `petsc4py`/`slepc4py` from
 source with the wrong runtime layout. Use `.venv/bin/python` directly:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius_smoke
+.venv/bin/python -m examples.example_1_blasius
 ```
 
 ### Clusters and Intel MPI
@@ -306,7 +306,7 @@ A healthy Linux install should satisfy this sequence:
 ```bash
 bash diagnose.sh
 bash install.sh --check
-bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke
+bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius
 bash benchmark.sh
 ```
 
@@ -354,9 +354,9 @@ pressure, and reproducibility.
 Prefer the canonical example runner for MPI examples:
 
 ```bash
-bash run_all_examples.sh --mpi -m examples.example_1_blasius_smoke
+bash run_all_examples.sh --mpi -m examples.example_1_blasius
 bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor
+bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius -- -eps_monitor
 ```
 
 If `-n/--ranks` is omitted in `--mpi` mode, the runner starts from half of the
@@ -410,7 +410,7 @@ handled separately in [Fetching reference base flows](#fetching-reference-base-f
 Run the smallest Blasius example:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius_smoke
+.venv/bin/python -m examples.example_1_blasius
 ```
 
 Run a full example:
@@ -423,7 +423,7 @@ Do not use `uv run` on macOS for PETSc/SLEPc examples. Use the interpreter
 installed and patched by `install.sh`:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius_smoke
+.venv/bin/python -m examples.example_1_blasius
 ```
 
 Collect the test suite:
@@ -482,7 +482,7 @@ the plotting improvements proposed for the next figure pass.
 | Recompute selected examples from cached PNGs/NPZs | `bash run_all_examples.sh --fresh --example 1 --skip-parity` |
 | Remove selected generated NPZ/PNG outputs first | `bash run_all_examples.sh --clean --example 1 --skip-parity` |
 | Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl` |
-| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius_smoke -- -eps_monitor` |
+| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius -- -eps_monitor` |
 
 `--mpi` folds the old one-module MPI wrapper behavior into the same script: the
 runner probes a working MPI launcher, defaults to half of the detected physical
@@ -535,7 +535,7 @@ For a maintainer map of where numerical policy belongs, see
 |-- tests/                         Pytest suite and shared path helpers
 |-- install.sh                     Main installer
 |-- diagnose.sh                    Read-only environment preflight
-|-- benchmark.sh                   Smoke benchmark
+|-- benchmark.sh                   Install benchmark
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
 
@@ -638,8 +638,8 @@ Selection precedence is:
 Examples:
 
 ```bash
-LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.example_1_blasius_smoke
-LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.example_1_blasius_smoke
+LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.example_1_blasius
+LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.example_1_blasius
 ```
 
 Unavailable backends fail during PETSc LU setup with a direct error message

@@ -104,13 +104,6 @@ def _checks() -> list[Check]:
             ),
         ),
         Check(
-            id="example-blasius-smoke",
-            group="phase0-local",
-            description="Fresh reduced Blasius example run without MATLAB parity.",
-            command=("bash", "run_all_examples.sh", "--example", "1s", "--skip-parity", "--fresh"),
-            artifact=ROOT / "examples/example_1_blasius_smoke.npz",
-        ),
-        Check(
             id="parity-matrix-status",
             group="phase0-local",
             description="Current Martini operator/branch parity matrix status.",

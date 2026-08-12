@@ -32,7 +32,7 @@ On **lovelace** (no `sudo`), load compiler, CMake, MVAPICH2, and **HDF5 for MVAP
 Only examples that are fully analytical (no external `.mat` baseflow data) are used:
 
 - `example_0_curvilinear_validation.py` — curvilinear coordinate validation
-- `example_1_blasius_smoke.py` — reduced Blasius boundary layer check
+- `example_1_blasius.py` — Blasius boundary layer resolvent
 
 Other examples (2-5) require the `data/baseflows` submodule and are excluded
 from the benchmark harness by default.
@@ -95,7 +95,7 @@ bash benchmark.sh [machine_label]
 
 This delegates to the repository-root benchmark runner. By default it runs:
 - **Example 0** (curvilinear validation) — single process, cold run.
-- **Example 1 smoke** (Blasius resolvent) — two MPI variants:
+- **Example 1** (Blasius resolvent) — two MPI variants:
   - `all_cores`: 1 thread per rank, ranks = all physical cores.
   - `half_cores`: 1 thread per rank, ranks = half physical cores.
 
@@ -127,22 +127,6 @@ benchmark_runs/<bench_id>/
 1. Run `benchmark.sh` on each target machine.
 2. Collect all `benchmark_runs/*/` folders.
 3. Compare `benchmark_summary.csv` across machines for wall time and peak memory.
-
-## Fast Blasius smoke (slow nodes, e.g. stab1)
-
-After a successful install, the full Example 1 grid
-(`examples/example_1_blasius.py` / `example_1_blasius.jsonc`) can take a very
-long time on some machines. For a quick PETSc / MPI / assembly check without
-overwriting full Example 1 outputs, run from the repository root:
-
-```bash
-cd /path/to/linstabpy
-python -m examples.example_1_blasius_smoke
-# optional MPI, adjust rank count as needed:
-mpiexec.mpich -n 1 python -m examples.example_1_blasius_smoke
-```
-
-This uses `examples/example_1_blasius_smoke.jsonc` (small `nx` / `ny`) and writes only `example_1_blasius_smoke.*` artifacts. Delete `examples/example_1_blasius_smoke.npz` to force a cold recompute. The smoke config sets `assembly_backend` to **`scipy`** so LNSE assembly stays cheap on tiny grids (direct PETSc assembly uses many small insertions and can look “stuck” even at 64×24). The resolvent step still runs through PETSc/MUMPS. To benchmark the same direct-PETSc assembly path as full Example 1 (`auto` / `petsc`), edit that field in the JSONC and expect much higher `build_lnse_operator` wall time on small problems.
 
 **MPICH:** `mpiexec -x VAR=value` is an Open MPI convention. On MPICH, `export VAR=...` in the shell before `mpiexec`, or pass env with MPICH’s `-genv VAR value` (see your `mpiexec` man page).
 

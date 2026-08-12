@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""CLI smoke tests."""
+"""CLI entry-point tests."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import textwrap
 from importlib import metadata
 
 
-def test_driver_cli_version_smoke() -> None:
+def test_driver_cli_version() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "linstabpy.driver.cli", "--version"],
         check=True,
