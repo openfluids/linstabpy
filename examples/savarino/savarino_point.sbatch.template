@@ -4,14 +4,19 @@
 #SBATCH --error={workdir}/slurm-%j.err
 #SBATCH --partition={partition}
 #SBATCH --time=04:00:00
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task={nranks}
+#SBATCH --ntasks={nranks}
+#SBATCH --cpus-per-task=1
 set -euo pipefail
-# activate your linstabpy environment here (module load / source .venv/bin/activate)
+set +u
+[ -f /opt/intel/oneapi/setvars.sh ] && . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1
+set -u
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
-cd {case_dir}
+PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"
+export PYTHONPATH="{repo_root}/src:{repo_root}${{PYTHONPATH:+:$PYTHONPATH}}"
+cd {repo_root}
 echo "SHA=$(git -C {repo_root} rev-parse HEAD)  BETA={beta}  F={freq}"
+echo "resolution=full-res 300x300 stride=1  epsilon=0  leak=rectilinear"
 LINSTABPY_CASE1_CONFIG={config} \
 LINSTABPY_CASE1_OUTPUT_NPZ={output_npz} \
-mpiexec -n {nranks} python -u -c "from linstabpy.driver.run import run; run()"
+mpiexec -n {nranks} "$PY" -u -c "from linstabpy.driver.run import run; run()"
 echo "DONE {jobname}"
