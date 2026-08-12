@@ -18,10 +18,21 @@ freestream-1 copy as received (u_max = 1, T_min = 1). The nodal grid is 599 x 30
 .venv/bin/python examples/song/song_fig3_eigenmode.py
 ```
 
-Fig S2 plots the lead pair quoted in the supplement and Song's growth-rate curve.
-The full 20-mode table at beta = 19.2 is not in the machine-readable drop.
-Fig S3 plots Song's leading mode. The linstabpy partner field from that run is
-not in this repository.
+The repo ships the spectrum table and a few mode fields, not the full EVP dump
+(`song_32deg_paper.npz` is local, regenerable, gitignored).
+
+```
+mpiexec -n 4 python -m examples.song.song --config examples/song/song_32deg_paper.yaml
+.venv/bin/python examples/song/pack_run.py
+```
+
+`song_32deg_spectrum.csv` is the 20-mode table from that extract.
+`song_32deg_modes.npz` holds the three least-damped modes (real primitive
+fields on the run grid). Fig S2 plots Song's quoted lead and that table.
+Fig S3 plots Song's leading mode beside the packed linstabpy lead.
+
+The supplement quotes a matched lead pair in `song_32deg_spectrum_quoted.csv`
+(`0.05417 i` vs `0.05696 i`). This extract's least-damped root is `0.438 i`.
 
 ## EVP
 

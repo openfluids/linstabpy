@@ -1,43 +1,43 @@
 # Song 32 deg EVP as quoted in the supplement: fd2, full grid, no filter, no sponge.
 paths:
-  fields: song_32deg.npz
-  output_npz: song_32deg_paper.npz
-Re: 1.0e5
-Ma: 2.15
-Pr: 0.72
-kappa: 1.4
-T_0: 153.33
-beta: 19.2
-St: 0.0
-n_modes_stability: 20
-stability_search_extra_modes: 4
-n_modes_resolvent: 10
-run_stability: true
-run_resolvent: false
-fd_order: 2
-stride_ksi: 1
-stride_eta: 1
-penalty: 1.0e8
-alpha_filter: none
+  fields: song_32deg.npz           # packed x,y,rho,u,v,w,T,sponge
+  output_npz: song_32deg_paper.npz # local dump; pack with pack_run.py
+Re: 1.0e5                          # Reynolds number based on X_sh
+Ma: 2.15                           # freestream Mach
+Pr: 0.72                           # Prandtl number
+kappa: 1.4                         # ratio of specific heats
+T_0: 153.33                        # reference temperature [K]
+beta: 19.2                         # spanwise wavenumber * X_sh
+St: 0.0                            # legacy Strouhal; use omega_target for general cases
+n_modes_stability: 20              # eigenvalues to report
+stability_search_extra_modes: 4    # extra modes so paired branches are not cut
+n_modes_resolvent: 10              # ignored while resolvent is off
+run_stability: true                # run the temporal EVP
+run_resolvent: false               # skip resolvent
+fd_order: 2                        # SBP interior order
+stride_ksi: 1                      # streamwise stride (1 = as packed)
+stride_eta: 1                      # wall-normal stride
+penalty: 1.0e8                     # Dirichlet/Neumann penalty
+alpha_filter: none                 # implicit filter off
 baseflow_input:
-  transpose_input: true
-  zero_spanwise: false
+  transpose_input: true            # on-disk axis 0 is x
+  zero_spanwise: false             # keep the packed W field
 baseflow_preprocess:
-  enabled: false
+  enabled: false                   # no filter, no extra sponge
 bc:
   penalty: 1.0e8
   recipe:
-    - {type: dirichlet, borders: lt, variables: ruvwT}
-    - {type: dirichlet, borders: b, variables: ruvw}
-    - {type: neumann, borders: b, variables: T}
-    - {type: neumann, borders: r, variables: ruvwT}
-assembly_backend: auto
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T}         # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT}     # outflow
+assembly_backend: auto             # pick SciPy or PETSc from the host
 solver:
-  petsc_matrix_mode: distributed
+  petsc_matrix_mode: distributed   # MPIAIJ transfer
   linsolve:
-    type: mumps
+    type: mumps                    # direct LU
   eigen:
-    st_solver: mumps
-    eps_tol: 1.0e-4
-    ncv: 120
-    conv_test: rel
+    st_solver: mumps               # shift-invert backend
+    eps_tol: 1.0e-4                # SLEPc relative tolerance
+    ncv: 120                       # Arnoldi subspace size
+    conv_test: rel                 # relative residual test
