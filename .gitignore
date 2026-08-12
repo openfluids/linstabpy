@@ -15,6 +15,10 @@ build/
 !examples/song/*.npz
 !examples/savarino/*.npz
 !examples/sawtooth/*.npz
+# Full EVP / resolvent dumps stay local. Ship the spectrum CSV and a few modes.
+examples/song/*_paper.npz
+examples/sawtooth/*_paper.npz
+examples/savarino/*_paper.npz
 *.log
 *.aux
 *.bbl
