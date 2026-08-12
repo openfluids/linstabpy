@@ -35,6 +35,7 @@ sys.path.insert(0, str(HERE))
 from savarino_mode_to_primitive import CONS, PRIM, linearise_to_primitive
 from savarino_to_npy import read_tecplot
 from examples.figure_style import apply as apply_figure_style
+from examples.figure_style import save
 from examples.figure_style import signed_cmap
 
 apply_figure_style()
@@ -170,8 +171,7 @@ def main() -> int:
                 fontsize=12)
         suffix = "_ms" if manuscript else ""
         out = out_dir / f"compare_mode_{case['name']}{suffix}.png"
-        fig.savefig(out, dpi=300)
-        plt.close(fig)
+        save(fig, out)
         print(case["name"], "->", out, " align=%.4f" % align, " ymax=%.3f" % ymax)
     return 0
 

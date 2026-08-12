@@ -19,6 +19,7 @@ set -euo pipefail
 #   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
 #   LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
+#   bash install.sh --diagnose         # host preflight only; install nothing
 #
 # On Linux, missing system packages do not trigger sudo/package-manager calls by
 # default. The script prints the suggested commands and exits so cluster/module
@@ -75,6 +76,10 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --check)
             INSTALL_MODE="check"
+            shift
+            ;;
+        --diagnose)
+            INSTALL_MODE="diagnose"
             shift
             ;;
         --force)
@@ -179,7 +184,7 @@ venv_will_be_removed() {
     # Mirrors the real venv lifecycle below: check mode never removes; install
     # mode removes only an existing venv, either for --force or Python mismatch.
     local existing_py=""
-    if [ "${INSTALL_MODE}" = "check" ]; then
+    if [ "${INSTALL_MODE}" = "check" ] || [ "${INSTALL_MODE}" = "diagnose" ]; then
         return 1
     fi
     if [ ! -d "${VENV_DIR}" ]; then
@@ -759,6 +764,87 @@ EOF
     return "${rc}"
 }
 
+# Fill SYSDEP_* with the same suggested package-manager lines used by install
+# and by --diagnose. Prints nothing. Returns 1 when no package manager is found.
+linux_sys_dep_plan() {
+    SYSDEP_PM=""
+    SYSDEP_UPDATE_CMD=""
+    SYSDEP_INSTALL_CMD=""
+    SYSDEP_HDF5_PKG=""
+    SYSDEP_MPI_STACK="$(linux_mpi_stack_preference)"
+    if has_cmd apt-get; then
+        SYSDEP_PM="apt"
+        SYSDEP_UPDATE_CMD="apt-get update"
+        if [ "${SYSDEP_MPI_STACK}" = "openmpi" ]; then
+            SYSDEP_INSTALL_CMD="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates openmpi-bin libopenmpi-dev libx11-dev"
+        else
+            SYSDEP_INSTALL_CMD="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates mpich libmpich-dev libx11-dev"
+        fi
+        SYSDEP_HDF5_PKG="libhdf5-dev"
+    elif has_cmd dnf; then
+        SYSDEP_PM="dnf"
+        if [ "${SYSDEP_MPI_STACK}" = "openmpi" ]; then
+            SYSDEP_INSTALL_CMD="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            SYSDEP_INSTALL_CMD="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        SYSDEP_HDF5_PKG="hdf5-devel"
+    elif has_cmd yum; then
+        SYSDEP_PM="yum"
+        if [ "${SYSDEP_MPI_STACK}" = "openmpi" ]; then
+            SYSDEP_INSTALL_CMD="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            SYSDEP_INSTALL_CMD="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        SYSDEP_HDF5_PKG="hdf5-devel"
+    elif has_cmd pacman; then
+        SYSDEP_PM="pacman"
+        SYSDEP_UPDATE_CMD="pacman -Sy --noconfirm"
+        if [ "${SYSDEP_MPI_STACK}" = "openmpi" ]; then
+            SYSDEP_INSTALL_CMD="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates openmpi libx11"
+        else
+            SYSDEP_INSTALL_CMD="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates mpich libx11"
+        fi
+        SYSDEP_HDF5_PKG="hdf5"
+    elif has_cmd zypper; then
+        SYSDEP_PM="zypper"
+        if [ "${SYSDEP_MPI_STACK}" = "openmpi" ]; then
+            SYSDEP_INSTALL_CMD="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
+        else
+            SYSDEP_INSTALL_CMD="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
+        fi
+        SYSDEP_HDF5_PKG="hdf5-devel"
+    else
+        return 1
+    fi
+    if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${SYSDEP_HDF5_PKG}" ]; then
+        SYSDEP_INSTALL_CMD="${SYSDEP_INSTALL_CMD} ${SYSDEP_HDF5_PKG}"
+    fi
+    if [ "${SYSDEP_MPI_STACK}" = "intelmpi" ]; then
+        case "${SYSDEP_PM}" in
+            apt)
+                SYSDEP_INSTALL_CMD="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates libx11-dev"
+                ;;
+            dnf)
+                SYSDEP_INSTALL_CMD="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates libX11-devel"
+                ;;
+            yum)
+                SYSDEP_INSTALL_CMD="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates libX11-devel"
+                ;;
+            pacman)
+                SYSDEP_INSTALL_CMD="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates libx11"
+                ;;
+            zypper)
+                SYSDEP_INSTALL_CMD="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates libX11-devel"
+                ;;
+        esac
+        if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${SYSDEP_HDF5_PKG}" ]; then
+            SYSDEP_INSTALL_CMD="${SYSDEP_INSTALL_CMD} ${SYSDEP_HDF5_PKG}"
+        fi
+    fi
+    return 0
+}
+
 linux_install_system_deps() {
     [ "${OS_NAME}" = "Linux" ] || return 0
     [ "${LINSTABPY_SKIP_SYS_DEPS:-0}" = "1" ] && {
@@ -796,84 +882,21 @@ linux_install_system_deps() {
     local install_cmd=""
     local hdf5_pkg=""
     local mpi_stack=""
-    mpi_stack="$(linux_mpi_stack_preference)"
-    if has_cmd apt-get; then
-        pm="apt"
-        update_cmd="apt-get update"
-        if [ "${mpi_stack}" = "openmpi" ]; then
-            install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates openmpi-bin libopenmpi-dev libx11-dev"
-        else
-            install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates mpich libmpich-dev libx11-dev"
-        fi
-        hdf5_pkg="libhdf5-dev"
-    elif has_cmd dnf; then
-        pm="dnf"
-        if [ "${mpi_stack}" = "openmpi" ]; then
-            install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
-        else
-            install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
-        fi
-        hdf5_pkg="hdf5-devel"
-    elif has_cmd yum; then
-        pm="yum"
-        if [ "${mpi_stack}" = "openmpi" ]; then
-            install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates openmpi openmpi-devel libX11-devel"
-        else
-            install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates mpich mpich-devel libX11-devel"
-        fi
-        hdf5_pkg="hdf5-devel"
-    elif has_cmd pacman; then
-        pm="pacman"
-        update_cmd="pacman -Sy --noconfirm"
-        if [ "${mpi_stack}" = "openmpi" ]; then
-            install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates openmpi libx11"
-        else
-            install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates mpich libx11"
-        fi
-        hdf5_pkg="hdf5"
-    elif has_cmd zypper; then
-        pm="zypper"
-        if [ "${mpi_stack}" = "openmpi" ]; then
-            install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates openmpi openmpi-devel libX11-devel"
-        else
-            install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates mpich mpich-devel libX11-devel"
-        fi
-        hdf5_pkg="hdf5-devel"
-    else
+    if ! linux_sys_dep_plan; then
         err "Unsupported Linux distro/package manager. Install manually: curl make cmake gcc g++ gfortran pkg-config MPI dev tools (mpicc/mpicxx/mpifort) and X11 headers."
         warn "HDF5 dev tools are optional and needed only when LINSTABPY_WITH_H5PY=1."
         exit 1
     fi
-    if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
-        install_cmd="${install_cmd} ${hdf5_pkg}"
-    fi
-    if [ "${mpi_stack}" = "intelmpi" ]; then
-        case "${pm}" in
-            apt)
-                install_cmd="apt-get install -y build-essential cmake gfortran pkg-config curl ca-certificates libx11-dev"
-                ;;
-            dnf)
-                install_cmd="dnf install -y gcc gcc-c++ gcc-gfortran make cmake pkgconf-pkg-config curl ca-certificates libX11-devel"
-                ;;
-            yum)
-                install_cmd="yum install -y gcc gcc-c++ gcc-gfortran make cmake pkgconfig curl ca-certificates libX11-devel"
-                ;;
-            pacman)
-                install_cmd="pacman -S --noconfirm --needed base-devel cmake gcc-fortran pkgconf curl ca-certificates libx11"
-                ;;
-            zypper)
-                install_cmd="zypper --non-interactive install gcc gcc-c++ gcc-fortran make cmake pkg-config curl ca-certificates libX11-devel"
-                ;;
-        esac
-        if [ "${LINSTABPY_WITH_H5PY:-0}" = "1" ] && [ -n "${hdf5_pkg}" ]; then
-            install_cmd="${install_cmd} ${hdf5_pkg}"
-        fi
-    fi
+    pm="${SYSDEP_PM}"
+    update_cmd="${SYSDEP_UPDATE_CMD}"
+    install_cmd="${SYSDEP_INSTALL_CMD}"
+    hdf5_pkg="${SYSDEP_HDF5_PKG}"
+    mpi_stack="${SYSDEP_MPI_STACK}"
 
     if [ "${LINSTABPY_AUTO_INSTALL_SYS_DEPS:-0}" != "1" ]; then
         err "Refusing to install system packages automatically."
         err "This is intentional so cluster/module environments do not trigger unexpected sudo/package-manager calls."
-        warn "Run 'bash diagnose.sh' first, load the required modules or install the packages manually, then re-run install.sh."
+        warn "Run 'bash install.sh --diagnose' first, load the required modules or install the packages manually, then re-run install.sh."
         warn "If you really want the installer to call the package manager, re-run with LINSTABPY_AUTO_INSTALL_SYS_DEPS=1."
         if [ "${LINSTABPY_WITH_H5PY:-0}" != "1" ]; then
             warn "HDF5/h5cc is optional and is not required for the default install path."
@@ -884,7 +907,7 @@ linux_install_system_deps() {
         if [ "${mpi_stack}" != "intelmpi" ] && linux_intel_mpi_available; then
             warn "Alternative: Intel MPI appears to be available but is not active."
             warn "  source /opt/intel/oneapi/setvars.sh --force"
-            warn "  LINSTABPY_MPI_STACK=intelmpi bash diagnose.sh"
+            warn "  LINSTABPY_MPI_STACK=intelmpi bash install.sh --diagnose"
             warn "  LINSTABPY_MPI_STACK=intelmpi bash install.sh"
         fi
         if [ "${mpi_stack}" = "intelmpi" ]; then
@@ -1310,6 +1333,325 @@ configure_linux_hdf5_env() {
 
     ok "Configured Linux HDF5 build environment."
 }
+
+run_host_diagnose() {
+    # Diagnose must not abort on a missing tool. install.sh uses set -e.
+    (
+        set +e
+        set -uo pipefail
+        COL_OK='\033[1;32m'
+        COL_MISS='\033[1;31m'
+        COL_WARN='\033[1;33m'
+        COL_INFO='\033[1;34m'
+        COL_RST='\033[0m'
+        FAIL_COUNT=0
+        WARNINGS=()
+
+        tool_version() {
+            local c="$1"
+            local v=""
+            v="$("${c}" --version 2>/dev/null | head -n1)" \
+                || v="$("${c}" -V 2>/dev/null | head -n1)" \
+                || v="$("${c}" -v 2>/dev/null | head -n1)" \
+                || v=""
+            printf '%s' "${v}"
+        }
+
+        check_tool() {
+            local name="$1"
+            local optional="${2:-}"
+            if has_cmd "${name}"; then
+                local path ver
+                path="$(command -v "${name}")"
+                ver="$(tool_version "${name}")"
+                printf "  %-14s ${COL_OK}OK${COL_RST}   %s" "${name}" "${path}"
+                [ -n "${ver}" ] && printf "  (%s)" "${ver}"
+                printf '\n'
+            else
+                if [ "${optional}" = "optional" ]; then
+                    printf "  %-14s ${COL_WARN}MISS${COL_RST} (optional)\n" "${name}"
+                else
+                    printf "  %-14s ${COL_MISS}MISS${COL_RST}\n" "${name}"
+                    FAIL_COUNT=$((FAIL_COUNT + 1))
+                fi
+            fi
+        }
+
+        check_any_mpi_tool() {
+            local label="$1"
+            shift
+            local path ver
+            path="$(linux_resolve_mpi_tool "$@" || true)"
+            if [ -n "${path}" ]; then
+                ver="$(tool_version "${path}")"
+                printf "  %-14s ${COL_OK}OK${COL_RST}   %s" "${label}" "${path}"
+                [ -n "${ver}" ] && printf "  (%s)" "${ver}"
+                printf '\n'
+                return 0
+            fi
+            printf "  %-14s ${COL_MISS}MISS${COL_RST}\n" "${label}"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            return 1
+        }
+
+        echo ""
+        printf "=== ${COL_INFO}linstabpy install diagnostic${COL_RST} ===\n"
+        echo ""
+
+        OS_NAME=$(uname -s)
+        KERNEL=$(uname -r 2>/dev/null || echo "unknown")
+        ARCH=$(uname -m 2>/dev/null || echo "unknown")
+        DISTRO="unknown"
+        if has_cmd lsb_release; then
+            DISTRO="$(lsb_release -ds 2>/dev/null || echo "unknown")"
+        elif [ -f /etc/os-release ]; then
+            DISTRO="$(awk -F= '/^PRETTY_NAME=/{gsub(/"/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || echo "unknown")"
+        fi
+        printf "  OS:        %s\n" "${DISTRO}"
+        printf "  Kernel:    %s\n" "${KERNEL}"
+        printf "  Arch:      %s\n" "${ARCH}"
+
+        PM=""
+        if   has_cmd apt-get; then PM="apt"
+        elif has_cmd dnf;     then PM="dnf"
+        elif has_cmd yum;     then PM="yum"
+        elif has_cmd pacman;  then PM="pacman"
+        elif has_cmd zypper;  then PM="zypper"
+        fi
+        if [ -n "${PM}" ]; then
+            printf "  Pkg mgr:   %s\n" "${PM}"
+        else
+            printf "  Pkg mgr:   ${COL_MISS}not detected${COL_RST}\n"
+        fi
+        echo ""
+
+        printf "${COL_INFO}[tools]${COL_RST}\n"
+        for t in curl make cmake gcc g++ gfortran pkg-config; do
+            check_tool "${t}"
+        done
+        check_any_mpi_tool mpicc mpicc mpiicc mpiicx
+        check_any_mpi_tool mpicxx mpicxx mpiicpc mpiicpx
+        check_any_mpi_tool mpifort mpifort mpif90 mpiifort mpiifx
+        check_tool mpiexec
+        check_tool h5cc optional
+        check_tool uv optional
+        echo ""
+
+        printf "${COL_INFO}[python]${COL_RST}\n"
+        if has_cmd python3; then
+            PY3_PATH="$(command -v python3)"
+            PY3_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")' 2>/dev/null || echo "?")"
+            printf "  %-14s ${COL_OK}OK${COL_RST}   %s  (%s)\n" "python3" "${PY3_PATH}" "${PY3_VER}"
+        else
+            printf "  %-14s ${COL_MISS}MISS${COL_RST}\n" "python3"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+        fi
+        if has_cmd uv; then
+            UV_PATH="$(command -v uv)"
+            UV_VER="$(uv --version 2>/dev/null | head -n1 || echo "?")"
+            printf "  %-14s ${COL_OK}OK${COL_RST}   %s  (%s)\n" "uv" "${UV_PATH}" "${UV_VER}"
+        else
+            printf "  %-14s ${COL_WARN}MISS${COL_RST} (will be auto-installed by install.sh)\n" "uv"
+        fi
+        echo ""
+
+        printf "${COL_INFO}[mpi]${COL_RST}\n"
+        OPENMPI_FOUND=0
+        MPICH_FOUND=0
+        INTELMPI_FOUND=0
+        PREFER_INTELMPI=0
+        if [ -n "${LINSTABPY_MPI_STACK:-}" ]; then
+            printf "  Requested:   %s (LINSTABPY_MPI_STACK)\n" "${LINSTABPY_MPI_STACK}"
+            case "${LINSTABPY_MPI_STACK}" in
+                intel|intelmpi|impi) INTELMPI_FOUND=1; PREFER_INTELMPI=1 ;;
+                openmpi) OPENMPI_FOUND=1 ;;
+                mpich) MPICH_FOUND=1 ;;
+            esac
+        fi
+        if [ -n "${I_MPI_ROOT:-}" ]; then
+            INTELMPI_FOUND=1
+            printf "  Intel MPI:   ${COL_OK}FOUND${COL_RST}  I_MPI_ROOT=%s\n" "${I_MPI_ROOT}"
+        elif has_cmd impi_info; then
+            INTELMPI_FOUND=1
+            printf "  Intel MPI:   ${COL_OK}FOUND${COL_RST}  impi_info -> %s\n" "$(command -v impi_info)"
+        elif linux_intel_mpi_available; then
+            printf "  Intel MPI:   ${COL_INFO}AVAILABLE${COL_RST} oneAPI found, but not active in this shell\n"
+        fi
+        for candidate in mpiexec mpirun; do
+            if linux_cmd_looks_intel_mpi "${candidate}"; then
+                INTELMPI_FOUND=1
+                resolved="$(command -v "${candidate}")"
+                printf "  Intel MPI:   ${COL_OK}FOUND${COL_RST}  %s -> %s\n" "${candidate}" "${resolved}"
+            fi
+        done
+        for candidate in mpiexec.openmpi mpirun.openmpi; do
+            if has_cmd "${candidate}"; then
+                OPENMPI_FOUND=1
+                resolved="$(command -v "${candidate}")"
+                printf "  Open MPI:    ${COL_OK}FOUND${COL_RST}  %s -> %s\n" "${candidate}" "${resolved}"
+            fi
+        done
+        for candidate in mpiexec.mpich mpiexec.hydra mpirun.mpich; do
+            if has_cmd "${candidate}"; then
+                linux_cmd_looks_intel_mpi "${candidate}" && continue
+                MPICH_FOUND=1
+                resolved="$(command -v "${candidate}")"
+                printf "  MPICH:       ${COL_OK}FOUND${COL_RST}  %s -> %s\n" "${candidate}" "${resolved}"
+            fi
+        done
+        if has_cmd mpiexec; then
+            generic_mpiexec="$(command -v mpiexec)"
+            printf "  mpiexec:     ${COL_OK}FOUND${COL_RST}  %s" "${generic_mpiexec}"
+            mpiexec_id="$(mpiexec --version 2>&1 | head -n3 || true)"
+            if echo "${mpiexec_id}" | grep -qi "Intel.*MPI\|Intel(R).*MPI"; then
+                printf "  (Intel MPI)"
+                INTELMPI_FOUND=1
+            elif echo "${mpiexec_id}" | grep -qi "open.mpi\|OpenRTE\|ORTE"; then
+                printf "  (Open MPI)"
+                OPENMPI_FOUND=1
+            elif echo "${mpiexec_id}" | grep -qi "mpich\|hydra\|HYDRA"; then
+                printf "  (MPICH)"
+                MPICH_FOUND=1
+            fi
+            printf '\n'
+        fi
+        if [ "${OPENMPI_FOUND}" -eq 0 ] && [ "${MPICH_FOUND}" -eq 0 ] && [ "${INTELMPI_FOUND}" -eq 0 ]; then
+            printf "  ${COL_MISS}No MPI installation detected.${COL_RST}\n"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+        fi
+        MPI_STACK_COUNT=$((OPENMPI_FOUND + MPICH_FOUND + INTELMPI_FOUND))
+        if [ "${MPI_STACK_COUNT}" -gt 1 ]; then
+            if [ "${INTELMPI_FOUND}" -eq 1 ] && linux_cmd_looks_intel_mpi mpiexec && linux_cmd_looks_intel_mpi "$(linux_resolve_mpi_tool mpicc mpiicc mpiicx 2>/dev/null || true)"; then
+                printf "\n  ${COL_INFO}NOTE: Additional MPI launchers are visible, but the active mpicc/mpiexec are Intel MPI.${COL_RST}\n"
+                printf "  Keep Intel MPI first in PATH while installing and running this environment.\n"
+            else
+                printf "\n  ${COL_WARN}WARNING: Multiple MPI stacks are visible in this environment.${COL_RST}\n"
+                printf "  This causes ABI conflicts (e.g. mpi4py wheel links to one,\n"
+                printf "  but mpiexec invokes the other). Remove one before installing.\n"
+                WARNINGS+=("dual-mpi")
+            fi
+        fi
+
+        echo ""
+        MPI_TRUE_PROBE="/bin/true"
+        if [ "${OS_NAME}" = "Darwin" ] && [ -x /usr/bin/true ]; then
+            MPI_TRUE_PROBE="/usr/bin/true"
+        fi
+        printf "  Probing mpiexec -n 1 %s (5s timeout each):\n" "${MPI_TRUE_PROBE}"
+        WORKING_MPIEXEC=""
+        MPI_PROBE_CANDIDATES=()
+        if [ -n "${I_MPI_ROOT:-}" ] && [ -d "${I_MPI_ROOT}/bin" ]; then
+            MPI_PROBE_CANDIDATES+=("${I_MPI_ROOT}/bin/mpiexec" "${I_MPI_ROOT}/bin/mpirun")
+        fi
+        MPI_PROBE_CANDIDATES+=(mpiexec.mpich mpiexec.hydra mpiexec.openmpi mpirun.openmpi mpiexec mpirun)
+        for candidate in "${MPI_PROBE_CANDIDATES[@]}"; do
+            resolved="$(linstabpy_resolve_launcher_candidate "${candidate}" || true)"
+            [ -n "${resolved}" ] || continue
+            if has_cmd timeout; then
+                if timeout -k 2 5 "${resolved}" -n 1 "${MPI_TRUE_PROBE}" >/dev/null 2>&1; then
+                    printf "    %-22s ${COL_OK}OK${COL_RST}\n" "${candidate}"
+                    [ -z "${WORKING_MPIEXEC}" ] && WORKING_MPIEXEC="${resolved}"
+                else
+                    printf "    %-22s ${COL_MISS}FAIL/TIMEOUT${COL_RST}\n" "${candidate}"
+                fi
+            else
+                printf "    %-22s ${COL_WARN}SKIP${COL_RST} (timeout command not available)\n" "${candidate}"
+            fi
+        done
+        if [ -n "${WORKING_MPIEXEC}" ]; then
+            printf "  Best candidate: %s\n" "${WORKING_MPIEXEC}"
+        else
+            if [ "${OPENMPI_FOUND}" -eq 1 ] || [ "${MPICH_FOUND}" -eq 1 ] || [ "${INTELMPI_FOUND}" -eq 1 ]; then
+                printf "  ${COL_MISS}No mpiexec passed the -n 1 %s probe.${COL_RST}\n" "${MPI_TRUE_PROBE}"
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
+        fi
+
+        echo ""
+        if has_cmd ldconfig; then
+            libmpi_line="$(ldconfig -p 2>/dev/null | grep 'libmpi\.so\.' | head -n1 || true)"
+            if [ -n "${libmpi_line}" ]; then
+                printf "  libmpi.so:   %s\n" "${libmpi_line}"
+            else
+                printf "  libmpi.so:   ${COL_WARN}not found in ldconfig cache${COL_RST}\n"
+            fi
+        fi
+        if linux_resolve_mpi_tool mpicc mpiicc mpiicx >/dev/null; then
+            if linux_mpi_compile_available; then
+                printf "  MPI compile: ${COL_OK}OK${COL_RST}   mpicc can compile and link mpi.h\n"
+            else
+                printf "  MPI compile: ${COL_MISS}FAIL${COL_RST} %s\n" "${LINSTABPY_MPI_COMPILE_ERROR}"
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
+        else
+            printf "  MPI compile: ${COL_WARN}SKIP${COL_RST} (mpicc not found)\n"
+        fi
+        echo ""
+
+        printf "${COL_INFO}[hdf5]${COL_RST} (optional, needed for h5py)\n"
+        if has_cmd h5cc; then
+            h5ver="$(h5cc -showconfig 2>/dev/null | awk '/HDF5 Version:/{print $NF; exit}' || echo "?")"
+            printf "  h5cc:        ${COL_OK}OK${COL_RST}   %s  (HDF5 %s)\n" "$(command -v h5cc)" "${h5ver}"
+        elif has_cmd pkg-config && pkg-config --exists hdf5 2>/dev/null; then
+            h5ver="$(pkg-config --modversion hdf5 2>/dev/null || echo "?")"
+            printf "  hdf5:        ${COL_OK}OK${COL_RST}   via pkg-config  (%s)\n" "${h5ver}"
+        elif has_cmd pkg-config && pkg-config --exists hdf5-serial 2>/dev/null; then
+            h5ver="$(pkg-config --modversion hdf5-serial 2>/dev/null || echo "?")"
+            printf "  hdf5-serial: ${COL_OK}OK${COL_RST}   via pkg-config  (%s)\n" "${h5ver}"
+        else
+            printf "  hdf5:        ${COL_WARN}MISS${COL_RST} (not required unless LINSTABPY_WITH_H5PY=1)\n"
+        fi
+        echo ""
+
+        WARN_COUNT=${#WARNINGS[@]}
+        if [ "${FAIL_COUNT}" -gt 0 ] || [ "${WARN_COUNT}" -gt 0 ]; then
+            printf "=== ${COL_WARN}ACTION REQUIRED${COL_RST} ===\n"
+            echo ""
+            if [ "${WARN_COUNT}" -gt 0 ]; then
+                for w in "${WARNINGS[@]}"; do
+                    if [ "${w}" = "dual-mpi" ]; then
+                        printf "  ${COL_WARN}Resolve MPI conflict (pick one):${COL_RST}\n"
+                        printf "    To use Intel MPI: unload/hide Open MPI and MPICH, then source oneAPI or load the Intel MPI module\n"
+                    fi
+                done
+                echo ""
+            fi
+            if [ "${FAIL_COUNT}" -gt 0 ]; then
+                printf "  ${COL_WARN}Install missing tools:${COL_RST}\n"
+                if linux_sys_dep_plan; then
+                    [ -n "${SYSDEP_UPDATE_CMD}" ] && printf "    %s\n" "${SYSDEP_UPDATE_CMD}"
+                    printf "    %s\n" "${SYSDEP_INSTALL_CMD}"
+                else
+                    printf "    Install manually: curl make cmake gcc g++ gfortran pkg-config, MPI dev tools, X11 headers\n"
+                fi
+                if [ "${LINSTABPY_WITH_H5PY:-0}" != "1" ]; then
+                    printf "  ${COL_INFO}Note:${COL_RST} HDF5/h5cc is optional; install HDF5 only when LINSTABPY_WITH_H5PY=1.\n"
+                fi
+                if [ "${PREFER_INTELMPI}" -eq 0 ] && [ "${INTELMPI_FOUND}" -eq 0 ] && linux_intel_mpi_available; then
+                    printf "  ${COL_INFO}Alternative:${COL_RST} Intel MPI is available but not active. To use it instead:\n"
+                    printf "    source /opt/intel/oneapi/setvars.sh --force\n"
+                    printf "    LINSTABPY_MPI_STACK=intelmpi bash install.sh --diagnose\n"
+                    printf "    LINSTABPY_MPI_STACK=intelmpi bash install.sh\n"
+                fi
+                echo ""
+            fi
+            exit 1
+        fi
+        printf "=== ${COL_OK}ALL CHECKS PASSED${COL_RST} ===\n"
+        printf "  Ready to run: bash install.sh\n"
+        if [ -n "${WORKING_MPIEXEC}" ]; then
+            printf "  Working mpiexec: %s\n" "${WORKING_MPIEXEC}"
+            printf "  Hint: LINSTABPY_PETSC_MPIEXEC=%s bash install.sh\n" "${WORKING_MPIEXEC}"
+        fi
+        echo ""
+        exit 0
+    )
+}
+
+if [ "${INSTALL_MODE}" = "diagnose" ]; then
+    run_host_diagnose
+    exit $?
+fi
 
 # Ensure reference MATLAB data/code is present locally for local inspection.
 ensure_reference_submodule

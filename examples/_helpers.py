@@ -41,8 +41,9 @@ def load_or_compute(
     return data
 
 
-from examples.figure_style import FIGURE_DPI, apply as _apply_figure_style
+from examples.figure_style import apply as _apply_figure_style
 from examples.figure_style import signed_cmap as signed_zero_white_cmap  # noqa: F401
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "validation" / "martini2024" / "fixtures"
 LEGACY_PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
@@ -100,15 +101,14 @@ def leading_mode_real_frequency(
     return complex(float(np.real(lead)), float(imag_shift))
 
 
-def save_figure(fig, path: str | Path) -> None:
+def save_figure(fig, path: str | Path) -> Path:
     """Save a matplotlib figure with the repo-wide example defaults."""
-    import matplotlib.pyplot as plt
+    from examples.figure_style import save as _save_figure
 
     configure_example_style()
-    output = Path(path)
-    fig.savefig(output, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
-    plt.close(fig)
+    output = _save_figure(fig, path)
     print(f"Figure saved to {repo_relative_path(output)}")
+    return output
 
 
 def apply_figure_layout(

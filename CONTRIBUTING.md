@@ -23,9 +23,9 @@ bash install.sh --check
 
 `install.sh` creates `.venv` and builds or installs the Python/PETSc/SLEPc
 stack; `--check` verifies that `petsc4py` and `slepc4py` import and that the
-runtime libraries loaded in the right order. Run `bash diagnose.sh` first if
-your machine is unusual — it reports what is already present before anything is
-built.
+runtime libraries loaded in the right order. Run `bash install.sh --diagnose`
+first if your machine is unusual — it reports what is already present before
+anything is built.
 
 Expect the first install to take a while. This is normal, not a hang.
 
@@ -38,7 +38,7 @@ ruff check .
 ruff format --check .
 uv sync --group test
 .venv/bin/python -m pytest tests/
-python scripts/check_tracked_file_size.py
+.venv/bin/python -m pytest tests/test_tracked_file_size.py -q --tb=line
 ```
 
 The dissipation guardrail tests are the ones that matter most, and CI runs them

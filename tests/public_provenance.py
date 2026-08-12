@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Scan tracked public files for private paths and internal review provenance."""
 
 from __future__ import annotations
@@ -23,9 +24,12 @@ PATTERNS: tuple[tuple[str, str], ...] = (
 )
 
 EXCLUDED_PATHS = {
-    "scripts/check_public_provenance.py",
+    "tests/public_provenance.py",
     "tests/test_public_provenance_checker.py",
+    "CHANGELOG.md",
 }
+
+PRIVATE_CATEGORIES = frozenset({"private-local-path", "private-user-or-host"})
 
 
 @dataclass(frozen=True)
@@ -100,6 +104,11 @@ def scan_paths(paths: list[Path], *, repo_root: Path) -> list[Match]:
 def scan_tracked(repo_root: Path) -> list[Match]:
     repo_root = repo_root.resolve()
     return scan_paths(_tracked_files(repo_root), repo_root=repo_root)
+
+
+def private_matches(matches: list[Match]) -> list[Match]:
+    """Return only private-path and private-host hits."""
+    return [match for match in matches if match.category in PRIVATE_CATEGORIES]
 
 
 def _payload(matches: list[Match]) -> dict[str, Any]:

@@ -149,3 +149,24 @@ def test_symlinked_stack_venv_is_rejected() -> None:
         assert "symlink" in result.stderr + result.stdout
     finally:
         link.unlink()
+
+
+def test_diagnose_prints_preflight_and_does_not_touch_venv() -> None:
+    venv = ROOT / ".venv"
+    existed = venv.exists()
+    marker = None
+    python = venv / "bin" / "python"
+    if existed and python.is_file():
+        marker = python.stat().st_mtime
+    result = subprocess.run(
+        ["bash", str(INSTALL_SH), "--diagnose"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    text = result.stdout + result.stderr
+    assert "linstabpy install diagnostic" in text
+    assert "Installing Linux system dependencies" not in text
+    assert existed == venv.exists()
+    if marker is not None:
+        assert python.stat().st_mtime == marker
