@@ -491,18 +491,16 @@ thread per rank unless the caller already set them. Override the runtime with
 `LINSTABPY_MPIEXEC`, `LINSTABPY_MPI_RANKS`, or `LINSTABPY_PYTHON` when a machine
 needs explicit paths.
 
-### Why JSONC configs?
+### Why YAML configs?
 
-JSONC is JSON with comments, and this repo uses it deliberately even though plain
-JSON is more common. Each example is a numerical case definition: Reynolds number,
-Mach number, grid size, boundary conditions, sponge settings, forcing masks,
-solver targets, and PETSc/MPI choices should stay visible and diffable, with an
-explanation sitting next to each value.
+Each example is a numerical case definition: Reynolds number, Mach number, grid
+size, boundary conditions, sponge settings, forcing masks, solver targets, and
+PETSc/MPI choices should stay visible and diffable, with an explanation sitting
+next to each value.
 
 Plain JSON would remove those explanations. Long command-line flags would hide
 too much state in shell history or runner scripts. Python config files would mix
-data with executable code. JSONC keeps the inputs close to strict JSON while
-still letting the case file document why each parameter exists.
+data with executable code. YAML keeps the comments next to the knobs.
 
 ## Repository layout
 
@@ -519,12 +517,13 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
-|   |-- utils/                     JSONC, plotting, PETSc helpers, acceptance checks
+|   |-- utils/                     YAML case loader, plotting, PETSc helpers
 |   `-- results_runtime.py         Package runtime used by case study drivers
-|-- examples/                      Public cases; generated .npz/.png ignored
+|-- examples/                      Public cases
 |   |-- martini/                   Six Martini examples, tools, and MATLAB fixtures
 |   |-- song/                      Song / Robinet SWBLI EVP case
-|   `-- savarino/                  Savarino 30.8 deg resolvent case
+|   |-- savarino/                  Savarino 30.8 deg resolvent case
+|   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
 |-- scripts/                       Repository guardrails
 |   |-- ci/                        Thin install/diagnose/benchmark harness
 |   `-- tools/                     One-off conversion and debug helpers
@@ -625,7 +624,7 @@ iterative Krylov-only solves.
 
 Selection precedence is:
 
-1. JSONC solver subsection `factor_backend`
+1. YAML solver subsection `factor_backend`
 2. per-solver environment override, such as `LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE` or `LINSTABPY_RESOLVENT_PC_FACTOR_SOLVER_TYPE`
 3. `LINSTABPY_FACTOR_BACKEND`
 4. the call-site default
@@ -633,8 +632,8 @@ Selection precedence is:
 Examples:
 
 ```bash
-LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.example_1_blasius
-LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.example_1_blasius
+LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.martini.example_1_blasius
+LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.martini.example_1_blasius
 ```
 
 Unavailable backends fail during PETSc LU setup with a direct error message
@@ -728,7 +727,7 @@ Before trusting a spectrum, check:
 - wall time
 - peak RSS
 - MPI rank count and thread policy
-- the exact JSONC config and git commit that produced the artifact
+- the exact YAML config and git commit that produced the artifact
 
 ### What not to assume
 
@@ -830,7 +829,7 @@ Stored as `BaseFlow.kappa`. The code uses `kappa` rather than `gamma`; the
 keep the physical meaning explicit. Enters the ideal gas relation, the Chu norm
 weights, and all compressibility terms.
 
-Re, Ma, Pr, and kappa are user-supplied in the JSONC config under `physics`. The
+Re, Ma, Pr, and kappa are user-supplied in the YAML config under `physics`. The
 code uses them as given without internal consistency checks.
 
 ### Sutherland viscosity
@@ -893,60 +892,44 @@ assigning.
 
 ## Boundary conditions
 
-Boundary setup is JSONC-driven. Row-replacement boundary conditions are listed
-under `bc.recipe`; sponge damping is configured in JSONC as an operator damping
+Boundary setup is YAML-driven. Row-replacement boundary conditions are listed
+under `bc.recipe`; sponge damping is configured in YAML as an operator damping
 field or loaded from reference case data.
 
 Example:
 
-```jsonc
-{
-  "physics": {
-    "sponge": {
-      "enabled": true,
-      "preset": "tanh",
-      "amplitude": 0.1
-    }
-  },
-  "bc": {
-    "penalty": 1e8,
-    "recipe": [
-      {
-        "type": "dirichlet",
-        "borders": "lt",
-        "variables": "ruvwT"
-      },
-      {
-        "type": "dirichlet",
-        "borders": "b",
-        "variables": "ruvw"
-      },
-      {
-        "type": "neumann",
-        "borders": "b",
-        "variables": "T",
-        "exclude_corners": true,
-        "curvilinear_normals": true
-      },
-      {
-        "type": "neumann",
-        "borders": "r",
-        "variables": "ruvwT",
-        "exclude_corners": true,
-        "curvilinear_normals": true
-      }
-    ]
-  },
-  "analysis": {
-    "stability_acceptance": {
-      "postcheck_rel_max": 5e-5,
-      "target_distance_max": 0.15,
-      "omega_real_abs_max": 1.5,
-      "omega_imag_abs_max": 2.0,
-      "conjugate_aware": true
-    }
-  }
-}
+```yaml
+physics:
+  sponge:
+    enabled: true
+    preset: tanh
+    amplitude: 0.1
+bc:
+  penalty: 1.0e8
+  recipe:
+    - type: dirichlet
+      borders: lt
+      variables: ruvwT
+    - type: dirichlet
+      borders: b
+      variables: ruvw
+    - type: neumann
+      borders: b
+      variables: T
+      exclude_corners: true
+      curvilinear_normals: true
+    - type: neumann
+      borders: r
+      variables: ruvwT
+      exclude_corners: true
+      curvilinear_normals: true
+analysis:
+  stability_acceptance:
+    postcheck_rel_max: 5.0e-5
+    target_distance_max: 0.15
+    omega_real_abs_max: 1.5
+    omega_imag_abs_max: 2.0
+    conjugate_aware: true
 ```
 
 Recipe fields:

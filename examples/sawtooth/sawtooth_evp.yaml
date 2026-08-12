@@ -17,6 +17,8 @@ numerics:
   fd_order: 6
   beta: 0.0
   alpha_filter: 0.0
+  # Floquet shift: matlab_parity (default) or continuum
+  floquet_shift: matlab_parity
   operator_dissipation:
     enabled: true
     epsilon: 0.10

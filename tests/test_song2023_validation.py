@@ -18,7 +18,7 @@ from examples.song.song import (
     _stability_archive_fields,
     _summarize_rank_metrics,
 )
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SONG_CASE_DIR = REPO_ROOT / "examples" / "song"
@@ -26,7 +26,7 @@ SONG_CONFIG_PATH = SONG_CASE_DIR / "song_32deg.yaml"
 
 
 def test_song2023_default_config_uses_transposed_filtered_input() -> None:
-    cfg = load_jsonc(SONG_CONFIG_PATH)
+    cfg = load_config(SONG_CONFIG_PATH)
 
     assert cfg["baseflow_input"]["transpose_input"] is True
     assert cfg["baseflow_input"]["zero_spanwise"] is False

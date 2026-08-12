@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Lenient schema checks for fully merged JSONC configuration dictionaries."""
+"""Lenient schema checks for fully merged YAML configuration dictionaries."""
 
 from __future__ import annotations
 

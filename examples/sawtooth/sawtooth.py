@@ -3,10 +3,12 @@
 
 Usage (from the repository root):
     mpiexec -n 4 python -m examples.sawtooth.sawtooth
+    mpiexec -n 4 python -m examples.sawtooth.sawtooth --config examples/sawtooth/sawtooth_evp.yaml
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import time
 from pathlib import Path
@@ -17,10 +19,16 @@ DEFAULT_OUTPUT = HERE / "sawtooth_evp.npz"
 LOG_PATH = HERE / "sawtooth.log"
 
 
-def _prepare_env() -> None:
+def _prepare_env(*, config: Path | None = None, output: Path | None = None) -> None:
     """Point the shared driver at the sawtooth YAML and output npz."""
-    os.environ.setdefault("LINSTABPY_CASE_CONFIG", str(DEFAULT_CONFIG))
-    os.environ.setdefault("LINSTABPY_CASE_OUTPUT_NPZ", str(DEFAULT_OUTPUT))
+    if config is not None:
+        os.environ["LINSTABPY_CASE_CONFIG"] = str(config)
+    else:
+        os.environ.setdefault("LINSTABPY_CASE_CONFIG", str(DEFAULT_CONFIG))
+    if output is not None:
+        os.environ["LINSTABPY_CASE_OUTPUT_NPZ"] = str(output)
+    else:
+        os.environ.setdefault("LINSTABPY_CASE_OUTPUT_NPZ", str(DEFAULT_OUTPUT))
     os.environ.setdefault("LINSTABPY_CASE_LOG_PREFIX", "sawtooth")
 
 
@@ -45,7 +53,24 @@ def compute() -> None:
 
 def main() -> None:
     """Cache-aware entry: recompute only when the output npz is missing."""
-    _prepare_env()
+    parser = argparse.ArgumentParser(description="Lui 2022 stride-2 SWBLI case")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="YAML case file. Defaults to sawtooth_evp.yaml.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="EVP output npz. Defaults to sawtooth_evp.npz.",
+    )
+    args = parser.parse_args()
+    _prepare_env(
+        config=args.config.resolve() if args.config is not None else None,
+        output=args.output.resolve() if args.output is not None else None,
+    )
     from linstabpy.driver.cli import main as _runtime_main
 
     t0 = time.perf_counter()

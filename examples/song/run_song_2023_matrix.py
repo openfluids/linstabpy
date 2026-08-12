@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Song2023 validation variants from JSONC without touching canonical outputs."""
+"""Run Song2023 validation variants from YAML without touching canonical outputs."""
 
 from __future__ import annotations
 
