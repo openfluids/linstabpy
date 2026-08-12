@@ -65,7 +65,7 @@ def test_unknown_preset_errors(tmp_path):
     assert "c9" in result.stderr, "c9 must be listed in valid preset values"
 
 
-def test_real_2rank_mpiexec_smoke():
+def test_real_2rank_mpiexec():
     mpiexec_path = shutil.which("mpiexec")
     if mpiexec_path is None:
         import pytest

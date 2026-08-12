@@ -25,7 +25,6 @@ from linstabpy.solvers.router.resolvent_map import resolvent_map
 from linstabpy.utils.jsonc import load_jsonc
 from linstabpy.utils.provenance import collect_provenance
 
-DEFAULT_CONFIG = CASE_DIR / "configs" / "resolvent_smoke_fd4_socket1.jsonc"
 DEFAULT_CASE_DIR = CASE_DIR / "data" / "baseflow"
 DEFAULT_OUTPUT_DIR = CASE_DIR / "output" / "gain_map"
 X_SH_M = 0.08
@@ -197,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--n-freq", type=int, default=5)
     parser.add_argument("--n-beta", type=int, default=10)
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument("--config", type=Path, required=True)
     return parser
 
 

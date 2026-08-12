@@ -40,7 +40,7 @@ check finishes, the runner records an inventory error instead of discarding the
 whole report. Artifact inventory hashing has its own 60 second cap so report
 post-processing cannot make a timed check run indefinitely. A normal group run
 includes every check in that group. Use `--skip-long` only when you are doing a
-quick local smoke run that is not a Phase 0 signoff.
+quick local run that is not a Phase 0 signoff.
 
 The `phase0-golden-local` virtual group runs `phase0-local`,
 `phase0-expanded-local`, and `documentation-gates` as one local baseline suite.
@@ -60,12 +60,12 @@ must be triaged like a failed validation gate.
 
 | Phase | Blocking evidence | Required before |
 |---|---|---|
-| Phase 0 characterization | Full local pytest, focused operator/BC/solver tests, example smoke, parity matrix status, operator perf/memory baseline, BC behavior tests, selected generated artifacts with SHA | Any BCRecipe, LNSESystem, SolverConfig, runtime, Mesh, or kernel implementation |
+| Phase 0 characterization | Full local pytest, focused operator/BC/solver tests, example runs, parity matrix status, operator perf/memory baseline, BC behavior tests, selected generated artifacts with SHA | Any BCRecipe, LNSESystem, SolverConfig, runtime, Mesh, or kernel implementation |
 | Safety infrastructure | Test matrix runner, numerical equivalence harness, dual-path migration plan, docstring gate, invariant-comment policy | Any destructive migration from old path to new seam |
 | BCRecipe | BC index parity across SciPy, PETSc, and spatial paths; compatibility wrappers; no public JSONC breakage | LNSE assembly seam migration |
 | LNSESystem and kernel work | Full operator numerical diffs, coefficient baseline diffs, PETSc/SciPy backend parity, perf/memory sidecars | Solver policy centralization |
 | SolverConfig | Solver init/config characterization, PETSc/SLEPc construction parity, MPI checks | Runtime pipeline split |
-| Runtime and Mesh split | NPZ output contract diff, Case 1/2 smoke, example family smoke, MPI multi-rank smoke | Final c8 gate |
+| Runtime and Mesh split | NPZ output contract diff, Case 1/2 runs, example family runs, MPI multi-rank runs | Final c8 gate |
 | Final c8 gate | Fresh pull on c8, full tests, canonical examples, Martini parity, Song validation, Case 1/2 checks, MPI runs, representative perf baselines | Goal completion |
 
 ## Phase 0 Local Matrix
@@ -77,7 +77,7 @@ production refactor.
 |---|---|---|
 | `pytest-full` | `.venv/bin/python -m pytest tests/ -q` | pytest console log |
 | `pytest-focused` | `.venv/bin/python -m pytest tests/test_boundary_conditions.py tests/test_operators.py tests/test_solvers.py tests/test_stability_acceptance.py -q` | pytest console log |
-| `example-blasius-smoke` | `bash run_all_examples.sh --example 1s --skip-parity --fresh` | `examples/example_1_blasius_smoke.npz` |
+| (removed 2026-08-12; reduced example deleted) | – | – |
 | `parity-matrix-status` | `.venv/bin/python scripts/validation/martini2024/tools/check_parity_matrices.py --allow-incomplete --artifacts-dir artifacts/architecture_refactor/architecture_refactor_phase0` | `artifacts/architecture_refactor/architecture_refactor_phase0/parity_gate_summary.json` |
 | `operator-perf-memory` | `.venv/bin/python scripts/validation/martini2024/tools/perf_memory_operator_parity.py --meshes 24x16,32x24 --output artifacts/architecture_refactor/architecture_refactor_phase0/operator_perf_memory.json` | `artifacts/architecture_refactor/architecture_refactor_phase0/operator_perf_memory.json` |
 
@@ -124,7 +124,7 @@ rewrites. Some are workstation or c8 jobs because they are expensive.
 | `operator-full-martini` | Martini operator-level parity for all implemented examples | `compare_martini_examples.py` report with SHA |
 | `curvilinear-baseline` | Example 0 curvilinear derivative and normal handling | regenerated NPZ plus parity fixture report |
 | `case1-operator-spectrum-resolvent` | Song/Robinet Case 1 operator, spectrum, and resolvent parity | Case 1 parity JSON files |
-| `case2-key-config` | Case 2 representative smoke and one medium stride config | perf/memory JSON and NPZ output |
+| `case2-key-config` | Case 2 representative run and one medium stride config | perf/memory JSON and NPZ output |
 | `high-mode-baseline` | Stability/resolvent runs with high mode count on representative targets | spectra, gains, residuals, and postcheck arrays |
 | `bc-index-baseline` | Effective and column-zeroed BC indices, overlap, corners, curvilinear normals across backends | machine-readable JSON from characterization tests |
 | `coefficient-tensor-baseline` | Selected coefficient tensors before P1 fusion | JSON/NPZ hashes and max-norm summaries |

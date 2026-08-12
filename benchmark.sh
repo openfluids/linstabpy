@@ -8,7 +8,7 @@
 #   bash benchmark.sh [machine_label]
 #
 # Example 0 (curvilinear validation) is pure NumPy — runs single-process.
-# Example 1 defaults to the small Blasius smoke case so install-time profiling
+# Example 1 runs the real Blasius case so install-time profiling
 # stays practical even on slower nodes. Override to the full case with:
 #   LINSTABPY_BENCHMARK_EX1_MODULE=examples.example_1_blasius
 #   LINSTABPY_BENCHMARK_EX1_LABEL=example_1_blasius
@@ -92,8 +92,8 @@ printf "  Half cores:      %d\n" "${HALF_CORES}"
 printf "  Results dir:     %s\n" "${RESULTS_DIR}"
 echo ""
 
-EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.example_1_blasius_smoke}"
-EX1_LABEL="${LINSTABPY_BENCHMARK_EX1_LABEL:-example_1_blasius_smoke}"
+EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.example_1_blasius}"
+EX1_LABEL="${LINSTABPY_BENCHMARK_EX1_LABEL:-example_1_blasius}"
 printf "  Example 1 case:  %s (%s)\n\n" "${EX1_LABEL}" "${EX1_MODULE}"
 
 # ── Find mpiexec ────────────────────────────────────────────────────────────
@@ -229,7 +229,7 @@ printf "${COL_INFO}--- Example 0: Curvilinear validation (single-process) ---${C
 run_case "examples.example_0_curvilinear_validation" "example_0_curvilinear_validation" "single" 1
 echo ""
 
-printf "${COL_INFO}--- Example 1: Blasius PETSc smoke (MPI parallel) ---${COL_RST}\n"
+printf "${COL_INFO}--- Example 1: Blasius PETSc (MPI parallel) ---${COL_RST}\n"
 run_case "${EX1_MODULE}" "${EX1_LABEL}" "all_cores" "${PHYS_CORES}"
 echo ""
 run_case "${EX1_MODULE}" "${EX1_LABEL}" "half_cores" "${HALF_CORES}"

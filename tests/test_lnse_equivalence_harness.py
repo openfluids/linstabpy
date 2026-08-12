@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Smoke tests for the LNSE equivalence harness."""
+"""Tests for the LNSE equivalence harness."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ HARNESS_TIMEOUT_LOAD_CAP = LOAD_MULTIPLIER_CAP
 
 
 def _harness_timeout() -> float:
-    """Return a load-aware timeout for harness subprocess smoke tests.
+    """Return a load-aware timeout for harness subprocess tests.
 
     Delegates to the shared helper so the other subprocess tests cannot drift to a
     different policy -- this file had the load-aware timeout and its siblings did

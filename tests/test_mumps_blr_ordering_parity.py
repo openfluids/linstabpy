@@ -285,7 +285,7 @@ def test_mumps_blr_ordering_variant_matches_baseline(
 
 def test_mumps_variant_record_is_json_serializable() -> None:
     record = {
-        "comparison": "schema_smoke",
+        "comparison": "schema_only",
         "target": TARGET,
         "matched_eigenvalue_distances": np.array([0.0]),
     }

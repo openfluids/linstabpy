@@ -33,7 +33,7 @@ git ls-files | awk -F/ '{print $1}' | sort | uniq -c | sort -nr
 |---|---|---:|---|
 | Package source | `git ls-files 'src/linstabpy/*.py' 'src/linstabpy/**/*.py'` | 42 | Public docstring coverage, selected private invariant comments, provenance scan, focused tests. |
 | Tests | `git ls-files 'tests/*.py' 'tests/**/*.py'` | 51 | Assertion/tolerance readability audit and provenance scan. No tutorial comments. |
-| Examples | `git ls-files 'examples/*.py' 'examples/**/*.py'` | 53 | Source comments for cache behavior, optional data, MPI usage, and output paths; example smoke or tracked blocker. |
+| Examples | `git ls-files 'examples/*.py' 'examples/**/*.py'` | 53 | Source comments for cache behavior, optional data, MPI usage, and output paths; example check or tracked blocker. |
 | Validation scripts | `git ls-files 'scripts/*.py' 'scripts/**/*.py'` | 65 | CLI failure-message audit, public-path scan, and focused script tests where available. |
 | Public docs | `git ls-files '*.md' 'docs/**/*.tex' 'docs/**/*.pdf' 'README.md' 'CITATION.cff' 'NOTICE' 'LICENSE'` | 29 | Render/link check, install/MPI/env clarity, public/private boundary scan. |
 | Install and diagnostics | `git ls-files install.sh diagnose.sh benchmark.sh run_all_examples.sh scripts/ci` | 10 | Clean install/check behavior, MPI-stack reporting, thread-env guidance, actionable errors. |
@@ -70,7 +70,7 @@ git ls-files src/linstabpy |
 |---|---:|---|
 | `examples/case_studies/case2_lui` | 115 | Public case-study docs and scripts; no private host paths; cache/MPI behavior clear. |
 | `examples/case_studies/case1_song` | 84 | Same as above, plus optional reference-data behavior. |
-| Top-level examples `example_0` through `example_5` | 14 | Smoke/regeneration behavior, cache paths, and output files clear. |
+| Top-level examples `example_0` through `example_5` | 14 | Regeneration behavior, cache paths, and output files clear. |
 | Shared helpers and package markers | 4 | Public import and helper behavior documented only where non-obvious. |
 | `examples/fix_examples_figures.md` | 1 | Documentation/provenance scan. |
 

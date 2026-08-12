@@ -91,14 +91,14 @@ def test_mark_unstable_band_uses_negated_asymmetric_median_target_default(
     _assert_same_band_marks(marks, label_band(known_spectrum, f_range, cfg))
 
 
-def test_mark_unstable_band_real_evp_seam_smoke_on_tiny_diagonal_operator() -> None:
+def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator() -> None:
     pytest.importorskip(
         "petsc4py",
-        reason="SKIPPED: missing petsc4py complex PETSc stack for real _evp_eigenvalues smoke",
+        reason="SKIPPED: missing petsc4py complex PETSc stack for real _evp_eigenvalues check",
     )
     pytest.importorskip(
         "slepc4py",
-        reason="SKIPPED: missing slepc4py complex SLEPc stack for real _evp_eigenvalues smoke",
+        reason="SKIPPED: missing slepc4py complex SLEPc stack for real _evp_eigenvalues check",
     )
 
     # stability.eigenvalues solves eig(i*L0).  This diagonal therefore has

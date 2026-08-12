@@ -109,7 +109,7 @@ A working R&D spike is roughly 2--4 person-weeks [assumed]:
 
 | Work item | Rough effort |
 |---|---:|
-| cuDSS binding skeleton, build detection, and smoke solve | 3--5 person-days [assumed] |
+| cuDSS binding skeleton, build detection, and first solve | 3--5 person-days [assumed] |
 | PETSc AIJ to CSR extraction with complex data and ownership tests | 2--4 person-days [assumed] |
 | SLEPc ST shell action with host-device vector marshalling | 4--7 person-days [assumed] |
 | Analyze/factor reuse per shift and solve-per-RHS timing records | 2--4 person-days [assumed] |
@@ -129,7 +129,7 @@ applicable. Quality must pass before cost is considered.
 | Criterion | Metric | Threshold | Measurement method | If it fails |
 |---|---:|---:|---|---|
 | Parity quality | `postcheck_residual_rel_max`, `target_distance_max`, and conjugate-aware matched eigenvalue distance versus the MUMPS reference | `postcheck_residual_rel_max <= 1e-6`; `target_distance_max <= 0.11`; `matched_eigenvalue_distance_max <= 1e-6` | Reuse the acceptance-anchored parity harness or an equivalent run record with full-operator postchecks | No adoption. PETSc/SLEPc iteration convergence is not enough. |
-| Complex LU robustness | Fraction of tested shifts and RHS batches that factor and solve without NaN/Inf, cuDSS error status, or residual rejection | 100% for the selected smoke and target cases [assumed] | Record cuDSS status, solve residuals, rejected-mode reasons, and matrix statistics for each tested shift | Keep as R&D only; do not expose as a user-selectable path. |
+| Complex LU robustness | Fraction of tested shifts and RHS batches that factor and solve without NaN/Inf, cuDSS error status, or residual rejection | 100% for the selected test and target cases [assumed] | Record cuDSS status, solve residuals, rejected-mode reasons, and matrix statistics for each tested shift | Keep as R&D only; do not expose as a user-selectable path. |
 | Factor memory/capacity | Peak device memory for CSR, factors, and work buffers; largest matrix that factors on the target GPU | Candidate must fit the target case with at least 20% headroom [assumed], or must factor a case that the CPU reference cannot fit [repo-recorded measurement when available] | CUDA/cuDSS memory records plus matrix size, nonzeros, precision, algorithm, and GPU memory capacity [vendor spec for capacity] | Do not justify the path as a capacity route. |
 | Wall time at equal mode quality | End-to-end setup plus solve wall time relative to CPU MUMPS and to STRUMPACK diagnostic route after all pass the quality gate | `<= 0.80` of CPU MUMPS [assumed] for a speed/cost win; `<= 1.10` [assumed] only if capacity also passes | Same requested modes and acceptance settings; record analyze, factor, transfer, and solve times separately | Do not claim lower wall time. |
 | Factorization-reuse economics | Useful RHS solves per factorization and total sweep time versus refactor-per-shift alternatives | Reuse must reduce measured total sweep time by `>= 2.0x` [assumed] for the tested frequency/RHS pattern | Count factor setups, RHS solves, shifts, solve residuals, and accepted modes/gains | Restrict cuDSS to cases where reuse dominates, or no-go. |

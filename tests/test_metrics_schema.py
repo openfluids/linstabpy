@@ -26,7 +26,7 @@ def _complete_metrics_payload() -> dict[str, object]:
         "petsc_arch": "arch-python",
         "mumps_version": "5.8.1",
         "mpi_impl": "MPI test implementation",
-        "case": "tiny-smoke",
+        "case": "tiny-check",
         "fd_order": 6,
         "stride": 4,
         "nx": 5,
@@ -111,7 +111,7 @@ def test_quality_section_is_run_type_optional():
 
 def test_production_sidecar_payload_passes_schema(tmp_path, monkeypatch):
     monkeypatch.setenv("LINSTAB2D_GPUS", "0")
-    output_npz = tmp_path / "tiny_smoke.npz"
+    output_npz = tmp_path / "tiny_check.npz"
     payload = _complete_metrics_payload()
     provenance = {key: str(payload.pop(key)) for key in SCHEMA["provenance"]}
     # Let save_results provide the cost/provenance block through the production
@@ -136,5 +136,5 @@ def test_production_sidecar_payload_passes_schema(tmp_path, monkeypatch):
 
     assert "schema_errors" not in sidecar
     assert validate_metrics(sidecar) == []
-    assert sidecar["case"] == "tiny-smoke"
+    assert sidecar["case"] == "tiny-check"
     assert sidecar["cost_peak_rss_bytes"] == 4096

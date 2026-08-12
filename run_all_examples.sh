@@ -7,7 +7,6 @@
 #   ./run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
 #   ./run_all_examples.sh --example 0 --skip-parity      # run one example only
 #   ./run_all_examples.sh --mpi --example 1 -n 10        # run one example under MPI
-#   ./run_all_examples.sh --mpi --example 1s -n 10       # run the Blasius smoke benchmark
 #   ./run_all_examples.sh --continue-on-error            # keep going after failures
 #
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
@@ -47,9 +46,7 @@ EXAMPLE_SPECS=(
   "5|example_5_paraboloid|examples.example_5_paraboloid|Example 5: paraboloid resolvent"
 )
 
-EXTRA_EXAMPLE_SPECS=(
-  "1s|example_1_blasius_smoke|examples.example_1_blasius_smoke|Example 1 smoke: reduced Blasius benchmark"
-)
+EXTRA_EXAMPLE_SPECS=()
 
 usage() {
   cat <<EOF
@@ -60,7 +57,7 @@ Options:
   --clean               Delete cached example NPZ and PNG artifacts before running
   --example <selector>  Run only one example. Repeatable. Select by index,
                         stem, or module name (for example: 0, example_1_blasius,
-                        examples.example_1_blasius_smoke)
+                        examples.example_1_blasius)
   -m, --module <name>    Alias for --example; accepts full module names
   --mpi                 Run selected examples through an MPI launcher
   -n, --ranks <count>   MPI rank count. Implies --mpi
