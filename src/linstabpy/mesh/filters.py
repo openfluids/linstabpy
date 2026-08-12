@@ -301,7 +301,9 @@ def build_mesh_filters(
     used_ind : ndarray
         Flattened used-point indices (column-major indexing order).
     alpha_filter : float | str
-        Filtering strength (``0``/``"none"`` disables filtering).
+        Filtering strength.  Only the string ``"none"`` disables filtering;
+        numeric ``0.0`` builds the maximum-strength filter, matching the
+        MATLAB convention (see ``_is_no_filter``).
     """
     if _is_no_filter(alpha_filter):
         return MeshFilters(
