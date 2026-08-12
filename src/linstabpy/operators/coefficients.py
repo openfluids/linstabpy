@@ -918,18 +918,18 @@ def compute_cylindrical_coefficients(
     # Step 1: Build derived coefficients from physical thermodynamic inputs.
     # ------------------------------------------------------------------
     R = np.asarray(R, dtype=float)
-    # Regularize the axis singularity using the local radial mesh spacing as
-    # a floor.  The old hard-coded 1e-14 floor allowed 1/R² ~ 10²⁸ near the
-    # axis; using the smallest positive local spacing caps the metric terms at
-    # the mesh resolution.  Degenerate single-point/all-axis inputs use a small
-    # numeric floor rather than the old near-zero singular value.
-    if R.size > 1:
-        diffs = np.diff(np.sort(R))
-        positive_diffs = diffs[diffs > 0]
-        eps_reg = float(positive_diffs.min()) if positive_diffs.size > 0 else 1e-8
-    else:
-        eps_reg = 1e-8
-    R = np.maximum(R, eps_reg)
+    # Guard only a true axis point (r = 0), where 1/R is undefined.  On a
+    # staggered/cell-centred grid the first point sits at r = dr/2 > 0 and its
+    # 1/R, 1/R² coefficients are legitimate and must not be altered: flooring R
+    # at the local mesh spacing silently rewrote the equations in the axis row
+    # (jet example 2: leading gain 411.72 vs the 413.72 reference).  A grid that
+    # actually contains r = 0 needs a pole treatment, not a floor, so refuse it.
+    if np.any(R <= 0.0):
+        raise ValueError(
+            "compute_cylindrical_coefficients requires r > 0 at every grid "
+            "point; a point at r = 0 needs a pole treatment, not 1/r "
+            "coefficients."
+        )
     c1 = (kappa - 1.0) * Re * Pr * Ma**2
     c2 = kappa * Ma**2
     cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
