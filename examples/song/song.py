@@ -36,10 +36,10 @@ from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
 from linstabpy.resolvent.analysis import resolvent_analysis  # noqa: E402
 from linstabpy.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
 from linstabpy.stability import eigenvalues as temporal_eigenvalues  # noqa: E402
-from linstabpy.utils.jsonc import load_config, parse_complex  # noqa: E402
+from linstabpy.utils.yaml_io import load_config, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
-from .baseflow_loader import load_my_case  # noqa: E402
+from linstabpy.baseflow import load_case_fields, sutherland_air  # noqa: E402
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -297,7 +297,7 @@ def run_case(
     _status("loading baseflow and sponge fields")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()
-    X, Y, baseflow, sponge, preprocess_info = load_my_case(
+    X, Y, baseflow, sponge, preprocess_info = load_case_fields(
         case_dir,
         Re=Re,
         Ma=Ma,
@@ -308,8 +308,9 @@ def run_case(
         stride_eta=stride_eta,
         transpose_input=transpose_input,
         zero_spanwise=zero_spanwise,
-        preprocess_cfg=preprocess_cfg,
+        preprocess=preprocess_cfg,
     )
+    sutherland_air(baseflow)
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
     step_stats.append(("load_baseflow", t_end - t_start, mem_end - mem_start))
@@ -873,6 +874,10 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
     """Generate baseflow, stability, and optional resolvent figures for Song 2023."""
     import matplotlib.pyplot as plt
 
+    from examples._helpers import configure_example_style
+
+    configure_example_style()
+
     X = np.asarray(data["X"], dtype=float)
     Y = np.asarray(data["Y"], dtype=float)
     U = np.asarray(data["U"], dtype=float)
@@ -883,14 +888,14 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
     ylim = (float(np.min(Y)), float(np.max(Y)))
     song_baseflow = _load_song_reference_baseflow()
 
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11.8, 4.2))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.4))
     plot_scalar_panel(
         ax_base,
         X,
         Y,
         U,
         title="Song 2023 / Robinet 2007 baseflow",
-        cmap="turbo",
+        cmap="cividis",
         xlim=xlim,
         ylim=ylim,
         aspect="auto",
@@ -933,7 +938,7 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
             matched = [(i, int(py_i)) for i, py_i in enumerate(order)]
         n_show = len(matched)
 
-        fig = plt.figure(figsize=(15.4, 7.8))
+        fig = plt.figure(figsize=(6.8, 4.0))
         grid = fig.add_gridspec(
             2,
             3,
@@ -1110,7 +1115,7 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
         save_figure(fig, OUTPUT_PNG)
 
         song_mode1 = _load_song_mode1_u()
-        fig_support, axes = plt.subplots(n_show, 4, figsize=(18.0, 3.8 * n_show))
+        fig_support, axes = plt.subplots(n_show, 4, figsize=(6.8, 2.4 * n_show))
         if n_show == 1:
             axes = np.asarray([axes])
         for row, (mat_i, py_i) in enumerate(matched):
@@ -1181,7 +1186,7 @@ def _plot(data: dict[str, np.ndarray], *, overlay_cfg: dict | None = None) -> No
     forcings = np.asarray(data["forcings"], dtype=complex)
     if gains.size:
         n_plot = min(3, gains.size)
-        fig_res = plt.figure(figsize=(12.8, 7.8))
+        fig_res = plt.figure(figsize=(6.6, 4.4))
         grid = fig_res.add_gridspec(
             n_plot, 3, width_ratios=(1.0, 1.4, 1.4), hspace=0.22, wspace=0.18
         )

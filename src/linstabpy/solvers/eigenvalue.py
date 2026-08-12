@@ -126,7 +126,7 @@ class StrumpackFactorizationFailed(RuntimeError):
 FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"})
 
 
-def _apply_ksp_jsonc_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
+def _apply_ksp_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
     """Apply PETSc KSP options from JSONC via the object's options prefix.
 
     This keeps solver choices in JSONC while still using PETSc's native
@@ -631,7 +631,7 @@ def _configure_st_for_eigenvalue(
         ksp.setTolerances(rtol=ksp_rtol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
         if ksp_type in {"gmres", "fgmres"}:
-            _apply_ksp_jsonc_options(ksp, ecfg)
+            _apply_ksp_options(ksp, ecfg)
         if pc_type == "asm":
             pc.setASMOverlap(asm_overlap)
             # Rank-local coarse solves for ASM blocks (parallel-safe default).
@@ -660,7 +660,7 @@ def _configure_st_for_eigenvalue(
             cfg.eigen.st_factor_backend,
             options_prefix=ksp.getOptionsPrefix() or "",
         )
-        _apply_ksp_jsonc_options(ksp, {"gmres_restart": (ecfg or {}).get("gmres_restart")})
+        _apply_ksp_options(ksp, {"gmres_restart": (ecfg or {}).get("gmres_restart")})
 
     elif st_solver in INEXACT_EIGEN_SOLVER_TYPES:
         # Inexact shift-invert: FGMRES outer + ASM subdomain + local ILU.

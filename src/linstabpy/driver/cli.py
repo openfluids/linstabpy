@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 
 def _package_version() -> str:

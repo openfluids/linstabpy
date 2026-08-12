@@ -9,6 +9,7 @@ build/
 !tests/fixtures/mumps_parity_reference.npz
 *.png
 !docs/assets/*.png
+!examples/**/*.png
 # Shipped reference fields for the public cases.
 !examples/martini/*.npz
 !examples/song/*.npz
@@ -54,11 +55,11 @@ validation/song_2023/matlab_code/SolverMartini/MATLAB_exports_Ziming_Internal/co
 # data/ dir perpetually untracked in `git status`.
 src/linstabpy/data/baseflows
 
-# SWBLI run-kit: drivers are tracked; machine-specific configs/outputs/backups are not
-run/*.jsonc
-run/*.yaml
-run/output/
-run/*.bak_*
+# Coverage artifacts
+.coverage
+coverage.xml
+coverage.json
+htmlcov/
 
 # private planning notes — never ship
-plan.md
+plan*.md

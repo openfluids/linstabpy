@@ -7,13 +7,15 @@ import os
 import subprocess
 from math import nan
 
-# mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
-# STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
-# Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
-# Enforced by tests/test_mpi_thread_level.py.
-import mpi4py.MPI  # noqa: F401
-from petsc4py import PETSc
+def _petsc_comm():
+    """Return PETSc.COMM_WORLD, or None when PETSc is not installed."""
+    try:
+        import mpi4py.MPI  # noqa: F401
+        from petsc4py import PETSc
+
+        return PETSc.COMM_WORLD
+    except Exception:
+        return None
 
 
 def _gpu_memory_bytes_cupy() -> float:
@@ -79,6 +81,10 @@ def _gpu_memory_bytes(cost_gpus: int) -> float:
 
 
 def _petsc_options_string() -> str:
+    try:
+        from petsc4py import PETSc
+    except Exception:
+        return ""
     options = PETSc.Options().getAll()
     if not options:
         return ""
@@ -108,7 +114,7 @@ def collect_cost_metrics(
         "cost_wall_solve_s": float(sum(solve_times)) if solve_times else float(nan),
         "cost_peak_rss_bytes": int(peak_rss_bytes),
         "cost_peak_gpu_mem_bytes": _gpu_memory_bytes(cost_gpus),
-        "cost_mpi_ranks": int(PETSc.COMM_WORLD.getSize()),
+        "cost_mpi_ranks": int(_petsc_comm().getSize()) if _petsc_comm() is not None else 1,
         "cost_gpus": cost_gpus,
         "cost_petsc_options": _petsc_options_string(),
         "cost_hardware_tag": str(os.getenv("LINSTAB2D_HARDWARE_TAG", "unknown")),

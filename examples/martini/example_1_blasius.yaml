@@ -2,60 +2,46 @@
 # Computes resolvent gains, optimal forcings and responses for
 # a compressible Blasius boundary layer.
 
-# Physics
-Re: 6.0e5
-Ma: 0.3
-Pr: 0.7
-kappa: 1.4
-T_0: 273.15
+Re: 6.0e5                  # Reynolds number
+Ma: 0.3                    # freestream Mach
+Pr: 0.7                    # Prandtl number
+kappa: 1.4                 # ratio of specific heats
+T_0: 273.15                # reference temperature [K]
 
-# Grid
-nx: 300
-ny: 100
-fd_order: 4
-alpha_filter: 0.0
+nx: 300                    # streamwise nodes
+ny: 100                    # wall-normal nodes
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
 
-# Physical domain construction
-dx: 0.01              # grid spacing used to derive x_min and x_max
-x_min_factor: 5       # x_min = x_min_factor * dx
-x_max_base: 1.25      # x_max = x_max_base + dx
-y_i: 0.01             # Hanifi 1996 inner mapping parameter
-y_max: 0.05           # physical domain height
+dx: 0.01                   # grid spacing used to derive x_min and x_max
+x_min_factor: 5            # x_min = x_min_factor * dx
+x_max_base: 1.25           # x_max = x_max_base + dx
+y_i: 0.01                  # Hanifi 1996 inner mapping parameter
+y_max: 0.05                # physical domain height
 
-# Sponge
 sponge:
-  amplitude: 5.0
-  xs_trans: 0.02
-  xs_offset: 0.02
-  ys_trans: 0.01
-  ys_offset: 0.01
+  amplitude: 5.0           # sponge strength
+  xs_trans: 0.02           # streamwise ramp width
+  xs_offset: 0.02          # sponge starts this far from the outlet
+  ys_trans: 0.01           # wall-normal ramp width
+  ys_offset: 0.01          # sponge starts this far from the top
 
-# Analysis (resolvent)
-omega: 60.0           # angular frequency (computed from Re in code)
-n_modes: 3
-kx: 0.0               # spanwise wavenumber
-model: "2D"
+omega: 60.0                # angular frequency (also derived from Re in code)
+n_modes: 3                 # leading resolvent triplets
+kx: 0.0                    # spanwise wavenumber (0 = 2-D)
+model: "2D"                # Cartesian 2-D LNSE
 
-# Forcing mask: zero these variables in the B/C matrices
-forcing_zero_vars: ["T", "rho", "w"]
+forcing_zero_vars: ["T", "rho", "w"]  # variables zeroed in B/C
 
-# Boundary conditions
 bc:
-  penalty: 1.0e4
+  penalty: 1.0e4           # Dirichlet/Neumann penalty
   recipe:
-    - {type: dirichlet, borders: lrbt, variables: uvwT}
+    - {type: dirichlet, borders: lrbt, variables: uvwT}  # all four walls
 
-# Assembly backend:
-# - "scipy" is the robust cross-machine baseline
-# - "petsc" is an explicit opt-in for the direct PETSc assembly path
-# - avoid "auto" for installation baselines; it may select host-sensitive paths
+# scipy is the cross-machine baseline. petsc is an explicit opt-in.
+# Do not use auto for installation baselines.
 assembly_backend: scipy
-
-# Solver configuration
 solver:
-  # PETSc matrix transfer: "auto" (default), "local", "distributed"
-  petsc_matrix_mode: auto
-  # Linear solver (resolvent factorization)
+  petsc_matrix_mode: auto  # auto / local / distributed
   linsolve:
-    # "mumps" (direct LU) or "iterative" (Krylov)
-    type: mumps
+    type: mumps            # direct LU

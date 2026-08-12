@@ -3,15 +3,13 @@
 
 Public names are resolved lazily via PEP 562 ``__getattr__`` so that
 ``import linstabpy.solvers`` does not trigger ``petsc4py`` / ``slepc4py``
-at module load. The submodules ``eigenvalue``, ``resolvent``, and
-``spatial_eig`` all call ``init_slepc_from_argv()`` at module top, so
-eager re-exports here would defeat the lazy contract from
-``src/linstabpy/__init__.py``.
+at module load. The submodules ``eigenvalue`` and ``spatial_eig`` call
+``init_slepc_from_argv()`` at module top, so eager re-exports here
+would defeat the lazy contract from ``src/linstabpy/__init__.py``.
 """
 
 _LAZY_EXPORTS = {
     "resolvent_analysis": "linstabpy.resolvent.analysis",
-    "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
     "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
     "spatial_eigenvalues": "linstabpy.solvers.spatial_eig",

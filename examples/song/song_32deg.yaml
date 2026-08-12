@@ -2,6 +2,9 @@
 # Configuration: oblique shock on flat-plate laminar BL
 # Reference: Robinet (2007) JFM 579:85-112, Song & Hao (2023) PoF 35:084119
 
+paths:
+  fields: song_32deg.npz   # packed x,y,rho,u,v,w,T,sponge
+
 # Flow parameters
 Re: 1.0e5          # Reynolds number (based on distance to impingement)
 Ma: 2.15           # Mach number

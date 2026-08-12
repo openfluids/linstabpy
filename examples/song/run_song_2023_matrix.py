@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parent

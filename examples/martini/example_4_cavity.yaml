@@ -1,55 +1,46 @@
 # Example 4: Cavity global/adjoint stability analysis
 # Masked cavity geometry, deformed mesh, direct + adjoint temporal EVP.
 
-# Grid
-nx: 241
-ny: 101
-fd_order: 4
-alpha_filter: 0.0
-y_symmetry: true
-x_periodicity: false
+nx: 241                    # streamwise nodes
+ny: 101                    # wall-normal nodes
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
+y_symmetry: true           # mirror the y mapping
+x_periodicity: false       # open streamwise ends
 
-# Geometry
-x_cavity_start: 0.34029
-L_cavity: 1.9995
-mask_x_left: 0.34      # mask threshold for left wall
-mask_x_right: 2.34     # mask threshold for right wall
+x_cavity_start: 0.34029    # cavity leading-edge x
+L_cavity: 1.9995           # cavity length
+mask_x_left: 0.34          # mask threshold for the left wall
+mask_x_right: 2.34         # mask threshold for the right wall
 
-# Mesh deformation
 deform:
-  y_cubic_a: 0.5       # cubic-blend coefficient for y-deformation
-  stretch_n: 3          # exponent for y/x stretching
-  y_threshold: 0.0     # y > threshold gets stretched
-  y_amplitude: 2.0     # stretch amplitude in y
-  x_threshold: 2.8     # x > threshold gets stretched
-  x_amplitude: 1.0      # stretch amplitude in x
+  y_cubic_a: 0.5           # cubic-blend coefficient for y deformation
+  stretch_n: 3             # exponent for y/x stretching
+  y_threshold: 0.0         # y > threshold is stretched
+  y_amplitude: 2.0         # stretch amplitude in y
+  x_threshold: 2.8         # x > threshold is stretched
+  x_amplitude: 1.0         # stretch amplitude in x
 
-# Sponge
 sponge:
-  amplitude: 5.0
-  xs_trans: 0.5
-  xs_offset: 0.5
-  ys_trans: 0.5
-  ys_offset: 1.0
+  amplitude: 5.0           # sponge strength
+  xs_trans: 0.5            # streamwise ramp width
+  xs_offset: 0.5           # sponge starts this far from the outlet
+  ys_trans: 0.5            # wall-normal ramp width
+  ys_offset: 1.0           # sponge starts this far from the top
 
-# Analysis (direct + adjoint eigenvalues)
-omega_target: [1.5, 1.0]   # complex: 1.5 + 1.0j
-n_modes: 50
-ncv: 300                    # Arnoldi subspace dimension
-beta: 0.0
-model: "2D"
+omega_target: [1.5, 1.0]   # complex shift 1.5 + 1.0j
+n_modes: 50                # reported eigenvalues
+ncv: 300                   # Arnoldi subspace size
+beta: 0.0                  # spanwise wavenumber (0 = 2-D)
+model: "2D"                # Cartesian 2-D LNSE
 
-# Boundary conditions
 bc:
   recipe:
-    - {type: dirichlet, borders: lbtrm, variables: uvwT}
+    - {type: dirichlet, borders: lbtrm, variables: uvwT}  # walls + mask
 
-# Assembly backend selector.
-# Cavity currently keeps the SciPy path because the adjoint build remains SciPy-based.
+# Cavity keeps SciPy assembly because the adjoint build is SciPy-based.
 assembly_backend: scipy
-
-# Solver configuration
 solver:
-  petsc_matrix_mode: auto
+  petsc_matrix_mode: auto  # auto / local / distributed
   linsolve:
-    type: mumps
+    type: mumps            # direct LU

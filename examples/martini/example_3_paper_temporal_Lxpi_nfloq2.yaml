@@ -1,33 +1,40 @@
 # MATLAB: run_ex3_paper_temporal_Lxpi_nfloq2.m
 # tag: paper_temporal_Lxpi_nfloq2
-nx: 100
-ny: 200
-fd_order: 4
-alpha_filter: 0.0
-Lx: 3.141592653589793
-Ly: 5.0
-x_periodicity: true
-y_stretch_yi: 2.0
+# Streaky boundary layer. Domain length Lx = pi. Floquet periods = 2.
+
+nx: 100                    # streamwise nodes
+ny: 200                    # wall-normal nodes
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
+Lx: 3.141592653589793      # streamwise length (= pi)
+Ly: 5.0                    # wall-normal height
+x_periodicity: true        # periodic in x
+y_stretch_yi: 2.0          # Hanifi wall-normal stretch
+
 sponge:
-  amplitude: 0.1
-  ys_offset: 1.0
-  ys_trans: 0.5
-temporal_targets: [[0.5498, 1.1]]
-temporal_quotas: [50]
-n_modes: 50
-ncv: 1500
-alpha_temp: 0.6283
-n_periods: 2
-dedupe_tol: 1.0e-4
-spatial_omega_imag_shift: 0.0
-run_temporal: true
-run_spatial: false
-model: "2D"
+  amplitude: 0.1           # sponge strength
+  ys_offset: 1.0           # sponge starts at Ly - ys_offset
+  ys_trans: 0.5            # sponge ramp width
+
+temporal_targets: [[0.5498, 1.1]]  # [real, imag] shift for each temporal search
+temporal_quotas: [50]              # modes kept per temporal target
+n_modes: 50                        # reported temporal modes
+ncv: 1500                          # Arnoldi subspace size
+alpha_temp: 0.6283                 # streamwise wavenumber for the temporal solve
+n_periods: 2                       # Floquet periods (0 = off)
+dedupe_tol: 1.0e-4                 # drop near-duplicate eigenvalues
+
+spatial_omega_imag_shift: 0.0      # imag shift on the spatial omega
+run_temporal: true                 # run the temporal EVP
+run_spatial: false                 # skip the spatial EVP
+model: "2D"                        # Cartesian 2-D LNSE
+
 bc:
   recipe:
-    - {type: dirichlet, borders: tb, variables: uvwT}
-assembly_backend: scipy
+    - {type: dirichlet, borders: tb, variables: uvwT}  # top and bottom walls
+
+assembly_backend: scipy            # SciPy assembly path
 solver:
-  petsc_matrix_mode: auto
+  petsc_matrix_mode: auto          # auto / local / distributed
   linsolve:
-    type: mumps
+    type: mumps                    # direct LU

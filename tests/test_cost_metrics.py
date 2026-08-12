@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 import linstabpy.utils.cost_metrics as cost_metrics_module
-from linstabpy.driver.io import _stage_write_npz
+from linstabpy.driver.io import save_results
 from linstabpy.driver.run import _STAGE_WALL, _log_stage, _stage_start
 from linstabpy.utils.cost_metrics import collect_cost_metrics
 
@@ -125,7 +125,7 @@ def test_npz_and_sidecar_agreement(tmp_path):
     )
     output_npz = tmp_path / "t.npz"
 
-    _stage_write_npz(
+    save_results(
         output_npz=output_npz,
         heartbeat_seconds=1e9,
         payload={"omega": np.zeros(2)},

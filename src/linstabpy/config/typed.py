@@ -25,7 +25,7 @@ from linstabpy.linalg.backends import (
     _normalize_mumps_ordering,
 )
 from linstabpy.utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_EIGEN_SOLVER_TYPES
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 _TRUE = {"1", "true", "yes", "on"}
 _OPTIONAL_INT_SENTINELS = {"", "none", "null", "default", "petsc"}

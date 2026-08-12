@@ -1,22 +1,22 @@
 # Lui 2022 suction-side SWBLI on the packed stride-2 mesh (300 x 340).
 # Physics from the archived Case 2 parity config. The field is already coarse.
 paths:
-  case_dir: examples/sawtooth/sawtooth.npz
+  case_dir: examples/sawtooth/sawtooth.npz  # packed x,y,rho,u,v,w,T,sponge
 physics:
-  Re: 395000.0
-  Ma: 2.0
-  Pr: 0.747
-  kappa: 1.31
-  T_0: 1540.0
+  Re: 395000.0       # Reynolds number on axial chord
+  Ma: 2.0            # freestream Mach
+  Pr: 0.747          # Prandtl
+  kappa: 1.31        # ratio of specific heats
+  T_0: 1540.0        # reference temperature [K]
   zero_spanwise: false
   use_matlab_sponge_aux: false
-  zero_mu_t_derivs: true
+  zero_mu_t_derivs: true   # freeze d(mu)/dT and d2(mu)/dT2
 numerics:
-  stride_ksi: 1
+  stride_ksi: 1      # field is already stride-2; do not coarsen again
   stride_eta: 1
-  fd_order: 6
-  beta: 0.0
-  alpha_filter: 0.0
+  fd_order: 6        # SBP interior order
+  beta: 0.0          # spanwise wavenumber (0 = 2-D)
+  alpha_filter: 0.0  # implicit filter strength; 0 keeps the filter real
   # Floquet shift: matlab_parity (default) or continuum
   floquet_shift: matlab_parity
   operator_dissipation:

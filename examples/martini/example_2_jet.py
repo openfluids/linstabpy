@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -92,7 +92,7 @@ def _load_sponge(mesh, r_1D: np.ndarray, z_1D: np.ndarray) -> np.ndarray:
     from scipy.interpolate import RegularGridInterpolator
     from scipy.io import loadmat
 
-    from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
+    from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR
 
     mat = loadmat(_BASEFLOW_DATA_DIR / "M09jet.mat")
     source_shape = (int(r_1D.size), int(z_1D.size))
@@ -135,8 +135,9 @@ def compute(cfg: dict):
     import scipy.sparse as sp
     from scipy.io import loadmat
 
-    from linstabpy.baseflow import load_jet, sutherland_air
-    from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
+    from examples.martini.matlab_baseflow import load_jet
+    from linstabpy.baseflow import sutherland_air
+    from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
@@ -296,7 +297,7 @@ def _load_baseflow_u(data: np.lib.npyio.NpzFile) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Jet/baseFlow/U"), dtype=float).T
-    from linstabpy.baseflow import load_jet
+    from examples.martini.matlab_baseflow import load_jet
 
     return np.asarray(load_jet(mesh_view(data["X"], data["Y"])).U, dtype=float)
 
@@ -360,14 +361,14 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
     mode_xlim = (0.0, 20.0)
     mode_ylim = (0.0, 1.05)
 
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 3.3))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.2))
     plot_scalar_panel(
         ax_base,
         X,
         Y,
         baseflow_u / max(float(np.max(baseflow_u)), 1e-12),
         title=r"Axisymmetric jet baseflow $u/U_j$",
-        cmap="turbo",
+        cmap="cividis",
         xlim=base_xlim,
         ylim=base_ylim,
         aspect="auto",
@@ -383,12 +384,12 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
         xycoords="axes fraction",
         textcoords="axes fraction",
         arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "black"},
-        fontsize=16,
+        fontsize=8,
         va="center",
     )
     save_figure(fig_base, OUTPUT_BASEFLOW)
 
-    fig = plt.figure(figsize=(12.5, 7.8))
+    fig = plt.figure(figsize=(6.6, 4.4))
     grid = fig.add_gridspec(
         n_modes,
         3,
@@ -448,7 +449,7 @@ def plot(data: np.lib.npyio.NpzFile) -> None:
     fig_support, axes_support = plt.subplots(
         n_modes,
         2,
-        figsize=(12.2, 3.8 * n_modes),
+        figsize=(6.4, 2.4 * n_modes),
         gridspec_kw={"wspace": 0.18, "hspace": 0.34},
     )
     if n_modes == 1:

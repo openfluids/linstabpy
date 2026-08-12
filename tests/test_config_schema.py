@@ -9,7 +9,7 @@ import pytest
 _DRIVER_RUN_MODULE = importlib.import_module("linstabpy.driver.run")
 
 from linstabpy.config import ConfigValidationError, validate_config
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 
 def test_valid_config_passes() -> None:

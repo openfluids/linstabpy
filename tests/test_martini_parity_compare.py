@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pytest
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 from examples.martini import (
     compare_martini_examples,
     extract_martini_to_npz,

@@ -2,52 +2,44 @@
 # Curvilinear transformation to a parabolic physical grid,
 # axisymmetric model, m=5 azimuthal Fourier mode.
 
-# Grid
-nx: 100
-ny: 100
-fd_order: 4
-alpha_filter: 0.0
-xrange: [-1.0, 0.0]
-yrange: [0.0, 1.0]
-y_symmetry: true
-x_periodicity: false
+nx: 100                    # computational nodes in xi
+ny: 100                    # computational nodes in eta
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
+xrange: [-1.0, 0.0]        # computational x interval
+yrange: [0.0, 1.0]         # computational y interval
+y_symmetry: true           # axisymmetric half-plane
+x_periodicity: false       # open streamwise ends
 
-# Physical domain
-Lx: 2.25
-Ly: 1.5
+Lx: 2.25                   # physical streamwise length
+Ly: 1.5                    # physical wall-normal height
 
-# Sponge (defined on pre-conformal coordinates)
+# Sponge is defined on pre-conformal coordinates.
 sponge:
-  amplitude: 5.0
-  xs_offset: 0.1
-  xs_trans_fraction: 0.1    # xs_trans = Lx / 10
-  ys_offset: 0.1
-  ys_trans: 0.1
+  amplitude: 5.0           # sponge strength
+  xs_offset: 0.1           # sponge starts this far from the outlet
+  xs_trans_fraction: 0.1   # xs_trans = Lx / 10
+  ys_offset: 0.1           # sponge starts this far from the top
+  ys_trans: 0.1            # wall-normal ramp width
 
-# Analysis (resolvent)
-omega: 0.0
+omega: 0.0                 # angular frequency
 omega_shift_fallback: 1.0e-4       # small imag shift when omega=0 is singular
-use_omega_shift_fallback: true
-n_modes: 3
-m: 5
-model: axy
+use_omega_shift_fallback: true     # apply that shift
+n_modes: 3                 # leading resolvent triplets
+m: 5                       # azimuthal Fourier mode
+model: axy                 # axisymmetric LNSE
 
-# Assembly backend:
-# - "scipy" is the robust cross-machine baseline
-# - "petsc" is an explicit opt-in for the validated local axy PETSc path
-# - avoid "auto" for installation baselines; it may select host-sensitive paths
+# scipy is the cross-machine baseline. petsc is an explicit opt-in.
+# Do not use auto for installation baselines.
 assembly_backend: scipy
 
-# Forcing mask: zero these variables in the B/C matrices
-forcing_zero_vars: ["T", "rho"]
+forcing_zero_vars: ["T", "rho"]  # variables zeroed in B/C
 
-# Boundary conditions
 bc:
   recipe:
-    - {type: dirichlet, borders: ltr, variables: uvwT}
+    - {type: dirichlet, borders: ltr, variables: uvwT}  # inlet, top, outlet
 
-# Solver configuration
 solver:
-  petsc_matrix_mode: auto
+  petsc_matrix_mode: auto  # auto / local / distributed
   linsolve:
-    type: mumps
+    type: mumps            # direct LU

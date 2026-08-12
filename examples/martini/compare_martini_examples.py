@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
 
 DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.yaml"

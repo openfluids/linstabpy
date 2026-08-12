@@ -13,6 +13,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from examples.figure_style import apply, save
+
 HERE = Path(__file__).resolve().parent
 QUOTED = HERE / "song_32deg_spectrum_quoted.csv"
 DST = HERE / "song_fig2_spectrum.png"
@@ -27,26 +29,46 @@ def _quoted() -> list[tuple[str, float, float]]:
 
 
 def main() -> int:
+    apply()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-npz", type=Path, default=HERE / "song_32deg_paper.npz")
     parser.add_argument("-o", "--output", type=Path, default=DST)
     args = parser.parse_args()
 
-    fig, ax = plt.subplots(figsize=(5.2, 4.4), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(3.3, 2.7))
     for name, real, imag in _quoted():
         if name == "song":
-            ax.plot(real, imag, "o", ms=8, mfc="none", mec="k", label="Song lead")
+            ax.plot(
+                real,
+                imag,
+                "o",
+                ms=6,
+                mfc="none",
+                mec="0.1",
+                mew=1.0,
+                label="Song",
+                zorder=3,
+            )
 
     if args.run_npz.exists():
         omega = np.asarray(np.load(args.run_npz)["omega"]).reshape(-1)
-        ax.plot(omega.real, omega.imag, "s", ms=5, label="linstabpy")
-    ax.axhline(0.0, color="0.7", lw=0.6)
-    ax.axvline(0.0, color="0.7", lw=0.6)
+        ax.plot(
+            omega.real,
+            omega.imag,
+            "+",
+            ms=5,
+            mew=0.8,
+            color="0.15",
+            label="linstabpy",
+            zorder=2,
+        )
+    ax.axhline(0.0, color="0.75", lw=0.5)
+    ax.axvline(0.0, color="0.75", lw=0.5)
     ax.set_xlabel(r"$\omega_r$")
     ax.set_ylabel(r"$\omega_i$")
-    ax.set_title(r"Temporal spectrum at $\beta=19.2$")
-    ax.legend(frameon=False)
-    fig.savefig(args.output, dpi=300)
+    ax.tick_params(top=True, right=True)
+    ax.legend(loc="upper right", handletextpad=0.4)
+    save(fig, args.output)
     print(f"wrote {args.output}")
     return 0
 

@@ -409,7 +409,7 @@ def _shipped_configs():
 
 def test_advisories_survive_every_shipped_config():
     """Synthetic dicts prove logic; only the real corpus proves it does not explode."""
-    from linstabpy.utils.jsonc import load_config
+    from linstabpy.utils.yaml_io import load_config
 
     configs = _shipped_configs()
     assert configs, "SKIPPED-BY-EMPTINESS GUARD: no shipped .yaml found -- wrong root?"
@@ -427,7 +427,7 @@ def test_no_shipped_config_depends_on_the_old_resolvent_dissipation_default():
     DISS-RESOLVENT-OFF is one that asks for dissipation and then withholds it from
     the resolvent -- exactly what the old default did silently.
     """
-    from linstabpy.utils.jsonc import load_config
+    from linstabpy.utils.yaml_io import load_config
 
     offenders = [
         path.name
@@ -443,7 +443,7 @@ def test_the_production_template_does_not_ship_a_trap():
     It shipped with no dissipation block at all, so the very first production run a
     newcomer made would be sawtooth-contaminated with nothing in the log to say so.
     """
-    from linstabpy.utils.jsonc import load_config
+    from linstabpy.utils.yaml_io import load_config
 
     templates = [p for p in _shipped_configs() if "production_case_template" in p.name]
     if not templates:

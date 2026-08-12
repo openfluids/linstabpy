@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -60,7 +60,8 @@ def compute(cfg: dict):
     """Run the full Blasius resolvent analysis."""
     import scipy.sparse as sp
 
-    from linstabpy.baseflow import load_blasius, sutherland_air
+    from examples.martini.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
@@ -233,7 +234,7 @@ def _load_baseflow_u(data) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Blasius/baseFlow/U"), dtype=float).T
-    from linstabpy.baseflow import load_blasius
+    from examples.martini.matlab_baseflow import load_blasius
 
     return np.asarray(
         load_blasius(
@@ -274,14 +275,14 @@ def plot(data):
     ylim = (0.0, 0.0105)
     baseflow_u = _load_baseflow_u(data)
 
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 3.0))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.0))
     plot_scalar_panel(
         ax_base,
         X,
         Y,
         baseflow_u,
         title=r"Blasius boundary-layer baseflow $u/U_\infty$",
-        cmap="turbo",
+        cmap="cividis",
         xlim=xlim,
         ylim=(0.0, 0.015),
         aspect="auto",
@@ -297,12 +298,12 @@ def plot(data):
         xycoords="axes fraction",
         textcoords="axes fraction",
         arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "black"},
-        fontsize=16,
+        fontsize=8,
         va="center",
     )
     save_figure(fig_base, OUTPUT_BASEFLOW)
 
-    fig = plt.figure(figsize=(12.5, 7.8))
+    fig = plt.figure(figsize=(6.6, 4.4))
     grid = fig.add_gridspec(
         n_plot,
         3,
@@ -365,7 +366,7 @@ def plot(data):
     fig_support, axes_support = plt.subplots(
         2,
         2,
-        figsize=(12.0, 7.0),
+        figsize=(6.4, 4.0),
         gridspec_kw={"wspace": 0.16, "hspace": 0.28},
     )
     support_fields = [
@@ -395,7 +396,7 @@ def plot(data):
     fig_support_shared, axes_support_shared = plt.subplots(
         2,
         2,
-        figsize=(12.0, 7.0),
+        figsize=(6.4, 4.0),
         gridspec_kw={"wspace": 0.16, "hspace": 0.28},
     )
     for ax, (field, title) in zip(axes_support_shared.flat, support_fields):

@@ -212,7 +212,7 @@ def _normalise_cfg(
     if isinstance(cfg, Mapping):
         return cfg, None
     if isinstance(cfg, (str, Path)):
-        from linstabpy.utils.jsonc import load_config
+        from linstabpy.utils.yaml_io import load_config
 
         loaded = load_config(cfg)
         return loaded, None

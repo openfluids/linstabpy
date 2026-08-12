@@ -38,7 +38,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "src"))
-from linstabpy.utils.jsonc import load_config  # noqa: E402
+from linstabpy.utils.yaml_io import load_config  # noqa: E402
 
 BASE_CONFIG = HERE / "savarino_point_f2_b45.yaml"
 TEMPLATE = HERE / "savarino_point.sbatch.template"

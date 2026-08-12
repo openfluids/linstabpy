@@ -7,7 +7,10 @@ from pathlib import Path
 
 import numpy as np
 
+from typing import Any
+
 from .baseflow import BaseFlow
+from .preprocess import apply_preprocess
 
 FIELD_NAMES = ("x", "y", "rho", "u", "v", "w", "T", "sponge")
 
@@ -43,6 +46,79 @@ def read_grid_fields(source: str | Path) -> dict[str, np.ndarray]:
     return fields
 
 
+def load_case_fields(
+    source: str | Path,
+    *,
+    Re: float,
+    Ma: float,
+    Pr: float,
+    kappa: float,
+    T_0: float,
+    stride_ksi: int = 1,
+    stride_eta: int = 1,
+    transpose_input: bool = False,
+    zero_spanwise: bool = False,
+    refuse_asymmetric_stride: bool = False,
+    preprocess: dict[str, Any] | None = None,
+) -> tuple[np.ndarray, np.ndarray, BaseFlow, np.ndarray, dict[str, Any]]:
+    """Build coordinates, a BaseFlow, and the sponge from a packed field.
+
+    ``source`` is a directory of eight ``.npy`` files or one ``.npz`` with
+    the same keys. After an optional transpose the arrays are ``(ny, nx)``:
+    ``stride_eta`` walks the first index and ``stride_ksi`` walks the second.
+    """
+    fields = read_grid_fields(source)
+    if transpose_input:
+        fields = {name: arr.T for name, arr in fields.items()}
+
+    sx = int(stride_ksi)
+    sy = int(stride_eta)
+    if sx < 1 or sy < 1:
+        raise ValueError("stride_ksi and stride_eta must be >= 1")
+    if refuse_asymmetric_stride and sx != sy:
+        raise ValueError(
+            f"Asymmetric strides are not supported on this mesh "
+            f"(stride_ksi={sx}, stride_eta={sy})."
+        )
+    if sx > 1 or sy > 1:
+        fields = {name: arr[::sy, ::sx] for name, arr in fields.items()}
+
+    shape = fields["x"].shape
+    for name, arr in fields.items():
+        if arr.shape != shape:
+            raise ValueError(f"Field '{name}' shape {arr.shape} does not match x shape {shape}")
+
+    X = fields["x"]
+    Y = fields["y"]
+    rho = fields["rho"]
+    u = fields["u"]
+    v = fields["v"]
+    w = fields["w"]
+    T = fields["T"]
+    sponge = fields["sponge"]
+
+    X, Y, rho, u, v, w, T, sponge, info = apply_preprocess(
+        X, Y, rho, u, v, w, T, sponge, preprocess
+    )
+
+    if zero_spanwise:
+        w = np.zeros_like(u)
+
+    baseflow = BaseFlow(
+        Re=float(Re),
+        Ma=float(Ma),
+        Pr=float(Pr),
+        kappa=float(kappa),
+        T_0=float(T_0),
+        RHO=rho,
+        U=u,
+        V=v,
+        W=w,
+        T=T,
+    )
+    return X, Y, baseflow, sponge, info
+
+
 def load_grid_fields(
     source: str | Path,
     *,
@@ -56,41 +132,17 @@ def load_grid_fields(
     transpose_input: bool = False,
     zero_spanwise: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, BaseFlow, np.ndarray]:
-    """Build coordinates, a BaseFlow, and the sponge from a field set.
-
-    ``source`` is either a directory of eight ``.npy`` files or one ``.npz``
-    with the same keys. Asymmetric strides are allowed here. The Hamada
-    wrapper still refuses them on the curved turbine mesh.
-    """
-    fields = read_grid_fields(source)
-    if transpose_input:
-        fields = {name: arr.T for name, arr in fields.items()}
-
-    sx = int(stride_ksi)
-    sy = int(stride_eta)
-    if sx < 1 or sy < 1:
-        raise ValueError("stride_ksi and stride_eta must be >= 1")
-    if sx > 1 or sy > 1:
-        # Arrays are (ny, nx) after an optional transpose. stride_eta
-        # walks the first index; stride_ksi walks the second.
-        fields = {name: arr[::sy, ::sx] for name, arr in fields.items()}
-
-    shape = fields["x"].shape
-    for name, arr in fields.items():
-        if arr.shape != shape:
-            raise ValueError(f"Field '{name}' shape {arr.shape} does not match x shape {shape}")
-
-    spanwise = np.zeros_like(fields["u"]) if zero_spanwise else fields["w"]
-    baseflow = BaseFlow(
-        Re=float(Re),
-        Ma=float(Ma),
-        Pr=float(Pr),
-        kappa=float(kappa),
-        T_0=float(T_0),
-        RHO=fields["rho"],
-        U=fields["u"],
-        V=fields["v"],
-        W=spanwise,
-        T=fields["T"],
+    """Load a packed field and drop the preprocess report."""
+    X, Y, baseflow, sponge, _info = load_case_fields(
+        source,
+        Re=Re,
+        Ma=Ma,
+        Pr=Pr,
+        kappa=kappa,
+        T_0=T_0,
+        stride_ksi=stride_ksi,
+        stride_eta=stride_eta,
+        transpose_input=transpose_input,
+        zero_spanwise=zero_spanwise,
     )
-    return fields["x"], fields["y"], baseflow, fields["sponge"]
+    return X, Y, baseflow, sponge

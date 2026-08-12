@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config, parse_complex
+from linstabpy.utils.yaml_io import load_config, parse_complex
 
 from examples._helpers import (
     apply_figure_layout,
@@ -65,7 +65,8 @@ def _load_matlab_spectra() -> tuple[np.ndarray | None, np.ndarray | None]:
 
 def compute(cfg: dict):
     """Run cavity direct/adjoint temporal eigenproblems."""
-    from linstabpy.baseflow import load_cavity, sutherland_air
+    from examples.martini.matlab_baseflow import load_cavity
+    from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
@@ -272,7 +273,7 @@ def _load_baseflow_u(data) -> np.ndarray:
         bundle = None
     if bundle is not None:
         return np.asarray(parity_npz_get(bundle, "results_Cavity_base/baseFlow/U"), dtype=float).T
-    from linstabpy.baseflow import load_cavity
+    from examples.martini.matlab_baseflow import load_cavity
 
     return np.asarray(
         load_cavity(mesh_view(data["X"], data["Y"], used_ind=data["used_ind"])).U, dtype=float
@@ -349,14 +350,14 @@ def plot(data):
     omega_d_from_adj = np.conj(-1j * omega_adj)
     adj_order = np.argsort(np.imag(omega_d_from_adj))[::-1][:n_plot]
 
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 3.6))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.4))
     plot_scalar_panel(
         ax_base,
         X,
         Y,
         _cavity_baseflow_plot_field(X, Y, baseflow_u),
         title=r"Cavity baseflow $u/U_\infty$",
-        cmap="turbo",
+        cmap="cividis",
         xlim=plot_xlim,
         ylim=plot_ylim,
         aspect="auto",
@@ -369,7 +370,7 @@ def plot(data):
     label_axes(ax_base)
     save_figure(fig_base, OUTPUT_BASEFLOW)
 
-    fig = plt.figure(figsize=(12.5, 8.3))
+    fig = plt.figure(figsize=(6.6, 4.6))
     grid = fig.add_gridspec(
         3,
         2,
@@ -434,7 +435,7 @@ def plot(data):
         fig_mode, axes = plt.subplots(
             3,
             2,
-            figsize=(12, 10),
+            figsize=(6.4, 5.4),
             gridspec_kw={"wspace": 0.18, "hspace": 0.28},
         )
         fields = [
@@ -479,7 +480,7 @@ def plot(data):
         fig_mode, axes = plt.subplots(
             3,
             2,
-            figsize=(12, 10),
+            figsize=(6.4, 5.4),
             gridspec_kw={"wspace": 0.18, "hspace": 0.28},
         )
         fields = [

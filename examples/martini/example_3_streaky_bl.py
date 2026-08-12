@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config, parse_complex_list, parse_int_list
+from linstabpy.utils.yaml_io import load_config, parse_complex_list, parse_int_list
 
 from examples._helpers import (
     apply_figure_layout,
@@ -211,7 +211,7 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
     def ensure_problem() -> tuple[Mesh, object]:
         nonlocal mesh, baseflow
         if mesh is None or baseflow is None:
-            from linstabpy.baseflow import load_streaky_bl
+            from examples.martini.matlab_baseflow import load_streaky_bl
 
             ny, nx = np.asarray(results["X"]).shape
             mini_cfg["nx"] = nx
@@ -330,7 +330,7 @@ def _resolve_baseflow_plot_field(data: dict[str, np.ndarray]) -> tuple[np.ndarra
 
 def _compute(cfg: dict) -> None:
     """Run temporal and spatial eigensolutions."""
-    from linstabpy.baseflow import load_streaky_bl
+    from examples.martini.matlab_baseflow import load_streaky_bl
     from linstabpy.boundary_conditions.dirichlet import (
         apply_dirichlet,
         apply_dirichlet_petsc,
@@ -581,14 +581,14 @@ def _plot(data: dict[str, np.ndarray]) -> None:
     phase_step = floquet_exp * (float(np.max(X)) - float(np.min(X)))
 
     X_base, Y_base, U_base = _tile_periodic_field(X, Y, baseflow_field, n_tiles=4)
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11.5, 3.0))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.0))
     plot_scalar_panel(
         ax_base,
         X_base,
         Y_base,
         U_base,
         title=baseflow_title,
-        cmap="turbo",
+        cmap="cividis",
         xlim=(0.0, 4.0 * np.pi),
         ylim=(0.0, 5.0),
         aspect="auto",
@@ -621,7 +621,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         temporal_order = top_imag_indices(temporal_omega, 2)
         matlab_temporal = _load_matlab_temporal_omega()
 
-        fig_temporal = plt.figure(figsize=(12.5, 7.0))
+        fig_temporal = plt.figure(figsize=(6.6, 4.0))
         grid = fig_temporal.add_gridspec(
             max(1, temporal_order.size),
             2,
@@ -721,7 +721,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         n_states = int(np.max(np.hstack([idx_u, idx_v, idx_w, idx_rho, idx_T])) + 1)
         matlab_spatial = _load_matlab_spatial_alpha()
 
-        fig_spatial = plt.figure(figsize=(12.0, 5.8))
+        fig_spatial = plt.figure(figsize=(6.4, 3.4))
         grid = fig_spatial.add_gridspec(1, 2, width_ratios=(1.15, 1.4), wspace=0.24)
         ax_spec = fig_spatial.add_subplot(grid[0, 0])
         if matlab_spatial is not None:
@@ -801,7 +801,7 @@ def _plot(data: dict[str, np.ndarray]) -> None:
         apply_figure_layout(fig_spatial, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
         save_figure(fig_spatial, OUTPUT_SPATIAL)
 
-    fig_support, axes_support = plt.subplots(1, 2, figsize=(12, 4.8))
+    fig_support, axes_support = plt.subplots(1, 2, figsize=(6.4, 2.8))
     if has_temporal:
         temporal_omega = np.asarray(data["temporal_omega"], dtype=complex)
         temporal_residuals = np.asarray(data["temporal_residuals"], dtype=float)
