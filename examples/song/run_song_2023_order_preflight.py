@@ -56,7 +56,7 @@ def main() -> None:
         "--config",
         type=Path,
         default=DEFAULT_CONFIG,
-        help="Path to Song order-preflight JSONC config.",
+        help="Path to Song order-preflight YAML config.",
     )
     args = parser.parse_args()
 

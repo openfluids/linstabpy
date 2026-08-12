@@ -56,7 +56,7 @@ from linstabpy.stability.acceptance import (
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.jsonc import load_config, load_jsonc  # noqa: F401
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
 
 RUNTIME_NPZ_CONTRACT_KEYS = (
@@ -1315,6 +1315,9 @@ def run() -> None:
     stride_eta = int(cfg("numerics.stride_eta", 1))
     fd_order = int(cfg("numerics.fd_order", 4))
     beta = float(cfg("numerics.beta", 0.0))
+    floquet_shift = cfg("numerics.floquet_shift", None)
+    if floquet_shift is not None:
+        os.environ.setdefault("LINSTABPY_FLOQUET_SHIFT", str(floquet_shift))
     penalty = float(cfg("bc.penalty", 1e8))
 
     ratio_u = float(cfg("analysis.ratio_uinf", 1.0))

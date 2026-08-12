@@ -9,10 +9,11 @@ build/
 !tests/fixtures/mumps_parity_reference.npz
 *.png
 !docs/assets/*.png
-# Shipped reference fields for the three public cases.
+# Shipped reference fields for the public cases.
 !examples/martini/*.npz
 !examples/song/*.npz
 !examples/savarino/*.npz
+!examples/sawtooth/*.npz
 *.log
 *.aux
 *.bbl
@@ -55,6 +56,7 @@ src/linstabpy/data/baseflows
 
 # SWBLI run-kit: drivers are tracked; machine-specific configs/outputs/backups are not
 run/*.jsonc
+run/*.yaml
 run/output/
 run/*.bak_*
 

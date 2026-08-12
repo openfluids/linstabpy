@@ -78,6 +78,7 @@ _RUN_EXPORTS = {
     "check_conjugate_pair_completeness",
     "evaluate_stability_acceptance",
     "load_jsonc",
+    "load_config",
 }
 
 _EXPORTS = _RUN_EXPORTS | {"main", "save_results", "load_results", "_stage_write_npz"}

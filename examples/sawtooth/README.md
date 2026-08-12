@@ -8,6 +8,9 @@ stride.
 
 ```
 .venv/bin/python examples/sawtooth/sawtooth_fig1_baseflow.py
-mpiexec -n 4 python -m examples.sawtooth.sawtooth
+mpiexec -n 4 python -m examples.sawtooth.sawtooth --config examples/sawtooth/sawtooth_evp.yaml
 .venv/bin/python examples/sawtooth/sawtooth_fig2_spectrum.py
 ```
+
+The Floquet shift default is LinStab2D (`matlab_parity`). Continuum form:
+`numerics.floquet_shift: continuum` or `LINSTABPY_FLOQUET_SHIFT=continuum`.

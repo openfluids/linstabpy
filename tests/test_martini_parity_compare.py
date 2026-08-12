@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pytest
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 from examples.martini import (
     compare_martini_examples,
     extract_martini_to_npz,
@@ -246,7 +246,7 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
     from examples.martini.example_0_curvilinear_validation import _compute_reference_fields
 
     matlab = np.load(bundle_path, allow_pickle=False)
-    cfg = load_jsonc(repo / "examples/martini/example_0_curvilinear_validation.yaml")
+    cfg = load_config(repo / "examples/martini/example_0_curvilinear_validation.yaml")
     fields = _compute_reference_fields(cfg)
 
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)

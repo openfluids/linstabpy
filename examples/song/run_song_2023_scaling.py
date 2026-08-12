@@ -287,7 +287,7 @@ def main() -> None:
         "--config",
         type=Path,
         default=DEFAULT_CONFIG,
-        help="Path to Song scaling JSONC config.",
+        help="Path to Song scaling YAML config.",
     )
     parser.add_argument(
         "--variants",
