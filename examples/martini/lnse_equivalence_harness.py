@@ -113,23 +113,9 @@ def _case_specs(selected: list[str]) -> list[CaseSpec]:
 
 
 def _raw_operator_from_prepared(prep: dict[str, Any], *, floquet_exp: float) -> sp.csr_matrix:
-    from linstabpy.operators.assembly import _apply_floquet_shift, _assemble_block_operator
+    from linstabpy.operators.assembly import _assemble_from_prepared
 
-    ngp = prep["ngp"]
-    dz = prep["DZ"]
-    d2z = prep["D2Z"]
-    if floquet_exp != 0.0:
-        dz, d2z = _apply_floquet_shift(dz, d2z, 1j * floquet_exp, ngp)
-    raw = _assemble_block_operator(
-        ngp,
-        prep["coeffs"],
-        prep["DR"],
-        prep["D2R"],
-        dz,
-        d2z,
-        prep["D2RZ"],
-    )
-    return sp.csr_matrix(raw, dtype=complex)
+    return sp.csr_matrix(_assemble_from_prepared(prep, floquet_exp=floquet_exp), dtype=complex)
 
 
 def _build_current_path(spec: CaseSpec, *, path_label: str) -> dict[str, Any]:
