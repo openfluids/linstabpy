@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for filing a bug. Most install / import problems on macOS and
         Linux come down to the MPI / PETSc / SLEPc layering. Please run
-        `bash diagnose.sh` and `bash install.sh --check` before filing and
+        `bash install.sh --diagnose` and `bash install.sh --check` before filing and
         paste the relevant output below.
 
   - type: textarea
@@ -99,7 +99,7 @@ body:
   - type: textarea
     id: diagnose
     attributes:
-      label: Output of `bash diagnose.sh`
+      label: Output of `bash install.sh --diagnose`
       description: Run from the repo root. Paste the full output.
       render: text
 

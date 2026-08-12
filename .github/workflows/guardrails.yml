@@ -77,7 +77,7 @@ jobs:
         run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Check tracked file sizes
-        run: python scripts/check_tracked_file_size.py
+        run: python -m pytest tests/test_tracked_file_size.py -q --tb=line
 
       - name: Run dissipation guardrail tests
         run: >

@@ -29,6 +29,7 @@ from matplotlib.colors import LinearSegmentedColormap
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 from examples.figure_style import apply as apply_figure_style
+from examples.figure_style import save
 
 apply_figure_style()
 
@@ -130,7 +131,7 @@ def main():
                     fontsize=8, color="black", ha="center", va="center",
                     arrowprops=dict(arrowstyle="-", color="black", lw=1.2,
                                     shrinkA=8, shrinkB=8))
-    fig.savefig(dst, dpi=300, bbox_inches="tight", pad_inches=0.03)
+    save(fig, dst)
     print(f"wrote {dst}  ({len(rows)} pts, vmax={vmax:.3f}, square=({10**xm:.3g},{bm:g}), "
           f"diamond=({10**xl:.3g},{bl:g})" if lu else "")
     return 0

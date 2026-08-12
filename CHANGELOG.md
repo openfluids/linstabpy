@@ -20,8 +20,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - The `run/` campaign kit and the broken Docker PETSc CI job.
 - The `mumps_icntl_7` boolean alias. Use `mumps_ordering: metis`.
 - The unused `Dockerfile` that did not configure PETSc.
+- The `scripts/` folder and `diagnose.sh`. File-size and provenance checks live
+  under `tests/` and run as pytest. Host preflight is `install.sh --diagnose`.
 
 ### Changed
+- Example figures probe TeX by writing a PNG. They use usetex when that works,
+  else Computer Modern mathtext, and never crash when TeX is missing.
 - Case files under `examples/` used YAML. The loader rejected a leftover `.jsonc` suffix.
 - Shipped YAML files now comment each key. `validation_cases.yaml` is YAML.
 - Comments and the tutorial now say YAML, not JSONC.

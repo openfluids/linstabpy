@@ -89,7 +89,7 @@ Clone the repository and run the native checks:
 git clone https://github.com/openfluids/linstabpy.git
 cd linstabpy
 
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
 bash benchmark.sh
@@ -100,7 +100,7 @@ The reference MATLAB base flows (`M09jet.mat`, `BL_BF.mat`, `Step_BF.mat`,
 [Fetching reference base flows](#fetching-reference-base-flows) for how to point
 linstabpy at a local clone of LinStab2D.
 
-`diagnose.sh` is read-only. It checks compilers, MPI launchers, development
+`install.sh --diagnose` is read-only. It checks compilers, MPI launchers, development
 headers, dual-MPI conflicts, and whether `mpiexec -n 1 /bin/true` works.
 
 `install.sh` creates `.venv`, builds or installs the Python/PETSc/SLEPc stack,
@@ -157,7 +157,7 @@ LINSTABPY_SKIP_SYS_DEPS=1 bash install.sh
 
 ### macOS
 
-macOS uses the same `diagnose.sh` → `install.sh` → `install.sh --check` →
+macOS uses the same `install.sh --diagnose` → `install.sh` → `install.sh --check` →
 `benchmark.sh` flow as Linux. The only difference is the BLAS/ScaLAPACK setup
 below.
 
@@ -199,7 +199,7 @@ Generic module workflow:
 
 ```bash
 module load <compiler-module> <mpi-module>
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
 ```
@@ -214,12 +214,12 @@ export I_MPI_CXX=g++
 export I_MPI_F90=gfortran
 export I_MPI_FC=gfortran
 
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
 ```
 
-Use Intel MPI only when `diagnose.sh` shows that the active MPI compiler wrappers
+Use Intel MPI only when `install.sh --diagnose` shows that the active MPI compiler wrappers
 and `mpiexec` come from the Intel MPI environment and the MPI compile probe
 passes. Do not use an Intel MPI launcher with Open MPI or MPICH Python bindings.
 
@@ -280,7 +280,7 @@ environment:
 
 ```bash
 rm -rf .venv
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh --force
 bash install.sh --check
 ```
@@ -291,7 +291,7 @@ choice explicit:
 ```bash
 source /opt/intel/oneapi/setvars.sh --force
 export LINSTABPY_MPI_STACK=intelmpi
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh --force
 bash install.sh --check
 ```
@@ -304,7 +304,7 @@ to import. Reinstall with the intended MPI stack visible from the start.
 A healthy Linux install should satisfy this sequence:
 
 ```bash
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh --check
 bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius
 bash benchmark.sh
@@ -321,14 +321,8 @@ One known-good Linux profile used during hardening was:
 | Sparse direct solver | MUMPS through PETSc |
 | Thread policy | one BLAS/OpenMP thread per MPI rank |
 
-Use this as a comparison shape, not a hard pin. Export a redacted stack manifest
-from a working machine with:
-
-```bash
-.venv/bin/python scripts/tools/export_known_good_stack.py \
-  --output known_good/<machine-label>.json \
-  --redact-local-details
-```
+Use this as a comparison shape, not a hard pin. A working install records the
+Python version, PETSc/SLEPc versions, and scalar type in `install.sh --check`.
 
 ### MPI runtime rules
 
@@ -380,15 +374,8 @@ git clone https://github.com/LinStab2D/LinStab2D.git ~/linstab2d-reference
 export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
 ```
 
-Or copy the four `.mat` files into the gitignored data dir:
-
-```bash
-mkdir -p src/linstabpy/data/baseflows/BaseFlows
-cp ~/linstab2d-reference/BaseFlows/*.mat src/linstabpy/data/baseflows/BaseFlows/
-```
-
-If neither is in place, the Martini examples raise a `FileNotFoundError` with the
-exact instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. All non-Martini examples
+If the env var is not set, the Martini examples raise a `FileNotFoundError` with
+the instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. All non-Martini examples
 (Song and Savarino) ship their own base flows under `examples/song/` and `examples/savarino/`
 and are unaffected.
 
@@ -398,7 +385,7 @@ and are unaffected.
 git clone https://github.com/openfluids/linstabpy.git
 cd linstabpy
 
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
 bash benchmark.sh
@@ -523,11 +510,9 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
-|-- scripts/                       Tracked-size and public-provenance checks
 |-- docs/                          Architecture, backends, and tutorial
-|-- tests/                         Pytest suite and shared path helpers
-|-- install.sh                     Main installer
-|-- diagnose.sh                    Read-only environment preflight
+|-- tests/                         Pytest suite, file-size and provenance checks
+|-- install.sh                     Installer and host preflight (`--diagnose`)
 |-- benchmark.sh                   Install benchmark
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
@@ -545,7 +530,7 @@ outputs, raw MATLAB exports, and machine-local benchmark products are kept out o
 Git and either regenerated or stored externally. The guardrail is:
 
 ```bash
-python scripts/check_tracked_file_size.py
+.venv/bin/python -m pytest tests/test_tracked_file_size.py -q --tb=line
 ```
 
 The same guard is wired into the local `pre-commit` configuration and the GitHub
@@ -1187,7 +1172,7 @@ The check includes a tiny Python SLEPc `EPS_NHEP` Krylov-Schur solve.
 
 ### Linux MPI compile failure
 
-If `diagnose.sh` reports an MPI compile failure with `mpi.h` missing, install the
+If `install.sh --diagnose` reports an MPI compile failure with `mpi.h` missing, install the
 development package for the MPI stack you intend to use. On Ubuntu with Open MPI,
 the needed packages are:
 
@@ -1230,14 +1215,14 @@ LINSTABPY_VERIFY_MPIEXEC=/path/to/working/mpiexec bash install.sh --check
 
 ### Intel MPI
 
-Load a complete Intel MPI / oneAPI environment before running `diagnose.sh` or
-`install.sh`. Do not combine an Intel MPI `mpiexec` with Open MPI or MPICH Python
-bindings.
+Load a complete Intel MPI / oneAPI environment before running
+`install.sh --diagnose` or `install.sh`. Do not combine an Intel MPI `mpiexec`
+with Open MPI or MPICH Python bindings.
 
 ```bash
 source /opt/intel/oneapi/setvars.sh --force
 export LINSTABPY_MPI_STACK=intelmpi
-bash diagnose.sh
+bash install.sh --diagnose
 bash install.sh
 ```
 
@@ -1245,17 +1230,11 @@ bash install.sh
 
 Send:
 
-- full `diagnose.sh` output
+- full `install.sh --diagnose` output
 - full `install.sh` output
 - `benchmark_runs/<run-id>/benchmark_summary.csv`
 - relevant `benchmark_runs/<run-id>/*.log`
-- a redacted stack manifest:
-
-```bash
-.venv/bin/python scripts/tools/export_known_good_stack.py \
-  --output stack_manifest.json \
-  --redact-local-details
-```
+- the versions printed by `install.sh --check`
 
 Installer experiments belong in the private working notes, not in this tree.
 
@@ -1299,8 +1278,8 @@ bash install.sh
 
 Reference MATLAB source boundary:
 
-- Python implementation: `src/linstabpy/`, `tests/`, `examples/`, `scripts/`, and repository docs
-- MATLAB reference source and `.mat` assets: `src/linstabpy/data/baseflows`
+- Python implementation: `src/linstabpy/`, `tests/`, `examples/`, and repository docs
+- Martini MATLAB `.mat` assets: a local LinStab2D checkout via `LINSTABPY_BASEFLOW_DATA_DIR`
 - update or replace reference assets only with explicit intent
 - do not edit reference MATLAB files while trying to fix Python parity
 

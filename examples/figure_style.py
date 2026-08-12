@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Journal figure style for every example PNG.
 
-Computer Modern mathtext (LaTeX glyphs) without ``text.usetex``, because
-this box has no ``dvipng``. Tight margins. No decorative titles.
+Probe TeX by writing a PNG of ``$x$``. Use usetex when that works.
+Else use Computer Modern mathtext. A failed usetex save retries once.
 """
 
 from __future__ import annotations
@@ -13,6 +13,32 @@ import numpy as np
 
 FIGURE_DPI = 300
 _APPLIED = False
+
+
+def latex_available() -> bool:
+    """Return True when Agg usetex can write a PNG of ``$x$``."""
+    import io
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    previous = matplotlib.rcParams.get("text.usetex", False)
+    fig = None
+    try:
+        matplotlib.rcParams["text.usetex"] = True
+        fig, ax = plt.subplots()
+        ax.set_xlabel(r"$x$")
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        return buf.tell() > 0
+    except Exception:
+        return False
+    finally:
+        matplotlib.rcParams["text.usetex"] = previous
+        if fig is not None:
+            plt.close(fig)
 
 
 def apply() -> None:
@@ -27,6 +53,7 @@ def apply() -> None:
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman", "cmr10", "DejaVu Serif"],
             "font.size": 9,
+            "text.usetex": latex_available(),
             "mathtext.fontset": "cm",
             "axes.unicode_minus": False,
             "axes.formatter.use_mathtext": True,
@@ -68,12 +95,19 @@ def signed_cmap():
 
 
 def save(fig, path: str | Path) -> Path:
-    """Write ``path`` at 300 dpi and close the figure."""
+    """Write ``path`` at 300 dpi. Retry once with mathtext if usetex fails."""
+    import matplotlib as mpl
     import matplotlib.pyplot as plt
 
     apply()
     out = Path(path)
-    fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
+    try:
+        fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
+    except Exception:
+        if not mpl.rcParams.get("text.usetex"):
+            raise
+        mpl.rcParams["text.usetex"] = False
+        fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
     plt.close(fig)
     return out
 
