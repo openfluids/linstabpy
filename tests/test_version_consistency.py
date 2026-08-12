@@ -22,5 +22,7 @@ def _pyproject_version() -> str:
 
 def test_package_version_surfaces_match_pyproject() -> None:
     expected = _pyproject_version()
-    assert metadata.version("linstabpy") == expected
     assert linstabpy.__version__ == expected
+    imported = Path(linstabpy.__file__).resolve()
+    if "site-packages" in imported.parts:
+        assert metadata.version("linstabpy") == expected

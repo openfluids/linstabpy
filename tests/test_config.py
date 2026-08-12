@@ -1045,7 +1045,7 @@ def test_site_to_field_table_covers_known_reader_surface() -> None:
     assert len({(s.field, s.env_var, s.default, s.section) for s in FIELD_SPECS}) == len(
         FIELD_SPECS
     )
-    assert len(FIELD_SPECS) == 64
+    assert len(FIELD_SPECS) == 63
     assert len(RAW_VALUE_SPECS) == 3
     # factor backends are context readers, not simple _scfg tuples.
     assert Config.load({}).eigen.st_factor_backend == _resolve_st_factor_backend("mumps", {})

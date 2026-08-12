@@ -1,12 +1,26 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """linstabpy: Stability and resolvent analysis of compressible viscous flows."""
 
+import re
 from importlib import metadata
+from pathlib import Path
 
-try:
-    __version__ = metadata.version("linstabpy")
-except metadata.PackageNotFoundError:
-    __version__ = "0.0.0+dev"
+_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+_VERSION_RE = re.compile(r'^version\s*=\s*"([^"]+)"\s*$', re.MULTILINE)
+
+
+def _package_version() -> str:
+    if _PYPROJECT.is_file():
+        match = _VERSION_RE.search(_PYPROJECT.read_text(encoding="utf-8"))
+        if match:
+            return match.group(1)
+    try:
+        return metadata.version("linstabpy")
+    except metadata.PackageNotFoundError:
+        return "0.0.0+dev"
+
+
+__version__ = _package_version()
 
 # Public API — lazy via PEP 562 __getattr__. Importing linstabpy must NOT
 # initialize PETSc/MPI, because pure-math test jobs run without an MPI stack
