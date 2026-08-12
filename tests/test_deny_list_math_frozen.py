@@ -109,7 +109,15 @@ def math_signature(path: Path) -> str:
 # seven Appendix-A oracles, then update the signature WITH that evidence in the
 # commit message -- do NOT edit these to silence a failure.
 _FROZEN_SIGNATURES = {
-    "coefficients": "d1c819cd693ff221c5e36298f3b6076fe61691271d8cb75b92d18e4c54271722",
+    # coefficients re-baselined 2026-08-12: removed the axis R-floor
+    # (R = max(R, min positive radial spacing)) that silently rewrote the 1/R
+    # coefficients at real near-axis points, and replaced it with a hard
+    # ValueError for grids containing r = 0. Evidence: full 250k-DOF jet
+    # (example 2) operator now matches the upstream MATLAB LinStab2D L0
+    # ENTRYWISE to max|delta| = 4.4e-12 (4e-16 relative), axis rows included;
+    # before the fix the axis rows differed by O(1) and the example-2 gains
+    # missed the MATLAB reference.
+    "coefficients": "592595e2b4de0821343b9baeb711e4eb9aa23aada8c47dc1dd78e0f3b8024d84",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
     # mesh re-baselined for bead r3uu.3.2: Mesh.create gained an
     # argument-validation preamble (two new module-level validators + one call;

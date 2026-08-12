@@ -53,18 +53,20 @@ def test_resolvent_operator_matches_inline_chain_with_b_c() -> None:
 
     op = ResolventOperator(lu, B_mat, C_mat, filt, filt_ct)
 
-    w = filt(v)
-    w = B_mat @ w
-    w = lu.solve(w)
-    w = C_mat @ w
+    # Filter INSIDE the masks, per the MATLAB reference
+    # (resolvent.m: H = C*FILTER(R(FILTER(B*v)))).
+    w = B_mat @ v
     w = filt(w)
+    w = lu.solve(w)
+    w = filt(w)
+    w = C_mat @ w
     np.testing.assert_array_equal(op.apply(v), w)
 
-    w_adj = filt_ct(v)
-    w_adj = C_mat.conj().T @ w_adj
-    w_adj = lu.solve_transpose(w_adj)
-    w_adj = B_mat.conj().T @ w_adj
+    w_adj = C_mat.conj().T @ v
     w_adj = filt_ct(w_adj)
+    w_adj = lu.solve_transpose(w_adj)
+    w_adj = filt_ct(w_adj)
+    w_adj = B_mat.conj().T @ w_adj
     np.testing.assert_array_equal(op.apply_adjoint(v), w_adj)
 
 

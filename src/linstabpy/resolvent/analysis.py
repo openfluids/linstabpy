@@ -121,7 +121,7 @@ def resolvent_analysis(
     Performs a resolvent analysis of the linear operator *L0* at angular
     frequency *omega*.  The resolvent operator is
 
-        H = FILTER( C inv(L0 - i omega I) B FILTER(v) )
+        H = C FILTER( inv(L0 - i omega I) FILTER( B v ) )
 
     and its gains/modes are computed from the weighted Hermitian operator
     ``HtrH(v) = invW * H^H * W * H(v)`` using SLEPc EPS. This follows the

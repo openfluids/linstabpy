@@ -9,9 +9,16 @@ from linstabpy.operators.coefficients import compute_cylindrical_coefficients
 
 
 def test_cylindrical_singularity_bounded() -> None:
-    """Operator entries near the axis should not blow up to 1e28 scale."""
+    """A grid containing r = 0 is refused; strictly positive radii stay bounded.
+
+    The old mesh-spacing floor silently rewrote 1/R coefficients at real
+    near-axis points (jet example 2: gain 411.72 vs the 413.72 reference).
+    r = 0 now raises, and a staggered grid keeps its true, finite 1/R terms.
+    """
+    import pytest
+
     ngp = 6
-    R = np.array([0.0, 0.0, 0.01, 0.1, 0.5, 1.0])
+    R = np.array([0.005, 0.01, 0.05, 0.1, 0.5, 1.0])
     U = np.zeros(ngp)
     V = np.zeros(ngp)
     W = np.ones(ngp) * 0.5
@@ -65,13 +72,31 @@ def test_cylindrical_singularity_bounded() -> None:
         d2mudT2,
     )
 
-    threshold = 1e8
+    threshold = 1e8  # bounded by 1/r_min^2 = 4e4 with margin
     for attr in ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy"):
         arr = getattr(coeffs, attr)
-        finite_vals = arr[np.isfinite(arr)]
-        if finite_vals.size > 0:
-            max_val = float(np.max(np.abs(finite_vals)))
-            assert max_val < threshold, (
-                f"Coefficient {attr} has entry {max_val:.3e} > {threshold:.3e} "
-                "near axis (likely 1/r or 1/r^2 blow-up)"
-            )
+        assert np.all(np.isfinite(arr)), f"{attr} has non-finite entries for r > 0"
+        max_val = float(np.max(np.abs(arr)))
+        assert max_val < threshold, (
+            f"Coefficient {attr} has entry {max_val:.3e} > {threshold:.3e} "
+            "for strictly positive radii"
+        )
+
+    with pytest.raises(ValueError, match="pole treatment"):
+        compute_cylindrical_coefficients(
+            U,
+            V,
+            W,
+            np.array([0.0, 0.01, 0.05, 0.1, 0.5, 1.0]),
+            RHO,
+            T,
+            MU,
+            m,
+            Re,
+            Ma,
+            Pr,
+            kappa,
+            *([zeros] * 21),
+            dmudT,
+            d2mudT2,
+        )

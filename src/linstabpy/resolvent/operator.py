@@ -18,7 +18,14 @@ if TYPE_CHECKING:
 
 
 class ResolventOperator:
-    """Forward and adjoint actions for ``H = F C L_sigma^-1 B F``."""
+    """Forward and adjoint actions for ``H = C F L_sigma^-1 F B``.
+
+    The spatial filter sits INSIDE the input/output masks, matching the
+    MATLAB reference (resolvent.m: ``H = C*FILTER(R(FILTER(B*v)))``).  The
+    order matters: the filter does not commute with a diagonal mask, and the
+    previous ``F C R B F`` composition shifted the leading jet gain by 0.5%
+    relative to the reference (411.71 vs 413.72).
+    """
 
     def __init__(
         self,
@@ -35,21 +42,21 @@ class ResolventOperator:
         self._filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
 
     def apply(self, v: np.ndarray) -> np.ndarray:
-        """Apply resolvent: H v = FILTER(C inv(L_sigma) B FILTER(v))."""
-        w = self._filt(v)
-        w = _apply_optional_matrix(self.B_mat, w)
-        w = self.lu.solve(w)
-        w = _apply_optional_matrix(self.C_mat, w)
+        """Apply resolvent: H v = C FILTER(inv(L_sigma) FILTER(B v))."""
+        w = _apply_optional_matrix(self.B_mat, v)
         w = self._filt(w)
+        w = self.lu.solve(w)
+        w = self._filt(w)
+        w = _apply_optional_matrix(self.C_mat, w)
         return w
 
     def apply_adjoint(self, v: np.ndarray) -> np.ndarray:
-        """Apply adjoint resolvent: H^H v = FILTER_ct(B^H inv(L_sigma^H) C^H FILTER_ct(v))."""
-        w = self._filt_ct(v)
-        w = _apply_optional_adjoint_matrix(self.C_mat, w)
-        w = self.lu.solve_transpose(w)
-        w = _apply_optional_adjoint_matrix(self.B_mat, w)
+        """Apply adjoint resolvent: H^H v = B^H FILTER_ct(inv(L_sigma^H) FILTER_ct(C^H v))."""
+        w = _apply_optional_adjoint_matrix(self.C_mat, v)
         w = self._filt_ct(w)
+        w = self.lu.solve_transpose(w)
+        w = self._filt_ct(w)
+        w = _apply_optional_adjoint_matrix(self.B_mat, w)
         return w
 
 
