@@ -11,14 +11,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 from . import run_song_2023_matrix as matrix_runner
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parent
 REPO = SCRIPT.parents[2]
-DEFAULT_CONFIG = SONG_DIR / "song_32deg.jsonc"
+DEFAULT_CONFIG = SONG_DIR / "song_32deg.yaml"
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -61,8 +61,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg_path = args.config.expanduser().resolve()
-    cfg = load_jsonc(cfg_path)
-    base_cfg = load_jsonc(REPO / cfg["base_config"])
+    cfg = load_config(cfg_path)
+    base_cfg = load_config(REPO / cfg["base_config"])
     output_root = REPO / cfg["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
     guard_cfg = cfg.get("memory_guard", {})
@@ -79,7 +79,7 @@ def main() -> None:
         run_dir.mkdir(parents=True, exist_ok=True)
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
-        config_path = run_dir / "song_2023.variant.jsonc"
+        config_path = run_dir / "song_2023.variant.yaml"
         config_path.write_text(
             json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

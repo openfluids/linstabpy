@@ -1,0 +1,55 @@
+# Lui 2022 suction-side SWBLI on the packed stride-2 mesh (300 x 340).
+# Physics from the archived Case 2 parity config. The field is already coarse.
+paths:
+  case_dir: examples/sawtooth/sawtooth.npz
+physics:
+  Re: 395000.0
+  Ma: 2.0
+  Pr: 0.747
+  kappa: 1.31
+  T_0: 1540.0
+  zero_spanwise: false
+  use_matlab_sponge_aux: false
+  zero_mu_t_derivs: true
+numerics:
+  stride_ksi: 1
+  stride_eta: 1
+  fd_order: 6
+  beta: 0.0
+  alpha_filter: 0.0
+  operator_dissipation:
+    enabled: true
+    epsilon: 0.10
+    apply_to_stability: true
+    apply_to_resolvent: false
+bc:
+  penalty: 1000000.0
+  recipe:
+    - {type: dirichlet, borders: lt, variables: ruvwT}
+    - {type: dirichlet, borders: b, variables: ruvw}
+    - {type: neumann, borders: b, variables: T, exclude_corners: true}
+    - {type: neumann, borders: r, variables: ruvwT, exclude_corners: true}
+analysis:
+  ratio_uinf: 1.0
+  ratio_l: 0.1
+  St: 0.1
+  n_modes_stability: 20
+  n_modes_resolvent: 1
+  run_stability: true
+  run_resolvent: false
+  use_raw_eigs: false
+  omega_target:
+    real: 0.561107
+    imag: -1.112186
+solver:
+  petsc_matrix_mode: distributed
+  eigen:
+    st_solver: mumps
+    eps_tol: 5.0e-5
+    ncv: 80
+    conv_test: rel
+    true_residual: true
+    residual_error_type: relative
+    extract_all_converged: true
+  linsolve:
+    type: mumps

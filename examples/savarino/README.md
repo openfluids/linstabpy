@@ -49,9 +49,9 @@ script), with mode files under `data/modes/`.
    python verify_norm_convention.py --point-npz results/campaign/sav_map_b45p0_f2/sav_map_b45p0_f2.npz
    ```
 4. **Run a single point** from this directory (edit `paths.case_dir` in
-   `savarino_point_f2_b45.jsonc` to the converted base-flow directory first):
+   `savarino_point_f2_b45.yaml` to the converted base-flow directory first):
    ```
-   LINSTABPY_CASE1_CONFIG=savarino_point_f2_b45.jsonc \
+   LINSTABPY_CASE1_CONFIG=savarino_point_f2_b45.yaml \
    LINSTABPY_CASE1_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
    python -c "from linstabpy.driver.run import run; run()"
    ```

@@ -14,14 +14,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 
 from . import run_song_2023_matrix as matrix_runner
 
 SCRIPT = Path(__file__).resolve()
 SONG_DIR = SCRIPT.parent
 REPO = SCRIPT.parents[2]
-DEFAULT_CONFIG = SONG_DIR / "song_32deg.jsonc"
+DEFAULT_CONFIG = SONG_DIR / "song_32deg.yaml"
 SWAP_RE = re.compile(r"used = ([0-9.]+)M")
 FREE_RE = re.compile(r"System-wide memory free percentage:\s*([0-9.]+)%")
 MEMINFO_RE = re.compile(r"^([A-Za-z_()]+):\s+([0-9]+)\s+kB$", re.MULTILINE)
@@ -173,7 +173,7 @@ def _collect_existing_result(run_dir: Path, *, ranks: int, name: str) -> dict[st
         "status": "ok",
         "stdout_log": str(stdout_path.relative_to(REPO)) if stdout_path.exists() else "",
         "stderr_log": str(stderr_path.relative_to(REPO)) if stderr_path.exists() else "",
-        "config_path": str((run_dir / "song_2023.variant.jsonc").relative_to(REPO)),
+        "config_path": str((run_dir / "song_2023.variant.yaml").relative_to(REPO)),
         "swap_before_mib": None,
         "swap_after_mib": None,
         "swap_peak_mib": None,
@@ -302,8 +302,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg_path = args.config.expanduser().resolve()
-    cfg = load_jsonc(cfg_path)
-    base_cfg = load_jsonc(REPO / cfg["base_config"])
+    cfg = load_config(cfg_path)
+    base_cfg = load_config(REPO / cfg["base_config"])
     output_root = REPO / cfg["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
     guard_cfg = cfg.get("memory_guard", {})
@@ -326,7 +326,7 @@ def main() -> None:
                 continue
 
         cfg_run = _deep_merge(base_cfg, variant["overrides"])
-        config_path = run_dir / "song_2023.variant.jsonc"
+        config_path = run_dir / "song_2023.variant.yaml"
         config_path.write_text(
             json.dumps(_json_safe(cfg_run), indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

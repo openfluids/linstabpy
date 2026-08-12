@@ -18,10 +18,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
 
-DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.jsonc"
+DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.yaml"
 DEFAULT_NPZ_DIR = ROOT / "examples" / "martini"
 DEFAULT_REPORT = (
     ROOT / "examples" / "martini" / "martini_parity_latest.json"
@@ -785,7 +785,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    cfg = load_jsonc(args.config)
+    cfg = load_config(args.config)
     npz_dir = args.npz_dir.resolve()
     report_path = args.report.resolve()
     table_path = args.table.resolve()

@@ -13,4 +13,8 @@ from .coefficients import (
     compute_cylindrical_coefficients,
 )
 from .energy_norm import compute_chu_norm
-from .spatial import build_spatial_operator, build_spatial_operator_petsc
+from .spatial import (
+    build_spatial_operator,
+    build_spatial_operator_petsc,
+    spatial_lhs_with_dirichlet,
+)

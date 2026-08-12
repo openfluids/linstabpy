@@ -22,7 +22,7 @@ from linstabpy.utils.jsonc import load_jsonc
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SONG_CASE_DIR = REPO_ROOT / "examples" / "song"
-SONG_CONFIG_PATH = SONG_CASE_DIR / "song_32deg.jsonc"
+SONG_CONFIG_PATH = SONG_CASE_DIR / "song_32deg.yaml"
 
 
 def test_song2023_default_config_uses_transposed_filtered_input() -> None:

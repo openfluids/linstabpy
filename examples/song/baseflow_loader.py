@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from linstabpy.baseflow import BaseFlow, sutherland_air
+from linstabpy.baseflow.grid_fields import read_grid_fields
 
 
 def _binomial5_filter(arr: np.ndarray, axis: int) -> np.ndarray:
@@ -270,8 +271,9 @@ def load_my_case(
     """
     Generic loader for user-supplied baseflows stored as .npy files.
 
-    For the Song (2023) case the loader reads ``song_32deg.npz`` in
-    ``case_dir``. The older ``data/baseflow/*.npy`` layout is still accepted.
+    ``case_dir`` may be an ``.npz`` file, a directory that holds
+    ``song_32deg.npz`` or ``song_316deg.npz``, or a directory of ``.npy``
+    fields.
 
     Notes
     -----
@@ -283,40 +285,30 @@ def load_my_case(
     for diagnostics.
     """
     case_root = Path(case_dir)
-    npz_path = case_root / "song_32deg.npz"
-    npy_root = case_root / "data" / "baseflow"
-
-    def _as_field(name: str, arr: np.ndarray, source: Path) -> np.ndarray:
-        out = np.asarray(arr, dtype=float)
-        if out.ndim != 2:
-            raise ValueError(f"{source} field {name} must be 2-D, got shape {out.shape}")
-        return out
-
-    if npz_path.exists():
-        packed = np.load(npz_path)
-        X = _as_field("x", packed["x"], npz_path)
-        Y = _as_field("y", packed["y"], npz_path)
-        rho = _as_field("rho", packed["rho"], npz_path)
-        u = _as_field("u", packed["u"], npz_path)
-        v = _as_field("v", packed["v"], npz_path)
-        w = _as_field("w", packed["w"], npz_path)
-        T = _as_field("T", packed["T"], npz_path)
-        sponge = _as_field("sponge", packed["sponge"], npz_path)
+    if case_root.is_file():
+        source = case_root
+    elif (case_root / "song_32deg.npz").exists() and not (case_root / "song_316deg.npz").exists():
+        source = case_root / "song_32deg.npz"
+    elif (case_root / "song_32deg.npz").exists() and (case_root / "song_316deg.npz").exists():
+        source = case_root / "song_32deg.npz"
+    elif (case_root / "song_316deg.npz").exists():
+        source = case_root / "song_316deg.npz"
+    elif (case_root / "x.npy").exists():
+        source = case_root
+    elif (case_root / "data" / "baseflow" / "x.npy").exists():
+        source = case_root / "data" / "baseflow"
     else:
-        def _load(name: str) -> np.ndarray:
-            path = npy_root / f"{name}.npy"
-            if not path.exists():
-                raise FileNotFoundError(f"Missing field file: {path}")
-            return _as_field(name, np.load(path), path)
+        raise FileNotFoundError(f"No grid fields in {case_root}")
 
-        X = _load("x")
-        Y = _load("y")
-        rho = _load("rho")
-        u = _load("u")
-        v = _load("v")
-        w = _load("w")
-        T = _load("T")
-        sponge = _load("sponge")
+    packed = read_grid_fields(source)
+    X = packed["x"]
+    Y = packed["y"]
+    rho = packed["rho"]
+    u = packed["u"]
+    v = packed["v"]
+    w = packed["w"]
+    T = packed["T"]
+    sponge = packed["sponge"]
 
     if transpose_input:
         X, Y, rho, u, v, w, T, sponge = [a.T for a in (X, Y, rho, u, v, w, T, sponge)]

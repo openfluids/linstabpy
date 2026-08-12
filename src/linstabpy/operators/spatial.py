@@ -34,34 +34,35 @@ def build_spatial_operator(
 ) -> tuple[sp.csc_matrix, sp.csc_matrix, sp.csc_matrix, dict]:
     """Build doubled linear operator blocks for the spatial EVP.
 
-    The spatial formulation is constructed from finite-difference derivatives of
-    the LNSE operator with respect to a Floquet-like axial exponent ``alpha``:
+    Matches LinStab2D ``GetSpatialLinProblem.m``: finite-difference the LNSE
+    operator in the Fourier argument ``kx`` (MATLAB ``mkx``) at fixed
+    ``floquet_exp``.
 
-    - R0 = L(alpha=0)
-    - R1 = (L(+delta) - L(-delta)) / (2*delta)
-    - R2 = (L(+delta) - R0 - R1*delta) / delta**2
+    - R0 = L(kx)
+    - R1 = (L(kx+delta) - L(kx-delta)) / (2*delta)
+    - R2 = (L(kx+delta) - R0 - R1*delta) / delta**2
 
-    And the generalized polynomial EVP is assembled as:
+    Default ``kx=0``, ``delta=1`` is MATLAB's ``{0, +1, -1}`` stencil.
+    The Floquet exponent is not the finite-difference direction.
 
-    [ 0,  I] q = alpha [ 0, 0 ] q + [ I, 0 ] q  + terms
-    [-R0, 0]    [R1, R2]   [0, I]
-
-    implemented via
+    Assembled pencil (``q' = [q; alpha q]``):
         Lc = [[0, I], [-R0, 0]]
         R  = [[I, 0], [R1, R2]]
         Lw = [[0, 0], [-iI, 0]]
+    so ``(Lc + omega Lw) q' = alpha R q'``.
     """
     if delta <= 0:
         raise ValueError("delta must be positive")
 
     n = mesh.ngp * 5
 
-    # Compute coefficients once, assemble three operators with different shifts
-    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    prep0 = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    prepp = _prepare_coefficients(mesh, baseflow, kx=kx + delta, model=model, m=m)
+    prepm = _prepare_coefficients(mesh, baseflow, kx=kx - delta, model=model, m=m)
 
-    L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
-    Lp = _assemble_from_prepared(prep, floquet_exp=floquet_exp + delta)
-    Lm = _assemble_from_prepared(prep, floquet_exp=floquet_exp - delta)
+    L0 = _assemble_from_prepared(prep0, floquet_exp=floquet_exp)
+    Lp = _assemble_from_prepared(prepp, floquet_exp=floquet_exp)
+    Lm = _assemble_from_prepared(prepm, floquet_exp=floquet_exp)
 
     R0 = L0.tocsc()
     R1 = (Lp - Lm) / (2.0 * delta)
@@ -76,6 +77,46 @@ def build_spatial_operator(
 
     idx = _build_index_structure(mesh.idx, mesh.ngp)
     return Lc, R, Lw, idx
+
+
+def spatial_lhs_with_dirichlet(
+    Lc,
+    Lw,
+    R,
+    omega_spatial: complex,
+    idx: dict,
+    borders: str,
+    variables: str,
+    ngp: int,
+    *,
+    use_petsc: bool,
+):
+    """Form ``L = Lc + omega Lw`` and then apply spatial Dirichlet rows.
+
+    MATLAB applies the boundary condition after the combine. Applying it
+    to ``Lc`` only lets ``Lw`` contaminate the second-half boundary rows.
+    """
+    if use_petsc:
+        from petsc4py import PETSc
+
+        from linstabpy.boundary_conditions.dirichlet import apply_dirichlet_spatial_petsc
+
+        L = Lc.copy()
+        L.axpy(
+            complex(omega_spatial),
+            Lw,
+            structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN,
+        )
+        L, R, bc_indices = apply_dirichlet_spatial_petsc(
+            L, R, idx, borders, variables, ngp
+        )
+        return L, R, bc_indices
+
+    from linstabpy.boundary_conditions.dirichlet import apply_dirichlet_spatial
+
+    L = Lc + complex(omega_spatial) * Lw
+    L, R, bc_indices = apply_dirichlet_spatial(L, R, idx, borders, variables, ngp)
+    return L, R, bc_indices
 
 
 def build_spatial_operator_petsc(
@@ -101,11 +142,13 @@ def build_spatial_operator_petsc(
     _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
 
     n = mesh.ngp * 5
-    prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    prep0 = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+    prepp = _prepare_coefficients(mesh, baseflow, kx=kx + delta, model=model, m=m)
+    prepm = _prepare_coefficients(mesh, baseflow, kx=kx - delta, model=model, m=m)
 
-    L0 = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
-    Lp = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp + delta, solver_cfg=solver_cfg)
-    Lm = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp - delta, solver_cfg=solver_cfg)
+    L0 = _assemble_from_prepared_petsc(prep0, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
+    Lp = _assemble_from_prepared_petsc(prepp, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
+    Lm = _assemble_from_prepared_petsc(prepm, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
 
     R0 = L0  # L0 is not used separately after this point
     R1 = Lp.copy()

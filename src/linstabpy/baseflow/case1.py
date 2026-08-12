@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from .baseflow import BaseFlow
+from .grid_fields import read_grid_fields
 from .sponge import case1_sponge_from_config
 
 
@@ -63,11 +64,8 @@ def load_hamada_case(
     prefer_matlab_sponge_aux: bool = False,
     native_sponge_cfg: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray, BaseFlow, np.ndarray]:
-    """Load Hamada case arrays and build a ``BaseFlow`` object."""
-    root = Path(case_dir)
-    fields = {
-        name: _load_field(root, name) for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")
-    }
+    """Load Hamada arrays. Use ``load_grid_fields`` for a general npy or npz set."""
+    fields = read_grid_fields(case_dir)
 
     if transpose_input:
         fields = {name: arr.T for name, arr in fields.items()}

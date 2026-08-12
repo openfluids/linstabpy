@@ -46,7 +46,7 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
     assert compare_martini_examples.ROOT == repo
     assert (
         compare_martini_examples.DEFAULT_CONFIG
-        == repo / "examples/martini/martini_cases.jsonc"
+        == repo / "examples/martini/martini_cases.yaml"
     )
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
     assert extract_martini_to_npz.ROOT == repo
@@ -58,23 +58,16 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
 
 
 def test_martini_fixture_preflight_reports_required_exports(tmp_path) -> None:
-    config_path = tmp_path / "cases.jsonc"
+    config_path = tmp_path / "cases.yaml"
     config_path.write_text(
         """
-        {
-          "cases": [
-            {
-              "case_id": "one",
-              "matlab_results_stem": "example_1_Blasius_results",
-              "matlab_logs_stem": "example_1_Blasius_logs"
-            },
-            {
-              "case_id": "two",
-              "matlab_results_stem": "example_1_Blasius_results",
-              "matlab_direct_stem": "example_4_Cavity_results_direct"
-            }
-          ]
-        }
+        cases:
+          - case_id: one
+            matlab_results_stem: example_1_Blasius_results
+            matlab_logs_stem: example_1_Blasius_logs
+          - case_id: two
+            matlab_results_stem: example_1_Blasius_results
+            matlab_direct_stem: example_4_Cavity_results_direct
         """,
         encoding="utf-8",
     )
@@ -103,9 +96,9 @@ def test_martini_fixture_preflight_reports_required_exports(tmp_path) -> None:
 
 
 def test_martini_fixture_status_does_not_create_directories(tmp_path) -> None:
-    config_path = tmp_path / "cases.jsonc"
+    config_path = tmp_path / "cases.yaml"
     config_path.write_text(
-        '{"cases": [{"matlab_results_stem": "example_1_Blasius_results"}]}',
+        "cases:\n  - matlab_results_stem: example_1_Blasius_results\n",
         encoding="utf-8",
     )
     input_dir = tmp_path / "missing_raw"
@@ -253,7 +246,7 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
     from examples.martini.example_0_curvilinear_validation import _compute_reference_fields
 
     matlab = np.load(bundle_path, allow_pickle=False)
-    cfg = load_jsonc(repo / "examples/martini/example_0_curvilinear_validation.jsonc")
+    cfg = load_jsonc(repo / "examples/martini/example_0_curvilinear_validation.yaml")
     fields = _compute_reference_fields(cfg)
 
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)

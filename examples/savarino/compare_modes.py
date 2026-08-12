@@ -65,13 +65,23 @@ def main() -> int:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    def _point_npz(beta_tag: str, f_tag: str) -> Path:
+        candidates = [
+            campaign_dir / f"sav_map2_b{beta_tag}_f{f_tag}" / f"sav_map2_b{beta_tag}_f{f_tag}.npz",
+            campaign_dir / f"sav_map_b{beta_tag}_f{f_tag}" / f"sav_map_b{beta_tag}_f{f_tag}.npz",
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
+        return candidates[0]
+
     CASES = [
         dict(name="mack", title="Medium-frequency 1st Mack mode",
              f="2", w="45", ftex="2", btex="45",
-             npz=str(campaign_dir / "sav_map_b45p0_f2" / "sav_map_b45p0_f2.npz")),
+             npz=str(_point_npz("45p0", "2"))),
         dict(name="liftup", title="Low-frequency lift-up mode",
              f="0.0001", w="163", ftex=r"10^{-4}", btex="163",
-             npz=str(campaign_dir / "sav_map_b163p0_f0p0001" / "sav_map_b163p0_f0p0001.npz")),
+             npz=str(_point_npz("163p0", "0p0001"))),
     ]
 
     base = read_tecplot(BASE)

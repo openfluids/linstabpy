@@ -33,22 +33,19 @@ def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
         kappa=1.4,
         Ma=2.0,
     )
-    config_path = tmp_path / "case.jsonc"
+    config_path = tmp_path / "case.yaml"
     output_path = tmp_path / "case.npz"
     config_path.write_text(
         """
-        {
-          "paths": {"case_dir": "."},
-          "analysis": {
-            "run_stability": false,
-            "run_resolvent": false
-          },
-          "numerics": {
-            "alpha_filter": 0.0,
-            "fd_order": 4
-          },
-          "solver": {}
-        }
+        paths:
+          case_dir: "."
+        analysis:
+          run_stability: false
+          run_resolvent: false
+        numerics:
+          alpha_filter: 0.0
+          fd_order: 4
+        solver: {}
         """,
         encoding="utf-8",
     )

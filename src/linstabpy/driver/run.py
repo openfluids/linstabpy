@@ -29,7 +29,7 @@ init_petsc_from_argv()
 from mpi4py import MPI
 from petsc4py import PETSc
 
-from linstabpy.baseflow import load_hamada_case, sutherland_air
+from linstabpy.baseflow import load_grid_fields, load_hamada_case, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
@@ -56,7 +56,7 @@ from linstabpy.stability.acceptance import (
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
-from linstabpy.utils.jsonc import load_jsonc
+from linstabpy.utils.jsonc import load_config
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
 
 RUNTIME_NPZ_CONTRACT_KEYS = (
@@ -208,7 +208,7 @@ def _runtime_config_path() -> Path:
             "LINSTABPY_CASE_CONFIG",
             "LINSTABPY_CASE2_CONFIG",
             "LINSTABPY_CASE1_CONFIG",
-            default=str(Path.cwd() / "configs" / "parity_config.jsonc"),
+            default=str(Path.cwd() / "configs" / "parity_config.yaml"),
         )
     )
 
@@ -556,11 +556,11 @@ class _RuntimeConfigSource:
 
 
 def _stage_load_runtime_config() -> _RuntimeConfigSource:
-    """Load the JSONC runtime config and immutable provenance strings."""
+    """Load the YAML runtime config and immutable provenance strings."""
     config_path = _runtime_config_path()
     config: dict = {}
     if config_path.exists():
-        config = load_jsonc(config_path)
+        config = load_config(config_path)
         from linstabpy.config import validate_config
 
         validate_config(config, source=str(config_path))
@@ -616,21 +616,35 @@ def _stage_load_case(
     """Load the base-flow snapshot and apply transport-property conventions."""
     stage_start = _stage_start()
     with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
-        X, Y, baseflow, sponge = load_hamada_case(
-            case_dir,
-            Re=Re,
-            Ma=Ma,
-            Pr=Pr,
-            kappa=kappa,
-            T_0=T_0,
-            stride_ksi=stride_ksi,
-            stride_eta=stride_eta,
-            transpose_input=True,
-            zero_spanwise=zero_spanwise,
-            sponge_mat_path=sponge_mat_path,
-            prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
-            native_sponge_cfg=sponge_cfg,
-        )
+        if Path(case_dir).suffix == ".npz":
+            X, Y, baseflow, sponge = load_grid_fields(
+                case_dir,
+                Re=Re,
+                Ma=Ma,
+                Pr=Pr,
+                kappa=kappa,
+                T_0=T_0,
+                stride_ksi=stride_ksi,
+                stride_eta=stride_eta,
+                transpose_input=True,
+                zero_spanwise=zero_spanwise,
+            )
+        else:
+            X, Y, baseflow, sponge = load_hamada_case(
+                case_dir,
+                Re=Re,
+                Ma=Ma,
+                Pr=Pr,
+                kappa=kappa,
+                T_0=T_0,
+                stride_ksi=stride_ksi,
+                stride_eta=stride_eta,
+                transpose_input=True,
+                zero_spanwise=zero_spanwise,
+                sponge_mat_path=sponge_mat_path,
+                prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
+                native_sponge_cfg=sponge_cfg,
+            )
 
     sutherland_air(baseflow)
     if zero_mu_t_derivs:

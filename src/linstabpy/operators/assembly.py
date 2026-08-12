@@ -30,13 +30,29 @@ would corrupt the BC rows; applying inv(B) after BCs would overwrite them.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import scipy.sparse as sp
 
 from linstabpy.config import Config
+
+FloquetShiftMode = Literal["matlab_parity", "continuum"]
+
+
+def _resolve_floquet_shift_mode(mode: str | None = None) -> FloquetShiftMode:
+    """Resolve Floquet FD shift mode. Default matches LinStab2D."""
+    raw = mode if mode is not None else os.environ.get("LINSTABPY_FLOQUET_SHIFT", "matlab_parity")
+    key = str(raw).strip().lower().replace("-", "_")
+    if key in {"matlab", "matlab_parity", "parity", "linstab2d"}:
+        return "matlab_parity"
+    if key in {"continuum", "correct", "physics"}:
+        return "continuum"
+    raise ValueError(
+        f"Unknown Floquet shift mode {raw!r}; expected 'matlab_parity' or 'continuum'"
+    )
 
 from ..baseflow.baseflow import BaseFlow
 from ..mesh.mesh import Mesh
@@ -1025,11 +1041,12 @@ def _assemble_from_prepared_with_backend(
     D2Z = prep["D2Z"]
     D2RZ = prep["D2RZ"]
 
-    # Floquet shift: Dx → Dx + iα, D2x → D2x + 2iα Dx + (iα)²
-    # Without this (floquet_exp=0), no streamwise wavenumber is imposed.
+    # Floquet shift (see _apply_floquet_shift / LINSTABPY_FLOQUET_SHIFT).
     if floquet_exp != 0.0:
         i_alpha = 1j * floquet_exp
-        DZ, D2Z = _apply_floquet_shift(DZ, D2Z, i_alpha, ngp)
+        DZ, D2Z, D2RZ = _apply_floquet_shift(
+            DZ, D2Z, D2RZ, i_alpha, ngp, DR=DR
+        )
 
     with _assembly_stage("assemble_raw_blocks") as stage:
         L0 = backend.assemble_raw(prep["coeffs"], ngp, DR, D2R, DZ, D2Z, D2RZ)
@@ -1627,23 +1644,46 @@ def _build_block_csr(
 def _apply_floquet_shift(
     DZ: list[sp.csc_matrix] | sp.spmatrix,
     D2Z: list[sp.spmatrix] | sp.spmatrix,
+    D2RZ: list[sp.spmatrix] | sp.spmatrix,
     i_alpha: complex,
     ngp: int,
-) -> tuple[list[sp.csc_matrix], list[sp.csc_matrix]]:
-    """Shift axial derivatives with Floquet parameter ``iα``.
+    *,
+    DR: list[sp.spmatrix] | sp.spmatrix | None = None,
+    mode: str | None = None,
+) -> tuple[list[sp.csc_matrix], list[sp.csc_matrix], list[sp.csc_matrix]]:
+    """Shift derivatives with Floquet parameter ``iα``.
 
-    Implements:
-    DZ  -> DZ + iα I
-    D2Z -> D2Z + 2 iα DZ + (iα)² I
+    Modes (``LINSTABPY_FLOQUET_SHIFT`` / ``mode``):
+
+    * ``matlab_parity`` (default): LinStab2D ``GetLinProblem.m``
+      ``DZ += iα I``, ``D2RZ += iα I``, ``D2Z`` uses the shifted ``DZ``.
+    * ``continuum``: ``DZ += iα I``, ``D2RZ += iα DR``,
+      ``D2Z`` uses the unshifted ``DZ``.
     """
+    shift_mode = _resolve_floquet_shift_mode(mode)
     dz_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(DZ, ngp)]
     d2z_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(D2Z, ngp)]
+    d2rz_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(D2RZ, ngp)]
     I = sp.eye(ngp, format="csc")
     shifted_dz = [mat + i_alpha * I for mat in dz_blocks]
+
+    if shift_mode == "matlab_parity":
+        shifted_d2rz = [mat + i_alpha * I for mat in d2rz_blocks]
+        shifted_d2z = [
+            d2z + 2.0 * i_alpha * dz_s + i_alpha**2 * I
+            for d2z, dz_s in zip(d2z_blocks, shifted_dz)
+        ]
+        return shifted_dz, shifted_d2z, shifted_d2rz
+
+    if DR is None:
+        raise ValueError("continuum Floquet shift requires DR")
+    dr_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(DR, ngp)]
+    shifted_d2rz = [d2rz + i_alpha * dr for d2rz, dr in zip(d2rz_blocks, dr_blocks)]
     shifted_d2z = [
-        d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)
+        d2z + 2.0 * i_alpha * dz + i_alpha**2 * I
+        for d2z, dz in zip(d2z_blocks, dz_blocks)
     ]
-    return shifted_dz, shifted_d2z
+    return shifted_dz, shifted_d2z, shifted_d2rz
 
 
 def _apply_inv_B(
