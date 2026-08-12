@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from linstabpy.mesh import Mesh
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -151,7 +151,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
     fig, axes = plt.subplots(
         2,
         2,
-        figsize=(12.8, 8.4),
+        figsize=(6.6, 4.6),
         gridspec_kw={"wspace": 0.34, "hspace": 0.24},
     )
     plot_scalar_panel(
@@ -213,7 +213,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
     fig_mesh, axes_mesh = plt.subplots(
         1,
         2,
-        figsize=(12.2, 4.8),
+        figsize=(6.4, 2.8),
         gridspec_kw={"wspace": 0.08},
     )
     step = 5
@@ -235,7 +235,7 @@ def plot(data: dict[str, np.ndarray]) -> None:
     save_figure(fig_mesh, OUTPUT_BASEFLOW)
 
     centerline = y.shape[0] // 2
-    fig_support, axes_support = plt.subplots(1, 2, figsize=(12, 4.5))
+    fig_support, axes_support = plt.subplots(1, 2, figsize=(6.4, 2.6))
     axes_support[0].plot(x[centerline, :], df_an[centerline, :], label="Analytical", lw=2.0)
     axes_support[0].plot(x[centerline, :], df[centerline, :], "--", label="Numerical", lw=1.8)
     axes_support[0].set_title("Centerline derivative comparison", pad=4.0)

@@ -20,14 +20,8 @@ _LAZY_EXPORTS = {
     "adjoint_eigenvalues": "linstabpy.stability._eigenvalues",
     "wavemaker": "linstabpy.stability.sensitivity",
     "resolvent_analysis": "linstabpy.resolvent.analysis",
-    "resolvent_analysis_with_residuals": "linstabpy.solvers.resolvent",
     "resolvent_map": "linstabpy.solvers.router.resolvent_map",
     "BaseFlow": "linstabpy.baseflow",
-    "load_blasius": "linstabpy.baseflow",
-    "load_cavity": "linstabpy.baseflow",
-    "load_jet": "linstabpy.baseflow",
-    "load_paraboloid": "linstabpy.baseflow",
-    "load_streaky_bl": "linstabpy.baseflow",
 }
 
 __all__ = sorted(_LAZY_EXPORTS)

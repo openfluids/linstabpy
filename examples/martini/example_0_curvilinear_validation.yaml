@@ -1,17 +1,14 @@
 # Example 0: curvilinear derivative validation (no physics)
 # Tests SBP-FD operators on a Z^2 conformal mapping.
 
-# Grid
-nx: 50
-ny: 50
-fd_order: 4
-alpha_filter: 0.0
+nx: 50                     # computational nodes in xi
+ny: 50                     # computational nodes in eta
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
 
-# Computational domain
-xrange: [-1.0, 0.0]
-yrange: [0.0, 1.0]
-y_symmetry: true
-x_periodicity: false
+xrange: [-1.0, 0.0]        # computational x interval
+yrange: [0.0, 1.0]         # computational y interval
+y_symmetry: true           # mirror the y mapping about y = 0
+x_periodicity: false       # open streamwise ends
 
-# Conformal mapping parameter (d in Z = x*d - 0.5 + i*y)
-conformal_scale: 0.2
+conformal_scale: 0.2       # d in Z = x*d - 0.5 + i*y

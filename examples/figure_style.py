@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Journal figure style for every example PNG.
+
+Computer Modern mathtext (LaTeX glyphs) without ``text.usetex``, because
+this box has no ``dvipng``. Tight margins. No decorative titles.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+
+FIGURE_DPI = 300
+_APPLIED = False
+
+
+def apply() -> None:
+    """Set rcParams once. Call at the top of every figure script."""
+    global _APPLIED
+    if _APPLIED:
+        return
+    import matplotlib as mpl
+
+    mpl.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman", "cmr10", "DejaVu Serif"],
+            "font.size": 9,
+            "mathtext.fontset": "cm",
+            "axes.unicode_minus": False,
+            "axes.formatter.use_mathtext": True,
+            "axes.titlesize": 9,
+            "axes.labelsize": 9,
+            "axes.linewidth": 0.6,
+            "axes.titlepad": 3.0,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "xtick.major.size": 3.0,
+            "ytick.major.size": 3.0,
+            "xtick.major.width": 0.6,
+            "ytick.major.width": 0.6,
+            "legend.fontsize": 8,
+            "legend.frameon": False,
+            "legend.borderaxespad": 0.3,
+            "figure.titlesize": 9,
+            "figure.dpi": FIGURE_DPI,
+            "savefig.dpi": FIGURE_DPI,
+            "savefig.bbox": "tight",
+            "savefig.pad_inches": 0.03,
+            "pdf.fonttype": 42,
+        }
+    )
+    _APPLIED = True
+
+
+def signed_cmap():
+    """Diverging map with a white band at zero."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+
+    colors = plt.get_cmap("RdBu_r")(np.linspace(0.0, 1.0, 257))
+    mid = colors.shape[0] // 2
+    colors[mid - 3 : mid + 4, :3] = 1.0
+    return ListedColormap(colors, name="rdbu_zero_white")
+
+
+def save(fig, path: str | Path) -> Path:
+    """Write ``path`` at 300 dpi and close the figure."""
+    import matplotlib.pyplot as plt
+
+    apply()
+    out = Path(path)
+    fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
+    plt.close(fig)
+    return out
+
+
+def thin_colorbar(fig, mappable, ax, label: str = ""):
+    """Attach a narrow colorbar to one axes."""
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3.5%", pad=0.06)
+    cbar = fig.colorbar(mappable, cax=cax)
+    if label:
+        cbar.set_label(label)
+    cbar.ax.tick_params(length=2.0, width=0.5, labelsize=7)
+    return cbar
+
+
+def y_limit_for_support(y: np.ndarray, *fields: np.ndarray, frac: float = 0.995) -> float:
+    """Return a y-max that holds ``frac`` of the peak |field| support."""
+    y1 = np.asarray(y)
+    if y1.ndim == 2:
+        y_line = y1[:, 0] if y1.shape[1] else y1.ravel()
+        amp = np.zeros(y1.shape[0])
+        for field in fields:
+            amp = np.maximum(amp, np.max(np.abs(np.asarray(field)), axis=1))
+    else:
+        y_line = y1
+        amp = np.zeros_like(y_line, dtype=float)
+        for field in fields:
+            amp = np.maximum(amp, np.abs(np.asarray(field)).reshape(-1))
+    peak = float(np.max(amp))
+    if peak <= 0.0:
+        return float(np.max(y_line))
+    mask = amp >= (1.0 - frac) * peak
+    if not np.any(mask):
+        return float(np.max(y_line))
+    return float(np.max(y_line[mask])) * 1.08

@@ -20,7 +20,8 @@ from examples.martini.example_3_streaky_bl import (
     _resolve_baseflow_plot_field,
 )
 from linstabpy.mesh import Mesh
-from linstabpy.utils import plot_flow, reconstruct_floquet
+from examples._plot_flow import plot_flow
+from linstabpy.utils import reconstruct_floquet
 from linstabpy.utils.petsc_core import (
     compact_petsc_matrix,
     compare_petsc_against_scipy,

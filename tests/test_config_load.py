@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from linstabpy.utils.jsonc import load_config, load_jsonc
+from linstabpy.utils.yaml_io import load_config
 
 
 def test_load_config_reads_yaml_comments(tmp_path: Path) -> None:
@@ -50,8 +50,3 @@ def test_load_config_rejects_non_mapping(tmp_path: Path) -> None:
         load_config(path)
 
 
-def test_load_jsonc_alias_reads_yaml(tmp_path: Path) -> None:
-    path = tmp_path / "case.yaml"
-    path.write_text("Ma: 2.15\n", encoding="utf-8")
-
-    assert load_jsonc(path)["Ma"] == 2.15

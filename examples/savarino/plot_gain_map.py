@@ -27,16 +27,10 @@ from scipy.interpolate import PchipInterpolator
 from matplotlib.colors import LinearSegmentedColormap
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1]))
+from examples.figure_style import apply as apply_figure_style
 
-# LaTeX (Computer Modern) typography, matching the reference figure's labels.
-matplotlib.rcParams.update({
-    "mathtext.fontset": "cm",
-    "font.family": "serif",
-    "font.serif": ["cmr10", "Computer Modern Roman", "DejaVu Serif"],
-    "axes.unicode_minus": False,
-    "axes.formatter.use_mathtext": True,
-    "text.usetex": False,
-})
+apply_figure_style()
 
 REF_COLORS = ["#311442", "#466de5", "#27bbea", "#31f197", "#a2fc3c",
               "#ebd039", "#fa8021", "#d33204", "#7d0401"]
@@ -87,7 +81,7 @@ def main():
     gx, gy, GZ, pts = tensor_grid(rows)
     vmax = float(GZ.max())
 
-    fig = plt.figure(figsize=(9.5, 7.8), dpi=100)
+    fig = plt.figure(figsize=(5.6, 4.6))
     ax = fig.add_axes([0.1516, 0.1769, 0.5779, 0.7038])
     cax = fig.add_axes([0.7495, 0.1769, 0.0284, 0.7038])
 
@@ -97,24 +91,23 @@ def main():
 
     ax.set_xlim(-4, 1); ax.set_ylim(0, 200)
     ax.set_xticks(range(-4, 2))
-    ax.set_xticklabels([r"$10^{%d}$" % t for t in range(-4, 2)], fontsize=15)
+    ax.set_xticklabels([rf"$10^{{{t}}}$" for t in range(-4, 2)])
     ax.set_yticks([0, 50, 100, 150, 200])
-    ax.set_yticklabels([0, 50, 100, 150, 200], fontsize=15)
     minor = [np.log10(k * 10.0**e) for e in range(-4, 1) for k in range(2, 10)]
     ax.set_xticks(minor, minor=True)
     ax.tick_params(which="both", direction="in", top=True, right=True, color="k")
     ax.tick_params(which="major", length=6); ax.tick_params(which="minor", length=3)
     for s in ax.spines.values():
         s.set_linewidth(1.0)
-    ax.set_xlabel(r"$f\,X_{sh}\,/\,U_{\infty}$", fontsize=17)
-    ax.set_ylabel(r"$\beta\,X_{sh}$", fontsize=17)
-    ax.set_title(r"$\theta = 30.8^{\circ}$", fontsize=16, pad=10)
+    ax.set_xlabel(r"$f\,X_{\mathrm{sh}}/U_{\infty}$")
+    ax.set_ylabel(r"$\beta\,X_{\mathrm{sh}}$")
+    ax.set_title(r"$\theta = 30.8^{\circ}$", pad=4)
 
     smooth = LinearSegmentedColormap.from_list("ref", REF_COLORS)
     sm = plt.cm.ScalarMappable(cmap=smooth, norm=plt.Normalize(0, vmax))
     cb = fig.colorbar(sm, cax=cax, ticks=[0, 1, 2, 3])
-    cb.ax.tick_params(labelsize=15, direction="in")
-    cb.ax.set_title(r"$\sigma^2\,{\times}\,10^4$", fontsize=16, pad=12)
+    cb.ax.tick_params(direction="in")
+    cb.ax.set_title(r"$\sigma^{2}\times 10^{4}$", pad=6)
 
     # annotations: square = leading peak, diamond = second peak
     allv = [(v, b, x) for b in pts for x, v in sorted(pts[b])]
@@ -122,7 +115,7 @@ def main():
     lu = [(v, b, x) for v, b, x in allv if b >= 100 and x <= -3]
     ax.plot(xm, bm, "s", ms=10, mfc="red", mec="black", mew=1.0, zorder=5)
     ax.annotate("Medium-frequency\n1st Mack mode", xy=(xm, bm), xytext=(-2.55, 47),
-                fontsize=15, color="white", ha="center", va="center",
+                fontsize=8, color="white", ha="center", va="center",
                 arrowprops=dict(arrowstyle="-", color="white", lw=1.2,
                                 shrinkA=8, shrinkB=8))
     if lu:
@@ -134,10 +127,10 @@ def main():
         ax.plot(xl, bl, "D", ms=10, mfc="red", mec="black", mew=1.0,
                 zorder=5, clip_on=False)
         ax.annotate("Low-frequency\nlift-up mode", xy=(xl, bl), xytext=(-2.45, 163),
-                    fontsize=15, color="black", ha="center", va="center",
+                    fontsize=8, color="black", ha="center", va="center",
                     arrowprops=dict(arrowstyle="-", color="black", lw=1.2,
                                     shrinkA=8, shrinkB=8))
-    fig.savefig(dst, dpi=100)
+    fig.savefig(dst, dpi=300, bbox_inches="tight", pad_inches=0.03)
     print(f"wrote {dst}  ({len(rows)} pts, vmax={vmax:.3f}, square=({10**xm:.3g},{bm:g}), "
           f"diamond=({10**xl:.3g},{bl:g})" if lu else "")
     return 0

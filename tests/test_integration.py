@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
+from examples.martini.matlab_baseflow import load_blasius
+from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator, compute_chu_norm

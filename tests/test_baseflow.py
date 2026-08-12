@@ -4,8 +4,9 @@
 import numpy as np
 import pytest
 
-from linstabpy.baseflow import BaseFlow, load_blasius, load_streaky_bl, sutherland_air
-from linstabpy.baseflow.loaders import _BASEFLOW_DATA_DIR
+from examples.martini.matlab_baseflow import load_blasius, load_streaky_bl
+from linstabpy.baseflow import BaseFlow, sutherland_air
+from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR
 from linstabpy.mesh import Mesh
 from tests._matlab_parity import matlab_parity, require_matlab_reference
 from tests._paths import martini_fixture

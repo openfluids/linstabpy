@@ -91,7 +91,8 @@ def uniform_baseflow(small_mesh_2d):
 @pytest.fixture
 def blasius_baseflow_small():
     """Blasius on a 30x20 mesh, Re=1e4, Ma=0.3."""
-    from linstabpy.baseflow import load_blasius, sutherland_air
+    from examples.martini.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
 
     mesh = Mesh.create(

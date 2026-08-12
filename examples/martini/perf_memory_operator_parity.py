@@ -401,7 +401,7 @@ def main() -> int:
             compute_chu_norm,
         )
         from linstabpy.resolvent.analysis import resolvent_analysis
-        from linstabpy.solvers.linsolve import make_linear_solver
+        from linstabpy.linalg.factorize import factorize as make_linear_solver
         from linstabpy.stability import eigenvalues as temporal_eigenvalues
         from linstabpy.stability import spatial_eigenvalues
     except Exception as exc:  # pragma: no cover - environment dependent

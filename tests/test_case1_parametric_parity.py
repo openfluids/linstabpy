@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.baseflow import load_hamada_case, sutherland_air
+from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions.dirichlet import apply_dirichlet
 from linstabpy.boundary_conditions.neumann import apply_neumann
 from linstabpy.mesh import Mesh
@@ -103,7 +103,7 @@ def _apply_case1_bcs(
 
 def _assemble_case(cfg: _CaseCfg) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray, Mesh]:
     case_dir = _case_dir()
-    X, Y, baseflow, sponge = load_hamada_case(
+    X, Y, baseflow, sponge, _info = load_case_fields(
         case_dir,
         Re=cfg.re,
         Ma=cfg.ma,
@@ -166,7 +166,7 @@ def test_case1_parametric_build_vs_prepared_parity(cfg: _CaseCfg) -> None:
     if not case_dir.exists():
         pytest.skip(f"Missing Case 1 case directory: {case_dir}")
 
-    X, Y, baseflow, sponge = load_hamada_case(
+    X, Y, baseflow, sponge, _info = load_case_fields(
         case_dir,
         Re=cfg.re,
         Ma=cfg.ma,

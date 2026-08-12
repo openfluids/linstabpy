@@ -18,7 +18,8 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.baseflow import load_blasius, sutherland_air
+from examples.martini.matlab_baseflow import load_blasius
+from linstabpy.baseflow import sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh
 from linstabpy.operators import build_lnse_operator

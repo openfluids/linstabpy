@@ -86,12 +86,20 @@ Only the ones that are actually enforced:
 - Summation-by-parts structure is not an implementation detail. A change that
   breaks the SBP property fails the dissipation guardrails, and that is the
   guardrail working.
-- No tracked file over 50 MiB; CI enforces it. Large fields belong in a release
+- No tracked file over 60 MiB; CI enforces it. Large fields belong in a release
   asset or generated on demand.
 - Use `np.random.default_rng(seed)`, not the legacy module-level `np.random`
   calls.
 - Formatting and import order are handled by `ruff` — do not hand-tune them.
 - Every source file carries its `SPDX-License-Identifier: GPL-3.0-only` header.
+
+## Releasing
+
+Work lands on `main`. Tags are cut on `main`. GitHub Actions is the no-PETSc
+lane; the full suite on a machine with PETSc is the merge gate. Frozen operator,
+energy-norm, and SBP hashes are never re-baselined to make a test pass. Set
+`pyproject.toml` to the new version, move `[Unreleased]` in `CHANGELOG.md` into
+a dated section, then cut an annotated tag. Never move a published tag.
 
 ## Conduct and licence
 

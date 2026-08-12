@@ -240,12 +240,13 @@ def _run_compute(monkeypatch, tmp_path, *, operator_dissipation=None, log_sink=N
     monkeypatch.setattr(results_runtime, "_log_stage", lambda stage, start: None)
     monkeypatch.setattr(
         results_runtime,
-        "load_hamada_case",
+        "load_case_fields",
         lambda *args, **kwargs: (
             np.zeros((2, 2)),
             np.zeros((2, 2)),
             baseflow,
             np.zeros((2, 2)),
+            {"summary": "disabled"},
         ),
     )
     monkeypatch.setattr(results_runtime, "sutherland_air", lambda baseflow: None)

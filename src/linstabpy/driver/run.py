@@ -29,7 +29,7 @@ init_petsc_from_argv()
 from mpi4py import MPI
 from petsc4py import PETSc
 
-from linstabpy.baseflow import load_grid_fields, load_hamada_case, sutherland_air
+from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
@@ -56,7 +56,7 @@ from linstabpy.stability.acceptance import (
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
-from linstabpy.utils.jsonc import load_config, load_jsonc  # noqa: F401
+from linstabpy.utils.yaml_io import load_config
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
 
 RUNTIME_NPZ_CONTRACT_KEYS = (
@@ -236,7 +236,7 @@ def _output_npz_path(provenance: dict[str, str] | None = None) -> Path:
 
 def _log_prefix() -> str:
     """Return the runtime log prefix for the current case runner."""
-    return os.getenv("LINSTABPY_CASE_LOG_PREFIX", "case1").strip() or "case1"
+    return os.getenv("LINSTABPY_CASE_LOG_PREFIX", "linstabpy").strip() or "linstabpy"
 
 
 def _log(message: str) -> None:
@@ -616,9 +616,12 @@ def _stage_load_case(
     """Load the base-flow snapshot and apply transport-property conventions."""
     stage_start = _stage_start()
     with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
-        if Path(case_dir).suffix == ".npz":
-            X, Y, baseflow, sponge = load_grid_fields(
-                case_dir,
+        if native_sponge_enabled and sponge_cfg is not None:
+            from linstabpy.baseflow import sponge_from_config
+
+            fields_source = case_dir
+            X, Y, baseflow, sponge, _info = load_case_fields(
+                fields_source,
                 Re=Re,
                 Ma=Ma,
                 Pr=Pr,
@@ -629,8 +632,9 @@ def _stage_load_case(
                 transpose_input=True,
                 zero_spanwise=zero_spanwise,
             )
+            sponge = sponge_from_config(sponge.shape, sponge_cfg, X=X, Y=Y)
         else:
-            X, Y, baseflow, sponge = load_hamada_case(
+            X, Y, baseflow, sponge, _info = load_case_fields(
                 case_dir,
                 Re=Re,
                 Ma=Ma,
@@ -641,10 +645,20 @@ def _stage_load_case(
                 stride_eta=stride_eta,
                 transpose_input=True,
                 zero_spanwise=zero_spanwise,
-                sponge_mat_path=sponge_mat_path,
-                prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
-                native_sponge_cfg=sponge_cfg,
             )
+            if prefer_matlab_sponge_aux and sponge_mat_path.exists():
+                from linstabpy.baseflow.sponge import load_sponge_aux
+
+                sponge_aux = load_sponge_aux(Path(sponge_mat_path))
+                if sponge_aux.shape != sponge.shape:
+                    if sponge_aux.T.shape == sponge.shape:
+                        sponge_aux = sponge_aux.T
+                    else:
+                        raise ValueError(
+                            "sponge_aux shape mismatch: "
+                            f"{sponge_aux.shape} vs field shape {sponge.shape}"
+                        )
+                sponge = sponge_aux
 
     sutherland_air(baseflow)
     if zero_mu_t_derivs:
@@ -1672,7 +1686,7 @@ def run() -> None:
     # Cross-rank peak-RSS aggregation MUST run on EVERY rank (collective),
     # BEFORE the rank-0-only save block below -- otherwise the allreduce
     # deadlocks every multi-rank run. The aggregated scalar is threaded into the
-    # rank-0-only save (see _stage_write_npz / collect_cost_metrics).
+    # rank-0-only save (see save_results / collect_cost_metrics).
     _peak_rss_total_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
     if rank == 0:
         acceptance_result = _stage_evaluate_stability_acceptance(

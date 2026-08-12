@@ -50,7 +50,8 @@ import scipy.sparse as sp
 from petsc4py import PETSc
 from scipy.optimize import linear_sum_assignment
 
-from linstabpy.baseflow import load_blasius, sutherland_air
+from examples.martini.matlab_baseflow import load_blasius
+from linstabpy.baseflow import sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.driver.run import _postcheck_stability_modes
 from linstabpy.linalg.backends import apply_factor_backend, factor_backend_available

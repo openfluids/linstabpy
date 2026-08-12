@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Native structured sponge generators for Case 1-style workflows."""
+"""Structured sponge generators on a tensor mesh."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ EDGE_NAMES = ("top", "right", "bottom", "left")
 # [top, right, bottom, left]
 # where "top"/"bottom" act on the second array axis and "right"/"left"
 # act on the first array axis.
-CASE1_SPONGE_PRESETS: dict[str, dict[str, Any]] = {
+SPONGE_PRESETS: dict[str, dict[str, Any]] = {
     "case1_stability": {
         "type": "localized",
         "pts_dir": (0, 40, 65, 0),
@@ -313,7 +313,7 @@ def _smooth_localized_sponge(
     return amplitude * ramp_product
 
 
-def generate_case1_sponge(
+def generate_sponge(
     shape: tuple[int, int],
     *,
     sponge_type: str = "localized",
@@ -328,11 +328,7 @@ def generate_case1_sponge(
     steepness: float = 4.0,
     blend: str = "max",
 ) -> np.ndarray:
-    """Generate a native Case 1 sponge field on a structured grid.
-
-    The implementation is a direct translation of the legacy Case 1
-    ``workflow/sponge_generator.py`` helper.
-    """
+    """Generate a sponge field on a structured grid."""
     pts = _as_dir_counts(pts_dir, name="pts_dir")
     amps = _as_dir_amplitudes(amp_dir, name="amp_dir")
     sponge_type_norm = str(sponge_type).strip().lower()
@@ -381,14 +377,14 @@ def generate_case1_sponge(
     )
 
 
-def case1_sponge_from_config(
+def sponge_from_config(
     shape: tuple[int, int],
     cfg: dict[str, Any] | None,
     *,
     X: np.ndarray | None = None,
     Y: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Build a native Case 1 sponge from config or return zeros when disabled."""
+    """Build a sponge from config or return zeros when disabled."""
     if not cfg:
         return np.zeros(shape, dtype=float)
     enabled = bool(cfg.get("enabled", False))
@@ -399,15 +395,15 @@ def case1_sponge_from_config(
     resolved: dict[str, Any] = {}
     if preset is not None:
         preset_key = str(preset).strip().lower()
-        if preset_key not in CASE1_SPONGE_PRESETS:
+        if preset_key not in SPONGE_PRESETS:
             raise ValueError(
                 f"Unsupported sponge preset {preset!r}; "
-                f"expected one of {sorted(CASE1_SPONGE_PRESETS)}"
+                f"expected one of {sorted(SPONGE_PRESETS)}"
             )
-        resolved.update(CASE1_SPONGE_PRESETS[preset_key])
+        resolved.update(SPONGE_PRESETS[preset_key])
     resolved.update({k: v for k, v in cfg.items() if k != "enabled"})
 
-    return generate_case1_sponge(
+    return generate_sponge(
         shape,
         sponge_type=resolved.get("type", "localized"),
         pts_dir=resolved.get("pts_dir", (0, 0, 0, 0)),
@@ -421,3 +417,23 @@ def case1_sponge_from_config(
         steepness=float(resolved.get("steepness", 4.0)),
         blend=resolved.get("blend", "max"),
     )
+
+
+def load_sponge_aux(case_inputs_mat) -> np.ndarray:
+    """Load a ``sponge_aux`` field from an HDF5 MATLAB file."""
+    from pathlib import Path
+
+    path = Path(case_inputs_mat)
+    try:
+        import h5py
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "MATLAB sponge_aux loading requires optional dependency 'h5py'."
+        ) from exc
+    with h5py.File(path, "r") as handle:
+        if "sponge_aux" not in handle:
+            raise KeyError(f"'sponge_aux' not found in {path}")
+        sponge = np.asarray(handle["sponge_aux"], dtype=float)
+    if sponge.ndim != 2:
+        raise ValueError(f"sponge_aux in {path} must be 2-D, got shape {sponge.shape}")
+    return sponge

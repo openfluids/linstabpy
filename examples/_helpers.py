@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 
 # Re-export from canonical location for callers that import from here.
-from linstabpy.utils.jsonc import load_config  # noqa: F401
+from linstabpy.utils.yaml_io import load_config  # noqa: F401
 
 
 def load_or_compute(
@@ -41,7 +41,8 @@ def load_or_compute(
     return data
 
 
-FIGURE_DPI = 600
+from examples.figure_style import FIGURE_DPI, apply as _apply_figure_style
+from examples.figure_style import signed_cmap as signed_zero_white_cmap  # noqa: F401
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "validation" / "martini2024" / "fixtures"
 LEGACY_PARITY_NPZ_DIR = REPO_ROOT / "tools" / "parity" / "npz"
@@ -105,7 +106,7 @@ def save_figure(fig, path: str | Path) -> None:
 
     configure_example_style()
     output = Path(path)
-    fig.savefig(output, dpi=FIGURE_DPI, bbox_inches="tight")
+    fig.savefig(output, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
     plt.close(fig)
     print(f"Figure saved to {repo_relative_path(output)}")
 
@@ -114,7 +115,7 @@ def apply_figure_layout(
     fig,
     *,
     rect: tuple[float, float, float, float] | None = None,
-    pad: float = 1.08,
+    pad: float = 0.25,
     h_pad: float | None = None,
     w_pad: float | None = None,
 ) -> None:
@@ -130,7 +131,7 @@ def apply_figure_layout(
             ),
             category=UserWarning,
         )
-        fig.tight_layout(rect=rect, pad=pad, h_pad=h_pad, w_pad=w_pad)
+        fig.tight_layout(rect=rect, pad=min(pad, 0.25), h_pad=h_pad, w_pad=w_pad)
 
 
 def configure_example_style() -> None:
@@ -139,22 +140,7 @@ def configure_example_style() -> None:
     if _STYLE_CONFIGURED:
         return
 
-    import matplotlib as mpl
-
-    mpl.rcParams.update(
-        {
-            "font.family": "STIXGeneral",
-            "mathtext.fontset": "stix",
-            "axes.unicode_minus": False,
-            "axes.formatter.use_mathtext": True,
-            "axes.titlesize": 14,
-            "axes.labelsize": 15,
-            "figure.titlesize": 18,
-            "xtick.labelsize": 12,
-            "ytick.labelsize": 12,
-            "legend.fontsize": 11,
-        }
-    )
+    _apply_figure_style()
     _STYLE_CONFIGURED = True
 
 
@@ -213,7 +199,7 @@ def set_suptitle(
     fontsize: float = 16.0,
 ) -> None:
     """Set a compact figure title with consistent vertical placement."""
-    fig.suptitle(title, y=y, fontsize=fontsize)
+    fig.suptitle(title, y=min(y, 0.98), fontsize=min(fontsize, 10.0))
 
 
 def load_parity_npz(stem: str) -> dict[str, np.ndarray]:
@@ -271,7 +257,7 @@ def plot_signed_panel(
     vmax: float | None = None,
 ):
     """Plot a signed field with a symmetric color scale."""
-    from linstabpy.utils.plotting import plot_flow
+    from examples._plot_flow import plot_flow
 
     configure_example_style()
     contour = plot_flow(
@@ -315,7 +301,7 @@ def plot_scalar_panel(
     vmax: float | None = None,
 ):
     """Plot a non-signed scalar field with standard example defaults."""
-    from linstabpy.utils.plotting import plot_flow
+    from examples._plot_flow import plot_flow
 
     configure_example_style()
     contour = plot_flow(

@@ -8,11 +8,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 ## [Unreleased]
 
 ### Added
-- `load_config` loaded YAML case files. `load_jsonc` stayed as a one-cycle alias.
+- `load_config` loaded YAML case files.
+- `load_case_fields` reads a packed npy directory or one npz.
 - `examples/sawtooth` added the Lui 2022 field on a packed stride-2 300 x 340 mesh.
 - Four paper Example 3 YAML files reused `example_3_streaky_bl.py`.
-- `load_grid_fields` reads a primitive field set from a npy directory or one npz.
-  `load_hamada_case` still wraps the curved-mesh stride guard and the MATLAB sponge.
+- Martini MATLAB field constructors moved to `examples/martini/matlab_baseflow.py`.
+
+### Removed
+- `load_jsonc`, `load_hamada_case`, `results_runtime`, and the solver import shims.
+- The `run/` campaign kit and the broken Docker PETSc CI job.
+- `Dockerfile`, `docs/DEVELOPMENT.md`, and `docs/runtime_npz_contract.md`.
 
 ### Changed
 - Case files under `examples/` used YAML. The loader rejected a leftover `.jsonc` suffix.

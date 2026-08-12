@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from linstabpy.baseflow import load_grid_fields, load_hamada_case
+from linstabpy.baseflow import load_case_fields, load_grid_fields
 
 
 def _write_npy_dir(root: Path, *, nx: int = 6, ny: int = 4) -> Path:
@@ -74,7 +74,17 @@ def test_load_grid_fields_allows_asymmetric_stride(tmp_path: Path) -> None:
     assert sponge.shape == X.shape
 
 
-def test_load_hamada_case_still_rejects_asymmetric_stride(tmp_path: Path) -> None:
+def test_load_case_fields_can_refuse_asymmetric_stride(tmp_path: Path) -> None:
     _write_npy_dir(tmp_path)
     with pytest.raises(ValueError, match="Asymmetric strides"):
-        load_hamada_case(tmp_path, stride_ksi=2, stride_eta=1)
+        load_case_fields(
+            tmp_path,
+            Re=1.0e5,
+            Ma=2.15,
+            Pr=0.72,
+            kappa=1.4,
+            T_0=153.33,
+            stride_ksi=2,
+            stride_eta=1,
+            refuse_asymmetric_stride=True,
+        )

@@ -1,33 +1,27 @@
 # Example 2: Jet resolvent analysis
 # Axisymmetric (m=0) Mach 0.9 turbulent jet.
 
-# Analysis
-St: 0.39               # Strouhal number
-n_modes: 3
-m: 0                   # azimuthal Fourier mode
+St: 0.39                   # Strouhal number
+n_modes: 3                 # leading resolvent triplets
+m: 0                       # azimuthal Fourier mode
 
-# Grid
-coarsen: 1             # coarsening factor for the loaded mesh (1 = full)
-fd_order: 4
-alpha_filter: 0.0
-y_symmetry: true
-x_periodicity: false
-model: axy             # axisymmetric model
+coarsen: 1                 # mesh coarsening (1 = full)
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
+y_symmetry: true           # axisymmetric half-plane
+x_periodicity: false       # open streamwise ends
+model: axy                 # axisymmetric LNSE
 
-# Assembly backend:
-# - "scipy" is the robust cross-machine baseline
-# - "petsc" is an explicit opt-in for the validated local axy PETSc path
-# - avoid "auto" for installation baselines; it may select host-sensitive paths
+# scipy is the cross-machine baseline. petsc is an explicit opt-in.
+# Do not use auto for installation baselines.
 assembly_backend: scipy
 
-# Boundary conditions
 bc:
-  penalty: 1.0e4
+  penalty: 1.0e4           # Dirichlet/Neumann penalty
   recipe:
-    - {type: dirichlet, borders: ltr, variables: uvwT}
+    - {type: dirichlet, borders: ltr, variables: uvwT}  # inlet, top, outlet
 
-# Solver configuration
 solver:
-  petsc_matrix_mode: auto
+  petsc_matrix_mode: auto  # auto / local / distributed
   linsolve:
-    type: mumps
+    type: mumps            # direct LU

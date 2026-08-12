@@ -510,24 +510,21 @@ For a maintainer map of where numerical policy belongs, see
 ```text
 .
 |-- src/linstabpy/                 Importable Python package
-|   |-- baseflow/                  Base-flow loaders and viscosity helpers
+|   |-- baseflow/                  Packed-field loader, BaseFlow, viscosity
 |   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
 |   |-- config/                    Runtime validation metadata
-|   |-- data/baseflows/            Optional local MATLAB reference assets
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
-|   |-- utils/                     YAML case loader, plotting, PETSc helpers
-|   `-- results_runtime.py         Package runtime used by case study drivers
-|-- examples/                      Public cases
-|   |-- martini/                   Six Martini examples, tools, and MATLAB fixtures
+|   |-- driver/                    Shared run path
+|   `-- utils/                     YAML case loader, PETSc helpers
+|-- examples/                      Public cases and their figure scripts
+|   |-- martini/                   Six Martini examples and MATLAB field constructors
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
-|-- scripts/                       Repository guardrails
-|   |-- ci/                        Thin install/diagnose/benchmark harness
-|   `-- tools/                     One-off conversion and debug helpers
-|-- docs/                          Architecture, install, audit, and tutorial docs
+|-- scripts/                       Tracked-size and public-provenance checks
+|-- docs/                          Architecture, backends, and tutorial
 |-- tests/                         Pytest suite and shared path helpers
 |-- install.sh                     Main installer
 |-- diagnose.sh                    Read-only environment preflight
@@ -1269,27 +1266,15 @@ For deeper OS-specific notes and installer experiments, see `scripts/ci/`.
 
 ### Branching and releases
 
-`main` is the stable branch: it always passes the full test suite, every
-release is tagged on it, and it advances only through a reviewed pull request
-from `dev`. Day-to-day work lands on `dev` (versioned `0.0.x.devN`), is
-verified on a big-memory workstation, and is promoted to `main` in small,
-individually tagged `0.0.x` increments. Branch roles, the versioning scheme,
-the merge gate, and the release steps are documented in
-`docs/DEVELOPMENT.md`.
+Work lands on `main`. Tags are cut on `main`. GitHub Actions is the no-PETSc
+lane; the full suite on a machine with PETSc is the merge gate. Release steps
+are in `CONTRIBUTING.md`.
 
 Run tests with:
 
 ```bash
 .venv/bin/python -m pytest tests/
 ```
-
-Check the expected collection size:
-
-```bash
-.venv/bin/python -m pytest --collect-only tests
-```
-
-Current expected result: `535` collected tests.
 
 Run MATLAB parity checks with:
 

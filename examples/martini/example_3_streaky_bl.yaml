@@ -2,54 +2,44 @@
 # Periodic x-domain with Hanifi-like y stretch, temporal eigenvalues,
 # and spatial eigenvalues in generalized (alpha) form.
 
-# Grid
-nx: 125
-ny: 250
-fd_order: 4
-alpha_filter: 0.0
-Lx: 3.141592653589793  # pi
-Ly: 5.0
-x_periodicity: true
+nx: 125                    # streamwise nodes
+ny: 250                    # wall-normal nodes
+fd_order: 4                # SBP interior order
+alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
+Lx: 3.141592653589793      # streamwise length (= pi)
+Ly: 5.0                    # wall-normal height
+x_periodicity: true        # periodic in x
 
-# Mesh stretch (Hanifi)
-y_stretch_yi: 2.0
+y_stretch_yi: 2.0          # Hanifi wall-normal stretch
 
-# Sponge
 sponge:
-  amplitude: 0.1
-  ys_offset: 1.0       # Ly - ys_offset = sponge start
-  ys_trans: 0.5
+  amplitude: 0.1           # sponge strength
+  ys_offset: 1.0           # sponge starts at Ly - ys_offset
+  ys_trans: 0.5            # sponge ramp width
 
-# Temporal eigenvalue analysis
-# Each target is [real, imag]; quotas say how many modes to keep per target
+# Each target is [real, imag]. Quotas say how many modes to keep per target.
 temporal_targets: [[0.59, 0.02], [0.626, -0.005]]
 temporal_quotas: [2, 8]
-n_modes: 50
-ncv: 150               # Arnoldi subspace dimension
-alpha_temp: 0.6283     # streamwise wavenumber for temporal solve
-n_periods: 2           # Floquet periodicity (0 = no Floquet)
-dedupe_tol: 1.0e-4
+n_modes: 50                # reported temporal modes
+ncv: 150                   # Arnoldi subspace size
+alpha_temp: 0.6283         # streamwise wavenumber for the temporal solve
+n_periods: 2               # Floquet periods (0 = off)
+dedupe_tol: 1.0e-4         # drop near-duplicate eigenvalues
 
-# Spatial eigenvalue analysis
-spatial_omega_imag_shift: 0.0
+spatial_omega_imag_shift: 0.0  # imag shift on the spatial omega
 
-# Run flags
-run_temporal: true
-run_spatial: true
-model: "2D"
+run_temporal: true         # run the temporal EVP
+run_spatial: true          # run the spatial EVP
+model: "2D"                # Cartesian 2-D LNSE
 
-# Boundary conditions
 bc:
   recipe:
-    - {type: dirichlet, borders: tb, variables: uvwT}
+    - {type: dirichlet, borders: tb, variables: uvwT}  # top and bottom walls
 
-# Optional assembly backend for the temporal/spatial operators:
-# "scipy" keeps the historical SciPy assembly path,
-# "petsc" uses direct PETSc assembly for the validated local 2D path.
+# scipy keeps the historical assembly path.
+# petsc uses direct PETSc assembly for the validated local 2-D path.
 assembly_backend: scipy
-
-# Solver configuration
 solver:
-  petsc_matrix_mode: auto
+  petsc_matrix_mode: auto  # auto / local / distributed
   linsolve:
-    type: mumps
+    type: mumps            # direct LU

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from examples.song.baseflow_loader import load_my_case
+from linstabpy.baseflow import load_case_fields
 from examples.song import run_song_2023_matrix
 from examples.song.run_song_2023_order_preflight import _memory_limit_hit
 from examples.song.run_song_2023_scaling import _should_stop
@@ -18,7 +18,7 @@ from examples.song.song import (
     _stability_archive_fields,
     _summarize_rank_metrics,
 )
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SONG_CASE_DIR = REPO_ROOT / "examples" / "song"
@@ -39,15 +39,15 @@ def test_song2023_default_config_uses_transposed_filtered_input() -> None:
 
 
 def test_song2023_loader_transpose_matches_mesh_convention() -> None:
-    X, Y, *_ = load_my_case(
-        SONG_CASE_DIR,
+    X, Y, *_ = load_case_fields(
+        SONG_CASE_DIR / "song_32deg.npz",
         Re=1.0e5,
         Ma=2.15,
         Pr=0.72,
         kappa=1.4,
         T_0=153.33,
         transpose_input=True,
-        preprocess_cfg={"enabled": False},
+        preprocess={"enabled": False},
     )
 
     # Repo mesh convention is (ny, nx): x varies along columns, y along rows.

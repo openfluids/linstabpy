@@ -30,16 +30,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE))
 from savarino_mode_to_primitive import CONS, PRIM, linearise_to_primitive
 from savarino_to_npy import read_tecplot
+from examples.figure_style import apply as apply_figure_style
+from examples.figure_style import signed_cmap
 
+apply_figure_style()
 MANUSCRIPT = os.environ.get("MANUSCRIPT") == "1"
-plt.rcParams.update({
-    "mathtext.fontset": "cm",
-    "font.family": "serif",
-    "font.size": 9 if MANUSCRIPT else 10,
-})
 
 DATA_DIR = Path(os.environ.get("SAVARINO_DATA", HERE / "data"))
 MODES = DATA_DIR / "modes"
@@ -132,8 +131,8 @@ def main() -> int:
             return Y[np.searchsorted(prof, 0.999), 0]
         ymax = 1.15 * max(ycut(q_his), ycut(q_our))
 
-        manuscript = MANUSCRIPT
-        figsize = (8.6, 7.6) if manuscript else (9.5, 11.5)
+        manuscript = True
+        figsize = (5.8, 6.4)
         fig, axes = plt.subplots(len(PRIM), 2, figsize=figsize,
                                  sharex=True, sharey=True, constrained_layout=True)
         if manuscript:
@@ -146,14 +145,13 @@ def main() -> int:
                       np.percentile(np.abs(fo[m]), 99.8))
             for j, F in enumerate((fh, fo)):
                 ax = axes[i, j]
-                pc = ax.pcolormesh(X, Y, F, cmap="RdBu_r", vmin=-lim, vmax=lim,
+                pc = ax.pcolormesh(X, Y, F, cmap=signed_cmap(), vmin=-lim, vmax=lim,
                                    rasterized=True, shading="auto")
                 ax.set_ylim(0, ymax)
                 if j == 0:
                     ax.set_ylabel(r"$y/L$")
-            axes[i, 0].text(-0.22, 0.5, LABELS[v], transform=axes[i, 0].transAxes,
-                            fontsize=13 if manuscript else 15, va="center",
-                            ha="center")
+            axes[i, 0].text(-0.18, 0.5, LABELS[v], transform=axes[i, 0].transAxes,
+                            va="center", ha="center")
             fig.colorbar(pc, ax=axes[i, :], shrink=0.9, pad=0.008, aspect=13)
         axes[0, 0].set_title("Reference" if manuscript else "Savarino (published)",
                              fontsize=12)

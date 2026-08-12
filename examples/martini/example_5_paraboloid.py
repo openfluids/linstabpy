@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_config
+from linstabpy.utils.yaml_io import load_config
 
 from examples._helpers import (
     apply_figure_layout,
@@ -58,7 +58,8 @@ def compute(cfg: dict):
     """
     import scipy.sparse as sp
 
-    from linstabpy.baseflow import load_paraboloid, sutherland_air
+    from examples.martini.matlab_baseflow import load_paraboloid
+    from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result
     from linstabpy.operators.energy_norm import compute_chu_norm
@@ -290,7 +291,7 @@ def _load_baseflow_fields(data) -> tuple[np.ndarray, np.ndarray]:
         base_u = np.asarray(parity_npz_get(bundle, "results_Paraboloid/baseFlow/U"), dtype=float).T
         base_v = np.asarray(parity_npz_get(bundle, "results_Paraboloid/baseFlow/V"), dtype=float).T
         return base_u, base_v
-    from linstabpy.baseflow import load_paraboloid
+    from examples.martini.matlab_baseflow import load_paraboloid
 
     baseflow = load_paraboloid(mesh_view(data["X"], data["Y"]))
     return np.asarray(baseflow.U, dtype=float), np.asarray(baseflow.V, dtype=float)
@@ -316,14 +317,14 @@ def plot(data):
     crop_xlim = (float(np.min(X)), float(np.max(X)))
     crop_ylim = (0.0, 2.0)
 
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(11, 4.2))
+    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.6))
     plot_scalar_panel(
         ax_base,
         X,
         Y,
         speed,
         title=r"Paraboloid baseflow speed $\sqrt{u^2+v^2}$",
-        cmap="turbo",
+        cmap="cividis",
         xlim=crop_xlim,
         ylim=(0.0, 1.6),
         aspect="auto",
@@ -335,7 +336,7 @@ def plot(data):
     label_axes(ax_base)
     save_figure(fig_base, OUTPUT_BASEFLOW)
 
-    fig = plt.figure(figsize=(12.5, 8.0))
+    fig = plt.figure(figsize=(6.6, 4.4))
     grid = fig.add_gridspec(
         n_plot,
         3,
@@ -402,7 +403,7 @@ def plot(data):
     fig_support, axes_support = plt.subplots(
         n_plot,
         2,
-        figsize=(12.2, 4.2 * n_plot),
+        figsize=(6.4, 2.6 * n_plot),
         gridspec_kw={"wspace": 0.18, "hspace": 0.32},
     )
     if n_plot == 1:

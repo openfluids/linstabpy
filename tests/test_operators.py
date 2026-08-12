@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.baseflow import BaseFlow, load_blasius, sutherland_air
+from examples.martini.matlab_baseflow import load_blasius
+from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
     apply_bc_recipe_petsc,
