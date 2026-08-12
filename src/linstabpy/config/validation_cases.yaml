@@ -2,39 +2,39 @@
   "cases": [
     {
       "name": "curvilinear_validation",
-      "module": "examples.example_0_curvilinear_validation",
+      "module": "examples.martini.example_0_curvilinear_validation",
       "artifacts": [
-        "examples/example_0_curvilinear_validation.npz"
+        "examples/martini/example_0_curvilinear_validation.npz"
       ]
     },
     {
       "name": "blasius_resolvent",
-      "module": "examples.example_1_blasius",
+      "module": "examples.martini.example_1_blasius",
       "artifacts": [
-        "examples/example_1_blasius.npz"
+        "examples/martini/example_1_blasius.npz"
       ]
     },
     {
       "name": "blasius_resolvent_high_penalty",
-      "module": "examples.example_1_blasius",
+      "module": "examples.martini.example_1_blasius",
       "env": {
         "LINSTABPY_BLASIUS_BC_PENALTY": "1e6",
         "LINSTABPY_EIGEN_ST_SOLVER": "mumps"
       },
       "artifacts": [
-        "examples/example_1_blasius.npz"
+        "examples/martini/example_1_blasius.npz"
       ]
     },
     {
       "name": "case1_stability_resolvent",
-      "module": "studies.case1.case1",
+      "module": "examples.song.song",
       "artifacts": [
-        "examples/case_studies/case1_song/case1.npz"
+        "examples/song/song.npz"
       ]
     }
   ],
   "orthogonality_check": {
-    "artifact": "examples/case_studies/case1_song/case1.npz",
+    "artifact": "examples/song/song.npz",
     "mode_key": "direct_modes",
     "weights_key": "W_diag",
     "tolerance": 1e-12

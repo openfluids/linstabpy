@@ -5,12 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.jsonc import load_jsonc
-from scripts.validation.song_2023.baseflow_loader import load_my_case
-from scripts.validation.song_2023.scripts import run_song_2023_matrix
-from scripts.validation.song_2023.scripts.run_song_2023_order_preflight import _memory_limit_hit
-from scripts.validation.song_2023.scripts.run_song_2023_scaling import _should_stop
-from scripts.validation.song_2023.song_2023 import (
+from examples.song.baseflow_loader import load_my_case
+from examples.song import run_song_2023_matrix
+from examples.song.run_song_2023_order_preflight import _memory_limit_hit
+from examples.song.run_song_2023_scaling import _should_stop
+from examples.song.song import (
     _align_mode_to_reference,
     _match_selected_modes,
     _resolve_baseflow_input_options,
@@ -19,10 +18,11 @@ from scripts.validation.song_2023.song_2023 import (
     _stability_archive_fields,
     _summarize_rank_metrics,
 )
+from linstabpy.utils.jsonc import load_jsonc
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SONG_CASE_DIR = REPO_ROOT / "scripts" / "validation" / "song_2023"
-SONG_CONFIG_PATH = SONG_CASE_DIR / "configs" / "song_2023.jsonc"
+SONG_CASE_DIR = REPO_ROOT / "examples" / "song"
+SONG_CONFIG_PATH = SONG_CASE_DIR / "song_32deg.jsonc"
 
 
 def test_song2023_default_config_uses_transposed_filtered_input() -> None:

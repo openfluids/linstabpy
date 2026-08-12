@@ -12,7 +12,7 @@ with ``W_int -> W_int * R`` for the axisymmetric (``axy``) model. The three
 distinct coefficients are not a multi-step derivation that could silently drop a
 term -- they are a short canonical form, identical across the production code,
 the checked-in upstream reference
-``scripts/validation/song_2023/reference/matlab/matlab_code/SolverMartini/aux_matlab/ConstructOperators/GetCompEnergyNorm.m``,
+the LinStab2D ``GetCompEnergyNorm.m`` reference,
 and the Chu (1965) literature. So a from-scratch re-derivation here would only
 risk being tuned to match.
 

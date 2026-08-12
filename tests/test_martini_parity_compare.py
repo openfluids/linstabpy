@@ -9,12 +9,12 @@ import numpy as np
 import pytest
 
 from linstabpy.utils.jsonc import load_jsonc
-from scripts.validation.martini2024.tools import (
+from examples.martini import (
     compare_martini_examples,
     extract_martini_to_npz,
     generate_martini_matlab_exports,
 )
-from scripts.validation.martini2024.tools.compare_martini_examples import (
+from examples.martini.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
     _exit_code_from_counts,
@@ -27,17 +27,17 @@ from tests._paths import REPO_ROOT as repo
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
     manifest = json.loads(
-        (repo / "scripts/validation/martini2024/tools/martini_manifest.json").read_text(
+        (repo / "examples/martini/martini_manifest.json").read_text(
             encoding="utf-8"
         )
     )
 
     assert manifest["input_dir"] == "martini_examples"
-    assert manifest["output_dir"] == "scripts/validation/martini2024/fixtures"
+    assert manifest["output_dir"] == "examples/martini"
     assert not manifest["input_dir"].startswith("/")
     assert not manifest["output_dir"].startswith("/")
     assert all(
-        entry["npz_file"].startswith("scripts/validation/martini2024/fixtures/")
+        entry["npz_file"].startswith("examples/martini/")
         for entry in manifest["files"]
     )
 
@@ -46,14 +46,14 @@ def test_martini_npz_default_uses_validation_fixture_root() -> None:
     assert compare_martini_examples.ROOT == repo
     assert (
         compare_martini_examples.DEFAULT_CONFIG
-        == repo / "scripts/validation/martini2024/tools/martini_cases.jsonc"
+        == repo / "examples/martini/martini_cases.jsonc"
     )
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
     assert extract_martini_to_npz.ROOT == repo
     assert extract_martini_to_npz.DEFAULT_OUTPUT_DIR == MARTINI_FIXTURE_ROOT
     assert (
         extract_martini_to_npz.DEFAULT_MANIFEST
-        == repo / "scripts/validation/martini2024/tools/martini_manifest.json"
+        == repo / "examples/martini/martini_manifest.json"
     )
 
 
@@ -250,10 +250,10 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
     bundle_path = martini_fixture("example_0_TestCurvilinearDerivative_results.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
-    from examples.example_0_curvilinear_validation import _compute_reference_fields
+    from examples.martini.example_0_curvilinear_validation import _compute_reference_fields
 
     matlab = np.load(bundle_path, allow_pickle=False)
-    cfg = load_jsonc(repo / "examples/example_0_curvilinear_validation.jsonc")
+    cfg = load_jsonc(repo / "examples/martini/example_0_curvilinear_validation.jsonc")
     fields = _compute_reference_fields(cfg)
 
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)

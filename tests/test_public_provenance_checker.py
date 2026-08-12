@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripts.validation import check_public_provenance
+from scripts import check_public_provenance
 
 
 def _write(path: Path, text: str | bytes) -> None:
@@ -44,7 +44,7 @@ def test_public_provenance_checker_avoids_substring_false_positive(tmp_path):
 
 
 def test_public_provenance_checker_excludes_its_own_pattern_files(tmp_path):
-    scanner = tmp_path / "scripts" / "validation" / "check_public_provenance.py"
+    scanner = tmp_path / "scripts" / "check_public_provenance.py"
     _write(scanner, 'PATTERN = "Codex $HOME"\n')
 
     matches = check_public_provenance.scan_paths([scanner], repo_root=tmp_path)
