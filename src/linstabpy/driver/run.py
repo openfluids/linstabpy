@@ -58,100 +58,7 @@ from linstabpy.stability.acceptance import (
 )
 from linstabpy.utils.yaml_io import load_config
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
-
-RUNTIME_NPZ_CONTRACT_KEYS = (
-    "omega",
-    "direct_modes",
-    "gains",
-    "responses",
-    "forcings",
-    "resolvent_rho_fwd",
-    "resolvent_rho_adj",
-    "omega_target",
-    "St",
-    "beta",
-    "fd_order",
-    "alpha_filter",
-    "n_modes_stability_requested",
-    "n_modes_resolvent_requested",
-    "X",
-    "Y",
-    "U",
-    "sponge",
-    "bc_indices",
-    "bc_total_indices",
-    "bc_effective_dirichlet_indices",
-    "bc_column_zeroed_dirichlet_indices",
-    "bc_effective_neumann_indices",
-    "bc_overlap_indices",
-    "W_diag",
-    "invW_diag",
-    "stability_eps_nev",
-    "stability_eps_ncv",
-    "stability_eps_nconv",
-    "stability_eps_iterations",
-    "stability_eps_reason",
-    "stability_ksp_reason",
-    "stability_eps_conv_test",
-    "stability_eps_tol",
-    "stability_eps_max_it",
-    "stability_true_residual",
-    "stability_reduce_dirichlet",
-    "stability_residual_estimates",
-    "stability_residual_absolute",
-    "stability_residual_relative",
-    "stability_residual_backward",
-    "stability_postcheck_residual_abs",
-    "stability_postcheck_residual_rel",
-    "stability_postcheck_target_distance",
-    "stability_all_omega",
-    "stability_all_postcheck_rel",
-    "stability_all_target_distance",
-    "stability_all_reject_reason_code",
-    "stability_acceptance_postcheck_rel_max",
-    "stability_acceptance_target_distance_max",
-    "stability_acceptance_omega_real_abs_max",
-    "stability_acceptance_omega_imag_abs_max",
-    "stability_acceptance_conjugate_aware",
-    "stability_accepted_count",
-    "stability_accepted_indices",
-    "stability_rejected_indices",
-    "stability_missing_conjugate_partner_indices",
-    "stability_partner_rejected_indices",
-    "numerics_operator_dissipation_enabled",
-    "numerics_operator_dissipation_epsilon",
-    "numerics_operator_dissipation_order_diss",
-    "numerics_operator_dissipation_apply_to_stability",
-    "numerics_operator_dissipation_apply_to_resolvent",
-    "solver_eigen_st_solver_used",
-    "solver_apply_to_resolvent_effective",
-    "provenance_config_hash",
-    "provenance_linstabpy_git_sha",
-    "provenance_factor_backend",
-    "provenance_factor_precision",
-    "git_sha",
-    "config_md5",
-    "hostname",
-    "compute_mode",
-    "mpi_stack",
-    "cost_wall_total_s",
-    "cost_wall_assemble_s",
-    "cost_wall_factor_s",
-    "cost_wall_solve_s",
-    "cost_peak_rss_bytes",
-    "cost_peak_gpu_mem_bytes",
-    "cost_mpi_ranks",
-    "cost_gpus",
-    "cost_petsc_options",
-    "cost_hardware_tag",
-    "cost_git_sha",
-)
-"""Critical keys that runtime ``.npz`` outputs must continue to expose.
-
-The runtime writes additional arrays for plotting and diagnostics.  This list
-captures the compatibility surface needed by validation scripts, parity checks,
-cache invalidation, and downstream campaign summaries.
-"""
+from linstabpy.driver.payload import RUNTIME_NPZ_CONTRACT_KEYS, build_runtime_payload
 
 
 def _readonly_empty(dtype) -> np.ndarray:
@@ -537,7 +444,7 @@ def _cfg_first(cfg_fn, *paths: str) -> object:
 
 
 def _cfg_get(config: dict, path: str, default):
-    """Read a dotted JSONC path from the loaded runtime config."""
+    """Read a dotted YAML path from the loaded runtime config."""
     node = config
     for key in path.split("."):
         if not isinstance(node, dict) or key not in node:
@@ -1368,7 +1275,7 @@ def run() -> None:
     # Default True: real-valued baseflows have a conjugate-pair spectrum, and
     # admitting the conjugate partner at the same target_distance_max is the
     # physically correct metric (see _postcheck_target_distance docstring and
-    # SWBLI.md for the mode-family rationale). Set to False in the JSONC only
+    # SWBLI.md for the mode-family rationale). Set to False in the YAML only
     # for complex baseflows (Floquet, complex perturbation-tracking).
     stability_acceptance_conjugate_aware: bool = bool(
         cfg("analysis.stability_acceptance.conjugate_aware", True)
@@ -1439,7 +1346,7 @@ def run() -> None:
         config["solver"] = solver_cfg
     cfg_obj = Config.load(config)
 
-    # Read solver knobs from JSONC (env-var fallback for backward compat).
+    # Read solver knobs from YAML (env-var fallback for backward compat).
     _ecfg = solver_cfg.get("eigen", {})
     st_solver = (
         _ecfg.get("st_solver", os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
@@ -1752,209 +1659,210 @@ def run() -> None:
 
         from linstabpy.driver.io import save_results
 
+        payload = build_runtime_payload(
+            spectra={
+                "omega": omega,
+                "direct_modes": direct_modes,
+                "gains": gains,
+                "responses": responses,
+                "forcings": forcings,
+                "resolvent_rho_fwd": resolvent_rho_fwd,
+                "resolvent_rho_adj": resolvent_rho_adj,
+                "omega_target": omega_target,
+                "use_raw_eigs": use_raw_eigs,
+                "St": St,
+                "beta": beta,
+                "fd_order": fd_order,
+            },
+            problem={
+                "case": case_dir.name,
+                "nx": int(mesh.X.shape[1]),
+                "ny": int(mesh.X.shape[0]),
+                "ndof": int(mesh.ngp * 5),
+                "nnz": int(assembly_result.nnz),
+                "lambda_over_L": float(2.0 * np.pi / beta) if beta != 0.0 else float("inf"),
+                "stride": int(stride_ksi) if stride_ksi == stride_eta else -1,
+                "stride_ksi": int(stride_ksi),
+                "stride_eta": int(stride_eta),
+                "alpha_filter": np.array(str(alpha_filter)),
+                "use_matlab_sponge_aux": use_matlab_sponge_aux,
+                "sponge_enabled": sponge_enabled,
+                "sponge_source": np.array(sponge_source),
+                "sponge_preset": np.array(str((sponge_cfg or {}).get("preset", ""))),
+                "native_sponge_requested": native_sponge_enabled,
+                "matlab_sponge_aux_requested": use_matlab_sponge_aux,
+                "n_modes_stability_requested": n_modes,
+                "n_modes_resolvent_requested": n_modes_resolvent,
+                "Re": Re,
+                "Ma": Ma,
+                "Pr": Pr,
+                "kappa": kappa,
+                "T_0": T_0,
+            },
+            fields={
+                "X": mesh.X,
+                "Y": mesh.Y,
+                "U": baseflow.U,
+                "sponge": mesh.sponge,
+                "idx_rho_j": idx["rho_j"],
+                "idx_u_j": idx["u_j"],
+                "idx_v_j": idx["v_j"],
+                "idx_w_j": idx["w_j"],
+                "idx_T_j": idx["T_j"],
+                "bc_indices": bc_indices,
+                "bc_total_indices": total_bc_indices,
+                "bc_effective_dirichlet_indices": effective_dirichlet_indices,
+                "bc_column_zeroed_dirichlet_indices": column_zeroed_dirichlet_indices,
+                "bc_effective_neumann_indices": effective_neumann_indices,
+                "bc_overlap_indices": overlap_indices,
+                "W_diag": W_diag,
+                "invW_diag": invW_diag,
+            },
+            stability={
+                "stability_eps_nev": int(stability_info.get("nev_requested", -1)),
+                "stability_eps_ncv": int(stability_info.get("ncv_used", -1)),
+                "stability_eps_nconv": int(stability_info.get("nconv", -1)),
+                "stability_eps_iterations": int(stability_info.get("eps_iterations", -1)),
+                "stability_eps_reason": np.array(str(stability_info.get("eps_reason", ""))),
+                "stability_ksp_reason": np.array(str(stability_info.get("ksp_reason", ""))),
+                "stability_eps_conv_test": np.array(str(stability_info.get("conv_test", ""))),
+                "stability_eps_tol": float(stability_info.get("eps_tol", np.nan)),
+                "stability_eps_max_it": int(stability_info.get("eps_max_it", -1)),
+                "stability_eps_setup_seconds": float(
+                    stability_info.get("eps_setup_seconds", np.nan)
+                ),
+                "stability_eps_solve_seconds": float(
+                    stability_info.get("eps_solve_seconds", np.nan)
+                ),
+                "stability_true_residual": bool(stability_info.get("true_residual", False)),
+                "stability_reduce_dirichlet": bool(stability_info.get("reduce_dirichlet", False)),
+                "stability_reduce_dirichlet_set": np.array(
+                    str(stability_info.get("reduce_dirichlet_set", ""))
+                ),
+                "stability_free_dof_count": int(stability_info.get("free_dof_count", -1)),
+                "stability_constrained_dirichlet_count": int(
+                    stability_info.get("constrained_dirichlet_count", -1)
+                ),
+                "stability_residual_error_type": np.array(
+                    str(stability_info.get("residual_error_type", ""))
+                ),
+                "stability_residual_estimates": stability_residual_estimates,
+                "stability_residual_absolute": stability_residual_absolute,
+                "stability_residual_relative": stability_residual_relative,
+                "stability_residual_backward": stability_residual_backward,
+                "stability_postcheck_residual_abs": stability_postcheck_residual_abs,
+                "stability_postcheck_residual_rel": stability_postcheck_residual_rel,
+                "stability_postcheck_residual_interior_abs": (
+                    stability_postcheck_residual_interior_abs
+                ),
+                "stability_postcheck_residual_bc_abs": stability_postcheck_residual_bc_abs,
+                "stability_postcheck_bc_leak_max": stability_postcheck_bc_leak_max,
+                "stability_postcheck_bc_leak_p99": stability_postcheck_bc_leak_p99,
+                "stability_postcheck_dirichlet_leak_max": stability_postcheck_dirichlet_leak_max,
+                "stability_postcheck_dirichlet_leak_p99": stability_postcheck_dirichlet_leak_p99,
+                "stability_postcheck_target_distance": stability_postcheck_target_distance,
+                "stability_all_omega": np.asarray(omega, dtype=complex),
+                "stability_all_postcheck_rel": stability_postcheck_residual_rel,
+                "stability_all_target_distance": stability_postcheck_target_distance,
+                "stability_all_reject_reason_code": np.asarray(
+                    stability_acceptance.get("reject_reason_code", EMPTY_INT32),
+                    dtype=np.int32,
+                ),
+                "stability_acceptance_postcheck_rel_max": float(
+                    stability_acceptance_postcheck_rel_max
+                ),
+                "stability_acceptance_target_distance_max": float(
+                    stability_acceptance_target_distance_max
+                ),
+                "stability_acceptance_omega_real_abs_max": float(
+                    stability_acceptance_omega_real_abs_max
+                ),
+                "stability_acceptance_omega_imag_abs_max": float(
+                    stability_acceptance_omega_imag_abs_max
+                ),
+                "stability_acceptance_conjugate_aware": bool(
+                    stability_acceptance.get("acceptance_conjugate_aware", False)
+                ),
+                "stability_accepted_count": int(stability_acceptance.get("accepted_count", -1)),
+                "stability_accepted_indices": np.asarray(
+                    stability_acceptance.get("accepted_indices", EMPTY_INT32),
+                    dtype=np.int32,
+                ),
+                "stability_rejected_indices": np.asarray(
+                    stability_acceptance.get("rejected_indices", EMPTY_INT32),
+                    dtype=np.int32,
+                ),
+                "stability_accepted_postcheck_rel_min": float(
+                    stability_acceptance.get("accepted_postcheck_rel_min", np.nan)
+                ),
+                "stability_accepted_postcheck_rel_median": float(
+                    stability_acceptance.get("accepted_postcheck_rel_median", np.nan)
+                ),
+                "stability_accepted_target_distance_min": float(
+                    stability_acceptance.get("accepted_target_distance_min", np.nan)
+                ),
+                "stability_accepted_target_distance_median": float(
+                    stability_acceptance.get("accepted_target_distance_median", np.nan)
+                ),
+                "stability_accepted_omega_real_min": float(
+                    stability_acceptance.get("accepted_omega_real_min", np.nan)
+                ),
+                "stability_accepted_omega_real_max": float(
+                    stability_acceptance.get("accepted_omega_real_max", np.nan)
+                ),
+                "stability_accepted_omega_imag_min": float(
+                    stability_acceptance.get("accepted_omega_imag_min", np.nan)
+                ),
+                "stability_accepted_omega_imag_max": float(
+                    stability_acceptance.get("accepted_omega_imag_max", np.nan)
+                ),
+                "stability_leading_weighted_norm_error": float(
+                    stability_info.get("leading_weighted_norm_error", np.nan)
+                ),
+                "stability_weighted_norm_tol": float(
+                    stability_info.get("weighted_norm_tol", np.nan)
+                ),
+                "stability_missing_conjugate_partner_indices": np.asarray(
+                    _conj_diag["missing_partner_indices"], dtype=np.int32
+                ),
+                "stability_partner_rejected_indices": np.asarray(
+                    _conj_diag["partner_rejected_indices"], dtype=np.int32
+                ),
+            },
+            dissipation={
+                "numerics_operator_dissipation_enabled": np.bool_(od_enabled),
+                "numerics_operator_dissipation_epsilon": np.float64(od_epsilon),
+                "numerics_operator_dissipation_order_diss": np.int64(od_order_diss),
+                "numerics_operator_dissipation_apply_to_stability": np.bool_(
+                    od_apply_to_stability
+                ),
+                "numerics_operator_dissipation_apply_to_resolvent": np.bool_(
+                    od_apply_to_resolvent
+                ),
+                "numerics_operator_dissipation_transition_fraction": np.float64(
+                    od_transition_fraction
+                ),
+                "numerics_operator_dissipation_endpoint_exponent": np.float64(
+                    od_endpoint_exponent
+                ),
+                "numerics_operator_dissipation_interior_value": np.float64(od_interior_value),
+            },
+            provenance={
+                "solver_eigen_st_solver_used": str(st_solver),
+                "solver_apply_to_resolvent_effective": np.bool_(eps_resolv > 0.0),
+                "provenance_config_hash": np.bytes_(config_hash[:16].encode()),
+                "provenance_linstabpy_git_sha": np.bytes_(git_sha.encode()),
+                "provenance_factor_backend": str(factor_backend_provenance),
+                "provenance_factor_precision": np.array(FACTOR_PRECISION),
+            },
+        )
         save_results(
             output_npz=output_npz,
             heartbeat_seconds=heartbeat_seconds,
             peak_rss_bytes=_peak_rss_total_bytes,
             stage_wall=_STAGE_WALL,
             provenance=config_source.provenance,
-            payload=dict(
-                omega=omega,
-                direct_modes=direct_modes,
-                gains=gains,
-                responses=responses,
-                forcings=forcings,
-                resolvent_rho_fwd=resolvent_rho_fwd,
-                resolvent_rho_adj=resolvent_rho_adj,
-                omega_target=omega_target,
-                use_raw_eigs=use_raw_eigs,
-                St=St,
-                beta=beta,
-                fd_order=fd_order,
-                # --- metrics sidecar `problem` block (Front H) -------------------
-                # These shipped missing, so every metrics.json had `problem: {}`
-                # and the driver logged a schema-validation failure for each run.
-                # The cost study was being assembled from the NPZ instead, with
-                # ndof/nnz recovered by grepping the driver's own log line -- a
-                # workaround that breaks the moment the log wording changes.
-                case=case_dir.name,
-                nx=int(mesh.X.shape[1]),
-                ny=int(mesh.X.shape[0]),
-                ndof=int(mesh.ngp * 5),
-                nnz=int(assembly_result.nnz),
-                # beta here is the nondimensional spanwise wavenumber beta*L, so
-                # the streamwise-independent spanwise wavelength is lambda/L =
-                # 2*pi/beta. Cross-check against STATUS.md: beta*L = 19.2 gives
-                # 2*pi/19.2 = 0.327, matching the recorded lambda/L ~ 0.327.
-                # beta = 0 is a legitimate 2D run (infinite spanwise wavelength);
-                # report inf rather than dividing by zero.
-                lambda_over_L=float(2.0 * np.pi / beta) if beta != 0.0 else float("inf"),
-                # One `stride` is required by the schema, but the mesh is strided
-                # independently in ksi and eta. Emit the common value when they
-                # agree; when they do not, -1 flags "not a single number" instead
-                # of silently reporting one axis as if it governed both. The two
-                # real values are always emitted alongside.
-                stride=int(stride_ksi) if stride_ksi == stride_eta else -1,
-                stride_ksi=int(stride_ksi),
-                stride_eta=int(stride_eta),
-                alpha_filter=np.array(str(alpha_filter)),
-                use_matlab_sponge_aux=use_matlab_sponge_aux,
-                sponge_enabled=sponge_enabled,
-                sponge_source=np.array(sponge_source),
-                sponge_preset=np.array(str((sponge_cfg or {}).get("preset", ""))),
-                native_sponge_requested=native_sponge_enabled,
-                matlab_sponge_aux_requested=use_matlab_sponge_aux,
-                n_modes_stability_requested=n_modes,
-                n_modes_resolvent_requested=n_modes_resolvent,
-                Re=Re,
-                Ma=Ma,
-                Pr=Pr,
-                kappa=kappa,
-                T_0=T_0,
-                X=mesh.X,
-                Y=mesh.Y,
-                U=baseflow.U,
-                sponge=mesh.sponge,
-                idx_rho_j=idx["rho_j"],
-                idx_u_j=idx["u_j"],
-                idx_v_j=idx["v_j"],
-                idx_w_j=idx["w_j"],
-                idx_T_j=idx["T_j"],
-                bc_indices=bc_indices,
-                bc_total_indices=total_bc_indices,
-                bc_effective_dirichlet_indices=effective_dirichlet_indices,
-                bc_column_zeroed_dirichlet_indices=column_zeroed_dirichlet_indices,
-                bc_effective_neumann_indices=effective_neumann_indices,
-                bc_overlap_indices=overlap_indices,
-                W_diag=W_diag,
-                invW_diag=invW_diag,
-                stability_eps_nev=int(stability_info.get("nev_requested", -1)),
-                stability_eps_ncv=int(stability_info.get("ncv_used", -1)),
-                stability_eps_nconv=int(stability_info.get("nconv", -1)),
-                stability_eps_iterations=int(stability_info.get("eps_iterations", -1)),
-                stability_eps_reason=np.array(str(stability_info.get("eps_reason", ""))),
-                stability_ksp_reason=np.array(str(stability_info.get("ksp_reason", ""))),
-                stability_eps_conv_test=np.array(str(stability_info.get("conv_test", ""))),
-                stability_eps_tol=float(stability_info.get("eps_tol", np.nan)),
-                stability_eps_max_it=int(stability_info.get("eps_max_it", -1)),
-                stability_eps_setup_seconds=float(stability_info.get("eps_setup_seconds", np.nan)),
-                stability_eps_solve_seconds=float(stability_info.get("eps_solve_seconds", np.nan)),
-                stability_true_residual=bool(stability_info.get("true_residual", False)),
-                stability_reduce_dirichlet=bool(stability_info.get("reduce_dirichlet", False)),
-                stability_reduce_dirichlet_set=np.array(
-                    str(stability_info.get("reduce_dirichlet_set", ""))
-                ),
-                stability_free_dof_count=int(stability_info.get("free_dof_count", -1)),
-                stability_constrained_dirichlet_count=int(
-                    stability_info.get("constrained_dirichlet_count", -1)
-                ),
-                stability_residual_error_type=np.array(
-                    str(stability_info.get("residual_error_type", ""))
-                ),
-                stability_residual_estimates=stability_residual_estimates,
-                stability_residual_absolute=stability_residual_absolute,
-                stability_residual_relative=stability_residual_relative,
-                stability_residual_backward=stability_residual_backward,
-                stability_postcheck_residual_abs=stability_postcheck_residual_abs,
-                stability_postcheck_residual_rel=stability_postcheck_residual_rel,
-                stability_postcheck_residual_interior_abs=stability_postcheck_residual_interior_abs,
-                stability_postcheck_residual_bc_abs=stability_postcheck_residual_bc_abs,
-                stability_postcheck_bc_leak_max=stability_postcheck_bc_leak_max,
-                stability_postcheck_bc_leak_p99=stability_postcheck_bc_leak_p99,
-                stability_postcheck_dirichlet_leak_max=stability_postcheck_dirichlet_leak_max,
-                stability_postcheck_dirichlet_leak_p99=stability_postcheck_dirichlet_leak_p99,
-                stability_postcheck_target_distance=stability_postcheck_target_distance,
-                # Full pre-acceptance dump for every ARPACK-converged mode (Front A).
-                # These arrays cover ALL converged modes, not just accepted ones.
-                stability_all_omega=np.asarray(omega, dtype=complex),
-                stability_all_postcheck_rel=stability_postcheck_residual_rel,
-                stability_all_target_distance=stability_postcheck_target_distance,
-                stability_all_reject_reason_code=np.asarray(
-                    stability_acceptance.get("reject_reason_code", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_acceptance_postcheck_rel_max=float(
-                    stability_acceptance_postcheck_rel_max
-                ),
-                stability_acceptance_target_distance_max=float(
-                    stability_acceptance_target_distance_max
-                ),
-                stability_acceptance_omega_real_abs_max=float(
-                    stability_acceptance_omega_real_abs_max
-                ),
-                stability_acceptance_omega_imag_abs_max=float(
-                    stability_acceptance_omega_imag_abs_max
-                ),
-                stability_acceptance_conjugate_aware=bool(
-                    stability_acceptance.get("acceptance_conjugate_aware", False)
-                ),
-                stability_accepted_count=int(stability_acceptance.get("accepted_count", -1)),
-                stability_accepted_indices=np.asarray(
-                    stability_acceptance.get("accepted_indices", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_rejected_indices=np.asarray(
-                    stability_acceptance.get("rejected_indices", EMPTY_INT32),
-                    dtype=np.int32,
-                ),
-                stability_accepted_postcheck_rel_min=float(
-                    stability_acceptance.get("accepted_postcheck_rel_min", np.nan)
-                ),
-                stability_accepted_postcheck_rel_median=float(
-                    stability_acceptance.get("accepted_postcheck_rel_median", np.nan)
-                ),
-                stability_accepted_target_distance_min=float(
-                    stability_acceptance.get("accepted_target_distance_min", np.nan)
-                ),
-                stability_accepted_target_distance_median=float(
-                    stability_acceptance.get("accepted_target_distance_median", np.nan)
-                ),
-                stability_accepted_omega_real_min=float(
-                    stability_acceptance.get("accepted_omega_real_min", np.nan)
-                ),
-                stability_accepted_omega_real_max=float(
-                    stability_acceptance.get("accepted_omega_real_max", np.nan)
-                ),
-                stability_accepted_omega_imag_min=float(
-                    stability_acceptance.get("accepted_omega_imag_min", np.nan)
-                ),
-                stability_accepted_omega_imag_max=float(
-                    stability_acceptance.get("accepted_omega_imag_max", np.nan)
-                ),
-                stability_leading_weighted_norm_error=float(
-                    stability_info.get("leading_weighted_norm_error", np.nan)
-                ),
-                stability_weighted_norm_tol=float(stability_info.get("weighted_norm_tol", np.nan)),
-                numerics_operator_dissipation_enabled=np.bool_(od_enabled),
-                numerics_operator_dissipation_epsilon=np.float64(od_epsilon),
-                numerics_operator_dissipation_order_diss=np.int64(od_order_diss),
-                numerics_operator_dissipation_apply_to_stability=np.bool_(od_apply_to_stability),
-                numerics_operator_dissipation_apply_to_resolvent=np.bool_(od_apply_to_resolvent),
-                numerics_operator_dissipation_transition_fraction=np.float64(
-                    od_transition_fraction
-                ),
-                numerics_operator_dissipation_endpoint_exponent=np.float64(od_endpoint_exponent),
-                numerics_operator_dissipation_interior_value=np.float64(od_interior_value),
-                solver_eigen_st_solver_used=str(st_solver),
-                solver_apply_to_resolvent_effective=np.bool_(eps_resolv > 0.0),
-                provenance_config_hash=np.bytes_(config_hash[:16].encode()),
-                provenance_linstabpy_git_sha=np.bytes_(git_sha.encode()),
-                # Plain str, not np.array(str(...)): the metrics sidecar is built
-                # from this payload dict before it reaches np.savez, and the
-                # schema requires a string here -- a 0-d ndarray produced
-                # "provenance_factor_backend: expected str or str_, got ndarray"
-                # on every single run. np.savez stores a str as a 0-d '<U' array
-                # exactly as before, so the NPZ contract and `.item()` readers
-                # are unchanged.
-                provenance_factor_backend=str(factor_backend_provenance),
-                provenance_factor_precision=np.array(FACTOR_PRECISION),
-                stability_missing_conjugate_partner_indices=np.asarray(
-                    _conj_diag["missing_partner_indices"], dtype=np.int32
-                ),
-                stability_partner_rejected_indices=np.asarray(
-                    _conj_diag["partner_rejected_indices"], dtype=np.int32
-                ),
-            ),
+            payload=payload,
         )
     elapsed = time.perf_counter() - t0
     _log(f"results saved to {output_npz}")

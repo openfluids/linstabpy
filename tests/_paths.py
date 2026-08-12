@@ -22,13 +22,6 @@ def require_existing(path: Path, description: str) -> Path:
     return path
 
 
-def case_fixture(name: str) -> Path:
-    """Return the canonical root for a named study fixture."""
-    if name == "case1":
-        return SONG_ROOT
-    raise ValueError(f"Unknown study fixture: {name}")
-
-
 def martini_fixture(filename: str) -> Path:
     """Return the canonical Martini parity fixture path."""
     return MARTINI_FIXTURE_ROOT / filename

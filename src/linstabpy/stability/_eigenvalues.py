@@ -293,7 +293,7 @@ def _solve_near_target(
 
     # Allow PETSc/SLEPc options DB overrides from command-line flags.
     # For direct solvers (mumps/lu) ksp.setFromOptions() is a no-op but harmless.
-    # For iterative/inexact solvers the options DB can override JSONC-level settings.
+    # For iterative/inexact solvers the options DB can override YAML-level settings.
     ksp.setFromOptions()
     st.setFromOptions()
     eps.setFromOptions()
@@ -596,7 +596,7 @@ def eigenvalues(
         Optional Arnoldi subspace dimension. When omitted, use the generic
         default ``max(2*n_modes+3, 30)`` clipped to the matrix size.
     solver_cfg:
-        Optional solver config dict (from JSONC ``"solver"`` section).
+        Optional solver config dict (from YAML ``"solver"`` section).
 
     Returns
     -------

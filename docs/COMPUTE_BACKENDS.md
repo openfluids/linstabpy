@@ -54,7 +54,7 @@ Mixed-Precision Factorization Knob below):
 
 Backend selection precedence is:
 
-1. JSONC solver subsection `factor_backend`;
+1. YAML solver subsection `factor_backend`;
 2. existing per-solver environment override, such as
    `LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`;
 3. `LINSTABPY_FACTOR_BACKEND`;
@@ -208,7 +208,7 @@ NVPL NumPy/SciPy Meson build (-Dblas=nvpl-blas-lp64-omp):
 
 ## Mixed-Precision Factorization Knob
 
-`LINSTABPY_FACTOR_PRECISION` and the matching JSONC `factor_precision` field
+`LINSTABPY_FACTOR_PRECISION` and the matching YAML `factor_precision` field
 select the factor precision surface. The default is `double`, which is inert and
 does not add any PETSc options. The experimental value `single` is accepted only
 with the `superlu_dist` factor backend, where it inserts the PETSc option
@@ -217,7 +217,7 @@ with `single` raises a `ValueError` naming the backend and
 `LINSTABPY_FACTOR_PRECISION`; it is never silently ignored.
 
 Today only the environment variable is enforced at factorization time. The
-JSONC `factor_precision` field is validated and carried in the typed config
+YAML `factor_precision` field is validated and carried in the typed config
 but is not yet consumed by the solver call sites; the Phase B.4
 mixed-precision iterative-refinement work wires it through.
 
@@ -235,14 +235,14 @@ reference/default path.
 
 MUMPS block-low-rank (BLR) compression can be requested only for the MUMPS factor
 backend. It is off by default, so the default MUMPS options path is unchanged.
-Set `LINSTABPY_MUMPS_BLR=1` or the matching JSONC field `mumps_blr: true` in the
+Set `LINSTABPY_MUMPS_BLR=1` or the matching YAML field `mumps_blr: true` in the
 relevant solver subsection to enable it. The BLR dropping tolerance is controlled
 by `LINSTABPY_MUMPS_BLR_TOL` or `mumps_blr_tol`; the default tolerance is
-`1e-4`. Environment variables take precedence over JSONC, which takes precedence
+`1e-4`. Environment variables take precedence over YAML, which takes precedence
 over the defaults.
 
 Today only the environment variables are enforced at factorization time, and
-they apply to every MUMPS LU `linstabpy` sets up in the process. The JSONC
+they apply to every MUMPS LU `linstabpy` sets up in the process. The YAML
 `mumps_blr` and `mumps_blr_tol` fields are validated and carried in the typed
 config but are not yet consumed by the solver call sites; wiring the
 per-solver config through is future work, as with `factor_precision`.
@@ -272,21 +272,13 @@ MUMPS fill-reducing ordering can be requested only for the MUMPS factor backend.
 It is unset by default. When unset, `linstabpy` neither sets nor clears
 `mat_mumps_icntl_7` — the knob expresses no opinion, so an `ICNTL(7)` value
 installed by other writers is preserved, and with no writer at all MUMPS keeps
-its default automatic ordering selection (`ICNTL(7)=7`). The legacy
-`mpi.mumps_icntl_7` / `LINSTABPY_PETSC_SET_MUMPS_ICNTL_7` boolean remains
-accepted for compatibility, but is deprecated: it is now only an alias for
-`mumps_ordering=metis` (`ICNTL(7)=5`). Prefer `mumps_ordering: "metis"` in
-JSONC or `LINSTABPY_MUMPS_ORDERING=metis` in the environment.
+its default automatic ordering selection (`ICNTL(7)=7`). Set the ordering with
+`mumps_ordering: metis` in YAML or `LINSTABPY_MUMPS_ORDERING=metis` in the
+environment. The old `mumps_icntl_7` boolean is gone.
 
-When both surfaces are present, explicit `mumps_ordering` wins over the legacy
-alias: environment `LINSTABPY_MUMPS_ORDERING` first, then JSONC
-`mumps_ordering`, then legacy `mpi.mumps_icntl_7`, then no opinion. That order is
-the intended resolution precedence; today only the environment variable is
-enforced at factorization time (it applies to every MUMPS LU `linstabpy` sets
-up), while the JSONC `mumps_ordering` field is validated and carried in the typed
-config but is not yet consumed by the solver call sites — wiring it through is
-future work, as with `factor_precision` and `mumps_blr`. User-supplied PETSc CLI
-options are still process-global PETSc options and should not be mixed with these
+Environment `LINSTABPY_MUMPS_ORDERING` wins over YAML `mumps_ordering`. When
+both are unset, `linstabpy` expresses no opinion. User-supplied PETSc CLI
+options are still process-global and should not be mixed with these
 higher-level config surfaces in the same run. Set `LINSTABPY_MUMPS_ORDERING` to
 one of the named values below.
 

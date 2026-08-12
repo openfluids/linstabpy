@@ -1,7 +1,7 @@
 # Architecture Map
 
-This note tells maintainers where numerical policy lives after the refactor.
-Keep policy in the owning seam rather than recreating pass-through modules.
+This note tells maintainers where numerical policy lives.
+Keep policy in the owning module rather than recreating pass-through files.
 
 ## Ownership
 
@@ -9,22 +9,23 @@ Keep policy in the owning seam rather than recreating pass-through modules.
 |---|---|---|
 | Boundary-condition recipes | `linstabpy.boundary_conditions.recipe` | YAML recipe parsing, rule validation, effective rows, column-zeroed Dirichlet rows, overlap reporting, and SciPy/PETSc/spatial dispatch. |
 | LNSE assembly | `linstabpy.operators.assembly` | Coefficient preparation, backend choice, operator construction order, boundary-condition application, and the `LNSESystem` result object. |
-| Solver policy | `linstabpy.utils._solver_cfg`, `linstabpy.solvers.*` | Dict/env compatibility, PETSc/SLEPc defaults, MUMPS/KSP/EPS setup, root-scatter decisions, and resolvent linear-solver selection. |
+| Solver policy | `linstabpy.utils._solver_cfg`, `linstabpy.config.typed` | Dict/env resolution, PETSc/SLEPc defaults, MUMPS/KSP/EPS setup, and resolvent linear-solver selection. |
 | Runtime pipeline | `linstabpy.driver.run` | Case loading, mesh construction, Chu norm, assembly, stability/resolvent stages, postchecks, acceptance, and `.npz` persistence. |
-| Mesh state | `linstabpy.mesh.mesh` | Structured geometry, derivative operators, filters, dissipation state, sponge state, and conservative read-only views over those groups. |
+| Packed-field ingest | `linstabpy.baseflow.grid_fields` | One loader for npz or an npy directory. Filter, boundary sponge, and shock live in `baseflow.preprocess`. |
+| Result archive | `linstabpy.driver.payload`, `linstabpy.driver.io` | Payload grouping and NPZ/sidecar write. `io.py` does not import the driver. |
+| Mesh state | `linstabpy.mesh.mesh` | Structured geometry, derivative operators, filters, dissipation state, and sponge state. |
 
 ## Boundary Conditions
 
 `BCRecipe` is the boundary-condition seam. Public YAML files pass lists of
 dictionaries; the recipe layer normalizes them before application.
-The important distinction is between effective rows and column-zeroed rows:
-effective rows are the rows owned by the final rule after overlap resolution,
-while column-zeroed Dirichlet rows record the broader set that must be known for
-operator reduction and provenance.
+Effective rows are the rows owned by the final rule after overlap resolution.
+Column-zeroed Dirichlet rows record the broader set needed for operator
+reduction and provenance.
 
 When changing boundary-condition behavior, update the recipe analysis and every
 backend wrapper together. Do not duplicate row-selection logic in assembly,
-runtime code, or case-study drivers.
+runtime code, or example scripts.
 
 ## LNSE Assembly
 
@@ -43,33 +44,35 @@ for an assembled system, not rebuild pieces of this sequence.
 
 ## Solver Policy
 
-`SolverConfig` keeps existing dict and environment-variable behavior while
-centralizing how solver defaults are interpreted. PETSc/SLEPc objects are still
-created inside the solver modules, but the defaults and fallback choices should
-come from the shared policy layer. This keeps direct MUMPS, KSP/PC options,
-EPS tolerances, and resolvent linear-solver choices inspectable from one path.
+`Config` in `config.typed` reads YAML and environment variables. PETSc/SLEPc
+objects are still created inside the solver modules, but the defaults and
+fallback choices come from that shared policy layer.
 
 MPI ownership matters: launcher, `mpi4py`, PETSc, and SLEPc must agree on one
-MPI stack. Installer checks and runtime wrappers should report the chosen stack
-rather than guessing silently.
+MPI stack. Installer checks should report the chosen stack rather than
+guessing silently.
 
 ## Runtime And NPZ Output
 
-Example scripts are thin adapters around `linstabpy.driver.run`. The driver
-owns stage timing, postcheck logs, acceptance metadata, and the saved `.npz`.
+Example scripts set `LINSTABPY_CASE_CONFIG` and call `linstabpy.driver.run`.
+Martini generated-mesh examples still build their own fields. Packed-field
+cases go through `load_case_fields`.
 
-The compatibility surface for saved results is `RUNTIME_NPZ_CONTRACT_KEYS` in
-`driver/run.py`. Additive fields are acceptable. Renames or removals update
-that tuple, the write test, and every reader.
+The compatibility surface for saved results is
+`RUNTIME_NPZ_CONTRACT_KEYS` in `linstabpy.driver.payload`. The grouped
+explanation is in `docs/runtime_npz_contract.md`. Additive fields are
+acceptable. Renames or removals require a migration note, test updates, and
+reader updates.
 
 ## Mesh State
 
-`Mesh` remains the main structured-grid object. `MeshGeometry`,
-`MeshOperators`, and `MeshRuntimeState` are read-only grouping views over the
-same storage; they make ownership clearer without changing callers that still
-use the historical attributes directly.
+`Mesh` remains the main structured-grid object. Deformation and masking must
+preserve numerical behavior. Geometry-only optimizations are allowed only when
+tests prove that derivative operators, filters, weights, and saved outputs
+remain equivalent for the relevant cases.
 
-Deformation and masking must preserve numerical behavior. Geometry-only
-optimizations are allowed only when tests prove that derivative operators,
-filters, weights, and saved outputs remain equivalent for the relevant cases.
+## Packed fields
 
+Every packed case uses the same eight keys: `x`, `y`, `rho`, `u`, `v`, `w`,
+`T`, `sponge`. YAML names the file. The loader does not guess a Song filename.
+Martini `.mat` constructors live under `examples/martini/matlab_baseflow.py`.

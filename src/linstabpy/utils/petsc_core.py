@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
-
 if TYPE_CHECKING:
     # Type-only import so ruff/mypy/pyright see ``PETSc`` names; at runtime,
     # ``TYPE_CHECKING`` is ``False`` so this never fires and PETSc stays
@@ -28,16 +26,11 @@ _petsc_configured = False
 def mumps_icntl_petsc_options(mpi: "MpiCfg") -> dict[str, str]:
     """Map the typed MUMPS ICNTL config to PETSc option-database entries.
 
-    Deprecated: ``mpi.mumps_icntl_7`` is a legacy boolean alias for
-    ``mumps_ordering=metis``.  ICNTL(7) keeps its historical opt-in gate
-    (changing the ordering can change factorization behavior), and derives the
-    METIS value from the shared ordering table so it cannot drift from the
-    canonical ``mumps_ordering`` surface.  ICNTL(14)/ICNTL(24) are hardened by
-    default and left to PETSc/MUMPS only when set to ``None``.
+    ICNTL(7) is not set here. Use ``mumps_ordering`` / ``LINSTABPY_MUMPS_ORDERING``.
+    ICNTL(14)/ICNTL(24) are hardened by default and left to PETSc/MUMPS only
+    when set to ``None``.
     """
     opts: dict[str, str] = {}
-    if mpi.mumps_icntl_7:
-        opts["mat_mumps_icntl_7"] = str(MUMPS_ORDERING_TO_ICNTL_7["metis"])
     if mpi.mumps_icntl_14 is not None:
         opts["mat_mumps_icntl_14"] = str(mpi.mumps_icntl_14)
     if mpi.mumps_icntl_24 is not None:
@@ -99,7 +92,7 @@ def _matrix_nnz(operator) -> int:
 
 
 def _petsc_matrix_mode(solver_cfg: dict | None = None) -> str:
-    """Resolve PETSc matrix conversion mode from JSONC/env policy."""
+    """Resolve PETSc matrix conversion mode from YAML/env policy."""
     from linstabpy.config import Config
 
     raw = Config.load(solver_cfg if solver_cfg is not None else {}).mpi.petsc_matrix_mode
@@ -150,7 +143,7 @@ def require_complex(solver_cfg: dict | None = None) -> None:
 def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Mat:
     """Convert a SciPy sparse matrix to a PETSc AIJ Mat.
 
-    Behavior is controlled by ``petsc_matrix_mode`` (JSONC) or
+    Behavior is controlled by ``petsc_matrix_mode`` (YAML) or
     ``LINSTABPY_PETSC_MATRIX_MODE`` (env var):
     - ``local``/``serial``: local AIJ from full CSR (single-rank style)
     - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ

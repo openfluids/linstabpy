@@ -512,13 +512,13 @@ For a maintainer map of where numerical policy belongs, see
 |-- src/linstabpy/                 Importable Python package
 |   |-- baseflow/                  Packed-field loader, BaseFlow, viscosity
 |   |-- boundary_conditions/       Dirichlet/Neumann row replacement and recipes
-|   |-- config/                    Runtime validation metadata
+|   |-- config/                    YAML schema and typed solver policy
 |   |-- mesh/                      SBP finite differences, grids, filters, deformation
 |   |-- operators/                 LNSE coefficients, assembly, spatial operators, Chu norm
 |   |-- solvers/                   PETSc/SLEPc resolvent and eigenvalue solvers
-|   |-- driver/                    Shared run path
+|   |-- driver/                    Shared run path, payload, and NPZ write
 |   `-- utils/                     YAML case loader, PETSc helpers
-|-- examples/                      Public cases and their figure scripts
+|-- examples/                      Public cases, figure scripts, and tracked PNGs
 |   |-- martini/                   Six Martini examples and MATLAB field constructors
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
@@ -532,18 +532,15 @@ For a maintainer map of where numerical policy belongs, see
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
 
-Keep reusable code under `src/linstabpy/` and the three public cases under
-`examples/martini`, `examples/song`, and `examples/savarino`. Generated
-example outputs, campaign directories, runtime caches, and build metadata
-are ignored rather than represented as tracked layout.
-
-Optional reference MATLAB code and `.mat` base-flow files may be placed under
-`src/linstabpy/data/baseflows`, or supplied through `LINSTABPY_BASEFLOW_DATA_DIR`.
-Treat that directory as local reference input, not production package code.
+Keep reusable code under `src/linstabpy/` and the public cases under
+`examples/martini`, `examples/song`, `examples/savarino`, and
+`examples/sawtooth`. Martini `.mat` constructors live in
+`examples/martini/matlab_baseflow.py`. Set `LINSTABPY_BASEFLOW_DATA_DIR` if
+those files sit outside the example directory.
 
 ### Data and file-size policy
 
-Tracked GitHub-facing files must stay at or below 50 MiB. Large generated
+Tracked GitHub-facing files must stay at or below 60 MiB. Large generated
 outputs, raw MATLAB exports, and machine-local benchmark products are kept out of
 Git and either regenerated or stored externally. The guardrail is:
 
@@ -558,7 +555,7 @@ commits.
 
 Compact Martini fixtures belong under `examples/martini/`. Raw MATLAB exports such as
 `operator_convention.mat` and `coefficients_raw.mat` are intentionally not
-tracked when they exceed the 50 MiB policy.
+tracked when they exceed the 60 MiB policy.
 
 ## Numerical setup
 
@@ -1260,7 +1257,7 @@ Send:
   --redact-local-details
 ```
 
-For deeper OS-specific notes and installer experiments, see `scripts/ci/`.
+Installer experiments belong in the private working notes, not in this tree.
 
 ## Development
 

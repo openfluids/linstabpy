@@ -70,12 +70,12 @@ baseflow_preprocess:
 
 # Boundary conditions
 bc:
-  penalty: 1.0e8
+  penalty: 1.0e8          # Dirichlet/Neumann penalty
   recipe:
-    - {type: dirichlet, borders: lt, variables: ruvwT}
-    - {type: dirichlet, borders: b, variables: ruvw}
-    - {type: neumann, borders: b, variables: T}
-    - {type: neumann, borders: r, variables: ruvwT}
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T}         # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT}     # outflow
 
 # Optional assembly backend: "scipy", "petsc", or "auto"
 # Song is a local 2D LNSE case, so the native PETSc path is applicable here.

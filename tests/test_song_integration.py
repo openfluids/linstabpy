@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Integration tests for the Case 1 case wiring."""
+"""Integration tests for the Song packed-field operator path."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def test_load_case_fields_shapes() -> None:
     assert X.shape[0] >= 4 and X.shape[1] >= 4
 
 
-def test_case1_build_lnse_system_petsc_matches_scipy_operator() -> None:
+def test_song_build_lnse_system_petsc_matches_scipy_operator() -> None:
     X, Y, bf, sponge, _info = load_case_fields(
         BASEFLOW_DIR, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33,
         stride_ksi=15, stride_eta=15, transpose_input=True,
@@ -96,7 +96,7 @@ def test_case1_build_lnse_system_petsc_matches_scipy_operator() -> None:
         L0_petsc.destroy()
 
 
-def test_case1_operator_and_small_temporal_eigs() -> None:
+def test_song_operator_and_small_temporal_eigs() -> None:
     X, Y, bf, sponge, _info = load_case_fields(
         BASEFLOW_DIR, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33,
         stride_ksi=15, stride_eta=15, transpose_input=True,

@@ -9,52 +9,51 @@ import numpy as np
 
 EDGE_NAMES = ("top", "right", "bottom", "left")
 
-# Direction ordering follows the legacy Case 1 workflow arrays:
-# [top, right, bottom, left]
-# where "top"/"bottom" act on the second array axis and "right"/"left"
-# act on the first array axis.
+# Direction ordering is [top, right, bottom, left].
+# "top"/"bottom" act on the second array axis.
+# "right"/"left" act on the first array axis.
 SPONGE_PRESETS: dict[str, dict[str, Any]] = {
-    "case1_stability": {
+    "localized_stability": {
         "type": "localized",
         "pts_dir": (0, 40, 65, 0),
         "amp_dir": (1000.0, 1000.0, 1000.0, 1000.0),
     },
-    "case1_resolvent": {
+    "localized_resolvent": {
         "type": "localized",
         "pts_dir": (0, 50, 80, 0),
         "amp_dir": (1000.0, 1000.0, 1000.0, 1000.0),
     },
-    "case1_smooth_soft": {
+    "smooth_soft": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.28, 0.28, 0.0),
         "amp_dir": (0.0, 0.5, 0.5, 0.0),
         "profile": "smootherstep",
     },
-    "case1_smooth_medium": {
+    "smooth_medium": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.22, 0.22, 0.0),
         "amp_dir": (0.0, 2.0, 2.0, 0.0),
         "profile": "smootherstep",
     },
-    "case1_smooth_quarter": {
+    "smooth_quarter": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.28, 0.28, 0.0),
         "amp_dir": (0.0, 0.25, 0.25, 0.0),
         "profile": "smootherstep",
     },
-    "case1_smooth_half": {
+    "smooth_half": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.28, 0.28, 0.0),
         "amp_dir": (0.0, 0.5, 0.5, 0.0),
         "profile": "smootherstep",
     },
-    "case1_smooth_unit": {
+    "smooth_unit": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.28, 0.28, 0.0),
         "amp_dir": (0.0, 1.0, 1.0, 0.0),
         "profile": "smootherstep",
     },
-    "case1_smooth_double": {
+    "smooth_double": {
         "type": "smooth_localized",
         "width_frac_dir": (0.0, 0.28, 0.28, 0.0),
         "amp_dir": (0.0, 2.0, 2.0, 0.0),

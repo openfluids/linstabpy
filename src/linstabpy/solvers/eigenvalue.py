@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Temporal and adjoint eigenvalue solvers using SLEPc EPS.
 
-Solver configuration uses the ``solver.eigen`` JSONC section.  For direct
+Solver configuration uses the ``solver.eigen`` YAML section.  For direct
 shift-invert paths, ``factor_backend`` selects the PETSc LU factor backend.
 On the reference direct path (``st_solver`` of ``mumps``/``direct``/``lu``)
 the resolution order is ``solver.eigen.factor_backend``, then
@@ -25,7 +25,7 @@ The experimental factorization knobs are environment-enforced today:
 ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
 ``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
 when requested with the wrong backend, and make no performance claim.  Matching
-JSONC fields are validated and carried in the typed config but are not yet
+YAML fields are validated and carried in the typed config but are not yet
 consumed by the solver call sites for factorization setup.
 
 ``st_solver`` selects the shift-invert inner linear solver:
@@ -44,23 +44,20 @@ consumed by the solver call sites for factorization setup.
   same path with the configured ``factor_backend``.  Both selectors read
   ``ksp_rtol``, ``ksp_atol``, and ``ksp_max_it`` from ``solver.eigen.inexact``.
 
-JSONC schema for ``"inexact"`` mode::
+YAML schema for ``inexact`` mode::
 
-    "solver": {
-      "eigen": {
-        "st_solver": "inexact",
-        "inexact": {
-          "ksp_type":         "fgmres",  // inner Krylov method
-          "ksp_rtol":          1e-8,     // relative tolerance
-          "ksp_atol":          1e-10,    // absolute tolerance
-          "ksp_max_it":        200,      // max inner iterations
-          "pc_type":          "asm",     // additive Schwarz (MPI-parallel)
-          "asm_overlap":       1,        // subdomain overlap
-          "sub_pc_type":      "ilu",     // local subdomain factor
-          "pc_factor_levels":  2         // ILU fill level
-        }
-      }
-    }
+    solver:
+      eigen:
+        st_solver: inexact
+        inexact:
+          ksp_type: fgmres          # inner Krylov method
+          ksp_rtol: 1.0e-8          # relative tolerance
+          ksp_atol: 1.0e-10         # absolute tolerance
+          ksp_max_it: 200           # max inner iterations
+          pc_type: asm              # additive Schwarz
+          asm_overlap: 1            # subdomain overlap
+          sub_pc_type: ilu          # local subdomain factor
+          pc_factor_levels: 2       # ILU fill level
 
 ``true_residual`` defaults to ``True`` when ``st_solver`` is ``"inexact"``,
 ``"fgmres_lu"``, or ``"strumpack_fgmres"``.  Inexact inner solves can satisfy
@@ -127,9 +124,9 @@ FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"
 
 
 def _apply_ksp_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
-    """Apply PETSc KSP options from JSONC via the object's options prefix.
+    """Apply PETSc KSP options from YAML via the object's options prefix.
 
-    This keeps solver choices in JSONC while still using PETSc's native
+    This keeps solver choices in YAML while still using PETSc's native
     options-based hooks for GMRES orthogonalization/refinement details that are
     not consistently exposed as direct petsc4py methods.
     """
@@ -530,13 +527,13 @@ def _configure_st_for_eigenvalue(
 ):
     """Configure the SLEPc ST KSP/PC for the chosen ``st_solver`` backend.
 
-    Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` JSONC,
+    Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` YAML,
     ``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE``, ``LINSTABPY_FACTOR_BACKEND``,
     then the path default.  Availability is probe-checked and unavailable
     backends fail loudly; see ``docs/COMPUTE_BACKENDS.md``.  The environment
     knobs ``LINSTABPY_FACTOR_PRECISION``, ``LINSTABPY_MUMPS_BLR`` with
     ``LINSTABPY_MUMPS_BLR_TOL``, and ``LINSTABPY_MUMPS_ORDERING`` are enforced
-    only from the environment at factorization time today; matching JSONC
+    only from the environment at factorization time today; matching YAML
     fields are carried but not consumed by this setup path.
 
     Parameters
@@ -546,7 +543,7 @@ def _configure_st_for_eigenvalue(
         ``"krylov"``, ``"slepc"``, ``"inexact"``, ``"fgmres_lu"``, or
         ``"strumpack_fgmres"``.
     ecfg:
-        The ``solver.eigen`` JSONC sub-dict (may be empty or ``None``).
+        The ``solver.eigen`` YAML sub-dict (may be empty or ``None``).
     ksp:
         KSP object obtained from ``eps.getST().getKSP()``.
     pc:
