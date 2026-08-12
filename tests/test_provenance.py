@@ -86,7 +86,7 @@ def test_collect_provenance_accepts_supported_compute_modes(tmp_path, monkeypatc
 
 
 def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
-    script = REPO_ROOT / "scripts" / "tools" / "freeze_env.sh"
+    script = REPO_ROOT / "tests" / "freeze_env.sh"
 
     subprocess.run([script, "test"], cwd=tmp_path, check=True, capture_output=True, text=True)
 

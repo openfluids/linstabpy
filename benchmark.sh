@@ -10,7 +10,7 @@
 # Example 0 (curvilinear validation) is pure NumPy — runs single-process.
 # Example 1 runs the real Blasius case so install-time profiling
 # stays practical even on slower nodes. Override to the full case with:
-#   LINSTABPY_BENCHMARK_EX1_MODULE=examples.example_1_blasius
+#   LINSTABPY_BENCHMARK_EX1_MODULE=examples.martini.example_1_blasius
 #   LINSTABPY_BENCHMARK_EX1_LABEL=example_1_blasius
 # ────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
@@ -92,7 +92,7 @@ printf "  Half cores:      %d\n" "${HALF_CORES}"
 printf "  Results dir:     %s\n" "${RESULTS_DIR}"
 echo ""
 
-EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.example_1_blasius}"
+EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.martini.example_1_blasius}"
 EX1_LABEL="${LINSTABPY_BENCHMARK_EX1_LABEL:-example_1_blasius}"
 printf "  Example 1 case:  %s (%s)\n\n" "${EX1_LABEL}" "${EX1_MODULE}"
 
