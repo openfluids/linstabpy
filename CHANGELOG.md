@@ -9,6 +9,10 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [1.0.0rc4] - 2026-08-13
 
+This release is the public-tree cut for 1.0.0. The package has one YAML
+case loader. The tree dropped JSONC, import shims, the `scripts/` folder,
+and the unused Dockerfile.
+
 ### Added
 - `load_config` loaded YAML case files.
 - `load_case_fields` reads a packed npy directory or one npz.
@@ -16,22 +20,23 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - Four paper Example 3 YAML files reused `example_3_streaky_bl.py`.
 - Martini MATLAB field constructors moved to `examples/martini/matlab_baseflow.py`.
 - `build_runtime_payload` grouped the runtime NPZ keys before `save_results`.
+- `install.sh --diagnose` printed the host preflight and installed nothing.
+- `tests/tracked_file_size.py` and `tests/public_provenance.py` replaced `scripts/`.
 
 ### Removed
 - `load_jsonc`, `load_hamada_case`, `results_runtime`, and the solver import shims.
 - The `run/` campaign kit and the broken Docker PETSc CI job.
 - The `mumps_icntl_7` boolean alias. Use `mumps_ordering: metis`.
 - The unused `Dockerfile` that did not configure PETSc.
-- The `scripts/` folder and `diagnose.sh`. File-size and provenance checks live
-  under `tests/` and run as pytest. Host preflight is `install.sh --diagnose`.
+- The `scripts/` folder and `diagnose.sh`.
 
 ### Changed
-- Example figures probe TeX by writing a PNG. They use usetex when that works,
-  else Computer Modern mathtext, and never crash when TeX is missing.
-- Case files under `examples/` used YAML. The loader rejected a leftover `.jsonc` suffix.
+- Example figures probed TeX by writing a PNG. They used usetex when that worked.
+- A failed usetex save retried with Computer Modern mathtext.
+- A missing TeX stack no longer crashed the figure.
+- Case files under `examples/` became YAML. The loader rejected a leftover `.jsonc` suffix.
 - Shipped YAML files now comment each key. `validation_cases.yaml` is YAML.
 - Comments and the tutorial now say YAML, not JSONC.
-- Omit-list coverage on this box is 72 percent. `fail_under` stays off.
 - Sponge presets dropped the `case1_` prefix.
 - Moved the Martini, Song, and Savarino cases to `examples/martini`,
   `examples/song`, and `examples/savarino`.
@@ -45,18 +50,10 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - The Floquet shift also updated D2RZ. The default mode matched LinStab2D.
 - The spatial EVP finite-differenced L in kx, not in the Floquet exponent.
 - Example 3 applied spatial Dirichlet after Lc + omega Lw.
-- A forcing/response region now **composes** with the boundary-condition mask instead of
-  replacing it. `mask_bc_forcing` defaults to `true` so that constrained rows are never
-  forced, but supplying `input_region` or `output_region` used to skip that default
-  entirely (the mask was only built when the region matrix was `None`), so a region
-  reaching a wall or inlet forced the very rows that encode the boundary condition. A
-  boundary-condition row is a constraint, not an equation: forcing it makes the penalty
-  term fight the condition it encodes, and the resulting gain is not a physical response.
-  The region now says *where the user wants to force* and the boundary-condition mask says
-  *where forcing has meaning*, with the number of dropped rows logged. A region that
-  selects only constrained rows raises instead of returning an all-zero operator, and
-  `mask_bc_forcing: false` still allows forcing them deliberately. No configuration
-  shipped with the project sets either region key, so no shipped run changes.
+- A forcing or response region now composes with the boundary-condition mask.
+- `mask_bc_forcing` stayed true by default. A region no longer forced constraint rows.
+- A region that selected only constrained rows now raises.
+- `mask_bc_forcing: false` still forces those rows on purpose.
 
 ## [1.0.0rc3] - 2026-08-10
 
