@@ -37,5 +37,16 @@ def test_no_tracked_file_exceeds_limit() -> None:
     assert _oversized(tracked, root, _bytes_from_mib(DEFAULT_TRACKED_LIMIT_MIB)) == []
 
 
+def test_tracked_tree_has_no_plan_or_goal_markdown() -> None:
+    root = _repo_root()
+    tracked = _git_list(root, ["ls-files"])
+    banned = [
+        path.relative_to(root).as_posix()
+        for path in tracked
+        if path.name.startswith(("plan", "goal")) and path.suffix == ".md"
+    ]
+    assert banned == []
+
+
 def test_main_returns_zero_on_this_repo() -> None:
     assert main([]) == 0
