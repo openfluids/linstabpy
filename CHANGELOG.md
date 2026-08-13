@@ -9,26 +9,46 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [1.0.0rc4] - 2026-08-13
 
-This release is the public-tree cut for 1.0.0. The package has one YAML
-case loader. The tree dropped JSONC, import shims, the `scripts/` folder,
-and the unused Dockerfile.
+The Example 2 jet resolvent matched the MATLAB LinStab2D gains. The axis
+coefficient used the true radius. The spatial filter sat inside the
+forcing and response masks.
+
+A forcing region composed with the boundary-condition mask.
+`input_region.space: conservative_momentum` mapped conservative momentum
+forcing onto the primitive residual.
+
+Case files became YAML. One loader read a packed field. The tree dropped
+JSONC, import shims, `scripts/`, and the unused Dockerfile.
+
+### Fixed
+- `compute_cylindrical_coefficients` no longer floored R at the smallest
+  positive spacing. A grid that contains r = 0 raised ValueError.
+- `ResolventOperator` applied the spatial filter inside the input and output
+  masks, matching MATLAB `resolvent.m`.
+- The Example 2 leading gain moved from 411.72 to the MATLAB 413.72 reference.
+- A forcing or response region composed with the boundary-condition mask.
+- `mask_bc_forcing` stayed true by default. A region no longer forced
+  constraint rows.
+- A region that selected only constrained rows raised.
+- `mask_bc_forcing: false` still forced those rows on purpose.
+- The Floquet shift also updated D2RZ. The default mode matched LinStab2D.
+- The spatial EVP finite-differenced L in kx, not in the Floquet exponent.
+- Example 3 applied spatial Dirichlet after Lc + omega Lw.
 
 ### Added
+- `input_region.space: conservative_momentum` mapped conservative momentum
+  forcing onto the primitive residual with a mass-weighted L2 norm.
+- Momentum forcing induced a consistent temperature forcing
+  `T' = -kappa(kappa-1) Ma^2 (ubar · u')`.
 - `load_config` loaded YAML case files.
-- `load_case_fields` reads a packed npy directory or one npz.
+- `load_case_fields` read a packed npy directory or one npz.
+- `examples/song` and `examples/savarino` shipped the reproduction chains.
 - `examples/sawtooth` added the Lui 2022 field on a packed stride-2 300 x 340 mesh.
 - Four paper Example 3 YAML files reused `example_3_streaky_bl.py`.
-- Martini MATLAB field constructors moved to `examples/martini/matlab_baseflow.py`.
+- `examples/martini/matlab_baseflow.py` held the Martini MATLAB field constructors.
 - `build_runtime_payload` grouped the runtime NPZ keys before `save_results`.
 - `install.sh --diagnose` printed the host preflight and installed nothing.
 - `tests/tracked_file_size.py` and `tests/public_provenance.py` replaced `scripts/`.
-
-### Removed
-- `load_jsonc`, `load_hamada_case`, `results_runtime`, and the solver import shims.
-- The `run/` campaign kit and the broken Docker PETSc CI job.
-- The `mumps_icntl_7` boolean alias. Use `mumps_ordering: metis`.
-- The unused `Dockerfile` that did not configure PETSc.
-- The `scripts/` folder and `diagnose.sh`.
 
 ### Changed
 - Example figures probed TeX by writing a PNG. They used usetex when that worked.
@@ -46,14 +66,12 @@ and the unused Dockerfile.
   `example_3_Streaky_BL_results_temporal_modes.npz`.
 - Raised the tracked-file size limit from 50 MiB to 60 MiB for that file.
 
-### Fixed
-- The Floquet shift also updated D2RZ. The default mode matched LinStab2D.
-- The spatial EVP finite-differenced L in kx, not in the Floquet exponent.
-- Example 3 applied spatial Dirichlet after Lc + omega Lw.
-- A forcing or response region now composes with the boundary-condition mask.
-- `mask_bc_forcing` stayed true by default. A region no longer forced constraint rows.
-- A region that selected only constrained rows now raises.
-- `mask_bc_forcing: false` still forces those rows on purpose.
+### Removed
+- `load_jsonc`, `load_hamada_case`, `results_runtime`, and the solver import shims.
+- The `run/` campaign kit and the broken Docker PETSc CI job.
+- The `mumps_icntl_7` boolean alias. Use `mumps_ordering: metis`.
+- The unused `Dockerfile` that did not configure PETSc.
+- The `scripts/` folder and `diagnose.sh`.
 
 ## [1.0.0rc3] - 2026-08-10
 
