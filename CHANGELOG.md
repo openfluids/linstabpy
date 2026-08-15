@@ -7,6 +7,23 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc5] - 2026-08-15
+
+The gain map walks each frequency line. The first two frequencies
+pay a MUMPS factor. Later frequencies walk only when a probe beats
+that measured cost. Otherwise the line factors again.
+
+### Added
+- `LineWalker` walks one beta line. The first two frequencies factor with MUMPS.
+- A cold forward and adjoint probe decides whether a walk can beat a new factor.
+- `map_record` writes each finished point and resumes unfinished frequencies.
+
+### Changed
+- `resolvent_map` walks each beta line with `LineWalker` and SLEPc.
+- A walk needs a measured apply count and a cheap probe. Otherwise the line factors.
+- GMRES stops when a deadline has passed.
+- The map store writes a temp file and then replaces the old store.
+
 ## [1.0.0rc4] - 2026-08-13
 
 The Example 2 jet resolvent matched the MATLAB LinStab2D gains. The axis

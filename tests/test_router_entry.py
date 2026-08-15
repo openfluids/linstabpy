@@ -86,6 +86,24 @@ def _install_fake_seams(
             gain=float(omega), iterations=None, residual=0.0
         ),
     )
+
+    class _FakeWalker:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def compute(self, _L0, omega, *_args, **_kwargs):
+            point = router_map._direct_engine_result(_L0, float(omega), *_args, **_kwargs)
+            return SimpleNamespace(
+                gain=point.gain,
+                residual=0.0 if point.residual is None else point.residual,
+                source=point.source,
+                iterations=0 if point.iterations is None else point.iterations,
+            )
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(router_map, "LineWalker", _FakeWalker)
     monkeypatch.setattr(router_map, "_collect_cost_metrics", lambda _stage_wall: _cost_metrics())
 
 
