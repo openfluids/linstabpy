@@ -16,12 +16,19 @@ import scipy.sparse as sp
 from linstabpy.linalg.backends import factor_backend_available
 from linstabpy.linalg.factorize import Factorization, factorize
 from linstabpy.linalg.shifted import shifted_operator
+from linstabpy.resolvent.operator import (
+    _apply_optional_adjoint_matrix,
+    _apply_optional_matrix,
+)
 from linstabpy.solvers.router.certification import CertificationReport, certified_rsvd
 from linstabpy.solvers.router.recycling import (
+    DEFAULT_GMRES_MAXITER,
+    DEFAULT_GMRES_RESTART,
     combine_recycle_bases,
     empty_recycle_basis,
     prepare_recycle_subspace,
     recycled_right_preconditioned_gmres,
+    resolve_gmres_lengths,
 )
 from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
@@ -74,6 +81,10 @@ class SweepResult:
     forcings: Array
     certification_reports: tuple[CertificationReport, ...]
     metrics: dict[str, MetricValue] = field(default_factory=dict)
+    stage_factor_s: Array = field(default_factory=lambda: np.zeros(0))
+    stage_gmres_s: Array = field(default_factory=lambda: np.zeros(0))
+    stage_rsvd_s: Array = field(default_factory=lambda: np.zeros(0))
+    stage_recycle_setup_s: Array = field(default_factory=lambda: np.zeros(0))
 
 
 def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
@@ -144,16 +155,20 @@ def _compressed_anchor_controls(
     return enabled, options if enabled else {}, measure_exact_lu
 
 
-def _recycling_controls(cfg: Mapping[str, Any] | object | None) -> tuple[bool, int, float]:
+def _recycling_controls(
+    cfg: Mapping[str, Any] | object | None,
+) -> tuple[bool, int, float, bool]:
     raw = _cfg_get(cfg, "recycling", None)
     if raw is None:
         raw = _cfg_get(cfg, "gcrodr_recycling", None)
     if raw is None:
         raw = _cfg_get(cfg, "recycle", False)
+    measure_baseline = True
     if isinstance(raw, Mapping):
         enabled = _as_bool(_cfg_lookup(raw, "enabled", "enable", default=True))
         max_dim = int(_cfg_lookup(raw, "max_dim", "recycle_dim", "dim", default=8))
         orth_tol = float(_cfg_lookup(raw, "orth_tol", "orthogonalization_tol", default=1.0e-12))
+        measure_baseline = _as_bool(_cfg_lookup(raw, "measure_baseline", default=True))
     else:
         enabled = _as_bool(raw)
         max_dim = 8
@@ -164,7 +179,17 @@ def _recycling_controls(cfg: Mapping[str, Any] | object | None) -> tuple[bool, i
         raise ValueError("recycling max_dim must be positive when recycling is enabled")
     if orth_tol <= 0.0:
         raise ValueError("recycling orth_tol must be positive")
-    return enabled, max_dim, orth_tol
+    return enabled, max_dim, orth_tol, measure_baseline
+
+
+def _gmres_iteration_controls(cfg: Mapping[str, Any] | object | None, *, n: int) -> tuple[int, int]:
+    """Return (maxiter, restart). restart is a Krylov length, never ndof."""
+    maxiter = int(_cfg_get(cfg, "fgmres_maxiter", DEFAULT_GMRES_MAXITER))
+    restart = _cfg_get(cfg, "fgmres_restart", DEFAULT_GMRES_RESTART)
+    maxiter, restart = resolve_gmres_lengths(maxiter, restart)
+    if n > 0:
+        restart = min(restart, int(n))
+    return maxiter, restart
 
 
 @contextmanager
@@ -385,48 +410,84 @@ def _right_preconditioned_gmres(
     *,
     rtol: float,
     maxiter: int,
+    restart: int | None = None,
+    x0: Array | None = None,
+    deadline: float | None = None,
 ) -> tuple[Array, int, float]:
-    """Small right-preconditioned GMRES used when sweeping stable shifts."""
+    """Right-preconditioned GMRES with a bounded restart length."""
     b = np.asarray(rhs, dtype=complex).reshape(-1)
     n = b.size
-    beta = float(np.linalg.norm(b))
-    if beta == 0.0:
+    rhs_norm = float(np.linalg.norm(b))
+    if rhs_norm == 0.0:
         return np.zeros(n, dtype=complex), 0, 0.0
 
-    q_vectors = [b / beta]
-    z_vectors: list[Array] = []
-    h = np.zeros((maxiter + 1, maxiter), dtype=complex)
-    g = np.zeros(maxiter + 1, dtype=complex)
-    g[0] = beta
-    best_y = np.zeros(0, dtype=complex)
-    best_residual = 1.0
-    best_iter = 0
+    maxiter, restart = resolve_gmres_lengths(maxiter, restart)
+    if maxiter == 0 or restart == 0:
+        return np.zeros(n, dtype=complex), 0, 1.0
 
-    for j in range(maxiter):
-        z = np.asarray(precondition(q_vectors[j]), dtype=complex).reshape(-1)
-        z_vectors.append(z)
-        v = np.asarray(matvec(z), dtype=complex).reshape(-1)
-        for i, q in enumerate(q_vectors):
-            h[i, j] = np.vdot(q, v)
-            v = v - h[i, j] * q
-        h[j + 1, j] = np.linalg.norm(v)
-        if h[j + 1, j] > 0.0 and j + 1 < maxiter:
-            q_vectors.append(v / h[j + 1, j])
-
-        y, *_ = np.linalg.lstsq(h[: j + 2, : j + 1], g[: j + 2], rcond=None)
-        residual = float(np.linalg.norm(g[: j + 2] - h[: j + 2, : j + 1] @ y) / beta)
-        best_y = y
-        best_residual = residual
-        best_iter = j + 1
+    if x0 is None:
+        x = np.zeros(n, dtype=complex)
+        r = b.copy()
+        residual = 1.0
+    else:
+        x = np.asarray(x0, dtype=complex).reshape(-1).copy()
+        r = b - np.asarray(matvec(x), dtype=complex).reshape(-1)
+        residual = float(np.linalg.norm(r) / rhs_norm)
         if residual <= rtol:
+            return x, 0, residual
+    total_iters = 0
+
+    while total_iters < maxiter:
+        if deadline is not None and time.perf_counter() >= deadline:
             break
-        if h[j + 1, j] == 0.0:
+        if total_iters > 0:
+            r = b - np.asarray(matvec(x), dtype=complex).reshape(-1)
+            residual = float(np.linalg.norm(r) / rhs_norm)
+            if residual <= rtol:
+                break
+
+        beta = float(np.linalg.norm(r))
+        if beta == 0.0:
+            return x, total_iters, 0.0
+
+        cycle = min(restart, maxiter - total_iters)
+        q_vectors = [r / beta]
+        z_vectors: list[Array] = []
+        h = np.zeros((cycle + 1, cycle), dtype=complex)
+        g = np.zeros(cycle + 1, dtype=complex)
+        g[0] = beta
+        best_y = np.zeros(0, dtype=complex)
+        cycle_iters = 0
+
+        for j in range(cycle):
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
+            z = np.asarray(precondition(q_vectors[j]), dtype=complex).reshape(-1)
+            z_vectors.append(z)
+            v = np.asarray(matvec(z), dtype=complex).reshape(-1)
+            for i, q in enumerate(q_vectors):
+                h[i, j] = np.vdot(q, v)
+                v = v - h[i, j] * q
+            h[j + 1, j] = np.linalg.norm(v)
+            if h[j + 1, j] > 0.0 and j + 1 < cycle:
+                q_vectors.append(v / h[j + 1, j])
+
+            y, *_ = np.linalg.lstsq(h[: j + 2, : j + 1], g[: j + 2], rcond=None)
+            residual = float(np.linalg.norm(g[: j + 2] - h[: j + 2, : j + 1] @ y) / rhs_norm)
+            best_y = y
+            cycle_iters = j + 1
+            if residual <= rtol:
+                break
+            if h[j + 1, j] == 0.0:
+                break
+
+        for coeff, z in zip(best_y, z_vectors, strict=False):
+            x = x + coeff * z
+        total_iters += cycle_iters
+        if residual <= rtol or cycle_iters < cycle:
             break
 
-    x = np.zeros(n, dtype=complex)
-    for coeff, z in zip(best_y, z_vectors, strict=False):
-        x = x + coeff * z
-    return x, best_iter, best_residual
+    return x, total_iters, residual
 
 
 def _nearest_anchor_indices(omega_block: Array, anchors: Array) -> Array:
@@ -490,7 +551,44 @@ def _cert_cfg(
         "consistency_tol": float(_cfg_get(cfg, "consistency_tol", 1.0)),
         "seed_gain_tol": float(_cfg_get(cfg, "seed_gain_tol", _cfg_get(cfg, "sigma_tol", 1.0e-8))),
         "seed_mode_tol": float(_cfg_get(cfg, "seed_mode_tol", 1.0e-6)),
+        "certification_required": _as_bool(_cfg_get(cfg, "certification_required", True)),
     }
+
+
+def _identity_filter(vector: Array) -> Array:
+    return np.asarray(vector, dtype=complex).reshape(-1)
+
+
+def _forward_resolvent_action(
+    solve_shifted: Any,
+    vector: Array,
+    *,
+    B_mat: Any,
+    C_mat: Any,
+    filt: Any,
+) -> Array:
+    """Apply H v = C F inv(L_sigma) F B v."""
+    work = _apply_optional_matrix(B_mat, np.asarray(vector, dtype=complex).reshape(-1))
+    work = filt(work)
+    work = solve_shifted(work)
+    work = filt(work)
+    return _apply_optional_matrix(C_mat, work)
+
+
+def _adjoint_resolvent_action(
+    solve_shifted_adj: Any,
+    vector: Array,
+    *,
+    B_mat: Any,
+    C_mat: Any,
+    filt_ct: Any,
+) -> Array:
+    """Apply H^H v = B^H F_ct inv(L_sigma^H) F_ct C^H v."""
+    work = _apply_optional_adjoint_matrix(C_mat, np.asarray(vector, dtype=complex).reshape(-1))
+    work = filt_ct(work)
+    work = solve_shifted_adj(work)
+    work = filt_ct(work)
+    return _apply_optional_adjoint_matrix(B_mat, work)
 
 
 def sweep_stable_regime(
@@ -498,6 +596,11 @@ def sweep_stable_regime(
     omega_block: Sequence[complex] | Array,
     anchors: Sequence[complex] | Array,
     cfg: Mapping[str, Any] | object | None,
+    *,
+    B_mat: Any = None,
+    C_mat: Any = None,
+    filter_fn: Any = None,
+    filter_ct_fn: Any = None,
 ) -> SweepResult:
     """Sweep stable frequencies with nearest-anchor right-preconditioned GMRES.
 
@@ -506,6 +609,8 @@ def sweep_stable_regime(
     preconditioner is the nearest anchor factor.  Forward and adjoint actions
     reuse the same :class:`~linstabpy.linalg.factorize.Factorization` object;
     adjoint preconditioning calls ``Factorization.solve_adjoint``.
+    When ``B_mat`` / ``C_mat`` are set, ``H`` matches the certified resolvent
+    ``C F inv(L-iω) F B``.
     """
     # Bound once here; the nested solve closures below inherit this binding from
     # the enclosing scope, so they need no lazy lookup of their own.
@@ -514,11 +619,15 @@ def sweep_stable_regime(
     anchor_values = _as_1d_complex(anchors, "anchors")
     n = _operator_size(L0_beta)
     rtol = float(_cfg_get(cfg, "fgmres_rtol", _cfg_get(cfg, "actual_solve_tol", 1.0e-10)))
-    maxiter = int(_cfg_get(cfg, "fgmres_maxiter", n))
+    maxiter, restart = _gmres_iteration_controls(cfg, n=n)
     solver_cfg = _cfg_get(cfg, "solver_cfg", None)
     factorize_cfg = _cfg_get(cfg, "factorize_cfg", None)
     compressed_anchor, strumpack_options, measure_exact_lu = _compressed_anchor_controls(cfg)
-    recycling_enabled, recycling_max_dim, recycling_orth_tol = _recycling_controls(cfg)
+    recycling_enabled, recycling_max_dim, recycling_orth_tol, measure_baseline = (
+        _recycling_controls(cfg)
+    )
+    filt = filter_fn if filter_fn is not None else _identity_filter
+    filt_ct = filter_ct_fn if filter_ct_fn is not None else _identity_filter
     if recycling_enabled and compressed_anchor:
         raise ValueError(
             "recycling and compressed anchors are not combined in this evaluation path"
@@ -572,6 +681,15 @@ def sweep_stable_regime(
         "gmres_iterations_total_actual": 0,
         "gmres_iterations_delta_recycled_minus_baseline": 0,
         "recycling_note": "recycling enabled" if recycling_enabled else "recycling disabled",
+        "region_applied": B_mat is not None or C_mat is not None,
+        "factor_s": 0.0,
+        "gmres_s": 0.0,
+        "gmres_baseline_s": 0.0,
+        "rsvd_s": 0.0,
+        "recycle_setup_s": 0.0,
+        "measure_baseline": measure_baseline and recycling_enabled,
+        "fgmres_maxiter": maxiter,
+        "fgmres_restart": restart,
     }
     compression_samples: list[tuple[float | None, float | None, float | None, str]] = []
     factors_seen: list[Any] = []
@@ -581,6 +699,11 @@ def sweep_stable_regime(
     responses = np.empty((n, omegas.size), dtype=complex)
     forcings = np.empty((n, omegas.size), dtype=complex)
     reports: list[CertificationReport | None] = [None] * omegas.size
+    stage_factor_s = np.zeros(omegas.size)
+    stage_gmres_s = np.zeros(omegas.size)
+    stage_rsvd_s = np.zeros(omegas.size)
+    stage_recycle_setup_s = np.zeros(omegas.size)
+    anchor_factor_s = np.zeros(anchor_values.size)
 
     def record_compression_sample(operator: sp.spmatrix | PETSc.Mat, factor: Any) -> None:
         if not compressed_anchor:
@@ -599,7 +722,13 @@ def sweep_stable_regime(
         )
         compression_samples.append((compressed_bytes, exact_bytes, effective_rank, note))
 
-    def factorize_anchor(anchor: complex) -> Any:
+    def _add_factor_time(anchor_i: int, elapsed: float) -> None:
+        metrics["factorize_seconds"] = float(metrics["factorize_seconds"]) + elapsed
+        metrics["factor_s"] = float(metrics["factorize_seconds"])
+        anchor_factor_s[int(anchor_i)] += elapsed
+
+    def factorize_anchor(anchor_i: int) -> Any:
+        anchor = anchor_values[int(anchor_i)]
         operator = shifted_operator(L0_beta, anchor)
         start = time.perf_counter()
         with _temporary_petsc_options(strumpack_options):
@@ -609,10 +738,8 @@ def sweep_stable_regime(
                 solver_cfg=active_solver_cfg,
                 cfg=active_factorize_cfg,
             )
+        _add_factor_time(anchor_i, time.perf_counter() - start)
         metrics["factorize_calls"] = int(metrics["factorize_calls"]) + 1
-        metrics["factorize_seconds"] = (
-            float(metrics["factorize_seconds"]) + time.perf_counter() - start
-        )
         factors_seen.append(fac)
         record_compression_sample(operator, fac)
         return fac
@@ -665,6 +792,7 @@ def sweep_stable_regime(
         forward_recycle = None
         adjoint_recycle = None
         if recycling_enabled:
+            t_setup = time.perf_counter()
             forward_recycle = prepare_recycle_subspace(
                 lambda z: _matvec(operator, z),
                 forward_basis,
@@ -679,6 +807,9 @@ def sweep_stable_regime(
                 max_dim=recycling_max_dim,
                 orth_tol=recycling_orth_tol,
             )
+            setup_s = time.perf_counter() - t_setup
+            metrics["recycle_setup_s"] = float(metrics["recycle_setup_s"]) + setup_s
+            stage_recycle_setup_s[pos] = setup_s
             record_recycled_setup(forward_recycle.setup_matvecs + adjoint_recycle.setup_matvecs)
             metrics["recycle_forward_rank_max"] = max(
                 int(metrics["recycle_forward_rank_max"]), forward_recycle.rank
@@ -693,23 +824,56 @@ def sweep_stable_regime(
                 return np.asarray(factor.solve_block(block)[:, 0], dtype=complex)
             return factor.solve(rhs)
 
-        def apply_H(rhs: Array) -> Array:
+        def solve_shifted(rhs: Array) -> Array:
             nonlocal forward_candidates
+            if omega == anchor:
+                t_direct = time.perf_counter()
+                x = precondition(np.asarray(rhs, dtype=complex).reshape(-1))
+                elapsed = time.perf_counter() - t_direct
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
+                residual = _relative_residual(operator, x, np.asarray(rhs, dtype=complex))
+                iter_log.append(0)
+                residual_log.append(residual)
+                if recycling_enabled:
+                    forward_candidates = combine_recycle_bases(
+                        forward_candidates,
+                        np.asarray(x, dtype=complex).reshape(-1, 1),
+                        max_dim=recycling_max_dim,
+                        n=n,
+                        orth_tol=recycling_orth_tol,
+                    )
+                return x
             if recycling_enabled:
-                baseline = _right_preconditioned_gmres(
-                    lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
-                )
-                record_unrecycled_counts(baseline[1], actual=False)
+                if measure_baseline:
+                    t_base = time.perf_counter()
+                    baseline = _right_preconditioned_gmres(
+                        lambda z: _matvec(operator, z),
+                        precondition,
+                        rhs,
+                        rtol=rtol,
+                        maxiter=maxiter,
+                        restart=restart,
+                    )
+                    metrics["gmres_baseline_s"] = float(metrics["gmres_baseline_s"]) + (
+                        time.perf_counter() - t_base
+                    )
+                    record_unrecycled_counts(baseline[1], actual=False)
+                t_gmres = time.perf_counter()
                 recycled = recycled_right_preconditioned_gmres(
                     lambda z: _matvec(operator, z),
                     precondition,
                     rhs,
                     rtol=rtol,
                     maxiter=maxiter,
+                    restart=restart,
                     recycle=forward_recycle,
                     candidate_dim=recycling_max_dim,
                     orth_tol=recycling_orth_tol,
                 )
+                elapsed = time.perf_counter() - t_gmres
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
                 record_recycled_counts(recycled.iterations, recycled.matvecs)
                 forward_candidates = combine_recycle_bases(
                     forward_candidates,
@@ -722,9 +886,18 @@ def sweep_stable_regime(
                 iters = recycled.iterations
                 gmres_residual = recycled.residual
             else:
+                t_gmres = time.perf_counter()
                 x, iters, gmres_residual = _right_preconditioned_gmres(
-                    lambda z: _matvec(operator, z), precondition, rhs, rtol=rtol, maxiter=maxiter
+                    lambda z: _matvec(operator, z),
+                    precondition,
+                    rhs,
+                    rtol=rtol,
+                    maxiter=maxiter,
+                    restart=restart,
                 )
+                elapsed = time.perf_counter() - t_gmres
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
                 record_unrecycled_counts(iters, actual=True)
             iter_log.append(iters)
             residual_log.append(
@@ -732,27 +905,58 @@ def sweep_stable_regime(
             )
             return x
 
-        def apply_H_adj(rhs: Array) -> Array:
+        def solve_shifted_adj(rhs: Array) -> Array:
             nonlocal adjoint_candidates
-            if recycling_enabled:
-                baseline = _right_preconditioned_gmres(
-                    lambda z: _adjoint_matvec(operator, z),
-                    factor.solve_adjoint,
-                    rhs,
-                    rtol=rtol,
-                    maxiter=maxiter,
+            if omega == anchor:
+                t_direct = time.perf_counter()
+                x = factor.solve_adjoint(np.asarray(rhs, dtype=complex).reshape(-1))
+                elapsed = time.perf_counter() - t_direct
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
+                residual = _relative_residual(
+                    operator, x, np.asarray(rhs, dtype=complex), adjoint=True
                 )
-                record_unrecycled_counts(baseline[1], actual=False)
+                adj_iter_log.append(0)
+                adj_residual_log.append(residual)
+                if recycling_enabled:
+                    adjoint_candidates = combine_recycle_bases(
+                        adjoint_candidates,
+                        np.asarray(x, dtype=complex).reshape(-1, 1),
+                        max_dim=recycling_max_dim,
+                        n=n,
+                        orth_tol=recycling_orth_tol,
+                    )
+                return x
+            if recycling_enabled:
+                if measure_baseline:
+                    t_base = time.perf_counter()
+                    baseline = _right_preconditioned_gmres(
+                        lambda z: _adjoint_matvec(operator, z),
+                        factor.solve_adjoint,
+                        rhs,
+                        rtol=rtol,
+                        maxiter=maxiter,
+                        restart=restart,
+                    )
+                    metrics["gmres_baseline_s"] = float(metrics["gmres_baseline_s"]) + (
+                        time.perf_counter() - t_base
+                    )
+                    record_unrecycled_counts(baseline[1], actual=False)
+                t_gmres = time.perf_counter()
                 recycled = recycled_right_preconditioned_gmres(
                     lambda z: _adjoint_matvec(operator, z),
                     factor.solve_adjoint,
                     rhs,
                     rtol=rtol,
                     maxiter=maxiter,
+                    restart=restart,
                     recycle=adjoint_recycle,
                     candidate_dim=recycling_max_dim,
                     orth_tol=recycling_orth_tol,
                 )
+                elapsed = time.perf_counter() - t_gmres
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
                 record_recycled_counts(recycled.iterations, recycled.matvecs)
                 adjoint_candidates = combine_recycle_bases(
                     adjoint_candidates,
@@ -765,13 +969,18 @@ def sweep_stable_regime(
                 iters = recycled.iterations
                 gmres_residual = recycled.residual
             else:
+                t_gmres = time.perf_counter()
                 x, iters, gmres_residual = _right_preconditioned_gmres(
                     lambda z: _adjoint_matvec(operator, z),
                     factor.solve_adjoint,
                     rhs,
                     rtol=rtol,
                     maxiter=maxiter,
+                    restart=restart,
                 )
+                elapsed = time.perf_counter() - t_gmres
+                metrics["gmres_s"] = float(metrics["gmres_s"]) + elapsed
+                stage_gmres_s[pos] += elapsed
                 record_unrecycled_counts(iters, actual=True)
             adj_iter_log.append(iters)
             adj_residual_log.append(
@@ -781,6 +990,16 @@ def sweep_stable_regime(
                 )
             )
             return x
+
+        def apply_H(rhs: Array) -> Array:
+            return _forward_resolvent_action(
+                solve_shifted, rhs, B_mat=B_mat, C_mat=C_mat, filt=filt
+            )
+
+        def apply_H_adj(rhs: Array) -> Array:
+            return _adjoint_resolvent_action(
+                solve_shifted_adj, rhs, B_mat=B_mat, C_mat=C_mat, filt_ct=filt_ct
+            )
 
         probes_a, probes_b = _cfg_get(cfg, "probes_a"), _cfg_get(cfg, "probes_b")
         if probes_a is None or probes_b is None:
@@ -806,11 +1025,11 @@ def sweep_stable_regime(
             used_probe_block = True
         for probe in probes_a:
             if not used_probe_block:
-                x = apply_H(probe)
+                x = solve_shifted(probe)
                 probe_forward_residuals.append(
                     _relative_residual(operator, x, np.asarray(probe, dtype=complex))
                 )
-            xa = apply_H_adj(probe)
+            xa = solve_shifted_adj(probe)
             probe_adjoint_residuals.append(
                 _relative_residual(operator, xa, np.asarray(probe, dtype=complex), adjoint=True)
             )
@@ -825,9 +1044,16 @@ def sweep_stable_regime(
         )
         cert_cfg["probes_a"] = probes_a
         cert_cfg["probes_b"] = probes_b
+        gmres_before = float(metrics["gmres_s"])
+        t_rsvd = time.perf_counter()
         omega_gains, omega_responses, omega_forcings, report = certified_rsvd(
             apply_H, apply_H_adj, W, invW, cert_cfg
         )
+        rsvd_wall = time.perf_counter() - t_rsvd
+        gmres_during = float(metrics["gmres_s"]) - gmres_before
+        exclusive_rsvd = max(0.0, rsvd_wall - gmres_during)
+        metrics["rsvd_s"] = float(metrics["rsvd_s"]) + exclusive_rsvd
+        stage_rsvd_s[pos] = exclusive_rsvd
         gains[pos] = float(omega_gains[0])
         responses[:, pos] = np.asarray(omega_responses[:, 0], dtype=complex)
         forcings[:, pos] = np.asarray(omega_forcings[:, 0], dtype=complex)
@@ -865,30 +1091,31 @@ def sweep_stable_regime(
         for pos in np.flatnonzero(anchor_indices == anchor_i):
             forward_basis, adjoint_basis = solve_one(int(pos), factor, forward_basis, adjoint_basis)
 
-    first_factor = factorize_anchor(anchor_values[0])
+    first_factor = factorize_anchor(0)
     refactorize_in_place = getattr(first_factor, "refactorize", None)
     if use_symbolic_reuse and anchor_values.size > 1 and callable(refactorize_in_place):
         for anchor_i, anchor in enumerate(anchor_values):
             if anchor_i > 0:
+                t_ref = time.perf_counter()
                 try:
                     operator = shifted_operator(L0_beta, anchor)
                     with _temporary_petsc_options(strumpack_options):
                         first_factor.refactorize(operator)
+                    _add_factor_time(anchor_i, time.perf_counter() - t_ref)
                     record_compression_sample(operator, first_factor)
                 except (PETSc.Error, NotImplementedError, ValueError):
+                    _add_factor_time(anchor_i, time.perf_counter() - t_ref)
                     metrics["symbolic_reuse_fallback"] = True
                     metrics["symbolic_reuse_fallback_anchor_index"] = anchor_i
                     for fallback_i in range(anchor_i, anchor_values.size):
-                        solve_anchor_positions(
-                            fallback_i, factorize_anchor(anchor_values[fallback_i])
-                        )
+                        solve_anchor_positions(fallback_i, factorize_anchor(fallback_i))
                     break
                 metrics["symbolic_reuse_used"] = True
             solve_anchor_positions(anchor_i, first_factor)
     else:
         solve_anchor_positions(0, first_factor)
         for anchor_i in range(1, anchor_values.size):
-            solve_anchor_positions(anchor_i, factorize_anchor(anchor_values[anchor_i]))
+            solve_anchor_positions(anchor_i, factorize_anchor(anchor_i))
 
     metrics["analysis_reuse_count"] = int(factor_metric_sum("refactor_count"))
     metrics["refactor_seconds"] = factor_metric_sum("refactor_seconds")
@@ -933,6 +1160,14 @@ def sweep_stable_regime(
             metrics["gmres_iterations_total_recycled"]
         ) - int(metrics["gmres_iterations_total"])
 
+    seen_anchors: set[int] = set()
+    for pos, anchor_i in enumerate(np.asarray(anchor_indices, dtype=int).reshape(-1)):
+        idx = int(anchor_i)
+        if idx in seen_anchors:
+            continue
+        seen_anchors.add(idx)
+        stage_factor_s[pos] = float(anchor_factor_s[idx])
+
     return SweepResult(
         omega=omegas,
         gain=gains,
@@ -943,6 +1178,10 @@ def sweep_stable_regime(
         forcings=forcings,
         certification_reports=tuple(report for report in reports if report is not None),
         metrics=metrics,
+        stage_factor_s=stage_factor_s,
+        stage_gmres_s=stage_gmres_s,
+        stage_rsvd_s=stage_rsvd_s,
+        stage_recycle_setup_s=stage_recycle_setup_s,
     )
 
 

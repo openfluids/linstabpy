@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Turnkey beta/frequency resolvent gain-map orchestration.
 
-This entry point deliberately orchestrates existing certified/direct pieces.  It
-assembles one LNSE operator per beta, asks the band-marker for the intended
-frequency-band labels, and computes every point through the certified direct
-``resolvent_analysis`` path because the discounted and ROM regime engines do not
-exist yet.
+This entry point assembles one LNSE operator per beta, asks the band-marker
+for the intended frequency-band labels, and walks each frequency line.
+The first frequency on a line is a real factor. Later frequencies apply
+``K(omega)^{-1}`` with that factor as a preconditioner. A residual gate
+falls back to a new factor. The leading gain still comes from SLEPc.
 
 SBP sawtooth dissipation (required for clean gain maps)
 -------------------------------------------------------
@@ -48,9 +48,9 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
-from linstabpy.solvers.router.anchors import choose_anchors_adaptive
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
-from linstabpy.solvers.router.stable_sweep import sweep_stable_regime
+from linstabpy.solvers.router.map_record import atomic_savez
+from linstabpy.solvers.router.map_walk import LineWalker, WalkDeferred
 
 LOGGER = logging.getLogger(__name__)
 
@@ -129,6 +129,7 @@ class _DirectPointResult:
     gain: float
     iterations: int | None
     residual: float | None
+    source: str = "direct"
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:
@@ -183,20 +184,6 @@ def _analysis_bool(cfg: Mapping[str, Any], key: str, default: bool = False) -> b
     analysis = _analysis_cfg(cfg)
     value = analysis.get(key, _cfg_value(cfg, key, default))
     return _as_bool(value, name=f"analysis.{key}")
-
-
-def _stable_sweep_cfg(cfg: Mapping[str, Any], W_diag: np.ndarray, cfg_obj: Any) -> dict[str, Any]:
-    analysis = _analysis_cfg(cfg)
-    sweep_cfg: dict[str, Any] = {}
-    sweep_cfg.update(cfg)
-    sweep_cfg.update(analysis)
-    W = np.asarray(W_diag, dtype=complex).reshape(-1)
-    sweep_cfg["W"] = W
-    sweep_cfg["invW"] = 1.0 / W
-    sweep_cfg["solver_cfg"] = _solver_cfg(cfg)
-    if cfg_obj is not None:
-        sweep_cfg["factorize_cfg"] = cfg_obj
-    return sweep_cfg
 
 
 def _normalise_cfg(
@@ -702,17 +689,36 @@ def _forcing_response_mats(
         )
     if B_mat is None and input_region is not None and input_space == _CONSERVATIVE_MOMENTUM_SPACE:
         B_mat, _momentum_dewhiten, _info = _build_conservative_momentum_region(
-            mesh, idx, ndof, input_region, base_flow, L0, solver_cfg, name="input_region",
+            mesh,
+            idx,
+            ndof,
+            input_region,
+            base_flow,
+            L0,
+            solver_cfg,
+            name="input_region",
             bc_indices=region_bc,
         )
     elif B_mat is None and input_region is not None:
         B_mat = _build_region_mask(
-            mesh, idx, ndof, input_region, L0, solver_cfg, name="input_region",
+            mesh,
+            idx,
+            ndof,
+            input_region,
+            L0,
+            solver_cfg,
+            name="input_region",
             bc_indices=region_bc,
         )
     if C_mat is None and output_region is not None:
         C_mat = _build_region_mask(
-            mesh, idx, ndof, output_region, L0, solver_cfg, name="output_region",
+            mesh,
+            idx,
+            ndof,
+            output_region,
+            L0,
+            solver_cfg,
+            name="output_region",
             bc_indices=region_bc,
         )
     if _cfg_bool(cfg, "mask_bc_forcing", True):
@@ -958,7 +964,7 @@ def _save_store(
     }
     if cost_metrics:
         payload.update(cost_metrics)
-    np.savez_compressed(path, **payload)
+    atomic_savez(path, **payload)
 
 
 def _collect_cost_metrics(stage_wall: Mapping[str, float]) -> dict[str, object]:
@@ -1062,9 +1068,21 @@ def resolvent_map(
     n_modes = _n_modes(cfg_map)
     emitted_fallback_notes: set[str] = set()
     use_amortized_stable_sweep = _analysis_bool(cfg_map, "amortized_stable_sweep", False)
+    if use_amortized_stable_sweep:
+        LOGGER.warning(
+            "amortized_stable_sweep is the 1-D frequency-line tool, not the map; "
+            "resolvent_map walks each beta line with SLEPc"
+        )
 
+    walker = None
+    stop_line = False
     with _heartbeat("resolvent_map", cfg_map):
         for beta_i, beta_value in enumerate(beta):
+            if stop_line:
+                break
+            if walker is not None:
+                walker.close()
+                walker = None
             beta_clean = np.isfinite(gain[beta_i]) & (reason_code[beta_i] == REASON_OK)
             if bool(np.all(beta_clean)):
                 LOGGER.info(
@@ -1159,131 +1177,14 @@ def resolvent_map(
                 else None
             )
             regime_label[beta_i, :] = labels
-            sweep_completed: set[int] = set()
+            if int(f.size) > 1:
+                from linstabpy.config import Config
 
-            stable_indices = [
-                int(f_i)
-                for f_i, label in enumerate(labels)
-                if str(label) == STABLE
-                and not (
-                    np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK
-                )
-            ]
-            can_use_sweep = (
-                use_amortized_stable_sweep
-                and stable_indices
-                and B_mat is None
-                and C_mat is None
-                and filter_fn is None
-                and filter_ct_fn is None
-            )
-            if can_use_sweep:
-                sweep_start = time.perf_counter()
-                stable_omegas = np.asarray(f[stable_indices], dtype=complex)
-                sweep_cfg = _stable_sweep_cfg(cfg_map, W_diag, cfg_obj)
-                try:
-                    anchors, anchor_records = choose_anchors_adaptive(
-                        stable_omegas, marks, sweep_cfg
-                    )
-                    sweep = sweep_stable_regime(assembly.L0, stable_omegas, anchors, sweep_cfg)
-                except Exception as exc:  # noqa: BLE001 - fallback to certified direct path per point.
-                    wall_s = time.perf_counter() - sweep_start
-                    stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
-                    LOGGER.exception(
-                        "resolvent_map stable sweep failed beta_index=%d beta=%.12g points=%d "
-                        "exception_class=%s action=direct-fallback",
-                        beta_i,
-                        float(beta_value),
-                        len(stable_indices),
-                        exc.__class__.__name__,
-                    )
-                else:
-                    wall_s = time.perf_counter() - sweep_start
-                    stage_wall["resolvent"] = stage_wall.get("resolvent", 0.0) + wall_s
-                    sweep_omegas = np.asarray(sweep.omega, dtype=complex).reshape(-1)
-                    sweep_gains = np.asarray(sweep.gain, dtype=float).reshape(-1)
-                    sweep_iterations = np.asarray(sweep.iterations).reshape(-1)
-                    sweep_residuals = np.asarray(sweep.residuals, dtype=float).reshape(-1)
-                    if (
-                        sweep_omegas.size != len(stable_indices)
-                        or sweep_gains.size != len(stable_indices)
-                        or sweep_iterations.size != len(stable_indices)
-                        or sweep_residuals.size != len(stable_indices)
-                    ):
-                        LOGGER.error(
-                            "resolvent_map stable sweep returned mismatched result lengths "
-                            "beta_index=%d expected=%d omega=%d gain=%d iterations=%d residuals=%d "
-                            "action=direct-fallback",
-                            beta_i,
-                            len(stable_indices),
-                            sweep_omegas.size,
-                            sweep_gains.size,
-                            sweep_iterations.size,
-                            sweep_residuals.size,
-                        )
-                    else:
-                        response_modes = np.asarray(sweep.responses)
-                        forcing_modes = np.asarray(sweep.forcings)
-                        reports = tuple(sweep.certification_reports)
-                        for local_i, f_i in enumerate(stable_indices):
-                            omega = f[f_i]
-                            if not (
-                                np.isclose(sweep_omegas[local_i], complex(omega))
-                                and np.isfinite(sweep_gains[local_i])
-                                and np.isfinite(sweep_residuals[local_i])
-                            ):
-                                LOGGER.error(
-                                    "resolvent_map stable sweep point invalid index=%d beta=%.12g "
-                                    "omega=%.12g action=direct-fallback",
-                                    _point_index(beta_i, f_i, f.size),
-                                    float(beta_value),
-                                    float(omega),
-                                )
-                                continue
-                            gain[beta_i, f_i] = float(sweep_gains[local_i])
-                            reason_code[beta_i, f_i] = REASON_OK
-                            record = _point_record(
-                                status="ok",
-                                point_index=_point_index(beta_i, f_i, f.size),
-                                beta_i=beta_i,
-                                f_i=f_i,
-                                beta=float(beta_value),
-                                omega=float(omega),
-                                total=total_points,
-                                regime_label=labels[f_i],
-                                engine="stable-sweep",
-                                leading_gain=float(sweep_gains[local_i]),
-                                iterations=int(sweep_iterations[local_i]),
-                                residual=float(sweep_residuals[local_i]),
-                                wall_s=wall_s / max(len(stable_indices), 1),
-                                peak_rss_bytes=_peak_rss_bytes(),
-                                reason_code=REASON_OK,
-                            )
-                            if response_modes.ndim >= 2 and response_modes.shape[1] > local_i:
-                                record["response"] = response_modes[:, local_i].copy()
-                            if forcing_modes.ndim >= 2 and forcing_modes.shape[1] > local_i:
-                                record["forcing"] = forcing_modes[:, local_i].copy()
-                            if len(reports) > local_i:
-                                record["certification_report"] = reports[local_i]
-                            record["sweep_metrics"] = dict(sweep.metrics)
-                            record["anchor_omegas"] = np.asarray(anchors, dtype=complex).copy()
-                            record["anchor_records"] = anchor_records
-                            point_records.append(record)
-                            sweep_completed.add(f_i)
-                        _save_store(
-                            store,
-                            beta=beta,
-                            f=f,
-                            gain=gain,
-                            regime_label=regime_label,
-                            reason_code=reason_code,
-                            failure_records=failure_records,
-                            point_records=point_records,
-                        )
+                solver_cfg = dict(_solver_cfg(cfg_map))
+                walk_cfg = cfg_obj if cfg_obj is not None else Config.load(solver_cfg)
+                walker = LineWalker(solver_cfg=solver_cfg, cfg_obj=walk_cfg)
 
             for f_i, omega in enumerate(f):
-                if f_i in sweep_completed:
-                    continue
                 if np.isfinite(gain[beta_i, f_i]) and int(reason_code[beta_i, f_i]) == REASON_OK:
                     LOGGER.info(
                         "resolvent_map point skipped index=%d total=%d beta=%.12g omega=%.12g "
@@ -1333,19 +1234,48 @@ def resolvent_map(
                     engine,
                 )
                 try:
-                    point = _direct_engine_result(
-                        assembly.L0,
+                    use_walk = walker is not None and engine == "regime-a" and float(gamma) == 0.0
+                    if use_walk:
+                        walked = walker.compute(
+                            assembly.L0,
+                            float(omega),
+                            W_diag,
+                            n_modes,
+                            B_mat=B_mat,
+                            C_mat=C_mat,
+                            filter_fn=filter_fn,
+                            filter_ct_fn=filter_ct_fn,
+                            gamma=0.0,
+                        )
+                        point = _DirectPointResult(
+                            gain=walked.gain,
+                            iterations=walked.iterations,
+                            residual=walked.residual,
+                            source=walked.source,
+                        )
+                    else:
+                        point = _direct_engine_result(
+                            assembly.L0,
+                            float(omega),
+                            W_diag,
+                            n_modes,
+                            cfg_map,
+                            cfg_obj,
+                            B_mat=B_mat,
+                            C_mat=C_mat,
+                            filter_fn=filter_fn,
+                            filter_ct_fn=filter_ct_fn,
+                            gamma=gamma,
+                        )
+                except WalkDeferred:
+                    LOGGER.info(
+                        "resolvent_map stop: remaining wall is shorter than a factor "
+                        "beta=%.12g omega=%.12g",
+                        float(beta_value),
                         float(omega),
-                        W_diag,
-                        n_modes,
-                        cfg_map,
-                        cfg_obj,
-                        B_mat=B_mat,
-                        C_mat=C_mat,
-                        filter_fn=filter_fn,
-                        filter_ct_fn=filter_ct_fn,
-                        gamma=gamma,
                     )
+                    stop_line = True
+                    break
                 except NotImplementedError:
                     raise
                 except Exception as exc:  # noqa: BLE001 - per-point tolerance is an acceptance criterion.
@@ -1431,10 +1361,13 @@ def resolvent_map(
                 )
                 if gamma > 0.0:
                     record["resolvent_discount_gamma"] = float(gamma)
+                if point.source:
+                    record["walk_source"] = point.source
                 point_records.append(record)
                 LOGGER.info(
                     "resolvent_map point complete index=%d total=%d beta=%.12g omega=%.12g "
-                    "leading_gain=%.12g iters=%s residual=%s wall_s=%.6g peak_rss_bytes=%d",
+                    "leading_gain=%.12g iters=%s residual=%s walk_source=%s wall_s=%.6g "
+                    "peak_rss_bytes=%d",
                     _point_index(beta_i, f_i, f.size),
                     total_points,
                     float(beta_value),
@@ -1442,6 +1375,7 @@ def resolvent_map(
                     point.gain,
                     point.iterations,
                     None if point.residual is None else f"{point.residual:.6e}",
+                    point.source,
                     wall_s,
                     int(record["peak_rss_bytes"]),
                 )
@@ -1455,6 +1389,10 @@ def resolvent_map(
                     failure_records=failure_records,
                     point_records=point_records,
                 )
+
+        if walker is not None:
+            walker.close()
+            walker = None
 
     cost_metrics = _collect_cost_metrics(stage_wall)
     _save_store(

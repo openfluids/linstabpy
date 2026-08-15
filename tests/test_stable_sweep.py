@@ -108,7 +108,9 @@ def test_single_anchor_sweep_matches_direct_oracle(monkeypatch):
     assert result.residuals.shape == omegas.shape
     assert result.responses.shape == (L0.shape[0], omegas.size)
     assert result.forcings.shape == (L0.shape[0], omegas.size)
-    assert np.all(result.iterations > 0)
+    on_anchor = np.asarray(omegas) == anchors[0]
+    assert np.all(result.iterations[on_anchor] == 0)
+    assert np.all(result.iterations[~on_anchor] > 0)
     assert np.all(np.isfinite(result.residuals))
     assert all(report.passed for report in result.certification_reports)
 
@@ -167,4 +169,6 @@ def test_sweep_through_production_factorize_seam():
 
     np.testing.assert_allclose(result.gain, direct, rtol=cfg["sigma_tol"], atol=cfg["sigma_tol"])
     assert all(report.passed for report in result.certification_reports)
-    assert np.all(result.iterations > 0)
+    on_anchor = np.asarray(omegas) == anchors[0]
+    assert np.all(result.iterations[on_anchor] == 0)
+    assert np.all(result.iterations[~on_anchor] > 0)
