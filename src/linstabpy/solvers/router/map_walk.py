@@ -19,10 +19,11 @@ import numpy as np
 from linstabpy.linalg.factorize import factorize
 from linstabpy.linalg.shifted import shifted_operator
 from linstabpy.solvers.router.map_record import job_remaining_s, time_left_for_factor
-from linstabpy.solvers.router.recycling import DEFAULT_GMRES_MAXITER, DEFAULT_GMRES_RESTART
 from linstabpy.solvers.router.stable_sweep import _matvec, _right_preconditioned_gmres
 from linstabpy.utils.petsc_core import _is_petsc_matrix
 
+DEFAULT_GMRES_RESTART = 50
+DEFAULT_GMRES_MAXITER = 200
 DEFAULT_WALK_RTOL = 1.0e-10
 DEFAULT_N_ANCHOR = 2
 WALK_COST_SLACK = 0.25

@@ -7,6 +7,13 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc6] - 2026-08-15
+
+The map walk no longer imports GMRES defaults from the recycle module.
+
+### Fixed
+- `LineWalker` imported GMRES lengths that the recycle module did not export.
+
 ## [1.0.0rc5] - 2026-08-15
 
 The gain map walks each frequency line. The first two frequencies
