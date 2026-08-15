@@ -22,16 +22,36 @@ from linstabpy.resolvent.operator import (
 )
 from linstabpy.solvers.router.certification import CertificationReport, certified_rsvd
 from linstabpy.solvers.router.recycling import (
-    DEFAULT_GMRES_MAXITER,
-    DEFAULT_GMRES_RESTART,
     combine_recycle_bases,
     empty_recycle_basis,
     prepare_recycle_subspace,
     recycled_right_preconditioned_gmres,
-    resolve_gmres_lengths,
 )
 from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
+
+DEFAULT_GMRES_RESTART = 50
+DEFAULT_GMRES_MAXITER = 200
+MAX_GMRES_RESTART = 512
+
+
+def resolve_gmres_lengths(maxiter: int, restart: int | None = None) -> tuple[int, int]:
+    """Return a total iteration budget and a Krylov restart length."""
+    maxiter = int(maxiter)
+    if maxiter < 0:
+        raise ValueError("maxiter must be nonnegative")
+    if restart is None:
+        restart = min(maxiter, DEFAULT_GMRES_RESTART) if maxiter > 0 else 0
+    else:
+        restart = int(restart)
+    if restart < 0:
+        raise ValueError("restart must be nonnegative")
+    if restart > MAX_GMRES_RESTART:
+        raise ValueError(
+            "fgmres_restart is a Krylov length, not the system size "
+            f"(got {restart})"
+        )
+    return maxiter, restart
 
 if TYPE_CHECKING:
     # Type-only import; ``from __future__ import annotations`` keeps every
