@@ -55,11 +55,15 @@ script), with mode files under `data/modes/`.
    LINSTABPY_CASE1_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
    python -c "from linstabpy.driver.run import run; run()"
    ```
-5. **Run the full 200-point campaign**, either through Slurm or by printing
-   the commands to run locally:
+5. **Run a (beta, f) map** through `resolvent_map` (the shipped walk): one
+   factor at the first frequency of each beta line, later frequencies
+   preconditioned by that live factor, SLEPc for the gain. No recycle
+   knobs. The 200-point farm (`gen_campaign.py`) is the per-point MUMPS
+   baseline already computed; do not resubmit it. `savarino_line.py` is a
+   **1-D frequency-line** tool (RSVD / recycle) for a single beta, not the
+   published 2-D map.
    ```
-   python gen_campaign.py --out campaign
-   python gen_campaign.py --out campaign --local
+   python gen_campaign.py --out campaign --local   # existing per-point farm
    ```
 6. **Collect** the per-point outputs into one run-record CSV:
    ```

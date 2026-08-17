@@ -122,7 +122,7 @@ def main() -> int:
             template.format(
                 jobname=stem, config=config_path, output_npz=output_npz,
                 workdir=d, nranks=args.nranks, case_dir=CASE_DIR, partition=args.partition,
-                repo_root=HERE.parents[2], beta=b, freq=f,
+                repo_root=HERE.parents[1], beta=b, freq=f,
             )
         )
         if submit:
