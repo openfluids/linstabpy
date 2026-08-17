@@ -31,6 +31,7 @@ from linstabpy.solvers.router.map_record import (  # noqa: E402
     remaining,
 )
 from linstabpy.solvers.router.map_walk import WalkDeferred  # noqa: E402
+from linstabpy.solvers.router.resolvent_map import _peak_rss_bytes  # noqa: E402
 
 STEM = "savarino_mapwalk"
 FARM_CSV = HERE / "savarino_map2_200pt.csv"
@@ -52,6 +53,7 @@ FIELDS = (
     "n_factor",
     "last_n_applies",
     "ndof",
+    "peak_rss_bytes",
     "epsilon",
     "stride",
     "ranks",
@@ -337,6 +339,7 @@ def main() -> int:
                             walker.n_factor,
                             walker.last_n_applies,
                             ndof,
+                            _peak_rss_bytes(),
                             0.0,
                             1,
                             ranks,
