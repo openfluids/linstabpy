@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -116,7 +117,9 @@ def _log(path: Path, line: str) -> None:
         handle.flush()
 
 
-def _assemble(cfg: dict, beta: float, log_path: Path, rank: int):
+def _assemble(
+    cfg: dict[str, Any], beta: float, log_path: Path, rank: int
+) -> tuple[Any, Any, Any, Any, Any, Any, int]:
     from linstabpy.baseflow import load_case_fields, sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system
@@ -178,7 +181,10 @@ def _assemble(cfg: dict, beta: float, log_path: Path, rank: int):
     )
     ndof = int(mesh.ngp * 5)
     if rank == 0:
-        _log(log_path, f"load_mesh {load_s:.3f} s assemble {assemble_s:.3f} s nx={nx} ny={ny} ndof={ndof} beta={beta}")
+        _log(
+            log_path,
+            f"load_mesh {load_s:.3f} s assemble {assemble_s:.3f} s nx={nx} ny={ny} ndof={ndof} beta={beta}",
+        )
     return L0, idx, bc_indices, mesh, baseflow, W_diag, ndof
 
 
@@ -240,11 +246,16 @@ def main() -> int:
     for beta in betas:
         freqs = remaining(by_beta[float(beta)], done, beta=float(beta))
         if rank == 0:
-            _log(log_path, f"beta={beta} n_left={len(freqs)} already={len(by_beta[float(beta)]) - len(freqs)}")
+            _log(
+                log_path,
+                f"beta={beta} n_left={len(freqs)} already={len(by_beta[float(beta)]) - len(freqs)}",
+            )
         if not freqs:
             continue
         cfg["numerics"]["beta"] = float(beta)
-        L0, idx, bc_indices, mesh, baseflow, W_diag, ndof = _assemble(cfg, float(beta), log_path, rank)
+        L0, idx, bc_indices, mesh, baseflow, W_diag, ndof = _assemble(
+            cfg, float(beta), log_path, rank
+        )
         cfg_obj = Config.load(cfg)
         solver_cfg = cfg.get("solver") or {}
         filter_fn = mesh.filters.filter if getattr(mesh, "filters", None) is not None else None
@@ -288,7 +299,10 @@ def main() -> int:
                     window_s = time.perf_counter() - t_win
                     last_xmax = xmax
                     if rank == 0:
-                        _log(log_path, f"rebuild_BC beta={beta} f={freq} P_x_max={xmax} window={window_s:.3f} s")
+                        _log(
+                            log_path,
+                            f"rebuild_BC beta={beta} f={freq} P_x_max={xmax} window={window_s:.3f} s",
+                        )
                 try:
                     walked = walker.compute(
                         L0,
@@ -302,11 +316,17 @@ def main() -> int:
                     )
                 except WalkDeferred:
                     if rank == 0:
-                        _log(log_path, f"stop beta={beta} f={freq}: remaining wall shorter than a factor")
+                        _log(
+                            log_path,
+                            f"stop beta={beta} f={freq}: remaining wall shorter than a factor",
+                        )
                     return 0
                 wall_s = time.perf_counter() - t_pt
                 farm = float(farm_gain[(float(beta), float(freq))])
                 rel = relative_error(walked.gain, farm)
+                # Same meaning as the farm rows (driver/run.py): peak RSS summed
+                # over ranks. Collective, so it stays outside the rank-0 block.
+                peak_rss_total = comm.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
                 if rank == 0:
                     _log(
                         log_path,
@@ -339,7 +359,7 @@ def main() -> int:
                             walker.n_factor,
                             walker.last_n_applies,
                             ndof,
-                            _peak_rss_bytes(),
+                            peak_rss_total,
                             0.0,
                             1,
                             ranks,

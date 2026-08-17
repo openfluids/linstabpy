@@ -59,7 +59,7 @@ X_MIN, Y_MAX = 0.20291667, 0.29627645
 TWO_PI = 6.283185307179586
 
 
-def x_max(f):
+def x_max(f: float) -> float:
     return 1.9470833 if (f == 0 or f >= 2) else 1.7954167
 
 
