@@ -3,9 +3,9 @@
 
 The first two frequencies on each beta line pay a real factor. Those
 points measure factor wall and SLEPc apply count. Later frequencies
-try that factor as a right preconditioner only if a probe beats that
-cost. If the probe is slow, stale, or the residual is too large,
-factor this omega. The gain still comes from SLEPc.
+try that factor as a right preconditioner only if a probe on the last
+response beats that cost in at most four GMRES iterations. A dead
+walk raises and factors this omega. The gain still comes from SLEPc.
 """
 
 from __future__ import annotations
@@ -27,12 +27,17 @@ DEFAULT_GMRES_MAXITER = 200
 DEFAULT_WALK_RTOL = 1.0e-10
 DEFAULT_N_ANCHOR = 2
 WALK_COST_SLACK = 0.25
-WALK_PROBE_ITER_CAP = 8
+WALK_PROBE_ITER_CAP = 4
+WALK_SOLVE_ITER_CAP = 4
 WALK_APPLY_FLOOR = 40
 
 
 class WalkDeferred(Exception):
     """Raised when remaining wall is too short for a safe factor."""
+
+
+class WalkAborted(Exception):
+    """Raised when a walk solve misses the residual or the wall budget."""
 
 
 def combine_probes(
@@ -67,12 +72,23 @@ def walk_is_cheaper(
         return False
     if int(n_applies) <= 0:
         return False
+    if int(probe_iters) <= 0:
+        return False
     if float(probe_residual) > float(rtol):
         return False
     if int(probe_iters) > min(WALK_PROBE_ITER_CAP, int(restart)):
         return False
     applies = max(int(n_applies), WALK_APPLY_FLOOR)
     return float(probe_s) * float(applies) < WALK_COST_SLACK * float(last_factor_s)
+
+
+def probe_right_hand_side(n: int, last_solve: np.ndarray | None) -> np.ndarray:
+    """Return the last response, or a random vector. Never a ones vector."""
+    if last_solve is not None and int(np.asarray(last_solve).size) == int(n):
+        return np.asarray(last_solve, dtype=complex).reshape(-1).copy()
+    rng = np.random.default_rng(0)
+    size = int(n)
+    return rng.standard_normal(size) + 1j * rng.standard_normal(size)
 
 
 @dataclass
@@ -179,18 +195,20 @@ class LineWalker:
             deadline = t0 + self.last_factor_s
             applies = max(int(self.last_n_applies), WALK_APPLY_FLOOR)
             apply_budget_s = self.last_factor_s / float(applies)
+        solve_cap = min(int(self.restart), WALK_SOLVE_ITER_CAP)
         gated = _GatedPcSolve(
             operator,
             self.factor,
             rtol=self.rtol,
-            maxiter=self.restart,
-            restart=self.restart,
+            maxiter=solve_cap,
+            restart=solve_cap,
             x0=None,
             deadline=deadline,
             apply_budget_s=apply_budget_s,
+            raise_on_fail=False,
         )
         n = int(self.last_solve.size) if self.last_solve is not None else int(W_diag.size)
-        probe_rhs = np.ones(n, dtype=complex)
+        probe_rhs = probe_right_hand_side(n, self.last_solve)
         t_fwd = time.perf_counter()
         gated.solve(probe_rhs)
         forward_s = time.perf_counter() - t_fwd
@@ -212,17 +230,23 @@ class LineWalker:
         gated.max_residual = max(forward_residual, float(gated.max_residual))
         gated.iterations = forward_iters + int(gated.iterations)
         gated.x0 = self.last_solve
-        cheap = walk_is_cheaper(
-            probe_s=probe_s,
-            probe_iters=probe_iters,
-            probe_residual=probe_residual,
-            last_factor_s=self.last_factor_s,
-            rtol=self.rtol,
-            restart=self.restart,
-            n_modes=n_modes,
-            n_applies=self.last_n_applies,
+        past_deadline = deadline is not None and time.perf_counter() >= deadline
+        cheap = (
+            not past_deadline
+            and not gated.failed
+            and walk_is_cheaper(
+                probe_s=probe_s,
+                probe_iters=probe_iters,
+                probe_residual=probe_residual,
+                last_factor_s=self.last_factor_s,
+                rtol=self.rtol,
+                restart=self.restart,
+                n_modes=n_modes,
+                n_applies=self.last_n_applies,
+            )
         )
-        if cheap and not gated.failed:
+        if cheap:
+            gated.raise_on_fail = True
             try:
                 result = self._analyse(
                     gated,
@@ -233,11 +257,13 @@ class LineWalker:
                     filter_fn=filter_fn,
                     filter_ct_fn=filter_ct_fn,
                 )
+            except WalkAborted:
+                result = None
             except Exception:
                 if not gated.failed:
                     raise
                 result = None
-            if not gated.failed:
+            if not gated.failed and result is not None:
                 self.last_solve = gated.last
                 return WalkPointResult(
                     gain=float(np.asarray(result[0]).reshape(-1)[0]),
@@ -247,8 +273,12 @@ class LineWalker:
                     factor_s=0.0,
                     solve_s=time.perf_counter() - t0,
                 )
-        if not cheap and (
-            float(gated.max_residual) > self.rtol or int(gated.iterations) > self.restart
+        if gated.failed or (
+            not cheap
+            and (
+                float(gated.max_residual) > self.rtol
+                or int(gated.iterations) > self.restart
+            )
         ):
             source = "fallback"
         else:
@@ -412,6 +442,7 @@ class _GatedPcSolve:
         x0: np.ndarray | None,
         deadline: float | None = None,
         apply_budget_s: float = 0.0,
+        raise_on_fail: bool = False,
     ) -> None:
         self._operator = operator
         self._pc = pc_factor
@@ -421,6 +452,7 @@ class _GatedPcSolve:
         self.x0 = x0
         self.deadline = deadline
         self.apply_budget_s = float(apply_budget_s)
+        self.raise_on_fail = bool(raise_on_fail)
         self.failed = False
         self.over_budget = False
         self.max_residual = 0.0
@@ -445,6 +477,8 @@ class _GatedPcSolve:
             if self.deadline is not None and time.perf_counter() >= self.deadline:
                 self.over_budget = True
             self.failed = True
+            if self.raise_on_fail:
+                raise WalkAborted("walk solve missed the residual or the wall budget")
             if self.last is not None and self.last.size == rhs_arr.size:
                 return self.last
             return np.zeros(rhs_arr.size, dtype=complex)
@@ -477,6 +511,8 @@ class _GatedPcSolve:
             self.failed = True
         if residual > self.rtol:
             self.failed = True
+        if self.failed and self.raise_on_fail:
+            raise WalkAborted("walk solve missed the residual or the wall budget")
         return x
 
 
@@ -487,8 +523,10 @@ def _destroy_mat(mat: Any) -> None:
 
 __all__ = [
     "LineWalker",
+    "WalkAborted",
     "WalkDeferred",
     "WalkPointResult",
     "combine_probes",
+    "probe_right_hand_side",
     "walk_is_cheaper",
 ]
