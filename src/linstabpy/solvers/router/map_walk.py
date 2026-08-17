@@ -273,12 +273,15 @@ class LineWalker:
                     factor_s=0.0,
                     solve_s=time.perf_counter() - t0,
                 )
-        if gated.failed or (
-            not cheap
-            and (
-                float(gated.max_residual) > self.rtol
-                or int(gated.iterations) > self.restart
-            )
+        # Both labels factor this omega. They record different reasons.
+        # "budget" means cost: the probe ran past its wall slice, or it was
+        # healthy but no cheaper than a new factor. "fallback" means the
+        # walk answered and the answer missed the residual or the cap.
+        # A deadline sets both over_budget and failed, so test it first.
+        if gated.over_budget:
+            source = "budget"
+        elif gated.failed or (
+            float(gated.max_residual) > self.rtol or int(gated.iterations) > self.restart
         ):
             source = "fallback"
         else:

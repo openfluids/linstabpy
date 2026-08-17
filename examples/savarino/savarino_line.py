@@ -306,23 +306,15 @@ def main() -> int:
             if rank == 0:
                 _log(
                     log_path,
-                    "recycle_group xmax=%s n=%d sweep_s=%.3f load_s=%.3f assemble_s=%.3f "
-                    "window_s=%.3f factor_s=%.3f gmres_s=%.3f rsvd_s=%.3f setup_s=%.3f "
-                    "restart=%s maxiter=%s"
-                    % (
-                        xmax,
-                        len(group),
-                        sweep_s,
-                        load_s,
-                        assemble_s,
-                        window_s,
-                        float(sweep.metrics.get("factor_s") or 0.0),
-                        float(sweep.metrics.get("gmres_s") or 0.0),
-                        float(sweep.metrics.get("rsvd_s") or 0.0),
-                        float(sweep.metrics.get("recycle_setup_s") or 0.0),
-                        sweep.metrics.get("fgmres_restart"),
-                        sweep.metrics.get("fgmres_maxiter"),
-                    ),
+                    f"recycle_group xmax={xmax} n={len(group)} sweep_s={sweep_s:.3f} "
+                    f"load_s={load_s:.3f} assemble_s={assemble_s:.3f} "
+                    f"window_s={window_s:.3f} "
+                    f"factor_s={float(sweep.metrics.get('factor_s') or 0.0):.3f} "
+                    f"gmres_s={float(sweep.metrics.get('gmres_s') or 0.0):.3f} "
+                    f"rsvd_s={float(sweep.metrics.get('rsvd_s') or 0.0):.3f} "
+                    f"setup_s={float(sweep.metrics.get('recycle_setup_s') or 0.0):.3f} "
+                    f"restart={sweep.metrics.get('fgmres_restart')} "
+                    f"maxiter={sweep.metrics.get('fgmres_maxiter')}",
                 )
             recycle_rank = int(sweep.metrics.get("recycle_forward_rank_final") or 0)
             n_anchors = int(np.unique(sweep.anchor_indices).size)
@@ -333,8 +325,8 @@ def main() -> int:
                     ]
                     _log(
                         log_path,
-                        "cert f=%s passed=%s failed=%s"
-                        % (group[i], report.passed, ",".join(failed) or "-"),
+                        f"cert f={group[i]} passed={report.passed} "
+                        f"failed={','.join(failed) or '-'}",
                     )
             for i, freq in enumerate(group):
                 factor_i = float(sweep.stage_factor_s[i])
@@ -345,8 +337,9 @@ def main() -> int:
                 if rank == 0:
                     _log(
                         log_path,
-                        "point f=%s gain=%s factor=%.3f gmres=%.3f rsvd=%.3f setup=%.3f wall=%.3f"
-                        % (freq, sweep.gain[i], factor_i, gmres_i, rsvd_i, setup_i, wall_i),
+                        f"point f={freq} gain={sweep.gain[i]} factor={factor_i:.3f} "
+                        f"gmres={gmres_i:.3f} rsvd={rsvd_i:.3f} setup={setup_i:.3f} "
+                        f"wall={wall_i:.3f}",
                     )
                 rows.append(
                     {
@@ -426,8 +419,8 @@ def main() -> int:
             if rank == 0:
                 _log(
                     log_path,
-                    "point f=%s omega=%.6g gain=%s window=%.3f factor=%.3f rsvd=%.3f %s %.3f s"
-                    % (freq, omega, gain, window_s, factor_s, rsvd_s, status, wall_s),
+                    f"point f={freq} omega={omega:.6g} gain={gain} window={window_s:.3f} "
+                    f"factor={factor_s:.3f} rsvd={rsvd_s:.3f} {status} {wall_s:.3f} s",
                 )
             rows.append(
                 {
