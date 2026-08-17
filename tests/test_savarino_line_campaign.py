@@ -6,8 +6,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from examples.savarino.gen_campaign import GRID, x_max
 from examples.savarino.compare_map_timings import main as compare_main
+from examples.savarino.gen_campaign import GRID, x_max
 
 
 def test_line_csv_fields_name_every_stage_clock() -> None:
