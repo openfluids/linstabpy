@@ -13,8 +13,11 @@ from linstabpy.config import Config
 from linstabpy.linalg.backends import factor_backend_available
 from linstabpy.solvers.router.map_walk import (
     LineWalker,
+    WalkAborted,
     WalkDeferred,
+    _GatedPcSolve,
     combine_probes,
+    probe_right_hand_side,
     walk_is_cheaper,
 )
 from linstabpy.solvers.router.stable_sweep import _right_preconditioned_gmres
@@ -38,6 +41,8 @@ def test_walk_is_cheaper_rejects_a_slow_or_stale_probe() -> None:
     assert walk_is_cheaper(**{**cheap, "n_applies": 0}) is False
     assert walk_is_cheaper(**{**cheap, "probe_residual": 1.0e-6}) is False
     assert walk_is_cheaper(**{**cheap, "probe_iters": 9}) is False
+    assert walk_is_cheaper(**{**cheap, "probe_iters": 5}) is False
+    assert walk_is_cheaper(**{**cheap, "probe_iters": 0}) is False
     assert walk_is_cheaper(**{**cheap, "probe_s": 0.2}) is False
     assert walk_is_cheaper(**{**cheap, "last_factor_s": 0.0}) is False
 
@@ -88,6 +93,47 @@ def test_walker_defers_when_the_job_cannot_finish_a_factor(
     monkeypatch.setenv("LINSTABPY_JOB_DEADLINE", str(time.time() + 5.0))
     with pytest.raises(WalkDeferred):
         walker.compute(sp.eye(4, format="csc", dtype=complex), 1.0, np.ones(4), 1)
+
+
+def test_probe_right_hand_side_uses_last_solve_not_ones() -> None:
+    last = np.array([0.3 - 0.2j, 1.1, -0.4 + 0.7j, 2.0], dtype=complex)
+    rhs = probe_right_hand_side(4, last)
+    assert rhs == pytest.approx(last)
+    fallback = probe_right_hand_side(4, None)
+    assert fallback.shape == (4,)
+    assert not np.allclose(fallback, np.ones(4))
+    assert np.linalg.norm(fallback) > 0.0
+
+
+class _EyePc:
+    backend = "eye"
+
+    def solve(self, rhs: np.ndarray) -> np.ndarray:
+        return np.asarray(rhs, dtype=complex)
+
+    def solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
+        return np.asarray(rhs, dtype=complex)
+
+
+def test_gated_raises_walk_aborted_after_deadline() -> None:
+    operator = sp.eye(4, format="csc", dtype=complex)
+    gated = _GatedPcSolve(
+        operator,
+        _EyePc(),
+        rtol=1.0e-10,
+        maxiter=50,
+        restart=50,
+        x0=None,
+        deadline=time.perf_counter() - 1.0,
+        apply_budget_s=0.0,
+        raise_on_fail=False,
+    )
+    quiet = gated.solve(np.ones(4))
+    assert gated.failed is True
+    assert np.allclose(quiet, 0.0)
+    gated.raise_on_fail = True
+    with pytest.raises(WalkAborted):
+        gated.solve(np.ones(4))
 
 
 def test_gmres_stops_when_deadline_has_passed() -> None:

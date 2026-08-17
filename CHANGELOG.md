@@ -7,6 +7,20 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+- Each Savarino map-walk row records its commit, its Slurm job, and its machine.
+- `resolvent_analysis` returns the factor, SVD, and residual stage clocks.
+- The Savarino line campaign times a recycled sweep against a factor at each frequency.
+
+### Changed
+- Recycled GMRES restarts. The restart is a Krylov length. It is never the system size.
+- `certified_rsvd` logs every check when one check fails. One seed skips the multi-seed check.
+
+### Fixed
+- The walk probe uses the last response, not a ones vector.
+- A walk GMRES has a four-iteration cap. A dead walk raises and factors this omega.
+- `append_row` refuses a row that does not match the header.
+
 ## [1.0.0rc5] - 2026-08-15
 
 The gain map walks each frequency line. The first two frequencies
