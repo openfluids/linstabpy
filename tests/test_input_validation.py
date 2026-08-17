@@ -101,7 +101,7 @@ def test_resolvent_analysis_valid_inputs_reach_implementation_unchanged(monkeypa
 
     def fake_impl(*args, **kwargs):
         assert args[:4] == (L0, 0.1, 1, W_diag)
-        return np.ones(1), np.ones((2, 1)), np.ones((2, 1)), None, None
+        return np.ones(1), np.ones((2, 1)), np.ones((2, 1)), None, None, {}
 
     monkeypatch.setattr(resolvent_module, "_resolvent_analysis_impl", fake_impl)
 

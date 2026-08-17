@@ -17,6 +17,32 @@ import numpy as np
 Array = np.ndarray
 Apply = Callable[[Array], Array]
 
+DEFAULT_GMRES_RESTART = 50
+DEFAULT_GMRES_MAXITER = 200
+MAX_GMRES_RESTART = 512
+
+
+def resolve_gmres_lengths(maxiter: int, restart: int | None = None) -> tuple[int, int]:
+    """Return a total iteration budget and a Krylov restart length.
+
+    ``restart`` is the Hessenberg size. It is never the system size.
+    """
+    maxiter = int(maxiter)
+    if maxiter < 0:
+        raise ValueError("maxiter must be nonnegative")
+    if restart is None:
+        restart = min(maxiter, DEFAULT_GMRES_RESTART) if maxiter > 0 else 0
+    else:
+        restart = int(restart)
+    if restart < 0:
+        raise ValueError("restart must be nonnegative")
+    if restart > MAX_GMRES_RESTART:
+        raise ValueError(
+            "fgmres_restart is a Krylov length, not the system size "
+            f"(got {restart})"
+        )
+    return maxiter, restart
+
 
 @dataclass(frozen=True)
 class PreparedRecycleSubspace:
@@ -174,6 +200,7 @@ def recycled_right_preconditioned_gmres(
     recycle: PreparedRecycleSubspace | None = None,
     candidate_dim: int = 0,
     orth_tol: float = 1.0e-12,
+    restart: int | None = None,
 ) -> RecycledGmresResult:
     """Right-preconditioned GMRES with a fixed GCRO-style recycle subspace."""
     b = np.asarray(rhs, dtype=complex).reshape(-1)
@@ -189,9 +216,7 @@ def recycled_right_preconditioned_gmres(
             candidate_basis=empty_recycle_basis(n),
         )
 
-    maxiter = int(maxiter)
-    if maxiter < 0:
-        raise ValueError("maxiter must be nonnegative")
+    maxiter, restart = resolve_gmres_lengths(maxiter, restart)
 
     if recycle is None or recycle.rank == 0:
         u = empty_recycle_basis(n)
@@ -204,69 +229,91 @@ def recycled_right_preconditioned_gmres(
 
     if c.shape[1] > 0:
         initial_coeff = c.conj().T @ b
-        x0 = u @ initial_coeff
+        x = u @ initial_coeff
         r = b - c @ initial_coeff
     else:
-        x0 = np.zeros(n, dtype=complex)
+        x = np.zeros(n, dtype=complex)
         r = b.copy()
 
-    beta = float(np.linalg.norm(r))
-    if beta / rhs_norm <= float(rtol) or maxiter == 0:
+    residual = float(np.linalg.norm(r) / rhs_norm)
+    if residual <= float(rtol) or maxiter == 0 or restart == 0:
         return RecycledGmresResult(
-            x=x0,
+            x=x,
             iterations=0,
-            residual=beta / rhs_norm,
+            residual=residual,
             matvecs=0,
             recycle_rank=int(c.shape[1]),
             candidate_basis=empty_recycle_basis(n),
         )
 
-    q_vectors = [r / beta]
-    z_vectors: list[Array] = []
-    h = np.zeros((maxiter + 1, maxiter), dtype=complex)
-    g = np.zeros(maxiter + 1, dtype=complex)
-    g[0] = beta
-    best_y = np.zeros(0, dtype=complex)
-    best_residual = beta / rhs_norm
-    best_iter = 0
+    total_iters = 0
     matvecs = 0
+    candidate_z: list[Array] = []
 
-    for j in range(maxiter):
-        z_raw = np.asarray(precondition(q_vectors[j]), dtype=complex).reshape(-1)
-        v = np.asarray(matvec(z_raw), dtype=complex).reshape(-1)
-        matvecs += 1
-        if c.shape[1] > 0:
-            coeff = c.conj().T @ v
-            v = v - c @ coeff
-            z = z_raw - u @ coeff
-        else:
-            z = z_raw
-        z_vectors.append(z)
+    while total_iters < maxiter:
+        if total_iters > 0:
+            r = b - np.asarray(matvec(x), dtype=complex).reshape(-1)
+            matvecs += 1
+            if c.shape[1] > 0:
+                coeff = c.conj().T @ r
+                r = r - c @ coeff
+                x = x + u @ coeff
+            residual = float(np.linalg.norm(r) / rhs_norm)
+            if residual <= float(rtol):
+                break
 
-        for i, q in enumerate(q_vectors):
-            h[i, j] = np.vdot(q, v)
-            v = v - h[i, j] * q
-        h[j + 1, j] = np.linalg.norm(v)
-        if h[j + 1, j] > 0.0 and j + 1 < maxiter:
-            q_vectors.append(v / h[j + 1, j])
-
-        y, *_ = np.linalg.lstsq(h[: j + 2, : j + 1], g[: j + 2], rcond=None)
-        residual = float(np.linalg.norm(g[: j + 2] - h[: j + 2, : j + 1] @ y) / rhs_norm)
-        best_y = y
-        best_residual = residual
-        best_iter = j + 1
-        if residual <= float(rtol):
-            break
-        if h[j + 1, j] == 0.0:
+        beta = float(np.linalg.norm(r))
+        if beta == 0.0:
+            residual = 0.0
             break
 
-    x = x0.copy()
-    for coeff, z in zip(best_y, z_vectors, strict=False):
-        x = x + coeff * z
+        cycle = min(restart, maxiter - total_iters)
+        q_vectors = [r / beta]
+        z_vectors: list[Array] = []
+        h = np.zeros((cycle + 1, cycle), dtype=complex)
+        g = np.zeros(cycle + 1, dtype=complex)
+        g[0] = beta
+        best_y = np.zeros(0, dtype=complex)
+        cycle_iters = 0
+
+        for j in range(cycle):
+            z_raw = np.asarray(precondition(q_vectors[j]), dtype=complex).reshape(-1)
+            v = np.asarray(matvec(z_raw), dtype=complex).reshape(-1)
+            matvecs += 1
+            if c.shape[1] > 0:
+                proj = c.conj().T @ v
+                v = v - c @ proj
+                z = z_raw - u @ proj
+            else:
+                z = z_raw
+            z_vectors.append(z)
+
+            for i, q in enumerate(q_vectors):
+                h[i, j] = np.vdot(q, v)
+                v = v - h[i, j] * q
+            h[j + 1, j] = np.linalg.norm(v)
+            if h[j + 1, j] > 0.0 and j + 1 < cycle:
+                q_vectors.append(v / h[j + 1, j])
+
+            y, *_ = np.linalg.lstsq(h[: j + 2, : j + 1], g[: j + 2], rcond=None)
+            residual = float(np.linalg.norm(g[: j + 2] - h[: j + 2, : j + 1] @ y) / rhs_norm)
+            best_y = y
+            cycle_iters = j + 1
+            if residual <= float(rtol):
+                break
+            if h[j + 1, j] == 0.0:
+                break
+
+        for coeff, z in zip(best_y, z_vectors, strict=False):
+            x = x + coeff * z
+        candidate_z.extend(z_vectors)
+        total_iters += cycle_iters
+        if residual <= float(rtol) or cycle_iters < cycle:
+            break
 
     candidate_basis = (
         combine_recycle_bases(
-            np.column_stack(z_vectors) if z_vectors else None,
+            np.column_stack(candidate_z) if candidate_z else None,
             max_dim=int(candidate_dim),
             n=n,
             orth_tol=orth_tol,
@@ -276,8 +323,8 @@ def recycled_right_preconditioned_gmres(
     )
     return RecycledGmresResult(
         x=x,
-        iterations=best_iter,
-        residual=best_residual,
+        iterations=total_iters,
+        residual=residual,
         matvecs=matvecs,
         recycle_rank=int(c.shape[1]),
         candidate_basis=candidate_basis,
@@ -285,10 +332,14 @@ def recycled_right_preconditioned_gmres(
 
 
 __all__ = [
+    "DEFAULT_GMRES_MAXITER",
+    "DEFAULT_GMRES_RESTART",
+    "MAX_GMRES_RESTART",
     "PreparedRecycleSubspace",
     "RecycledGmresResult",
     "combine_recycle_bases",
     "empty_recycle_basis",
     "prepare_recycle_subspace",
     "recycled_right_preconditioned_gmres",
+    "resolve_gmres_lengths",
 ]

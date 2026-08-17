@@ -9,6 +9,7 @@ constraint as ``test_forcing_response_mats_loud_fail.py``.
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -268,12 +269,21 @@ def test_forcing_response_mats_conservative_momentum_requires_base_flow() -> Non
 
 
 # ---------------------------------------------------------------------------
-# 4. GATE: a non-None B_mat (conservative-momentum region) must keep the
-#    amortized stable-sweep gate on the per-point path.
+# 4. GATE: the map engine is the line walker. The RSVD sweep is a separate
+#    1-D tool, so a conservative-momentum B_mat has no sweep gate to trip.
 # ---------------------------------------------------------------------------
 
 
-def test_conservative_momentum_b_mat_blocks_amortized_sweep_gate() -> None:
+def test_resolvent_map_walks_the_line_and_never_calls_the_rsvd_sweep() -> None:
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "src/linstabpy/solvers/router/resolvent_map.py"
+    ).read_text(encoding="utf-8")
+    assert "sweep_stable_regime" not in src
+    assert "LineWalker" in src
+
+
+def test_conservative_momentum_b_mat_is_built_for_the_walk() -> None:
     mesh, idx, ngp, base_flow = _fake_mesh_and_base_flow()
     ndof = 5 * ngp
     L0 = sp.eye(ndof, format="csc")
@@ -289,20 +299,12 @@ def test_conservative_momentum_b_mat_blocks_amortized_sweep_gate() -> None:
     )
     filter_fn = None
     filter_ct_fn = None
-    stable_indices = [0, 1]  # any non-empty list stands in for real STABLE points
-    use_amortized_stable_sweep = True
-
-    # Same gate expression as `resolvent_map`'s beta/frequency loop.
-    can_use_sweep = (
-        use_amortized_stable_sweep
-        and stable_indices
-        and B_mat is None
-        and C_mat is None
-        and filter_fn is None
-        and filter_ct_fn is None
-    )
+    # A conservative-momentum region must produce a real forcing matrix for
+    # the walk. It must not silently fall back to the unmasked path.
     assert B_mat is not None
-    assert not can_use_sweep
+    assert B_mat.shape[0] == ndof
+    assert B_mat.nnz > 0
+    _ = (C_mat, filter_fn, filter_ct_fn)
 
 
 # ---------------------------------------------------------------------------

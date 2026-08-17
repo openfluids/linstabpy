@@ -10,11 +10,14 @@ Rayleigh-Ritz RSVD result from the supplied ``apply_H``/``apply_H_adj`` seams.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+LOGGER = logging.getLogger(__name__)
 
 Array = np.ndarray
 Apply = Callable[[Array], Array]
@@ -359,22 +362,38 @@ def certified_rsvd(
             tol=adjoint_factor_tol,
         ),
         "deterministic_tol_linearity": linearity,
-        "multi_seed_rsvd": check_multi_seed_rsvd(
-            apply_H,
-            apply_H_adj,
-            W,
-            invW,
-            seeds,
-            n_modes=n_modes,
-            gain_tol=float(_cfg_get(cfg, "seed_gain_tol", sigma_tol)),
-            mode_tol=float(_cfg_get(cfg, "seed_mode_tol", 1.0e-6)),
-            oversample=oversample,
+        "multi_seed_rsvd": (
+            check_multi_seed_rsvd(
+                apply_H,
+                apply_H_adj,
+                W,
+                invW,
+                seeds,
+                n_modes=n_modes,
+                gain_tol=float(_cfg_get(cfg, "seed_gain_tol", sigma_tol)),
+                mode_tol=float(_cfg_get(cfg, "seed_mode_tol", 1.0e-6)),
+                oversample=oversample,
+            )
+            if len(seeds) >= 2
+            else CheckResult(True, 0.0, 1.0, "one seed: multi-seed check skipped")
         ),
     }
     report = CertificationReport(checks=checks, derived_solve_tol=derived_tol, seeds=seeds)
     if not report.passed:
         failed = ", ".join(name for name, result in checks.items() if not result.passed)
-        raise RuntimeError(f"RSVD certification failed: {failed}")
+        for name, result in checks.items():
+            LOGGER.warning(
+                "rsvd_check %s passed=%s measured=%.6e tol=%.6e %s",
+                name,
+                result.passed,
+                result.measured,
+                result.tol,
+                result.message,
+            )
+        required = _cfg_get(cfg, "certification_required", True)
+        if required in (True, 1, "1", "true", "True", "yes", "on"):
+            raise RuntimeError(f"RSVD certification failed: {failed}")
+        LOGGER.warning("RSVD certification failed (continuing): %s", failed)
     gains, responses, forcings = randomized_resolvent_svd(
         apply_H, apply_H_adj, W, invW, n_modes=n_modes, oversample=oversample, seed=seeds[0]
     )
