@@ -42,3 +42,17 @@ def test_walk_rows_carry_the_farm_cost_columns() -> None:
     for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine"):
         assert column in farm_cols
         assert column in FIELDS
+
+
+def test_walk_peak_rss_means_the_same_as_the_farm_column() -> None:
+    """Farm rows sum ru_maxrss over ranks (driver/run.py). A same-named
+    column with a rank-local value would read 4x too small on 4 ranks and
+    no reader could tell. The reduction is collective, so it must sit
+    outside the rank-0 block; a serial test can only inspect the source."""
+    src = DRIVER.read_text(encoding="utf-8")
+    assert "comm.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)" in src
+    assert "peak_rss_total," in src
+    reduce_at = src.index("comm.allreduce(int(_peak_rss_bytes())")
+    guard_at = src.index("if rank == 0:", reduce_at)
+    append_at = src.index("append_row(", reduce_at)
+    assert reduce_at < guard_at < append_at
