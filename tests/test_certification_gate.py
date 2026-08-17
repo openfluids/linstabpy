@@ -226,3 +226,32 @@ def test_certified_rsvd_linearity_gate_covers_adjoint_action():
 
     with pytest.raises(RuntimeError, match="deterministic_tol_linearity"):
         certified_rsvd(lambda x: h @ x, nonlinear_adjoint, w, w, cfg)
+
+
+def test_single_seed_skips_multi_seed_and_still_returns_a_gain() -> None:
+    k, h, probes_a, probes_b = _problem()
+    w = np.ones(h.shape[0])
+    cfg = _positive_cfg(k, probes_a, probes_b)
+    cfg["seeds"] = (2,)
+    gains, _responses, _forcings, report = certified_rsvd(
+        lambda x: h @ x, lambda x: h.conj().T @ x, w, w, cfg
+    )
+    assert "multi_seed_rsvd" in report.checks
+    assert report.checks["multi_seed_rsvd"].passed
+    assert "one seed" in report.checks["multi_seed_rsvd"].message
+    assert np.isfinite(gains[0])
+    assert gains[0] == pytest.approx(np.linalg.svd(h, compute_uv=False)[0], rel=cfg["sigma_tol"])
+
+
+def test_failed_check_still_returns_gain_when_certification_is_not_required() -> None:
+    k, h, probes_a, probes_b = _problem()
+    w = np.ones(k.shape[0])
+    cfg = _positive_cfg(k, probes_a, probes_b)
+    cfg["actual_solve_tol"] = derive_solve_tolerance(cfg["sigma_tol"], cfg["inv_norm_est"]) * 10.0
+    cfg["certification_required"] = False
+    gains, _responses, _forcings, report = certified_rsvd(
+        lambda x: h @ x, lambda x: h.conj().T @ x, w, w, cfg
+    )
+    assert report.passed is False
+    assert not report.checks["tolerance_tied_to_sigma_accuracy"].passed
+    assert np.isfinite(gains[0])

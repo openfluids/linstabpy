@@ -163,7 +163,10 @@ def test_return_info_round_trip_and_default_tuple_shape():
 
     assert len(default_result) == 3
     assert len(info_result) == 4
-    assert info_result[-1] == {"resolvent_discount_gamma": 0.125}
+    info = info_result[-1]
+    assert info["resolvent_discount_gamma"] == 0.125
+    assert info["factor_s"] >= 0.0
+    assert info["svd_s"] >= 0.0
     np.testing.assert_allclose(info_result[0], default_result[0])
 
 

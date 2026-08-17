@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import numbers
+import time
 from collections.abc import Callable
 
 import numpy as np
@@ -172,8 +173,8 @@ def resolvent_analysis(
         ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
         resolvent and keep the shifted solve numerically well-posed at poles.
     return_info : bool, optional
-        If True, append an info dictionary containing
-        ``{"resolvent_discount_gamma": float(gamma)}``.
+        If True, append an info dictionary with the discount and the
+        exclusive stage clocks ``factor_s``, ``svd_s``, and ``residual_s``.
 
     Returns
     -------
@@ -193,7 +194,7 @@ def resolvent_analysis(
     """
     _validate_resolvent_inputs(L0, omega, n_modes, W_diag, gamma)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
-    gains, responses, forcings, rho_fwd, rho_adj = _resolvent_analysis_impl(
+    gains, responses, forcings, rho_fwd, rho_adj, timings = _resolvent_analysis_impl(
         L0,
         omega,
         n_modes,
@@ -213,7 +214,7 @@ def resolvent_analysis(
         else (gains, responses, forcings)
     )
     if return_info:
-        return (*result, {"resolvent_discount_gamma": float(gamma)})
+        return (*result, {"resolvent_discount_gamma": float(gamma), **timings})
     return result
 
 
@@ -231,7 +232,7 @@ def _resolvent_analysis_impl(
     gamma: float = 0.0,
     compute_residuals: bool,
     cfg: Config | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None, dict[str, float]]:
     """Implementation shared by the public resolvent entry points."""
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)
@@ -248,7 +249,9 @@ def _resolvent_analysis_impl(
     #    KSP/PC stack is selected by typed config through factorize.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
+    t_factor = time.perf_counter()
     lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
+    factor_s = time.perf_counter() - t_factor
     # factorize copies the operator internally; free the shifted copy.
     if _is_petsc_matrix(L_sigma):
         L_sigma.destroy()
@@ -260,6 +263,7 @@ def _resolvent_analysis_impl(
     # ------------------------------------------------------------------
     op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
 
+    t_svd = time.perf_counter()
     gains, responses, forcings, W_vec, invW_vec = compute_leading_gains(
         op,
         W_diag,
@@ -267,11 +271,14 @@ def _resolvent_analysis_impl(
         ndof,
         cfg,
     )
+    svd_s = time.perf_counter() - t_svd
 
     try:
         rho_fwd: np.ndarray | None = None
         rho_adj: np.ndarray | None = None
+        residual_s = 0.0
         if compute_residuals:
+            t_res = time.perf_counter()
             rho_fwd, rho_adj = _compute_resolvent_svd_residuals_from_apply(
                 gains,
                 forcings,
@@ -282,8 +289,10 @@ def _resolvent_analysis_impl(
                 op.apply_adjoint,
                 cfg.resolvent.eps.forcing_norm,
             )
+            residual_s = time.perf_counter() - t_res
 
-        return gains, responses, forcings, rho_fwd, rho_adj
+        timings = {"factor_s": factor_s, "svd_s": svd_s, "residual_s": residual_s}
+        return gains, responses, forcings, rho_fwd, rho_adj, timings
     finally:
         lu.destroy()
 
