@@ -1,0 +1,26 @@
+#!/bin/bash
+#SBATCH --job-name={jobname}
+#SBATCH --output={workdir}/slurm-%j.out
+#SBATCH --error={workdir}/slurm-%j.err
+#SBATCH --partition={partition}
+#SBATCH --time=24:00:00
+#SBATCH --ntasks={nranks}
+#SBATCH --cpus-per-task=1
+set -euo pipefail
+set +u
+[ -f /opt/intel/oneapi/setvars.sh ] && . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1
+set -u
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"
+export PYTHONPATH="{repo_root}/src:{repo_root}${{PYTHONPATH:+:$PYTHONPATH}}"
+cd {repo_root}
+echo "SHA=$(git -C {repo_root} rev-parse HEAD 2>/dev/null || echo dirty)  BETA={beta}  N_F={nfreq}"
+echo "method={method}  assemble_once=1  recycle={recycle}"
+echo "resolution=full-res 300x300 stride=1  epsilon=0  leak=rectilinear"
+mpiexec -n {nranks} "$PY" -u examples/savarino/savarino_line.py \
+  --beta {beta} \
+  --method {method} \
+  --config {repo_root}/examples/savarino/savarino_point_f2_b45.yaml \
+  --out {outdir} \
+  --machine c9
+echo "DONE {jobname}"

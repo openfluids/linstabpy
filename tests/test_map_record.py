@@ -60,3 +60,12 @@ def test_job_remaining_s_reads_deadline_env(monkeypatch: pytest.MonkeyPatch) -> 
     left = job_remaining_s()
     assert left is not None
     assert 10.0 < left < 30.0
+
+
+def test_append_row_rejects_a_row_that_does_not_match_the_header(tmp_path: Path) -> None:
+    path = tmp_path / "rows.csv"
+    fields = ("beta_Xsh", "f_Xsh_Uinf", "gain")
+    with pytest.raises(ValueError):
+        append_row(path, fields, (40.0, 1.0))
+    with pytest.raises(ValueError):
+        append_row(path, fields, (40.0, 1.0, 92.89, "extra"))

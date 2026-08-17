@@ -17,6 +17,8 @@ _PAIR_ATOL = 1.0e-12
 
 def append_row(path: Path, fields: Sequence[str], row: Sequence[object]) -> None:
     """Append one flushed row. Write the header when the file is new."""
+    if len(row) != len(fields):
+        raise ValueError(f"row has {len(row)} values, header has {len(fields)} fields")
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     new_file = (not dest.exists()) or dest.stat().st_size == 0
