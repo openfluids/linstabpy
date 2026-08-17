@@ -17,6 +17,7 @@ set -euo pipefail
 #   LINSTABPY_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
 #   LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest  # Python 3.14 + latest packages
 #   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
+#   LINSTABPY_BLAS=mkl bash install.sh  # Linux BLAS: auto (default) | mkl | openblas | reference
 #   LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
 #   bash install.sh --check            # verify existing installation
 #   bash install.sh --diagnose         # host preflight only; install nothing
@@ -203,6 +204,7 @@ print_dry_run_plan() {
     printf 'venv_dir=%s\n' "${VENV_DIR}"
     printf 'venv_display=%s\n' "${VENV_DISPLAY}"
     printf 'force=%s\n' "${FORCE_REINSTALL}"
+    printf 'blas=%s\n' "${LINSTABPY_BLAS:-auto}"
     if [ "${BUILD_STACK}" = "default" ]; then
         printf 'petsc_configure_branch=cpu-mumps\n'
     else
@@ -533,6 +535,65 @@ darwin_append_petsc_linalg_options() {
     )
     log "PETSc configure: using Homebrew OpenBLAS and ScaLAPACK."
     return 0
+}
+
+# Linux BLAS/LAPACK for PETSc, MUMPS and ScaLAPACK.
+#
+# PETSc's --download-fblaslapack is the reference Fortran BLAS: no blocking, no
+# vector units. Measured 2026-08-17 on a Xeon Silver 4210R, 4 MPI ranks: MUMPS
+# did 9.6e11 flops in 461 s, i.e. 0.5 GFlop/s per core, 5-20x below a tuned
+# BLAS. Every MUMPS factor, every solve and every wall time built on it was
+# that much slower than the hardware allows. So the reference BLAS is never
+# the default here.
+#
+# LINSTABPY_BLAS selects the library:
+#   auto       (default) mkl when MKLROOT points at a real install (after
+#              `source /opt/intel/oneapi/setvars.sh`), otherwise openblas
+#   mkl        Intel MKL from MKLROOT
+#   openblas   OpenBLAS, downloaded and built by PETSc
+#   reference  --download-fblaslapack, kept only for A/B checks
+# ScaLAPACK is downloaded and built on top of whichever BLAS is chosen.
+linux_append_petsc_linalg_options() {
+    local choice="${LINSTABPY_BLAS:-auto}"
+    if [ "${choice}" = "auto" ]; then
+        if [ -n "${MKLROOT:-}" ] && [ -d "${MKLROOT}" ]; then
+            choice="mkl"
+        else
+            choice="openblas"
+        fi
+    fi
+    case "${choice}" in
+        mkl)
+            if [ -z "${MKLROOT:-}" ] || [ ! -d "${MKLROOT}" ]; then
+                err "LINSTABPY_BLAS=mkl but MKLROOT is unset or not a directory. Source oneAPI setvars.sh first."
+                exit 2
+            fi
+            _PETSC_CONF_OPTS+=(
+                "--with-blaslapack-dir=${MKLROOT}"
+                "--download-scalapack"
+            )
+            log "PETSc configure: BLAS/LAPACK = MKL at ${MKLROOT}; ScaLAPACK downloaded on top of it."
+            ;;
+        openblas)
+            _PETSC_CONF_OPTS+=(
+                "--download-openblas"
+                "--download-scalapack"
+            )
+            log "PETSc configure: BLAS/LAPACK = OpenBLAS (downloaded by PETSc); ScaLAPACK downloaded."
+            ;;
+        reference)
+            _PETSC_CONF_OPTS+=(
+                "--download-fblaslapack"
+                "--download-scalapack"
+            )
+            warn "PETSc configure: BLAS/LAPACK = reference fblaslapack. 5-20x slower than a tuned BLAS; A/B checks only."
+            ;;
+        *)
+            err "LINSTABPY_BLAS must be auto, mkl, openblas or reference; got '${choice}'."
+            exit 2
+            ;;
+    esac
+    LINSTABPY_BLAS_CHOICE="${choice}"
 }
 
 darwin_wrap_venv_python() {
@@ -1872,9 +1933,19 @@ if [ "${LINSTABPY_HYDRA_BOOTSTRAP+x}" = x ]; then
 else
     _PETSC_HYDRA_BOOTSTRAP=exec
 fi
+# Compiler optimisation for PETSc and everything it downloads (MUMPS, METIS,
+# ScaLAPACK, OpenBLAS). The PyPI sdist default is "-g -O", i.e. -O1: measured
+# 2026-08-17 in the c9 venv (CC_FLAGS/FC_FLAGS "-g -O"). -O3 is PETSc's own
+# recommendation for production builds. LINSTABPY_PETSC_OPTFLAGS overrides it.
+# Keep it ONE token: these options travel through PETSC_CONFIGURE_OPTIONS,
+# which the petsc sdist installer may split on whitespace.
+_PETSC_OPTFLAGS="${LINSTABPY_PETSC_OPTFLAGS:--O3}"
 _PETSC_CONF_OPTS=(
     "--with-scalar-type=complex"
     "--download-cmake"
+    "--COPTFLAGS=${_PETSC_OPTFLAGS}"
+    "--CXXOPTFLAGS=${_PETSC_OPTFLAGS}"
+    "--FOPTFLAGS=${_PETSC_OPTFLAGS}"
 )
 if [ "${BUILD_STACK}" = "default" ]; then
     _PETSC_CONF_OPTS+=(
@@ -1913,10 +1984,7 @@ else
     )
 fi
 if ! darwin_append_petsc_linalg_options; then
-    _PETSC_CONF_OPTS+=(
-        "--download-fblaslapack"
-        "--download-scalapack"
-    )
+    linux_append_petsc_linalg_options
 fi
 # PyPI petsc's configure ignores MPIEXEC for the probe and defaults to /usr/bin/mpiexec
 # (broken under Ubuntu alternatives). --with-mpiexec forces the working launcher.

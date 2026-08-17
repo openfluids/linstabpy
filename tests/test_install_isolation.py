@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import stat
 import subprocess
@@ -170,3 +171,30 @@ def test_diagnose_prints_preflight_and_does_not_touch_venv() -> None:
     assert existed == venv.exists()
     if marker is not None:
         assert python.stat().st_mtime == marker
+
+
+def test_dry_run_states_the_blas_choice() -> None:
+    """The plan names the BLAS. Default is auto (MKL if MKLROOT, else OpenBLAS)."""
+    assert run_dry_run()["blas"] == "auto"
+    result = subprocess.run(
+        ["bash", str(INSTALL_SH), "--dry-run"],
+        cwd=ROOT,
+        env={**os.environ, "LINSTABPY_BLAS": "mkl"},
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert "blas=mkl" in result.stdout.splitlines()
+
+
+def test_reference_blas_is_opt_in_only() -> None:
+    """--download-fblaslapack is the reference Fortran BLAS: 0.5 GFlop/s per core
+    measured on MUMPS. It must be reachable only through LINSTABPY_BLAS=reference,
+    never as the Linux default."""
+    src = INSTALL_SH.read_text(encoding="utf-8")
+    assert src.count('"--download-fblaslapack"') == 1
+    reference_case = src.index("reference)")
+    assert src.index('"--download-fblaslapack"') > reference_case
+    assert "linux_append_petsc_linalg_options" in src
+    assert '"--with-blaslapack-dir=${MKLROOT}"' in src
+    assert '"--download-openblas"' in src
