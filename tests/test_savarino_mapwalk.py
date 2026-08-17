@@ -34,3 +34,11 @@ def test_driver_uses_linewalker_not_rsvd() -> None:
 
 def test_every_row_states_its_build_and_box() -> None:
     assert FIELDS[-3:] == ("git_sha", "slurm_job", "machine")
+
+
+def test_walk_rows_carry_the_farm_cost_columns() -> None:
+    """A cost comparison needs the same measurements on both sides."""
+    farm_cols = FARM_CSV.read_text(encoding="utf-8").splitlines()[0].split(",")
+    for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine"):
+        assert column in farm_cols
+        assert column in FIELDS
