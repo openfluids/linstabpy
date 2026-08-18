@@ -14,11 +14,15 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
-# PETSc/SLEPc are only used inside ``_build_filter_solver`` (the MUMPS LU on
-# the implicit 10th-order filter matrix). The init + import are deferred to
-# that function so ``import linstabpy.mesh.filters`` is pure-numpy at module
-# load — keeps the lazy contract from ``src/linstabpy/__init__.py`` honest
-# for pure-math test jobs that build ``Mesh`` instances without PETSc.
+# This module needs no PETSc. The implicit 10th-order filter matrix M is
+# real, block-tridiagonal in line order, and identical on every rank, so
+# ``_build_filter_solver`` factors it once with scipy's sequential SuperLU
+# (and does nothing at all when alpha_filter = 0, where M is the identity).
+# It used to run one PETSc/MUMPS solve per column of every filter call:
+# measured 2026-08-18 on the Savarino 300x300 resolvent (450k DOF), those
+# identity solves were 62 % of one H^H H apply -- 40 MUMPS calls per apply,
+# 3.6 s of 5.9 s -- while the two MUMPS solves of the shifted operator that
+# do the actual work were 19 %.
 
 
 @dataclass(frozen=True)
@@ -323,11 +327,17 @@ def build_mesh_filters(
     M_x, F_x = _build_2d_filter_pair(x_vec, y_vec, alpha_val)
     M_z, F_z = _build_2d_filter_pair(y_vec, x_vec, alpha_val)
 
-    solve_Mx, solve_Mx_T = _make_filter_ksp(M_x)
-    solve_Mz, solve_Mz_T = _make_filter_ksp(M_z)
+    solve_Mx, solve_Mx_T = _build_filter_solver(M_x)
+    solve_Mz, solve_Mz_T = _build_filter_solver(M_z)
 
-    Fx_Fz = F_x @ F_z
-    Fz_Fx_T = F_z.conj().T @ F_x.conj().T
+    # Apply F_x and F_z one after the other, never their product: the product
+    # has ~121 nonzeros per row against 11 + 11 for the two factors, and the
+    # matvec on 5 state columns was 17 % of one H^H H apply (same measurement
+    # as above). Associativity only; the numbers are the same to roundoff.
+    F_x = F_x.tocsr()
+    F_z = F_z.tocsr()
+    F_x_H = F_x.conj().T.tocsr()
+    F_z_H = F_z.conj().T.tocsr()
 
     def _to_columns(v: np.ndarray) -> tuple[np.ndarray, bool]:
         arr = np.asarray(v)
@@ -349,14 +359,14 @@ def build_mesh_filters(
 
     def filter_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        filtered = solve_Mz(solve_Mx(Fx_Fz @ arr))
+        filtered = solve_Mz(solve_Mx(F_x @ (F_z @ arr)))
         if not np.iscomplexobj(v):
             filtered = filtered.real
         return _from_columns(filtered, scalar_input)
 
     def filter_ct_fn(v: np.ndarray) -> np.ndarray:
         arr, scalar_input = _to_columns(v)
-        adj = Fz_Fx_T @ solve_Mx_T(solve_Mz_T(arr))
+        adj = F_z_H @ (F_x_H @ solve_Mx_T(solve_Mz_T(arr)))
         if not np.iscomplexobj(v):
             adj = adj.real
         return _from_columns(adj, scalar_input)
@@ -364,15 +374,15 @@ def build_mesh_filters(
     return MeshFilters(filter=filter_fn, filter_ct=filter_ct_fn)
 
 
-def _make_filter_ksp(
+def _build_filter_solver(
     M_sp: sp.spmatrix,
 ) -> tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray], np.ndarray]]:
-    """Factor a filter matrix using PETSc KSP with MUMPS LU.
+    """Return column-wise ``M x = rhs`` and ``M^T x = rhs`` solvers for a filter matrix.
 
     Parameters
     ----------
     M_sp : sparse matrix
-        Tridiagonal implicit filter matrix (real-valued).
+        Implicit filter matrix (real, tridiagonal along each mesh line).
 
     Returns
     -------
@@ -380,60 +390,33 @@ def _make_filter_ksp(
         Forward solve ``M x = rhs``, handles 2D arrays column-wise.
     solve_transpose : callable
         Transpose solve ``M^T x = rhs``, handles 2D arrays column-wise.
+
+    Notes
+    -----
+    ``alpha_filter = 0`` (every shipped case) gives ``M = I`` exactly
+    (``filter_O10_diffMat``: tridiag(alpha, 1, alpha)); the solve is then a copy.
+    Otherwise M is factored once with scipy's sequential SuperLU. The factor is
+    complex so complex right-hand sides are never downcast; M is real, so the
+    transpose solve is also the Hermitian one.
     """
-    # Lazy PETSc init: keep ``import linstabpy.mesh.filters`` pure-numpy at
-    # module load. PETSc is only needed when a filter solver is actually
-    # constructed (e.g. inside Mesh.create with filters enabled).
-    from ..utils.petsc_init import init_petsc_from_argv
+    csc = sp.csc_matrix(M_sp, dtype=float)
+    n = csc.shape[0]
+    if (csc - sp.identity(n, format="csc")).count_nonzero() == 0:
 
-    init_petsc_from_argv()
-    from petsc4py import PETSc
+        def identity(rhs: np.ndarray) -> np.ndarray:
+            return np.array(rhs, dtype=complex, copy=True)
 
-    from ..utils.petsc_core import require_complex
+        return identity, identity
 
-    require_complex()
-    # Filter application currently works on gathered full-state vectors
-    # inside Python callbacks (e.g. resolvent MatShell multiplies). The
-    # filter factorization therefore has to be a local sequential PETSc
-    # matrix on every rank; a distributed AIJ here would expect only the
-    # owned vector slice and fails on the gathered full vector length.
-    csr = M_sp.tocsr().astype(complex)
-    A = PETSc.Mat().createAIJ(
-        size=csr.shape,
-        csr=(csr.indptr, csr.indices, csr.data),
-        comm=PETSc.COMM_SELF,
-    )
-    A.assemble()
-    ksp = PETSc.KSP().create()
-    ksp.setOperators(A)
-    ksp.setType(PETSc.KSP.Type.PREONLY)
-    pc = ksp.getPC()
-    pc.setType(PETSc.PC.Type.LU)
-    from ..linalg.backends import apply_factor_backend
+    from scipy.sparse.linalg import splu
 
-    apply_factor_backend(pc, "mumps")
-    ksp.setUp()
-
-    def _solve_columns(rhs: np.ndarray, transpose: bool = False) -> np.ndarray:
-        solve_fn = ksp.solveTranspose if transpose else ksp.solve
-        out = np.empty_like(rhs, dtype=complex)
-        for j in range(rhs.shape[1]):
-            b = PETSc.Vec().createWithArray(
-                np.ascontiguousarray(rhs[:, j], dtype=complex),
-                comm=PETSc.COMM_SELF,
-            )
-            x = b.duplicate()
-            solve_fn(b, x)
-            out[:, j] = np.array(x.array_r, copy=True)
-            b.destroy()
-            x.destroy()
-        return out
+    lu = splu(csc.astype(complex))
 
     def solve(rhs: np.ndarray) -> np.ndarray:
-        return _solve_columns(rhs, transpose=False)
+        return lu.solve(np.ascontiguousarray(rhs, dtype=complex))
 
     def solve_transpose(rhs: np.ndarray) -> np.ndarray:
-        return _solve_columns(rhs, transpose=True)
+        return lu.solve(np.ascontiguousarray(rhs, dtype=complex), trans="T")
 
     return solve, solve_transpose
 

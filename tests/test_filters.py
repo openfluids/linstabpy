@@ -134,3 +134,44 @@ class TestFilterAdjointProperty:
         v_high = np.sin(high_freq * x)
         v_filtered = mesh.filters.filter(v_high)
         assert np.linalg.norm(v_filtered) < np.linalg.norm(v_high)
+
+
+# ---------------------------------------------------------------------------
+# alpha_filter = 0 is what every shipped case runs: M = I, no implicit solve
+# ---------------------------------------------------------------------------
+
+
+def test_adjoint_property_alpha_zero():
+    """filter_ct is the exact discrete transpose of filter at alpha_filter=0 (M = I)."""
+    mesh = Mesh.create(xrange=(0, 2), yrange=(0, 1), nx=20, ny=30, fd_order=4, alpha_filter=0)
+    n = 5 * mesh.X.size
+    rng = np.random.default_rng(3)
+    u = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    v = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    lhs = np.vdot(mesh.filters.filter_ct(u), v)
+    rhs = np.vdot(u, mesh.filters.filter(v))
+    assert_allclose(lhs, rhs, atol=1e-12)
+
+
+def test_building_and_applying_filters_needs_no_petsc():
+    """The implicit filter solve is scipy (SuperLU, or nothing at alpha=0), never PETSc/MUMPS.
+
+    2026-08-18: one PETSc/MUMPS solve per column per filter call was 62 % of a
+    resolvent H^H H apply on the Savarino case. Run in a fresh interpreter so
+    petsc4py imported by other tests cannot mask a regression.
+    """
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, numpy as np\n"
+        "from linstabpy.mesh import Mesh\n"
+        "for alpha in (0, 0.4):\n"
+        "    m = Mesh.create(xrange=(0, 2), yrange=(0, 1), nx=20, ny=30, fd_order=4, alpha_filter=alpha)\n"
+        "    m.filters.filter_ct(m.filters.filter(np.ones(5 * m.X.size)))\n"
+        "assert 'petsc4py' not in sys.modules, 'filters pulled in petsc4py'\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().endswith("ok")
