@@ -55,9 +55,10 @@ def test_pin_domain_names_the_placement_the_job_asked_for() -> None:
 
 
 def test_walk_rows_carry_the_farm_cost_columns() -> None:
-    """A cost comparison needs the same measurements on both sides."""
+    """A cost comparison needs the same measurements on both sides, and a
+    gain needs the same certification (rho_fwd, rho_adj) on both sides."""
     farm_cols = FARM_CSV.read_text(encoding="utf-8").splitlines()[0].split(",")
-    for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine"):
+    for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine", "rho_fwd", "rho_adj"):
         assert column in farm_cols
         assert column in FIELDS
 

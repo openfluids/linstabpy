@@ -101,6 +101,11 @@ class WalkPointResult:
     iterations: int
     factor_s: float
     solve_s: float
+    # SVD residuals of the returned leading triplet, the same two numbers the
+    # point farm certifies with (rho_fwd = ||H v - s u|| / (s ||v||), rho_adj
+    # its adjoint twin, both in the forcing norm). NaN when not computed.
+    rho_fwd: float = float("nan")
+    rho_adj: float = float("nan")
 
 
 @dataclass
@@ -267,6 +272,8 @@ class LineWalker:
                 self.last_solve = gated.last
                 return WalkPointResult(
                     gain=float(np.asarray(result[0]).reshape(-1)[0]),
+                    rho_fwd=float(np.asarray(result[5]).reshape(-1)[0]),
+                    rho_adj=float(np.asarray(result[6]).reshape(-1)[0]),
                     residual=float(gated.max_residual),
                     source="walk",
                     iterations=int(gated.iterations),
@@ -306,6 +313,8 @@ class LineWalker:
         self.n_direct += 1
         return WalkPointResult(
             gain=float(np.asarray(result[0]).reshape(-1)[0]),
+            rho_fwd=float(np.asarray(result[5]).reshape(-1)[0]),
+            rho_adj=float(np.asarray(result[6]).reshape(-1)[0]),
             residual=float(gated.max_residual),
             source=source,
             iterations=int(gated.iterations),
@@ -355,6 +364,8 @@ class LineWalker:
         self.n_direct += 1
         return WalkPointResult(
             gain=float(np.asarray(result[0]).reshape(-1)[0]),
+            rho_fwd=float(np.asarray(result[5]).reshape(-1)[0]),
+            rho_adj=float(np.asarray(result[6]).reshape(-1)[0]),
             residual=0.0,
             source="factor",
             iterations=0,
@@ -396,13 +407,30 @@ class LineWalker:
         from linstabpy.resolvent.gain import compute_leading_gains
         from linstabpy.resolvent.operator import ResolventOperator
 
+        from linstabpy.resolvent.analysis import _compute_resolvent_svd_residuals_from_apply
+
         op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
         cfg = self.cfg_obj
         if cfg is None:
             from linstabpy.config import Config
 
             cfg = Config.load(self.solver_cfg if self.solver_cfg is not None else {})
-        return compute_leading_gains(op, W_diag, n_modes, int(W_diag.size), cfg)
+        gains, responses, forcings, W_vec, invW_vec = compute_leading_gains(
+            op, W_diag, n_modes, int(W_diag.size), cfg
+        )
+        # Certify the triplet the same way the point farm does: one forward and
+        # one adjoint apply of the resolvent, measured in the forcing norm.
+        rho_fwd, rho_adj = _compute_resolvent_svd_residuals_from_apply(
+            gains,
+            forcings,
+            responses,
+            W_vec,
+            invW_vec,
+            op.apply,
+            op.apply_adjoint,
+            cfg.resolvent.eps.forcing_norm,
+        )
+        return gains, responses, forcings, W_vec, invW_vec, rho_fwd, rho_adj
 
 
 class _RecordingSolve:

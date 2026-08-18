@@ -206,6 +206,29 @@ def test_first_two_frequencies_are_mumps_anchors(mumps_or_skip: None) -> None:
         walker.close()
 
 
+def test_every_point_carries_the_farm_svd_residuals(mumps_or_skip: None) -> None:
+    """A direct point is certified like a farm point: rho_fwd / rho_adj of the
+    returned triplet, computed with one forward and one adjoint apply, at the
+    farm's own level (the 200-point farm rows sit at 1e-9 .. 6e-9)."""
+    from linstabpy.resolvent.analysis import resolvent_analysis
+
+    L0 = _operator()
+    walker = _walker()
+    try:
+        point = walker.compute(L0, 0.8, np.ones(L0.shape[0]), 1)
+        assert np.isfinite(point.rho_fwd) and np.isfinite(point.rho_adj)
+        assert point.rho_fwd < 1e-8 and point.rho_adj < 1e-8
+        *_, rho_fwd, rho_adj = resolvent_analysis(
+            L0, omega=0.8, n_modes=1, W_diag=np.ones(L0.shape[0]), solver_cfg=_CFG, residuals=True
+        )
+        # Same operator, same triplet, same formula: the two paths agree to the
+        # residuals' own noise level.
+        assert point.rho_fwd == pytest.approx(float(rho_fwd[0]), abs=1e-9)
+        assert point.rho_adj == pytest.approx(float(rho_adj[0]), abs=1e-9)
+    finally:
+        walker.close()
+
+
 def test_first_frequency_factors_and_matches_direct(mumps_or_skip: None) -> None:
     L0 = _operator()
     walker = _walker()
