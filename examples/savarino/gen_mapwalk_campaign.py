@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 
-from examples.savarino.gen_campaign import env_lines  # noqa: E402
+from examples.savarino.gen_campaign import env_lines, gpu_block  # noqa: E402
 
 TEMPLATE = HERE / "savarino_mapwalk.sbatch.template"
 HOURS_TO_SECONDS = 3600
@@ -50,6 +50,13 @@ def main() -> int:
     ap.add_argument("--ncv", type=int, default=None, help="SLEPc subspace size for the gain (nev=1)")
     ap.add_argument("--driver-out", type=Path, default=REPO / "examples" / "savarino",
                     help="where the driver writes savarino_mapwalk.csv/.log (one dir per arm)")
+    ap.add_argument("--config", type=Path, default=HERE / "savarino_point_f2_b45.yaml",
+                    help="point config for the line; its solver block decides CPU (MUMPS) or "
+                         "GPU (STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml")
+    ap.add_argument("--cpus-per-task", type=int, default=1,
+                    help="Slurm cores per rank (OMP threads for a GPU job's CPU part)")
+    ap.add_argument("--gpus", type=int, default=0,
+                    help="devices on the node; >0 gives each job one GPU by lock file")
     args = ap.parse_args()
 
     driver_args = ""
@@ -75,6 +82,9 @@ def main() -> int:
                 env_lines=env_lines(args.env),
                 driver_out=args.driver_out,
                 driver_args=driver_args,
+                config=Path(args.config).resolve(),
+                cpus_per_task=args.cpus_per_task,
+                gpu_block=gpu_block(args.gpus, args.driver_out),
             ),
             encoding="utf-8",
         )

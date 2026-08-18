@@ -252,7 +252,33 @@ def factorize(
     metrics["adjoint_self_test_defect"] = 0.0
     metrics["adjoint_healed_defect"] = 0.0
     metrics["adjoint_oracle_residual"] = 0.0
+    metrics["adjoint_refactor_count"] = 0
     holder: dict[str, object] = {}
+    # The caller's untouched operator. The dual-factor heal transposes THIS (not
+    # ``A``, the copy the forward factorization owns and a backend may equilibrate
+    # in place). ``refactorize_operator`` rebinds it, so a heal that first runs
+    # after a refactorize builds K^H of the operator currently factored.
+    pristine_operator = operator
+    # Trigger threshold for the dual-factor heal and the bound every healed
+    # adjoint must meet, including after each refactorize. This is NOT a
+    # precision target: it separates "the backend's transpose really is the
+    # Hermitian adjoint" from "it is something else" (a plain transpose leaves
+    # the adjoint identity defective at O(1e-1), and STRUMPACK's complex
+    # transpose-solve at ~3e-2). The attainable floor is set by the operator's
+    # conditioning, roughly kappa(A)*eps_machine, so a fixed 1e-10 sits BELOW
+    # what a well-conditioned-but-not-trivial operator can deliver: the
+    # paraboloid example measured 3.07e-10 with a perfectly good MUMPS adjoint,
+    # which needlessly triggered a second factorization that could only do worse
+    # (1.62e-9) and then aborted the run. 1e-8 stays seven orders below the
+    # failure mode it must catch while clearing the round-off floor.
+    adjoint_tol = 1.0e-8
+
+    def _hermitian_transpose_of(op: sp.spmatrix | PETSc.Mat) -> sp.spmatrix | PETSc.Mat:
+        # Same recipe for the first heal and for every refactorize, so the K^H
+        # factor sees one nonzero pattern for the life of the factorization.
+        if _is_petsc_matrix(op):
+            return op.hermitianTranspose()
+        return op.conj().T.tocsc()
 
     if env_prefix == "LINSTABPY_LINSOLVE":
         lin = cfg.linsolve
@@ -583,6 +609,7 @@ def factorize(
             B.destroy()
 
     def refactorize_operator(new_operator: sp.spmatrix | PETSc.Mat) -> None:
+        nonlocal pristine_operator
         nrows_new, ncols_new = _operator_shape(new_operator)
         if (nrows_new, ncols_new) != (n, n):
             raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
@@ -626,6 +653,31 @@ def factorize(
                 new_A.destroy()
         metrics["refactor_count"] += 1
         metrics["refactor_seconds"] += time.perf_counter() - start
+        # The adjoint must follow the operator. With the dual-factor heal active
+        # (STRUMPACK: its transpose-solve is not the Hermitian adjoint, so the
+        # adjoint is a FORWARD solve on a separate K^H factor) a refactorize that
+        # left ``factor_H`` alone would forward-solve K_new and adjoint-solve
+        # K_old^H from the second operator on -- silently. Refactorize K^H from
+        # the new operator with the heal's own recipe, then re-run the adjoint
+        # identity: a stale or wrong K^H fails it at O(1) and must fail loudly.
+        pristine_operator = new_operator
+        factor_H = holder.get("factor_H")
+        if factor_H is not None:
+            A_H_new = _hermitian_transpose_of(new_operator)
+            try:
+                factor_H.refactorize(A_H_new)
+            finally:
+                if _is_petsc_matrix(A_H_new):
+                    A_H_new.destroy()
+            metrics["adjoint_refactor_count"] += 1
+            healed_defect = _run_adjoint_self_test(solve, factor_H.solve, n, k=3)
+            metrics["adjoint_healed_defect"] = healed_defect
+            if healed_defect > adjoint_tol:
+                raise RuntimeError(
+                    f"Dual-factor adjoint after refactorize: identity defect {healed_defect:.3e} "
+                    f"> tolerance {adjoint_tol:.3e} -- the healed K^H factor does not match "
+                    "the refactorized operator."
+                )
 
     # --- DUAL-FACTOR AUTO-HEAL LOGIC ---
     # Lazy adjoint self-test: run on first adjoint use via a wrapper.
@@ -649,18 +701,7 @@ def factorize(
             defect = float("inf")
         metrics["adjoint_self_test_defect"] = defect
 
-        # Trigger threshold for the heal. This is NOT a precision target: it
-        # separates "the backend's transpose really is the Hermitian adjoint"
-        # from "it is something else" (a plain transpose leaves this identity
-        # defective at O(1e-1), and STRUMPACK's complex transpose-solve at
-        # ~3e-2). The attainable floor is set by the operator's conditioning,
-        # roughly kappa(A)*eps_machine, so a fixed 1e-10 sits BELOW what a
-        # well-conditioned-but-not-trivial operator can deliver: the paraboloid
-        # example measured 3.07e-10 with a perfectly good MUMPS adjoint, which
-        # needlessly triggered a second factorization that could only do worse
-        # (1.62e-9) and then aborted the run. 1e-8 stays seven orders below the
-        # failure mode it must catch while clearing the round-off floor.
-        adjoint_tol = 1.0e-8
+        # ``adjoint_tol`` (closure scope, above): trigger threshold for the heal.
         if defect <= adjoint_tol:
             # Keep the original single-factor path
             metrics["dual_factor_active"] = False
@@ -679,11 +720,9 @@ def factorize(
         # fragile on STRUMPACK. A FORWARD solve on A^H is exactly the adjoint
         # A^{-H}. Build A^H from the PRISTINE operator: `A` above is the copy the
         # forward factorization owns (a backend may equilibrate it in place), so
-        # transpose the caller's untouched operator instead.
-        if _is_petsc_matrix(operator):
-            A_H = operator.hermitianTranspose()
-        else:
-            A_H = operator.conj().T.tocsc()
+        # transpose the caller's untouched operator instead -- the one currently
+        # factored, which ``refactorize_operator`` keeps up to date.
+        A_H = _hermitian_transpose_of(pristine_operator)
         factor_H = factorize(A_H, env_prefix=env_prefix, solver_cfg=solver_cfg, cfg=cfg)
         solve_H = factor_H.solve
         holder["factor_H"] = factor_H

@@ -41,15 +41,57 @@ PAT = {
 DIRPAT = re.compile(r"sav_map2?_b(?P<b>[0-9p]+)_f(?P<f>[0-9pm]+)(?P<suffix>_[A-Za-z]+)?$")
 
 
-def backend_of(name: str) -> tuple[str, int]:
-    """(backend, ranks) for a point directory.
+def backend_of(point_dir: Path) -> tuple[str, int]:
+    """(backend, ranks) for a point directory, read from the job's own files.
 
-    A '_GPU' suffix marks a STRUMPACK/GPU variant, which typically runs 1
-    rank rather than the CPU default. Without this the row would claim
-    MUMPS on the CPU rank count -- false provenance in a file whose whole
-    purpose is that each row describes its own run.
+    ``<root>/<stem>.sbatch`` carries ``#SBATCH --ntasks=N`` and
+    ``<root>/configs/<stem>.yaml`` the resolvent solver block ("mumps", or
+    "iterative/strumpack" for FGMRES around a STRUMPACK LU -- the GPU arm), so
+    the row says what actually ran. Without those files fall back to the
+    directory name: a '_GPU' suffix marks a STRUMPACK/GPU variant at 1 rank,
+    anything else MUMPS at the CPU default of 4. A row that claimed MUMPS on
+    the CPU rank count for a GPU point would be false provenance in a file
+    whose whole purpose is that each row describes its own run.
     """
-    return ("strumpack", 1) if name.endswith("_GPU") else ("mumps", 4)
+    point_dir = Path(point_dir)
+    name = point_dir.name
+    backend, ranks = ("strumpack", 1) if name.endswith("_GPU") else ("mumps", 4)
+    sbatch = point_dir.parent / f"{name}.sbatch"
+    if sbatch.is_file():
+        m = re.search(r"^#SBATCH --ntasks=(\d+)", sbatch.read_text(errors="replace"), re.M)
+        if m:
+            ranks = int(m.group(1))
+    config = point_dir.parent / "configs" / f"{name}.yaml"
+    if config.is_file():
+        try:
+            import yaml
+
+            solver = (yaml.safe_load(config.read_text()) or {}).get("solver") or {}
+        except Exception:  # noqa: BLE001 - provenance falls back to the name rule
+            solver = {}
+        res = solver.get("resolvent") or {}
+        solver_type = str(res.get("type") or "mumps").lower()
+        factor = str(res.get("factor_backend") or solver.get("factor_backend") or "").lower()
+        if solver_type in ("mumps", "direct", "lu"):
+            backend = factor or solver_type
+        else:
+            backend = f"{solver_type}/{factor}" if factor else solver_type
+    return backend, ranks
+
+
+def gpu_peak_mib(point_dir: Path) -> str:
+    """Peak device memory (MiB) from the job's ``nvsmi.<job>.log`` sampler, or ''."""
+    peak = None
+    for log in Path(point_dir).glob("nvsmi.*.log"):
+        for line in log.read_text(errors="replace").splitlines():
+            parts = [x.strip() for x in line.split(",")]
+            if len(parts) >= 2:
+                try:
+                    used = int(float(parts[1]))
+                except ValueError:
+                    continue
+                peak = used if peak is None else max(peak, used)
+    return "" if peak is None else str(peak)
 
 
 def point_from_dirname(name: str) -> tuple[float | None, float | None]:
@@ -71,7 +113,7 @@ def point_from_dirname(name: str) -> tuple[float | None, float | None]:
 HEADER = (
     "beta_Xsh,f_Xsh_Uinf,gain,rho_fwd,rho_adj,status,wall_s,peak_rss_bytes,ndof,nnz,"
     "epsilon,stride,fd_order,sponge,forcing_norm,response_norm,P_vars,P_x_min,P_x_max,"
-    "P_y_max,mask_bc_forcing,ranks,backend,git_sha,slurm_job,machine"
+    "P_y_max,mask_bc_forcing,ranks,backend,git_sha,slurm_job,machine,gpu_peak_mib"
 )
 
 
@@ -109,24 +151,25 @@ def main() -> int:
         eps = PAT["eps"].search(txt)
         # x_max follows the measured frequency split (see gen_campaign.py).
         x_max = 1.9470833 if (f == 0 or f >= 2) else 1.7954167
-        backend, ranks = backend_of(d.name)
+        backend, ranks = backend_of(d)
         print(
             f"{beta},{f},{g.group(1)},"
             f"{r.group(1) if r else ''},{r.group(2) if r else ''},ok,"
             f"{w.group(1)},{rss.group(1) if rss else ''},"
             f"{ndof.group(1) if ndof else ''},{nnz.group(1) if nnz else ''},"
             f"{eps.group(1) if eps else ''},1,4,false,l2,chu,"
-            f"u|v|w,0.20291667,{x_max},0.29627645,true,{ranks},{backend},{sha},{job},{MACHINE}"
+            f"u|v|w,0.20291667,{x_max},0.29627645,true,{ranks},{backend},{sha},{job},{MACHINE},"
+            f"{gpu_peak_mib(d)}"
         )
 
     for beta, f, status, name, job in rows:
         if beta is None or f is None:
             beta, f = point_from_dirname(name)
-        backend, ranks = backend_of(name)
+        backend, ranks = backend_of(ROOT / name)
         print(
             f"{beta if beta is not None else ''},{f if f is not None else ''},,,,"
             f"{status},,,,,,1,4,false,l2,chu,u|v|w,0.20291667,,0.29627645,true,{ranks},"
-            f"{backend},,{job or ''},{MACHINE}"
+            f"{backend},,{job or ''},{MACHINE},"
         )
         print(f"# incomplete: {name} -> {status}", file=sys.stderr)
     return 0

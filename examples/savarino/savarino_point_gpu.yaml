@@ -1,0 +1,88 @@
+# Savarino point (conservative-momentum forcing space), GPU arm of the 2x2 cost
+# matrix {farm, line} x {CPU MUMPS, GPU STRUMPACK+FGMRES}. Physics, numerics,
+# boundary conditions and forcing window are identical to
+# savarino_point_f2_b45.yaml; only the resolvent linear solver differs:
+# a STRUMPACK LU on one GPU wrapped in right-preconditioned FGMRES to 1e-10
+# (STRUMPACK's factor is less accurate than MUMPS's, the refinement brings the
+# solve back to machine level; its transpose-solve is not the Hermitian adjoint,
+# so factorize() heals it with an explicit K^H factor). This is the solver block
+# of the validated 901k-DOF GPU resolvent (Song box, one A6000, -n 1). Run with
+#   mpiexec -n 1, CUDA_VISIBLE_DEVICES=<device>, PETSC_OPTIONS='-use_gpu_aware_mpi 0',
+#   OMP_NUM_THREADS = the job's cores (STRUMPACK threads its CPU part),
+# in a venv built with LINSTABPY_BUILD_STACK=gpu-strumpack (MUMPS+STRUMPACK+SLATE+CUDA).
+paths:
+  # Point this at the directory written by savarino_to_npy.py.
+  case_dir: data/converted
+physics:
+  Re: 100000.0           # Reynolds number based on X_sh
+  Ma: 2.15               # freestream Mach
+  Pr: 0.72               # Prandtl number
+  kappa: 1.4             # ratio of specific heats
+  T_0: 156.92            # reference temperature [K]
+  zero_spanwise: false
+  zero_mu_t_derivs: false
+  use_matlab_sponge_aux: false
+  sponge:
+    enabled: false       # use the packed sponge only
+numerics:
+  stride_ksi: 1          # 1 = as packed
+  stride_eta: 1
+  fd_order: 4            # SBP interior order
+  beta: 45.0             # spanwise wavenumber * X_sh
+  alpha_filter: 0.0      # implicit filter; 0 keeps the filter real
+  operator_dissipation:
+    enabled: false       # rectilinear mesh; leak ~ 1e-17
+    epsilon: 0.0
+    apply_to_stability: true
+    apply_to_resolvent: true
+bc:
+  penalty: 100000000.0
+  recipe:
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T}         # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT}     # outflow
+analysis:
+  ratio_uinf: 1.0
+  ratio_l: 0.1
+  St: 0.1                # unused while omega_target is set
+  run_stability: false
+  run_resolvent: true
+  use_raw_eigs: false
+  n_modes_stability: 20
+  n_modes_resolvent: 1
+  skip_band_marking: true   # band-marking EVP reads solver.eigen (CPU MUMPS); not scalable here
+  omega_target:
+    real: 12.566370614359172   # 2 pi f with f = 2
+    imag: 0.0
+solver:
+  petsc_matrix_mode: distributed
+  factor_backend: mumps      # lowest-priority default; the resolvent block below overrides it
+  eigen:
+    st_solver: mumps         # unused: skip_band_marking
+    eps_tol: 1.0e-6
+    ncv: 160
+    conv_test: rel
+    true_residual: false
+  linsolve:
+    type: mumps
+  resolvent:
+    type: iterative          # FGMRES around the STRUMPACK LU (PCLU, right side)
+    ksp_type: fgmres
+    pc_type: lu
+    ksp_pc_side: right
+    ksp_rtol: 1.0e-10        # "tight" = the CPU arm's accuracy; a "loose" GPU row uses 1e-6
+    ksp_atol: 1.0e-12
+    ksp_max_it: 400
+    factor_backend: strumpack
+    ksp_monitor: false
+    eigen:
+      forcing_norm: l2
+      # Krylov-Schur on H^H H with nev=1: ncv 5 needs 10 solves per point (job 1859).
+      ncv: 5
+  input_region:
+    space: conservative_momentum
+    vars: [u, v, w]
+    x: [0.20291667, 1.9470833]
+    y: [0.0, 0.29627645]
+  mask_bc_forcing: true

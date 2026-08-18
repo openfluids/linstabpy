@@ -236,3 +236,87 @@ def test_heal_engages_when_transpose_self_test_raises() -> None:
 
     factor_unpatched.destroy()
     factor.destroy()
+
+
+def _shifted_same_pattern(L0: sp.csc_matrix, shift: complex) -> sp.csc_matrix:
+    """Same nonzero pattern as ``L0``, different values (a diagonal shift)."""
+    n = L0.shape[0]
+    return (L0 + sp.diags(np.full(n, shift), format="csc")).tocsc()
+
+
+def _heal_forcing_self_test():
+    """Self-test stand-in: the first (native) call raises, every later call is real."""
+    from linstabpy.linalg.factorize import _run_adjoint_self_test as real_self_test
+
+    calls = [0]
+
+    def mock_self_test(solve_func, solve_adjoint_func, n, k=3):
+        calls[0] += 1
+        if calls[0] == 1:
+            raise RuntimeError("simulated defective native transpose (STRUMPACK-like)")
+        return real_self_test(solve_func, solve_adjoint_func, n, k)
+
+    return mock_self_test
+
+
+def test_refactorize_keeps_healed_adjoint_on_the_new_operator() -> None:
+    """After refactorize the healed K^H factor must belong to the NEW operator.
+
+    Regression: ``refactorize_operator`` refreshed the forward factor only and left
+    ``factor_H`` (and the pristine operator the heal transposes) at the FIRST
+    operator, so a line of shifted operators on a healed backend would forward-solve
+    K_new and adjoint-solve K_old^H from the second point on.
+    """
+    import unittest.mock as mock
+
+    n = 6
+    L0 = _operator(n)
+    L1 = _shifted_same_pattern(L0, 0.7 - 0.4j)
+    rng = np.random.default_rng(7)
+    rhs = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+
+    with mock.patch(
+        "linstabpy.linalg.factorize._run_adjoint_self_test", side_effect=_heal_forcing_self_test()
+    ):
+        factor = factorize(L0)
+        factor.solve_adjoint(rhs)  # first adjoint use: the heal engages on L0
+        assert factor.metrics["dual_factor_active"] is True
+        factor.refactorize(L1)
+        x = factor.solve_adjoint(rhs)
+        y = factor.solve(rhs)
+
+    resid_new = np.linalg.norm(L1.conj().T @ x - rhs) / np.linalg.norm(rhs)
+    resid_old = np.linalg.norm(L0.conj().T @ x - rhs) / np.linalg.norm(rhs)
+    assert resid_new < 1.0e-10, resid_new
+    assert resid_old > 1.0e-3, resid_old  # a stale L0^H factor would pass THIS one instead
+    assert np.linalg.norm(L1 @ y - rhs) / np.linalg.norm(rhs) < 1.0e-10
+    assert factor.metrics["dual_factor_active"] is True
+    assert factor.metrics["adjoint_refactor_count"] == 1
+    assert factor.metrics["adjoint_healed_defect"] <= 1.0e-8
+    factor.destroy()
+
+
+def test_heal_after_refactorize_transposes_the_current_operator() -> None:
+    """A heal that first runs AFTER a refactorize must build K^H of the current operator."""
+    import unittest.mock as mock
+
+    n = 6
+    L0 = _operator(n)
+    L1 = _shifted_same_pattern(L0, -0.5 + 0.9j)
+    rng = np.random.default_rng(11)
+    rhs = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+
+    with mock.patch(
+        "linstabpy.linalg.factorize._run_adjoint_self_test", side_effect=_heal_forcing_self_test()
+    ):
+        factor = factorize(L0)
+        factor.refactorize(L1)  # no adjoint use yet: the heal has not run
+        x = factor.solve_adjoint(rhs)  # heal runs now, on the refactorized operator
+
+    resid_new = np.linalg.norm(L1.conj().T @ x - rhs) / np.linalg.norm(rhs)
+    resid_old = np.linalg.norm(L0.conj().T @ x - rhs) / np.linalg.norm(rhs)
+    assert resid_new < 1.0e-10, resid_new
+    assert resid_old > 1.0e-3, resid_old
+    assert factor.metrics["dual_factor_active"] is True
+    assert factor.metrics["adjoint_refactor_count"] == 0  # heal came after the refactorize
+    factor.destroy()

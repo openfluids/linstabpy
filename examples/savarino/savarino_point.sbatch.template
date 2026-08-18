@@ -5,7 +5,7 @@
 #SBATCH --partition={partition}
 #SBATCH --time=04:00:00
 #SBATCH --ntasks={nranks}
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task={cpus_per_task}
 set -euo pipefail
 set +u
 # setvars.sh --force returns non-zero when oneAPI is already in the submitting shell;
@@ -16,7 +16,7 @@ export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_TH
 # Rank placement decides the factor time (1.6x on c9, job 1861): print the pin map into
 # this log, and take the job's own I_MPI_* / LINSTABPY_PYTHON from the generator.
 export I_MPI_DEBUG=4
-{env_lines}PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"
+{env_lines}{gpu_block}PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"
 export PYTHONPATH="{repo_root}/src:{repo_root}${{PYTHONPATH:+:$PYTHONPATH}}"
 cd {repo_root}
 echo "SHA=$(git -C {repo_root} rev-parse HEAD)  BETA={beta}  F={freq}"
