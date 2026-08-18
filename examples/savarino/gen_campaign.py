@@ -99,6 +99,12 @@ def main() -> int:
 
     submit = not (args.dry_run or args.local)
     cfg0 = load_config(BASE_CONFIG)
+    # The job runs from the repository root, but the base config's case_dir is
+    # written relative to this directory. Resolve it here so a point does not
+    # depend on the CWD it is launched from.
+    case_dir = Path(str(cfg0["paths"]["case_dir"]))
+    if not case_dir.is_absolute():
+        cfg0["paths"]["case_dir"] = str((HERE / case_dir).resolve())
     template = TEMPLATE.read_text()
     args.out.mkdir(parents=True, exist_ok=True)
     gen_dir = args.out / "configs"
