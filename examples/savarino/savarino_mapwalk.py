@@ -45,6 +45,8 @@ FIELDS = (
     "rel_err",
     "walk_source",
     "residual",
+    "rho_fwd",
+    "rho_adj",
     "iterations",
     "factor_s",
     "solve_s",
@@ -377,6 +379,7 @@ def main() -> int:
                         f"point beta={beta} f={freq} omega={omega:.6g} "
                         f"gain={walked.gain:.8g} farm={farm:.8g} rel_err={rel:.3e} "
                         f"source={walked.source} residual={walked.residual:.3e} "
+                        f"rho_fwd={walked.rho_fwd:.3e} rho_adj={walked.rho_adj:.3e} "
                         f"iters={walked.iterations} factor={walked.factor_s:.3f} "
                         f"solve={walked.solve_s:.3f} wall={wall_s:.3f} "
                         f"farm_wall={farm_wall[(float(beta), float(freq))]:.3f} "
@@ -394,6 +397,8 @@ def main() -> int:
                             f"{rel:.6e}",
                             walked.source,
                             walked.residual,
+                            f"{walked.rho_fwd:.4e}",
+                            f"{walked.rho_adj:.4e}",
                             walked.iterations,
                             f"{walked.factor_s:.4f}",
                             f"{walked.solve_s:.4f}",
