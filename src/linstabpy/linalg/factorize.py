@@ -583,15 +583,11 @@ def factorize(
             B.destroy()
 
     def refactorize_operator(new_operator: sp.spmatrix | PETSc.Mat) -> None:
-        nonlocal A
         nrows_new, ncols_new = _operator_shape(new_operator)
         if (nrows_new, ncols_new) != (n, n):
             raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
-        new_A = (
-            new_operator.copy()
-            if _is_petsc_matrix(new_operator)
-            else scipy_to_petsc(new_operator, solver_cfg)
-        )
+        owns_new_A = not _is_petsc_matrix(new_operator)
+        new_A = new_operator if not owns_new_A else scipy_to_petsc(new_operator, solver_cfg)
         try:
             old_pattern = _aij_pattern(A)
             new_pattern = _aij_pattern(new_A)
@@ -610,23 +606,26 @@ def factorize(
             if local_mismatch:
                 raise ValueError("refactorize requires an identical nonzero pattern")
         except Exception:
-            new_A.destroy()
+            if owns_new_A:
+                new_A.destroy()
             raise
-        old_A = A
         start = time.perf_counter()
         try:
-            if solver_type in DIRECT_SOLVER_TYPES:
-                pc.setFactorOrdering(reuse=True)
-            ksp.setOperators(new_A)
+            # Copy the new values into the Mat the KSP already holds. Same object,
+            # same nonzero pattern -> PETSc/MUMPS keeps the symbolic factorization
+            # (ordering + analysis) and redoes only the numeric phase. Handing the
+            # KSP a new Mat object redoes the analysis every call, even with
+            # reuse-ordering: measured 2026-08-18 on the Savarino 450k-DOF operator
+            # (c9, MKL) 90.0 s new Mat, 80.9 s new Mat + reuse-ordering, 74.9 s
+            # values copied into the same Mat -- the 9 s analysis, per point.
+            new_A.copy(result=A, structure=PETSc.Mat.Structure.SAME_NONZERO_PATTERN)
+            ksp.setOperators(A)
             ksp.setUp()
-        except Exception:
-            new_A.destroy()
-            raise
-        A = new_A
+        finally:
+            if owns_new_A:
+                new_A.destroy()
         metrics["refactor_count"] += 1
         metrics["refactor_seconds"] += time.perf_counter() - start
-        holder["factor"]._mat = A
-        old_A.destroy()
 
     # --- DUAL-FACTOR AUTO-HEAL LOGIC ---
     # Lazy adjoint self-test: run on first adjoint use via a wrapper.
