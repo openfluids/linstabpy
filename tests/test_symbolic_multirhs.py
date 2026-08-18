@@ -104,6 +104,36 @@ def test_factorization_solve_block_matches_single_rhs_loop() -> None:
     assert block_solution.shape == rhs_block.shape
 
 
+def test_refactorize_keeps_the_symbolic_factorisation() -> None:
+    """refactorize copies values into the KSP's own Mat: MUMPS redoes the numeric phase only.
+
+    Handing the KSP a new Mat redid the analysis at every refactorize (Savarino
+    450k DOF, c9, 2026-08-18: 90.0 s new Mat vs 74.9 s in place). PETSc's event
+    log is the witness: MatLUFactorSym must not move, MatLUFactorNum must.
+    """
+    from petsc4py import PETSc
+
+    if not PETSc.Log.isActive():
+        PETSc.Log.begin()
+    sym = PETSc.Log.Event("MatLUFactorSym")
+    num = PETSc.Log.Event("MatLUFactorNum")
+    L0 = _operator()
+    fac = factorize(shifted_operator(L0, 0.8), env_prefix="LINSTABPY_RESOLVENT")
+    try:
+        sym0 = int(sym.getPerfInfo()["count"])
+        num0 = int(num.getPerfInfo()["count"])
+        assert num0 >= 1, "PETSc event logging is not counting; the assertions below would be vacuous"
+        fac.refactorize(shifted_operator(L0, 1.5))
+        assert int(sym.getPerfInfo()["count"]) == sym0, "refactorize redid the symbolic factorization"
+        assert int(num.getPerfInfo()["count"]) == num0 + 1
+        rhs = np.linspace(1.0, 2.0, L0.shape[0]).astype(complex)
+        x = fac.solve(rhs)
+        residual = np.linalg.norm(shifted_operator(L0, 1.5) @ x - rhs) / np.linalg.norm(rhs)
+        assert residual <= 1.0e-10
+    finally:
+        fac.destroy()
+
+
 def test_refactorize_rejects_different_nonzero_pattern() -> None:
     L0 = _operator()
     different_pattern = sp.diags(
