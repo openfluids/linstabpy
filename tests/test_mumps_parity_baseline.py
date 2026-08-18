@@ -75,7 +75,15 @@ def test_default_mumps_parity_matches_frozen_reference(monkeypatch: pytest.Monke
     _clear_linstabpy_env(monkeypatch)
     reference = _load_reference()
 
-    current = compute_reference_quantities()
+    # Ask for every frozen mode, not only the requested five: the reference
+    # build converged an incidental sixth (a +/- pair at identical distance to
+    # the target) and froze it; on the MKL build (2026-08-18) nev=5 converges
+    # exactly five and this guard tripped on the count, with all five values
+    # inside 1e-6. nev=6 reproduces all six on both builds.
+    reference_metadata = reference["metadata"]
+    current = compute_reference_quantities(
+        n_modes=max(int(reference_metadata["n_modes"]), int(reference_metadata["stored_n_modes"]))
+    )
 
     assert_within_relative_drift(
         current["leading_eigenvalues"],
@@ -83,7 +91,6 @@ def test_default_mumps_parity_matches_frozen_reference(monkeypatch: pytest.Monke
         rtol=reference["relative_drift_tol"],
     )
     current_metadata = current["metadata"]
-    reference_metadata = reference["metadata"]
     assert reference_metadata["ndof"] == 750
     assert reference_metadata["case_params"]["case_id"] == "mumps_parity_blasius_lnse_v1"
     assert current_metadata["st_solver"] == "mumps"

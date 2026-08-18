@@ -137,11 +137,18 @@ def _solve_reference(operator, *, n_modes: int, target: complex):
     return np.asarray(eigenvalues, dtype=complex).reshape(-1), info
 
 
-def compute_reference_quantities() -> dict[str, Any]:
-    """Compute the stored default-path quantities for the parity fixture."""
+def compute_reference_quantities(n_modes: int | None = None) -> dict[str, Any]:
+    """Compute the stored default-path quantities for the parity fixture.
+
+    ``n_modes`` overrides ``CASE_PARAMS["n_modes"]``. The guard passes the
+    fixture's ``stored_n_modes`` so the solve asks for every frozen mode
+    directly: the reference build converged a sixth mode (the other half of a
+    +/- pair at identical distance to the target) on top of the five requested,
+    and whether that happens is a rounding accident of the PETSc/BLAS build.
+    """
     operator = build_reference_operator()
     target = complex(CASE_PARAMS["target_real"], CASE_PARAMS["target_imag"])
-    requested_n_modes = int(CASE_PARAMS["n_modes"])
+    requested_n_modes = int(CASE_PARAMS["n_modes"] if n_modes is None else n_modes)
     eigenvalues, info = _solve_reference(operator, n_modes=requested_n_modes, target=target)
     nconv = int(info.get("nconv", eigenvalues.size))
     stored_n_modes = requested_n_modes
