@@ -2,11 +2,9 @@
 """Identify the forcing/response norm convention from the published (f,beta)=(2,45)
 pair (supplement, resolvent validation section).
 
-Requires: the converted base flow and mode data under ``$SAVARINO_DATA`` (or
-``data/`` next to this script -- see ``savarino_to_npy.py`` and
-``fetch_zenodo.py``), plus the ``.npz`` output of a single-point run at
-(f, beta) = (2, 45) (see ``README.md``, "single point"). Point the npz at with
-``--point-npz``.
+Requires: Savarino's published resolvent modes under ``reference/`` (or
+``reference/zenodo/``), plus the Mack-point ``.npz`` from
+``run_compare_points.py``.
 
 RESULT (the last section is the decisive one):
 
@@ -29,19 +27,19 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from reference_paths import MACK_OUTPUT_NPZ, zenodo_baseflow_dat, zenodo_modes_dir
 from savarino_mode_to_primitive import CONS, PRIM, linearise_to_primitive
 from savarino_to_npy import read_tecplot
 
-DATA_DIR = Path(__import__("os").environ.get("SAVARINO_DATA", Path(__file__).parent / "data"))
-MODES = DATA_DIR / "modes"
-BASE = DATA_DIR / "state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat"
+MODES = zenodo_modes_dir()
+BASE = zenodo_baseflow_dat()
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--point-npz",
-        default="results/campaign/sav_map_b45p0_f2/sav_map_b45p0_f2.npz",
+        default=str(MACK_OUTPUT_NPZ),
         help="Output .npz from the single-point (f,beta)=(2,45) run",
     )
     args = ap.parse_args()

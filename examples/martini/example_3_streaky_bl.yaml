@@ -24,6 +24,8 @@ n_modes: 50                # reported temporal modes
 ncv: 150                   # Arnoldi subspace size
 alpha_temp: 0.6283         # streamwise wavenumber for the temporal solve
 n_periods: 2               # Floquet periods (0 = off)
+# Martini / LinStab2D parity: repo default is continuum; Ex.~3 pins matlab_parity.
+floquet_shift: matlab_parity
 dedupe_tol: 1.0e-4         # drop near-duplicate eigenvalues
 
 spatial_omega_imag_shift: 0.0  # imag shift on the spatial omega

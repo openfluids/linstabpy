@@ -11,65 +11,98 @@ map) and the accompanying tables. No new physics is introduced here -- this
 is a validation-and-speed reproduction against a published reference, not a
 new result.
 
+## Layout
+
+```
+examples/savarino/
+  configs/                  # point YAMLs, grids, campaign template
+  reference/
+    baseflow/               # Savarino Tecplot .dat
+    savarino_response_*.npz
+    savarino_grid.csv
+    savarino_forcing_mask_measured.csv
+  output/
+    savarino_map2_200pt.csv # committed 200-pt campaign run record
+    savarino_map317pt.csv   # committed 317-pt campaign run record
+    baseflow/               # converted .npy (savarino_to_npy.py)
+    compare/                # resolvent .npz (run_compare_points.py)
+    figures/                # plots (compare_modes.py, plot_gain_map.py)
+```
+
+## Reference data (`reference/`)
+
+| Path | Contents |
+|------|----------|
+| `output/savarino_map2_200pt.csv` | Our 200-point gain-map run record (`plot_gain_map.py`). |
+| `reference/baseflow/` | Savarino Tecplot mean-flow `.dat` (published). |
+| `reference/savarino_response_*.npz` | Savarino resolvent response (Mack + lift-up). |
+| `reference/savarino_grid.csv` | Published sample-point grid (metadata). |
+| `reference/savarino_forcing_mask_measured.csv` | Forcing-region bounds (metadata). |
+| `output/figures/` | Plots from `compare_modes.py` / `plot_gain_map.py`. |
+
+See `reference/README.md` for details.
+
+## Configs (`configs/`)
+
+| File | Use |
+|------|-----|
+| `map_base.yaml` | Template for `gen_campaign.py` (200- and 317-pt maps). |
+| `mack_f2_b45.yaml` | Mack comparison point (f=2, β=45). |
+| `liftup_f1em4_b163.yaml` | Lift-up comparison point (f=1e-4, β=163). |
+| `point.sbatch.template` | Slurm batch template for map campaigns. |
+| `savarino_map317_points.csv` | 317-pt (β, f) grid for `--grid dense317`. |
+
 ## Data
 
-Reference dataset: Zenodo DOI 10.5281/zenodo.18854407 (base flow, published
-resolvent forcing/response modes, and eigenmodes).
-
-`fetch_zenodo.py` downloads what is needed:
-
-- `fetch_zenodo.py baseflow` gets the base-flow file
-  (`state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat`).
-- `fetch_zenodo.py modes --f F --beta B` gets the four mode files
-  (forcing/response, real/imaginary) for one (f, beta) point, extracted
-  from the resolvent-modes zip via HTTP range requests (`pip install
-  remotezip`), without downloading the whole archive.
-
-Everything lands under `$SAVARINO_DATA` (default: `data/` next to this
-script), with mode files under `data/modes/`.
+Zenodo DOI 10.5281/zenodo.18854407. The **base-flow Tecplot file** is shipped
+under `reference/baseflow/`. Use `fetch_zenodo.py modes` only when regenerating
+`savarino_response_*.npz` from the Zenodo mode archive.
 
 ## Workflow
 
-1. **Fetch** the base flow and the mode pairs you need:
+1. **Convert** the base flow to linstabpy `.npy` fields:
    ```
-   python fetch_zenodo.py baseflow
-   python fetch_zenodo.py modes --f 2 --beta 45
-   python fetch_zenodo.py modes --f 0.0001 --beta 163
+   python savarino_to_npy.py
    ```
-2. **Convert** the base flow to linstabpy `.npy` fields:
+   Reads `reference/baseflow/state_atcenter_....dat` → `output/baseflow/`.
+2. **Run the two comparison points** (writes `output/compare/`):
    ```
-   python savarino_to_npy.py data/state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat data/converted
+   python run_compare_points.py
    ```
-   This asserts the file's md5, parses the Tecplot ASCII grid, converts
-   conservative to primitive variables, and checks the freestream plateau
-   (rho = u = T = 1) before writing anything.
-3. **Verify the norm convention** at the published (f, beta) = (2, 45)
-   point (requires a single-point run, next step, first):
+3. **Verify the norm convention** at (f, beta) = (2, 45):
    ```
-   python verify_norm_convention.py --point-npz results/campaign/sav_map_b45p0_f2/sav_map_b45p0_f2.npz
+   python verify_norm_convention.py
    ```
-4. **Run a single point** from this directory (edit `paths.case_dir` in
-   `savarino_point_f2_b45.yaml` to the converted base-flow directory first):
+4. **Plot mode comparisons** (S4/S5, Savarino2026 layout):
    ```
-   LINSTABPY_CASE1_CONFIG=savarino_point_f2_b45.yaml \
-   LINSTABPY_CASE1_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
-   python -c "from linstabpy.driver.run import run; run()"
+   python compare_modes.py
    ```
-5. **Run the full 200-point campaign**, either through Slurm or by printing
-   the commands to run locally:
+5. **Run a gain-map campaign** (200- or 317-point grid), through Slurm or by
+   printing the commands to run locally:
    ```
-   python gen_campaign.py --out campaign
-   python gen_campaign.py --out campaign --local
+   python gen_campaign.py --out results/campaign
+   python gen_campaign.py --out results/campaign --grid dense317
+   python gen_campaign.py --out results/campaign --local
    ```
 6. **Collect** the per-point outputs into one run-record CSV:
    ```
-   python collect_campaign.py campaign > campaign.csv
+   python collect_campaign.py results/campaign > results/campaign.csv
    ```
-   The committed `savarino_map2_200pt.csv` is this file from the original run.
-7. **Make the figures**:
+   For an existing NPZ tree (e.g. Savarino2026 dense map, 317 points):
    ```
-   python plot_gain_map.py savarino_map2_200pt.csv savarino_gain_map.png
-   python compare_modes.py --campaign-dir campaign --out-dir .
+   python collect_campaign.py --from-npz /path/to/resolvent_map_repo_dense \\
+       --points-csv configs/savarino_map317_points.csv \\
+       --out output/savarino_map317pt.csv merged
+   ```
+   Committed run records: `output/savarino_map2_200pt.csv`, `output/savarino_map317pt.csv`.
+7. **Plot the gain map** (S6, Savarino2026 style):
+   ```
+   python plot_gain_map.py
+   ```
+   For a densified map with sample overlays:
+   ```
+   python plot_gain_map.py --summary path/to/summary.csv --show-points \\
+       --baseline-summary output/savarino_map2_200pt.csv
    ```
 
 `mode_oracle.py` is a separate diagnostic: it injects the published forcing
@@ -82,8 +115,8 @@ script's own docstring for what it does and does not test).
 The published figure's forcing is unit-norm in a mass-weighted L2 norm over
 the conservative momentum components (`rou`, `rov`, `row`); the response
 norm is the Chu energy with integration weights (the same norm the
-`compute_chu_norm` code path builds). The colorbar label "sigma^2 x 10^4"
-means the displayed quantity is sigma^2 / 1e4. This was identified, not
+`compute_chu_norm` code path builds). The colorbar label :math:`\sigma_1^2` with :math:`\times 10^4` at the top
+means the displayed quantity is :math:`\sigma_1^2 / 10^4`. This was identified, not
 assumed -- see `verify_norm_convention.py` for the systematic comparison
 across candidate norm choices and the resulting agreement (~0.4% at the
 published (2, 45) point).
@@ -102,12 +135,10 @@ published (2, 45) point).
 
 ## Run record
 
-`results/savarino_map2_200pt.csv` is the committed 200-point gain map: one
+`output/savarino_map2_200pt.csv` is the committed 200-point gain map: one
 row per (beta, f) point, with gain, residuals, wall time, memory, DOF, nnz,
 and full provenance (git SHA, machine, ranks, backend, epsilon, forcing
 region) so each row is self-describing outside the repository.
-`results/savarino308_backend_parity_2_45.csv` is a CPU/GPU backend parity
-check at the (2, 45) point.
 
 The per-point field data (mode shapes, full solution vectors) behind these
 rows is not committed here -- it is published as a separate dataset; see

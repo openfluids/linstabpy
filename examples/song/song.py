@@ -40,6 +40,7 @@ from linstabpy.utils.yaml_io import load_config, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
 
 from linstabpy.baseflow import load_case_fields, sutherland_air  # noqa: E402
+from examples.song.reference_paths import SPECTRUM_EIGENVALUES_DAT  # noqa: E402
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
@@ -47,7 +48,7 @@ OUTPUT_PNG = SCRIPT.with_suffix(".png")
 OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
 OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_direct_modes.png")
 OUTPUT_RESOLVENT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_resolvent.png")
-DEFAULT_CONFIG_PATH = SCRIPT.parent / "song_32deg.yaml"
+DEFAULT_CONFIG_PATH = SCRIPT.parent / "configs" / "run_fd4_n30.yaml"
 MATLAB_REF_DIR = SCRIPT.parent / "reference" / "matlab" / "matlab_reference"
 MATLAB_EIG_DIR = MATLAB_REF_DIR / "EigModes"
 MATLAB_SPLIT_DIR = MATLAB_REF_DIR / "ziming_split"
@@ -131,6 +132,22 @@ def _resolve_stability_request_count(cfg: dict) -> int:
     if extra < 0:
         raise ValueError("stability_search_extra_modes must be >= 0")
     return n_modes + extra
+
+
+def _resolve_operator_dissipation(cfg: dict) -> tuple[dict | None, float, bool]:
+    """Return mesh dissipation config and stability-stage epsilon (0 = off)."""
+    numerics = cfg.get("numerics")
+    if not isinstance(numerics, dict):
+        return None, 0.0, False
+    od = numerics.get("operator_dissipation")
+    if not isinstance(od, dict):
+        return None, 0.0, False
+    enabled = bool(od.get("enabled", False))
+    epsilon = float(od.get("epsilon", 0.0))
+    if not enabled or epsilon == 0.0:
+        return None, 0.0, False
+    apply_stability = bool(od.get("apply_to_stability", True))
+    return od, (epsilon if apply_stability else 0.0), True
 
 
 def _safe_float(value: float) -> float:
@@ -260,6 +277,9 @@ def run_case(
     preprocess_cfg: dict | None = None,
     transpose_input: bool = False,
     zero_spanwise: bool = False,
+    numerics_operator_dissipation: dict | None = None,
+    dissipation_epsilon: float = 0.0,
+    operator_dissipation_enabled: bool = False,
 ) -> None:
     """Driver for the Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case."""
     comm = PETSc.COMM_WORLD
@@ -330,6 +350,7 @@ def run_case(
         ny=ny,
         fd_order=fd_order,
         alpha_filter=alpha_filter,
+        numerics_operator_dissipation=numerics_operator_dissipation,
     )
     mesh = cmesh.deform(X_new=X, Y_new=Y)
     mesh.sponge = sponge
@@ -359,6 +380,7 @@ def run_case(
         bc_penalty=penalty,
         backend=backend,
         solver_cfg=solver_cfg,
+        dissipation_epsilon=dissipation_epsilon,
     )
     t_end = time.perf_counter()
     mem_end = _get_memory_mb()
@@ -465,6 +487,7 @@ def run_case(
         t_start = time.perf_counter()
         mem_start = _get_memory_mb()
         out_path = Path(output_npz)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
             out_path,
             omega=omega,
@@ -490,6 +513,8 @@ def run_case(
             preprocess_summary=np.asarray(preprocess_info.get("summary", "")),
             transpose_input=bool(transpose_input),
             zero_spanwise=bool(zero_spanwise),
+            operator_dissipation_enabled=bool(operator_dissipation_enabled),
+            operator_dissipation_epsilon_stability=float(dissipation_epsilon),
             n_modes_stability_requested=int(requested_modes),
             mpi_ranks=np.int32(size),
             petsc_matrix_mode=np.asarray(matrix_mode),
@@ -687,9 +712,13 @@ def _load_matlab_omega() -> np.ndarray | None:
 
 def _load_song_original_omega() -> np.ndarray | None:
     """Load the original Song spectrum from the text export."""
-    eig_path = SONG_REF_DIR / "eigenvalues_Ziming.dat"
-    if not eig_path.exists():
-        return None
+    eig_path = SPECTRUM_EIGENVALUES_DAT
+    if not eig_path.is_file():
+        legacy = SONG_REF_DIR / "eigenvalues_Ziming.dat"
+        if legacy.is_file():
+            eig_path = legacy
+        else:
+            return None
     values = np.loadtxt(eig_path)
     if values.ndim != 2 or values.shape[1] != 2:
         return None
@@ -1236,7 +1265,7 @@ def _parse_args() -> argparse.Namespace:
         "--config",
         type=Path,
         default=None,
-        help="Path to a YAML config file. Defaults to song_32deg.yaml next to this module.",
+        help="Path to a YAML config file. Defaults to configs/run_fd4_n30.yaml next to this module.",
     )
     return parser.parse_args()
 
@@ -1256,7 +1285,7 @@ def _resolve_config_path(cli_config_path: Path | None = None) -> Path:
 
 
 def main() -> None:
-    """Load parameters from song_32deg.yaml, run the case if needed, then plot."""
+    """Load parameters from ``configs/run_fd4_n30.yaml``, run the case if needed, then plot."""
     case_dir = Path(__file__).resolve().parent
     args = _parse_args()
     config_path = _resolve_config_path(args.config)
@@ -1290,12 +1319,21 @@ def main() -> None:
     required = {"X", "Y", "U", "omega", "direct_modes", "gains", "responses", "forcings", "beta"}
     if not required.issubset(data):
         bc_recipe = cfg.get("bc", {}).get("recipe")
+        od_cfg, dissipation_epsilon, dissip_enabled = _resolve_operator_dissipation(cfg)
         print(
             "[song_2023] configuration frequency target: "
             f"source={frequency_source}, St={St:.6g}, "
             f"omega_target={omega_target.real:+.6e}{omega_target.imag:+.6e}j",
             flush=True,
         )
+        if dissip_enabled:
+            print(
+                f"[song_2023] operator dissipation enabled: "
+                f"epsilon_stability={dissipation_epsilon:g}",
+                flush=True,
+            )
+        else:
+            print("[song_2023] operator dissipation: disabled (epsilon=0)", flush=True)
         run_case(
             case_dir=str(case_dir),
             Re=cfg["Re"],
@@ -1323,6 +1361,9 @@ def main() -> None:
             preprocess_cfg=cfg.get("baseflow_preprocess"),
             transpose_input=baseflow_input["transpose_input"],
             zero_spanwise=baseflow_input["zero_spanwise"],
+            numerics_operator_dissipation=od_cfg,
+            dissipation_epsilon=dissipation_epsilon,
+            operator_dissipation_enabled=dissip_enabled,
         )
         data = _load_existing_npz(output_npz)
     if not required.issubset(data):

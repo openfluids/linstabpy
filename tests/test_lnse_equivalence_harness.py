@@ -12,7 +12,7 @@ from pathlib import Path
 from tests._subprocess_timeout import LOAD_MULTIPLIER_CAP, load_aware_timeout
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "examples" / "martini" / "lnse_equivalence_harness.py"
+SCRIPT = ROOT / "tests" / "tools" / "lnse_equivalence_harness.py"
 HARNESS_TIMEOUT_BASE_SECONDS = 240
 HARNESS_TIMEOUT_LOAD_CAP = LOAD_MULTIPLIER_CAP
 

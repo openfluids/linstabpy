@@ -7,9 +7,12 @@ and responses for a compressible Blasius boundary layer.
 
 OUTPUTS:
   - example_1_blasius.npz
-  - example_1_blasius.png
   - example_1_blasius_baseflow.png
-  - example_1_blasius_support_components.png
+  - example_1_blasius_modes_forcing_response_u_mosaic.png
+  - example_1_blasius_modes_forcing_response_u_imag_mosaic.png
+  - example_1_blasius_modes_forcing_response_v_mosaic.png
+  - example_1_blasius_modes_forcing_response_v_imag_mosaic.png
+
 USAGE:   python example_1_blasius.py                       # .npz exists → plot only
          rm example_1_blasius.npz && python example_1_blasius.py  # recompute
 """
@@ -23,37 +26,11 @@ import numpy as np
 
 from linstabpy.utils.yaml_io import load_config
 
-from examples._helpers import (
-    apply_figure_layout,
-    label_axes,
-    load_or_compute,
-    load_parity_npz,
-    parity_npz_get,
-    plot_gain_bars,
-    plot_scalar_panel,
-    plot_signed_panel,
-    save_figure,
-    set_suptitle,
-)
+from examples._helpers import load_or_compute
+from examples.martini.example_1_plots import plot_example1_figures
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
-OUTPUT_PNG = SCRIPT.with_suffix(".png")
-OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
-OUTPUT_SUPPORT = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_support_components.png")
-OUTPUT_SUPPORT_SHARED = OUTPUT_PNG.with_name(
-    f"{OUTPUT_PNG.stem}_support_components_shared_limits.png"
-)
-MATLAB_RESULTS_STEM = "example_1_Blasius_results"
-
-
-def _load_matlab_gains() -> np.ndarray | None:
-    """Load MATLAB gain references when the extracted parity bundle is available."""
-    try:
-        bundle = load_parity_npz(MATLAB_RESULTS_STEM)
-    except FileNotFoundError:
-        return None
-    return np.asarray(parity_npz_get(bundle, "results_Blasius/gains"), dtype=float).reshape(-1)
 
 
 def compute(cfg: dict):
@@ -87,7 +64,6 @@ def compute(cfg: dict):
     dx = cfg["dx"]
     x_min = cfg["x_min_factor"] * dx
     x_max = cfg["x_max_base"] + dx
-    y_min = 0.0
     y_i = cfg["y_i"]
     y_max = cfg["y_max"]
 
@@ -109,6 +85,14 @@ def compute(cfg: dict):
     # ---- Load Blasius base flow ----
     bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
     sutherland_air(bf)
+    # LinStab2D Example 1 uses dMUdT = 0 in the 2D coefficient path (the baseFlow
+    # viscosity-derivative fields are never populated). Pin zero derivatives here
+    # only when ``zero_dmudT_martini_parity`` is set for MATLAB parity. The
+    # physically consistent choice is to keep the Sutherland dmudT from
+    # ``sutherland_air`` (omit the flag or set it false).
+    if cfg.get("zero_dmudT_martini_parity", False):
+        bf.dmudT[:] = 0.0
+        bf.d2mudT2[:] = 0.0
 
     # ---- Sponge function ----
     x = mesh.X
@@ -219,209 +203,18 @@ def compute(cfg: dict):
         X=mesh.X,
         Y=mesh.Y,
         ngp=mesh.ngp,
+        used_ind=mesh.used_ind,
         baseflow_u=bf.U,
     )
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
-def _load_baseflow_u(data) -> np.ndarray:
-    """Reload the Blasius baseflow when the cached NPZ predates the figure schema."""
-    if "baseflow_u" in data:
-        return np.asarray(data["baseflow_u"], dtype=float)
-    try:
-        bundle = load_parity_npz(MATLAB_RESULTS_STEM)
-    except FileNotFoundError:
-        bundle = None
-    if bundle is not None:
-        return np.asarray(parity_npz_get(bundle, "results_Blasius/baseFlow/U"), dtype=float).T
-    from examples.martini.matlab_baseflow import load_blasius
-
-    return np.asarray(
-        load_blasius(
-            np.asarray(data["X"], dtype=float),
-            np.asarray(data["Y"], dtype=float),
-            Re=float(np.asarray(data["Re"]).reshape(-1)[0]),
-            Ma=float(np.asarray(data["Ma"]).reshape(-1)[0]),
-            Pr=0.7,
-            kappa=1.4,
-            T_0=273.15,
-        ).U,
-        dtype=float,
-    )
-
-
-def _component(
-    matrix: np.ndarray, ngp: int, component: int, mode_index: int, shape: tuple[int, int]
-) -> np.ndarray:
-    """Extract one state component from a flattened mode matrix."""
-    start = component * ngp
-    stop = (component + 1) * ngp
-    return np.asarray(matrix[start:stop, mode_index], dtype=complex).reshape(shape, order="F")
-
-
 def plot(data):
-    """Plot publication-style Blasius summary and support figures."""
-    import matplotlib.pyplot as plt
-
-    gains = np.asarray(data["gains"], dtype=float).reshape(-1)
-    responses = np.asarray(data["responses"], dtype=complex)
-    forcings = np.asarray(data["forcings"], dtype=complex)
-    X = np.asarray(data["X"], dtype=float)
-    Y = np.asarray(data["Y"], dtype=float)
-    ngp = int(data["ngp"])
-    shape = X.shape
-    n_plot = min(3, len(gains))
-    xlim = (float(np.min(X)), float(np.max(X)))
-    ylim = (0.0, 0.0105)
-    baseflow_u = _load_baseflow_u(data)
-
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.0))
-    plot_scalar_panel(
-        ax_base,
-        X,
-        Y,
-        baseflow_u,
-        title=r"Blasius boundary-layer baseflow $u/U_\infty$",
-        cmap="cividis",
-        xlim=xlim,
-        ylim=(0.0, 0.015),
-        aspect="auto",
-        levels=101,
-        colorbar_kwargs={"pad": 0.012},
-        title_pad=4.0,
-    )
-    label_axes(ax_base)
-    ax_base.annotate(
-        r"$U_\infty$",
-        xy=(0.78, 0.82),
-        xytext=(0.58, 0.82),
-        xycoords="axes fraction",
-        textcoords="axes fraction",
-        arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "black"},
-        fontsize=8,
-        va="center",
-    )
-    save_figure(fig_base, OUTPUT_BASEFLOW)
-
-    fig = plt.figure(figsize=(6.6, 4.4))
-    grid = fig.add_gridspec(
-        n_plot,
-        3,
-        width_ratios=(1.0, 2.15, 2.15),
-        hspace=0.30,
-        wspace=0.26,
-    )
-    ax_gain = fig.add_subplot(grid[:, 0])
-    plot_gain_bars(ax_gain, gains[:n_plot], matlab_gains=_load_matlab_gains())
-
-    for i in range(n_plot):
-        f_u = _component(forcings, ngp, 1, i, shape)
-        r_u = _component(responses, ngp, 1, i, shape)
-        ax_f = fig.add_subplot(grid[i, 1])
-        ax_r = fig.add_subplot(grid[i, 2])
-        plot_signed_panel(
-            ax_f,
-            X,
-            Y,
-            np.real(f_u),
-            title=rf"$f_u^{{({i + 1})}}$",
-            xlim=xlim,
-            ylim=ylim,
-            aspect="auto",
-            colorbar=False,
-            title_pad=4.0,
-        )
-        plot_signed_panel(
-            ax_r,
-            X,
-            Y,
-            np.real(r_u),
-            title=rf"$u^{{({i + 1})}}$",
-            xlim=xlim,
-            ylim=ylim,
-            aspect="auto",
-            colorbar=False,
-            title_pad=4.0,
-        )
-        ax_f.text(
-            0.02,
-            0.88,
-            rf"$\sigma_{i + 1}={gains[i]:.2f}$",
-            transform=ax_f.transAxes,
-            fontsize=10,
-            bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
-        )
-        ax_f.set_ylabel(r"$y$")
-        ax_r.set_ylabel(r"$y$")
-        if i < n_plot - 1:
-            ax_f.set_xticklabels([])
-            ax_r.set_xticklabels([])
-        else:
-            ax_f.set_xlabel(r"$x$")
-            ax_r.set_xlabel(r"$x$")
-    set_suptitle(fig, r"Blasius resolvent summary at $\omega = 60$", y=0.972)
-    apply_figure_layout(fig, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-    save_figure(fig, OUTPUT_PNG)
-
-    fig_support, axes_support = plt.subplots(
-        2,
-        2,
-        figsize=(6.4, 4.0),
-        gridspec_kw={"wspace": 0.16, "hspace": 0.28},
-    )
-    support_fields = [
-        (_component(forcings, ngp, 1, 0, shape), r"Forcing $f_u^{(1)}$"),
-        (_component(responses, ngp, 1, 0, shape), r"Response $u^{(1)}$"),
-        (_component(forcings, ngp, 2, 0, shape), r"Forcing $f_v^{(1)}$"),
-        (_component(responses, ngp, 2, 0, shape), r"Response $v^{(1)}$"),
-    ]
-    for ax, (field, title) in zip(axes_support.flat, support_fields):
-        plot_signed_panel(
-            ax,
-            X,
-            Y,
-            np.real(field),
-            title=title,
-            xlim=xlim,
-            ylim=ylim,
-            aspect="auto",
-            title_pad=4.0,
-        )
-        label_axes(ax)
-    set_suptitle(fig_support, "Blasius support panels for the leading mode", y=0.97)
-    apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-    save_figure(fig_support, OUTPUT_SUPPORT)
-
-    support_limit = max(float(np.max(np.abs(np.real(field)))) for field, _ in support_fields)
-    fig_support_shared, axes_support_shared = plt.subplots(
-        2,
-        2,
-        figsize=(6.4, 4.0),
-        gridspec_kw={"wspace": 0.16, "hspace": 0.28},
-    )
-    for ax, (field, title) in zip(axes_support_shared.flat, support_fields):
-        plot_signed_panel(
-            ax,
-            X,
-            Y,
-            np.real(field),
-            title=title,
-            xlim=xlim,
-            ylim=ylim,
-            aspect="auto",
-            title_pad=4.0,
-            robust_percentile=None,
-            vmin=-support_limit,
-            vmax=support_limit,
-        )
-        label_axes(ax)
-    set_suptitle(
-        fig_support_shared,
-        "Blasius support panels with shared color limits",
-        y=0.97,
-    )
-    apply_figure_layout(fig_support_shared, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-    save_figure(fig_support_shared, OUTPUT_SUPPORT_SHARED)
+    """Plot campaign-style Blasius baseflow and resolvent mosaics."""
+    cfg = load_config(SCRIPT.with_suffix(".yaml"))
+    paths = plot_example1_figures(data, example_dir=SCRIPT.parent, cfg=cfg)
+    for path in paths:
+        print(f"Wrote {path}")
 
 
 def main():

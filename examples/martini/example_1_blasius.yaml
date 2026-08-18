@@ -38,6 +38,10 @@ bc:
   recipe:
     - {type: dirichlet, borders: lrbt, variables: uvwT}  # all four walls
 
+# LinStab2D parity only: the 2D coefficient path reads unpopulated dMUdT as zero.
+# Physically, keep Sutherland dmudT from sutherland_air() (set false or remove).
+zero_dmudT_martini_parity: true
+
 # scipy is the cross-machine baseline. petsc is an explicit opt-in.
 # Do not use auto for installation baselines.
 assembly_backend: scipy

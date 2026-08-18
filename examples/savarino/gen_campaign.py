@@ -2,10 +2,10 @@
 """Generates the 200-point campaign configs and batch scripts.
 
 Reproduces the exact point grid used for the published Savarino resolvent
-gain map (see ``savarino_map2_200pt.csv``): his own sample points,
+gain map (see ``output/savarino_map2_200pt.csv``): his own sample points,
 recovered from the Zenodo mode-file listing, not a grid of our choosing.
-Requires the base config ``savarino_point_f2_b45.yaml`` and the batch-job
-template ``configs/point.sbatch.template``.
+Requires the base config ``configs/map_base.yaml`` and the batch-job template
+``configs/point.sbatch.template``.
 
 Conventions (each with a measurement behind it, see the paper supplement):
   sponge          OFF   -- his treatment
@@ -20,15 +20,17 @@ Conventions (each with a measurement behind it, see the paper supplement):
   Those four frequencies (1.2, 1.4, 1.6, 1.8) take the 1.795 value.
 
 Usage:
-    python gen_campaign.py --out results/campaign            # submit to Slurm
-    python gen_campaign.py --out results/campaign --dry-run  # generate only, no submit
-    python gen_campaign.py --out results/campaign --local    # print mpiexec commands
+    python gen_campaign.py --out results/campaign                      # 200-pt map (Slurm)
+    python gen_campaign.py --out results/campaign --grid dense317      # 317-pt map
+    python gen_campaign.py --out results/campaign --dry-run              # generate only
+    python gen_campaign.py --out results/campaign --local              # print mpiexec commands
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
+import csv
 import subprocess
 import sys
 from pathlib import Path
@@ -40,8 +42,10 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "src"))
 from linstabpy.utils.yaml_io import load_config  # noqa: E402
 
-BASE_CONFIG = HERE / "savarino_point_f2_b45.yaml"
-TEMPLATE = HERE / "savarino_point.sbatch.template"
+CONFIGS = HERE / "configs"
+BASE_CONFIG = CONFIGS / "map_base.yaml"
+TEMPLATE = CONFIGS / "point.sbatch.template"
+MAP317_CSV = CONFIGS / "savarino_map317_points.csv"
 CASE_DIR = HERE
 
 FULL = [0, 1e-4, 5e-4, 1e-3, 5e-3, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,
@@ -67,9 +71,35 @@ def tag(v):
     return str(v).replace(".", "p").replace("-", "m").replace("+", "")
 
 
+def grid_author200() -> list[tuple[float, float]]:
+    return [(b, f) for b in GRID for f in GRID[b]]
+
+
+def grid_dense317() -> list[tuple[float, float]]:
+    if not MAP317_CSV.is_file():
+        raise SystemExit(f"missing {MAP317_CSV}")
+    pts: list[tuple[float, float]] = []
+    with MAP317_CSV.open(newline="") as fh:
+        for row in csv.DictReader(fh):
+            pts.append((float(row["beta_Xsh"]), float(row["f_Xsh_Uinf"])))
+    return pts
+
+
+GRIDS = {
+    "author200": ("Savarino published 200-point map", grid_author200),
+    "dense317": ("author 200 + minimal densification (317 points)", grid_dense317),
+}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path, help="Directory for generated configs and outputs")
+    ap.add_argument(
+        "--grid",
+        choices=sorted(GRIDS),
+        default="author200",
+        help="Point grid: author200 (default) or dense317",
+    )
     ap.add_argument("--partition", default="LocalQ", help="Slurm partition (default: LocalQ)")
     ap.add_argument("--nranks", type=int, default=4, help="MPI ranks per point (default: 4)")
     ap.add_argument("--dry-run", action="store_true", help="Generate configs/batch scripts but do not submit")
@@ -83,8 +113,10 @@ def main() -> int:
     gen_dir = args.out / "configs"
     gen_dir.mkdir(exist_ok=True)
 
-    pts = [(b, f) for b in GRID for f in GRID[b]]
-    print(f"{len(pts)} points over {len(GRID)} beta lines; submit={submit} local={args.local}")
+    label, grid_fn = GRIDS[args.grid]
+    pts = grid_fn()
+    print(f"{args.grid}: {label}")
+    print(f"{len(pts)} points; submit={submit} local={args.local}")
 
     for b, f in pts:
         cfg = copy.deepcopy(cfg0)

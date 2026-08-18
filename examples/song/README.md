@@ -3,40 +3,102 @@
 Base flows and reference eigenvalues from Z. Song, redistributed with permission.
 Cite Song & Hao, Physics of Fluids 35:084121 (2023).
 
+## Layout
+
+```
+examples/song/
+  reference/              # shipped Song reference data (git)
+  inputs/raw/             # place grid.grd + mean_flow.dat (not shipped)
+  inputs/baseflow/        # nodal .npy from prepare_baseflow.py (gitignored)
+  output/fd4_n30/         # EVP NPZ from song.py (gitignored)
+  figures/                # validation plots (shipped)
+  configs/run_fd4_n30.yaml
+```
+
+## Reference data (`reference/`)
+
+| Path | Contents |
+|------|----------|
+| `reference/baseflow/song_32deg.npz` | Packed mean-flow grid (599 × 301) for quick checks. |
+| `reference/eigenmode/song_32deg_leading_mode.npz` | Song leading eigenmode fields. |
+| `reference/spectrum/eigenvalues.dat` | 20 eigenvalues at β = 19.2. |
+| `reference/spectrum/omega_i.csv` | Song β–ωᵢ curve. |
+
+See `reference/README.md` for conventions.
+
+## Pipeline (PhD supp workflow, θ = 32°)
+
+Run from the repo root with the project venv active. **Nothing is executed below
+by default** — this is the intended order once inputs and MPI are available.
+
+### 1. Prepare baseflow from Song's FV export
+
+Copy Song's Plot3D files into `inputs/raw/`, then:
+
+```bash
+.venv/bin/python -m examples.song.prepare_baseflow
+```
+
+Reads `grid.grd` + `mean_flow.dat`, drops the first and last streamwise column
+(601 → 599), interpolates cell centres to vertices, non-dimensionalises, and
+writes `inputs/baseflow/*.npy` (including zero `sponge.npy`).
+
+### 2. Plot mesh and mean flow
+
+```bash
+.venv/bin/python -m examples.song.plot_baseflow
+```
+
+### 3. Run EVP (FD4, n = 30, β = 19.2)
+
+No SBP operator dissipation (`numerics.operator_dissipation.epsilon: 0`).
+
+```bash
+mpiexec -n 4 python -m examples.song.song --config examples/song/configs/run_fd4_n30.yaml
+```
+
+Writes `output/fd4_n30/song_2023.npz`.
+
+### 4. Match Song's 20 reference modes
+
+```bash
+.venv/bin/python -m examples.song.report_matched20
+```
+
+Hungarian assignment on |Δω|; prints per-mode pairing and lead-mode error.
+
+### 5. Plot spectrum and lead eigenmode
+
+```bash
+.venv/bin/python -m examples.song.plot_spectrum_matched20
+.venv/bin/python -m examples.song.plot_eigenmode_lead
+```
+
+Figures land in `figures/validation/`; baseflow figures in `figures/baseflow/`.
+Curated PNGs are shipped in git; re-run the plot scripts to regenerate after a new EVP.
+
+### Figure prerequisites (LaTeX)
+
+Song validation figures call `examples.figure_style.check_plot_environment(require_latex=True)`.
+Install a TeX stack before plotting, e.g. on Debian/Ubuntu:
+
+```bash
+sudo apt install texlive-latex-extra texlive-fonts-recommended dvipng ghostscript
+```
+
+Without LaTeX the plot scripts exit with an install hint (matplotlib mathtext is not used
+for this example).
+
 ## Convention
 
-The 32 deg field in `song_32deg.npz` is velocity / c_inf and temperature / T_inf:
-u_max = Ma = 2.15, T_min = 1. The 31.6 deg field in `song_316deg.npz` is the
-freestream-1 copy as received (u_max = 1, T_min = 1). The nodal grid is 599 x 301
-(32 deg) and 599 x 201 (31.6 deg). The raw Plot3D grids are 601 x 301 and 601 x 201.
+The 32° baseflow is velocity / c_inf and temperature / T_inf:
+u_max = Ma = 2.15, T_min = 1. The nodal grid is 599 × 301. The raw Plot3D grid
+is 601 × 301.
 
-## Figures
+## Default run
 
-```
-.venv/bin/python examples/song/song_fig1_baseflow.py
-.venv/bin/python examples/song/song_fig2_spectrum.py
-.venv/bin/python examples/song/song_fig3_eigenmode.py
+```bash
+mpiexec -n 4 python -m examples.song.song
 ```
 
-The repo ships the spectrum table and a few mode fields, not the full EVP dump
-(`song_32deg_paper.npz` is local, regenerable, gitignored).
-
-```
-mpiexec -n 4 python -m examples.song.song --config examples/song/song_32deg_paper.yaml
-.venv/bin/python examples/song/pack_run.py
-```
-
-`song_32deg_spectrum.csv` is the 20-mode table from that extract.
-`song_32deg_modes.npz` holds the three least-damped modes (real primitive
-fields on the run grid). Fig S2 plots Song's quoted lead and that table.
-Fig S3 plots Song's leading mode beside the packed linstabpy lead.
-
-The supplement quotes a matched lead pair in `song_32deg_spectrum_quoted.csv`
-(`0.05417 i` vs `0.05696 i`). This extract's least-damped root is `0.438 i`.
-
-## EVP
-
-```
-.venv/bin/python -m examples.song.song
-.venv/bin/python examples/song/compare_evp_to_song316.py examples/song/song_316_eigenvalues.dat <run.npz>
-```
+Uses `configs/run_fd4_n30.yaml` (requires `inputs/baseflow/` from step 1).
