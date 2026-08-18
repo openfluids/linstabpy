@@ -71,6 +71,7 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
         "petsc_arch": FieldSpec(_STRING),
         "mumps_version": FieldSpec(_STRING),
         "mpi_impl": FieldSpec(_STRING),
+        "blas": FieldSpec(_STRING),
     },
     "problem": {
         "case": FieldSpec(_STRING),

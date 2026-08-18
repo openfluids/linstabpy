@@ -29,6 +29,7 @@ PROVENANCE_KEYS = {
     "petsc_arch",
     "mumps_version",
     "mpi_impl",
+    "blas",
 }
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONSTRAINT_LINE = re.compile(
@@ -202,3 +203,21 @@ def test_provenance_hostname_is_recorded_when_explicitly_requested(monkeypatch) 
     # would read as "no machine" while actually meaning "misconfigured".
     monkeypatch.setenv("LINSTABPY_HOSTNAME", "   ")
     assert collect_provenance(None)["hostname"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("link_line", "expected"),
+    [
+        ("-Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib -lmkl_intel_lp64 -lmkl_sequential -lmkl_core", "mkl"),
+        ("-L/x/lib -lopenblas", "openblas"),
+        ("-L/x/lib -lflapack -lfblas", "reference"),
+        ("-framework Accelerate", "accelerate"),
+        ("", "unavailable"),
+    ],
+)
+def test_blas_family_is_read_from_the_petsc_link_line(link_line, expected):
+    """The BLAS is provenance: reference BLAS vs MKL was 5.6x on the same commit (2026-08-18)."""
+    from linstabpy.utils.provenance import _blas_from_link_line
+
+    assert _blas_from_link_line(link_line) == expected
+

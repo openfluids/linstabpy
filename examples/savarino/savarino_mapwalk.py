@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -58,6 +58,10 @@ FIELDS = (
     "epsilon",
     "stride",
     "ranks",
+    "blas",
+    "ncv",
+    "n_anchor",
+    "pin_domain",
     "git_sha",
     "slurm_job",
     "machine",
@@ -97,6 +101,21 @@ def relative_error(gain: float, farm_gain: float) -> float:
     if denom == 0.0:
         raise ValueError("farm_gain must be nonzero")
     return abs(float(gain) - float(farm_gain)) / denom
+
+
+def _pin_domain(env: Mapping[str, str]) -> str:
+    """Name the MPI rank placement a job asked for, as it lands in the row.
+
+    Intel MPI: ``I_MPI_PIN_DOMAIN`` when set, ``off`` when pinning was switched off,
+    ``default`` otherwise. Placement changed the factor time by 1.6x on c9
+    (job 1861), so a cost row without it is not comparable.
+    """
+    domain = env.get("I_MPI_PIN_DOMAIN", "").strip()
+    if domain:
+        return domain
+    if env.get("I_MPI_PIN", "").strip().lower() in {"0", "off", "disable", "no", "false"}:
+        return "off"
+    return "default"
 
 
 def _git_sha() -> str:
@@ -195,6 +214,7 @@ def main() -> int:
     from linstabpy.config import Config
     from linstabpy.solvers.router.map_walk import LineWalker
     from linstabpy.solvers.router.resolvent_map import _forcing_response_mats
+    from linstabpy.utils.provenance import collect_provenance
     from linstabpy.utils.yaml_io import load_config
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -202,6 +222,20 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=HERE)
     ap.add_argument("--farm-csv", type=Path, default=FARM_CSV)
     ap.add_argument("--beta", type=float, nargs="+", default=None)
+    ap.add_argument(
+        "--n-anchor",
+        type=int,
+        default=None,
+        help="direct (MUMPS) points per beta line before the walk starts; "
+        "a value >= the line length makes this a pure direct driver (the farm arm)",
+    )
+    ap.add_argument(
+        "--ncv",
+        type=int,
+        default=None,
+        help="SLEPc Krylov subspace size for the H^H H gain (nev=1); "
+        "overrides solver.resolvent.eigen.ncv in the config",
+    )
     args = ap.parse_args()
 
     comm = MPI.COMM_WORLD
@@ -221,14 +255,8 @@ def main() -> int:
     sha = _git_sha()
     machine = socket.gethostname().split(".")[0]
     slurm_job = os.environ.get("SLURM_JOB_ID", "")
-    if rank == 0:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        _log(
-            log_path,
-            f"{STEM} sha={sha} machine={machine} slurm_job={slurm_job} "
-            f"ranks={ranks} betas={betas} "
-            "resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true",
-        )
+    blas = collect_provenance(None)["blas"]
+    pin_domain = _pin_domain(os.environ)
 
     cfg = load_config(args.config)
     cfg["analysis"]["run_stability"] = False
@@ -236,7 +264,21 @@ def main() -> int:
     cfg["analysis"]["skip_band_marking"] = True
     cfg["physics"]["sponge"] = {"enabled": False}
     cfg["solver"]["mask_bc_forcing"] = True
-    cfg["solver"].setdefault("resolvent", {})["eigen"] = {"forcing_norm": "l2"}
+    eigen_cfg = cfg["solver"].setdefault("resolvent", {}).setdefault("eigen", {})
+    eigen_cfg["forcing_norm"] = "l2"
+    if args.ncv is not None:
+        eigen_cfg["ncv"] = int(args.ncv)
+    ncv = eigen_cfg.get("ncv", "")
+    if rank == 0:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        _log(
+            log_path,
+            f"{STEM} sha={sha} machine={machine} slurm_job={slurm_job} "
+            f"ranks={ranks} betas={betas} blas={blas} ncv={ncv or 'default'} "
+            f"n_anchor={args.n_anchor if args.n_anchor is not None else 'default'} "
+            f"pin_domain={pin_domain} "
+            "resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true",
+        )
 
     done: set[tuple[float, float]] = set()
     if rank == 0:
@@ -261,6 +303,8 @@ def main() -> int:
         filter_fn = mesh.filters.filter if getattr(mesh, "filters", None) is not None else None
         filter_ct = mesh.filters.filter_ct if getattr(mesh, "filters", None) is not None else None
         walker = LineWalker(solver_cfg=solver_cfg, cfg_obj=cfg_obj)
+        if args.n_anchor is not None:
+            walker.n_anchor = int(args.n_anchor)
         if rank == 0:
             seeded = last_factor_seconds(csv_path)
         else:
@@ -363,6 +407,10 @@ def main() -> int:
                             0.0,
                             1,
                             ranks,
+                            blas,
+                            ncv,
+                            walker.n_anchor,
+                            pin_domain,
                             sha,
                             slurm_job,
                             machine,

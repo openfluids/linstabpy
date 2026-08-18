@@ -26,6 +26,7 @@ def _complete_metrics_payload() -> dict[str, object]:
         "petsc_arch": "arch-python",
         "mumps_version": "5.8.1",
         "mpi_impl": "MPI test implementation",
+        "blas": "mkl",
         "case": "tiny-check",
         "fd_order": 6,
         "stride": 4,
