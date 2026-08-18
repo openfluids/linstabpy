@@ -14,8 +14,9 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import yaml
 
@@ -60,6 +61,7 @@ FIELDS = (
     "epsilon",
     "stride",
     "ranks",
+    "backend",
     "blas",
     "ncv",
     "n_anchor",
@@ -103,6 +105,18 @@ def relative_error(gain: float, farm_gain: float) -> float:
     if denom == 0.0:
         raise ValueError("farm_gain must be nonzero")
     return abs(float(gain) - float(farm_gain)) / denom
+
+
+def _backend_label(cfg: Mapping[str, Any]) -> str:
+    """Name the resolvent linear solver a row ran on, from the resolved config."""
+    from linstabpy.config.typed import Config
+
+    lin = Config.load(cfg).resolvent.linear
+    solver_type = str(lin.type or "").lower()
+    factor = str(lin.factor_backend or "").lower()
+    if solver_type in ("", "mumps", "direct", "lu"):
+        return factor or solver_type or "unknown"
+    return f"{solver_type}/{factor}" if factor else solver_type
 
 
 def _pin_domain(env: Mapping[str, str]) -> str:
@@ -268,6 +282,9 @@ def main() -> int:
     cfg["solver"]["mask_bc_forcing"] = True
     eigen_cfg = cfg["solver"].setdefault("resolvent", {}).setdefault("eigen", {})
     eigen_cfg["forcing_norm"] = "l2"
+    # What factored the operator, as the row's own provenance: "mumps" (direct)
+    # or "iterative/strumpack" (FGMRES around a STRUMPACK LU, the GPU arm).
+    backend = _backend_label(cfg)
     if args.ncv is not None:
         eigen_cfg["ncv"] = int(args.ncv)
     ncv = eigen_cfg.get("ncv", "")
@@ -412,6 +429,7 @@ def main() -> int:
                             0.0,
                             1,
                             ranks,
+                            backend,
                             blas,
                             ncv,
                             walker.n_anchor,

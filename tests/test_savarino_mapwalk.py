@@ -102,3 +102,41 @@ def test_gen_mapwalk_campaign_writes_the_arm_into_the_job_script(tmp_path, monke
     assert f"--out {tmp_path / 'direct20'}" in text
     assert "|| true; fi" in text  # setvars.sh --force must not kill the job under set -e
     assert (tmp_path / "direct20").is_dir()
+
+
+def test_every_row_names_the_solver_that_factored_it() -> None:
+    """CPU (MUMPS) and GPU (FGMRES around a STRUMPACK LU) rows share one CSV
+    layout in the 2x2 cost matrix; the row must say which it was."""
+    import yaml
+
+    from examples.savarino.savarino_mapwalk import _backend_label
+
+    assert "backend" in FIELDS
+    here = Path(__file__).resolve().parents[1] / "examples" / "savarino"
+    assert _backend_label(yaml.safe_load((here / "savarino_point_f2_b45.yaml").read_text())) == "mumps"
+    assert (
+        _backend_label(yaml.safe_load((here / "savarino_point_gpu.yaml").read_text()))
+        == "iterative/strumpack"
+    )
+
+
+def test_gen_mapwalk_campaign_gpu_arm_takes_its_config_cores_and_device(tmp_path, monkeypatch) -> None:
+    import examples.savarino.gen_mapwalk_campaign as gen
+
+    gpu_yaml = Path(gen.__file__).with_name("savarino_point_gpu.yaml")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "gen_mapwalk_campaign.py", "--out", str(tmp_path), "--beta", "40", "--dry-run",
+            "--nranks", "1", "--cpus-per-task", "10", "--gpus", "2", "--config", str(gpu_yaml),
+            "--env", "PETSC_OPTIONS=-use_gpu_aware_mpi 0", "--n-anchor", "99", "--ncv", "5",
+            "--driver-out", str(tmp_path / "gpu_lines"),
+        ],
+    )
+    assert gen.main() == 0
+    text = (tmp_path / "savarino_mapwalk_b40.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --ntasks=1" in text and "#SBATCH --cpus-per-task=10" in text
+    assert f"--config {gpu_yaml.resolve()}" in text
+    assert "flock -n 9" in text and "export PETSC_OPTIONS='-use_gpu_aware_mpi 0'" in text
+    assert f'"{tmp_path / "gpu_lines"}/nvsmi.${{SLURM_JOB_ID:-local}}.log"' in text
+    assert "mpiexec -n 1 " in text

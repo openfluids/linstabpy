@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -73,13 +74,47 @@ def env_lines(pairs):
     One line per pair, so the job carries its own rank placement
     (``I_MPI_PIN_DOMAIN=auto``, ``I_MPI_PIN=off``) and interpreter
     (``LINSTABPY_PYTHON=...``) instead of inheriting them from whoever submitted.
+    A value with whitespace (``PETSC_OPTIONS=-use_gpu_aware_mpi 0``) is quoted so
+    the shell keeps it as one word.
     """
     out = []
     for pair in pairs or ():
         if "=" not in pair:
             raise SystemExit(f"--env expects VAR=value, got {pair!r}")
-        out.append(f"export {pair}\n")
+        key, _, value = pair.partition("=")
+        if any(ch.isspace() for ch in value):
+            value = shlex.quote(value)
+        out.append(f"export {key}={value}\n")
     return "".join(out)
+
+
+def gpu_block(n_gpus, log_dir):
+    """Job-script lines that give the job one GPU for its lifetime, or nothing.
+
+    The Slurm on the GPU box has no GRES, so the job takes the first free
+    device with a lock that lives as long as the job's shell (fd 9); two jobs
+    running at once therefore never share a device. A ``nvidia-smi`` sampler
+    writes the device memory every 5 s next to the job log, so the run record
+    can carry the GPU peak alongside the rank-summed RSS.
+    """
+    n = int(n_gpus or 0)
+    if n <= 0:
+        return ""
+    return (
+        "# One GPU per job for the job's lifetime (no GRES on this Slurm): first free\n"
+        "# device by lock; the lock is fd 9 of this shell and dies with the job.\n"
+        f"for _g in $(seq 0 {n - 1}); do\n"
+        '  exec 9>"/tmp/linstabpy_gpu${_g}.lock"\n'
+        '  if flock -n 9; then export CUDA_VISIBLE_DEVICES="$_g"; break; fi\n'
+        "done\n"
+        f'[ -n "${{CUDA_VISIBLE_DEVICES:-}}" ] || {{ echo "no free GPU among {n}"; exit 3; }}\n'
+        'echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"\n'
+        "( while true; do nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu "
+        '--format=csv,noheader,nounits -i "$CUDA_VISIBLE_DEVICES"; sleep 5; done '
+        f'> "{log_dir}/nvsmi.${{SLURM_JOB_ID:-local}}.log" 2>&1 ) &\n'
+        "_NVSMI_PID=$!\n"
+        "trap 'kill $_NVSMI_PID 2>/dev/null || true' EXIT\n"
+    )
 
 
 def main() -> int:
@@ -95,16 +130,24 @@ def main() -> int:
                     help="SLEPc subspace size for the H^H H gain (nev=1); default leaves the solver default")
     ap.add_argument("--beta", type=float, nargs="+", default=None,
                     help="only these beta lines of the 200-point grid (default: all 14 lines)")
+    ap.add_argument("--config", type=Path, default=BASE_CONFIG,
+                    help="base point config; the solver block decides CPU (MUMPS) or GPU "
+                         "(STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml")
+    ap.add_argument("--cpus-per-task", type=int, default=1,
+                    help="Slurm cores per rank (OMP threads for a GPU job's CPU part)")
+    ap.add_argument("--gpus", type=int, default=0,
+                    help="devices on the node; >0 gives each job one GPU by lock file")
     args = ap.parse_args()
 
     submit = not (args.dry_run or args.local)
-    cfg0 = load_config(BASE_CONFIG)
+    base_config = Path(args.config).resolve()
+    cfg0 = load_config(base_config)
     # The job runs from the repository root, but the base config's case_dir is
-    # written relative to this directory. Resolve it here so a point does not
-    # depend on the CWD it is launched from.
+    # written relative to the config's own directory. Resolve it here so a point
+    # does not depend on the CWD it is launched from.
     case_dir = Path(str(cfg0["paths"]["case_dir"]))
     if not case_dir.is_absolute():
-        cfg0["paths"]["case_dir"] = str((HERE / case_dir).resolve())
+        cfg0["paths"]["case_dir"] = str((base_config.parent / case_dir).resolve())
     template = TEMPLATE.read_text()
     args.out.mkdir(parents=True, exist_ok=True)
     gen_dir = args.out / "configs"
@@ -156,6 +199,7 @@ def main() -> int:
                 jobname=stem, config=config_path, output_npz=output_npz,
                 workdir=d, nranks=args.nranks, case_dir=CASE_DIR, partition=args.partition,
                 repo_root=HERE.parents[1], beta=b, freq=f, env_lines=env_lines(args.env),
+                cpus_per_task=args.cpus_per_task, gpu_block=gpu_block(args.gpus, d),
             )
         )
         if submit:

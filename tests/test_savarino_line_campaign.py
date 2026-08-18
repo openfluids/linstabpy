@@ -121,3 +121,85 @@ def test_compare_map_timings_matches_shared_points(tmp_path) -> None:
     rows = list(csv.DictReader((tmp_path / "timing.csv").open(encoding="utf-8")))
     assert len(rows) == 1
     assert float(rows[0]["gain_rel"]) == 0.0
+
+
+def test_env_lines_quote_a_value_with_spaces() -> None:
+    """``PETSC_OPTIONS=-use_gpu_aware_mpi 0`` must reach the shell as one word."""
+    from examples.savarino.gen_campaign import env_lines
+
+    assert env_lines(["I_MPI_PIN=off"]) == "export I_MPI_PIN=off\n"
+    assert env_lines(["PETSC_OPTIONS=-use_gpu_aware_mpi 0"]) == (
+        "export PETSC_OPTIONS='-use_gpu_aware_mpi 0'\n"
+    )
+
+
+def test_gpu_block_gives_the_job_one_device_by_lock(tmp_path) -> None:
+    from examples.savarino.gen_campaign import gpu_block
+
+    assert gpu_block(0, tmp_path) == ""
+    block = gpu_block(2, tmp_path)
+    assert "for _g in $(seq 0 1); do" in block
+    assert "flock -n 9" in block and 'export CUDA_VISIBLE_DEVICES="$_g"' in block
+    assert "no free GPU among 2" in block
+    assert f'"{tmp_path}/nvsmi.${{SLURM_JOB_ID:-local}}.log"' in block
+    assert "nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu" in block
+
+
+def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monkeypatch) -> None:
+    """The GPU farm arm: STRUMPACK+FGMRES config, one rank, ten cores, a device
+    by lock -- all visible in the generated files, none inherited from the shell."""
+    import yaml
+
+    import examples.savarino.gen_campaign as gen
+
+    gpu_yaml = Path(gen.__file__).with_name("savarino_point_gpu.yaml")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["gen_campaign.py", "--out", str(tmp_path), "--dry-run", "--beta", "40",
+         "--nranks", "1", "--cpus-per-task", "10", "--gpus", "2", "--config", str(gpu_yaml),
+         "--env", "PETSC_OPTIONS=-use_gpu_aware_mpi 0", "--env", "OMP_NUM_THREADS=10"],
+    )
+    assert gen.main() == 0
+    text = (tmp_path / "sav_map_b40p0_f1.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --ntasks=1" in text and "#SBATCH --cpus-per-task=10" in text
+    assert "flock -n 9" in text and "mpiexec -n 1 " in text
+    assert "export PETSC_OPTIONS='-use_gpu_aware_mpi 0'" in text
+    cfg = yaml.safe_load((tmp_path / "configs" / "sav_map_b40p0_f1.yaml").read_text())
+    assert cfg["solver"]["resolvent"]["type"] == "iterative"
+    assert cfg["solver"]["resolvent"]["factor_backend"] == "strumpack"
+    assert cfg["solver"]["resolvent"]["ksp_type"] == "fgmres"
+    assert Path(cfg["paths"]["case_dir"]).is_absolute()
+    assert cfg["paths"]["case_dir"].endswith("examples/savarino/data/converted")
+    # The CPU default is untouched: one core per rank, no device pick.
+    monkeypatch.setattr(
+        "sys.argv", ["gen_campaign.py", "--out", str(tmp_path / "cpu"), "--dry-run", "--beta", "40"]
+    )
+    assert gen.main() == 0
+    cpu = (tmp_path / "cpu" / "sav_map_b40p0_f1.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --cpus-per-task=1" in cpu and "flock" not in cpu
+
+
+def test_collect_campaign_reads_backend_and_ranks_from_the_job_files(tmp_path) -> None:
+    """A GPU point must not be recorded as MUMPS on four ranks."""
+    from examples.savarino.collect_campaign import backend_of, gpu_peak_mib
+
+    d = tmp_path / "sav_map_b40p0_f1"
+    d.mkdir()
+    (tmp_path / "sav_map_b40p0_f1.sbatch").write_text(
+        "#!/bin/bash\n#SBATCH --job-name=x\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=10\n"
+    )
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "configs" / "sav_map_b40p0_f1.yaml").write_text(
+        "solver:\n  factor_backend: mumps\n  resolvent:\n    type: iterative\n"
+        "    ksp_type: fgmres\n    factor_backend: strumpack\n"
+    )
+    assert backend_of(d) == ("iterative/strumpack", 1)
+    (d / "nvsmi.4321.log").write_text(
+        "2026/08/18 20:00:00.000, 15, 0\n2026/08/18 20:00:05.000, 30801, 97\n"
+        "2026/08/18 20:00:10.000, 12000, 40\n"
+    )
+    assert gpu_peak_mib(d) == "30801"
+    # No job files: the directory-name rule of the historical campaigns.
+    assert backend_of(tmp_path / "sav_map_b45p0_f2_GPU") == ("strumpack", 1)
+    assert backend_of(tmp_path / "sav_map_b45p0_f2") == ("mumps", 4)
+    assert gpu_peak_mib(tmp_path / "sav_map_b45p0_f2") == ""
