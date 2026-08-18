@@ -1894,7 +1894,7 @@ PY_BIN="${VENV_DIR}/bin/python"
 PIP_UPGRADE_ARGS=()
 if [ "${LATEST_PACKAGES}" = "1" ]; then
     PIP_UPGRADE_ARGS=(--upgrade)
-    CORE_DEPS=(numpy scipy matplotlib)
+    CORE_DEPS=(numpy scipy matplotlib pyyaml)
     MPI4PY_SPEC="mpi4py"
     PETSC_SPEC="petsc"
     SLEPC_SPEC="slepc"
@@ -1905,7 +1905,10 @@ if [ "${LATEST_PACKAGES}" = "1" ]; then
     DEV_DEPS=(pytest pytest-cov sympy)
     log "Latest-package mode enabled: uv will request newest compatible releases."
 else
-    CORE_DEPS=("numpy>=1.23" "scipy>=1.10" "matplotlib>=3.7")
+    # Mirror [project].dependencies in pyproject.toml: Step 7 installs the package
+    # with --no-deps, so anything missing here is missing from the venv (pyyaml
+    # was, 2026-08-18: a fresh venv could not import linstabpy.utils.yaml_io).
+    CORE_DEPS=("numpy>=1.23" "scipy>=1.10" "matplotlib>=3.7" "pyyaml>=6.0")
     MPI4PY_SPEC="mpi4py>=3.1"
     PETSC_SPEC="petsc==${PETSC_VERSION}"
     SLEPC_SPEC="slepc==${SLEPC_VERSION}"

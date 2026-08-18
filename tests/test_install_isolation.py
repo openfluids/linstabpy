@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -198,3 +199,21 @@ def test_reference_blas_is_opt_in_only() -> None:
     assert "linux_append_petsc_linalg_options" in src
     assert '"--with-blaslapack-dir=${MKLROOT}"' in src
     assert '"--download-openblas"' in src
+
+
+def test_install_core_deps_cover_every_runtime_dependency() -> None:
+    """install.sh installs the package with --no-deps, so CORE_DEPS must name
+    every [project].dependencies entry. pyyaml was missing (2026-08-18): a fresh
+    venv could not import linstabpy.utils.yaml_io."""
+    import tomllib
+
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    declared = {
+        re.split(r"[\s<>=!~\[]", dep, maxsplit=1)[0].lower() for dep in pyproject["project"]["dependencies"]
+    }
+    core_lines = [line for line in INSTALL_SH.read_text(encoding="utf-8").splitlines() if "CORE_DEPS=(" in line]
+    assert len(core_lines) == 2, core_lines
+    for line in core_lines:
+        listed = {tok.strip("\"'").split(">")[0].split("=")[0].lower() for tok in line.split("(", 1)[1].rstrip(")").split()}
+        missing = declared - listed
+        assert not missing, f"CORE_DEPS misses {sorted(missing)} in: {line.strip()}"
