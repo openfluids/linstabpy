@@ -68,6 +68,13 @@ def test_gen_campaign_beta_filter_writes_only_those_lines(tmp_path, monkeypatch)
     assert "|| true; fi" in text
     cfg = (tmp_path / "configs" / "sav_map_b40p0_f1.yaml").read_text(encoding="utf-8")
     assert "ncv: 5" in cfg and "forcing_norm: l2" in cfg
+    # The job script does `cd <repo root>`; a case_dir left relative to
+    # examples/savarino/ made every point job fail on load (c9 jobs 1868-1914).
+    import yaml
+
+    case_dir = yaml.safe_load(cfg)["paths"]["case_dir"]
+    assert Path(case_dir).is_absolute()
+    assert case_dir.endswith("examples/savarino/data/converted")
 
 
 def test_gen_line_campaign_dry_run_writes_one_script_per_beta(tmp_path, monkeypatch) -> None:
