@@ -7,18 +7,50 @@ dist/
 build/
 *.npz
 !tests/fixtures/mumps_parity_reference.npz
+# Martini parity baseline — MATLAB slim fixtures only (see martini_fixtures_README.md).
+# linstabpy driver outputs (example_*.npz next to drivers) are regenerated locally.
+!examples/martini/LinStab2DResults/*.npz
 *.png
 !docs/assets/*.png
-!examples/**/*.png
-# Shipped reference fields for the public cases.
-!examples/martini/*.npz
-!examples/song/*.npz
-!examples/savarino/*.npz
+# Shipped reference fields for the public cases (other examples).
+!examples/song/reference/**/*.npz
+!examples/savarino/reference/**/*.npz
 !examples/sawtooth/*.npz
-# Full EVP / resolvent dumps stay local. Ship the spectrum CSV and a few modes.
-examples/song/*_paper.npz
+# Shipped example PNGs (curated only — not regenerated validation figures).
+!examples/**/*.png
+# Regenerated example outputs (override the PNG whitelist above).
+examples/**/figures/**
+examples/**/output/**
+# Martini run logs / pid files (regenerable; scripts write under _run_logs/).
+examples/martini/_run_logs/
+# Song validation figures (shipped with the example).
+!examples/song/figures/
+!examples/song/figures/**
+# Savarino output: ship run-record CSVs + figure PNGs only (not baseflow .npy / compare .npz).
+!examples/savarino/output/
+!examples/savarino/output/savarino_map2_200pt.csv
+!examples/savarino/output/savarino_map317pt.csv
+!examples/savarino/output/figures/
+!examples/savarino/output/figures/**
+examples/song/inputs/baseflow/**
+examples/song/inputs/raw/grid.grd
+examples/song/inputs/raw/mean_flow.dat
+examples/song/**/*.log
+examples/song/**/pipeline*.log
+# Legacy Song artifact names (pre-pipeline layout).
+examples/song/song_32deg_paper.npz
+examples/song/song_32deg_modes.npz
+examples/song/song_32deg_spectrum.csv
+examples/song/song.npz
+examples/song/song_2023.npz
+examples/song/song_fig*.png
+examples/song/song.png
+examples/song/song_*.png
+examples/song/song_matlab_timing.json
+# Full EVP / resolvent dumps stay local (other cases).
 examples/sawtooth/*_paper.npz
 examples/savarino/*_paper.npz
+examples/savarino/reference/zenodo/
 *.log
 *.aux
 *.bbl
@@ -37,6 +69,12 @@ examples/savarino/*_paper.npz
 .venv/
 artifacts/
 output/
+# Savarino output whitelist (needed again after the root output/ rule above).
+!examples/savarino/output/
+!examples/savarino/output/savarino_map2_200pt.csv
+!examples/savarino/output/savarino_map317pt.csv
+!examples/savarino/output/figures/
+!examples/savarino/output/figures/**
 # Case 2 generated run artifacts can contain local absolute paths.
 .DS_Store
 .beads/

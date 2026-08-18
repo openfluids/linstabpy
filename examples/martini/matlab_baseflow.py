@@ -16,7 +16,7 @@ from linstabpy.baseflow import BaseFlow
 _BASEFLOW_DATA_ROOT = Path(
     os.environ.get(
         "LINSTABPY_BASEFLOW_DATA_DIR",
-        Path(__file__).resolve().parent / "data",
+        Path(__file__).resolve().parent / "baseflows",
     )
 )
 if (_BASEFLOW_DATA_ROOT / "BaseFlows").is_dir():
@@ -34,7 +34,7 @@ def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
                 f"Reference base-flow data not found at {_BASEFLOW_DATA_DIR}. "
                 "Set LINSTABPY_BASEFLOW_DATA_DIR to a local clone of "
                 "https://github.com/LinStab2D/LinStab2D, or place .mat files in "
-                "examples/martini/data/."
+                "examples/martini/baseflows/."
             ) from FileNotFoundError(
                 f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}"
             )

@@ -2,17 +2,26 @@
 """
 Example 3: Streaky boundary-layer temporal and spatial analysis.
 
-Translates example_3_Streaky_BL.m with:
-- periodic x-domain and Hanifi-like y stretch
-- temporal eigenvalues
-- spatial eigenvalues in generalized (alpha) form
+Translates example_3_Streaky_BL.m and the four paper campaigns
+(``example_3_paper_*.yaml``) with periodic x-domain, Hanifi-like y stretch,
+temporal eigenvalues, and spatial eigenvalues in generalized (alpha) form.
 
-OUTPUTS:
-  - example_3_streaky_bl.npz
+OUTPUTS (four paper NPZ bundles + campaign figures):
+  - example_3_paper_temporal_Lx2pi_nP2.npz
+  - example_3_paper_temporal_Lxpi_nfloq0.npz
+  - example_3_paper_temporal_Lxpi_nfloq2.npz
+  - example_3_paper_spatial_Lxpi_nP2.npz
   - example_3_streaky_bl_baseflow.png
-  - example_3_streaky_bl.png
-  - example_3_streaky_bl_spatial.png
-  - example_3_streaky_bl_spectra.png
+  - example_3_streaky_bl_spectrum_*.png
+  - example_3_streaky_bl_modes_temporal_* / example_3_streaky_bl_modes_spatial_* mosaics
+
+USAGE:   python example_3_streaky_bl.py
+         rm example_3_paper_*.npz && python example_3_streaky_bl.py  # recompute all
+
+Single-case override (batch / debugging):
+  LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \\
+  LINSTABPY_EXAMPLE_CONFIG=examples/martini/example_3_paper_spatial_Lxpi_nP2.yaml \\
+  python examples/martini/example_3_streaky_bl.py
 """
 
 from __future__ import annotations
@@ -25,69 +34,58 @@ import numpy as np
 from linstabpy.utils.yaml_io import load_config, parse_complex_list, parse_int_list
 
 from examples._helpers import (
-    apply_figure_layout,
     format_cache_recompute_message,
-    format_complex,
-    format_scientific_ticks,
-    label_axes,
     leading_mode_real_frequency,
-    load_parity_npz,
-    parity_npz_get,
-    plot_scalar_panel,
-    plot_signed_panel,
-    save_figure,
-    set_suptitle,
-    smallest_abs_indices,
-    top_imag_indices,
+    load_or_compute,
 )
+from examples.martini.example_3_plots import plot_example3_figures
 
 SCRIPT = Path(__file__).resolve()
-_EXAMPLE_STEM = os.environ.get("LINSTABPY_EXAMPLE_STEM", SCRIPT.stem)
-_EXAMPLE_DIR = SCRIPT.parent
-CONFIG_PATH = Path(
-    os.environ.get("LINSTABPY_EXAMPLE_CONFIG", str(_EXAMPLE_DIR / f"{_EXAMPLE_STEM}.yaml"))
+EXAMPLE_DIR = SCRIPT.parent
+
+PAPER_CASES = (
+    "example_3_paper_temporal_Lx2pi_nP2",
+    "example_3_paper_temporal_Lxpi_nfloq0",
+    "example_3_paper_temporal_Lxpi_nfloq2",
+    "example_3_paper_spatial_Lxpi_nP2",
 )
-OUTPUT_NPZ = _EXAMPLE_DIR / f"{_EXAMPLE_STEM}.npz"
-OUTPUT_PNG = _EXAMPLE_DIR / f"{_EXAMPLE_STEM}.png"
-OUTPUT_BASEFLOW = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_baseflow.png")
-OUTPUT_SPATIAL = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_spatial.png")
-OUTPUT_SPECTRA = OUTPUT_PNG.with_name(f"{OUTPUT_PNG.stem}_spectra.png")
-MATLAB_TEMPORAL_STEM = "example_3_Streaky_BL_results_temporal"
-MATLAB_SPATIAL_STEM = "example_3_Streaky_BL_results_spatial"
 
 
-def _load_matlab_temporal_omega() -> np.ndarray | None:
-    """Load the extracted MATLAB temporal spectrum when available."""
-    try:
-        bundle = load_parity_npz(MATLAB_TEMPORAL_STEM)
-    except FileNotFoundError:
-        return None
-    return np.asarray(
-        parity_npz_get(bundle, "results_StreakyBL_temporal/omega"), dtype=complex
-    ).reshape(-1)
+def _resolve_cases() -> tuple[str, ...]:
+    stem = os.environ.get("LINSTABPY_EXAMPLE_STEM", "").strip()
+    if stem:
+        return (stem,)
+    return PAPER_CASES
 
 
-def _load_matlab_spatial_alpha() -> np.ndarray | None:
-    """Load the extracted MATLAB spatial spectrum when available."""
-    try:
-        bundle = load_parity_npz(MATLAB_SPATIAL_STEM)
-    except FileNotFoundError:
-        return None
-    return np.asarray(
-        parity_npz_get(bundle, "results_StreakyBL_spatial/alphas"), dtype=complex
-    ).reshape(-1)
+def _config_path(stem: str) -> Path:
+    env_cfg = os.environ.get("LINSTABPY_EXAMPLE_CONFIG", "").strip()
+    if env_cfg and len(_resolve_cases()) == 1:
+        return Path(env_cfg)
+    return EXAMPLE_DIR / f"{stem}.yaml"
 
 
-def _load_existing_npz() -> dict[str, np.ndarray]:
+def _output_npz(stem: str) -> Path:
+    return EXAMPLE_DIR / f"{stem}.npz"
+
+
+def _configure_floquet_shift(cfg: dict) -> str:
+    """Apply Floquet FD mode for this run (Example 3 pins LinStab2D / Martini parity)."""
+    mode = str(cfg.get("floquet_shift", "matlab_parity"))
+    os.environ["LINSTABPY_FLOQUET_SHIFT"] = mode
+    return mode
+
+
+def _load_existing_npz(npz_path: Path) -> dict[str, np.ndarray]:
     """Load an existing NPZ artifact if present and valid."""
     try:
-        with np.load(OUTPUT_NPZ, allow_pickle=False) as data:
+        with np.load(npz_path, allow_pickle=False) as data:
             return {key: data[key] for key in data.files}
     except (FileNotFoundError, EOFError, OSError, ValueError):
         return {}
 
 
-def _save_npz(data: dict[str, np.ndarray | float | complex | int]) -> None:
+def _save_npz(npz_path: Path, data: dict[str, np.ndarray | float | complex | int]) -> None:
     """Save a mixed metadata/results dict to the example NPZ path."""
     payload: dict[str, np.ndarray] = {}
     for key, value in data.items():
@@ -95,8 +93,8 @@ def _save_npz(data: dict[str, np.ndarray | float | complex | int]) -> None:
             payload[key] = value
         else:
             payload[key] = np.asarray(value)
-    np.savez_compressed(OUTPUT_NPZ, **payload)
-    print(f"Results saved to {OUTPUT_NPZ}")
+    np.savez_compressed(npz_path, **payload)
+    print(f"Results saved to {npz_path}")
 
 
 def _merge_temporal_target_batches(
@@ -131,7 +129,7 @@ def _merge_temporal_target_batches(
     return np.asarray(picked_omega, dtype=complex), np.column_stack(picked_modes)
 
 
-def _build_streaky_mesh(cfg: dict) -> tuple[Mesh, float, float]:
+def _build_streaky_mesh(cfg: dict) -> tuple[object, float, float]:
     """Build the Example 3 mesh and mapped physical coordinates."""
     from linstabpy.mesh import Mesh
 
@@ -158,7 +156,7 @@ def _build_streaky_mesh(cfg: dict) -> tuple[Mesh, float, float]:
     return mesh, Lx, Ly
 
 
-def _apply_streaky_sponge(mesh: Mesh, cfg: dict) -> None:
+def _apply_streaky_sponge(mesh, cfg: dict) -> None:
     """Apply the MATLAB-like top sponge used in Example 3."""
     sponge = cfg["sponge"]
     Ly = cfg["Ly"]
@@ -186,7 +184,20 @@ def _compute_spatial_residuals(
     return np.asarray(residuals, dtype=float)
 
 
-def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+def _resolve_baseflow_plot_field(data: dict[str, np.ndarray]) -> tuple[np.ndarray, str]:
+    """Prefer the streamwise W baseflow for plotting when it is available."""
+    if "baseflow_w" in data:
+        return np.asarray(data["baseflow_w"], dtype=float), r"Streaky boundary-layer baseflow $W$"
+    if "baseflow_u" in data:
+        return np.asarray(data["baseflow_u"], dtype=float), r"Streaky boundary-layer baseflow $U$"
+    raise KeyError("Expected either 'baseflow_w' or 'baseflow_u' in Example 3 data")
+
+
+def _augment_cached_results(
+    results: dict[str, np.ndarray],
+    cfg: dict,
+    npz_path: Path,
+) -> dict[str, np.ndarray]:
     """Backfill fields needed by the revised plotting/parity flow."""
     if not results:
         return results
@@ -195,20 +206,22 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
     mesh = None
     baseflow = None
 
-    # Minimal cfg for mesh/sponge reconstruction from cached data shape
     mini_cfg: dict = {
         "nx": 0,
         "ny": 0,
-        "Lx": np.pi,
-        "Ly": 5.0,
-        "fd_order": 4,
-        "alpha_filter": 0.0,
-        "x_periodicity": True,
-        "y_stretch_yi": 2.0,
-        "sponge": {"amplitude": 0.1, "ys_offset": 1.0, "ys_trans": 0.5},
+        "Lx": cfg.get("Lx", np.pi),
+        "Ly": cfg.get("Ly", 5.0),
+        "fd_order": cfg.get("fd_order", 4),
+        "alpha_filter": cfg.get("alpha_filter", 0.0),
+        "x_periodicity": cfg.get("x_periodicity", True),
+        "y_stretch_yi": cfg.get("y_stretch_yi", 2.0),
+        "sponge": cfg.get(
+            "sponge",
+            {"amplitude": 0.1, "ys_offset": 1.0, "ys_trans": 0.5},
+        ),
     }
 
-    def ensure_problem() -> tuple[Mesh, object]:
+    def ensure_problem() -> tuple[object, object]:
         nonlocal mesh, baseflow
         if mesh is None or baseflow is None:
             from examples.martini.matlab_baseflow import load_streaky_bl
@@ -235,6 +248,7 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
         and "omega_spatial" in results
         and "spatial_residuals" not in results
     ):
+        _configure_floquet_shift(cfg)
         from linstabpy.operators.spatial import (
             build_spatial_operator,
             spatial_lhs_with_dirichlet,
@@ -269,67 +283,12 @@ def _augment_cached_results(results: dict[str, np.ndarray]) -> dict[str, np.ndar
         changed = True
 
     if changed:
-        _save_npz(results)
+        _save_npz(npz_path, results)
     return results
 
 
-def _reconstruct_mode_field(
-    X: np.ndarray,
-    Y: np.ndarray,
-    mode: np.ndarray,
-    idx_block: np.ndarray,
-    used_ind: np.ndarray,
-    floquet_exp: float,
-) -> np.ndarray:
-    """Reconstruct one Floquet mode component on the physical mesh."""
-    from linstabpy.utils.floquet import reconstruct_floquet
-
-    return reconstruct_floquet(
-        X,
-        mode[np.asarray(idx_block)],
-        used_ind=used_ind,
-        floquet_exp=floquet_exp,
-    ).reshape(X.shape, order="F")
-
-
-def _tile_periodic_field(
-    X: np.ndarray,
-    Y: np.ndarray,
-    field: np.ndarray,
-    *,
-    n_tiles: int,
-    phase_shift: float | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Tile a periodic or Floquet field for multi-period display."""
-    width = float(np.max(X) - np.min(X))
-    x_tiles = []
-    y_tiles = []
-    field_tiles = []
-    for k in range(n_tiles):
-        x_tiles.append(np.asarray(X, dtype=float) + k * width)
-        y_tiles.append(np.asarray(Y, dtype=float))
-        if phase_shift is None:
-            field_tiles.append(np.asarray(field))
-        else:
-            field_tiles.append(np.asarray(field) * np.exp(1j * phase_shift * k))
-    return (
-        np.concatenate(x_tiles, axis=1),
-        np.concatenate(y_tiles, axis=1),
-        np.concatenate(field_tiles, axis=1),
-    )
-
-
-def _resolve_baseflow_plot_field(data: dict[str, np.ndarray]) -> tuple[np.ndarray, str]:
-    """Prefer the streamwise W baseflow for plotting when it is available."""
-    if "baseflow_w" in data:
-        return np.asarray(data["baseflow_w"], dtype=float), r"Streaky boundary-layer baseflow $W$"
-    if "baseflow_u" in data:
-        return np.asarray(data["baseflow_u"], dtype=float), r"Streaky boundary-layer baseflow $U$"
-    raise KeyError("Expected either 'baseflow_w' or 'baseflow_u' in Example 3 data")
-
-
-def _compute(cfg: dict) -> None:
-    """Run temporal and spatial eigensolutions."""
+def compute(cfg: dict, npz_path: Path) -> None:
+    """Run temporal and/or spatial eigensolutions for one paper campaign."""
     from examples.martini.matlab_baseflow import load_streaky_bl
     from linstabpy.boundary_conditions.dirichlet import (
         apply_dirichlet,
@@ -375,12 +334,15 @@ def _compute(cfg: dict) -> None:
     if not run_temporal and not run_spatial:
         raise ValueError("At least one of run_temporal or run_spatial must be true.")
 
+    floquet_shift = _configure_floquet_shift(cfg)
+    print(f"Floquet FD shift: {floquet_shift}")
+
     baseflow = load_streaky_bl(mesh)
     _apply_streaky_sponge(mesh, cfg)
 
     borders = "tb"
     variables = "uvwT"
-    results = _load_existing_npz()
+    results = _load_existing_npz(npz_path)
     used_ind = mesh.used_ind
 
     def _to_scipy_matrix(mat):
@@ -396,6 +358,7 @@ def _compute(cfg: dict) -> None:
         "omega_tar_real": float(np.real(omega_tar)),
         "omega_tar_imag": float(np.imag(omega_tar)),
         "alpha_target": float(alpha_target),
+        "floquet_shift": floquet_shift,
         "baseflow_u": baseflow.U,
         "baseflow_w": baseflow.W,
     }
@@ -477,7 +440,7 @@ def _compute(cfg: dict) -> None:
                 "omega_target_imag": float(np.imag(omega_tar)),
             }
         )
-        _save_npz(results)
+        _save_npz(npz_path, results)
 
     if run_spatial:
         if temporal_omega is None:
@@ -519,8 +482,6 @@ def _compute(cfg: dict) -> None:
             mesh.ngp,
             use_petsc=use_petsc_assembly,
         )
-        # Combine first, then BC. Pass omega=0 so spatial_eigenvalues
-        # does not add omega*Lw a second time.
         spatial_alpha, spatial_modes = spatial_eigenvalues(
             L,
             Lw,
@@ -555,339 +516,35 @@ def _compute(cfg: dict) -> None:
                 "idx_T_j": idx["T_j"],
             }
         )
-        _save_npz(results)
+        _save_npz(npz_path, results)
 
 
-def _plot(data: dict[str, np.ndarray]) -> None:
-    """Plot publication-style baseflow, temporal, spatial, and diagnostic figures."""
-    import matplotlib.pyplot as plt
+def run_case(stem: str) -> dict[str, np.ndarray]:
+    """Load or compute one paper campaign NPZ."""
+    cfg_path = _config_path(stem)
+    npz_path = _output_npz(stem)
+    cfg = load_config(cfg_path)
+    if not npz_path.is_file():
+        print(format_cache_recompute_message(npz_path, None))
+    data = load_or_compute(npz_path, lambda: compute(cfg, npz_path))
+    return _augment_cached_results(dict(data), cfg, npz_path)
 
-    has_temporal = "temporal_omega" in data and "temporal_modes" in data
-    has_spatial = "spatial_alpha" in data and "spatial_modes" in data
-    if not has_temporal and not has_spatial:
-        raise ValueError("Example 3 NPZ does not contain temporal or spatial results to plot.")
 
-    X = np.asarray(data["X"], dtype=float)
-    Y = np.asarray(data["Y"], dtype=float)
-    used_ind = np.asarray(data["used_ind"], dtype=int)
-    floquet_exp = float(np.asarray(data["floquet_exp"]).reshape(-1)[0])
-    idx_rho = np.asarray(data["idx_rho_j"], dtype=int)
-    idx_u = np.asarray(data["idx_u_j"], dtype=int)
-    idx_v = np.asarray(data["idx_v_j"], dtype=int)
-    idx_w = np.asarray(data["idx_w_j"], dtype=int)
-    idx_T = np.asarray(data["idx_T_j"], dtype=int)
-    n_modes = int(np.asarray(data["n_modes"]).reshape(-1)[0])
-    baseflow_field, baseflow_title = _resolve_baseflow_plot_field(data)
-    phase_step = floquet_exp * (float(np.max(X)) - float(np.min(X)))
-
-    X_base, Y_base, U_base = _tile_periodic_field(X, Y, baseflow_field, n_tiles=4)
-    fig_base, ax_base = plt.subplots(1, 1, figsize=(5.8, 2.0))
-    plot_scalar_panel(
-        ax_base,
-        X_base,
-        Y_base,
-        U_base,
-        title=baseflow_title,
-        cmap="cividis",
-        xlim=(0.0, 4.0 * np.pi),
-        ylim=(0.0, 5.0),
-        aspect="auto",
-        levels=101,
-        colorbar=False,
-        title_pad=4.0,
-    )
-    for xpos, width, color in [
-        (np.pi, np.pi, "#b94f4f"),
-        (2.0 * np.pi, 2.0 * np.pi, "#4a76b8"),
-    ]:
-        ax_base.add_patch(
-            plt.Rectangle(
-                (xpos, 0.0),
-                width,
-                5.0,
-                fill=False,
-                lw=1.5,
-                ls="--",
-                edgecolor=color,
-            )
-        )
-    label_axes(ax_base)
-    save_figure(fig_base, OUTPUT_BASEFLOW)
-
-    if has_temporal:
-        temporal_omega = np.asarray(data["temporal_omega"], dtype=complex)
-        temporal_modes = np.asarray(data["temporal_modes"], dtype=complex)
-        temporal_residuals = np.asarray(data["temporal_residuals"], dtype=float)
-        temporal_order = top_imag_indices(temporal_omega, 2)
-        matlab_temporal = _load_matlab_temporal_omega()
-
-        fig_temporal = plt.figure(figsize=(6.6, 4.0))
-        grid = fig_temporal.add_gridspec(
-            max(1, temporal_order.size),
-            2,
-            width_ratios=(1.1, 1.7),
-            hspace=0.26,
-            wspace=0.24,
-        )
-        ax_spec = fig_temporal.add_subplot(grid[:, 0])
-        if matlab_temporal is not None:
-            ax_spec.plot(
-                np.real(matlab_temporal),
-                np.imag(matlab_temporal),
-                "o",
-                mfc="white",
-                mec="black",
-                mew=1.0,
-                ms=7,
-                label="MATLAB",
-                zorder=2,
-            )
-        ax_spec.plot(
-            np.real(temporal_omega),
-            np.imag(temporal_omega),
-            "o",
-            color="#2a5caa",
-            ms=5,
-            alpha=0.9,
-            label="Python",
-            zorder=3,
-        )
-        for idx in temporal_order:
-            ax_spec.plot(
-                np.real(temporal_omega[idx]),
-                np.imag(temporal_omega[idx]),
-                "D",
-                color="#d99100",
-                mec="black",
-                mew=0.5,
-                ms=8,
-            )
-        ax_spec.set_title(f"Temporal spectrum, max r = {np.max(temporal_residuals):.1e}", pad=4.0)
-        ax_spec.set_xlabel(r"$\Re(\omega)$")
-        ax_spec.set_ylabel(r"$\Im(\omega)$")
-        ax_spec.grid(True, alpha=0.3)
-        format_scientific_ticks(ax_spec)
-        if matlab_temporal is not None:
-            ax_spec.legend(loc="upper right", frameon=False, fontsize=9)
-
-        for row, idx in enumerate(temporal_order):
-            field = _reconstruct_mode_field(
-                X,
-                Y,
-                temporal_modes[:, int(idx)],
-                idx_w,
-                used_ind,
-                floquet_exp,
-            )
-            Xt, Yt, Ft = _tile_periodic_field(
-                X,
-                Y,
-                field,
-                n_tiles=2,
-                phase_shift=phase_step,
-            )
-            ax_mode = fig_temporal.add_subplot(grid[row, 1])
-            plot_signed_panel(
-                ax_mode,
-                Xt,
-                Yt,
-                np.real(Ft),
-                title=(
-                    rf"$w^{{({row + 1})}}$, "
-                    rf"$\omega = {format_complex(temporal_omega[idx], real_precision=4)}$"
-                ),
-                xlim=(0.0, 2.0 * np.pi),
-                ylim=(0.0, 4.0),
-                aspect="auto",
-                colorbar=False,
-                title_pad=4.0,
-            )
-            ax_mode.set_ylabel(r"$y$")
-            if row == temporal_order.size - 1:
-                ax_mode.set_xlabel(r"$x$")
-            else:
-                ax_mode.set_xticklabels([])
-        set_suptitle(
-            fig_temporal, r"Temporal streaky-boundary-layer summary at $\beta = 0.6283$", y=0.972
-        )
-        apply_figure_layout(fig_temporal, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-        save_figure(fig_temporal, OUTPUT_PNG)
-
-    if has_spatial:
-        spatial_alpha = np.asarray(data["spatial_alpha"], dtype=complex)
-        spatial_modes = np.asarray(data["spatial_modes"], dtype=complex)
-        spatial_residuals = np.asarray(data["spatial_residuals"], dtype=float)
-        spatial_order = smallest_abs_indices(spatial_alpha, 2)
-        n_states = int(np.max(np.hstack([idx_u, idx_v, idx_w, idx_rho, idx_T])) + 1)
-        matlab_spatial = _load_matlab_spatial_alpha()
-
-        fig_spatial = plt.figure(figsize=(6.4, 3.4))
-        grid = fig_spatial.add_gridspec(1, 2, width_ratios=(1.15, 1.4), wspace=0.24)
-        ax_spec = fig_spatial.add_subplot(grid[0, 0])
-        if matlab_spatial is not None:
-            ax_spec.plot(
-                np.real(matlab_spatial),
-                np.imag(matlab_spatial),
-                "o",
-                mfc="white",
-                mec="black",
-                mew=1.0,
-                ms=7,
-                label="MATLAB subset",
-                zorder=2,
-            )
-        ax_spec.plot(
-            np.real(spatial_alpha),
-            np.imag(spatial_alpha),
-            "o",
-            color="#2a5caa",
-            ms=5,
-            alpha=0.9,
-            label="Python",
-            zorder=3,
-        )
-        for idx in spatial_order:
-            ax_spec.plot(
-                np.real(spatial_alpha[idx]),
-                np.imag(spatial_alpha[idx]),
-                "D",
-                color="#d99100",
-                mec="black",
-                mew=0.5,
-                ms=8,
-            )
-        ax_spec.set_title(f"Spatial spectrum, max r = {np.max(spatial_residuals):.1e}", pad=4.0)
-        ax_spec.set_xlabel(r"$\Re(\alpha)$")
-        ax_spec.set_ylabel(r"$\Im(\alpha)$")
-        ax_spec.grid(True, alpha=0.3)
-        format_scientific_ticks(ax_spec)
-        if matlab_spatial is not None:
-            ax_spec.legend(loc="upper left", frameon=False, fontsize=9)
-
-        spatial_mode = spatial_modes[:n_states, int(spatial_order[0])]
-        field = _reconstruct_mode_field(
-            X,
-            Y,
-            spatial_mode,
-            idx_w,
-            used_ind,
-            floquet_exp,
-        )
-        Xt, Yt, Ft = _tile_periodic_field(
-            X,
-            Y,
-            field,
-            n_tiles=2,
-            phase_shift=phase_step,
-        )
-        ax_mode = fig_spatial.add_subplot(grid[0, 1])
-        plot_signed_panel(
-            ax_mode,
-            Xt,
-            Yt,
-            np.real(Ft),
-            title=(
-                rf"Leading spatial $w$, "
-                rf"$\alpha = {format_complex(spatial_alpha[int(spatial_order[0])])}$"
-            ),
-            xlim=(0.0, 2.0 * np.pi),
-            ylim=(0.0, 4.0),
-            aspect="auto",
-            colorbar=False,
-            title_pad=4.0,
-        )
-        label_axes(ax_mode)
-        set_suptitle(fig_spatial, "Spatial streaky-boundary-layer summary", y=0.972)
-        apply_figure_layout(fig_spatial, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-        save_figure(fig_spatial, OUTPUT_SPATIAL)
-
-    fig_support, axes_support = plt.subplots(1, 2, figsize=(6.4, 2.8))
-    if has_temporal:
-        temporal_omega = np.asarray(data["temporal_omega"], dtype=complex)
-        temporal_residuals = np.asarray(data["temporal_residuals"], dtype=float)
-        matlab_temporal = _load_matlab_temporal_omega()
-        if matlab_temporal is not None:
-            axes_support[0].plot(
-                np.real(matlab_temporal),
-                np.imag(matlab_temporal),
-                "o",
-                mfc="white",
-                mec="black",
-                mew=1.0,
-                ms=7,
-                label="MATLAB",
-            )
-        axes_support[0].plot(
-            np.real(temporal_omega),
-            np.imag(temporal_omega),
-            "o",
-            color="#2a5caa",
-            ms=5,
-            label="Python",
-        )
-        axes_support[0].set_title(
-            f"Temporal spectrum, max r = {np.max(temporal_residuals):.1e}", pad=4.0
-        )
-        axes_support[0].set_xlabel(r"$\Re(\omega)$")
-        axes_support[0].set_ylabel(r"$\Im(\omega)$")
-        axes_support[0].grid(True, alpha=0.3)
-        format_scientific_ticks(axes_support[0])
-        if matlab_temporal is not None:
-            axes_support[0].legend(loc="upper right", frameon=False, fontsize=9)
-    else:
-        axes_support[0].set_visible(False)
-
-    if has_spatial:
-        spatial_alpha = np.asarray(data["spatial_alpha"], dtype=complex)
-        spatial_residuals = np.asarray(data["spatial_residuals"], dtype=float)
-        matlab_spatial = _load_matlab_spatial_alpha()
-        if matlab_spatial is not None:
-            axes_support[1].plot(
-                np.real(matlab_spatial),
-                np.imag(matlab_spatial),
-                "o",
-                mfc="white",
-                mec="black",
-                mew=1.0,
-                ms=7,
-                label="MATLAB subset",
-            )
-        axes_support[1].plot(
-            np.real(spatial_alpha),
-            np.imag(spatial_alpha),
-            "o",
-            color="#2a5caa",
-            ms=5,
-            label="Python",
-        )
-        axes_support[1].set_title(
-            f"Spatial spectrum, max r = {np.max(spatial_residuals):.1e}", pad=4.0
-        )
-        axes_support[1].set_xlabel(r"$\Re(\alpha)$")
-        axes_support[1].set_ylabel(r"$\Im(\alpha)$")
-        axes_support[1].grid(True, alpha=0.3)
-        format_scientific_ticks(axes_support[1])
-        if matlab_spatial is not None:
-            axes_support[1].legend(loc="upper left", frameon=False, fontsize=9)
-    else:
-        axes_support[1].set_visible(False)
-    set_suptitle(fig_support, "Streaky boundary-layer diagnostics", y=0.972)
-    apply_figure_layout(fig_support, rect=(0.0, 0.0, 1.0, 0.94), pad=0.7)
-    save_figure(fig_support, OUTPUT_SPECTRA)
+def plot_all(example_dir: Path = EXAMPLE_DIR) -> list[Path]:
+    """Plot all four paper campaigns using LinStab2D fixtures when present."""
+    return plot_example3_figures(example_dir)
 
 
 def main() -> None:
-    cfg = load_config(CONFIG_PATH)
-    data = _load_existing_npz()
-    if not data:
-        print(format_cache_recompute_message(OUTPUT_NPZ, None))
-        _compute(cfg)
-        data = _load_existing_npz()
-    if not data:
-        raise RuntimeError(f"Failed to generate {OUTPUT_NPZ}")
+    cases = _resolve_cases()
+    for stem in cases:
+        print(f"\n=== Example 3 campaign: {stem} ===")
+        run_case(stem)
 
-    data = _augment_cached_results(data)
-    _plot(data)
+    if len(cases) == len(PAPER_CASES):
+        print("\n=== Example 3 presentation figures ===")
+        for path in plot_all():
+            print(f"Wrote {path}")
 
 
 if __name__ == "__main__":

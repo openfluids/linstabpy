@@ -971,11 +971,9 @@ Python counterparts:
 | `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz`, `example_2_jet.png` |
 | `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_streaky_bl.npz`, `example_3_streaky_bl.png` |
 | `example_4_Cavity.m` | `example_4_cavity.py` | `implemented` | `example_4_cavity.npz`, `example_4_cavity.png` |
-| `example_5_Paraboloid.m` | `example_5_paraboloid.py` | `implemented` | `example_5_paraboloid.npz`, `example_5_paraboloid.png` |
+| `example_5_Paraboloid.m` | `example_5_paraboloid.py` | `implemented` | `example_5_paraboloid.npz`, `example_5_paraboloid_baseflow.png`, `modes_forcing_response_{u,v,w}[_imag]_mosaic.png` (see `example_5_D2y_asymm_fix.md`) |
 
 ### Operator parity matrix
-
-Canonical machine-readable source: `examples/martini/operator_matrix.json`.
 
 Status semantics:
 
@@ -986,8 +984,7 @@ Status semantics:
 - `out_of_scope`: intentionally not targeted
 - `blocked`: cannot proceed due to an external blocker
 
-Every `required: true` entry must reach `status = validated`. Current gate status
-is `pass` with `missing_required = 0`.
+Every `required: true` entry must reach `status = validated`.
 
 | ID | MATLAB | Python target | Status |
 |---|---|---|---|
@@ -1006,8 +1003,6 @@ is `pass` with `missing_required = 0`.
 
 ### Branch coverage matrix
 
-Canonical machine-readable source: `examples/martini/branch_matrix.json`.
-
 Target dimensions:
 
 - `model`: `2D`, `axy`
@@ -1022,11 +1017,8 @@ Total combinations:
 2 * 4 * 3 * 4 * 1 = 96
 ```
 
-All required combinations must be `validated`. Combinations omitted from `records`
-default to `pending`. Scope is controlled by `required_exclusions` in
-`examples/martini/branch_matrix.json`. Current scoped gate
-status is `pass` with `5` required validated combinations and `91` required
-exclusions.
+All required combinations must be `validated`. Combinations omitted from the
+historical matrix default to `pending`.
 
 | model | solver | bc | deformation | backend | status |
 |---|---|---|---|---|---|
@@ -1042,18 +1034,6 @@ Example-level parity:
 
 ```bash
 .venv/bin/python examples/martini/compare_martini_examples.py
-```
-
-Allow incomplete optional matrix entries while enforcing required scoped gates:
-
-```bash
-python examples/martini/check_parity_matrices.py --allow-incomplete
-```
-
-Strict CI gate:
-
-```bash
-python examples/martini/check_parity_matrices.py
 ```
 
 Some parity tests compare against MATLAB reference export bundles (raw `.mat`
@@ -1118,7 +1098,7 @@ bash examples/song/song.sh
 ```
 
 `examples/song/` is the Song / Robinet case. See that README for the
-base-flow convention, figure scripts, and the 31.6 deg comparison.
+base-flow convention and figure scripts.
 
 `examples/savarino/` is the Savarino 30.8 deg resolvent case. See that
 README for the Zenodo fetch and the gain-map plot.
@@ -1256,8 +1236,6 @@ Run MATLAB parity checks with:
 
 ```bash
 .venv/bin/python examples/martini/compare_martini_examples.py
-python examples/martini/check_parity_matrices.py --allow-incomplete
-python examples/martini/check_parity_matrices.py
 ```
 
 Packaging:

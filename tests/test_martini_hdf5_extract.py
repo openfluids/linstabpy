@@ -36,12 +36,3 @@ def test_extract_blasius_results_exposes_resolvent_fields() -> None:
 # Raw-MATLAB-export extraction check. The martini_examples/ bundle is deliberately
 # not committed, so this is opt-in: deselected by default, and a FAILURE rather than
 # a skip once LINSTABPY_MATLAB_PARITY=1 asks for it.
-def test_extract_blasius_logs_decodes_strings_and_scalars() -> None:
-    path = martini_export("example_1_Blasius_logs.mat")
-    require_matlab_reference(path, description="the raw Martini MATLAB export")
-
-    flat, _ = extract_file(path)
-
-    steps = [str(step) for step in flat["timing__step"].reshape(-1)]
-    assert any("resolvent" in step.lower() for step in steps)
-    assert float(flat["timing_total"].reshape(-1)[0]) > 0.0

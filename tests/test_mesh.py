@@ -1127,6 +1127,64 @@ def test_deform_separable_xy_reuses_symmetry_y_only_family():
     np.testing.assert_allclose(full.Dyx_asymm.toarray(), seq.Dyx_asymm.toarray())
 
 
+def test_deform_full_2d_family_metric_terms_use_full_operators():
+    """Family dJ/Q metric terms must come from the full eta operators."""
+    base = Mesh.create(
+        xrange=(-0.5, 0.5),
+        yrange=(0.0, 1.0),
+        nx=10,
+        ny=16,
+        fd_order=4,
+        y_symmetry=True,
+        x_periodicity=False,
+        alpha_filter=0.0,
+    )
+    X_new = base.X + 0.05 * base.Y**2
+    Y_new = base.Y * (1.0 + 0.05 * base.X)
+
+    deformed = base.deform(X_new=X_new, Y_new=Y_new)
+
+    p = base.used_ind
+    x = X_new.ravel(order="F")[p]
+    y = Y_new.ravel(order="F")[p]
+    Dx, D2x, Dy, D2y = base.Dx, base.D2x, base.Dy, base.D2y
+
+    J11, J12, J21, J22 = Dx @ x, Dx @ y, Dy @ x, Dy @ y
+    det = J11 * J22 - J12 * J21
+    a, b, c, d = J22 / det, -J12 / det, -J21 / det, J11 / det
+
+    dJ_xi = (D2x @ x, D2x @ y, Dx @ (Dy @ x), Dx @ (Dy @ y))
+    dJ_eta = (Dy @ (Dx @ x), Dy @ (Dx @ y), D2y @ x, D2y @ y)
+
+    def dji_row2(dj11, dj12, dj21, dj22):
+        p11 = dj11 * a + dj12 * c
+        p12 = dj11 * b + dj12 * d
+        p21 = dj21 * a + dj22 * c
+        p22 = dj21 * b + dj22 * d
+        return -(c * p11 + d * p21), -(c * p12 + d * p22)
+
+    dji21_xi, dji22_xi = dji_row2(*dJ_xi)
+    dji21_eta, dji22_eta = dji_row2(*dJ_eta)
+    q22_x = c * dji21_xi + d * dji21_eta
+    q22_y = c * dji22_xi + d * dji22_eta
+
+    def dg(vec):
+        return sparse.diags(vec, offsets=0, format="csr")
+
+    for fam in ("symm", "asymm"):
+        expected = (
+            dg(c * c) @ D2x
+            + dg(c * d) @ getattr(base, f"Dxy_{fam}")
+            + dg(d * c) @ getattr(base, f"Dyx_{fam}")
+            + dg(d * d) @ getattr(base, f"D2y_{fam}")
+            + dg(q22_x) @ Dx
+            + dg(q22_y) @ getattr(base, f"Dy_{fam}")
+        ).toarray()
+        actual = getattr(deformed, f"D2y_{fam}").toarray()
+        scale = np.abs(expected).max()
+        np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-10 * scale)
+
+
 def test_axm_diag_matches_explicit_sparse_diagonal_scaling():
     """Row scaling must remain identical to the old explicit diagonal product."""
     matrix = sparse.csr_matrix(

@@ -19,7 +19,7 @@ def test_floquet_matlab_parity_shifts_d2rz() -> None:
     i_alpha = 0.5j
 
     shifted_dz, shifted_d2z, shifted_d2rz = _apply_floquet_shift(
-        dz, d2z, d2rz, i_alpha, ngp
+        dz, d2z, d2rz, i_alpha, ngp, mode="matlab_parity"
     )
 
     np.testing.assert_allclose(
@@ -34,6 +34,29 @@ def test_floquet_matlab_parity_shifts_d2rz() -> None:
     np.testing.assert_allclose(
         shifted_d2z[0].toarray(),
         (d2z + 2.0 * i_alpha * shifted_dz[0] + i_alpha**2 * eye).toarray(),
+    )
+
+
+def test_floquet_continuum_shifts_d2rz_with_dr() -> None:
+    ngp = 3
+    eye = sp.eye(ngp, format="csc")
+    dz = eye.copy()
+    d2z = 2.0 * eye
+    d2rz = 3.0 * eye
+    dr = 4.0 * eye
+    i_alpha = 0.5j
+
+    shifted_dz, shifted_d2z, shifted_d2rz = _apply_floquet_shift(
+        dz, d2z, d2rz, i_alpha, ngp, DR=dr, mode="continuum"
+    )
+
+    np.testing.assert_allclose(
+        shifted_d2rz[0].toarray(),
+        (d2rz + i_alpha * dr).toarray(),
+    )
+    np.testing.assert_allclose(
+        shifted_d2z[0].toarray(),
+        (d2z + 2.0 * i_alpha * dz + i_alpha**2 * eye).toarray(),
     )
 
 
