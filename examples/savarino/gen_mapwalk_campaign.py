@@ -24,6 +24,8 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 
+from examples.savarino.gen_campaign import env_lines  # noqa: E402
+
 TEMPLATE = HERE / "savarino_mapwalk.sbatch.template"
 HOURS_TO_SECONDS = 3600
 
@@ -41,10 +43,23 @@ def main() -> int:
     ap.add_argument("--nranks", type=int, default=4)
     ap.add_argument("--hours", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--env", action="append", default=[], metavar="VAR=value",
+                    help="exported into the job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto")
+    ap.add_argument("--n-anchor", type=int, default=None,
+                    help="direct points per line before walking; >= line length = pure direct arm")
+    ap.add_argument("--ncv", type=int, default=None, help="SLEPc subspace size for the gain (nev=1)")
+    ap.add_argument("--driver-out", type=Path, default=REPO / "examples" / "savarino",
+                    help="where the driver writes savarino_mapwalk.csv/.log (one dir per arm)")
     args = ap.parse_args()
 
+    driver_args = ""
+    if args.n_anchor is not None:
+        driver_args += f" --n-anchor {int(args.n_anchor)}"
+    if args.ncv is not None:
+        driver_args += f" --ncv {int(args.ncv)}"
     template = TEMPLATE.read_text(encoding="utf-8")
     args.out.mkdir(parents=True, exist_ok=True)
+    args.driver_out.mkdir(parents=True, exist_ok=True)
     for beta in args.beta:
         stem = f"savarino_mapwalk_b{tag(beta)}"
         sb = args.out / f"{stem}.sbatch"
@@ -57,6 +72,9 @@ def main() -> int:
                 beta=beta,
                 walltime=f"{args.hours:02d}:00:00",
                 deadline_s=args.hours * HOURS_TO_SECONDS,
+                env_lines=env_lines(args.env),
+                driver_out=args.driver_out,
+                driver_args=driver_args,
             ),
             encoding="utf-8",
         )

@@ -36,6 +36,24 @@ def test_every_row_states_its_build_and_box() -> None:
     assert FIELDS[-3:] == ("git_sha", "slurm_job", "machine")
 
 
+def test_every_row_states_what_made_its_cost() -> None:
+    """Same commit, same box: reference BLAS vs MKL was 5.6x on the factor,
+    rank placement 1.6x, ncv 2.5x on the solves (jobs 1850/1859/1861). A row
+    without these four cannot be compared with another."""
+    for column in ("blas", "ncv", "n_anchor", "pin_domain"):
+        assert column in FIELDS
+
+
+def test_pin_domain_names_the_placement_the_job_asked_for() -> None:
+    from examples.savarino.savarino_mapwalk import _pin_domain
+
+    assert _pin_domain({}) == "default"
+    assert _pin_domain({"I_MPI_PIN_DOMAIN": "auto"}) == "auto"
+    assert _pin_domain({"I_MPI_PIN_DOMAIN": "5"}) == "5"
+    assert _pin_domain({"I_MPI_PIN": "off"}) == "off"
+    assert _pin_domain({"I_MPI_PIN": "off", "I_MPI_PIN_DOMAIN": "socket"}) == "socket"
+
+
 def test_walk_rows_carry_the_farm_cost_columns() -> None:
     """A cost comparison needs the same measurements on both sides."""
     farm_cols = FARM_CSV.read_text(encoding="utf-8").splitlines()[0].split(",")
@@ -56,3 +74,30 @@ def test_walk_peak_rss_means_the_same_as_the_farm_column() -> None:
     guard_at = src.index("if rank == 0:", reduce_at)
     append_at = src.index("append_row(", reduce_at)
     assert reduce_at < guard_at < append_at
+
+
+def test_gen_mapwalk_campaign_writes_the_arm_into_the_job_script(tmp_path, monkeypatch) -> None:
+    """The job script must carry its own placement, interpreter, ncv and
+    n_anchor; a run that inherits them from the submitting shell is not
+    reproducible from the script."""
+    import examples.savarino.gen_mapwalk_campaign as gen
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "gen_mapwalk_campaign.py", "--out", str(tmp_path), "--beta", "40", "--dry-run",
+            "--nranks", "20", "--env", "I_MPI_PIN_DOMAIN=auto",
+            "--env", "LINSTABPY_PYTHON=/venv/bin/python", "--n-anchor", "99", "--ncv", "5",
+            "--driver-out", str(tmp_path / "direct20"),
+        ],
+    )
+    assert gen.main() == 0
+    text = (tmp_path / "savarino_mapwalk_b40.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --ntasks=20" in text
+    assert "export I_MPI_DEBUG=4" in text
+    assert "export I_MPI_PIN_DOMAIN=auto" in text
+    assert "export LINSTABPY_PYTHON=/venv/bin/python" in text
+    assert "--n-anchor 99 --ncv 5" in text
+    assert f"--out {tmp_path / 'direct20'}" in text
+    assert "|| true; fi" in text  # setvars.sh --force must not kill the job under set -e
+    assert (tmp_path / "direct20").is_dir()

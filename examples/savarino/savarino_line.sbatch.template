@@ -8,7 +8,9 @@
 #SBATCH --cpus-per-task=1
 set -euo pipefail
 set +u
-[ -f /opt/intel/oneapi/setvars.sh ] && . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1
+# setvars.sh --force returns non-zero when oneAPI is already in the submitting shell;
+# under set -e that killed the job before mpiexec (job 1860).
+if [ -f /opt/intel/oneapi/setvars.sh ]; then . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 || true; fi
 set -u
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"

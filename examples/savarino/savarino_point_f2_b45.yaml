@@ -61,6 +61,9 @@ solver:
     type: mumps
     eigen:
       forcing_norm: l2
+      # Krylov-Schur on H^H H with nev=1: ncv 5 needs 10 MUMPS solves per point,
+      # the default 20 needs 40; sigma_1 agrees to 1e-14 (job 1859, beta=40, f=1.0/1.4).
+      ncv: 5
   input_region:
     space: conservative_momentum
     vars: [u, v, w]

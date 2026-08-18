@@ -34,6 +34,7 @@ STAMPED_PROVENANCE_KEYS = {
     "petsc_arch",
     "mumps_version",
     "mpi_impl",
+    "blas",
 }
 
 PROVENANCE_KEYS = {

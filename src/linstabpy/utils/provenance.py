@@ -26,6 +26,7 @@ _PROVENANCE_KEYS = (
     "petsc_arch",
     "mumps_version",
     "mpi_impl",
+    "blas",
 )
 _VALID_COMPUTE_MODES = {"cpu", "gpu", "mixed"}
 
@@ -129,6 +130,43 @@ def _mpi_impl() -> str:
     return _probe_string(probe)
 
 
+def _blas_from_link_line(libs: str) -> str:
+    """Name the BLAS/LAPACK family from PETSc's ``BLASLAPACK_LIB`` link line."""
+    low = libs.lower()
+    if "mkl" in low:
+        return "mkl"
+    if "openblas" in low:
+        return "openblas"
+    if "fblas" in low or "flapack" in low:
+        return "reference"
+    if "accelerate" in low or "veclib" in low:
+        return "accelerate"
+    return libs.strip() or "unavailable"
+
+
+def _blas() -> str:
+    """Which BLAS/LAPACK PETSc (and so MUMPS) was linked against.
+
+    Same code, same commit, same numbers: the reference Fortran BLAS ran the
+    Savarino factorization 5.6x slower than MKL (2026-08-18). A cost row
+    without this field cannot be compared with another.
+    """
+
+    def probe() -> str:
+        import petsc4py
+
+        petsc_dir = Path(str(petsc4py.get_config().get("PETSC_DIR", "")))
+        variables = petsc_dir / "lib" / "petsc" / "conf" / "petscvariables"
+        if not variables.is_file():
+            return "unavailable"
+        match = re.search(r"^BLASLAPACK_LIB\s*=\s*(.*)$", variables.read_text(), flags=re.MULTILINE)
+        if not match:
+            return "unavailable"
+        return _blas_from_link_line(match.group(1))
+
+    return _probe_string(probe)
+
+
 def _hostname() -> str:
     """Machine label for artifacts: opt-in, never the real host name by default.
 
@@ -168,6 +206,7 @@ def collect_provenance(config_path: str | Path | None) -> dict[str, str]:
         "petsc_arch": _petsc_arch(),
         "mumps_version": _mumps_version(),
         "mpi_impl": _mpi_impl(),
+        "blas": _blas(),
     }
     assert tuple(provenance) == _PROVENANCE_KEYS
     return provenance

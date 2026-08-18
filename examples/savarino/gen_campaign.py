@@ -67,6 +67,21 @@ def tag(v):
     return str(v).replace(".", "p").replace("-", "m").replace("+", "")
 
 
+def env_lines(pairs):
+    """Render ``VAR=value`` pairs as ``export`` lines for a job script.
+
+    One line per pair, so the job carries its own rank placement
+    (``I_MPI_PIN_DOMAIN=auto``, ``I_MPI_PIN=off``) and interpreter
+    (``LINSTABPY_PYTHON=...``) instead of inheriting them from whoever submitted.
+    """
+    out = []
+    for pair in pairs or ():
+        if "=" not in pair:
+            raise SystemExit(f"--env expects VAR=value, got {pair!r}")
+        out.append(f"export {pair}\n")
+    return "".join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path, help="Directory for generated configs and outputs")
@@ -74,6 +89,12 @@ def main() -> int:
     ap.add_argument("--nranks", type=int, default=4, help="MPI ranks per point (default: 4)")
     ap.add_argument("--dry-run", action="store_true", help="Generate configs/batch scripts but do not submit")
     ap.add_argument("--local", action="store_true", help="Print the mpiexec command for each point instead of using Slurm")
+    ap.add_argument("--env", action="append", default=[], metavar="VAR=value",
+                    help="exported into every job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto")
+    ap.add_argument("--ncv", type=int, default=None,
+                    help="SLEPc subspace size for the H^H H gain (nev=1); default leaves the solver default")
+    ap.add_argument("--beta", type=float, nargs="+", default=None,
+                    help="only these beta lines of the 200-point grid (default: all 14 lines)")
     args = ap.parse_args()
 
     submit = not (args.dry_run or args.local)
@@ -83,8 +104,11 @@ def main() -> int:
     gen_dir = args.out / "configs"
     gen_dir.mkdir(exist_ok=True)
 
-    pts = [(b, f) for b in GRID for f in GRID[b]]
-    print(f"{len(pts)} points over {len(GRID)} beta lines; submit={submit} local={args.local}")
+    lines = GRID if args.beta is None else {b: GRID[b] for b in GRID if b in set(args.beta)}
+    if args.beta is not None and len(lines) != len(set(args.beta)):
+        raise SystemExit(f"--beta {args.beta}: not all on the grid {sorted(GRID)}")
+    pts = [(b, f) for b in lines for f in lines[b]]
+    print(f"{len(pts)} points over {len(lines)} beta lines; submit={submit} local={args.local}")
 
     for b, f in pts:
         cfg = copy.deepcopy(cfg0)
@@ -95,7 +119,10 @@ def main() -> int:
             "space": "conservative_momentum", "vars": ["u", "v", "w"], "x": [X_MIN, x_max(f)], "y": [0.0, Y_MAX]
         }
         cfg["solver"]["mask_bc_forcing"] = True
-        cfg["solver"].setdefault("resolvent", {})["eigen"] = {"forcing_norm": "l2"}
+        eigen_cfg = cfg["solver"].setdefault("resolvent", {}).setdefault("eigen", {})
+        eigen_cfg["forcing_norm"] = "l2"
+        if args.ncv is not None:
+            eigen_cfg["ncv"] = int(args.ncv)
 
         stem = f"sav_map_b{tag(b)}_f{tag(f)}"
         config_path = gen_dir / f"{stem}.yaml"
@@ -122,7 +149,7 @@ def main() -> int:
             template.format(
                 jobname=stem, config=config_path, output_npz=output_npz,
                 workdir=d, nranks=args.nranks, case_dir=CASE_DIR, partition=args.partition,
-                repo_root=HERE.parents[1], beta=b, freq=f,
+                repo_root=HERE.parents[1], beta=b, freq=f, env_lines=env_lines(args.env),
             )
         )
         if submit:

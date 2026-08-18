@@ -1,18 +1,23 @@
 #!/bin/bash
 #SBATCH --job-name={jobname}
-#SBATCH --output={repo_root}/examples/savarino/savarino_mapwalk.slurm-%j.log
-#SBATCH --error={repo_root}/examples/savarino/savarino_mapwalk.slurm-%j.log
+#SBATCH --output={driver_out}/savarino_mapwalk.slurm-%j.log
+#SBATCH --error={driver_out}/savarino_mapwalk.slurm-%j.log
 #SBATCH --partition={partition}
 #SBATCH --time={walltime}
 #SBATCH --ntasks={nranks}
 #SBATCH --cpus-per-task=1
 set -euo pipefail
 set +u
-[ -f /opt/intel/oneapi/setvars.sh ] && . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1
+# setvars.sh --force returns non-zero when oneAPI is already in the submitting shell;
+# under set -e that killed the job before mpiexec (job 1860).
+if [ -f /opt/intel/oneapi/setvars.sh ]; then . /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 || true; fi
 set -u
 export LINSTABPY_MPI_STACK=intelmpi
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
-# Leave two minutes so LineWalker can stop before Slurm kills the job.
+# Rank placement decides the factor time (1.6x on c9, job 1861): print the pin map into
+# this log, and take the job's own I_MPI_* / LINSTABPY_PYTHON from the generator.
+export I_MPI_DEBUG=4
+{env_lines}# Leave two minutes so LineWalker can stop before Slurm kills the job.
 export LINSTABPY_JOB_DEADLINE=$(( $(date +%s) + {deadline_s} - 120 ))
 REPO="{repo_root}"
 PY="${{LINSTABPY_PYTHON:-$HOME/linstabpy/.venv/bin/python}}"
@@ -20,10 +25,10 @@ export PYTHONPATH="${{REPO}}/src:${{REPO}}${{PYTHONPATH:+:$PYTHONPATH}}"
 cd "$REPO"
 echo "host=$(hostname -s) sha=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo dirty)"
 echo "resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true ranks={nranks}"
-echo "engine=LineWalker stem=savarino_mapwalk beta={beta}"
+echo "engine=LineWalker stem=savarino_mapwalk beta={beta} driver_args=[{driver_args}]"
 mpiexec -n {nranks} "$PY" -u examples/savarino/savarino_mapwalk.py \
   --config examples/savarino/savarino_point_f2_b45.yaml \
-  --out examples/savarino \
+  --out {driver_out} \
   --farm-csv examples/savarino/savarino_map2_200pt.csv \
-  --beta {beta}
+  --beta {beta}{driver_args}
 echo "DONE {jobname}"

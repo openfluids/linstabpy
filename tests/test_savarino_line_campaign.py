@@ -50,6 +50,26 @@ def test_x_max_follows_the_measured_window() -> None:
     assert x_max(1.6) == 1.7954167
 
 
+def test_gen_campaign_beta_filter_writes_only_those_lines(tmp_path, monkeypatch) -> None:
+    """A farm arm for two lines must not queue the other 153 points, and the
+    job script must carry its own placement/interpreter and the ncv it ran."""
+    import examples.savarino.gen_campaign as gen
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["gen_campaign.py", "--out", str(tmp_path), "--dry-run", "--beta", "40", "45",
+         "--ncv", "5", "--env", "I_MPI_PIN=off"],
+    )
+    assert gen.main() == 0
+    scripts = sorted(tmp_path.glob("sav_map_b*.sbatch"))
+    assert len(scripts) == len(GRID[40.0]) + len(GRID[45.0]) == 47
+    text = (tmp_path / "sav_map_b40p0_f1.sbatch").read_text(encoding="utf-8")
+    assert "export I_MPI_PIN=off" in text and "export I_MPI_DEBUG=4" in text
+    assert "|| true; fi" in text
+    cfg = (tmp_path / "configs" / "sav_map_b40p0_f1.yaml").read_text(encoding="utf-8")
+    assert "ncv: 5" in cfg and "forcing_norm: l2" in cfg
+
+
 def test_gen_line_campaign_dry_run_writes_one_script_per_beta(tmp_path, monkeypatch) -> None:
     import examples.savarino.gen_line_campaign as gen
 
