@@ -95,3 +95,7 @@ markers = [
 # never be satisfied, and a suite reporting them as "skipped" overstated its own
 # coverage. A user-supplied -m on the command line takes precedence over this.
 addopts = "-m 'not matlab_parity'"
+
+# Strict agent gate for new Python files (ruff all-rules, basedpyright, STE).
+[tool.py-strict]
+scope = "new"
