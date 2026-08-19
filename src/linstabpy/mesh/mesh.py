@@ -2,9 +2,10 @@
 """Structured mesh with SBP finite-difference operators and integration weights.
 
 Translates the MATLAB routines ``CreateMesh.m``, ``AddDW2mesh.m``, and
-``DeformMesh.m`` from LinStab2D.  The ``Mesh`` object remains the mutable
-runtime carrier; ``MeshGeometry``, ``MeshOperators``, and ``MeshRuntimeState``
-provide grouped views so callers can state which part of the mesh contract
+``DeformMesh.m`` from LinStab2D.
+The ``Mesh`` object remains the mutable runtime carrier.
+``MeshGeometry``, ``MeshOperators``, and ``MeshRuntimeState`` provide
+grouped views so callers can state which part of the mesh contract
 they consume.
 """
 
@@ -139,7 +140,7 @@ class Mesh:
     y_symmetry : bool
         Whether y-symmetry operators are present (Phase 2).
     x_periodicity : bool
-        Whether x-periodicity is enforced (Phase 2).
+        Whether the mesh uses x-periodicity (Phase 2).
     fd_order : int
         Finite-difference order of the SBP operators.
     Dx : sp.csr_matrix
@@ -407,7 +408,7 @@ class Mesh:
             # builder so the NotImplementedError guard in
             # build_sbp_dissipation_matrices fires for mixed-order configs.
             # In Phase 1 we always have order_diss == fd_order. Allowing
-            # them to differ silently would build a wrong-norm dissipation
+            # them to differ silently would build a dissipation operator whose H-norm does not match,
             # operator, breaking the SPSD-in-H argument.
             p_order = int(od.get("order_diss", fd_order))
             n_trans = float(
@@ -495,7 +496,7 @@ class Mesh:
     ) -> Mesh:
         """Return a new mesh deformed to the given physical coordinates.
 
-        Matches MATLAB ``DeformMesh.m`` exactly with three branches:
+        Matches MATLAB ``DeformMesh.m`` exactly with three branches.
 
         - **X-only** (``X_new`` given, ``Y_new`` is None): 1-D chain rule
           on the x-derivative operators only.
@@ -651,7 +652,7 @@ class Mesh:
             W_asymm_new = w_flat.reshape(W_asymm_new.shape, order="F")
 
         # Reconstruct the effective mask from used_ind so that internal
-        # mask boundaries (e.g. cavity walls) are preserved after deformation.
+        # mask boundaries (e.g. cavity walls) stay after deformation.
         # On unmasked meshes used_ind = arange(ngp), so this is all-True.
         # Note: build flat then reshape because ravel("F") on C-order is a copy.
         eff_flat = np.zeros(self.X.size, dtype=bool)
@@ -668,7 +669,7 @@ class Mesh:
         )
         # MATLAB parity behavior:
         # CreateMesh builds filter operators on the computational mesh, and
-        # DeformMesh updates derivatives/weights only (filters are preserved).
+        # DeformMesh updates derivatives/weights only (filters stay).
         # Keep the existing filter operators instead of rebuilding them on
         # deformed coordinates.
         filters_new = self.filters
@@ -954,7 +955,7 @@ class Mesh:
         Parameters
         ----------
         mask_array : ndarray, shape like ``X`` and ``Y``
-            ``True`` entries are kept; ``False`` entries are masked out.
+            ``True`` entries are kept; ``False`` entries drop out.
         """
         if mask_array.shape != self.X.shape:
             raise ValueError("mask_array must match X and Y shape")
@@ -1330,8 +1331,8 @@ def _starts_at_pole_line(y0: float, dy: float) -> bool:
     """Match MATLAB pole-line detection for symmetry meshes.
 
     ``AddDW2mesh.m`` applies the Mohseni pole closure when the first y-point
-    on a line sits at the half-cell location ``dy/2`` (within ``0.1*dy``),
-    not only when it is exactly zero.
+    on a line sits at ``dy/2`` (within ``0.1*dy``).
+    It does not require the first point to be exactly zero.
     """
     dy_abs = abs(float(dy))
     tol = max(1e-12, 0.1 * dy_abs)
@@ -1359,8 +1360,10 @@ def _build_operators_kron(
 ) -> tuple:
     """Build derivative matrices via Kronecker products (unmasked fast path).
 
-    For a full nx×ny grid, 2D operators are tensor products of 1D SBP stencils:
-        Dx = I_ny ⊗ D1x,   Dy = D1y ⊗ I_nx
+    For a full nx×ny grid, 2D operators are tensor products of 1D SBP stencils.
+
+        Dx = I_ny ⊗ D1x,   Dy = D1y ⊗ I_nx.
+
     This avoids the O(nx*ny) Python-level loop in the general LIL path.
     """
     I_nx = sp.eye(nx, format="csr")
@@ -1465,7 +1468,7 @@ def _build_indices(
     """Build reduced index sets for boundaries and mask edges.
 
     Indices are local (0-based into the ``used_ind`` array).  Boundary
-    detection uses a 2-D boolean mask that is flattened in Fortran order
+    detection uses a 2-D boolean mask flattened in Fortran order
     to match the column-major convention used throughout the package.
     """
     del y_symmetry
@@ -1481,9 +1484,9 @@ def _build_indices(
         """Convert a 2-D boolean boundary mask to local indices.
 
         ``row_mask_2d`` must have the same shape as ``X``; True entries
-        mark the boundary points.  The mask is flattened in Fortran order
-        to obtain global flat indices, which are then mapped to local
-        indices via ``global_to_local``.
+        mark the boundary points.
+        Flatten the mask in Fortran order to obtain global flat indices.
+        Then map those to local indices via ``global_to_local``.
         """
         global_idx = np.flatnonzero(row_mask_2d.ravel(order="F"))
         local = global_to_local[global_idx]

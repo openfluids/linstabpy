@@ -145,11 +145,11 @@ def _blas_from_link_line(libs: str) -> str:
 
 
 def _blas() -> str:
-    """Which BLAS/LAPACK PETSc (and so MUMPS) was linked against.
+    """Which BLAS/LAPACK PETSc (and so MUMPS) linked against.
 
     Same code, same commit, same numbers: the reference Fortran BLAS ran the
-    Savarino factorization 5.6x slower than MKL (2026-08-18). A cost row
-    without this field cannot be compared with another.
+    Savarino factorization 5.6x slower than MKL (2026-08-18).
+    A cost row without this field cannot sit next to another.
     """
 
     def probe() -> str:
@@ -170,22 +170,25 @@ def _blas() -> str:
 def _hostname() -> str:
     """Machine label for artifacts: opt-in, never the real host name by default.
 
-    Artifacts are shared -- they travel with papers, get committed, and are the
-    intended Zenodo/companion-data product -- so nothing here may carry machine
-    identity unless the operator asks for it. ``cost_hardware_tag`` in
-    ``utils/cost_metrics.py`` already implements exactly this policy (default
-    ``"unknown"``, opt-in through an environment variable) and is guarded by
-    ``test_hardware_tag_default_is_unknown_not_hostname``.
+    Artifacts travel with papers, get committed, and are the intended
+    Zenodo/companion-data product.
+    Nothing here may carry machine identity unless the operator asks for it.
+    ``cost_hardware_tag`` in ``utils/cost_metrics.py`` already implements
+    exactly this policy (default ``"unknown"``, opt-in through an
+    environment variable).
+    ``test_hardware_tag_default_is_unknown_not_hostname`` guards that field.
 
     This field did not follow it. It called ``socket.gethostname()``
-    unconditionally, so every artifact carried the fully-qualified host name
-    right next to the field that was carefully withholding it -- a real one was
-    found in a saved gain-map sidecar. The privacy guard was real but had a
-    sibling that walked straight around it.
+    unconditionally.
+    Every artifact then carried the fully-qualified host name right next
+    to the field that was carefully withholding it.
+    A real host name was found in a saved gain-map sidecar.
+    The privacy guard was real but had a sibling that walked straight around it.
 
-    Set ``LINSTABPY_HOSTNAME`` to record a label deliberately. Prefer a
-    generic one ("workstation A", "gpu-node") over the real host name for
-    anything that may become public; see AGENTS.md, public/private boundary.
+    Set ``LINSTABPY_HOSTNAME`` to record a label deliberately.
+    Prefer a generic one ("workstation A", "gpu-node") over the real host
+    name for anything that may become public.
+    See AGENTS.md, public/private boundary.
     """
     return os.getenv("LINSTABPY_HOSTNAME", "unknown").strip() or "unknown"
 

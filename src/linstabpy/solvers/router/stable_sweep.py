@@ -624,7 +624,7 @@ def sweep_stable_regime(
 ) -> SweepResult:
     """Sweep stable frequencies with nearest-anchor right-preconditioned GMRES.
 
-    Anchor matrices are factored once through :func:`linstabpy.linalg.factorize`.
+    :func:`linstabpy.linalg.factorize` factors each anchor matrix once.
     Each frequency solve uses a self-contained right-preconditioned GMRES whose
     preconditioner is the nearest anchor factor.  Forward and adjoint actions
     reuse the same :class:`~linstabpy.linalg.factorize.Factorization` object;

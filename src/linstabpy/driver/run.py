@@ -62,7 +62,7 @@ from linstabpy.driver.payload import RUNTIME_NPZ_CONTRACT_KEYS, build_runtime_pa
 
 
 def _readonly_empty(dtype) -> np.ndarray:
-    """Return a shared empty array that cannot be mutated accidentally."""
+    """Return a shared empty array that callers must not mutate."""
     array = np.array([], dtype=dtype)
     array.setflags(write=False)
     return array
@@ -123,9 +123,8 @@ def _runtime_config_path() -> Path:
 def _output_npz_path(provenance: dict[str, str] | None = None) -> Path:
     """Return the per-run output archive path.
 
-    Defaults to the current study working directory with provenance embedded,
-    but allows the timing harness to isolate concurrent runs by providing a
-    unique target path.
+    Defaults to the current study working directory with provenance embedded.
+    Concurrent timing runs can isolate themselves with a unique target path.
     """
     raw = _first_env(
         "LINSTABPY_CASE_OUTPUT_NPZ",
@@ -147,7 +146,7 @@ def _log_prefix() -> str:
 
 
 def _log(message: str) -> None:
-    """Small helper for consistent prefixed progress messages."""
+    """Print a consistent prefixed progress message."""
     if PETSc.COMM_WORLD.getRank() == 0:
         print(f"[{_log_prefix()}] {message}", flush=True)
 
@@ -215,17 +214,22 @@ def _effective_alpha_filter(
 
     The previous behaviour silently overrode a numeric ``alpha_filter`` to
     ``"none"`` whenever ``run_resolvent=False``, as a build-time optimisation
-    for EVP-only runs. That override had a real numerical side-effect: SBP
-    diagonal-norm operators have a near-null-space mode at the 2-Δ Nyquist
-    wavenumber, and the Mattsson operator-level filter is the designed
-    damping for that mode. Skipping it for EVP-only runs made those runs
-    produce pixel-scale saw-tooth eigenvectors localised near the boundary
-    closure — a purely numerical artefact that also contaminated resolvent
-    extraction whenever someone happened to set ``alpha_filter: 0.0``.
+    for EVP-only runs.
+    That override had a real numerical side-effect.
+    SBP diagonal-norm operators have a near-null-space mode at the 2-Δ
+    Nyquist wavenumber.
+    The Mattsson operator-level filter is the designed damping for that
+    mode.
+    Skipping it for EVP-only runs made those runs produce pixel-scale
+    saw-tooth eigenvectors localised near the boundary closure.
+    That is a purely numerical artefact.
+    It also contaminated resolvent extraction whenever someone set
+    ``alpha_filter: 0.0``.
 
     The filter is an operator-level property and should not depend on which
-    analysis stage runs. We now honour the configured value for every stage;
-    the ``run_resolvent`` argument is kept so the context parameter remains
+    analysis stage runs.
+    Honour the configured value for every stage.
+    The ``run_resolvent`` argument stays so the context parameter remains
     informative in any future logging.
     """
     del run_resolvent  # kept in signature for back-compat; no longer branches.
@@ -658,7 +662,7 @@ class _AssemblyStageResult:
     #: field of the metrics sidecar's `problem` block, and because it was
     #: local to this function the sidecar shipped it missing -- so the gain-map
     #: sweep had to recover it by grepping the driver's own log output.  A
-    #: number the cost study depends on should be returned, not parsed back out
+    #: number the cost study depends on should come from this stage, not parsed back out
     #: of prose (Front H).
     nnz: int
 
@@ -700,7 +704,7 @@ def _stage_assemble_operators(
         # This rank holds a placeholder, so its nonzero count is 0 and is NOT
         # the operator's real nnz. Only rank 0 writes the metrics sidecar, and
         # rank 0 always takes the else-branch below, so the reported nnz is
-        # always the measured one. Set here purely so the field is defined on
+        # always the measured one. Set here purely so the field exists on
         # every rank rather than raising NameError at the return.
         nnz = int(L0.nnz)
     else:
@@ -1524,7 +1528,7 @@ def run() -> None:
     constrained_dirichlet_indices = assembly_result.constrained_dirichlet_indices
 
     # ------------------------------------------------------------------
-    # 5) Build Chu energy norm weights. These weights are required for
+    # 5) Build Chu energy norm weights. Weighted analyses need these for
     #    weighted analyses (resolvent and temporal formulation).
     # ------------------------------------------------------------------
     W_diag, invW_diag = _stage_compute_chu_norm(
@@ -1592,7 +1596,7 @@ def run() -> None:
     # ------------------------------------------------------------------
     # Cross-rank peak-RSS aggregation MUST run on EVERY rank (collective),
     # BEFORE the rank-0-only save block below -- otherwise the allreduce
-    # deadlocks every multi-rank run. The aggregated scalar is threaded into the
+    # deadlocks every multi-rank run. The aggregated scalar goes into the
     # rank-0-only save (see save_results / collect_cost_metrics).
     _peak_rss_total_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
     if rank == 0:

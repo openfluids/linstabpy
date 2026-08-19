@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Dirichlet boundary condition enforcement for the LNSE operator.
 
-Translates ``BC_Dirichlet.m`` from the MATLAB LinStab2D codebase.  Works
-with scipy.sparse matrices (the operator is assembled in scipy before
+Translates ``BC_Dirichlet.m`` from the MATLAB LinStab2D codebase.
+Works with scipy.sparse matrices (scipy assembles the operator before
 optional conversion to PETSc).
 """
 
@@ -118,9 +118,10 @@ def apply_dirichlet(
 ) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply Dirichlet boundary conditions to the LNSE operator.
 
-    For every combination of *border* and *variable*, the corresponding
-    rows and columns in *L0* are zeroed and the diagonal entries are set
-    to *penalty*, enforcing :math:`q = 0` at those DOFs.
+    For every *border* and *variable* pair, zero the corresponding rows
+    and columns in *L0*.
+    Set the diagonal entries to *penalty*, enforcing :math:`q = 0` at
+    those DOFs.
 
     Parameters
     ----------
@@ -128,8 +129,8 @@ def apply_dirichlet(
         The LNSE operator.
     idx : dict
         Boundary index dict with keys ``'bi'``, ``'ti'``, ``'li'``, ``'ri'``,
-        and ``'mi'`` (mask boundary), containing 0-based indices into the
-        grid point array (length ``ngp``).
+        and ``'mi'`` (mask boundary).
+        Values are 0-based indices into the grid point array (length ``ngp``).
     borders : str
         Which borders to apply BCs on.  Characters from ``'lrbtm'``:
         ``l`` = left, ``r`` = right, ``b`` = bottom, ``t`` = top,
@@ -148,12 +149,12 @@ def apply_dirichlet(
         Modified operator with BC rows/columns zeroed and diagonal set
         to *penalty*.
     bc_indices : ndarray of int
-        Sorted 1-D array of DOF indices where BCs were applied.
+        Sorted 1-D array of DOF indices where BCs apply.
 
     Raises
     ------
     ValueError
-        If an unrecognised border or variable character is encountered.
+        If an unrecognised border or variable character appears.
     """
     # ------------------------------------------------------------------
     # 1. Collect DOF indices for all (border, variable) pairs
@@ -206,8 +207,8 @@ def apply_dirichlet_petsc(
 ) -> tuple["PETSc.Mat", np.ndarray]:
     """Apply Dirichlet boundary conditions directly to a PETSc matrix.
 
-    This mirrors :func:`apply_dirichlet` for solver-facing PETSc matrices by
-    zeroing the selected rows and columns and placing ``penalty`` on the
+    Mirror :func:`apply_dirichlet` for solver-facing PETSc matrices.
+    Zero the selected rows and columns and place ``penalty`` on the
     diagonal entries of the constrained degrees of freedom.
     """
     from petsc4py import PETSc
@@ -270,10 +271,12 @@ def apply_dirichlet_spatial(
 ) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
     """Apply Dirichlet boundary conditions to doubled spatial system matrices.
 
-    For each boundary DOF, rows/columns in *Lc* are zeroed and diagonal set
-    to *penalty*.  For *R*, rows/columns are zeroed but **no** penalty is
-    placed on the diagonal — adding penalty to both matrices creates spurious
-    eigenvalues at alpha = 1.  This matches MATLAB ``BC_Dirichlet_Spatial.m``.
+    For each boundary DOF, zero rows/columns in *Lc* and set the diagonal
+    to *penalty*.
+    For *R*, zero rows/columns but place **no** penalty on the diagonal.
+    Adding penalty to both matrices creates spurious eigenvalues at
+    alpha = 1.
+    This matches MATLAB ``BC_Dirichlet_Spatial.m``.
     """
     base_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
     if base_indices.size == 0:
@@ -345,10 +348,12 @@ def build_dirichlet_restriction_matrices(
 ) -> tuple[sp.csr_matrix, sp.csr_matrix, np.ndarray]:
     """Build reduced-system restriction/expansion maps (MATLAB ``SetDirBC``).
 
-    Returns matrices:
-    - ``T_cont``: removes Dirichlet rows from a full vector/matrix
-    - ``T_exp``: injects reduced vectors back into full-space free dofs
-    plus the sorted free-dof index array.
+    Return matrices:
+
+    - ``T_cont``: removes Dirichlet rows from a full vector/matrix.
+    - ``T_exp``: injects reduced vectors back into full-space free dofs.
+
+    Also return the sorted free-dof index array.
     """
     free_dofs = dirichlet_free_dofs(n_dofs, dirichlet_indices)
 
@@ -393,8 +398,9 @@ def apply_dirichlet_identity_pair(
     """Apply identity-row Dirichlet BC to two matrices (MATLAB ``SetDirichletBC``).
 
     For each index in ``index_set``:
-    - zero corresponding rows in ``lhs`` and ``rhs``
-    - set diagonal entry to 1 in both matrices
+
+    - zero corresponding rows in ``lhs`` and ``rhs``.
+    - set diagonal entry to 1 in both matrices.
     """
     bc_indices = np.unique(np.asarray(index_set, dtype=int))
     if bc_indices.size == 0:

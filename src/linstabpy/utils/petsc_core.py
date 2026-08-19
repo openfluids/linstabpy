@@ -27,8 +27,8 @@ def mumps_icntl_petsc_options(mpi: "MpiCfg") -> dict[str, str]:
     """Map the typed MUMPS ICNTL config to PETSc option-database entries.
 
     ICNTL(7) is not set here. Use ``mumps_ordering`` / ``LINSTABPY_MUMPS_ORDERING``.
-    ICNTL(14)/ICNTL(24) are hardened by default and left to PETSc/MUMPS only
-    when set to ``None``.
+    ICNTL(14)/ICNTL(24) get project defaults.
+    Leave them to PETSc/MUMPS only when the config sets ``None``.
     """
     opts: dict[str, str] = {}
     if mpi.mumps_icntl_14 is not None:
@@ -119,9 +119,10 @@ def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
 def require_complex(solver_cfg: dict | None = None) -> None:
     """Assert complex-scalar PETSc and install one-time direct-solver defaults.
 
-    PETSc's options database is process-global.  We set only the project MUMPS
-    defaults here, and only once, so importing multiple solver modules does not
-    repeatedly rewrite options behind an already-created KSP/EPS object.
+    PETSc's options database is process-global.
+    The call sets only the project MUMPS defaults, and only once.
+    Importing multiple solver modules then does not rewrite options
+    behind an already-created KSP/EPS object.
     """
     PETSc = _get_petsc()
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
@@ -143,11 +144,12 @@ def require_complex(solver_cfg: dict | None = None) -> None:
 def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Mat:
     """Convert a SciPy sparse matrix to a PETSc AIJ Mat.
 
-    Behavior is controlled by ``petsc_matrix_mode`` (YAML) or
-    ``LINSTABPY_PETSC_MATRIX_MODE`` (env var):
-    - ``local``/``serial``: local AIJ from full CSR (single-rank style)
-    - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ
-    - ``auto`` (default): distributed when MPI size > 1, else local
+    ``petsc_matrix_mode`` (YAML) or ``LINSTABPY_PETSC_MATRIX_MODE`` (env)
+    selects the layout.
+
+    - ``local``/``serial``: local AIJ from full CSR (single-rank style).
+    - ``distributed``/``mpi``/``parallel``: ownership-aware distributed AIJ.
+    - ``auto`` (default): distributed when MPI size > 1, else local.
     """
     PETSc = _get_petsc()
     if _use_distributed_matrix(solver_cfg):
@@ -166,10 +168,11 @@ def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Ma
 def compact_petsc_matrix(mat: PETSc.Mat, solver_cfg: dict | None = None) -> PETSc.Mat:
     """Rebuild a sequential PETSc AIJ matrix into canonical compact form.
 
-    This is primarily intended for matrices that have undergone in-place PETSc
-    row/column modification paths and may retain stored structural zeros or
-    duplicate allocation patterns that do not affect the algebraic operator but
-    can perturb downstream direct factorization.
+    Use this for matrices after in-place PETSc row/column modification.
+    Those paths may retain stored structural zeros or duplicate
+    allocation patterns.
+    The algebraic operator stays the same, but those extras can perturb
+    downstream direct factorization.
     """
     PETSc = _get_petsc()
     csr = petsc_to_scipy(mat, format="csr")
@@ -211,15 +214,16 @@ def create_distributed_aij(
 
     ``nnz_diag`` and ``nnz_offdiag`` may be:
 
-    * **scalar** — constant upper bound per row (simple but can overflow
-      ``PetscInt`` for wide stencils on large matrices);
-    * **array of length nrows** — exact per-row count (avoids the
-      ``nrows × max`` product that causes int32 overflow, and allocates
-      less memory).
+    * scalar: constant upper bound per row.
+      Simple, but can overflow ``PetscInt`` for wide stencils on large matrices.
+    * array of length nrows: exact per-row count.
+      Avoids the ``nrows × max`` product that causes int32 overflow.
+      Also allocates less memory.
 
-    For MPI AIJ matrices, ``nnz_diag`` refers to the diagonal block
-    (columns owned by this rank) and ``nnz_offdiag`` to the off-diagonal
-    block. Per-row arrays are automatically clipped to the local block
+    For MPI AIJ matrices, ``nnz_diag`` is the diagonal block
+    (columns owned by this rank).
+    ``nnz_offdiag`` is the off-diagonal block.
+    Per-row arrays are automatically clipped to the local block
     widths so that PETSc's preallocation check does not reject them.
     """
     PETSc = _get_petsc()
@@ -246,7 +250,7 @@ def create_distributed_aij(
 
             d_arr = np.asarray(d, dtype=np.int64)
             o_arr = np.asarray(o, dtype=np.int64)
-            # Slice to locally-owned rows if full-size arrays are passed.
+            # Slice to locally-owned rows if the caller passes full-size arrays.
             if d_arr.size == nrows:
                 d_arr = d_arr[r0:r1]
             if o_arr.size == nrows:
@@ -276,9 +280,10 @@ def petsc_owned_rows(mat: PETSc.Mat, *, copy: bool = True) -> dict:
 
     For sequential AIJ matrices this is the full matrix. For MPI AIJ matrices,
     PETSc exposes the locally-owned row block through ``getValuesCSR()``, with
-    column indices reported in the global numbering. ``copy=False`` avoids
-    copies when PETSc already exposes compatible NumPy arrays; callers should
-    still keep the matrix alive while reading the returned buffers.
+    column indices reported in the global numbering.
+    ``copy=False`` avoids copies when PETSc already exposes compatible
+    NumPy arrays.
+    Callers should still keep the matrix alive while reading the returned buffers.
     """
     rstart, rend = ownership_range(mat)
     row_ids = np.arange(rstart, rend, dtype=np.int64)
@@ -332,10 +337,11 @@ def insert_local_csr_rows(
 
     Notes
     -----
-    This function only inserts values; caller must assemble with
-    ``assemble_matrix`` after all insertions.  The explicit ownership check is
-    intentional: distributed assembly bugs are much easier to diagnose here
-    than after PETSc has accepted off-rank values into a global assembly.
+    This function only inserts values.
+    The caller must assemble with ``assemble_matrix`` after all insertions.
+    The explicit ownership check is intentional.
+    Distributed assembly errors are much easier to diagnose here
+    than after PETSc accepts off-rank values into a global assembly.
     """
     PETSc = _get_petsc()
     csr = sp.csr_matrix(local_rows, dtype=complex)
@@ -397,13 +403,13 @@ def scipy_to_petsc_distributed(
 ) -> PETSc.Mat:
     """Convert SciPy sparse matrix into distributed PETSc AIJ by row ownership.
 
-    This is a transitional helper: it still requires a SciPy matrix object but
-    inserts only the locally-owned row slice into the PETSc matrix on each rank.
+    Each rank still needs a SciPy matrix object, but inserts only its
+    locally-owned row slice into the PETSc matrix.
 
-    The matrix is preallocated with the exact per-row diagonal/off-diagonal
-    nonzero counts. Without this, the row-by-row insert reallocates on nearly
-    every row (~O(nnz^2)) and stalls for hours at full resolution (e.g. ~9e5 DOF
-    SWBLI operators) before the factorization can even begin.
+    Preallocation uses the exact per-row diagonal/off-diagonal nonzero counts.
+    Without this, the row-by-row insert reallocates on nearly every row
+    (~O(nnz^2)) and stalls for hours at full resolution
+    (e.g. ~9e5 DOF SWBLI operators) before factorization can begin.
     """
     PETSc = _get_petsc()
     comm = comm or PETSc.COMM_WORLD
@@ -454,8 +460,8 @@ def scipy_to_petsc_distributed_from_root(
 
     Notes
     -----
-    This helper avoids requiring a full SciPy matrix on every rank and is
-    intended for MPI shift-invert paths where root-owned assembly is preferred.
+    Avoid a full SciPy matrix on every rank.
+    Use this for MPI shift-invert paths that prefer root-owned assembly.
     """
     PETSc = _get_petsc()
     petsc_comm = comm or PETSc.COMM_WORLD
@@ -530,9 +536,9 @@ def petsc_to_scipy(mat: PETSc.Mat, *, format: str = "csr") -> sp.csr_matrix | sp
 
     Notes
     -----
-    The initial implementation supports only sequential matrices. This is
-    sufficient for parity tests and local development. Distributed-gather
-    support can be added later if needed.
+    The initial implementation supports only sequential matrices.
+    That is enough for parity tests and local development.
+    Distributed-gather support can wait.
     """
     out_format = format.lower()
     if out_format not in {"csr", "csc"}:
@@ -566,7 +572,7 @@ def petsc_to_scipy(mat: PETSc.Mat, *, format: str = "csr") -> sp.csr_matrix | sp
 
 
 def _canonical_sparse(mat: sp.spmatrix) -> sp.csr_matrix:
-    """Return a canonical CSR matrix for robust sparse comparisons."""
+    """Return a canonical CSR matrix for sparse comparisons."""
     csr = sp.csr_matrix(mat, dtype=complex).copy()
     csr.sum_duplicates()
     csr.eliminate_zeros()
@@ -766,12 +772,16 @@ def petsc_vec(arr: np.ndarray) -> PETSc.Vec:
     """Convert a full-global 1-D numpy array to a PETSc Vec.
 
     Under MPI the input ``arr`` is a full-global array (every rank holds the
-    whole vector). ``createWithArray`` with no communicator/size split would
-    treat each rank's entire copy as its local slice, producing a vec of global
-    size ``N * nranks`` (the array replicated across ranks). That wrong-sized,
-    replicated vec then mismatches any distributed operator it is fed into.
-    Build a vec of the correct global size ``N`` instead, with each rank holding
-    only its ownership slice. See ``tests/test_petsc_vec_mpi.py``.
+    whole vector).
+    ``createWithArray`` with no communicator/size split would treat each
+    rank's entire copy as its local slice.
+    That produces a vec of global size ``N * nranks`` (the array replicated
+    across ranks).
+    That replicated vec then mismatches any distributed operator that
+    receives it.
+    Build a vec of the correct global size ``N`` instead, with each rank
+    holding only its ownership slice.
+    See ``tests/test_petsc_vec_mpi.py``.
     """
     PETSc = _get_petsc()
     arr = np.ascontiguousarray(arr, dtype=complex)
@@ -789,8 +799,8 @@ def petsc_vec(arr: np.ndarray) -> PETSc.Vec:
 def vec_to_numpy(v: PETSc.Vec) -> np.ndarray:
     """Copy a PETSc Vec to a numpy array.
 
-    Uses read-only access (``array_r``) so the function works correctly
-    inside PETSc MatShell callbacks where the input vector is locked.
+    Use read-only access (``array_r``) so the function works correctly
+    inside PETSc MatShell callbacks where PETSc locks the input vector.
     For distributed vectors, gathers local slices from all ranks in
     ownership order and returns a global 1-D array.
     """

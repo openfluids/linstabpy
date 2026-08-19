@@ -2,10 +2,11 @@
 """Reusable PETSc factorizations, direct by default.
 
 Provides a factorize-once, solve-many interface for the LNSE shift-invert
-workflows.  The default path is KSPPREONLY + PCLU + MUMPS because the release
-tests and reference examples are calibrated against exact direct solves.  The
-iterative path is available for large memory-bound cases, but it is an explicit
-solver-policy choice rather than an automatic fallback.
+workflows.
+The default path is KSPPREONLY + PCLU + MUMPS.
+The release tests and reference examples use exact direct solves.
+The iterative path is available for large memory-bound cases.
+It is an explicit solver-policy choice rather than an automatic fallback.
 """
 
 from __future__ import annotations
@@ -118,12 +119,13 @@ def _run_oracle_residual(
 ) -> float:
     """Run k random RHS through the healed adjoint and measure ||A_H @ x - b|| / ||b||.
 
-    The oracle uses A_H (the stored Hermitian transpose) to validate that the
-    healed solve_adjoint path (which is a forward-solve on A_H) produces correct results.
+    The check uses A_H (the stored Hermitian transpose).
+    It validates that the healed solve_adjoint path (a forward-solve
+    on A_H) produces correct results.
     """
     PETSc = _get_petsc()
     max_residual = 0.0
-    rng = np.random.RandomState(43)  # different seed for oracle
+    rng = np.random.RandomState(43)  # different seed for the A_H residual check
 
     def _rhs_vec_from_numpy_local(rhs: np.ndarray) -> PETSc.Vec:
         rhs_arr = np.asarray(rhs, dtype=complex)
@@ -228,7 +230,7 @@ def factorize(
         Environment prefix controlling solver options.
     solver_cfg:
         Optional solver config dict (from YAML ``"solver"`` section).
-        When provided, the appropriate subsection is selected based on
+        When provided, ``env_prefix`` picks the subsection:
         ``env_prefix``: ``"resolvent"`` subsection for
         ``LINSTABPY_RESOLVENT``, ``"linsolve"`` otherwise. Keys in the
         subsection override the corresponding env vars.
@@ -427,7 +429,7 @@ def factorize(
         ksp.setUp()
 
         # Configure local block solvers for ASM/BJACOBI after the outer KSP
-        # has been set up (PETSc requires this for getASMSubKSP / getBJacobiSubKSP
+        # setUp (PETSc requires this for getASMSubKSP / getBJacobiSubKSP
         # to return materialised sub-solvers). Hard-fail on any error so the
         # realized stack always matches the configured one.
         realized_sub_pc_type: str | None = None
@@ -513,7 +515,7 @@ def factorize(
     def _raise_if_diverged(what: str) -> None:
         # PETSc returns from KSPSolve whatever the last iterate was, converged or not
         # (unless -ksp_error_if_not_converged is set). A diverged FGMRES around a
-        # sparse LU must fail here, not surface as a silently wrong resolvent mode.
+        # sparse LU must fail here, not appear as a silently inaccurate resolvent mode.
         reason = int(ksp.getConvergedReason())
         if reason < 0:
             raise RuntimeError(
@@ -682,7 +684,7 @@ def factorize(
         # left ``factor_H`` alone would forward-solve K_new and adjoint-solve
         # K_old^H from the second operator on -- silently. Refactorize K^H from
         # the new operator with the heal's own recipe, then re-run the adjoint
-        # identity: a stale or wrong K^H fails it at O(1) and must fail loudly.
+        # identity: a stale or mismatched K^H fails it at O(1) and must fail loudly.
         pristine_operator = new_operator
         factor_H = holder.get("factor_H")
         if factor_H is not None:
@@ -718,7 +720,7 @@ def factorize(
         # before the identity can fail -- measured 400 iterations, 276 s of a 437 s
         # point (c9 job 2381). A correct adjoint of an LU preconditioner converges in a
         # handful of iterations, so the self-test's own solves get a short cap and the
-        # production tolerances are restored right after.
+        # call restores production tolerances right after.
         rtol0, atol0, dtol0, max_it0 = ksp.getTolerances()
         capped = ksp.getType() != PETSc.KSP.Type.PREONLY and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
         if capped:
@@ -762,10 +764,10 @@ def factorize(
         solve_H = factor_H.solve
         holder["factor_H"] = factor_H
 
-        # TRUTH-GATE (catches a wrong A^H such as a plain transpose): re-run the
+        # TRUTH-GATE (catches a mismatched A^H such as a plain transpose): re-run the
         # adjoint identity <A^{-1} a, b> == <a, A_H^{-1} b> with the HEALED path.
         # For a non-normal complex operator a plain-transpose A_H leaves this
-        # defect O(0.1), so the heal is rejected. A residual-only check
+        # defect O(0.1), so the identity rejects the heal. A residual-only check
         # (||A_H x - b||) is self-consistent and would PASS a plain transpose, so
         # it cannot be the wiring gate -- this identity is.
         healed_defect = _run_adjoint_self_test(solve, solve_H, n, k=3)
@@ -803,7 +805,7 @@ def factorize(
                 "usable Hermitian adjoint (plain transpose?)."
             )
 
-        # Secondary oracle (A^H factorization quality): ||A_H x - b|| / ||b||
+        # Secondary A_H residual check (factorization quality): ||A_H x - b|| / ||b||
         # against the concrete A^H matvec, independent of the factor's own claim.
         oracle_residual = _run_oracle_residual(solve_H, factor_H._mat, n, k=3)
         metrics["adjoint_oracle_residual"] = oracle_residual
@@ -856,7 +858,7 @@ def factorize(
 
 
 # Keep ``from linstabpy.linalg import factorize`` bound to the public function
-# even after the same-named implementation submodule is imported.
+# even after the same-named implementation submodule loads.
 _parent = sys.modules.get("linstabpy.linalg")
 if _parent is not None:
     _parent.Factorization = Factorization

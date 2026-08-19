@@ -2,42 +2,49 @@
 """EVP-distance marking for resolvent forcing-frequency bands.
 
 The marker accepts temporal EVP values in the ``omega`` plane used by
-:func:`linstabpy.stability.eigenvalues`.  The resolvent solve forms
-``L_sigma = L0 - i*omega*I``, so singular shifts occur when
-``i*omega = lambda(L0)`` and the resolvent pole is
-``omega_pole = -i*lambda(L0)``.  Since the EVP returns
-``omega_eig = eig(i*L0) = i*lambda(L0)``, the pole associated with a temporal
-EVP value is ``omega_pole = -omega_eig``.  A requested real forcing frequency
-``omega_req`` is therefore compared with ``min(abs(omega_req + omega_eig))``.
-No shifted linear solve or resolvent solve is performed by :func:`label_band`.
+:func:`linstabpy.stability.eigenvalues`.
+The resolvent solve forms ``L_sigma = L0 - i*omega*I``.
+Singular shifts occur when ``i*omega = lambda(L0)``.
+The resolvent pole is ``omega_pole = -i*lambda(L0)``.
+The EVP returns ``omega_eig = eig(i*L0) = i*lambda(L0)``.
+The pole associated with a temporal EVP value is therefore
+``omega_pole = -omega_eig``.
+Compare a requested real forcing frequency ``omega_req`` with
+``min(abs(omega_req + omega_eig))``.
+:func:`label_band` performs no shifted linear solve or resolvent solve.
 
-Configuration
--------------
-The danger radius is read, in order, from one of these equivalent keys:
+Configuration.
+The danger radius is read, in order, from one of these equivalent keys.
 
-* ``cfg["danger_radius"]``;
-* ``cfg["band_marking"]["danger_radius"]``;
+* ``cfg["danger_radius"]``.
+* ``cfg["band_marking"]["danger_radius"]``.
 * ``cfg["solver"]["router"]["band_marking"]["danger_radius"]``.
 
 When omitted, the default is a physical sweep-spacing radius,
-``0.5 * median(diff(sorted(unique(finite(omegas)))))``.  This marks a requested
-frequency as dangerous when a pole lies within about half of a local sweep cell,
-using the user's requested omega-plane spacing rather than an unrelated linear
-solve residual scale.  The least-damped ``abs(Im omega_eig)`` scale is
-intentionally not used: it collapses toward zero near a stability threshold,
-exactly when a near-real pole most needs a no-go band.  If fewer than two
-distinct finite requested frequencies are available, no sweep scale is available
-and the default radius is ``0.0`` (no ``"near-pole"`` labels).  NaN and infinite
-frequencies are excluded before computing the spacing, and non-uniform grids use
-the median successive spacing to avoid one large gap setting the radius.  Any
-explicit ``danger_radius`` key above overrides this default and is still
-validated as a finite non-negative omega-plane distance.
+``0.5 * median(diff(sorted(unique(finite(omegas)))))``.
+This marks a requested frequency as dangerous when a pole lies within
+about half of a local sweep cell.
+It uses the user's requested omega-plane spacing rather than an
+unrelated linear-solve residual scale.
+The least-damped ``abs(Im omega_eig)`` scale is intentionally unused.
+It collapses toward zero near a stability threshold, exactly when a
+near-real pole most needs a no-go band.
+If fewer than two distinct finite requested frequencies exist, no
+sweep scale exists.
+The default radius is ``0.0`` (no ``"near-pole"`` labels).
+NaN and infinite frequencies drop out before the spacing computation.
+Non-uniform grids use the median successive spacing so one large gap
+does not set the radius.
+Any explicit ``danger_radius`` key above overrides this default.
+It is still validated as a finite non-negative omega-plane distance.
 
-Smooth regions are opt-in.  By default every non-danger point is labelled
-``"stable"``.  A point is labelled ``"smooth"`` only if it is outside the danger
-radius and lies in a configured interval from ``smooth_regions`` (or
-``solver.router.band_marking.smooth_regions``), where each interval is either a
-``(lo, hi)`` pair or a mapping with ``min``/``max`` keys.
+Smooth regions are opt-in.
+By default every non-danger point gets the label ``"stable"``.
+A point gets ``"smooth"`` only if it sits outside the danger radius.
+It must also lie in a configured interval from ``smooth_regions`` (or
+``solver.router.band_marking.smooth_regions``).
+Each interval is either a ``(lo, hi)`` pair or a mapping with
+``min``/``max`` keys.
 """
 
 from __future__ import annotations

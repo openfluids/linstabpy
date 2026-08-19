@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Optional shock-aware mean-flow cleanup helpers.
+"""Optional shock-aware mean-flow cleanup.
 
-This module is intentionally self-contained so experimental shock cleanup can
-be enabled or removed without touching the default Case 1 / Case 2 workflow.
+Self-contained so experimental shock cleanup can turn on or off without
+touching the default Case 1 / Case 2 workflow.
 All behavior is opt-in through the ``enabled`` flag in the cleanup config.
 """
 
@@ -326,7 +326,7 @@ def apply_optional_shock_cleanup(
     """Apply an optional shock-preserving cleanup to the mean flow.
 
     Returns the possibly modified ``rho, u, v, w, T, sponge`` arrays plus a
-    diagnostic dictionary. When disabled, all arrays are returned unchanged.
+    diagnostic dictionary. When disabled, all arrays stay unchanged.
     """
     config = _normalize_cfg(cfg)
     info: dict[str, Any] = {

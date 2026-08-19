@@ -12,7 +12,7 @@ class ConfigValidationError(ValueError):
 
 
 # Nested blocks plus the Martini mesh keys that generated-mesh cases still
-# keep at the top level. Flat Song keys stay until that driver is wrapped.
+# keep at the top level. Flat Song keys stay until that driver has a wrapper.
 TOP_LEVEL_ALLOWED = frozenset(
     {
         "paths",

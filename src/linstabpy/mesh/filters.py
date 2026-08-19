@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Spatial filter builders and mesh filter containers.
 
-This module translates the MATLAB ``GetFilter.m``/``CreateFilter.m`` helpers
-for generating implicit 10th-order filters on structured 1D lines and building
-the separable 2D operator pair used by the mesh object.
+Translates the MATLAB ``GetFilter.m``/``CreateFilter.m`` builders
+for generating implicit 10th-order filters on structured 1D lines.
+Also builds the separable 2D operator pair used by the mesh object.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.sparse as sp
 
-# This module needs no PETSc. The implicit 10th-order filter matrix M is
+# PETSc stays out of this path. The implicit 10th-order filter matrix M is
 # real, block-tridiagonal in line order, and identical on every rank, so
 # ``_build_filter_solver`` factors it once with scipy's sequential SuperLU
 # (and does nothing at all when alpha_filter = 0, where M is the identity).
@@ -394,10 +394,11 @@ def _build_filter_solver(
     Notes
     -----
     ``alpha_filter = 0`` (every shipped case) gives ``M = I`` exactly
-    (``filter_O10_diffMat``: tridiag(alpha, 1, alpha)); the solve is then a copy.
-    Otherwise M is factored once with scipy's sequential SuperLU. The factor is
-    complex so complex right-hand sides are never downcast; M is real, so the
-    transpose solve is also the Hermitian one.
+    (``filter_O10_diffMat``: tridiag(alpha, 1, alpha)).
+    The solve copies the right-hand side.
+    Otherwise scipy's sequential SuperLU factors M once.
+    The factor is complex so complex right-hand sides are never downcast.
+    M is real, so the transpose solve is also the Hermitian one.
     """
     csc = sp.csc_matrix(M_sp, dtype=float)
     n = csc.shape[0]
@@ -474,13 +475,14 @@ def _build_2d_filter_pair(
 
 
 def _is_no_filter(alpha_filter: float | str) -> bool:
-    """Whether the requested filter is disabled.
+    """Whether the requested filter is off.
 
-    Only the string ``'none'`` (or empty string) disables filtering.
+    Only the string ``'none'`` (or empty string) turns filtering off.
     Numeric ``0.0`` is a *valid* filter strength (maximum-strength explicit
-    10th-order filter, M = I) — this matches the MATLAB convention where
-    ``alpha_filter = 0`` produces real filter matrices and the no-filter
-    sentinel is the string ``'none'``.
+    10th-order filter, M = I).
+    That matches the MATLAB convention.
+    ``alpha_filter = 0`` produces real filter matrices.
+    The no-filter sentinel is the string ``'none'``.
     """
     if isinstance(alpha_filter, str):
         return alpha_filter.lower() == "none" or alpha_filter == ""

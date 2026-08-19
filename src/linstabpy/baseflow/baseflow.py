@@ -13,8 +13,8 @@ class BaseFlow:
     """Base flow fields and parameters for linear stability analysis.
 
     All flow field arrays have shape ``(ny, nx)`` matching the computational
-    mesh.  Viscosity fields and derived coefficients are populated later by
-    :func:`~linstabpy.baseflow.viscosity.sutherland_air`.
+    mesh.  :func:`~linstabpy.baseflow.viscosity.sutherland_air` later fills
+    viscosity fields and derived coefficients.
 
     Parameters
     ----------

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Boundary condition enforcement.
 
-Public names are resolved lazily via PEP 562 ``__getattr__``. The submodules
-(``dirichlet``, ``neumann``, ``recipe``) eagerly import ``petsc4py`` at
-module load to support the ``*_petsc`` variants, so eager re-exports here
-would force PETSc on every consumer of pure-math entry points like
-``apply_dirichlet`` or ``analyze_bc_recipe``.
+Public names resolve lazily via PEP 562 ``__getattr__``.
+The submodules (``dirichlet``, ``neumann``, ``recipe``) import
+``petsc4py`` at module load to support the ``*_petsc`` variants.
+Eager re-exports here would force PETSc on every consumer of
+pure-math entry points like ``apply_dirichlet`` or ``analyze_bc_recipe``.
 """
 
 _LAZY_EXPORTS = {

@@ -136,10 +136,10 @@ def wavemaker(
 
     The structural sensitivity is evaluated as
     ``zeta(x, y) = |q_dir(x, y)| |q_adj(x, y)| / |<q_adj, q_dir>_W|``.
-    Both input mode columns are first normalized to unit weighted norm, and the
-    biorthogonal inner-product divisor ``<q_adj, W q_dir>`` is retained
-    explicitly in the returned ``normalization_constants`` so figures can be
-    reproduced without relying on hidden scaling conventions.
+    Both input mode columns are first normalized to unit weighted norm.
+    The biorthogonal inner-product divisor ``<q_adj, W q_dir>`` stays
+    in the returned ``normalization_constants``.
+    Figures can replay without hidden scaling conventions.
 
     Adjoint convention: :func:`linstabpy.stability._eigenvalues.adjoint_eigenvalues`
     returns eigenvectors of the Chu-weighted adjoint operator
@@ -148,10 +148,11 @@ def wavemaker(
     additional ``W^{-1}`` transform.  Supplying Euclidean ``L0^H`` left modes
     requires converting them before calling this routine.
 
-    Direct and adjoint modes are paired by the minimum distance
-    ``|lambda_dir - conj(lambda_adj)|`` with a tolerance gate.  Pairing failures
-    are loud: ambiguous or missing matches raise :class:`ValueError` with the
-    offending eigenvalues.  Each accepted pair is logged at INFO level as a
+    Direct and adjoint modes pair by the minimum distance
+    ``|lambda_dir - conj(lambda_adj)|`` with a tolerance gate.
+    Pairing failures are loud: ambiguous or missing matches raise
+    :class:`ValueError` with the offending eigenvalues.
+    Each accepted pair logs at INFO level as a
     table row containing ``lambda_dir``, ``lambda_adj``, pairing distance, and
     normalization constant.
 

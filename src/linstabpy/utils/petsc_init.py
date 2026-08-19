@@ -3,8 +3,8 @@
 
 Ensures petsc4py/slepc4py parse process argv exactly once so command-line
 options (e.g. ``-eps_monitor``, ``-st_ksp_*``) reach the solver stack.
-The top-level package import stays PETSc-free; solver modules call these
-helpers only when a PETSc-backed path is imported or executed.
+The top-level package import stays PETSc-free.
+Solver modules call these only when a PETSc-backed path loads or runs.
 """
 
 from __future__ import annotations
@@ -30,8 +30,9 @@ def _sanitize_petsc_argv(argv: list[str]) -> list[str]:
       immediate value token when present.
     PETSc treats unknown single-dash tokens as possible option-database keys.
     The sanitizer therefore keeps PETSc-style flags while stripping common
-    Python and application flags that would otherwise produce noisy "unused
-    option" warnings or alter solver behavior by accident.
+    Python and application flags.
+    Those leftover flags would otherwise produce noisy "unused option"
+    warnings or alter solver behavior by accident.
     """
     if not argv:
         return []
@@ -80,9 +81,9 @@ def _sanitize_petsc_argv(argv: list[str]) -> list[str]:
 def init_petsc_from_argv(argv: list[str] | None = None) -> None:
     """Initialize petsc4py once, forwarding argv for options database parsing.
 
-    mpi4py must bind to the launcher's MPI before ``petsc4py.init``. On some
-    Linux MPICH / Hydra configurations, importing petsc4py first can leave
-    every process believing ``COMM_WORLD`` has size 1 even under ``mpiexec``.
+    mpi4py must bind to the launcher's MPI before ``petsc4py.init``.
+    On some Linux MPICH / Hydra setups, an earlier petsc4py import fails.
+    Every process then has ``COMM_WORLD`` size 1 under ``mpiexec``.
     Keeping this order here gives installer checks and solver code the same
     MPI ownership rule.
     """

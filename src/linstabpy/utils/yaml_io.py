@@ -41,9 +41,10 @@ def parse_complex(value) -> complex:
     """Convert a YAML-friendly value to a Python complex number.
 
     Accepts:
-    - ``[real, imag]`` list
-    - a plain number (int or float, treated as real)
-    - a string parseable by ``complex()``
+
+    - ``[real, imag]`` list.
+    - a plain number (int or float, treated as real).
+    - a string parseable by ``complex()``.
     """
     if isinstance(value, (list, tuple)):
         if len(value) != 2:

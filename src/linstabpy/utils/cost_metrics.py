@@ -32,10 +32,11 @@ def _gpu_memory_bytes_cupy() -> float:
 def _gpu_memory_bytes_nvidia_smi() -> float:
     """Device-wide used GPU memory via nvidia-smi, or nan when it is unusable.
 
-    Fallback for builds without cupy. ``nvidia-smi`` ships with the driver, so it
-    is present wherever CUDA runs, and it exposes only a byte count -- no host
-    name, no device serial -- so it does not weaken the deliberate policy that
-    artifacts carry no machine identity (see ``cost_hardware_tag`` below).
+    Fallback for builds without cupy.
+    ``nvidia-smi`` ships with the driver, so it is present wherever CUDA runs.
+    It exposes only a byte count -- no host name, no device serial.
+    That does not weaken the policy that artifacts carry no machine identity
+    (see ``cost_hardware_tag`` below).
     """
     try:
         out = subprocess.run(
@@ -58,19 +59,22 @@ def _gpu_memory_bytes_nvidia_smi() -> float:
 
 
 def _gpu_memory_bytes(cost_gpus: int) -> float:
-    """Used GPU memory for a declared-GPU run, nan when no GPU is declared.
+    """Used GPU memory for a GPU run, nan when cost_gpus is 0.
 
-    NOT a peak, despite the field name this feeds: it is a single device-wide
-    reading taken when the artifact is written, so it includes memory held by
-    other processes on the same card. Treat it as an order-of-magnitude
-    occupancy figure, not as this run's high-water mark.
+    NOT a peak, despite the field name this feeds.
+    It is a single device-wide reading taken at artifact write.
+    It includes memory held by other processes on the same card.
+    Treat it as an order-of-magnitude occupancy figure, not this run's
+    high-water mark.
 
     Previously this had a cupy-only implementation wrapped in a bare
-    ``except Exception``, so on any build without cupy -- which includes the
-    reference CPU and GPU virtual environments -- it returned nan for every run,
-    indistinguishable from "no GPU declared". A silent hole that looks like a
-    legitimate value is the worst shape for a provenance field, so nvidia-smi is
-    tried before giving up.
+    ``except Exception``.
+    On any build without cupy, including the reference CPU and GPU
+    virtual environments, it returned nan for every run.
+    That nan was indistinguishable from a run with no GPU.
+    A silent hole that looks like a legitimate value is the worst shape
+    for a provenance field.
+    So nvidia-smi runs before giving up.
     """
     if cost_gpus <= 0:
         return nan
@@ -99,7 +103,7 @@ def collect_cost_metrics(
 ) -> dict[str, object]:
     # peak_rss_bytes is the ALREADY cross-rank-aggregated value, computed by the
     # caller in the collective region (every rank) BEFORE the rank-0-only save
-    # block. This function must contain NO MPI collective: it runs inside the
+    # block. The body must contain NO MPI collective: it runs inside the
     # rank-0-only save path, so an allreduce here would deadlock every multi-rank
     # run. See feedback_mpi_collective_rank0 / bead 3.3.
     solve_times = [

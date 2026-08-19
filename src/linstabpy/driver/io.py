@@ -58,8 +58,9 @@ def save_results(
     """Write the runtime NPZ and the metrics sidecar.
 
     ``peak_rss_bytes`` is the already-reduced peak RSS from the caller.
-    This function does no MPI collective.
-    ``heartbeat_seconds`` is accepted for the driver call site and unused.
+    The write path does no MPI collective.
+    ``heartbeat_seconds`` exists for the driver call site. The write path
+    does not read it.
     """
     del heartbeat_seconds
     if provenance is None:

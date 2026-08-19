@@ -1,24 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Preflight and post-run advisories: catch the configurations that run but lie.
 
-Every check here exists because the configuration in question *runs to completion and
-produces plausible numbers*. Nothing below is a schema error -- ``config.validate_config``
-already rejects unknown keys and bad types. These are the semantic traps: settings that
-are individually legal, jointly meaningless, and silent.
+Every check here exists because the configuration *runs to completion and
+produces plausible numbers*. Nothing below is a schema error.
+``config.validate_config`` already rejects unknown keys and bad types.
+These are the semantic traps: settings that are individually legal,
+jointly meaningless, and silent.
 
-Design rules, deliberately narrow:
+Design rules, deliberately narrow.
 
-* **Advisories never block.** A false positive that aborts a twelve-hour job is worse
-  than the trap it guards. The driver logs these and continues; only pre-existing hard
-  errors stay hard.
-* **Pure functions over plain data.** Every check takes a config dict or a few arrays and
-  returns advisories. No PETSc, no solve, no I/O -- so the whole surface is unit-testable
-  in milliseconds on a laptop.
-* **Each advisory carries a remedy.** "Warning: dissipation disabled" helps nobody; the
-  message must say what to set and where.
+* Advisories never block. A false positive that aborts a twelve-hour job
+  is worse than the trap it guards. The driver logs these and continues.
+  Only pre-existing hard errors stay hard.
+* Pure functions over plain data. Every check takes a config dict or a
+  few arrays and returns advisories. No PETSc, no solve, no I/O.
+  The unit tests run in milliseconds on a laptop.
+* Each advisory carries a remedy. "Warning: dissipation disabled" helps
+  nobody. The message must say what to set and where.
 
-The intent is that a first-time user reading the log learns what an experienced user of
-this code knows, without having to be told.
+A first-time user who reads the log learns what an experienced user of
+this code already knows.
 """
 
 from __future__ import annotations
@@ -46,12 +47,12 @@ __all__ = [
 # WITHDRAWN 2026-08-07 -- kept only so an old import does not break.
 #
 # This encoded a claim that no measurement supported: that grid-scale sawtooth
-# "dominates" for beta in 90-135. It was checked directly, by running the bare
-# operator at beta = 110 at two resolutions (the band had never been entered
-# undamped): the gain came out 1.3098e+02 against 1.3099e+02 damped, a difference
-# of 0.008%. Every gain map in the source project stops at beta = 80 with a maximum
-# of 689.9, and a controlled bare-vs-damped comparison at a single point measured
-# 1.2%. There is no band.
+# "dominates" for beta in 90-135. A direct run of the bare operator at
+# beta = 110 at two resolutions (no undamped run entered the band) gave
+# gain 1.3098e+02 against 1.3099e+02 damped, a difference of 0.008%.
+# Every gain map in the source project stops at beta = 80 with a maximum
+# of 689.9, and a controlled bare-vs-damped comparison at a single point
+# measured 1.2%. There is no band.
 #
 # What actually decides whether the odd-even mode exists is the MESH -- see
 # `metric_cross_coupling` below. Nothing in this module uses this constant any more.
@@ -70,17 +71,17 @@ SAWTOOTH_GAIN_SCALE = 1.0e5
 #: rectilinear ones (Savarino 300x300, Song 600x200 box, MATLAB box) against 2.6e-01
 #: on curvilinear ones (curved-wall LES, and the same field on a coarser mesh).
 #: Sixteen orders of magnitude, so any threshold in 1e-10..1e-3 separates them
-#: identically; 1e-8 is chosen only because it is far from both.
+#: identically. We pick 1e-8 only because it is far from both.
 METRIC_COUPLING_GATE = 1.0e-8
 # Freestream normalisation: rho = u = T = 1. A base flow that misses this by more than
-# the tolerance has been scaled with the wrong convention, which silently invalidates
+# the tolerance used a different scaling convention, which silently invalidates
 # every eigenvalue and gain computed from it.
 FREESTREAM_TOL = 1.0e-2
 
 
 @dataclass(frozen=True)
 class Advisory:
-    """One actionable finding. ``code`` is stable and greppable; ``remedy`` is required."""
+    """One actionable finding. ``code`` is stable and greppable. ``remedy`` names the fix."""
 
     code: str
     severity: str  # "warning" | "note"
@@ -103,7 +104,7 @@ def _get(cfg: Mapping[str, Any] | None, path: str, default: Any = None) -> Any:
 
 
 def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
-    """Semantic checks on a loaded config, before anything is assembled."""
+    """Semantic checks on a loaded config, before operator assembly."""
     out: list[Advisory] = []
     if not isinstance(config, Mapping):
         return out
@@ -145,10 +146,10 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
             )
         )
     if (run_stab or run_res) and not od_enabled:
-        # Deliberately phrased as "measure it", not "you are wrong". Whether the bare
+        # Deliberately phrased as "measure it", not a verdict. Whether the bare
         # operator admits the odd-even mode at all depends on the MESH: a rectilinear
         # tensor mesh has zero metric cross-coupling and cannot support it, and on
-        # such a mesh dissipation has measured 0.008%-1.4% on the gain for +15% nnz
+        # such a mesh dissipation changed the gain by 0.008%-1.4% for +15% nnz
         # and roughly triple the wall time. Warning unconditionally taught people to
         # scroll past this, which is how a real case gets waved through.
         out.append(
@@ -176,7 +177,7 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
             )
         )
 
-    # The BETA-SAWTOOTH-BAND advisory that used to sit here is REMOVED, not disabled.
+    # We deleted the BETA-SAWTOOTH-BAND advisory that used to sit here. We did not gate it off.
     # It fired on beta in 90-135 with no effective dissipation, on the strength of a
     # claim that no run supported; when the band was finally entered with the bare
     # operator the effect measured 0.008%. A warning that fires on correct runs is
@@ -261,10 +262,11 @@ def baseflow_advisories(
 ) -> list[Advisory]:
     """Check the freestream normalisation convention: rho = u = T = 1.
 
-    A base flow scaled with a different convention runs perfectly and produces entirely
-    wrong physics -- this has already invalidated a full campaign session once. The check
-    uses the field maximum rather than a corner value so it does not depend on knowing
-    where the freestream sits in the array.
+    A base flow scaled with a different convention runs to completion.
+    The numbers look plausible but the physics is not the intended one.
+    This already invalidated one full campaign session.
+    The check uses the field maximum rather than a corner value.
+    It does not need to know where the freestream sits in the array.
     """
     out: list[Advisory] = []
     fields = (("rho", rho), ("u", u), ("T", temperature))
@@ -296,30 +298,36 @@ def baseflow_advisories(
 def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
     """How strongly does this mesh mix the two directions at the grid scale?
 
-    Returns ``max(|dx/deta|)/max(|dx/dxi|)`` and its transpose, whichever is larger --
-    a dimensionless number that is **exactly zero** for a rectilinear tensor mesh and
-    O(1) for a body-fitted curvilinear one.
+    Return ``max(|dx/deta|)/max(|dx/dxi|)`` and its transpose, whichever is larger.
+    The number is exactly 0 for a rectilinear tensor mesh.
+    It is O(1) for a body-fitted curvilinear mesh.
 
-    Why this is the quantity that matters. The full 2-D metric transform builds
+    Why this quantity matters. The 2-D metric transform is
 
-        Dx_new = Ji11 * Dx + Ji12 * Dy      Ji12 = -(Dx @ y) / detJ
-        Dy_new = Ji21 * Dx + Ji22 * Dy      Ji21 = -(Dy @ x) / detJ
+        Dx_new = Ji11 * Dx + Ji12 * Dy.     Ji12 = -(Dx @ y) / detJ.
+        Dy_new = Ji21 * Dx + Ji22 * Dy.     Ji21 = -(Dy @ x) / detJ.
 
-    On a rectilinear mesh ``x = x(xi)`` and ``y = y(eta)``, so ``Dx @ y`` and ``Dy @ x``
-    vanish identically: each derivative is a pure rescaling of its own one-dimensional
-    stencil and the two directions' grid-scale null spaces never meet. The odd-even mode
-    has nowhere to live. Bend the mesh and those terms become O(1) -- the x-derivative
-    now contains the y-stencil, the second derivatives acquire the cross terms
-    ``Dxy = Dx @ Dy`` and ``Dyx = Dy @ Dx``, and the operator supports a mode that
-    neither one-dimensional stencil admits alone.
+    On a rectilinear mesh ``x = x(xi)`` and ``y = y(eta)``.
+    Then ``Dx @ y`` and ``Dy @ x`` vanish identically.
+    Each derivative is a pure rescaling of its own one-dimensional stencil.
+    The two directions' grid-scale null spaces never meet.
+    The odd-even mode has nowhere to live.
+    Bend the mesh and those terms become O(1).
+    The x-derivative now contains the y-stencil.
+    The second derivatives acquire the cross terms ``Dxy = Dx @ Dy`` and
+    ``Dyx = Dy @ Dx``.
+    The operator then supports a mode that neither one-dimensional stencil
+    admits alone.
 
-    **Stretching is not what does it; bending is.** A mesh may stretch by two orders of
-    magnitude in the wall-normal direction and still return exactly zero here.
+    Stretching is not what does it. Bending is.
+    A mesh may stretch by two orders of magnitude in the wall-normal
+    direction and still return exactly 0 here.
 
-    Measured on five meshes: 7e-18, 2e-17, 2e-18 (rectilinear) against 2.6e-01 twice
-    (curvilinear). The same at 2nd, 4th and 6th order, because this is a property of the
-    mapping and not of the stencil -- which also means it can be computed before any
-    operator is assembled.
+    Five meshes measured: 7e-18, 2e-17, 2e-18 (rectilinear) against
+    2.6e-01 twice (curvilinear).
+    The same at 2nd, 4th and 6th order.
+    This is a property of the mapping, not of the stencil.
+    The caller can compute it before any operator assembly.
 
     Parameters
     ----------
@@ -342,7 +350,7 @@ def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
     dy_deta = np.abs(np.diff(Y, axis=1)).max()
 
     # Guard a degenerate direction rather than dividing by zero: a mesh with no extent
-    # along one axis is not curvilinear, it is broken, and that is a different error.
+    # along one axis is not curvilinear. That missing extent is a different error.
     if dx_dxi <= 0.0 or dy_deta <= 0.0:
         raise ValueError("degenerate mesh: no extent along one computational direction")
 
@@ -400,7 +408,7 @@ def result_advisories(
 
 
 # MUMPS INFOG(1) codes seen in practice on this workload. The raw SLEPc failure is an
-# opaque "EPS.setUp failed", which sent one triage down the wrong path entirely.
+# opaque "EPS.setUp failed", which sent one triage away from the INFOG(1) code.
 _MUMPS_INFOG1 = {
     -9: (
         "MUMPS internal work array too small",
@@ -477,8 +485,8 @@ def format_advisories(advisories: Sequence[Advisory], *, title: str) -> str:
 def format_banner(fields: Mapping[str, Any]) -> str:
     """One block naming what is ACTUALLY about to run.
 
-    Reports effective values, not requested ones: the recurring failure mode is a config
-    that asks for something the driver then declines to do.
+    Report effective values, not requested ones.
+    A common failure is a config that asks for a path the driver then declines.
     """
     width = max((len(str(k)) for k in fields), default=0)
     lines = ["=" * 72, "linstabpy run configuration (effective)", "-" * 72]

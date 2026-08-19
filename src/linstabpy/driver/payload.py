@@ -106,7 +106,7 @@ def build_runtime_payload(
     """Merge the runtime groups into one NPZ payload.
 
     Groups follow the metrics sidecar: spectra, problem, fields,
-    stability, dissipation, and provenance. Cost keys are added later
+    stability, dissipation, and provenance. ``save_results`` adds cost keys later.
     by ``save_results``.
     """
     payload: dict[str, Any] = {}

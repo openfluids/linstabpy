@@ -10,7 +10,7 @@ from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
 # mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# PETSc only MPI_THREAD_FUNNELED, and init cannot raise the level later.
 # STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
 # Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
 # Enforced by tests/test_mpi_thread_level.py.
@@ -133,9 +133,10 @@ def _resolve_solver_cfg_subsection(
 ) -> dict | None:
     """Return the YAML subsection matching ``env_prefix``.
 
-    This is the compatibility bridge for older solver code: callers still ask
-    by environment-prefix family, while SolverConfig owns the actual subsection
-    policy and the resolvent -> linsolve fallback.
+    Compatibility bridge for older solver code.
+    Callers still ask by environment-prefix family.
+    SolverConfig owns the actual subsection policy and the
+    resolvent -> linsolve fallback.
     """
     config = SolverConfig.from_config(solver_cfg)
     return None if config is None else config.subsection(env_prefix)

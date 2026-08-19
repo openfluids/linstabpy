@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Certification harness for randomized resolvent SVD actions.
+"""Certification checks for randomized resolvent SVD actions.
 
-The routines in this module are intentionally independent of the sweep router:
-they certify the algebraic assumptions that an inexact resolvent action must
-satisfy before it is safe to use in RSVD.  Tests can call each check directly,
-while :func:`certified_rsvd` runs the checks and then computes a small dense
+The routines here stay independent of the sweep router.
+They certify the algebraic assumptions that an inexact resolvent action
+must satisfy before it is safe to use in RSVD.
+Tests can call each check directly.
+:func:`certified_rsvd` runs the checks and then computes a small dense
 Rayleigh-Ritz RSVD result from the supplied ``apply_H``/``apply_H_adj`` seams.
 """
 

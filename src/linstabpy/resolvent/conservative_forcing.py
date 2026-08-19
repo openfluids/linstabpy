@@ -1,55 +1,64 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Conservative-momentum forcing space for the resolvent optimisation variable.
 
-By default the resolvent forcing lives in the space of the five PRIMITIVE
-perturbation variables ``q' = (rho', u', v', w', T')`` and the region mask in
-``resolvent_map._build_region_mask`` is a diagonal 0/1 selector on that space.
+By default the resolvent forcing lives in the five PRIMITIVE
+perturbation variables ``q' = (rho', u', v', w', T')``.
+The region mask in ``resolvent_map._build_region_mask`` is a diagonal 0/1
+selector on that space.
 
-The physically motivated forcing for a shear-layer/shock-interaction problem
-instead acts on the three CONSERVATIVE momentum equations
-``(rho u)', (rho v)', (rho w)'`` only.  Mapping a conservative momentum
-forcing ``f_c = (f_rou, f_rov, f_row)`` into the equivalent primitive-equation
-forcing is linear and POINTWISE (no coupling between grid points): at each
-active grid point,
+The physically motivated forcing for a shear-layer/shock-interaction
+problem acts on three CONSERVATIVE momentum equations.
+``(rho u)', (rho v)', (rho w)'``.
+A conservative momentum forcing ``f_c = (f_rou, f_rov, f_row)`` maps
+into the equivalent primitive-equation forcing.
+The map is linear and POINTWISE (no coupling between grid points).
+At each active grid point,
 
-    e_rou -> (0,               1/rho_bar, 0,         0,         -kappa*(kappa-1)*Ma^2 * u_bar/rho_bar)
-    e_rov -> (0,               0,         1/rho_bar, 0,         -kappa*(kappa-1)*Ma^2 * v_bar/rho_bar)
-    e_row -> (0,               0,         0,         1/rho_bar, -kappa*(kappa-1)*Ma^2 * w_bar/rho_bar)
+    e_rou -> (0, 1/rho_bar, 0, 0, -kappa*(kappa-1)*Ma^2 * u_bar/rho_bar).
+    e_rov -> (0, 0, 1/rho_bar, 0, -kappa*(kappa-1)*Ma^2 * v_bar/rho_bar).
+    e_row -> (0, 0, 0, 1/rho_bar, -kappa*(kappa-1)*Ma^2 * w_bar/rho_bar).
 
-in primitive block order ``(rho, u, v, w, T)``.  ``rho_bar``, ``u_bar``,
-``v_bar``, ``w_bar`` are base-flow fields and ``kappa``/``Ma`` are the same
-quantities :func:`linstabpy.operators.energy_norm.compute_chu_norm` takes.
+Primitive block order is ``(rho, u, v, w, T)``.
+``rho_bar``, ``u_bar``, ``v_bar``, ``w_bar`` are base-flow fields.
+``kappa``/``Ma`` are the same quantities
+:func:`linstabpy.operators.energy_norm.compute_chu_norm` takes.
 
-This module builds that map as a sparse matrix ``B`` (or a WHITENED version
-``B_tilde``, see below) that plugs directly into the existing
-``B_mat``-shaped forcing-matrix slot used throughout
-``linstabpy.resolvent`` / ``linstabpy.solvers.router.resolvent_map`` -- no
-change to the resolvent eigenproblem machinery is required.
+The map is a sparse matrix ``B`` (or a WHITENED version ``B_tilde``,
+see below).
+It plugs directly into the existing ``B_mat``-shaped forcing-matrix slot
+used throughout ``linstabpy.resolvent`` and
+``linstabpy.solvers.router.resolvent_map``.
+The resolvent eigenproblem machinery does not need a change.
 
-Norm: whitening instead of a new norm branch
----------------------------------------------
+Norm: whitening instead of a new norm branch.
 The physically meaningful norm on ``f_c`` is the mass-weighted L2 norm
 
-    ||f_c||_F^2 = sum_j w_int_j * |f_c_j|^2
+    ||f_c||_F^2 = sum_j w_int_j * |f_c_j|^2.
 
-using the SAME integration weights ``w_int`` that already enter
-``compute_chu_norm``.  Rather than adding a third ``forcing_norm`` branch to
-:class:`linstabpy.resolvent.gain.WeightedNormalOperator`, this module
-WHITENS the columns of ``B``:
+This uses the SAME integration weights ``w_int`` that already enter
+``compute_chu_norm``.
+Rather than adding a third ``forcing_norm`` branch to
+:class:`linstabpy.resolvent.gain.WeightedNormalOperator`, WHITEN the
+columns of ``B``:
 
-    B_tilde = B @ diag(w)^(-1/2)
+    B_tilde = B @ diag(w)^(-1/2).
 
-and the caller runs the resolvent with ``forcing_norm="l2"`` (already
-supported).  The plain L2 norm of the returned (whitened) coefficient vector
-``g`` IS the mass-weighted conservative norm of the physical forcing
-``f_c = diag(w)^(-1/2) @ g``, because
+The caller then runs the resolvent with ``forcing_norm="l2"`` (already
+supported).
+The plain L2 norm of the returned (whitened) coefficient vector ``g``
+IS the mass-weighted conservative norm of the physical forcing.
+
+    f_c = diag(w)^(-1/2) @ g.
+
+That holds because
 
     ||g||_2^2 = ||diag(w)^(1/2) f_c||_2^2 = sum_j w_int_j |f_c_j|^2.
 
-The same de-whitening vector ``diag(w)^(-1/2)`` therefore does double duty:
-it is baked into ``B_tilde``'s columns at construction time, and it is the
-factor that converts an exported forcing coefficient back into the physical
-conservative-momentum forcing (``momentum_dewhiten`` below).
+The same de-whitening vector ``diag(w)^(-1/2)`` therefore does double duty.
+Construction bakes it into ``B_tilde``'s columns.
+It is also the factor that converts an exported forcing coefficient
+back into the physical conservative-momentum forcing
+(``momentum_dewhiten`` below).
 """
 
 from __future__ import annotations
@@ -67,10 +76,11 @@ def validate_conservative_momentum_vars(raw_vars: object, *, name: str) -> tuple
     """Validate the ``vars`` key of a conservative-momentum region spec.
 
     ``vars`` must be absent (meaning all three momentum components) or a
-    non-empty subset of ``{"u", "v", "w"}``.  Any density/temperature entry
-    is rejected: the conservative-momentum forcing space has no rho'/T'
-    optimisation variable of its own -- those are the OUTPUT of the mapping,
-    not inputs to it.
+    non-empty subset of ``{"u", "v", "w"}``.
+    Any density/temperature entry raises.
+    The conservative-momentum forcing space has no rho'/T'
+    optimisation variable of its own.
+    Those are the OUTPUT of the mapping, not inputs to it.
     """
     if raw_vars is None:
         return MOMENTUM_VARS
@@ -106,14 +116,16 @@ def conservative_momentum_coefficients(
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Pointwise coefficients mapping conservative momentum forcing to primitive.
 
-    Returns, for each requested momentum var (``"u"``, ``"v"``, or ``"w"``), a
-    pair ``(own_coeff, T_coeff)`` of arrays the same shape as ``rho_bar``:
+    For each requested momentum var (``"u"``, ``"v"``, or ``"w"``),
+    return a pair ``(own_coeff, T_coeff)``.
+    The arrays have the same shape as ``rho_bar``.
 
-        own_coeff = 1 / rho_bar
-        T_coeff   = -kappa * (kappa - 1) * Ma**2 * {u,v,w}_bar / rho_bar
+        own_coeff = 1 / rho_bar.
+        T_coeff   = -kappa * (kappa - 1) * Ma**2 * {u,v,w}_bar / rho_bar.
 
-    such that primitive forcing component ``own`` picks up
-    ``own_coeff * f_{rou,rov,row}`` and the temperature component picks up
+    Primitive forcing component ``own`` picks up
+    ``own_coeff * f_{rou,rov,row}``.
+    The temperature component picks up
     ``T_coeff * f_{rou,rov,row}`` (summed over the requested momentum vars).
     """
     rho_bar = np.asarray(rho_bar, dtype=float)
@@ -154,14 +166,16 @@ def build_conservative_momentum_matrix(
 ) -> tuple[sp.csr_matrix, np.ndarray, dict[str, object]]:
     """Build the whitened conservative-momentum forcing matrix ``B_tilde``.
 
-    Embeds the (rectangular, in the physical sense) conservative-momentum
-    forcing map into a SQUARE ``ndof x ndof`` matrix by reusing the momentum
-    block slots of the primitive DOF layout (``idx['u_j']``, ``idx['v_j']``,
-    ``idx['w_j']``) as the storage for the whitened coefficient vector ``g``.
+    Embed the (rectangular, in the physical sense) conservative-momentum
+    forcing map into a SQUARE ``ndof x ndof`` matrix.
+    Reuse the momentum block slots of the primitive DOF layout
+    (``idx['u_j']``, ``idx['v_j']``, ``idx['w_j']``).
+    Those slots store the whitened coefficient vector ``g``.
     Columns outside the selected region/vars, and the ``rho_j``/``T_j``
-    columns, are identically zero -- the existing square resolvent machinery
-    (``ResolventOperator``, ``WeightedNormalOperator``) then needs no change:
-    it already accepts an arbitrary ``ndof x ndof`` sparse/PETSc ``B_mat``.
+    columns, are identically zero.
+    The existing square resolvent machinery
+    (``ResolventOperator``, ``WeightedNormalOperator``) then needs no change.
+    It already accepts an arbitrary ``ndof x ndof`` sparse/PETSc ``B_mat``.
 
     Parameters
     ----------
@@ -171,8 +185,9 @@ def build_conservative_momentum_matrix(
     ndof : int
         Full state size (``5 * ngp``).
     point_indices : ndarray of int
-        Indices into the ACTIVE-POINT arrays (``rho_bar_active`` etc, and the
-        ``idx['{var}_j']`` blocks) selecting the spatial forcing region.
+        Indices into the ACTIVE-POINT arrays (``rho_bar_active`` and the
+        ``idx['{var}_j']`` blocks).
+        These select the spatial forcing region.
     rho_bar_active, u_bar_active, v_bar_active, w_bar_active : ndarray
         Base-flow fields restricted to active grid points, same ordering as
         ``idx['{var}_j']`` (i.e. ``mesh.X.ravel(order='F')[mesh.used_ind]``
@@ -186,8 +201,9 @@ def build_conservative_momentum_matrix(
         Subset of ``("u", "v", "w")`` to force.
     excluded_dofs : ndarray of int, optional
         Global dof indices to drop from the region (e.g. boundary-condition
-        rows); a point is dropped for a given momentum var if that var's
-        primitive dof at that point appears in ``excluded_dofs``.
+        rows).
+        A given momentum var drops a point if that var's primitive dof
+        at that point appears in ``excluded_dofs``.
 
     Returns
     -------
@@ -195,12 +211,14 @@ def build_conservative_momentum_matrix(
         Whitened conservative-momentum forcing matrix,
         ``B_tilde = B @ diag(w)^(-1/2)``.
     momentum_dewhiten : ndarray, shape (ndof,)
-        De-whitening vector.  At the momentum dofs actually used as
-        coefficient slots this is ``1/sqrt(w_int)``; elsewhere it is 1.0 and
-        unused (the corresponding ``B_tilde`` column is identically zero).
-        The physical conservative forcing is recovered from an exported
-        coefficient vector ``g`` as ``f_c = momentum_dewhiten * g`` restricted
-        to ``momentum_dofs``.
+        De-whitening vector.
+        At the momentum dofs used as coefficient slots this is
+        ``1/sqrt(w_int)``.
+        Elsewhere it is 1.0 and unused (the corresponding ``B_tilde``
+        column is identically zero).
+        Recover the physical conservative forcing from an exported
+        coefficient vector ``g`` as ``f_c = momentum_dewhiten * g``
+        restricted to ``momentum_dofs``.
     info : dict
         ``{"n_region": int, "momentum_dofs": ndarray, "vars": tuple}``.
     """
@@ -313,10 +331,11 @@ def dewhiten_forcing(
 ) -> np.ndarray:
     """Recover the physical conservative-momentum forcing from a whitened coefficient.
 
-    ``f_c = diag(w)^(-1/2) @ g``, restricted to the dofs actually used as
-    momentum-coefficient slots (``momentum_dofs``); all other entries of the
-    returned array are zero by construction (``g`` is zero there too, since
-    ``B_tilde``'s columns are zero outside ``momentum_dofs``).
+    ``f_c = diag(w)^(-1/2) @ g``, restricted to the dofs used as
+    momentum-coefficient slots (``momentum_dofs``).
+    All other entries of the returned array are zero by construction.
+    ``g`` is zero there too, since ``B_tilde``'s columns are zero outside
+    ``momentum_dofs``.
     """
     coefficient = np.asarray(coefficient)
     out = np.zeros_like(coefficient)

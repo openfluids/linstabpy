@@ -38,17 +38,19 @@ def build_spatial_operator(
     operator in the Fourier argument ``kx`` (MATLAB ``mkx``) at fixed
     ``floquet_exp``.
 
-    - R0 = L(kx)
-    - R1 = (L(kx+delta) - L(kx-delta)) / (2*delta)
-    - R2 = (L(kx+delta) - R0 - R1*delta) / delta**2
+    - R0 = L(kx).
+    - R1 = (L(kx+delta) - L(kx-delta)) / (2*delta).
+    - R2 = (L(kx+delta) - R0 - R1*delta) / delta**2.
 
     Default ``kx=0``, ``delta=1`` is MATLAB's ``{0, +1, -1}`` stencil.
     The Floquet exponent is not the finite-difference direction.
 
-    Assembled pencil (``q' = [q; alpha q]``):
-        Lc = [[0, I], [-R0, 0]]
-        R  = [[I, 0], [R1, R2]]
-        Lw = [[0, 0], [-iI, 0]]
+    Assembled pencil (``q' = [q; alpha q]``).
+
+        Lc = [[0, I], [-R0, 0]].
+        R  = [[I, 0], [R1, R2]].
+        Lw = [[0, 0], [-iI, 0]].
+
     so ``(Lc + omega Lw) q' = alpha R q'``.
     """
     if delta <= 0:
@@ -170,7 +172,7 @@ def build_spatial_operator_petsc(
     Lw = _assemble_block_matrix_petsc([[None, None], [minus_iI, None]])
 
     # Destroy intermediate PETSc matrices no longer needed after block assembly.
-    # R0 is L0 (alias, not a copy). R1/R2 were copied into output R by
+    # R0 is L0 (alias, not a copy). R1/R2 copy into output R by
     # _assemble_block_matrix_petsc. Destroy all intermediates.
     for mat in (R0, Lp, Lm, R1, R2, I, minus_R0, minus_iI):
         mat.destroy()

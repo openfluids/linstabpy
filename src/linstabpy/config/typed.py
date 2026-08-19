@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Typed configuration seam for solver policy.
 
-This module mirrors the ``utils._solver_cfg`` YAML/env/default
-resolution surface without migrating call sites yet.
+Mirrors the ``utils._solver_cfg`` YAML/env/default resolution without
+migrating call sites yet.
 """
 
 from __future__ import annotations
@@ -421,7 +421,7 @@ class EigenCfg:
     weighted_norm_tol: float
     ncv: int | None
     eps_max_it_explicit: int | None
-    # Auto-route DOF threshold: carried from config so it can be used at solve time.
+    # Auto-route DOF threshold: carried from config so solve time can read it.
     # "auto" backend intent is resolved to a concrete backend in _eigenvalues.py
     # once ndof is known.  See resolve_auto_factor_backend() and
     # DEFAULT_AUTO_ROUTE_DOF_THRESHOLD for provenance.

@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Fixed-subspace recycling helpers for stable resolvent sweeps.
+"""Fixed-subspace recycling for stable resolvent sweeps.
 
-The routines here implement the algebraic core needed by the sweep router: a
-right-preconditioned GMRES solve augmented by a *fixed* recycle subspace.  The
-subspace is prepared outside each RSVD/certification pass and is never adapted
-inside a solve call, preserving the linear map checked by S7 certification.
+The routines here implement the algebraic core the sweep router needs.
+That core is a right-preconditioned GMRES solve with a *fixed* recycle
+subspace.
+Prepare the subspace outside each RSVD/certification pass.
+Never adapt it inside a solve call, preserving the linear map checked
+by S7 certification.
 """
 
 from __future__ import annotations
@@ -147,10 +149,12 @@ def prepare_recycle_subspace(
     """Prepare a fixed recycle subspace for the current shifted operator.
 
     ``basis`` contains solution-space vectors carried from a previous shifted
-    system.  The returned ``image`` columns are orthonormal vectors ``C`` with
-    matching transformed solution vectors ``U`` such that ``A @ U[:, j]`` is
-    ``C[:, j]`` up to roundoff.  The setup matvecs are reported separately so
-    recycling accounting includes the cost of forming ``C``.
+    system.
+    The returned ``image`` columns are orthonormal vectors ``C``.
+    Matching transformed solution vectors ``U`` satisfy
+    ``A @ U[:, j]`` equals ``C[:, j]`` up to roundoff.
+    Setup matvecs sit separately so recycling accounting includes the
+    cost of forming ``C``.
     """
     raw = combine_recycle_bases(basis, max_dim=max_dim, n=n, orth_tol=orth_tol)
     if raw.shape[1] == 0:
