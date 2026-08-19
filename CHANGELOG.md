@@ -7,6 +7,26 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+Martini compute scripts write NPZ and a log only. Plot scripts load those
+NPZ files and write the PNG figures. Documented module paths use
+`examples.martini.*`.
+
+### Added
+- `environment.yml` installs from `pyproject.toml` on a conda-forge complex PETSc stack.
+
+### Changed
+- README installation names the CPU stack and states that no GPU conda file ships.
+- `benchmark.sh` runs Example 0 as `examples.martini.example_0_curvilinear_validation`.
+- `run_all_examples.sh` computes each Martini case, then runs the plot module.
+- README, tutorial, and runner help use `examples.martini.*` module names.
+
+### Removed
+- `.pre-commit-config.yaml`. The file-size guard stays in pytest and CI.
+- Unused `tests/fixtures/curvilinear_derivative_parity.json`.
+- Campaign leftover `examples/martini/physics_audit_campaign_vs_repo.json`.
+- Unused README banner `docs/assets/readme-banner-v2.jpg`.
+- Example 0 write to `artifacts/curvilinear_derivative_parity.json`.
+
 ## [1.0.0rc7] - 2026-08-19
 
 Comments in the example scripts and tests were shortened. Ruff formatted

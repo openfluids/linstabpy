@@ -1,8 +1,0 @@
-repos:
-  - repo: local
-    hooks:
-      - id: tracked-file-size
-        name: tracked file size guard
-        entry: python -m pytest tests/test_tracked_file_size.py -q --tb=line
-        language: system
-        pass_filenames: false

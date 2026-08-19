@@ -18,14 +18,15 @@ bash examples/martini/regenerate_martini_fixtures.sh
 ```
 
 The supplement SOURCE line for Example 3 spatial uses the paper spatial file.
-By default ``example_3_streaky_bl.py`` runs all four paper YAML campaigns and
-writes the unified presentation figures (spectra + mode mosaics) using
-``LinStab2DResults/example_3_paper_*`` MATLAB fixtures. Each YAML pins
+By default ``example_3_streaky_bl.py`` runs all four paper YAML campaigns.
+``example_3_plots.py`` writes the presentation figures from those NPZ files,
+using ``LinStab2DResults/example_3_paper_*`` MATLAB fixtures. Each YAML pins
 ``floquet_shift: matlab_parity`` so spectra/modes match LinStab2D; the library
 default elsewhere is continuum-correct Floquet FD.
 
 ```
 .venv/bin/python examples/martini/example_3_streaky_bl.py
+.venv/bin/python examples/martini/example_3_plots.py
 ```
 
 Single-case override:

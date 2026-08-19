@@ -8,7 +8,7 @@ Import the runtime explicitly on the run path::
 
     from linstabpy.driver.run import run
 
-This package initializer deliberately imports nothing heavy.
+PETSc and MPI stay out of this initializer.
 """
 
 __all__: list[str] = []
