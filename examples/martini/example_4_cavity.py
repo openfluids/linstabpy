@@ -7,31 +7,30 @@ and direct + adjoint temporal eigenvalue problems.
 
 OUTPUTS.
   - example_4_cavity.npz.
-  - example_4_cavity_baseflow.png.
-  - example_4_cavity_spectrum_direct.png / example_4_cavity_spectrum_adjoint.png.
-  - modes_{direct,adjoint}_{u,v,w}[_imag]_mosaic.png.
+  - example_4_cavity.log.
 
 Martini parity (see ``martini_ex4_cavity_operator_audit/AGENT.md``).
   - ``Pr: 0.7`` (MATLAB driver; ``Step_BF.mat`` stores 0.71).
   - ``zero_dmudT: true`` (LinStab2D ``readbaseflow`` uses ``dMUdT=0``).
 
-USAGE:   python example_4_cavity.py                       # .npz exists → plot only
-         rm example_4_cavity.npz && python example_4_cavity.py  # recompute
+USAGE:   python example_4_cavity.py
+         rm example_4_cavity.npz && python example_4_cavity.py
+         python example_4_plots.py
 """
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config, parse_complex
-
 from examples._helpers import load_or_compute
-from examples.martini.example_4_plots import plot_example4_figures
+from linstabpy.utils.yaml_io import load_config, parse_complex
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
+LOG_PATH = SCRIPT.with_suffix(".log")
 
 
 def compute(cfg: dict) -> None:
@@ -230,17 +229,17 @@ def compute(cfg: dict) -> None:
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
-def plot(data) -> None:
-    """Plot campaign-style cavity baseflow, spectra, and mode mosaics."""
-    paths = plot_example4_figures(SCRIPT.parent)
-    for path in paths:
-        print(f"Wrote {path}")
+def _log(line: str) -> None:
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def main() -> None:
     cfg = load_config(SCRIPT.with_suffix(".yaml"))
-    data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
-    plot(data)
+    t0 = time.perf_counter()
+    load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
+    _log(f"example_4_cavity  {time.perf_counter() - t0:.3f} s")
 
 
 if __name__ == "__main__":

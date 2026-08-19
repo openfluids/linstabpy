@@ -8,6 +8,16 @@ from numpy.testing import assert_allclose
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.filters import build_mesh_filters, filter_O10_diffMat
 
+
+def test_mesh_package_lazy_exports_filters() -> None:
+    import linstabpy.mesh as mesh_pkg
+
+    assert mesh_pkg.build_mesh_filters is build_mesh_filters
+    assert mesh_pkg.MeshFilters is not None
+    with pytest.raises(AttributeError, match="no attribute"):
+        getattr(mesh_pkg, "not_a_mesh_export")
+
+
 # ---------------------------------------------------------------------------
 # TestFilterConstruction
 # ---------------------------------------------------------------------------
@@ -175,6 +185,8 @@ def test_building_and_applying_filters_needs_no_petsc():
         "assert 'petsc4py' not in sys.modules, 'filters pulled in petsc4py'\n"
         "print('ok')\n"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip().endswith("ok")

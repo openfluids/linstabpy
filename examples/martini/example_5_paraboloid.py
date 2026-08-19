@@ -7,30 +7,30 @@ parabolic physical grid and an axisymmetric model.
 
 OUTPUTS.
   - example_5_paraboloid.npz.
-  - example_5_paraboloid_baseflow.png.
-  - example_5_paraboloid_modes_forcing_response_{u,v,w}[_imag]_mosaic.png.
+  - example_5_paraboloid.log.
 
 Mesh parity (see ``example_5_D2y_asymm_fix.md``).
   - ``Mesh.deform`` metric terms in ``_deform_full_2d`` use full ``Dy``/``D2y``
     when building ``dJ``/``Q`` for symm/asymm families (fixes ``D2y_asymm``).
 
-USAGE:   python example_5_paraboloid.py                       # .npz exists → plot only
-         rm example_5_paraboloid.npz && python example_5_paraboloid.py  # recompute
+USAGE:   python example_5_paraboloid.py
+         rm example_5_paraboloid.npz && python example_5_paraboloid.py
+         python example_5_plots.py
 """
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config
-
 from examples._helpers import load_or_compute
-from examples.martini.example_5_plots import plot_example5_figures
+from linstabpy.utils.yaml_io import load_config
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
+LOG_PATH = SCRIPT.with_suffix(".log")
 
 
 def compute(cfg: dict) -> None:
@@ -230,18 +230,17 @@ def compute(cfg: dict) -> None:
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
-def plot(data) -> None:
-    """Plot campaign-style baseflow and forcing/response mode mosaics."""
-    _ = data
-    paths = plot_example5_figures(SCRIPT.parent)
-    for path in paths:
-        print(f"Wrote {path}")
+def _log(line: str) -> None:
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def main() -> None:
     cfg = load_config(SCRIPT.with_suffix(".yaml"))
-    data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
-    plot(data)
+    t0 = time.perf_counter()
+    load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
+    _log(f"example_5_paraboloid  {time.perf_counter() - t0:.3f} s")
 
 
 if __name__ == "__main__":

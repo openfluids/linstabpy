@@ -34,8 +34,28 @@ def _benchmark_default_module() -> str:
     return match.group(1)
 
 
+def _benchmark_example_0_module() -> str:
+    text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
+    match = re.search(
+        r'run_case "([^"]+)" "example_0_curvilinear_validation"',
+        text,
+    )
+
+    assert match is not None
+    return match.group(1)
+
+
 def test_benchmark_default_example_is_valid_runner_selector():
     assert _benchmark_default_module() in _run_all_examples_list()
+
+
+def test_benchmark_example_0_module_is_valid_runner_selector():
+    assert _benchmark_example_0_module() in _run_all_examples_list()
+
+
+def test_benchmark_clears_npz_under_martini():
+    text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
+    assert "examples/martini/" in text
 
 
 def test_runner_accepts_benchmark_default_module_on_mpi_path():

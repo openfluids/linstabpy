@@ -7,18 +7,17 @@ Translates example_3_Streaky_BL.m and the four paper campaigns
 Uses a periodic x-domain, a Hanifi-like y stretch, temporal eigenvalues,
 and spatial eigenvalues in generalized (alpha) form.
 
-OUTPUTS (four paper NPZ bundles + campaign figures).
+OUTPUTS (four paper NPZ bundles).
   - example_3_paper_temporal_Lx2pi_nP2.npz.
   - example_3_paper_temporal_Lxpi_nfloq0.npz.
   - example_3_paper_temporal_Lxpi_nfloq2.npz.
   - example_3_paper_spatial_Lxpi_nP2.npz.
-  - example_3_streaky_bl_baseflow.png.
-  - example_3_streaky_bl_spectrum_*.png.
-  - example_3_streaky_bl_modes_temporal_* / example_3_streaky_bl_modes_spatial_* mosaics.
+  - example_3_streaky_bl.log.
 
 USAGE.
     python example_3_streaky_bl.py.
-    rm example_3_paper_*.npz && python example_3_streaky_bl.py  # recompute all.
+    rm example_3_paper_*.npz && python example_3_streaky_bl.py
+    python example_3_plots.py.
 
 Single-case override (batch / debugging):
   LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \\
@@ -29,21 +28,21 @@ Single-case override (batch / debugging):
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import numpy as np
-
-from linstabpy.utils.yaml_io import load_config, parse_complex_list, parse_int_list
 
 from examples._helpers import (
     format_cache_recompute_message,
     leading_mode_real_frequency,
     load_or_compute,
 )
-from examples.martini.example_3_plots import plot_example3_figures
+from linstabpy.utils.yaml_io import load_config, parse_complex_list, parse_int_list
 
 SCRIPT = Path(__file__).resolve()
 EXAMPLE_DIR = SCRIPT.parent
+LOG_PATH = SCRIPT.with_suffix(".log")
 
 PAPER_CASES = (
     "example_3_paper_temporal_Lx2pi_nP2",
@@ -532,21 +531,19 @@ def run_case(stem: str) -> dict[str, np.ndarray]:
     return _augment_cached_results(dict(data), cfg, npz_path)
 
 
-def plot_all(example_dir: Path = EXAMPLE_DIR) -> list[Path]:
-    """Plot all four paper campaigns using LinStab2D fixtures when present."""
-    return plot_example3_figures(example_dir)
+def _log(line: str) -> None:
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def main() -> None:
     cases = _resolve_cases()
+    t0 = time.perf_counter()
     for stem in cases:
         print(f"\n=== Example 3 campaign: {stem} ===")
         run_case(stem)
-
-    if len(cases) == len(PAPER_CASES):
-        print("\n=== Example 3 presentation figures ===")
-        for path in plot_all():
-            print(f"Wrote {path}")
+    _log(f"example_3_streaky_bl  {time.perf_counter() - t0:.3f} s")
 
 
 if __name__ == "__main__":
