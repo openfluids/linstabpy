@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """GCRO-DR-style fixed-subspace recycling tests."""
 
-
 from __future__ import annotations
 
 import time

@@ -13,10 +13,7 @@ from linstabpy.utils.yaml_io import load_config
 def test_load_config_reads_yaml_comments(tmp_path: Path) -> None:
     path = tmp_path / "case.yaml"
     path.write_text(
-        "# Re based on impingement length\n"
-        "Re: 1.0e5\n"
-        "penalty: 1e8\n"
-        "omega_target: [0.0, 0.125]\n",
+        "# Re based on impingement length\nRe: 1.0e5\npenalty: 1e8\nomega_target: [0.0, 0.125]\n",
         encoding="utf-8",
     )
 
@@ -48,5 +45,3 @@ def test_load_config_rejects_non_mapping(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="mapping"):
         load_config(path)
-
-

@@ -14,11 +14,10 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config
-
 from examples._helpers import parity_npz_get
 from examples.martini.compare_martini_examples import load_matlab_bundle
 from examples.martini.plot_compare_utils import ensure_matplotlib
+from linstabpy.utils.yaml_io import load_config
 
 LINSTAB2D_RESULTS_DIRNAME = "LinStab2DResults"
 MATLAB_EX0_STEM = "example_0_TestCurvilinearDerivative_results"

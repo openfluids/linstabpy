@@ -12,6 +12,7 @@ Usage (from this directory, with linstabpy installed and MPI available):
     python run_compare_points.py --nranks 4
     python run_compare_points.py --mack-only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,8 +37,7 @@ def _require_baseflow() -> None:
     marker = BASEFLOW_NPY_DIR / "rho.npy"
     if not marker.is_file():
         raise SystemExit(
-            f"missing {marker}\n"
-            "Convert the shipped base flow first:  python savarino_to_npy.py"
+            f"missing {marker}\nConvert the shipped base flow first:  python savarino_to_npy.py"
         )
 
 
@@ -58,10 +58,14 @@ def _run_point(config: Path, out_npz: Path, *, nranks: int) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--nranks", type=int, default=4, help="MPI ranks per point (default: 4)")
     ap.add_argument("--mack-only", action="store_true", help="run only the (f,beta)=(2,45) point")
-    ap.add_argument("--liftup-only", action="store_true", help="run only the (f,beta)=(1e-4,163) point")
+    ap.add_argument(
+        "--liftup-only", action="store_true", help="run only the (f,beta)=(1e-4,163) point"
+    )
     args = ap.parse_args()
 
     _require_baseflow()

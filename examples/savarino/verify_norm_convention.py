@@ -21,6 +21,7 @@ The colourbar label "sigma^2 x 10^4" means the display is sigma^2/1e4.
 Every other candidate weighting misses by orders of magnitude
 (95.4, 1.02e8, 5.6e7, 5.99e13, 297.9 in the tables below).
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -47,7 +48,7 @@ def main() -> int:
 
     d = np.load(args.point_npz, allow_pickle=True)
     W = d["W_diag"]
-    idx = {v + "_j": d["idx_%s_j" % v] for v in PRIM}
+    idx = {v + "_j": d[f"idx_{v}_j"] for v in PRIM}
     sig_ours = float(d["gains"][0])
 
     base = read_tecplot(BASE)
@@ -81,22 +82,19 @@ def main() -> int:
     F_mass = float(np.real(np.vdot(f, M * f)))  # continuous L2 (mass-weighted)
 
     print("HIS published pair at (f,beta)=(2,45), evaluated in OUR norms")
-    print("  ||q_his||^2_E (Chu, mass-weighted) = %.6e" % E_q)
-    print("  ||f_his||^2  plain 2-norm          = %.6e" % F_l2)
-    print("  ||f_his||^2  mass-weighted L2      = %.6e" % F_mass)
+    print(f"  ||q_his||^2_E (Chu, mass-weighted) = {E_q:.6e}")
+    print(f"  ||f_his||^2  plain 2-norm          = {F_l2:.6e}")
+    print(f"  ||f_his||^2  mass-weighted L2      = {F_mass:.6e}")
     print()
     print(
-        "  sigma with plain-2-norm forcing  = %.6e   (sigma^2 x1e4 = %.4g)"
-        % (np.sqrt(E_q / F_l2), E_q / F_l2 * 1e4)
+        f"  sigma with plain-2-norm forcing  = {np.sqrt(E_q / F_l2):.6e}   (sigma^2 x1e4 = {E_q / F_l2 * 1e4:.4g})"
     )
     print(
-        "  sigma with mass-weighted forcing = %.6e   (sigma^2 x1e4 = %.4g)"
-        % (np.sqrt(E_q / F_mass), E_q / F_mass * 1e4)
+        f"  sigma with mass-weighted forcing = {np.sqrt(E_q / F_mass):.6e}   (sigma^2 x1e4 = {E_q / F_mass * 1e4:.4g})"
     )
     print()
     print(
-        "  our OPTIMAL sigma at this point   = %.6e   (sigma^2 x1e4 = %.4g)"
-        % (sig_ours, sig_ours**2 * 1e4)
+        f"  our OPTIMAL sigma at this point   = {sig_ours:.6e}   (sigma^2 x1e4 = {sig_ours**2 * 1e4:.4g})"
     )
     print("  his sigma^2 x1e4 from his figure  ~ 3.2")
 
@@ -115,7 +113,7 @@ def main() -> int:
     for name, (Wu, Fw) in combos.items():
         E = float(np.real(np.vdot(q, Wu * q)))
         Fn = float(np.real(np.vdot(f, f))) if Fw is None else float(np.real(np.vdot(f, Fw * f)))
-        print("  %-34s sigma^2 x1e4 = %.4g" % (name, E / Fn * 1e4))
+        print(f"  {name:<34} sigma^2 x1e4 = {E / Fn * 1e4:.4g}")
     print("\n  his figure ~ 3.2")
     print(
         "\n  ratio (our optimal) / (his own pair, Chu*w_int + plain 2-norm) = %.3f"
@@ -128,16 +126,17 @@ def main() -> int:
     n_mom = sum(
         float(np.real(np.vdot(fc[k].ravel(), fc[k].ravel()))) for k in ("rou", "rov", "row")
     )
-    print("  ||f_his||^2 conservative, all 5 comps  = %.6e" % n_cons)
-    print("  ||f_his||^2 conservative, momentum only= %.6e" % n_mom)
-    print("  ||f_his||^2 primitive (what we use)    = %.6e" % float(np.real(np.vdot(f, f))))
+    print(f"  ||f_his||^2 conservative, all 5 comps  = {n_cons:.6e}")
+    print(f"  ||f_his||^2 conservative, momentum only= {n_mom:.6e}")
+    print(f"  ||f_his||^2 primitive (what we use)    = {float(np.real(np.vdot(f, f))):.6e}")
     print(
-        "  max|f_ro| = %.3e   max|f_roe| = %.3e   (both should be ~0: momentum-only)"
-        % (np.abs(fc["ro"]).max(), np.abs(fc["roe"]).max())
+        "  max|f_ro| = {:.3e}   max|f_roe| = {:.3e}   (both should be ~0: momentum-only)".format(
+            np.abs(fc["ro"]).max(), np.abs(fc["roe"]).max()
+        )
     )
     E = float(np.real(np.vdot(q, Wc * q)))
     for lbl, Fn in [("conservative all-5", n_cons), ("conservative momentum-only", n_mom)]:
-        print("  sigma^2 x1e4 with E=Chu*w_int, F=%-27s = %.4g" % (lbl, E / Fn * 1e4))
+        print(f"  sigma^2 x1e4 with E=Chu*w_int, F={lbl:<27} = {E / Fn * 1e4:.4g}")
     print("\n  his figure ~ 3.2")
 
     print("\n=== which norm of HIS forcing equals 1? (unit-norm hypothesis) ===")
@@ -145,9 +144,9 @@ def main() -> int:
     n_cons_mass = 0.0
     for k in ("rou", "rov", "row"):
         n_cons_mass += float(np.real(np.vdot(fc[k].ravel(), w_int * fc[k].ravel())))
-    print("  ||f_his||^2 conservative momentum, MASS-weighted = %.6e" % n_cons_mass)
-    print("  ||f_his||^2 primitive,             MASS-weighted = %.6e" % 3.098804e00)
-    print("  -> sigma^2 = E/F = %.6e / %.6e = %.6e" % (E, n_cons_mass, E / n_cons_mass))
+    print(f"  ||f_his||^2 conservative momentum, MASS-weighted = {n_cons_mass:.6e}")
+    print(f"  ||f_his||^2 primitive,             MASS-weighted = {3.098804e00:.6e}")
+    print(f"  -> sigma^2 = E/F = {E:.6e} / {n_cons_mass:.6e} = {E / n_cons_mass:.6e}")
     print("  target (figure value x 1e4)                      ~ 3.2e4")
     return 0
 

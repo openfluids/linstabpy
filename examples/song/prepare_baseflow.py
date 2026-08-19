@@ -15,8 +15,8 @@ Default output: ``inputs/baseflow/*.npy`` (599 × 301 after streamwise trim).
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,18 +29,20 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # Used only to non-dimensionalise the finite-volume export (grid length, rho, u, v, p, T).
 SONG2023_REFERENCE = {
     "mach": 2.15,
-    "rho_inf": 0.0246,       # kg/m^3
-    "p_inf": 1082.0,         # Pa
-    "t_inf": 153.33,         # K
+    "rho_inf": 0.0246,  # kg/m^3
+    "p_inf": 1082.0,  # Pa
+    "t_inf": 153.33,  # K
     "gamma": 1.4,
     "reference_length_mm": 80.0,  # leading edge to inviscid shock impingement
-    "reynolds": 1.0e5,       # Re based on reference_length (not used in scaling here)
-    "prandtl": 0.72,         # used downstream in LSA, not in this file
-    "t_wall": 273.6,         # K; encoded in mean_flow.dat, not in scaling here
+    "reynolds": 1.0e5,  # Re based on reference_length (not used in scaling here)
+    "prandtl": 0.72,  # used downstream in LSA, not in this file
+    "t_wall": 273.6,  # K; encoded in mean_flow.dat, not in scaling here
 }
 
 
-def linear_interpolate(x_values: np.ndarray, y_values: np.ndarray, x_queries: np.ndarray) -> np.ndarray:
+def linear_interpolate(
+    x_values: np.ndarray, y_values: np.ndarray, x_queries: np.ndarray
+) -> np.ndarray:
     """Vectorised 1D linear interpolation (physical abscissae, ascending)."""
     x_values = np.asarray(x_values)
     y_values = np.asarray(y_values)
@@ -254,9 +256,7 @@ def interpolate_baseflow(
 
     nodal: dict[str, np.ndarray] = {"x": x, "y": y}
     for name in ("rho", "u", "v", "p", "T", "mu"):
-        nodal[name] = cc_to_vertex_separable(
-            fields_cc[name], x, y, x_cc, y_cc, y_on_cc_rows
-        )
+        nodal[name] = cc_to_vertex_separable(fields_cc[name], x, y, x_cc, y_cc, y_on_cc_rows)
     nodal["w"] = np.zeros_like(x)
 
     return apply_streamwise_trim(nodal, mode=trim_streamwise)
@@ -284,7 +284,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--grid", type=Path, default=INPUTS_RAW_DIR / "grid.grd")
     parser.add_argument("--mean-flow", type=Path, default=INPUTS_RAW_DIR / "mean_flow.dat")
     parser.add_argument("--output-dir", type=Path, default=INPUTS_BASEFLOW_DIR)
-    parser.add_argument("--reference-length-mm", type=float, default=SONG2023_REFERENCE["reference_length_mm"])
+    parser.add_argument(
+        "--reference-length-mm", type=float, default=SONG2023_REFERENCE["reference_length_mm"]
+    )
     parser.add_argument("--rho-inf", type=float, default=SONG2023_REFERENCE["rho_inf"])
     parser.add_argument("--p-inf", type=float, default=SONG2023_REFERENCE["p_inf"])
     parser.add_argument("--t-inf", type=float, default=SONG2023_REFERENCE["t_inf"])

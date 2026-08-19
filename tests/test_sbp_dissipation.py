@@ -17,7 +17,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from linstabpy.mesh.sbp import build_sbp_dissipation_matrices
+from linstabpy.mesh.sbp import (
+    _build_dp_matrix,
+    _build_sbp_with_pole,
+    _mohseni_pole_stencil,
+    build_sbp_dissipation_matrices,
+    build_sbp_pole_matrices,
+    sbp_stencils,
+)
 
 _N = 51
 _H = 1.0 / (_N - 1)
@@ -212,3 +219,40 @@ class TestSBPDissipationScalingRegression:
             f"O(h) band [{lo:.2e}, {hi:.2e}] for fd{order_interior}; "
             f"likely scaling regression in build_sbp_dissipation_matrices."
         )
+
+
+def test_dissipation_rejects_unknown_and_decoupled_orders() -> None:
+    with pytest.raises(ValueError, match="order_interior"):
+        build_sbp_dissipation_matrices(_N, _H, order_interior=2)
+    with pytest.raises(NotImplementedError, match="order_diss"):
+        build_sbp_dissipation_matrices(_N, _H, order_interior=4, order_diss=6)
+
+
+def test_dp_matrix_rejects_unsupported_derivative_order() -> None:
+    with pytest.raises(ValueError, match="Unsupported p"):
+        _build_dp_matrix(20, 0.1, 5)
+
+
+def test_pole_stencil_rejects_a_bad_parity() -> None:
+    a = sbp_stencils(2)["a_i1"]
+    with pytest.raises(ValueError, match="pole parity"):
+        _mohseni_pole_stencil(a, 0)
+
+
+def test_pole_builder_rejects_a_malformed_interior_stencil(monkeypatch) -> None:
+    real_stencils = sbp_stencils
+
+    def _bad(_order: int):
+        tables = dict(real_stencils(2))
+        tables["a_i1"] = np.ones((2, 3))
+        return tables
+
+    monkeypatch.setattr("linstabpy.mesh.sbp.sbp_stencils", _bad)
+    with pytest.raises(ValueError, match="interior stencil"):
+        _build_sbp_with_pole(12, 0.1, 2)
+
+
+def test_pole_matrices_have_matching_shapes() -> None:
+    D1s, D1a, D2s, D2a = build_sbp_pole_matrices(16, 0.1, 2)
+    assert D1s.shape == (16, 16)
+    assert D1a.shape == D2s.shape == D2a.shape == (16, 16)

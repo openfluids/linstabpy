@@ -59,7 +59,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from savarino_to_npy import GAMMA, MACH, read_tecplot  # noqa: E402
+from savarino_to_npy import GAMMA, MACH  # noqa: E402
 
 #: gamma (gamma - 1) M^2 -- the coefficient turning specific internal energy into T.
 T_COEFF = GAMMA * (GAMMA - 1.0) * MACH**2
@@ -110,9 +110,7 @@ def linearise_to_primitive(
     d_u = (pert["rou"] - u_b * d_rho) / rho_b
     d_v = (pert["rov"] - v_b * d_rho) / rho_b
     d_w = (pert["row"] - w_b * d_rho) / rho_b
-    d_e_int = (
-        pert["roe"] / rho_b - e_tot_b * d_rho / rho_b - (u_b * d_u + v_b * d_v + w_b * d_w)
-    )
+    d_e_int = pert["roe"] / rho_b - e_tot_b * d_rho / rho_b - (u_b * d_u + v_b * d_v + w_b * d_w)
     return {"rho": d_rho, "u": d_u, "v": d_v, "w": d_w, "T": d_e_int * T_COEFF}
 
 

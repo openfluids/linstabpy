@@ -14,12 +14,6 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sps
 import sympy as sp
-
-from linstabpy.mesh.mesh import _transform_second_derivatives
-from linstabpy.operators.coefficients import (
-    compute_cartesian_coefficients,
-    compute_cylindrical_coefficients,
-)
 from symbolic_compressible_nse import (
     cartesian_lnse_coefficients_from_nse,
     cartesian_operator_coefficients,
@@ -31,6 +25,12 @@ from symbolic_compressible_nse import (
     cylindrical_lnse_coefficients_from_nse,
     cylindrical_operator_coefficients,
     cylindrical_symbol_table,
+)
+
+from linstabpy.mesh.mesh import _transform_second_derivatives
+from linstabpy.operators.coefficients import (
+    compute_cartesian_coefficients,
+    compute_cylindrical_coefficients,
 )
 
 
@@ -809,10 +809,7 @@ def run_parity(
 # ---------------------------------------------------------------------------
 
 _FROZEN_REFERENCE = (
-    Path(__file__).resolve().parents[1]
-    / "tests"
-    / "tools"
-    / "coefficients_reference_base.py"
+    Path(__file__).resolve().parents[1] / "tests" / "tools" / "coefficients_reference_base.py"
 )
 
 

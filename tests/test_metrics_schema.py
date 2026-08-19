@@ -8,7 +8,7 @@ import json
 import numpy as np
 
 from linstabpy.driver.io import save_results
-from linstabpy.metrics_schema import SCHEMA, validate_metrics
+from linstabpy.metrics_schema import SCHEMA, _type_name, validate_metrics
 
 
 def _complete_metrics_payload() -> dict[str, object]:
@@ -139,3 +139,8 @@ def test_production_sidecar_payload_passes_schema(tmp_path, monkeypatch):
     assert validate_metrics(sidecar) == []
     assert sidecar["case"] == "tiny-check"
     assert sidecar["cost_peak_rss_bytes"] == 4096
+
+
+def test_type_name_formats_a_single_type_and_a_union() -> None:
+    assert _type_name(str) == "str"
+    assert _type_name((int, float)) == "int or float"

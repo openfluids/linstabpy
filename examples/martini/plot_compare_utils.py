@@ -14,6 +14,8 @@ from examples.martini.compare_martini_examples import (
     _load_npz_dict,
     _mode_matrix,
     _npz_get,
+)
+from examples.martini.compare_martini_examples import (
     load_matlab_bundle as load_matlab_fixture_bundle,
 )
 from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
@@ -438,8 +440,8 @@ def jet_sponge_zero_mask(
     r_1D = np.asarray(mat["r_1D"], dtype=float).reshape(-1)
     z_1D = np.asarray(mat["z_1D"], dtype=float).reshape(-1)
     source_shape = (int(r_1D.size), int(z_1D.size))
-    sponge = np.asarray(mat["spongeFun"], dtype=float).ravel(order="F").reshape(
-        source_shape, order="F"
+    sponge = (
+        np.asarray(mat["spongeFun"], dtype=float).ravel(order="F").reshape(source_shape, order="F")
     )
     if tuple(X.shape) != source_shape:
         interpolator = RegularGridInterpolator(
@@ -481,9 +483,7 @@ def jet_bc_mask_diag(
         return np.repeat(sponge0, int(n_fields))
     if key in {"tile", "repmat", "corrected", "block"}:
         return np.tile(sponge0, int(n_fields))
-    raise ValueError(
-        f"Unsupported jet B/C layout {layout!r} (use kron/repeat or tile/repmat)"
-    )
+    raise ValueError(f"Unsupported jet B/C layout {layout!r} (use kron/repeat or tile/repmat)")
 
 
 def jet_resolvent_response_c_diag(
@@ -517,9 +517,7 @@ def jet_resolvent_response_c_diag(
         u0 = u - 1 if one_based else u
         v0 = v - 1 if one_based else v
         return np.concatenate([c_full[u0], c_full[v0]])
-    raise ValueError(
-        f"Jet response DOFs {mode_dofs} do not match 2 or 5 x ngp={n_gp}"
-    )
+    raise ValueError(f"Jet response DOFs {mode_dofs} do not match 2 or 5 x ngp={n_gp}")
 
 
 def apply_diagonal_c(
@@ -530,9 +528,7 @@ def apply_diagonal_c(
     out = _mode_matrix(modes).copy()
     c = np.asarray(c_diag, dtype=float).reshape(-1)
     if c.size != out.shape[0]:
-        raise ValueError(
-            f"C diag length {c.size} does not match mode DOFs {out.shape[0]}"
-        )
+        raise ValueError(f"C diag length {c.size} does not match mode DOFs {out.shape[0]}")
     out *= c[:, None]
     return out
 
@@ -667,9 +663,7 @@ def maybe_compact_python_resolvent_uvw(
     uvw_dofs = int(u_j.size + v_j.size + w_j.size)
     if mat.shape[0] == uvw_dofs:
         return compact_resolvent_modes_uvw(modes_py, u_j, v_j, w_j)
-    raise ValueError(
-        f"Python mode DOFs {py.shape[0]} cannot be matched to MATLAB {mat.shape[0]}"
-    )
+    raise ValueError(f"Python mode DOFs {py.shape[0]} cannot be matched to MATLAB {mat.shape[0]}")
 
 
 def maybe_compact_python_resolvent_uv(
@@ -687,9 +681,7 @@ def maybe_compact_python_resolvent_uv(
     uv_dofs = int(u_j.size + v_j.size)
     if mat.shape[0] == uv_dofs:
         return compact_resolvent_modes_uv(modes_py, u_j, v_j)
-    raise ValueError(
-        f"Python mode DOFs {py.shape[0]} cannot be matched to MATLAB {mat.shape[0]}"
-    )
+    raise ValueError(f"Python mode DOFs {py.shape[0]} cannot be matched to MATLAB {mat.shape[0]}")
 
 
 def compact_resolvent_modes_component(
@@ -727,8 +719,7 @@ def maybe_compact_python_modes_to_matlab(
     )
     if compact.shape[0] != mat.shape[0]:
         raise ValueError(
-            f"Compact Python mode DOFs {compact.shape[0]} "
-            f"do not match MATLAB {mat.shape[0]}"
+            f"Compact Python mode DOFs {compact.shape[0]} do not match MATLAB {mat.shape[0]}"
         )
     n_gp = int(mat.shape[0])
     return compact, np.arange(1, n_gp + 1, dtype=int), True
@@ -915,7 +906,9 @@ def plot_mode_triptych(
         vmax = (
             float(field_vmax)
             if field_vmax is not None
-            else symmetric_vmax(matlab_grid, python_native, python_aligned, percentile=color_percentile)
+            else symmetric_vmax(
+                matlab_grid, python_native, python_aligned, percentile=color_percentile
+            )
         )
     vmax = max(float(vmax), 1e-30)
     # Peak-normalized percentage error (same convention as Example 0).
@@ -942,7 +935,9 @@ def plot_mode_triptych(
         cbar_label = field_cbar_label or (r"$|q|/\max|q|$" if normalize_by_peak else r"$|q|$")
     else:
         kwargs = dict(cmap="RdBu_r", vmin=-vmax, vmax=vmax, shading="auto")
-        cbar_label = field_cbar_label or (r"$\Re(q)/\max|\Re(q)|$" if normalize_by_peak else r"$\Re(q)$")
+        cbar_label = field_cbar_label or (
+            r"$\Re(q)/\max|\Re(q)|$" if normalize_by_peak else r"$\Re(q)$"
+        )
     im0 = axes[0].pcolormesh(X, Y, matlab_grid, **kwargs)
     if ref_gain is not None:
         axes[0].set_title(
@@ -1003,8 +998,22 @@ def plot_gain_comparison(
     x = np.arange(1, n + 1)
     width = 0.35
     fig, ax = plt.subplots(figsize=(7.0, 4.5))
-    ax.bar(x - width / 2, matlab_gains[:n], width=width, label=REF_CODE_LABEL, color="#b94f4f", alpha=0.75)
-    ax.bar(x + width / 2, python_gains[:n], width=width, label=PY_CODE_LABEL, color="#2a5caa", alpha=0.75)
+    ax.bar(
+        x - width / 2,
+        matlab_gains[:n],
+        width=width,
+        label=REF_CODE_LABEL,
+        color="#b94f4f",
+        alpha=0.75,
+    )
+    ax.bar(
+        x + width / 2,
+        python_gains[:n],
+        width=width,
+        label=PY_CODE_LABEL,
+        color="#2a5caa",
+        alpha=0.75,
+    )
     ax.set_xlabel(r"Mode rank")
     ax.set_ylabel(r"Gain")
     ax.set_title(title)
@@ -1060,7 +1069,9 @@ def plot_field_triptych(
     vmax = float(np.nanmax(np.abs(np.stack([matlab_field, python_field]))))
     vmax = max(vmax, 1e-30)
     err_pct = 100.0 * err / vmax
-    err_vmax = float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    err_vmax = (
+        float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    )
     err_vmax = max(err_vmax, 1e-30)
 
     # Same domain / packing as example_0_curvilinear_validation.png
@@ -1214,12 +1225,9 @@ def plot_mode_triptych_mosaic(
     bottom_pad_in = 0.35
     left, right = 0.10, 0.985
 
-    has_sigma = [
-        row.get("ref_gain") is not None or row.get("py_gain") is not None for row in rows
-    ]
+    has_sigma = [row.get("ref_gain") is not None or row.get("py_gain") is not None for row in rows]
     has_banner = [
-        bool(row.get("banner") or row.get("banner_ref") or row.get("banner_py"))
-        for row in rows
+        bool(row.get("banner") or row.get("banner_ref") or row.get("banner_py")) for row in rows
     ]
     # Same panel height for forcing and response (response size preferred).
     body_w = np.ones(n_rows, dtype=float)
@@ -1241,11 +1249,7 @@ def plot_mode_triptych_mosaic(
     # ``row_height`` sets vertical panel size in inches (domain/ylim unchanged).
     fig_h = float(row_height) * n_rows + top_pad_in + bottom_pad_in + banner_pad_in
     mode_banner_strip = (mode_banner_in / fig_h) if mode_only else 0.0
-    reserved = (
-        float(sum(gaps))
-        + n_sigma * sigma_strip
-        + n_banner * mode_banner_strip
-    )
+    reserved = float(sum(gaps)) + n_sigma * sigma_strip + n_banner * mode_banner_strip
     # Place each label at the *centre* of its reserved band (va="center").
     fig_margin_top = 0.01
     fig_top = 1.0 - fig_margin_top
@@ -1328,11 +1332,7 @@ def plot_mode_triptych_mosaic(
             if matlab_grid.shape != python_native.shape
             else python_native
         )
-        peak = float(
-            np.nanmax(
-                np.abs(np.stack([matlab_grid, python_native, python_aligned]))
-            )
-        )
+        peak = float(np.nanmax(np.abs(np.stack([matlab_grid, python_native, python_aligned]))))
         peak = max(peak, 1e-30)
         matlab_n = matlab_grid / peak
         python_n = python_native / peak

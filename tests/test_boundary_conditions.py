@@ -20,6 +20,13 @@ from linstabpy.boundary_conditions import (
     build_dirichlet_restriction_matrices,
     dirichlet_free_dofs,
 )
+from linstabpy.boundary_conditions.dirichlet import (
+    _set_diagonal_entries_csc,
+    _set_diagonal_entries_csr,
+    _zero_cols_csc,
+    _zero_rows_csr,
+)
+from linstabpy.boundary_conditions.recipe import BCRule
 from linstabpy.operators import build_lnse_operator, build_spatial_operator
 
 
@@ -1120,3 +1127,63 @@ class TestDissipationBCInteraction:
             f"Interior row {interior_dof} is identical between baseline and "
             f"dissipation-on variants — dissipation was not applied (max_diff={max_diff})"
         )
+
+
+def test_empty_dirichlet_helpers_are_noops() -> None:
+    mat_csr = sp.eye(4, format="csr")
+    mat_csc = sp.eye(4, format="csc")
+    _zero_rows_csr(mat_csr, np.array([], dtype=int))
+    _zero_cols_csc(mat_csc, np.array([], dtype=int))
+    assert _set_diagonal_entries_csc(mat_csc, np.array([], dtype=int), 2.0) is mat_csc
+    assert _set_diagonal_entries_csr(mat_csr, np.array([], dtype=int), 2.0) is mat_csr
+
+
+def test_dirichlet_spatial_empty_borders_leave_both_blocks() -> None:
+    n = 10
+    lc = sp.eye(n, format="csc")
+    r = 2.0 * sp.eye(n, format="csc")
+    idx = {
+        "bi": np.array([0], dtype=int),
+        "ti": np.array([1], dtype=int),
+        "li": np.array([2], dtype=int),
+        "ri": np.array([3], dtype=int),
+        "mi": np.array([], dtype=int),
+    }
+    lc_out, r_out, bc = apply_dirichlet_spatial(lc.copy(), r.copy(), idx, "", "u", 2)
+    assert bc.size == 0
+    np.testing.assert_array_equal(lc_out.toarray(), lc.toarray())
+    np.testing.assert_array_equal(r_out.toarray(), r.toarray())
+    with pytest.raises(ValueError, match="border"):
+        apply_dirichlet_spatial(lc.copy(), r.copy(), idx, "x", "u", 2)
+    with pytest.raises(ValueError, match="variable"):
+        apply_dirichlet_spatial(lc.copy(), r.copy(), idx, "b", "q", 2)
+
+
+def test_dirichlet_free_dofs_and_identity_pair_loud_fails() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        dirichlet_free_dofs(-1, np.array([], dtype=int))
+    lhs = sp.eye(4, format="csc")
+    rhs = sp.eye(4, format="csc")
+    lhs_out, rhs_out = apply_dirichlet_identity_pair(lhs, rhs, np.array([], dtype=int))
+    np.testing.assert_array_equal(lhs_out.toarray(), np.eye(4))
+    np.testing.assert_array_equal(rhs_out.toarray(), np.eye(4))
+    with pytest.raises(ValueError, match="square"):
+        apply_dirichlet_identity_pair(sp.csr_matrix((3, 4)), sp.eye(3, format="csc"), np.array([0]))
+    with pytest.raises(ValueError, match="same shape"):
+        apply_dirichlet_identity_pair(
+            sp.eye(4, format="csc"), sp.eye(3, format="csc"), np.array([0])
+        )
+
+
+def test_empty_bc_recipe_is_a_noop(small_mesh_2d, uniform_baseflow) -> None:
+    mesh = small_mesh_2d
+    L0, idx = build_lnse_operator(mesh, uniform_baseflow, kx=0.0)
+    L0_out, bc = apply_bc_recipe(L0.copy(), mesh, idx, [])
+    assert bc.size == 0
+    assert (L0_out - L0).nnz == 0
+    report = analyze_bc_recipe(mesh, idx, [])
+    assert report["rule_reports"] == []
+    assert report["total_bc_indices"].size == 0
+    bogus = BCRecipe(rules=(BCRule(type="robin", borders="b", variables="u"),))
+    with pytest.raises(ValueError, match="Unknown BC type"):
+        apply_bc_recipe(L0.copy(), mesh, idx, bogus)

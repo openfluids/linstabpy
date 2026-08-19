@@ -30,17 +30,16 @@ from examples._helpers import (  # noqa: E402
     plot_signed_panel,
     save_figure,
 )
+from examples.song.reference_paths import SPECTRUM_EIGENVALUES_DAT  # noqa: E402
+from linstabpy.baseflow import load_case_fields, sutherland_air  # noqa: E402
 from linstabpy.mesh import Mesh  # noqa: E402
 from linstabpy.operators.assembly import build_lnse_system  # noqa: E402
 from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
 from linstabpy.resolvent.analysis import resolvent_analysis  # noqa: E402
 from linstabpy.solvers.petsc_utils import scipy_to_petsc  # noqa: E402
 from linstabpy.stability import eigenvalues as temporal_eigenvalues  # noqa: E402
-from linstabpy.utils.yaml_io import load_config, parse_complex  # noqa: E402
 from linstabpy.utils.petsc_core import _petsc_matrix_mode, _use_distributed_matrix  # noqa: E402
-
-from linstabpy.baseflow import load_case_fields, sutherland_air  # noqa: E402
-from examples.song.reference_paths import SPECTRUM_EIGENVALUES_DAT  # noqa: E402
+from linstabpy.utils.yaml_io import load_config, parse_complex  # noqa: E402
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")

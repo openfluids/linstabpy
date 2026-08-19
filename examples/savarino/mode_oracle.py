@@ -120,8 +120,19 @@ def main() -> int:
     original = run_module._stage_run_resolvent
     results: dict[str, dict[str, float]] = {}
 
-    def oracle_stage(*, L0_resolv, mesh, idx, config, W_diag, omega_target,
-                     total_bc_indices, solver_cfg, cfg, **kw):
+    def oracle_stage(
+        *,
+        L0_resolv,
+        mesh,
+        idx,
+        config,
+        W_diag,
+        omega_target,
+        total_bc_indices,
+        solver_cfg,
+        cfg,
+        **kw,
+    ):
         ndof = mesh.ngp * 5
         f_vec = _to_dof(forcing_prim, mesh, idx, ndof)
         q_his = _to_dof(response_prim, mesh, idx, ndof)
@@ -134,7 +145,9 @@ def main() -> int:
                 L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
             )
             op = ResolventOperator(
-                lu, None, None,
+                lu,
+                None,
+                None,
                 mesh.filters.filter if mesh.filters is not None else None,
                 mesh.filters.filter_ct if mesh.filters is not None else None,
             )
@@ -148,25 +161,33 @@ def main() -> int:
                 flush=True,
             )
             np.savez_compressed(
-                OUT / f"oracle_{POINT}_{label.replace('+','p').replace('-','m')}.npz",
-                q_ours=q_ours, q_his=q_his, f_vec=f_vec, **m,
+                OUT / f"oracle_{POINT}_{label.replace('+', 'p').replace('-', 'm')}.npz",
+                q_ours=q_ours,
+                q_his=q_his,
+                f_vec=f_vec,
+                **m,
             )
 
         best = min(results, key=lambda k: results[k]["rel_error"])
         print(f"[oracle] best convention: {best}", flush=True)
         # Let the driver finish tidily; the numbers above are the deliverable.
         return original(
-            L0_resolv=L0_resolv, mesh=mesh, idx=idx, config=config, W_diag=W_diag,
-            omega_target=omega_target, total_bc_indices=total_bc_indices,
-            solver_cfg=solver_cfg, cfg=cfg, run_resolvent=False,
+            L0_resolv=L0_resolv,
+            mesh=mesh,
+            idx=idx,
+            config=config,
+            W_diag=W_diag,
+            omega_target=omega_target,
+            total_bc_indices=total_bc_indices,
+            solver_cfg=solver_cfg,
+            cfg=cfg,
+            run_resolvent=False,
             n_modes_resolvent=kw.get("n_modes_resolvent", 1),
             heartbeat_seconds=kw.get("heartbeat_seconds", 0.0),
         )
 
     run_module._stage_run_resolvent = oracle_stage
-    os.environ.setdefault(
-        "LINSTABPY_CASE1_CONFIG", str(HERE / "configs" / "mack_f2_b45.yaml")
-    )
+    os.environ.setdefault("LINSTABPY_CASE1_CONFIG", str(HERE / "configs" / "mack_f2_b45.yaml"))
     from linstabpy.driver.run import run as compute
 
     compute()

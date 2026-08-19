@@ -9,9 +9,7 @@ from pathlib import Path
 import yaml
 
 # YAML 1.2 needs a signed exponent (1.0e+5). Case files use 1e5 and 1.0e5.
-_SCI_FLOAT = re.compile(
-    r"^[-+]?(?:[0-9][0-9_]*)?(?:\.[0-9_]*)?[eE][-+]?[0-9]+$"
-)
+_SCI_FLOAT = re.compile(r"^[-+]?(?:[0-9][0-9_]*)?(?:\.[0-9_]*)?[eE][-+]?[0-9]+$")
 
 
 class _CaseLoader(yaml.SafeLoader):

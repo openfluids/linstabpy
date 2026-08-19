@@ -37,7 +37,14 @@ def main() -> int:
         if signed:
             lim = float(np.max(np.abs(field)))
             mesh = ax.pcolormesh(
-                x, y, field, shading="auto", cmap=signed_cmap(), vmin=-lim, vmax=lim, rasterized=True
+                x,
+                y,
+                field,
+                shading="auto",
+                cmap=signed_cmap(),
+                vmin=-lim,
+                vmax=lim,
+                rasterized=True,
             )
         else:
             mesh = ax.pcolormesh(x, y, field, shading="auto", cmap="cividis", rasterized=True)

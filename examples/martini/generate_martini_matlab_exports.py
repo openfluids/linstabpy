@@ -104,9 +104,7 @@ def main() -> int:
         env_root = os.environ.get("LINSTAB2D_ROOT", "")
         linstab2d_root = Path(env_root) if env_root else _default_linstab2d_root()
     if linstab2d_root is None or not linstab2d_root.is_dir():
-        raise FileNotFoundError(
-            "Set --linstab2d-root or LINSTAB2D_ROOT to a LinStab2D checkout."
-        )
+        raise FileNotFoundError("Set --linstab2d-root or LINSTAB2D_ROOT to a LinStab2D checkout.")
 
     output_dir = args.output_dir.resolve()
     command = ["bash", str(runner)]

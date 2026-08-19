@@ -18,10 +18,9 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.axes_grid1 import ImageGrid
 
-from linstabpy.baseflow import load_case_fields
-
 from examples.figure_style import apply, check_plot_environment, save
 from examples.song.reference_paths import FIGURES_BASEFLOW_DIR, INPUTS_BASEFLOW_DIR
+from linstabpy.baseflow import load_case_fields
 
 BASEFLOW_LABEL_SIZE = 16
 BASEFLOW_TICK_SIZE = 14
@@ -151,13 +150,17 @@ def plot_baseflow_fields(
         ax.set_box_aspect(box_aspect)
         cbar = ax.cax.colorbar(cf, extend="both")
         cbar.ax.yaxis.set_major_locator(MaxNLocator(nbins=BASEFLOW_CBAR_MAX_TICKS))
-        cbar.set_label(label, rotation=90, va="center", labelpad=labelpad, fontsize=BASEFLOW_CBAR_LABEL_SIZE)
+        cbar.set_label(
+            label, rotation=90, va="center", labelpad=labelpad, fontsize=BASEFLOW_CBAR_LABEL_SIZE
+        )
         cbar.ax.tick_params(labelsize=BASEFLOW_CBAR_TICK_SIZE, length=2.5, width=0.6)
         ax.tick_params(axis="both", labelsize=BASEFLOW_TICK_SIZE)
     for ax in grid.axes_column[0]:
         ax.set_ylabel(r"$y/X_{\mathrm{sh}}$", fontsize=BASEFLOW_LABEL_SIZE)
     for ax in grid.axes_row[1]:
-        ax.set_xlabel(r"$x/X_{\mathrm{sh}}$", labelpad=BASEFLOW_XLABEL_PAD, fontsize=BASEFLOW_LABEL_SIZE)
+        ax.set_xlabel(
+            r"$x/X_{\mathrm{sh}}$", labelpad=BASEFLOW_XLABEL_PAD, fontsize=BASEFLOW_LABEL_SIZE
+        )
     fig.subplots_adjust(
         left=BASEFLOW_MARGIN_LEFT,
         right=BASEFLOW_MARGIN_RIGHT,

@@ -237,7 +237,9 @@ def _resolvent_analysis_impl(
     gamma: float = 0.0,
     compute_residuals: bool,
     cfg: Config | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None, dict[str, float]]:
+) -> tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None, dict[str, float]
+]:
     """Implementation shared by the public resolvent entry points."""
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     require_complex(solver_cfg)

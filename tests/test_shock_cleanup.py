@@ -190,3 +190,169 @@ def test_modified_ducros_placeholder_raises() -> None:
 
     with pytest.raises(NotImplementedError):
         apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, sponge, cfg)
+
+
+def test_shock_cleanup_rejects_filter_without_sensor() -> None:
+    X, Y = _regular_grid(8, 6)
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    with pytest.raises(ValueError, match="sensor.enabled"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {"enabled": True, "sensor": {"enabled": False}, "filter": {"enabled": True}},
+        )
+
+
+def test_shock_cleanup_rejects_duplicate_and_unknown_lists() -> None:
+    from linstabpy.baseflow.shock_cleanup import (
+        _binomial5_filter,
+        _normalize_directions,
+        _normalize_fields,
+    )
+
+    assert _normalize_directions(["x", "x", "y"]) == [1, 0]
+    assert _normalize_fields(["rho", "rho", "T"]) == ["rho", "T"]
+    with pytest.raises(ValueError, match="only 'x'"):
+        _normalize_directions(["z"])
+    field = np.ones((4, 5))
+    with pytest.raises(ValueError, match="2-D"):
+        _binomial5_filter(np.ones(4), axis=0)
+    with pytest.raises(ValueError, match="axis"):
+        _binomial5_filter(field, axis=2)
+
+
+def test_compression_only_sensor_masks_on_divergence() -> None:
+    X, Y = _regular_grid()
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    cfg = {
+        "enabled": True,
+        "sensor": {
+            "enabled": True,
+            "kind": "compression_only",
+            "compression_threshold": -5.0,
+            "buffer_cells": 1,
+            "blend_sigma": 1.0,
+        },
+        "filter": {"enabled": False},
+        "sponge": {"enabled": False},
+    }
+    *_fields, info = apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, sponge, cfg)
+    assert info["sensor"]["kind"] == "compression_only"
+    assert info["sensor"]["mask_fraction"] > 0.0
+    assert float(np.max(info["preserve_weight"])) == pytest.approx(1.0)
+
+
+def test_shock_cleanup_loud_fails_on_sensor_and_sponge_numbers() -> None:
+    X, Y = _regular_grid(8, 6)
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    base = {"enabled": True, "sensor": {"enabled": True}, "filter": {"enabled": False}}
+    with pytest.raises(ValueError, match="sensor.kind"):
+        apply_optional_shock_cleanup(
+            X, Y, rho, u, v, w, T, sponge, {**base, "sensor": {"enabled": True, "kind": "unknown"}}
+        )
+    with pytest.raises(ValueError, match="buffer_cells"):
+        apply_optional_shock_cleanup(
+            X, Y, rho, u, v, w, T, sponge, {**base, "sensor": {"enabled": True, "buffer_cells": -1}}
+        )
+    with pytest.raises(ValueError, match="blend_sigma"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**base, "sensor": {"enabled": True, "blend_sigma": -0.1}},
+        )
+    with pytest.raises(ValueError, match="amplitude"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**base, "sponge": {"enabled": True, "amplitude": -1.0}},
+        )
+    with pytest.raises(ValueError, match="mode"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**base, "sponge": {"enabled": True, "amplitude": 1.0, "mode": "min"}},
+        )
+    with pytest.raises(ValueError, match="smooth_sigma"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**base, "sponge": {"enabled": True, "amplitude": 1.0, "smooth_sigma": -0.2}},
+        )
+    with pytest.raises(ValueError, match="passes"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**base, "filter": {"enabled": True, "passes": -1}},
+        )
+
+
+def test_shock_filter_zero_passes_and_zero_amplitude_sponge_are_noops() -> None:
+    X, Y = _regular_grid()
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    cfg = {
+        "enabled": True,
+        "sensor": {"enabled": True, "kind": "compression_ducros", "compression_threshold": -5.0},
+        "filter": {"enabled": True, "passes": 0, "fields": ["rho"]},
+        "sponge": {"enabled": True, "amplitude": 0.0, "smooth_sigma": 1.0},
+    }
+    rho_out, _u, _v, _w, _T, sponge_out, info = apply_optional_shock_cleanup(
+        X, Y, rho, u, v, w, T, sponge, cfg
+    )
+    assert_allclose(rho_out, rho)
+    assert_allclose(sponge_out, sponge)
+    assert info["filter"]["passes"] == 0
+
+
+def test_shock_sponge_smooths_when_sigma_is_positive() -> None:
+    X, Y = _regular_grid()
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    cfg = {
+        "enabled": True,
+        "sensor": {
+            "enabled": True,
+            "kind": "compression_ducros",
+            "compression_threshold": -5.0,
+            "buffer_cells": 2,
+        },
+        "filter": {"enabled": False},
+        "sponge": {"enabled": True, "amplitude": 2.0, "mode": "add", "smooth_sigma": 1.5},
+    }
+    *_fields, sponge_out, info = apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, sponge, cfg)
+    assert info["sponge"]["enabled"] is True
+    assert float(np.max(sponge_out)) > 0.0

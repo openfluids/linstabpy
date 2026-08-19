@@ -109,9 +109,7 @@ def spatial_lhs_with_dirichlet(
             Lw,
             structure=PETSc.Mat.Structure.DIFFERENT_NONZERO_PATTERN,
         )
-        L, R, bc_indices = apply_dirichlet_spatial_petsc(
-            L, R, idx, borders, variables, ngp
-        )
+        L, R, bc_indices = apply_dirichlet_spatial_petsc(L, R, idx, borders, variables, ngp)
         return L, R, bc_indices
 
     from linstabpy.boundary_conditions.dirichlet import apply_dirichlet_spatial

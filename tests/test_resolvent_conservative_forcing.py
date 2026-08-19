@@ -18,6 +18,7 @@ import scipy.sparse as sp
 
 from linstabpy.resolvent.conservative_forcing import (
     build_conservative_momentum_matrix,
+    conservative_momentum_coefficients,
     dewhiten_forcing,
     validate_conservative_momentum_vars,
 )
@@ -405,3 +406,152 @@ def test_resolvent_package_lazy_exports_conservative_forcing() -> None:
     assert resolvent_pkg.dewhiten_forcing is dewhiten_forcing
     with pytest.raises(AttributeError, match="no attribute"):
         getattr(resolvent_pkg, "not_an_export")
+
+
+def test_validate_conservative_momentum_vars_accepts_a_single_name() -> None:
+    assert validate_conservative_momentum_vars("u", name="input_region") == ("u",)
+    with pytest.raises(ValueError, match="iterable"):
+        validate_conservative_momentum_vars(1, name="input_region")
+
+
+def test_conservative_coefficients_reject_zero_density_and_unknown_var() -> None:
+    ones = np.ones(3)
+    with pytest.raises(ValueError, match="rho_bar"):
+        conservative_momentum_coefficients(np.array([1.0, 0.0, 1.0]), ones, ones, ones, 1.4, 2.0)
+    with pytest.raises(ValueError, match="unknown momentum"):
+        conservative_momentum_coefficients(ones, ones, ones, ones, 1.4, 2.0, momentum_vars=("q",))
+
+
+def test_conservative_matrix_rejects_empty_region_and_length_mismatch() -> None:
+    _X, _Y, idx, ngp = _grid_idx()
+    ndof = 5 * ngp
+    flow = _base_flow_arrays(ngp)
+    kwargs = dict(
+        idx=idx,
+        ndof=ndof,
+        rho_bar_active=flow["rho_bar"],
+        u_bar_active=flow["u_bar"],
+        v_bar_active=flow["v_bar"],
+        w_bar_active=flow["w_bar"],
+        w_int_active=flow["w_int"],
+        kappa=KAPPA,
+        ma=MA,
+    )
+    with pytest.raises(ValueError, match="zero active points"):
+        build_conservative_momentum_matrix(point_indices=np.array([], dtype=np.int64), **kwargs)
+    with pytest.raises(ValueError, match="u_bar_active"):
+        build_conservative_momentum_matrix(
+            point_indices=np.arange(ngp, dtype=np.int64),
+            **{**kwargs, "u_bar_active": flow["u_bar"][:2]},
+        )
+    bad_w = flow["w_int"].copy()
+    bad_w[0] = 0.0
+    with pytest.raises(ValueError, match="w_int"):
+        build_conservative_momentum_matrix(
+            point_indices=np.arange(ngp, dtype=np.int64),
+            **{**kwargs, "w_int_active": bad_w},
+        )
+
+
+def test_conservative_matrix_rejects_missing_index_blocks() -> None:
+    _X, _Y, idx, ngp = _grid_idx()
+    ndof = 5 * ngp
+    flow = _base_flow_arrays(ngp)
+    points = np.arange(ngp, dtype=np.int64)
+    no_t = {k: v for k, v in idx.items() if k != "T_j"}
+    with pytest.raises(ValueError, match="T_j"):
+        build_conservative_momentum_matrix(
+            no_t,
+            ndof,
+            points,
+            flow["rho_bar"],
+            flow["u_bar"],
+            flow["v_bar"],
+            flow["w_bar"],
+            flow["w_int"],
+            KAPPA,
+            MA,
+        )
+    short_t = dict(idx)
+    short_t["T_j"] = idx["T_j"][:2]
+    with pytest.raises(ValueError, match="T_j"):
+        build_conservative_momentum_matrix(
+            short_t,
+            ndof,
+            points,
+            flow["rho_bar"],
+            flow["u_bar"],
+            flow["v_bar"],
+            flow["w_bar"],
+            flow["w_int"],
+            KAPPA,
+            MA,
+        )
+    no_u = {k: v for k, v in idx.items() if k != "u_j"}
+    with pytest.raises(ValueError, match="u_j"):
+        build_conservative_momentum_matrix(
+            no_u,
+            ndof,
+            points,
+            flow["rho_bar"],
+            flow["u_bar"],
+            flow["v_bar"],
+            flow["w_bar"],
+            flow["w_int"],
+            KAPPA,
+            MA,
+        )
+    short_u = dict(idx)
+    short_u["u_j"] = idx["u_j"][:2]
+    with pytest.raises(ValueError, match="u_j"):
+        build_conservative_momentum_matrix(
+            short_u,
+            ndof,
+            points,
+            flow["rho_bar"],
+            flow["u_bar"],
+            flow["v_bar"],
+            flow["w_bar"],
+            flow["w_int"],
+            KAPPA,
+            MA,
+        )
+
+
+def test_conservative_matrix_respects_excluded_dofs() -> None:
+    _X, _Y, idx, ngp = _grid_idx()
+    ndof = 5 * ngp
+    flow = _base_flow_arrays(ngp)
+    points = np.arange(ngp, dtype=np.int64)
+    one_u = int(idx["u_j"][0])
+    B, dewhiten, info = build_conservative_momentum_matrix(
+        idx,
+        ndof,
+        points,
+        flow["rho_bar"],
+        flow["u_bar"],
+        flow["v_bar"],
+        flow["w_bar"],
+        flow["w_int"],
+        KAPPA,
+        MA,
+        excluded_dofs=np.array([one_u], dtype=np.int64),
+    )
+    assert one_u not in set(info["momentum_dofs"].tolist())
+    assert B.shape == (ndof, ndof)
+    assert float(dewhiten[one_u]) == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="zero forcing dofs"):
+        build_conservative_momentum_matrix(
+            idx,
+            ndof,
+            points,
+            flow["rho_bar"],
+            flow["u_bar"],
+            flow["v_bar"],
+            flow["w_bar"],
+            flow["w_int"],
+            KAPPA,
+            MA,
+            momentum_vars=("u",),
+            excluded_dofs=idx["u_j"],
+        )

@@ -396,8 +396,7 @@ def sponge_from_config(
         preset_key = str(preset).strip().lower()
         if preset_key not in SPONGE_PRESETS:
             raise ValueError(
-                f"Unsupported sponge preset {preset!r}; "
-                f"expected one of {sorted(SPONGE_PRESETS)}"
+                f"Unsupported sponge preset {preset!r}; expected one of {sorted(SPONGE_PRESETS)}"
             )
         resolved.update(SPONGE_PRESETS[preset_key])
     resolved.update({k: v for k, v in cfg.items() if k != "enabled"})

@@ -18,17 +18,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from linstabpy.utils.yaml_io import load_config
 from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
+from linstabpy.utils.yaml_io import load_config
 
 DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.yaml"
 DEFAULT_NPZ_DIR = ROOT / "examples" / "martini"
-DEFAULT_REPORT = (
-    ROOT / "examples" / "martini" / "martini_parity_latest.json"
-)
-DEFAULT_TABLE = (
-    ROOT / "examples" / "martini" / "martini_parity_table.csv"
-)
+DEFAULT_REPORT = ROOT / "examples" / "martini" / "martini_parity_latest.json"
+DEFAULT_TABLE = ROOT / "examples" / "martini" / "martini_parity_table.csv"
 LINSTAB2D_RESULTS_DIRNAME = "LinStab2DResults"
 
 
@@ -182,9 +178,7 @@ def _prepare_resolvent_parity_payload(
         from examples.martini.example_5_plots import ex5_observation_mask_diag
 
         cfg = load_config(ROOT / "examples/martini/example_5_paraboloid.yaml")
-        forcings_py = apply_diagonal_c(
-            forcings_py, ex5_observation_mask_diag(cfg)
-        )
+        forcings_py = apply_diagonal_c(forcings_py, ex5_observation_mask_diag(cfg))
 
     if u_j is not None and v_j is not None and w_j is not None:
         responses_py = maybe_compact_python_resolvent_uvw(
@@ -197,9 +191,7 @@ def _prepare_resolvent_parity_payload(
         responses_py = maybe_compact_python_resolvent_uv(
             responses_py, responses_mat, u_j=u_j, v_j=v_j
         )
-        forcings_py = maybe_compact_python_resolvent_uv(
-            forcings_py, forcings_mat, u_j=u_j, v_j=v_j
-        )
+        forcings_py = maybe_compact_python_resolvent_uv(forcings_py, forcings_mat, u_j=u_j, v_j=v_j)
 
     if case_id == "example_1_blasius":
         from examples.martini.example_1_plots import ex1_observation_mask_diag
@@ -215,9 +207,7 @@ def _prepare_resolvent_parity_payload(
         X_py = np.asarray(python_npz["X"], dtype=float)
         Y_py = np.asarray(python_npz["Y"], dtype=float)
         used_py = (
-            np.asarray(python_npz["used_ind"], dtype=int)
-            if "used_ind" in python_npz
-            else None
+            np.asarray(python_npz["used_ind"], dtype=int) if "used_ind" in python_npz else None
         )
         sponge0 = jet_sponge_zero_mask(X_py, Y_py, used_ind=used_py)
         n_gp = int(sponge0.size)
@@ -474,9 +464,7 @@ def _compare_cavity_case(
         u_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/u_j")
         v_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/v_j")
         w_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/w_j")
-        direct_modes_py = compact_resolvent_modes_uvw(
-            direct_modes_py, u_j, v_j, w_j
-        )
+        direct_modes_py = compact_resolvent_modes_uvw(direct_modes_py, u_j, v_j, w_j)
     direct_saved = _saved_mode_indices_1based(
         matlab_direct, "results_Cavity_direct/saved_mode_indices"
     )
@@ -491,9 +479,7 @@ def _compare_cavity_case(
         u_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/u_j")
         v_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/v_j")
         w_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/w_j")
-        adjoint_modes_py = compact_resolvent_modes_uvw(
-            adjoint_modes_py, u_j, v_j, w_j
-        )
+        adjoint_modes_py = compact_resolvent_modes_uvw(adjoint_modes_py, u_j, v_j, w_j)
     adj_saved = _saved_mode_indices_1based(
         matlab_adjoint, "results_Cavity_adjoint/saved_mode_indices"
     )
@@ -739,13 +725,15 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             matlab_npz = load_matlab_bundle(npz_dir, str(case["matlab_results_stem"]))
             responses_mat = _npz_get(matlab_npz, str(case["matlab_responses_key"]))
             forcings_mat = _npz_get(matlab_npz, str(case["matlab_forcings_key"]))
-            responses_py, forcings_py, responses_mat, forcings_mat = _prepare_resolvent_parity_payload(
-                case_id=str(case["case_id"]),
-                python_npz=python_npz,
-                matlab_npz=matlab_npz,
-                case=case,
-                responses_mat=responses_mat,
-                forcings_mat=forcings_mat,
+            responses_py, forcings_py, responses_mat, forcings_mat = (
+                _prepare_resolvent_parity_payload(
+                    case_id=str(case["case_id"]),
+                    python_npz=python_npz,
+                    matlab_npz=matlab_npz,
+                    case=case,
+                    responses_mat=responses_mat,
+                    forcings_mat=forcings_mat,
+                )
             )
             svd_res_fwd = (
                 np.asarray(python_npz["svd_residuals_fwd"]).reshape(-1)

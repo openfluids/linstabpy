@@ -230,3 +230,80 @@ def test_mumps_icntl_petsc_options_none_opts_out() -> None:
 def test_mumps_icntl_petsc_options_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LINSTABPY_PETSC_MUMPS_ICNTL_14", "321")
     assert _mumps_opts({})["mat_mumps_icntl_14"] == "321"
+
+
+def test_typed_config_load_defaults_and_yaml_path(tmp_path) -> None:
+    empty = Config.load(None, env={})
+    assert empty.linsolve.type == "mumps"
+    assert empty.eigen.eps_max_it(10) == 500
+    assert empty.eigen.eps_max_it(80) == 800
+    path = tmp_path / "solver.yaml"
+    path.write_text(
+        "solver:\n"
+        "  linsolve:\n"
+        "    type: iterative\n"
+        "    ksp_monitor: yes\n"
+        "    factor_backend: none\n"
+        "  eigen:\n"
+        "    st_solver: lu\n"
+        "    eps_max_it: 12\n"
+        "    pc_type: lu\n"
+        "  assembly_metrics_output: '  '\n"
+        "  assembly_metrics_dir:\n",
+        encoding="utf-8",
+    )
+    loaded = Config.load(path, env={})
+    assert loaded.linsolve.type == "iterative"
+    assert loaded.linsolve.ksp_monitor is True
+    assert loaded.eigen.eps_max_it(100) == 12
+    assert loaded.mesh.assembly_metrics_output is None
+    assert loaded.mesh.assembly_metrics_dir is None
+
+
+def test_typed_config_env_and_st_solver_routes() -> None:
+    env = {
+        "LINSTABPY_FACTOR_BACKEND": "superlu_dist",
+        "LINSTABPY_FACTOR_PRECISION": "single",
+        "LINSTABPY_MUMPS_BLR": "1",
+        "LINSTABPY_MUMPS_BLR_TOL": "1e-6",
+        "LINSTABPY_MUMPS_ORDERING": "metis",
+        "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD": "1234",
+        "LINSTABPY_ASSEMBLY_METRICS_OUTPUT": "",
+    }
+    cfg = Config.load({"solver": {"linsolve": {"factor_precision": "double"}}}, env=env)
+    assert cfg.linsolve.factor_backend == "superlu_dist"
+    assert cfg.linsolve.factor_precision == "single"
+    assert cfg.linsolve.mumps_blr is True
+    assert cfg.eigen.auto_route_dof_threshold == 1234
+    assert cfg.mesh.assembly_metrics_output is None
+
+    iterative = Config.load({"solver": {"eigen": {"st_solver": "slepc", "pc_type": "asm"}}}, env={})
+    assert iterative.eigen.st_factor_backend is None
+    lu_pc = Config.load({"solver": {"eigen": {"st_solver": "slepc", "pc_type": "lu"}}}, env={})
+    assert lu_pc.eigen.st_factor_backend == "mumps"
+    strumpack = Config.load({"solver": {"eigen": {"st_solver": "strumpack_fgmres"}}}, env={})
+    assert strumpack.eigen.st_factor_backend == "strumpack"
+    fgmres = Config.load({"solver": {"eigen": {"st_solver": "fgmres_lu"}}}, env={})
+    assert fgmres.eigen.st_factor_backend == "mumps"
+    inexact = Config.load({"solver": {"eigen": {"st_solver": "inexact"}}}, env={})
+    assert inexact.eigen.st_factor_backend is None
+    yaml_prec = Config.load({"solver": {"linsolve": {"factor_precision": "single"}}}, env={})
+    assert yaml_prec.linsolve.factor_precision == "single"
+    yaml_blr = Config.load(
+        {
+            "solver": {
+                "linsolve": {"mumps_blr": True, "mumps_blr_tol": 1e-5, "mumps_ordering": "pord"}
+            }
+        },
+        env={},
+    )
+    assert yaml_blr.linsolve.mumps_blr is True
+    yaml_thr = Config.load({"solver": {"eigen": {"auto_route_dof_threshold": 77}}}, env={})
+    assert yaml_thr.eigen.auto_route_dof_threshold == 77
+
+
+def test_typed_config_rejects_removed_mumps_icntl7() -> None:
+    with pytest.raises(ValueError, match="mumps_ordering"):
+        Config.load({"solver": {"mumps_icntl_7": 5}}, env={})
+    with pytest.raises(ValueError, match="LINSTABPY_MUMPS_ORDERING"):
+        Config.load(None, env={"LINSTABPY_PETSC_SET_MUMPS_ICNTL_7": "1"})

@@ -1,4 +1,4 @@
-"""Presentation figures for Martini Example 3 (streaky BL / Floquet).
+r"""Presentation figures for Martini Example 3 (streaky BL / Floquet).
 
 Matches the thesis/campaign layout under
 ``cases/Martini2024/comparison/plots/example_3_streaky_bl/``.
@@ -303,11 +303,7 @@ def build_mode_rows(
         else np.arange(int(np.prod(X_py.shape)), dtype=int)
     )
     idx_key = f"idx_{component}_j"
-    idx_comp = (
-        py[idx_key]
-        if idx_key in py
-        else _npz_get(matlab, f"{IDX_PREFIX}/{component}_j")
-    )
+    idx_comp = py[idx_key] if idx_key in py else _npz_get(matlab, f"{IDX_PREFIX}/{component}_j")
     one_based = idx_key not in py
     modes_py, idx_comp, one_based = maybe_compact_python_modes_to_matlab(
         modes_py,
@@ -453,9 +449,7 @@ def plot_python_mode_stack(
         Y = np.asarray(row["Y"], dtype=float)
         grid = np.asarray(row["grid"], dtype=float)
         peak = max(float(np.nanmax(np.abs(grid))), 1e-30)
-        im = ax.pcolormesh(
-            X, Y, grid / peak, cmap="RdBu_r", vmin=-1.0, vmax=1.0, shading="auto"
-        )
+        im = ax.pcolormesh(X, Y, grid / peak, cmap="RdBu_r", vmin=-1.0, vmax=1.0, shading="auto")
         ax.set_aspect("auto")
         if ylim is not None:
             y0, y1 = float(ylim[0]), float(ylim[1])

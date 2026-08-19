@@ -77,3 +77,33 @@ def test_blas_from_link_line_names_known_families() -> None:
     assert _blas_from_link_line("-framework Accelerate") == "accelerate"
     assert _blas_from_link_line("  ") == "unavailable"
     assert _blas_from_link_line("-lblas") == "-lblas"
+
+
+def test_collect_provenance_without_petsc_and_without_config(tmp_path, monkeypatch) -> None:
+    from linstabpy.utils.provenance import collect_provenance
+
+    monkeypatch.delenv("LINSTABPY_COMPUTE_MODE", raising=False)
+    monkeypatch.delenv("LINSTABPY_HOSTNAME", raising=False)
+    monkeypatch.setenv("LINSTABPY_HOSTNAME", "  ")
+    missing = collect_provenance(tmp_path / "no_such.yaml")
+    assert missing["config_md5"] == ""
+    assert missing["hostname"] == "unknown"
+    assert missing["petsc4py_version"] == "unavailable"
+    assert missing["petsc_arch"] == "unavailable"
+    assert missing["mumps_version"] == "unavailable"
+    assert missing["mpi_impl"] == "unavailable"
+    monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", "gpu")
+    assert collect_provenance(None)["compute_mode"] == "gpu"
+    monkeypatch.setenv("LINSTABPY_COMPUTE_MODE", "quantum")
+    with pytest.raises(ValueError, match="LINSTABPY_COMPUTE_MODE"):
+        collect_provenance(None)
+
+
+def test_git_head_sha_returns_unknown_when_git_fails(monkeypatch) -> None:
+    from linstabpy.utils import provenance
+
+    def _boom(*args, **kwargs):
+        raise OSError("git missing")
+
+    monkeypatch.setattr(provenance.subprocess, "run", _boom)
+    assert provenance._git_head_sha() == "unknown"

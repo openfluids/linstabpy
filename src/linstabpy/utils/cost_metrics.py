@@ -7,6 +7,7 @@ import os
 import subprocess
 from math import nan
 
+
 def _petsc_comm():
     """Return PETSc.COMM_WORLD, or None when PETSc is not installed."""
     try:

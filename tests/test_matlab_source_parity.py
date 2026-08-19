@@ -9,11 +9,11 @@ message; it never passes vacuously.
 from __future__ import annotations
 
 import pytest
-
 from matlab_source_parity import (
     TOTAL,
     audit,
 )
+
 from tests._paths import martini_export, require_existing
 
 _CYL_PATH = martini_export("getCoeffsLaminar.m")

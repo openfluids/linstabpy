@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.baseflow import load_case_fields
+from examples.song.reference_paths import BASEFLOW_NPZ, RUN_FD4_N30_YAML
 from examples.song.song import (
     _align_mode_to_reference,
     _match_selected_modes,
@@ -15,9 +15,8 @@ from examples.song.song import (
     _stability_archive_fields,
     _summarize_rank_metrics,
 )
+from linstabpy.baseflow import load_case_fields
 from linstabpy.utils.yaml_io import load_config
-
-from examples.song.reference_paths import BASEFLOW_NPZ, RUN_FD4_N30_YAML
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SONG_CONFIG_PATH = RUN_FD4_N30_YAML

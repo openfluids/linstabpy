@@ -6,7 +6,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from linstabpy.mesh import Mesh
-from linstabpy.mesh.filters import build_mesh_filters, filter_O10_diffMat
+from linstabpy.mesh.filters import _build_2d_filter_pair, build_mesh_filters, filter_O10_diffMat
 
 
 def test_mesh_package_lazy_exports_filters() -> None:
@@ -190,3 +190,46 @@ def test_building_and_applying_filters_needs_no_petsc():
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip().endswith("ok")
+
+
+def test_filter_o10_rejects_a_single_point_line() -> None:
+    with pytest.raises(ValueError, match="at least 2"):
+        filter_O10_diffMat(1, 0.4)
+
+
+def test_mesh_filters_reject_negative_alpha() -> None:
+    mesh = Mesh.create(xrange=(0, 1), yrange=(0, 1), nx=12, ny=10, fd_order=4)
+    with pytest.raises(ValueError, match="non-negative"):
+        build_mesh_filters(mesh.X, mesh.Y, mesh.used_ind, alpha_filter=-0.1)
+
+
+def test_mesh_filter_accepts_row_or_column_layout() -> None:
+    mesh = Mesh.create(xrange=(0, 2), yrange=(0, 1), nx=16, ny=12, fd_order=4, alpha_filter=0.4)
+    n = mesh.ngp
+    rng = np.random.default_rng(4)
+    cols = rng.standard_normal((n, 3))
+    out_cols = mesh.filters.filter(cols)
+    assert out_cols.shape == (n, 3)
+    rows = cols.T
+    out_rows = mesh.filters.filter(rows)
+    np.testing.assert_allclose(out_rows, out_cols.ravel(order="F"), atol=1e-12)
+    with pytest.raises(ValueError, match="n or n\\*k"):
+        mesh.filters.filter(np.ones(n + 1))
+    with pytest.raises(ValueError, match="n rows"):
+        mesh.filters.filter(np.ones((3, 3)))
+
+
+def test_build_2d_filter_pair_handles_empty_and_short_lines() -> None:
+    with pytest.raises(ValueError, match="same length"):
+        _build_2d_filter_pair(np.ones(3), np.ones(2), 0.4)
+    m0, f0 = _build_2d_filter_pair(np.zeros(0), np.zeros(0), 0.4)
+    assert m0.shape == (0, 0)
+    assert f0.shape == (0, 0)
+    primary = np.array([0.0, 1.0, 2.0])
+    secondary = np.array([0.0, 0.0, 1.0])
+    m, f = _build_2d_filter_pair(primary, secondary, 0.4)
+    assert m.shape == (3, 3)
+    assert f.shape == (3, 3)
+    ident_m, ident_f = _build_2d_filter_pair(np.array([0.0]), np.array([0.0]), 0.4)
+    np.testing.assert_array_equal(ident_m.toarray(), np.eye(1))
+    np.testing.assert_array_equal(ident_f.toarray(), np.eye(1))

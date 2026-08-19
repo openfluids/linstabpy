@@ -33,6 +33,7 @@ from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
+from linstabpy.driver.payload import build_runtime_payload
 from linstabpy.driver.preflight import (
     baseflow_advisories,
     config_advisories,
@@ -56,9 +57,8 @@ from linstabpy.stability.acceptance import (
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
-from linstabpy.utils.yaml_io import load_config
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
-from linstabpy.driver.payload import RUNTIME_NPZ_CONTRACT_KEYS, build_runtime_payload
+from linstabpy.utils.yaml_io import load_config
 
 
 def _readonly_empty(dtype) -> np.ndarray:
@@ -1837,18 +1837,12 @@ def run() -> None:
                 "numerics_operator_dissipation_enabled": np.bool_(od_enabled),
                 "numerics_operator_dissipation_epsilon": np.float64(od_epsilon),
                 "numerics_operator_dissipation_order_diss": np.int64(od_order_diss),
-                "numerics_operator_dissipation_apply_to_stability": np.bool_(
-                    od_apply_to_stability
-                ),
-                "numerics_operator_dissipation_apply_to_resolvent": np.bool_(
-                    od_apply_to_resolvent
-                ),
+                "numerics_operator_dissipation_apply_to_stability": np.bool_(od_apply_to_stability),
+                "numerics_operator_dissipation_apply_to_resolvent": np.bool_(od_apply_to_resolvent),
                 "numerics_operator_dissipation_transition_fraction": np.float64(
                     od_transition_fraction
                 ),
-                "numerics_operator_dissipation_endpoint_exponent": np.float64(
-                    od_endpoint_exponent
-                ),
+                "numerics_operator_dissipation_endpoint_exponent": np.float64(od_endpoint_exponent),
                 "numerics_operator_dissipation_interior_value": np.float64(od_interior_value),
             },
             provenance={

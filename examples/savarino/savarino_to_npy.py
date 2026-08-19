@@ -192,9 +192,7 @@ def main(argv: list[str]) -> int:
         f"rho={f['rho'][0, hi]:.6f} u={f['u'][0, hi]:.6f} T={f['T'][0, hi]:.6f}"
     )
 
-    e_inf = raw["roe"][0, hi] / raw["ro"][0, hi] - 0.5 * (
-        f["u"][0, hi] ** 2 + f["v"][0, hi] ** 2
-    )
+    e_inf = raw["roe"][0, hi] / raw["ro"][0, hi] - 0.5 * (f["u"][0, hi] ** 2 + f["v"][0, hi] ** 2)
     print(f"e_int,inf = {e_inf:.6f}  vs  1/(g(g-1)M^2) = {E_INT_INF:.6f}   (proves T_inf = 1)")
 
     wmax = float(np.abs(f["w"]).max())

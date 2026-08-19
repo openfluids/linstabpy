@@ -51,9 +51,8 @@ def _resolve_floquet_shift_mode(mode: str | None = None) -> FloquetShiftMode:
         return "matlab_parity"
     if key in {"continuum", "correct", "physics"}:
         return "continuum"
-    raise ValueError(
-        f"Unknown Floquet shift mode {raw!r}; expected 'matlab_parity' or 'continuum'"
-    )
+    raise ValueError(f"Unknown Floquet shift mode {raw!r}; expected 'matlab_parity' or 'continuum'")
+
 
 from ..baseflow.baseflow import BaseFlow
 from ..mesh.mesh import Mesh
@@ -1046,9 +1045,7 @@ def _assemble_from_prepared_with_backend(
     # Floquet shift (see _apply_floquet_shift / LINSTABPY_FLOQUET_SHIFT).
     if floquet_exp != 0.0:
         i_alpha = 1j * floquet_exp
-        DZ, D2Z, D2RZ = _apply_floquet_shift(
-            DZ, D2Z, D2RZ, i_alpha, ngp, DR=DR
-        )
+        DZ, D2Z, D2RZ = _apply_floquet_shift(DZ, D2Z, D2RZ, i_alpha, ngp, DR=DR)
 
     with _assembly_stage("assemble_raw_blocks") as stage:
         L0 = backend.assemble_raw(prep["coeffs"], ngp, DR, D2R, DZ, D2Z, D2RZ)
@@ -1674,8 +1671,7 @@ def _apply_floquet_shift(
     if shift_mode == "matlab_parity":
         shifted_d2rz = [mat + i_alpha * I for mat in d2rz_blocks]
         shifted_d2z = [
-            d2z + 2.0 * i_alpha * dz_s + i_alpha**2 * I
-            for d2z, dz_s in zip(d2z_blocks, shifted_dz)
+            d2z + 2.0 * i_alpha * dz_s + i_alpha**2 * I for d2z, dz_s in zip(d2z_blocks, shifted_dz)
         ]
         return shifted_dz, shifted_d2z, shifted_d2rz
 
@@ -1684,8 +1680,7 @@ def _apply_floquet_shift(
     dr_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(DR, ngp)]
     shifted_d2rz = [d2rz + i_alpha * dr for d2rz, dr in zip(d2rz_blocks, dr_blocks)]
     shifted_d2z = [
-        d2z + 2.0 * i_alpha * dz + i_alpha**2 * I
-        for d2z, dz in zip(d2z_blocks, dz_blocks)
+        d2z + 2.0 * i_alpha * dz + i_alpha**2 * I for d2z, dz in zip(d2z_blocks, dz_blocks)
     ]
     return shifted_dz, shifted_d2z, shifted_d2rz
 

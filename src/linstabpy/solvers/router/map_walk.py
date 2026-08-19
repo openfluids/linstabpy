@@ -405,10 +405,9 @@ class LineWalker:
         filter_fn: Any,
         filter_ct_fn: Any,
     ) -> tuple:
+        from linstabpy.resolvent.analysis import _compute_resolvent_svd_residuals_from_apply
         from linstabpy.resolvent.gain import compute_leading_gains
         from linstabpy.resolvent.operator import ResolventOperator
-
-        from linstabpy.resolvent.analysis import _compute_resolvent_svd_residuals_from_apply
 
         op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
         cfg = self.cfg_obj

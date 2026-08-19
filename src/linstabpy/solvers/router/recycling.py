@@ -39,10 +39,7 @@ def resolve_gmres_lengths(maxiter: int, restart: int | None = None) -> tuple[int
     if restart < 0:
         raise ValueError("restart must be nonnegative")
     if restart > MAX_GMRES_RESTART:
-        raise ValueError(
-            "fgmres_restart is a Krylov length, not the system size "
-            f"(got {restart})"
-        )
+        raise ValueError(f"fgmres_restart is a Krylov length, not the system size (got {restart})")
     return maxiter, restart
 
 

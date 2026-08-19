@@ -62,7 +62,16 @@ def test_walk_rows_carry_the_farm_cost_columns() -> None:
     A gain needs the same certification (rho_fwd, rho_adj) on both sides.
     """
     farm_cols = FARM_CSV.read_text(encoding="utf-8").splitlines()[0].split(",")
-    for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine", "rho_fwd", "rho_adj"):
+    for column in (
+        "wall_s",
+        "peak_rss_bytes",
+        "ndof",
+        "ranks",
+        "git_sha",
+        "machine",
+        "rho_fwd",
+        "rho_adj",
+    ):
         assert column in farm_cols
         assert column in FIELDS
 
@@ -92,10 +101,24 @@ def test_gen_mapwalk_campaign_writes_the_arm_into_the_job_script(tmp_path, monke
     monkeypatch.setattr(
         "sys.argv",
         [
-            "gen_mapwalk_campaign.py", "--out", str(tmp_path), "--beta", "40", "--dry-run",
-            "--nranks", "20", "--env", "I_MPI_PIN_DOMAIN=auto",
-            "--env", "LINSTABPY_PYTHON=/venv/bin/python", "--n-anchor", "99", "--ncv", "5",
-            "--driver-out", str(tmp_path / "direct20"),
+            "gen_mapwalk_campaign.py",
+            "--out",
+            str(tmp_path),
+            "--beta",
+            "40",
+            "--dry-run",
+            "--nranks",
+            "20",
+            "--env",
+            "I_MPI_PIN_DOMAIN=auto",
+            "--env",
+            "LINSTABPY_PYTHON=/venv/bin/python",
+            "--n-anchor",
+            "99",
+            "--ncv",
+            "5",
+            "--driver-out",
+            str(tmp_path / "direct20"),
         ],
     )
     assert gen.main() == 0
@@ -121,24 +144,47 @@ def test_every_row_names_the_solver_that_factored_it() -> None:
 
     assert "backend" in FIELDS
     here = Path(__file__).resolve().parents[1] / "examples" / "savarino"
-    assert _backend_label(yaml.safe_load((here / "configs" / "mack_f2_b45.yaml").read_text())) == "mumps"
+    assert (
+        _backend_label(yaml.safe_load((here / "configs" / "mack_f2_b45.yaml").read_text()))
+        == "mumps"
+    )
     assert (
         _backend_label(yaml.safe_load((here / "savarino_point_gpu.yaml").read_text()))
         == "iterative/strumpack"
     )
 
 
-def test_gen_mapwalk_campaign_gpu_arm_takes_its_config_cores_and_device(tmp_path, monkeypatch) -> None:
+def test_gen_mapwalk_campaign_gpu_arm_takes_its_config_cores_and_device(
+    tmp_path, monkeypatch
+) -> None:
     import examples.savarino.gen_mapwalk_campaign as gen
 
     gpu_yaml = Path(gen.__file__).with_name("savarino_point_gpu.yaml")
     monkeypatch.setattr(
         "sys.argv",
         [
-            "gen_mapwalk_campaign.py", "--out", str(tmp_path), "--beta", "40", "--dry-run",
-            "--nranks", "1", "--cpus-per-task", "10", "--gpus", "2", "--config", str(gpu_yaml),
-            "--env", "PETSC_OPTIONS=-use_gpu_aware_mpi 0", "--n-anchor", "99", "--ncv", "5",
-            "--driver-out", str(tmp_path / "gpu_lines"),
+            "gen_mapwalk_campaign.py",
+            "--out",
+            str(tmp_path),
+            "--beta",
+            "40",
+            "--dry-run",
+            "--nranks",
+            "1",
+            "--cpus-per-task",
+            "10",
+            "--gpus",
+            "2",
+            "--config",
+            str(gpu_yaml),
+            "--env",
+            "PETSC_OPTIONS=-use_gpu_aware_mpi 0",
+            "--n-anchor",
+            "99",
+            "--ncv",
+            "5",
+            "--driver-out",
+            str(tmp_path / "gpu_lines"),
         ],
     )
     assert gen.main() == 0

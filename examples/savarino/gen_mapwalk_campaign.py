@@ -43,20 +43,47 @@ def main() -> int:
     ap.add_argument("--nranks", type=int, default=4)
     ap.add_argument("--hours", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--env", action="append", default=[], metavar="VAR=value",
-                    help="exported into the job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto")
-    ap.add_argument("--n-anchor", type=int, default=None,
-                    help="direct points per line before walking; >= line length = pure direct arm")
-    ap.add_argument("--ncv", type=int, default=None, help="SLEPc subspace size for the gain (nev=1)")
-    ap.add_argument("--driver-out", type=Path, default=REPO / "examples" / "savarino",
-                    help="where the driver writes savarino_mapwalk.csv/.log (one dir per arm)")
-    ap.add_argument("--config", type=Path, default=HERE / "configs" / "mack_f2_b45.yaml",
-                    help="point config for the line; its solver block decides CPU (MUMPS) or "
-                         "GPU (STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml")
-    ap.add_argument("--cpus-per-task", type=int, default=1,
-                    help="Slurm cores per rank (OMP threads for a GPU job's CPU part)")
-    ap.add_argument("--gpus", type=int, default=0,
-                    help="devices on the node; >0 gives each job one GPU by lock file")
+    ap.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="VAR=value",
+        help="exported into the job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto",
+    )
+    ap.add_argument(
+        "--n-anchor",
+        type=int,
+        default=None,
+        help="direct points per line before walking; >= line length = pure direct arm",
+    )
+    ap.add_argument(
+        "--ncv", type=int, default=None, help="SLEPc subspace size for the gain (nev=1)"
+    )
+    ap.add_argument(
+        "--driver-out",
+        type=Path,
+        default=REPO / "examples" / "savarino",
+        help="where the driver writes savarino_mapwalk.csv/.log (one dir per arm)",
+    )
+    ap.add_argument(
+        "--config",
+        type=Path,
+        default=HERE / "configs" / "mack_f2_b45.yaml",
+        help="point config for the line; its solver block decides CPU (MUMPS) or "
+        "GPU (STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml",
+    )
+    ap.add_argument(
+        "--cpus-per-task",
+        type=int,
+        default=1,
+        help="Slurm cores per rank (OMP threads for a GPU job's CPU part)",
+    )
+    ap.add_argument(
+        "--gpus",
+        type=int,
+        default=0,
+        help="devices on the node; >0 gives each job one GPU by lock file",
+    )
     args = ap.parse_args()
 
     driver_args = ""
