@@ -1,8 +1,0 @@
-{
-  "analytical_self_check_pass": false,
-  "df_linf": 0.00040853754847341994,
-  "df_rel_l2": 0.00017411655026753953,
-  "generated_at_utc": "2026-04-22T07:01:42.140595+00:00",
-  "note": "This artifact stores Python-versus-analytic derivative errors only. Use examples/martini/martini_parity_latest.json for MATLAB parity status.",
-  "status": "computed"
-}

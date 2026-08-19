@@ -38,15 +38,13 @@ PARITY_SCRIPT="$REPO/examples/martini/compare_martini_examples.py"
 export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 EXAMPLE_SPECS=(
-  "0|example_0_curvilinear_validation|examples.martini.example_0_curvilinear_validation|Example 0: curvilinear derivative validation"
-  "1|example_1_blasius|examples.martini.example_1_blasius|Example 1: Blasius boundary layer resolvent"
-  "2|example_2_jet|examples.martini.example_2_jet|Example 2: turbulent jet resolvent"
-  "3|example_3_streaky_bl|examples.martini.example_3_streaky_bl|Example 3: streaky boundary layer (temporal + spatial)"
-  "4|example_4_cavity|examples.martini.example_4_cavity|Example 4: cavity direct and adjoint eigenvalues"
-  "5|example_5_paraboloid|examples.martini.example_5_paraboloid|Example 5: paraboloid resolvent"
+  "0|example_0_curvilinear_validation|examples.martini.example_0_curvilinear_validation|examples.martini.example_0_plots|Example 0: curvilinear derivative validation"
+  "1|example_1_blasius|examples.martini.example_1_blasius|examples.martini.example_1_plots|Example 1: Blasius boundary layer resolvent"
+  "2|example_2_jet|examples.martini.example_2_jet|examples.martini.example_2_plots|Example 2: turbulent jet resolvent"
+  "3|example_3_streaky_bl|examples.martini.example_3_streaky_bl|examples.martini.example_3_plots|Example 3: streaky boundary layer (temporal + spatial)"
+  "4|example_4_cavity|examples.martini.example_4_cavity|examples.martini.example_4_plots|Example 4: cavity direct and adjoint eigenvalues"
+  "5|example_5_paraboloid|examples.martini.example_5_paraboloid|examples.martini.example_5_plots|Example 5: paraboloid resolvent"
 )
-
-EXTRA_EXAMPLE_SPECS=()
 
 usage() {
   cat <<EOF
@@ -57,7 +55,7 @@ Options:
   --clean               Delete cached example NPZ and PNG artifacts before running
   --example <selector>  Run only one example. Repeatable. Select by index,
                         stem, or module name (for example: 0, example_1_blasius,
-                        examples.example_1_blasius)
+                        examples.martini.example_1_blasius)
   -m, --module <name>    Alias for --example; accepts full module names
   --mpi                 Run selected examples through an MPI launcher
   -n, --ranks <count>   MPI rank count. Implies --mpi
@@ -79,9 +77,9 @@ EOF
 
 list_examples() {
   echo "Available examples:"
-  local spec idx stem module label
-  for spec in "${EXAMPLE_SPECS[@]}" "${EXTRA_EXAMPLE_SPECS[@]}"; do
-    IFS='|' read -r idx stem module label <<<"$spec"
+  local spec idx stem module plot_module label
+  for spec in "${EXAMPLE_SPECS[@]}"; do
+    IFS='|' read -r idx stem module plot_module label <<<"$spec"
     printf '  %s  %-32s %-38s %s\n' "$idx" "$stem" "$module" "$label"
   done
 }
@@ -106,13 +104,14 @@ contains_module() {
 
 select_example() {
   local selector="$1"
-  local spec idx stem module label matched=0
-  for spec in "${EXAMPLE_SPECS[@]}" "${EXTRA_EXAMPLE_SPECS[@]}"; do
-    IFS='|' read -r idx stem module label <<<"$spec"
+  local spec idx stem module plot_module label matched=0
+  for spec in "${EXAMPLE_SPECS[@]}"; do
+    IFS='|' read -r idx stem module plot_module label <<<"$spec"
     if [[ "$selector" == "$idx" || "$selector" == "$stem" || "$selector" == "$module" ]]; then
       matched=1
       if ! contains_module "$module"; then
         SELECTED_MODULES+=("$module")
+        SELECTED_PLOT_MODULES+=("$plot_module")
         SELECTED_LABELS+=("$label")
         SELECTED_STEMS+=("$stem")
       fi
@@ -443,6 +442,7 @@ MPI_RANKS="${LINSTABPY_MPI_RANKS:-${LINSTABPY_MPI_RANKS:-}}"
 MPIEXEC_ENV=()
 EXTRA_ARGS=()
 SELECTED_MODULES=()
+SELECTED_PLOT_MODULES=()
 SELECTED_LABELS=()
 SELECTED_STEMS=()
 
@@ -524,8 +524,9 @@ require_readable_file "$PARITY_SCRIPT" "parity driver"
 
 if [[ ${#SELECTED_MODULES[@]} -eq 0 ]]; then
   for spec in "${EXAMPLE_SPECS[@]}"; do
-    IFS='|' read -r _ stem module label <<<"$spec"
+    IFS='|' read -r _ stem module plot_module label <<<"$spec"
     SELECTED_MODULES+=("$module")
+    SELECTED_PLOT_MODULES+=("$plot_module")
     SELECTED_LABELS+=("$label")
     SELECTED_STEMS+=("$stem")
   done
@@ -573,6 +574,7 @@ cd "$REPO"
 run_example() {
   local module="$1"
   local label="$2"
+  local plot_module="$3"
   local start_time elapsed rc
 
   echo ""
@@ -606,6 +608,12 @@ run_example() {
   fi
 
   if [[ $rc -eq 0 ]]; then
+    echo "  Plots: $plot_module"
+    "$PYTHON" -m "$plot_module"
+    rc=$?
+  fi
+
+  if [[ $rc -eq 0 ]]; then
     elapsed=$((SECONDS - start_time))
     echo "Status: PASS ($(format_seconds "$elapsed"))"
     PASSED_LABELS+=("$label")
@@ -623,7 +631,7 @@ FAILED_LABELS=()
 RUNNER_STATUS=0
 
 for i in "${!SELECTED_MODULES[@]}"; do
-  if ! run_example "${SELECTED_MODULES[$i]}" "${SELECTED_LABELS[$i]}"; then
+  if ! run_example "${SELECTED_MODULES[$i]}" "${SELECTED_LABELS[$i]}" "${SELECTED_PLOT_MODULES[$i]}"; then
     RUNNER_STATUS=1
     if [[ $CONTINUE_ON_ERROR -eq 0 ]]; then
       break
