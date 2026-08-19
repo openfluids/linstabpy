@@ -60,7 +60,9 @@ def choose_anchors_adaptive(
     """Choose a deterministic adaptive anchor set before a stable sweep.
 
     ``cfg`` may define the canonical keys at top level or inside an
-    ``adaptive_anchors`` subsection: ``coarse_anchor_count``,
+    ``adaptive_anchors`` subsection.
+
+    Keys include ``coarse_anchor_count``,
     ``coarse_anchors``, ``sample_omegas``, ``evp_distance_radius``,
     ``fgmres_iter_threshold``, ``fgmres_residual_threshold``,
     ``min_insert_spacing``, ``duplicate_tol``, ``max_insertions``,

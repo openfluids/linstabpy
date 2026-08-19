@@ -2,27 +2,32 @@
 """Generalized eigensolvers for spatial stability using SLEPc EPS.
 
 Solver configuration uses the ``solver.spatial`` YAML section, falling back to
-``solver.eigen`` for compatibility.  Direct shift-invert uses ``factor_backend``
-to select the PETSc LU factor backend.  Resolution order is YAML
-``factor_backend``, then ``LINSTABPY_FACTOR_BACKEND``, then the call-site
-default (``mumps`` for the reference direct path).  Requested backends are
-checked with a small complex PETSc LU probe and an unavailable backend fails
-loudly instead of falling back.  See ``docs/COMPUTE_BACKENDS.md`` for the
-backend contract and current evidence.
+``solver.eigen`` for compatibility.
+Direct shift-invert uses ``factor_backend`` to select the PETSc LU factor
+backend.
+Resolution order is YAML ``factor_backend``, then
+``LINSTABPY_FACTOR_BACKEND``, then the call-site default (``mumps`` for
+the reference direct path).
+A small complex PETSc LU probe checks requested backends.
+An unavailable backend fails loudly instead of falling back.
+See ``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
 
-Current backend status is deliberately conservative: ``mumps`` is the default
-and reference path; ``strumpack`` is experimental and currently documented only
-for the diagnostic FGMRES+LU configuration; ``superlu_dist`` is rejected for the
-tested CUDA build; and ``cudss`` is not wired to the ``linstabpy`` PETSc factor
-interface.
+Current backend status stays conservative.
+``mumps`` is the default and reference path.
+``strumpack`` is experimental and currently documented only
+for the diagnostic FGMRES+LU configuration.
+The tested CUDA build rejects ``superlu_dist``.
+``cudss`` is not wired to the ``linstabpy`` PETSc factor interface.
 
 The experimental factorization knobs are environment-enforced today:
 ``LINSTABPY_FACTOR_PRECISION`` (``single`` only with ``superlu_dist``),
 ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
-``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
-when requested with the wrong backend, and make no performance claim.  Matching
-YAML fields are validated and carried in the typed config but are not yet
-consumed by the solver call sites for factorization setup.
+``LINSTABPY_MUMPS_ORDERING``.
+They are off or unset by default.
+They fail loudly when the requested backend does not match.
+They make no performance claim.
+The typed config validates matching YAML fields and carries them.
+Solver call sites do not yet consume those fields for factorization setup.
 """
 
 from __future__ import annotations
@@ -37,7 +42,7 @@ from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
 # mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# PETSc only MPI_THREAD_FUNNELED, and init cannot raise the level later.
 # STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
 # Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
 # Enforced by tests/test_mpi_thread_level.py.
@@ -90,12 +95,14 @@ def _eigs_generalized(
     """Solve ``A x = lambda R x`` near ``target`` via SLEPc Krylov-Schur.
 
     Direct shift-invert resolves ``factor_backend`` from YAML, then
-    ``LINSTABPY_FACTOR_BACKEND``, then the path default.  Backend availability
-    is probe-checked and failures are loud; see ``docs/COMPUTE_BACKENDS.md``.
+    ``LINSTABPY_FACTOR_BACKEND``, then the path default.
+    A probe checks backend availability and failures are loud.
+    See ``docs/COMPUTE_BACKENDS.md``.
     The factorization knobs ``LINSTABPY_FACTOR_PRECISION``,
     ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
-    ``LINSTABPY_MUMPS_ORDERING`` are environment-enforced today.  Matching
-    YAML fields are carried but not consumed by this setup path.
+    ``LINSTABPY_MUMPS_ORDERING`` apply from the environment today.
+    The typed config carries matching YAML fields but this setup path
+    does not consume them.
     """
     if n_modes <= 0:
         raise ValueError("n_modes must be a positive integer")

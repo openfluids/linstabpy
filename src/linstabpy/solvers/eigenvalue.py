@@ -1,41 +1,45 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Temporal and adjoint eigenvalue solvers using SLEPc EPS.
 
-Solver configuration uses the ``solver.eigen`` YAML section.  For direct
-shift-invert paths, ``factor_backend`` selects the PETSc LU factor backend.
+Solver configuration uses the ``solver.eigen`` YAML section.
+For direct shift-invert paths, ``factor_backend`` selects the PETSc LU factor backend.
 On the reference direct path (``st_solver`` of ``mumps``/``direct``/``lu``)
 the resolution order is ``solver.eigen.factor_backend``, then
-``LINSTABPY_FACTOR_BACKEND``, then the ``mumps`` default — the per-solver
-``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`` override is *not* consulted on
-that path.  That per-solver override participates only for the iterative
+``LINSTABPY_FACTOR_BACKEND``, then the ``mumps`` default.
+The per-solver ``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`` override is *not*
+consulted on that path.
+That per-solver override participates only for the iterative
 eigensolver with ``pc_type="lu"`` and for ``st_solver="strumpack_fgmres"``
 (whose default is ``strumpack``).
-Requested backends are checked with a small complex PETSc LU probe and an
-unavailable backend fails loudly instead of falling back.  See
-``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
+A small complex PETSc LU probe checks requested backends.
+An unavailable backend fails loudly instead of falling back.
+See ``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
 
-Current backend status is deliberately conservative: ``mumps`` is the default
-and reference path; ``strumpack`` is experimental and currently documented only
-for the diagnostic FGMRES+LU configuration; ``superlu_dist`` is rejected for the
-tested CUDA build; and ``cudss`` is not wired to the ``linstabpy`` PETSc factor
-interface.
+Current backend status stays conservative.
+``mumps`` is the default and reference path.
+``strumpack`` is experimental and currently documented only
+for the diagnostic FGMRES+LU configuration.
+The tested CUDA build rejects ``superlu_dist``.
+``cudss`` is not wired to the ``linstabpy`` PETSc factor interface.
 
 The experimental factorization knobs are environment-enforced today:
 ``LINSTABPY_FACTOR_PRECISION`` (``single`` only with ``superlu_dist``),
 ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
-``LINSTABPY_MUMPS_ORDERING``.  They are off or unset by default, fail loudly
-when requested with the wrong backend, and make no performance claim.  Matching
-YAML fields are validated and carried in the typed config but are not yet
-consumed by the solver call sites for factorization setup.
+``LINSTABPY_MUMPS_ORDERING``.
+They are off or unset by default.
+They fail loudly when the requested backend does not match.
+They make no performance claim.
+The typed config validates matching YAML fields and carries them.
+Solver call sites do not yet consume those fields for factorization setup.
 
-``st_solver`` selects the shift-invert inner linear solver:
+``st_solver`` selects the shift-invert inner linear solver.
 
 * ``"mumps"`` (default) — direct LU through the configured factor backend,
   with MUMPS as the reference default.
-* ``"iterative"`` / ``"krylov"`` / ``"slepc"`` — configurable Krylov inner
-  solver with a wide choice of preconditioners (including ASM, BJacobi,
-  FieldSplit).  Parameters are read from the top-level ``solver.eigen``
-  section keys (``ksp_type``, ``pc_type``, ...).
+* ``"iterative"`` / ``"krylov"`` / ``"slepc"`` — Krylov inner solver.
+  Preconditioners include ASM, BJacobi, and FieldSplit.
+  Parameters come from the top-level ``solver.eigen`` section keys
+  (``ksp_type``, ``pc_type``, ...).
 * ``"inexact"`` — FGMRES + ASM + local ILU inner solver.  Parameters live in
   the nested ``solver.eigen.inexact`` sub-dict so they do not collide with the
   ``"iterative"`` key names.
@@ -44,25 +48,22 @@ consumed by the solver call sites for factorization setup.
   same path with the configured ``factor_backend``.  Both selectors read
   ``ksp_rtol``, ``ksp_atol``, and ``ksp_max_it`` from ``solver.eigen.inexact``.
 
-YAML schema for ``inexact`` mode::
+YAML keys for ``inexact`` mode live under ``solver.eigen.inexact``.
 
-    solver:
-      eigen:
-        st_solver: inexact
-        inexact:
-          ksp_type: fgmres          # inner Krylov method
-          ksp_rtol: 1.0e-8          # relative tolerance
-          ksp_atol: 1.0e-10         # absolute tolerance
-          ksp_max_it: 200           # max inner iterations
-          pc_type: asm              # additive Schwarz
-          asm_overlap: 1            # subdomain overlap
-          sub_pc_type: ilu          # local subdomain factor
-          pc_factor_levels: 2       # ILU fill level
+* ``ksp_type``: inner Krylov method (default fgmres).
+* ``ksp_rtol``: relative tolerance (default 1.0e-8).
+* ``ksp_atol``: absolute tolerance (default 1.0e-10).
+* ``ksp_max_it``: max inner iterations (default 200).
+* ``pc_type``: additive Schwarz (default asm).
+* ``asm_overlap``: subdomain overlap (default 1).
+* ``sub_pc_type``: local subdomain factor (default ilu).
+* ``pc_factor_levels``: ILU fill level (default 2).
 
 ``true_residual`` defaults to ``True`` when ``st_solver`` is ``"inexact"``,
-``"fgmres_lu"``, or ``"strumpack_fgmres"``.  Inexact inner solves can satisfy
-the preconditioned residual while the true residual remains large; forcing
-true-residual checks at convergence time catches this case.
+``"fgmres_lu"``, or ``"strumpack_fgmres"``.
+Inexact inner solves can meet the preconditioned residual while the
+true residual remains large.
+True-residual checks at convergence time catch this case.
 """
 
 from __future__ import annotations
@@ -77,7 +78,7 @@ from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
 # mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# PETSc only MPI_THREAD_FUNNELED, and init cannot raise the level later.
 # STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
 # Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
 # Enforced by tests/test_mpi_thread_level.py.
@@ -126,9 +127,10 @@ FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES = frozenset({"fgmres_lu", "strumpack_fgmres"
 def _apply_ksp_options(ksp: PETSc.KSP, cfg: dict | None) -> None:
     """Apply PETSc KSP options from YAML via the object's options prefix.
 
-    This keeps solver choices in YAML while still using PETSc's native
-    options-based hooks for GMRES orthogonalization/refinement details that are
-    not consistently exposed as direct petsc4py methods.
+    Keep solver choices in YAML.
+    PETSc still supplies the native options-based hooks for GMRES
+    orthogonalization and refinement details that petsc4py methods
+    do not expose consistently.
     """
     if not cfg:
         return
@@ -248,8 +250,8 @@ def _warn_if_shifted_operator_is_ill_conditioned(
 ) -> None:
     """Warn when ``cond(operator - target*I)`` exceeds a configurable threshold.
 
-    The exact dense condition number can be expensive for large sparse systems, so
-    this check is limited to moderate sizes by ``cond_warn_max_n``.
+    The exact dense condition number can be expensive for large sparse systems.
+    ``cond_warn_max_n`` therefore limits this check to moderate sizes.
     """
     if not cfg.eigen.cond_warn:
         return
@@ -313,7 +315,7 @@ def _scaled_operator(
 
 
 def _safe_petsc_info(callable_obj, default: object = "?") -> object:
-    """Best-effort PETSc/SLEPc query helper for diagnostics."""
+    """Best-effort PETSc/SLEPc query for diagnostics."""
     try:
         return callable_obj()
     except Exception:
@@ -340,13 +342,14 @@ def _raise_eps_setup_failure(
     Exception-type dispatch
     -----------------------
     ``SystemError`` whose text contains ``"returned a result with an exception
-    set"``
-        This is petsc4py's CHKERR collapse: the real PETSc/STRUMPACK error was
-        emitted to **stderr** before petsc4py raised this bare ``SystemError``.
-        The Python exception object itself carries no useful diagnostic; to read
-        the actual PETSc error re-run capturing stderr (e.g.
-        ``python ... 2>err.txt``) or add ``-error_output_stderr`` to the PETSc
-        options.
+    set"``.
+        This is petsc4py's CHKERR collapse.
+        The real PETSc/STRUMPACK error went to **stderr** before petsc4py
+        raised this bare ``SystemError``.
+        The Python exception object itself carries no useful diagnostic.
+        To read the actual PETSc error re-run capturing stderr
+        (e.g. ``python ... 2>err.txt``) or add ``-error_output_stderr``
+        to the PETSc options.
 
     ``PETSc.Error``
         petsc4py translated the PETSc error code correctly; the integer code is
@@ -479,11 +482,13 @@ def _make_sub_pc_applier(
 ):
     """Build a deferred applier for ASM/BJacobi sub-preconditioner settings.
 
-    Must be invoked AFTER ``eps.setUp()``: PETSc only materialises sub-solvers once
-    the operator is attached, so calling ``getASMSubKSP()`` earlier raises ierr=58.
+    Call this AFTER ``eps.setUp()``.
+    PETSc only materialises sub-solvers once the caller attaches the operator.
+    Calling ``getASMSubKSP()`` earlier raises ierr=58.
 
-    Errors are not swallowed. The returned callable raises if the configured stack
-    cannot be realized, and returns what it actually applied so the caller can record
+    Errors are not swallowed.
+    The returned callable raises if the configured stack cannot exist.
+    It returns what it actually applied so the caller can record
     the realized values rather than the requested ones.
     """
 
@@ -529,12 +534,15 @@ def _configure_st_for_eigenvalue(
 
     Direct-LU paths resolve ``factor_backend`` from ``solver.eigen`` YAML,
     ``LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE``, ``LINSTABPY_FACTOR_BACKEND``,
-    then the path default.  Availability is probe-checked and unavailable
-    backends fail loudly; see ``docs/COMPUTE_BACKENDS.md``.  The environment
-    knobs ``LINSTABPY_FACTOR_PRECISION``, ``LINSTABPY_MUMPS_BLR`` with
-    ``LINSTABPY_MUMPS_BLR_TOL``, and ``LINSTABPY_MUMPS_ORDERING`` are enforced
-    only from the environment at factorization time today; matching YAML
-    fields are carried but not consumed by this setup path.
+    then the path default.
+    A probe checks availability.
+    Unavailable backends fail loudly.
+    See ``docs/COMPUTE_BACKENDS.md``.
+    The environment knobs ``LINSTABPY_FACTOR_PRECISION``,
+    ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
+    ``LINSTABPY_MUMPS_ORDERING`` apply only from the environment at
+    factorization time today.
+    The typed config carries matching YAML fields but this setup path does not consume them.
 
     Parameters
     ----------
@@ -549,7 +557,7 @@ def _configure_st_for_eigenvalue(
     pc:
         PC object obtained from ``ksp.getPC()``.
     st:
-        The SLEPc ST object (unused in this helper but kept for future use).
+        The SLEPc ST object (unused here, kept for future use).
 
     Returns
     -------
@@ -691,12 +699,12 @@ def _configure_st_for_eigenvalue(
             # until eps.setUp().  Calling them here raises PETSc ierr=58, so this used
             # to swallow the error and lose `sub_pc_type` and `pc_factor_levels`
             # entirely: PETSc's default sub-PC is also "ilu", which masked the type
-            # being dropped, while the fill level was not -- a config asking for ILU(2)
+            # drop, while the fill level did not -- a config asking for ILU(2)
             # silently received ILU(0).
             #
             # Instead, hand the caller a deferred applier to run after eps.setUp(),
             # which is what linalg/factorize.py already does for the linsolve path
-            # (see its comment at the ksp.setUp() call).  No error is swallowed: if the
+            # (see its comment at the ksp.setUp() call).  No path swallows the error: if the
             # realized stack cannot be made to match the configured one, that is a
             # failure, not a silent downgrade.
             deferred_sub_pc = _make_sub_pc_applier(
@@ -723,7 +731,7 @@ def _configure_st_for_eigenvalue(
 
 
 def _resolve_st_factor_backend(st_solver: str, ecfg: dict | None) -> str | None:
-    """Resolve the factor backend used by the configured ST KSP/PC (compatibility helper)."""
+    """Resolve the factor backend used by the configured ST KSP/PC."""
     cfg = Config.load({"solver": {"eigen": ecfg or {}}})
     if st_solver in DIRECT_SOLVER_TYPES:
         return cfg.eigen.st_factor_backend

@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """LNSE operator assembly from coefficients and FD matrices.
 
-Translates GetLinProblem.m: assembles the 5*ngp × 5*ngp linear operator
-L0 such that dq/dt = L0 @ q, with eig(i*L0) = omega_code = -omega_OS.
+Translates GetLinProblem.m.
+Assembles the 5*ngp × 5*ngp linear operator L0 such that dq/dt = L0 @ q.
+Then eig(i*L0) = omega_code = -omega_OS.
 Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
 
 PETSc assembly sequencing
 -------------------------
-The PETSc operator pipeline applies transformations in a fixed order that
-cannot be permuted.  The canonical sequence inside
-``build_lnse_operator_petsc`` is:
+The PETSc operator pipeline applies transformations in a fixed order.
+Callers cannot permute that order.
+The canonical sequence inside ``build_lnse_operator_petsc`` is:
 
 1. ``_assemble_block_operator_petsc`` — builds the raw LNSE block matrix
    L_raw from coefficient arrays and FD stencil matrices.
@@ -21,8 +22,8 @@ cannot be permuted.  The canonical sequence inside
 4. Artificial dissipation addition — adds the FD dissipation operator to L0.
 5. ``apply_bc_recipe`` / ``apply_bc_recipe_petsc`` — overwrites boundary
    rows of L0 with the chosen boundary conditions.  This must be the
-   last step: BC rows must not be touched by subsequent sponge or
-   dissipation additions.
+   last step. Later sponge or dissipation additions must not overwrite
+   BC rows.
 
 This ordering is non-interchangeable.  Applying BCs before inv(B) scaling
 would corrupt the BC rows; applying inv(B) after BCs would overwrite them.
@@ -93,8 +94,8 @@ class _LNSEAssemblyRequest:
 
     Keep workflow policy here rather than spreading backend flags across
     runtime callers.  The lower-level ``build_lnse_operator*`` functions remain
-    pre-BC builders; this request represents the full system path that may also
-    apply boundary conditions and backend conversion.
+    pre-BC builders. This request is the full system path.
+    It may also apply boundary conditions and backend conversion.
     """
 
     mesh: Mesh
@@ -166,10 +167,10 @@ def _record_prepare_derivative_metrics(
 ) -> None:
     """Record materialized derivative-vector cost for P3 kernel work.
 
-    The current coefficient API receives derivative arrays, so
-    ``prepare_coefficients`` must keep these vectors alive until the coefficient
-    tensors have been written.  P3 reductions should lower these counters, not
-    just move the allocations to a different line.
+    The current coefficient API receives derivative arrays.
+    ``prepare_coefficients`` must keep these vectors alive until the
+    coefficient tensors exist. P3 reductions should lower these counters.
+    They should not just move the allocations to a different line.
     """
     bytes_by_name = {name: int(np.asarray(value).nbytes) for name, value in derivatives.items()}
     total_bytes = int(sum(bytes_by_name.values()))
@@ -202,9 +203,9 @@ def build_lnse_operator(
 ) -> tuple[sp.csc_matrix, dict]:
     """Build the LNSE operator L0 as a scipy sparse matrix.
 
-    Assembles L0 = inv(B/1i) @ (A0 + Ay*Dr + Ax*Dz + Ayy*D2r + Axx*D2z + Axy*D2rz)
-    with coordinate remapping and sign conventions already absorbed into the
-    coefficients, then subtracts the sponge function.
+    Assemble L0 = inv(B/1i) @ (A0 + Ay*Dr + Ax*Dz + Ayy*D2r + Axx*D2z + Axy*D2rz).
+    Coordinate remapping and sign conventions already live in the coefficients.
+    Then subtract the sponge function.
 
     Supported models:
     - ``2D``: cartesian BL form with Fourier spanwise wavenumber ``kx``.
@@ -228,7 +229,7 @@ def build_lnse_operator(
         Floquet exponent used only by the cylindrical model.
     dissipation_epsilon : float
         Artificial dissipation strength. When positive and mesh dissipation
-        matrices are available, subtracts epsilon times the 5-variable block
+        matrices exist, subtract epsilon times the 5-variable block
         dissipation operator from the pre-BC LNSE operator.
 
     Returns
@@ -237,9 +238,9 @@ def build_lnse_operator(
         The assembled LNSE operator.
     idx : dict
         Index mapping for variables and boundaries. Keys include:
-        - 'bi', 'ti', 'li', 'ri': boundary grid point indices (0-based)
-        - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable
-        - '{border}_{var}': DOF indices for each variable at each border
+        - 'bi', 'ti', 'li', 'ri': boundary grid point indices (0-based).
+        - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable.
+        - '{border}_{var}': DOF indices for each variable at each border.
     """
     model_name = str(model).lower()
     with _assembly_metrics_session(
@@ -291,8 +292,8 @@ def build_lnse_operator_petsc(
     This prototype preserves the existing coefficient-preparation path but avoids
     the final SciPy-assembled global matrix. It currently targets the same
     pre-BC operator returned by :func:`build_lnse_operator`. Boundary conditions
-    are intentionally outside this function so the same post-operator ordering
-    is used by SciPy, PETSc, and fallback paths.
+    stay outside this function so SciPy, PETSc, and fallback paths share the
+    same post-operator ordering.
     """
     if dissipation_epsilon != 0.0:
         # There is no validated PETSc-side Q_diss insertion yet. Falling back
@@ -357,7 +358,7 @@ def _direct_petsc_backend_supported(
     model: str,
     solver_cfg: dict | None = None,
 ) -> bool:
-    """Return whether direct PETSc LNSE assembly is validated for this case."""
+    """Return whether this case has a validated direct PETSc LNSE assembly path."""
     try:
         _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
     except NotImplementedError:
@@ -565,7 +566,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
             )
             with _assembly_stage("apply_bc") as stage:
                 if request.bc_recipe:
-                    # Same final-step rule as SciPy: PETSc BC rows are applied
+                    # Same final-step rule as SciPy: apply PETSc BC rows
                     # only after every L0-level operator contribution is present.
                     L0, bc_indices = apply_bc_recipe_petsc(
                         L0,
@@ -666,11 +667,12 @@ def build_lnse_system_result(
 ) -> LNSESystem:
     """Build an LNSE system and return the operator with assembly metadata.
 
-    This workflow helper keeps the existing SciPy path as the default while
-    allowing direct-PETSc assembly/BC application when ``backend='petsc'``.
+    Keep the existing SciPy path as the default.
+    Direct-PETSc assembly and BC application run when ``backend='petsc'``.
     In distributed PETSc mode, unsupported direct-assembly cases use the
-    validated SciPy assembly + SciPy->PETSc conversion fallback. That fallback
-    returns PETSc matrices, but it is not true distributed direct assembly.
+    validated SciPy assembly plus SciPy-to-PETSc conversion.
+    That fallback returns PETSc matrices, but it is not true distributed
+    direct assembly.
     """
     request = _LNSEAssemblyRequest(
         mesh=mesh,
@@ -1212,10 +1214,12 @@ def _assemble_block_operator(
 ) -> sp.csc_matrix:
     """Assemble the block operator from coefficient arrays and FD matrices.
 
-    For each (i,j) variable pair, the (i,j) block of size ngp×ngp is:
+    Each (i,j) variable pair has an ngp×ngp block.
+
         A0[i,j,:]*I + Ay[i,j,:]*DR + Ax[i,j,:]*DZ
-        + Ayy[i,j,:]*D2R + Axx[i,j,:]*D2Z + Axy[i,j,:]*D2RZ
-    where the coefficient vectors multiply the rows (left-multiply by diag).
+        + Ayy[i,j,:]*D2R + Axx[i,j,:]*D2Z + Axy[i,j,:]*D2RZ.
+
+    The coefficient vectors multiply the rows (left-multiply by diag).
     """
     blocks = [[None] * 5 for _ in range(5)]
     DR_blocks = _cache_5_block_derivatives(DR, ngp)
@@ -1464,8 +1468,8 @@ def _insert_owned_block_rows_petsc(
 def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
     """Build the variable/boundary index structure for DOFs.
 
-    Creates index arrays mapping boundary locations to DOF indices in the
-    5*ngp state vector q = [rho, u, v, w, T].
+    Create index arrays that map boundary locations to DOF indices.
+    The state vector is q = [rho, u, v, w, T] of length 5*ngp.
     """
     idx = dict(mesh_idx)  # copy boundary indices
 
@@ -1583,8 +1587,8 @@ def _build_block_csr(
         # CSR-native direct fill: build this block's indptr/indices per call.
         # Deliberately NOT memoized across calls — a module cache keyed on object
         # ids / buffer addresses is unsafe under allocator address reuse (a freed
-        # derivative cache's address can be reused by a different sparsity pattern,
-        # silently returning a wrong operator). The per-call layout cost is O(nnz)
+        # derivative cache's address can serve a different sparsity pattern,
+        # silently returning an operator with a different sparsity). The per-call layout cost is O(nnz)
         # arithmetic with no COO sort, which is the actual win over the old path.
         row_nnz = np.zeros(ngp, dtype=np.int64)
         if has_a0:
@@ -1701,9 +1705,9 @@ def _apply_inv_B(
     """Left-multiply L0 by ``inv(B/1j)`` (analytical block inverse).
 
     For the Cartesian model, B/1j = diag(1, RHO, ..., RHO), so the inverse
-    is diagonal.  For the cylindrical (axy) model, B/1j is lower-triangular
-    due to the conservative-to-primitive transformation, and the 5×5 block
-    inverse is computed analytically at each grid point.
+    is diagonal. For the cylindrical (axy) model, B/1j is lower-triangular
+    due to the conservative-to-primitive transformation.
+    The 5×5 block inverse uses an analytical formula at each grid point.
     """
     if model == "2d":
         # B/1j = diag(1, RHO, RHO, RHO, RHO)  →  inv = diag(1, 1/RHO, ...).
@@ -1787,17 +1791,17 @@ def _apply_inv_B_petsc(
     """Apply the analytical ``inv(B/1j)`` left scaling directly to PETSc rows.
 
     This is step 2 of the PETSc assembly sequence (see module docstring).
-    It must be called after ``_assemble_block_operator_petsc`` and before
+    Call this after ``_assemble_block_operator_petsc`` and before
     the sponge, dissipation, and boundary-condition steps.
 
     For ``model='2d'``: the inverse B matrix is block-diagonal and applied
     via PETSc diagonal scaling --- efficient and parallel-safe.
 
     For ``model='axy'``: the lower-triangular inv(B) couples different
-    variable blocks, so the matrix is first converted to SciPy CSR on rank 0,
-    transformed in scipy, then rebuilt as a PETSc AIJ matrix.  This path
-    requires a sequential (single-rank) PETSc matrix; it raises
-    ``RuntimeError`` for distributed matrices.
+    variable blocks. Rank 0 first converts the matrix to SciPy CSR,
+    transforms it in scipy, then rebuilds a PETSc AIJ matrix.
+    This path needs a sequential (single-rank) PETSc matrix.
+    It raises ``RuntimeError`` for distributed matrices.
     """
     from petsc4py import PETSc
 
@@ -1873,13 +1877,13 @@ def _create_axy_diff_matrices(
 ]:
     """Create radial/axial derivative blocks for the axy model.
 
-    Parity selection follows MATLAB ``CreateDiffMatrices_Axy.m``, converted
-    from coefficient ordering [rho, v_r, v_theta, v_z, T] to physical
-    ordering [rho, u(axial), v(radial), w(azimuthal), T]:
+    Parity selection follows MATLAB ``CreateDiffMatrices_Axy.m``.
+    Coefficient ordering [rho, v_r, v_theta, v_z, T] becomes physical
+    ordering [rho, u(axial), v(radial), w(azimuthal), T].
 
-    - m = 0: [symm, symm, asymm, asymm, symm]  (rho,u,T even; v,w odd)
-    - m = 1: [asymm, asymm, symm, symm, asymm]  (v,w even; rho,u,T odd)
-    - m >= 2: all asymm
+    - m = 0: [symm, symm, asymm, asymm, symm].  rho,u,T even; v,w odd.
+    - m = 1: [asymm, asymm, symm, symm, asymm].  v,w even; rho,u,T odd.
+    - m >= 2: all asymm.
     """
     if not np.isfinite(m):
         raise ValueError("m must be finite")

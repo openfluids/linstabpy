@@ -25,9 +25,10 @@ INEXACT_EIGEN_SOLVER_TYPES = frozenset({"inexact"})
 class SolverConfig(Mapping[str, Any]):
     """Typed view over the legacy ``solver_cfg`` mapping.
 
-    The public YAML surface is still a plain dictionary.  This wrapper gives
-    solver-policy code one place to resolve subsections and env fallbacks while
-    preserving the existing ``dict`` methods that current callers use.
+    The public YAML is still a plain dictionary.
+    This wrapper gives solver-policy code one place to resolve subsections
+    and env fallbacks.
+    Existing ``dict`` methods that current callers use stay.
     """
 
     _data: Mapping[str, Any]
@@ -54,7 +55,7 @@ class SolverConfig(Mapping[str, Any]):
 
         Resolvent solves reuse the linear-solver policy by default, but may
         override it in ``solver.resolvent``.  This preserves old YAML files
-        while giving resolvent sweeps their own tuning surface.
+        while giving resolvent sweeps their own tuning knobs.
         """
         if env_prefix == "LINSTABPY_RESOLVENT":
             return self.get("resolvent", self.get("linsolve", {}))

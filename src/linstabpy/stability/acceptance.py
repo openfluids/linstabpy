@@ -17,17 +17,19 @@ def _postcheck_target_distance(
     Background
     ----------
     For a real-valued baseflow, the linearised Navier-Stokes operator ``L`` has
-    real matrix entries. If ``(omega, v)`` is an eigenpair, then conjugating
-    both sides of ``L v = omega v`` gives ``L conj(v) = conj(omega) conj(v)``,
-    so ``(conj(omega), conj(v))`` is also an eigenpair. The two are the same
-    physical instability wave in two complex representations.
+    real matrix entries.
+    If ``(omega, v)`` is an eigenpair, conjugate both sides of
+    ``L v = omega v``.
+    That gives ``L conj(v) = conj(omega) conj(v)``.
+    So ``(conj(omega), conj(v))`` is also an eigenpair.
+    The two are the same physical instability wave in two complex
+    representations.
 
-    When ``conjugate_aware=True``, the distance becomes::
-
-        min(|omega - target|, |omega - conj(target)|)
-
-    so the conjugate partner passes the same target-distance gate as the
-    primary branch. Use ``conjugate_aware=False`` for complex operators where
+    When ``conjugate_aware=True``, the distance is
+    ``min(|omega - target|, |omega - conj(target)|)``.
+    The conjugate partner then passes the same target-distance gate as
+    the primary branch.
+    Use ``conjugate_aware=False`` for complex operators where
     the real-``L`` conjugate symmetry no longer applies.
     """
     omega_arr = np.asarray(omega, dtype=complex)
@@ -53,88 +55,93 @@ def evaluate_stability_acceptance(
 
     Temporal eigenvalue convention
     ------------------------------
-    ``omega`` stores complex temporal eigenvalues directly:
-    - ``real(omega)``  = oscillation frequency
-    - ``imag(omega)``  = growth/decay rate (positive = unstable)
+    ``omega`` stores complex temporal eigenvalues directly.
 
-    All thresholds are optional. When every threshold is disabled (NaN), the
+    - ``real(omega)``  = oscillation frequency.
+    - ``imag(omega)``  = growth/decay rate (positive = unstable).
+
+    All thresholds are optional. When every threshold is NaN, the
     function returns an empty dictionary so older workflows remain unchanged.
 
     Gate semantics
     --------------
-    A mode passes acceptance iff every enabled gate passes:
-    - postcheck_rel_max   : explicit full-operator residual, relative
-    - target_distance_max : complex distance from the solver shift target
-                            (see ``conjugate_aware`` below)
-    - omega_real_abs_max  : cap on |Re(omega)|; physically a filter on
-                            oscillation frequency magnitude
-    - omega_imag_abs_max  : cap on |Im(omega)|; physically a filter on
-                            growth/decay rate magnitude
+    A mode passes acceptance iff every enabled gate passes.
+
+    - postcheck_rel_max: explicit full-operator residual, relative.
+    - target_distance_max: complex distance from the solver shift target
+      (see ``conjugate_aware`` below).
+    - omega_real_abs_max: cap on |Re(omega)|.
+      Physically a filter on oscillation frequency magnitude.
+    - omega_imag_abs_max: cap on |Im(omega)|.
+      Physically a filter on growth/decay rate magnitude.
 
     The ``conjugate_aware`` flag (default ``True``)
     -----------------------------------------------
-    For a real-valued baseflow the linearised operator ``L`` is real, so the
-    spectrum is symmetric under complex conjugation: ``(omega, v)`` and
-    ``(conj(omega), conj(v))`` are both eigenpairs of ``L``. These two
-    eigenpairs represent the SAME physical instability wave — their sum is
-    the real, observable perturbation field. A shift-invert EVP with a complex
-    ``omega_target`` that has non-zero real part sits near ONE branch of
-    this conjugate pair; the other branch lives near ``conj(omega_target)``
-    on the far side of the real axis.
+    For a real-valued baseflow the linearised operator ``L`` is real.
+    The spectrum is symmetric under complex conjugation.
+    ``(omega, v)`` and ``(conj(omega), conj(v))`` are both eigenpairs of ``L``.
+    These two eigenpairs represent the SAME physical instability wave.
+    Their sum is the real, observable perturbation field.
+    A shift-invert EVP with a complex ``omega_target`` that has non-zero
+    real part sits near ONE branch of this conjugate pair.
+    The other branch lives near ``conj(omega_target)`` on the far side of
+    the real axis.
 
-    Why this is the default
-    ~~~~~~~~~~~~~~~~~~~~~~~
-    For the SWBLI mode families tracked in this project (see ``SWBLI.md``):
+    Why this is the default.
+    For the SWBLI mode families tracked in this project (see ``SWBLI.md``).
 
-    * **BG-S** (bubble global stationary mode): ``Re(omega) ~ 0``. Target and
-      its conjugate coincide on the imaginary axis, so the metric is a no-op
-      here — steady modes are admitted cleanly.
-    * **OM-1** (oblique first-Mack wave): appears as a conjugate pair
-      ``(omega_r + 1j*omega_i, omega_r - 1j*omega_i)``. Without conjugate
-      awareness the straight Euclidean ``|omega - target|`` metric would
-      silently drop the mirror partner, losing half the physical mode.
-    * **LU-S** (lift-up streak response): near-zero frequency, same story
-      as BG-S — no effect either way.
+    * BG-S (bubble global stationary mode): ``Re(omega) ~ 0``.
+      Target and its conjugate coincide on the imaginary axis.
+      The metric is a no-op here. Steady modes pass cleanly.
+    * OM-1 (oblique first-Mack wave): a conjugate pair
+      ``(omega_r + 1j*omega_i, omega_r - 1j*omega_i)``.
+      Without conjugate awareness the Euclidean ``|omega - target|``
+      metric would silently drop the mirror partner.
+      That would lose half the physical mode.
+    * LU-S (lift-up streak response): near-zero frequency, same as BG-S.
+      No effect either way.
 
-    With ``conjugate_aware=True``, the distance metric becomes::
-
-        min(|omega - target|, |omega - conj(target)|)
-
-    so the conjugate partner passes the same gate as the primary.
+    With ``conjugate_aware=True``, the distance metric is
+    ``min(|omega - target|, |omega - conj(target)|)``.
+    The conjugate partner then passes the same gate as the primary.
 
     When to disable
     ~~~~~~~~~~~~~~~
     Set ``conjugate_aware=False`` only when the underlying operator is no
-    longer real: Floquet-shifted problems, complex base-flow perturbation
+    longer real.
+    Examples: Floquet-shifted problems, complex base-flow perturbation
     tracking, or any formulation that explicitly breaks the real-``L``
-    symmetry. In those cases admitting ``conj(target)`` would over-accept
+    symmetry.
+    In those cases, admitting ``conj(target)`` would over-accept
     unphysical partners.
 
     Provenance
     ~~~~~~~~~~
-    The actual distance values the solver computes upstream already use this
-    metric when ``conjugate_aware=True`` was threaded through
-    ``_postcheck_target_distance``; this function only decides acceptance.
-    The flag is recorded in the result dict as ``acceptance_conjugate_aware``
-    so the downstream ``.npz`` preserves what metric produced the verdicts.
+    Upstream, the solver already uses this metric in
+    ``_postcheck_target_distance`` when ``conjugate_aware=True``.
+    Acceptance only decides the gate.
+    The result dict stores the flag as ``acceptance_conjugate_aware``.
+    The downstream ``.npz`` then keeps the metric that produced the verdicts.
 
-    Back-compat note: flipping the default from ``False`` to ``True``
-    widens acceptance on real-baseflow runs where the old metric was
-    silently discarding the conjugate partner. Saved ``.npz`` artefacts
-    produced before commit ``d{conjugate-default}`` may show a different
-    accepted set on rerun — that is a correction, not a regression.
+    Back-compat note.
+    Flipping the default from ``False`` to ``True`` widens acceptance
+    on real-baseflow runs.
+    The old metric silently discarded the conjugate partner.
+    Saved ``.npz`` artefacts produced before commit
+    ``d{conjugate-default}`` may show a different accepted set on rerun.
+    That is a correction, not a regression.
 
-    Additive return keys (always present when any gate is active)
+    Additive return keys. Always present when any gate is active.
     -------------------------------------------------------------
-    - ``rejected_indices``: int32 array of mode indices rejected by the gates.
-    - ``reject_reason_code``: int32 array of length ``n_modes`` with a
-      bitmask per mode encoding which gates failed (0 = accepted):
-        bit 0 (=1): postcheck_rel gate failed
-        bit 1 (=2): target_distance gate failed
-        bit 2 (=4): omega_real gate failed
-        bit 3 (=8): omega_imag gate failed
-    - ``acceptance_conjugate_aware``: bool recording whether conjugate-aware
-      target distance was used, for provenance.
+    - ``rejected_indices``: int32 array of mode indices the gates reject.
+    - ``reject_reason_code``: int32 array of length ``n_modes``.
+      Bitmask per mode encoding which gates failed (0 = accepted).
+      bit 0 (=1): postcheck_rel gate failed.
+      bit 1 (=2): target_distance gate failed.
+      bit 2 (=4): omega_real gate failed.
+      bit 3 (=8): omega_imag gate failed.
+    - ``acceptance_conjugate_aware``: bool.
+      Records whether conjugate-aware target distance produced the verdicts.
     """
 
     use_postcheck_gate = np.isfinite(postcheck_rel_max)
@@ -233,9 +240,10 @@ def check_conjugate_pair_completeness(
 ) -> dict[str, np.ndarray]:
     """Diagnostic: check whether accepted complex modes have their conjugate partners.
 
-    For each accepted mode with ``|Im(omega)| > pair_tol_imag`` AND
-    ``|Re(omega)| > pair_tol_real`` (i.e., genuinely off both axes), search
-    ALL returned omegas for a conjugate partner within ``pair_tolerance``.
+    For each accepted mode with ``|Im(omega)| > pair_tol_imag`` and
+    ``|Re(omega)| > pair_tol_real`` (off both axes), search all returned
+    omegas.
+    Look for a conjugate partner within ``pair_tolerance``.
 
     Does NOT modify the accepted/rejected sets. Pure diagnostic.
 
@@ -246,18 +254,17 @@ def check_conjugate_pair_completeness(
     accepted_indices : np.ndarray
         Integer indices into ``omega`` of the accepted modes.
     pair_tol_imag : float
-        Minimum |Im(omega)| for a mode to be considered a conjugate-pair candidate.
+        Minimum |Im(omega)| for a conjugate-pair candidate.
     pair_tol_real : float
-        Minimum |Re(omega)| for a mode to be considered a conjugate-pair candidate.
+        Minimum |Re(omega)| for a conjugate-pair candidate.
     pair_tolerance : float
-        Maximum distance between an eigenvalue and its expected conjugate partner
-        for the partner to be considered found.
+        Maximum distance at which the expected conjugate partner counts as found.
 
     Returns
     -------
     dict with keys:
     - ``missing_partner_indices`` : int32 array of accepted-mode indices whose
-      conjugate partner was not found anywhere in ``omega``.
+      conjugate partner is absent from ``omega``.
     - ``partner_rejected_indices`` : int32 array of accepted-mode indices whose
       conjugate partner exists in ``omega`` but was not accepted.
     """

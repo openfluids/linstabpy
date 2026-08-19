@@ -37,10 +37,11 @@ def _collect_neumann_indices(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Collect boundary dof indices, mesh indices, and normals for Neumann BC.
 
-    Returns:
-    - index_set: unique BC dofs
-    - index_mesh: unique mesh point ids for those dofs
-    - border_tags: border character associated with each unique BC dof
+    Return:
+
+    - index_set: unique BC dofs.
+    - index_mesh: unique mesh point ids for those dofs.
+    - border_tags: border character associated with each unique BC dof.
     """
     raw_index_set: list[np.ndarray] = []
     raw_index_mesh: list[np.ndarray] = []
@@ -262,9 +263,9 @@ def apply_neumann(
 ) -> tuple[sp.csc_matrix, np.ndarray]:
     """Apply Neumann boundary conditions to the LNSE operator.
 
-    For each selected border, the corresponding row is replaced by a
-    curvilinear normal-derivative row (scaled by ``penalty``) applied to the
-    same variable block.
+    For each selected border, replace the corresponding row by a
+    curvilinear normal-derivative row (scaled by ``penalty``).
+    Apply it to the same variable block.
     """
     ngp = mesh.ngp
     index_set, index_mesh, border_tags = _collect_neumann_indices(

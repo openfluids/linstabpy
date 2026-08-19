@@ -1,22 +1,23 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Schema and validator for per-run metrics sidecars.
 
-This module is the single source of truth for the uniform cost+quality metrics
-payload.  CAMPAIGN §2 names are preserved where the production emitters already
-use them.  Known emitter deltas are intentionally matched rather than renamed:
+Single source of truth for the uniform cost+quality metrics payload.
+CAMPAIGN §2 names stay where the production emitters already use them.
+The schema matches known emitter deltas rather than renaming them.
 
-- cost keys are emitted with a ``cost_`` prefix and byte units
+- cost keys use a ``cost_`` prefix and byte units
   (``cost_peak_rss_bytes``/``cost_peak_gpu_mem_bytes`` rather than KiB/MiB).
-- wall-time keys are emitted as ``cost_wall_*_s``.
-- SLEPc setup/solve timings and convergence metadata are emitted as
+- wall-time keys use ``cost_wall_*_s``.
+- SLEPc setup/solve timings and convergence metadata use
   ``stability_eps_*`` keys.
-- stability quality maxima are emitted as arrays under
+- stability quality maxima sit as arrays under
   ``stability_postcheck_residual_rel`` and
-  ``stability_postcheck_target_distance``; the validator accepts these measured
-  arrays instead of inventing aggregate sidecar defaults.
-- factor backend provenance is emitted as ``provenance_factor_backend``.
-- the provenance emitter does not currently emit a run date; this schema does
-  not require a fabricated date.
+  ``stability_postcheck_target_distance``.
+  The validator accepts these measured arrays instead of inventing
+  aggregate sidecar defaults.
+- factor backend provenance uses ``provenance_factor_backend``.
+- the provenance emitter does not currently emit a run date.
+  This schema does not require a fabricated date.
 """
 
 from __future__ import annotations
@@ -76,7 +77,7 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
     "problem": {
         "case": FieldSpec(_STRING),
         "fd_order": FieldSpec(_INT),
-        # `stride` is a single number by contract, but the mesh is strided
+        # `stride` is a single number by contract, but the mesh uses independent strides
         # independently in ksi and eta. The emitter sets `stride` to the common
         # value when they agree and -1 when they do not, and always emits both
         # axes here so an anisotropic run is never reported as if one axis
@@ -142,9 +143,11 @@ METRICS_SIDECAR_KEYS = frozenset(key for fields in SCHEMA.values() for key in fi
 def validate_metrics(d: Mapping[str, Any]) -> list[str]:
     """Return all schema errors for a per-run metrics payload.
 
-    The validator never fills defaults.  Required section fields must be present;
-    optional quality/run-type fields are validated when present but are not
-    required for run types that do not produce them.
+    The validator never fills defaults.
+    Required section fields must be present.
+    Optional quality/run-type fields, when present, still go through the
+    same checks.
+    Run types that do not produce them need not include them.
     """
 
     errors: list[str] = []

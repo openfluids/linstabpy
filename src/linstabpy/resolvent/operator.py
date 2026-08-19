@@ -21,10 +21,10 @@ class ResolventOperator:
     """Forward and adjoint actions for ``H = C F L_sigma^-1 F B``.
 
     The spatial filter sits INSIDE the input/output masks, matching the
-    MATLAB reference (resolvent.m: ``H = C*FILTER(R(FILTER(B*v)))``).  The
-    order matters: the filter does not commute with a diagonal mask, and the
-    previous ``F C R B F`` composition shifted the leading jet gain by 0.5%
-    relative to the reference (411.71 vs 413.72).
+    MATLAB reference (resolvent.m: ``H = C*FILTER(R(FILTER(B*v)))``).
+    The order matters: the filter does not commute with a diagonal mask.
+    The previous ``F C R B F`` composition shifted the leading jet gain
+    by 0.5% (411.71 vs 413.72).
     """
 
     def __init__(

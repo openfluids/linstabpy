@@ -3,14 +3,17 @@
 
 The memory model follows the §7c prior
 
-``mem ≈ [nnz·c_val·prec + fill·prec + m·n·prec] / ranks``
+``mem ≈ [nnz·c_val·prec + fill·prec + m·n·prec] / ranks``.
 
-but does not trust a formula-only fill estimate.  Each call first runs an
-empirical sparse-LU analysis probe on the supplied nonzero pattern.  The probe
-measures the actual LU fill count and bytes per factor nonzero on this Python / SciPy
-build, and those measured quantities replace the symbolic ``fill`` prior in the
-selection decision.  The returned :class:`OperatingPoint` contains only resource
-knobs; user physics choices such as grid, finite-difference order, modes, or
+It does not trust a formula-only fill estimate.
+Each call first runs an empirical sparse-LU analysis probe on the
+supplied nonzero pattern.
+The probe measures the actual LU fill count and bytes per factor
+nonzero on this Python / SciPy build.
+Those measured quantities replace the symbolic ``fill`` prior in the
+selection decision.
+The returned :class:`OperatingPoint` contains only resource knobs.
+User physics choices such as grid, finite-difference order, modes, or
 frequency/wavenumber ranges are never read or changed.
 """
 
@@ -77,13 +80,13 @@ def ram_autoselect(
     Parameters
     ----------
     L0_pattern:
-        Square sparse operator pattern.  SciPy sparse matrices are supported
-        directly; PETSc AIJ matrices are supported on one rank via
+        Square sparse operator pattern.  SciPy sparse matrices work
+        directly; PETSc AIJ matrices work on one rank via
         ``getValuesCSR()``.
     cfg:
         Mapping/object with resource-selection options.  Tests and callers may
         inject ``available_ram_bytes`` (or ``ram_bytes``) to make the budget
-        deterministic.  The optional ``symbolic_probe`` callable is used only as
+        deterministic.  The optional ``symbolic_probe`` callable exists only as
         an injection seam; the production default is the SciPy sparse-LU probe.
     """
     pattern = _as_csc_pattern(L0_pattern)

@@ -1,34 +1,39 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Turnkey beta/frequency resolvent gain-map orchestration.
 
-This entry point assembles one LNSE operator per beta, asks the band-marker
-for the intended frequency-band labels, and walks each frequency line.
+This entry point assembles one LNSE operator per beta.
+It asks the band-marker for the intended frequency-band labels, then
+walks each frequency line.
 The first frequency on a line is a real factor. Later frequencies apply
 ``K(omega)^{-1}`` with that factor as a preconditioner. A residual gate
 falls back to a new factor. The leading gain still comes from SLEPc.
 
-SBP sawtooth dissipation (required for clean gain maps)
--------------------------------------------------------
+Clean gain maps need SBP sawtooth dissipation.
 Without operator-level SBP dissipation the assembled operator carries
-grid-scale (odd/even "sawtooth") modes.  These show up in a gain map as
-spurious near-singular resonances at high spanwise wavenumber -- bright
-horizontal stripes (constant ``beta``, all low frequencies) whose gain can be
-many decades above the physical OM-1 / LU-S responses.  To suppress them this
-path needs BOTH halves of the dissipation, set independently:
+grid-scale (odd/even "sawtooth") modes.
+Those modes appear in a gain map as spurious near-singular resonances
+at high spanwise wavenumber.
+They form bright horizontal stripes (constant ``beta``, all low frequencies).
+Their gain can sit many decades above the physical OM-1 / LU-S responses.
+To suppress them this path needs BOTH halves of the dissipation, set
+independently.
 
 * ``numerics.operator_dissipation = {"enabled": true, ...}`` -- builds the SBP
   dissipation operators ``Q_diss_x/Q_diss_y`` onto the mesh.
 * top-level ``dissipation_epsilon`` (alias ``eps_resolv``) > 0 -- the strength
   by which ``build_lnse_system`` subtracts ``Q_diss`` from ``L0``.
 
-GOTCHA: this router reads the strength from the *top-level* ``dissipation_epsilon``,
-NOT from ``operator_dissipation.epsilon`` (that nested field is consumed by the
-non-router case2 assembly path).  Enabling ``operator_dissipation`` alone, or
-setting ``dissipation_epsilon`` without enabling ``operator_dissipation``, is a
-silent no-op -- the operator is unchanged.  ``epsilon`` must clear the sawtooth
-poles yet stay below the physical-mode scale (for the Song SWBLI fd4 stride-4
-case the sweet spot is ``~0.10``; ``1.0`` over-damps the real OM-1/LU-S ridges
-by ~100x).
+GOTCHA: this router reads the strength from the *top-level*
+``dissipation_epsilon``, NOT from ``operator_dissipation.epsilon``.
+The non-router case2 assembly path reads the nested field.
+Enabling ``operator_dissipation`` alone is a silent no-op.
+Setting ``dissipation_epsilon`` without enabling
+``operator_dissipation`` is also a silent no-op.
+The operator then stays as assembled.
+``epsilon`` must clear the sawtooth poles yet stay below the
+physical-mode scale.
+For the Song SWBLI fd4 stride-4 case the sweet spot is ``~0.10``.
+``1.0`` over-damps the real OM-1/LU-S ridges by ~100x.
 """
 
 from __future__ import annotations
@@ -82,16 +87,16 @@ class RouterResult:
     Attributes
     ----------
     beta, f:
-        One-dimensional validated sweep coordinates.  ``f`` is passed through
-        to the existing resolvent frequency seams as ``omega``; no unit
-        conversion is performed by the router.
+        One-dimensional validated sweep coordinates.  ``f`` goes through
+        to the existing resolvent frequency seams as ``omega``. The router
+        performs no unit conversion.
     gain:
         Two-dimensional leading-gain array with shape ``(len(beta), len(f))``.
         Failed points are ``NaN`` and carry a nonzero ``reason_code``.
     regime_label:
         Band labels returned by ``mark_unstable_band`` with the same shape as
-        ``gain``.  These are intended routing labels; every computed gain is
-        currently produced by the certified/direct regime-(a) engine.
+        ``gain``.  These are routing labels; every computed gain currently
+        comes from the certified/direct regime-(a) engine.
     cost_metrics:
         CP3 cost sidecar dictionary from
         :func:`linstabpy.utils.cost_metrics.collect_cost_metrics`.
@@ -191,8 +196,9 @@ def _normalise_cfg(
 ) -> tuple[Mapping[str, Any], Any]:
     """Return a plain mapping for router keys and a Config-compatible object.
 
-    ``Config`` objects are passed through to the resolver while router-specific
-    keys are unavailable unless the caller supplied a mapping or YAML path.
+    Hand ``Config`` objects to the resolver.
+    Router-specific keys stay unavailable unless the caller supplied a
+    mapping or YAML path.
     """
     if cfg is None:
         return {}, None
@@ -412,10 +418,11 @@ def _select_region_points(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """Resolve the x/y box of a region spec into active-point indices.
 
-    Returns ``(point_indices, X_act, Y_act, n_total)`` where ``point_indices``
-    indexes into the active-point arrays ``X_act``/``Y_act`` (and, by the
-    same convention, ``idx['{var}_j']`` blocks and base-flow arrays restricted
-    to ``mesh.used_ind``).  Shared by the diagonal primitive-variable mask
+    Return ``(point_indices, X_act, Y_act, n_total)``.
+    ``point_indices`` indexes into the active-point arrays ``X_act``/``Y_act``.
+    The same convention applies to ``idx['{var}_j']`` blocks and base-flow
+    arrays restricted to ``mesh.used_ind``.
+    Shared by the diagonal primitive-variable mask
     (:func:`_build_region_mask`) and the conservative-momentum forcing matrix
     (:func:`_build_conservative_momentum_region`).
     """
@@ -468,12 +475,14 @@ def _build_region_mask(
 ) -> Any:
     """Build a sharp 0/1 diagonal forcing/response mask from a user region.
 
-    The mask follows the LNSE state layout exactly: active physical points are
-    taken from ``mesh.X/Y.ravel(order="F")[mesh.used_ind]`` and variable blocks
-    from ``idx['rho_j']``, ``idx['u_j']``, ``idx['v_j']``, ``idx['w_j']``, and
-    ``idx['T_j']``.  A region mask changes the resolvent question to a
-    windowed/component-restricted gain; it is not an approximation to the global
-    unmasked gain.
+    The mask follows the LNSE state layout exactly.
+    Active physical points come from
+    ``mesh.X/Y.ravel(order="F")[mesh.used_ind]``.
+    Variable blocks come from ``idx['rho_j']``, ``idx['u_j']``,
+    ``idx['v_j']``, ``idx['w_j']``, and ``idx['T_j']``.
+    A region mask changes the resolvent question to a
+    windowed/component-restricted gain.
+    It is not an approximation to the global unmasked gain.
     """
     point_indices, X_act, Y_act, n_total = _select_region_points(mesh, region_spec, name=name)
     variables = _region_vars(region_spec, name=name)
@@ -568,11 +577,11 @@ def _build_conservative_momentum_region(
 ) -> tuple[Any, np.ndarray, dict[str, Any]]:
     """Build the whitened conservative-momentum forcing matrix for a region.
 
-    The optimisation variable becomes the CONSERVATIVE momentum forcing
-    ``f_c = (f_rou, f_rov, f_row)`` with a mass-weighted L2 norm, instead of
-    a primitive-variable diagonal mask.  See
-    ``linstabpy.resolvent.conservative_forcing`` for the physics and the
-    whitening trick that lets this reuse the existing square ``B_mat``
+    The optimisation variable is the CONSERVATIVE momentum forcing
+    ``f_c = (f_rou, f_rov, f_row)`` with a mass-weighted L2 norm.
+    That replaces a primitive-variable diagonal mask.
+    See ``linstabpy.resolvent.conservative_forcing`` for the physics.
+    The whitening trick lets this reuse the existing square ``B_mat``
     resolvent machinery unchanged (``forcing_norm="l2"``).
     """
     from linstabpy.resolvent.conservative_forcing import (
@@ -591,7 +600,7 @@ def _build_conservative_momentum_region(
     # The whitening below is only correct when the gain machinery applies the
     # IDENTITY forcing norm to the coefficient vector. The config default is
     # "chu", which would silently re-weight the whitened coefficients and
-    # produce a wrong sigma with no error -- exactly the silent-norm failure
+    # produce a sigma that does not match the intended inner product, with no error --
     # this forcing space exists to remove. Fail loudly instead.
     from linstabpy.config import Config
 
@@ -788,9 +797,10 @@ def _regime_b_discount_gamma(cfg: Mapping[str, Any]) -> float:
     """Select discount gamma for regime-b NEAR_POLE points.
 
     Policy:
-    - Use cfg["regime_b_discount_gamma"] if present (explicit override)
-    - Else: derive from pole proximity to keep the shifted solve well-posed
-      Default: 0.25 (validated in test_resolvent_discount.py to tame 1e5 blowup to ~4.0)
+
+    - Use cfg["regime_b_discount_gamma"] if present (explicit override).
+    - Else: derive from pole proximity to keep the shifted solve well-posed.
+      Default: 0.25 (validated in test_resolvent_discount.py to tame 1e5 blowup to ~4.0).
     """
     explicit = _cfg_value(cfg, "regime_b_discount_gamma", None)
     if explicit is not None:
@@ -816,9 +826,10 @@ def _check_missing_engine_gate(
 ) -> tuple[str, float]:
     """Determine which regime to use and any discount gamma.
 
-    Returns (regime, gamma) tuple where:
-    - regime is "regime-a", "regime-b", or "regime-c"
-    - gamma is 0.0 for regimes a/c, or >0 for regime-b
+    Return (regime, gamma).
+
+    - regime is "regime-a", "regime-b", or "regime-c".
+    - gamma is 0.0 for regimes a/c, or >0 for regime-b.
     """
     missing = _intended_missing_engine(label)
     if missing is None:
@@ -1047,7 +1058,7 @@ def resolvent_map(
         angular frequencies forwarded to ``resolvent_analysis``.
     cfg:
         Mapping, YAML path, typed ``Config`` object, or ``None``.  Router keys
-        may be placed at top level or under ``router`` / ``solver.router``.
+        may sit at top level or under ``router`` / ``solver.router``.
 
     Returns
     -------
@@ -1129,7 +1140,7 @@ def resolvent_map(
                 # well-conditioned imaginary-shift resolvent solve does). For a base
                 # flow / frequency range known to be away from global-mode poles
                 # this avoids that full-size EVP. WARNING: a frequency that is in
-                # fact near a pole is then handled by the certified resolvent
+                # fact near a pole then goes to the certified resolvent
                 # directly (no regime-b discounting), so only enable it when the
                 # stable-regime assumption holds.
                 omega_arr = np.asarray(f, dtype=float).reshape(-1)

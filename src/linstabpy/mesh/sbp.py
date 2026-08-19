@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Summation-by-parts (SBP) finite difference stencils and matrix construction.
 
-Implements standard SBP operators of orders 2, 4, 6, and 8 following
-the stencil coefficients from Strand (1994) and Mattsson & Nordstrom (2004).
-Pole-condition matrices (Mohseni & Colonius) are included for axisymmetric grids.
+Implements standard SBP operators of orders 2, 4, 6, and 8.
+Stencil coefficients follow Strand (1994) and Mattsson & Nordstrom (2004).
+Axisymmetric grids also get pole-condition matrices (Mohseni & Colonius).
 
 References
 ----------
@@ -26,13 +26,13 @@ def sbp_stencils(order: int) -> dict[str, np.ndarray]:
     """Return SBP stencil coefficients for a given finite-difference order.
 
     For orders 2–8, returns the hardcoded reference tables from Strand (1994)
-    and Mattsson & Nordström (2004). Higher-order SBP boundary closures are
-    intentionally rejected until validated norm and closure tables are added.
+    and Mattsson & Nordström (2004). Higher-order SBP boundary closures
+    raise until validated norm and closure tables exist.
 
     Parameters
     ----------
     order : int
-        Even finite-difference order. Full SBP closures are supported for
+        Even finite-difference order. Full SBP closures exist for
         2, 4, 6, and 8.
 
     Returns
@@ -504,9 +504,9 @@ def min_points(order: int) -> int:
 def build_sbp_matrix(n: int, dz: float, order: int) -> tuple[sp.csr_matrix, sp.csr_matrix]:
     """Construct 1-D SBP differentiation matrices D1 and D2.
 
-    Builds the standard (non-pole) first- and second-derivative matrices
-    for *n* grid points with uniform spacing *dz* using SBP closure of
-    the given *order*.
+    Build the standard (non-pole) first- and second-derivative matrices
+    for *n* grid points with uniform spacing *dz*.
+    Use SBP closure of the given *order*.
 
     Parameters
     ----------
@@ -584,7 +584,7 @@ def build_sbp_pole_matrices(
 
 
 def _build_sbp_with_pole(n: int, dz: float, order: int):
-    """Internal helper returning 4 derivative operators with pole conditions."""
+    """Return 4 derivative operators with pole conditions."""
     stencils = sbp_stencils(order)
     a_i1 = stencils["a_i1"]
     a_i2 = stencils["a_i2"]
@@ -723,9 +723,10 @@ def _vandermonde_centered_stencil(half_w: int, derivative_order: int) -> np.ndar
     """Return undivided (2*half_w+1)-point centered FD stencil for d^k/dx^k.
 
     Solves the Vandermonde system V c = e_k where V[i,j] = (j-half_w)^i / i!
-    and e_k has 1 in position k (derivative_order). Returns coefficients c
-    such that sum_j c[j] * f(x + (j-half_w)*h) ≈ d^k f / dx^k * h^k
-    (undivided; divide by h^k to get the divided-form approximation).
+    and e_k has 1 in position k (derivative_order).
+    Return coefficients c such that
+    sum_j c[j] * f(x + (j-half_w)*h) ≈ d^k f / dx^k * h^k.
+    The stencil stays undivided; divide by h^k for the divided form.
     """
     from math import factorial
 
@@ -743,12 +744,14 @@ def _build_dp_matrix(n: int, h: float, p: int) -> sp.csr_matrix:
     """Build the divided p-th derivative matrix D_p.
 
     For p=3 and p=4 the boundary closure aliases the same one-sided stencil
-    onto the first and last four rows: 4-point for d^3/dx^3 and 5-point for
-    d^4/dx^4. This satisfies MSN 2004 Eq. (5) consistency at every boundary
-    row by polynomial coincidence. The construction is therefore valid for
-    SPSD-via-sandwich purposes (D_p^T B_p D_p is SPSD whenever B_p >= 0), but
-    it is NOT an SBP-energy-compatible boundary closure in the strict sense —
-    see MSN 2004 reference [10] for properly row-shifted explicit stencils.
+    onto the first and last four rows.
+    Use 4-point for d^3/dx^3 and 5-point for d^4/dx^4.
+    This satisfies MSN 2004 Eq. (5) consistency at every boundary
+    row by polynomial coincidence.
+    The construction is therefore valid for SPSD-via-sandwich purposes
+    (D_p^T B_p D_p is SPSD whenever B_p >= 0).
+    It is NOT an SBP-energy-compatible boundary closure in the strict sense.
+    See MSN 2004 reference [10] for properly row-shifted explicit stencils.
     Acceptable here because B_p ~ h^2 near the wall suppresses the
     dissipation contribution there.
     """
@@ -839,25 +842,27 @@ def build_sbp_dissipation_matrices(
 ) -> tuple[sp.csr_matrix, sp.csr_matrix]:
     """Return ``(Q_diss, H_norm)`` for 1-D MSN artificial dissipation.
 
-    Constructs the Mattsson-Svard-Nordstrom (2004) dissipation operator
+    Constructs the Mattsson-Svard-Nordstrom (2004) dissipation operator.
 
-        Q_diss = h^{2p+1} H^{-1} D_p^T B_p D_p                      (divided form)
-               = H_tilde^{-1} D_tilde_p^T B_p D_tilde_p             (undivided form)
+        Q_diss = h^{2p+1} H^{-1} D_p^T B_p D_p.                      (divided form)
+               = H_tilde^{-1} D_tilde_p^T B_p D_tilde_p.             (undivided form)
 
-    where ``p = order_interior // 2``, ``H = h * H_tilde`` is the full-norm
-    SBP mass matrix, ``D_p = h^{-p} D_tilde_p`` is the divided p-th derivative
-    matrix, and ``B_p`` is the diagonal
-    ``A_{2p}(transition_fraction, endpoint_exponent, interior_value)`` profile
-    from MSN Def. 4.3.
+    Here ``p = order_interior // 2``.
+    ``H = h * H_tilde`` is the full-norm SBP mass matrix.
+    ``D_p = h^{-p} D_tilde_p`` is the divided p-th derivative matrix.
+    ``B_p`` is the diagonal
+    ``A_{2p}(transition_fraction, endpoint_exponent, interior_value)``
+    profile from MSN Def. 4.3.
 
-    The h^{2p+1} prefactor is mandatory for dimensional consistency: with
-    H_tilde^{-1} = h * H^{-1}, D_tilde_p = h^p D_p, the substitution gives
-    h^{1 + 2p} = h^{2p+1}. (Earlier internal drafts used h^{2p-1}, off by
-    h^{-2}; the validation gate caught it.)
+    The h^{2p+1} prefactor is mandatory for dimensional consistency.
+    With H_tilde^{-1} = h * H^{-1} and D_tilde_p = h^p D_p, the
+    substitution gives h^{1 + 2p} = h^{2p+1}.
+    Earlier internal drafts used h^{2p-1}, off by h^{-2}.
+    The validation gate caught it.
 
-    The caller subtracts ``epsilon * Q_diss`` from the operator:
+    The caller subtracts ``epsilon * Q_diss`` from the operator.
 
-        L_reg = L - epsilon * Q_diss
+        L_reg = L - epsilon * Q_diss.
 
     ``H * Q_diss = h^{2p+1} D_p^T B_p D_p`` is symmetric positive
     semidefinite whenever ``B_p >= 0``.
@@ -870,7 +875,7 @@ def build_sbp_dissipation_matrices(
         Uniform grid spacing.
     order_interior : int
         Interior accuracy order of the underlying SBP first-derivative
-        operator. Currently 4, 6, and 8 are implemented.
+        operator. Currently 4, 6, and 8 exist.
     order_diss : int or None
         Order of the dissipation operator (2*p_diss). When ``None`` (the
         default), defaults to ``order_interior`` so the dissipation order

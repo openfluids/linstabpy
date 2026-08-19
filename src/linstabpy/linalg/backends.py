@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 # Lazy PETSc accessor, mirroring ``linstabpy.utils.petsc_core``. External
 # callers reach ``PETSc`` through PEP 562 ``__getattr__``; functions *inside*
-# this module must bind it locally via ``PETSc = _get_petsc()`` because
+# functions here must bind it locally via ``PETSc = _get_petsc()`` because
 # ``__getattr__`` does not fire for same-module ``LOAD_GLOBAL`` lookups.
 def __getattr__(name):  # noqa: ANN001, ANN201
     if name == "PETSc":
@@ -56,10 +56,10 @@ ERR_SUP = 92
 _PROBE_DENOMINATOR_TINY = 1.0e-300
 PRECONDITIONER_PROBE_RESIDUAL_REL_MAX = 1.0e-4
 
-# DOF threshold below which MUMPS is preferred over STRUMPACK for GPU shift-invert.
+# DOF threshold below which MUMPS beats STRUMPACK for GPU shift-invert.
 # Measured on c9 (2x NVIDIA A6000, 96 GB GPU RAM): MUMPS wins below ~224k DOF and
 # STRUMPACK wins at ~900k DOF (3.2x eigensolve speedup, |dω| = 2.4e-13).
-# The true crossover between 224k and 900k is unmeasured; this constant is a
+# The true crossover between 224k and 900k has no measurement; this constant is a
 # tunable approximation, NOT a universal hardware-independent threshold.
 DEFAULT_AUTO_ROUTE_DOF_THRESHOLD = 224_000
 
@@ -165,9 +165,9 @@ def resolve_auto_factor_backend(
     Parameters
     ----------
     ndof:
-        Number of degrees of freedom of the operator being solved.
+        Number of degrees of freedom of the operator under solve.
     threshold:
-        DOF count at or above which STRUMPACK is preferred when available.
+        DOF count at or above which STRUMPACK wins when available.
         See ``DEFAULT_AUTO_ROUTE_DOF_THRESHOLD`` for provenance (c9 A6000
         measured lower bound — tunable, not a universal constant).
     strumpack_available:
@@ -184,11 +184,12 @@ def resolve_auto_factor_backend(
 
     Notes
     -----
-    The 224k default threshold is the measured c9 A6000 lower bound where MUMPS
-    stops winning; the true crossover between 224k and ~900k DOF is unmeasured.
+    The 224k default threshold is the measured c9 A6000 lower bound where
+    MUMPS stops winning.
+    The true crossover between 224k and ~900k DOF has no measurement.
     Treat this as a tunable approximation, not a universal constant.
-    When STRUMPACK is not available, this function silently returns ``"mumps"``
-    — it never raises or attempts to apply an absent backend.
+    When STRUMPACK is not available, return ``"mumps"`` silently.
+    Never raise or attempt to apply an absent backend.
     """
     if ndof >= threshold and strumpack_available:
         return "strumpack"
@@ -335,10 +336,11 @@ PRECONDITIONED_EIGEN_SOLVER_TYPES = (
 def backend_probe_is_preconditioner_role(st_solver: str | None) -> bool:
     """Return whether the factor backend is only an iterative-outer preconditioner.
 
-    In this role the backend probe's bare direct-solve residual is diagnostic:
-    the outer Krylov/SLEPc convergence test, not a standalone PREONLY+LU apply,
-    is the primary acceptance gate for the shifted solve.  A separate relaxed
-    sanity ceiling still catches catastrophically ineffective preconditioners.
+    In this role the backend probe's bare direct-solve residual is diagnostic.
+    The outer Krylov/SLEPc convergence test, not a standalone PREONLY+LU
+    apply, is the primary acceptance gate for the shifted solve.
+    A separate relaxed sanity ceiling still catches catastrophically
+    ineffective preconditioners.
     """
     return str(st_solver or "").strip().lower() in PRECONDITIONED_EIGEN_SOLVER_TYPES
 
@@ -352,9 +354,11 @@ def should_probe_backend(
     """Return whether a resolved factor backend should run the accuracy probe.
 
     Genuine direct solves keep the historical strict direct-residual gate and
-    the default-MUMPS exemption.  Iterative-outer eigensolver families use the
-    factor backend as a preconditioner, so they still run the probe as a
-    diagnostic even for default MUMPS unless explicitly disabled.
+    the default-MUMPS exemption.
+    Iterative-outer eigensolver families use the factor backend as a
+    preconditioner.
+    They still run the probe as a diagnostic even for default MUMPS unless
+    explicitly disabled.
     """
     backend = _normalize_backend(resolved_backend)
     if backend is None:
@@ -374,8 +378,9 @@ def shifted_ksp_probe_residual(
 ) -> dict[str, float | int | str | None]:
     """Solve one deterministic shifted-system RHS and return the true residual.
 
-    This is a diagnostic probe for an already-configured shift-invert KSP.  It
-    does not know about eigenpairs or acceptance policy; it only measures
+    This is a diagnostic probe for an already-configured shift-invert KSP.
+    It does not know about eigenpairs or acceptance policy.
+    It only measures
     ``||Kx-b|| / ||b||`` for the KSP's current operator using PETSc collective
     vector norms.
     """

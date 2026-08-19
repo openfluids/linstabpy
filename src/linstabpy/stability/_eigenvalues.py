@@ -16,7 +16,7 @@ from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
 # mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# PETSc only MPI_THREAD_FUNNELED, and init cannot raise the level later.
 # STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
 # Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
 # Enforced by tests/test_mpi_thread_level.py.
@@ -234,7 +234,7 @@ def _solve_near_target(
     # Shift-invert spectral transformation; linear solver backend is selectable.
     #
     # LINSTABPY_EIGEN_ST_SOLVER:
-    #   mumps (default) -> direct LU factorization (robust, memory-heavy)
+    #   mumps (default) -> direct LU factorization (memory-heavy, reference path)
     #   iterative       -> Krylov linear solve in ST (scalable, may require tuning)
     st = eps.getST()
     st.setType(SLEPc.ST.Type.SINVERT)
@@ -264,14 +264,14 @@ def _solve_near_target(
             _concrete,
         )
         # Replace the frozen cfg with a copy that carries the concrete backend.
-        # Only the eigen sub-object changes; no other fields are touched.
+        # Only the eigen sub-object changes; no other fields change.
         _eigen_concrete = dataclasses.replace(cfg.eigen, st_factor_backend=_concrete)
         cfg = dataclasses.replace(cfg, eigen=_eigen_concrete)
 
     _deferred_sub_pc = _configure_st_for_eigenvalue(st_solver, _ecfg, ksp, pc, st, cfg=cfg)
     # Note: the "iterative" branch inside _configure_st_for_eigenvalue handles
     # the FieldSplit physics-split when pc_type in {"fieldsplit", "fs"}.
-    # Re-apply FieldSplit IS setup here since the helper cannot access ndof/A.
+    # Re-apply FieldSplit IS setup here since that setup cannot access ndof/A.
     if st_solver in ITERATIVE_EIGEN_SOLVER_TYPES:
         pc_type_used = cfg.eigen.pc_type
         if pc_type_used in {"fieldsplit", "fs"} and ndof % 5 == 0:
@@ -331,7 +331,7 @@ def _solve_near_target(
             st_solver=st_solver,
         )
 
-    # ASM/BJacobi sub-preconditioner settings can only be applied now: PETSc
+    # ASM/BJacobi sub-preconditioner settings can only apply now: PETSc
     # materialises the sub-solvers during eps.setUp(). Applying them earlier silently
     # discarded them (ierr=58), so a config asking for ILU(2) ran with ILU(0) --
     # affecting iteration count and therefore any cost figure attributed to the config.
@@ -537,9 +537,10 @@ def _mumps_direct_solver_cfg(solver_cfg: dict | None) -> dict:
 
     Strips every STRUMPACK/iterative factor-backend selector from the eigen
     subsection so the retried solve uses the validated MUMPS
-    ``SINVERT+PREONLY+LU`` path. Building a fresh dict (rather than overriding
-    one config channel) means no STRUMPACK setting can leak through the raw
-    ``solver_cfg``, the typed ``cfg.eigen``, or an explicit
+    ``SINVERT+PREONLY+LU`` path.
+    Build a fresh dict rather than override one config channel.
+    Then no STRUMPACK setting can leak through the raw ``solver_cfg``,
+    the typed ``cfg.eigen``, or an explicit
     ``pc_factor_solver_type``. If ``solver_cfg`` is ``None`` the fallback uses
     MUMPS with default tolerances (acceptable for a correctness-preserving
     fallback solve).
@@ -726,11 +727,12 @@ def adjoint_eigenvalues(
     solver_cfg : dict or None, optional
         Solver configuration dictionary.
     temporal : bool, optional
-        When True, interpret *target* as a temporal eigenvalue omega (from
-        ``temporal_eigenvalues``) and return eigenvalues in the same
-        convention.  The target is converted internally to the adjoint
-        eigenvalue space (``target_internal = 1j * conj(target)``), and
-        the returned eigenvalues are the conjugates of the direct temporal
+        When True, interpret *target* as a temporal eigenvalue omega from
+        ``temporal_eigenvalues``.
+        Return eigenvalues in the same convention.
+        Internally, map the target to the adjoint eigenvalue space
+        (``target_internal = 1j * conj(target)``).
+        The returned eigenvalues are the conjugates of the direct temporal
         eigenvalues so that ``adjoint_omegas == conj(temporal_omegas)``.
         Default is False (raw adjoint eigenvalue convention).
     """

@@ -4,10 +4,10 @@
 Computes the optimal forcing/response pairs and gains for the linearised
 Navier--Stokes operator at a given frequency.  The resolvent operator is
 
-    H = C @ inv(L0 - i*omega*I) @ B
+    H = C @ inv(L0 - i*omega*I) @ B.
 
-The implementation follows MATLAB's reference route by solving the eigenproblem
-for ``H^H W H`` in the weighted inner product:
+The implementation follows MATLAB's reference route.
+It solves the eigenproblem for ``H^H W H`` in the weighted inner product.
 
     HtrH(v) = invW * H^H * W * H(v)
 
@@ -41,7 +41,7 @@ from ..utils.petsc_init import init_slepc_from_argv
 
 init_slepc_from_argv()
 # mpi4py must bind MPI before PETSc does: mpi4py requests MPI_THREAD_MULTIPLE,
-# PETSc only MPI_THREAD_FUNNELED, and the level cannot be raised after init.
+# PETSc only MPI_THREAD_FUNNELED, and init cannot raise the level later.
 # STRUMPACK/SLATE refuses to build a factor below MULTIPLE (PETSc error 57).
 # Sorts above petsc4py alphabetically, so `ruff --fix` preserves the order.
 # Enforced by tests/test_mpi_thread_level.py.
@@ -119,28 +119,32 @@ def resolvent_analysis(
 ):
     """Compute resolvent gains, optimal modes, and optionally SVD residuals.
 
-    Performs a resolvent analysis of the linear operator *L0* at angular
+    Perform a resolvent analysis of the linear operator *L0* at angular
     frequency *omega*.  The resolvent operator is
 
-        H = C FILTER( inv(L0 - i omega I) FILTER( B v ) )
+        H = C FILTER( inv(L0 - i omega I) FILTER( B v ) ).
 
-    and its gains/modes are computed from the weighted Hermitian operator
-    ``HtrH(v) = invW * H^H * W * H(v)`` using SLEPc EPS. This follows the
-    MATLAB parity implementation directly.
+    SLEPc EPS computes its gains and modes from the weighted Hermitian
+    operator.
+
+        HtrH(v) = invW * H^H * W * H(v).
+    This follows the MATLAB parity implementation directly.
 
     When ``residuals=False`` (the default), the returned payload is the
-    historical three-tuple ``(gains, responses, forcings)``.  When
-    ``residuals=True``, the shifted operator factorization is reused to append
-    the historical residual payload ``(rho_fwd, rho_adj)``, equivalent to the
-    old ``resolvent_analysis_with_residuals`` entry point.
+    historical three-tuple ``(gains, responses, forcings)``.
+    When ``residuals=True``, reuse the shifted operator factorization
+    to append the historical residual payload ``(rho_fwd, rho_adj)``.
+    That is equivalent to the old ``resolvent_analysis_with_residuals``
+    entry point.
 
-    The residuals are the same values that would be computed by
-    ``compute_resolvent_svd_residuals`` at the same ``omega`` and ``gamma``,
-    but reuse the already-factorized shifted operator.  The reuse boundary is
-    deliberately exact-frequency/discount only: a different ``omega`` or
-    ``gamma`` changes the numerical values in ``L0 - (gamma + i*omega)*I``, so
-    a MUMPS factorization cannot be carried across frequencies or discounts
-    unless PETSc/MUMPS symbolic reuse is introduced and tested separately.
+    The residuals match ``compute_resolvent_svd_residuals`` at the same
+    ``omega`` and ``gamma``, but reuse the already-factorized shifted
+    operator.
+    The reuse boundary is exact-frequency/discount only.
+    A different ``omega`` or ``gamma`` changes the numerical values in
+    ``L0 - (gamma + i*omega)*I``.
+    A MUMPS factorization cannot travel across frequencies or discounts
+    unless a later change introduces PETSc/MUMPS symbolic reuse and tests it.
 
     Parameters
     ----------
@@ -173,8 +177,9 @@ def resolvent_analysis(
         ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
         resolvent and keep the shifted solve numerically well-posed at poles.
     return_info : bool, optional
-        If True, append an info dictionary with the discount and the
-        exclusive stage clocks ``factor_s``, ``svd_s``, and ``residual_s``.
+        If True, append an info dictionary.
+        It holds the discount and the exclusive stage clocks
+        ``factor_s``, ``svd_s``, and ``residual_s``.
 
     Returns
     -------
@@ -183,10 +188,10 @@ def resolvent_analysis(
     responses : ndarray, shape (ndof, n_modes)
         Optimal response modes (columns), normalised in the *W*-inner product.
     forcings : ndarray, shape (ndof, n_modes)
-        Optimal forcing modes (columns). Normalisation is determined by
-        ``solver_cfg["resolvent"]["eigen"]["forcing_norm"]``: normalised in the
-        *W*-inner product if ``"chu"`` (default), or in the plain L2 norm if
-        ``"l2"``.
+        Optimal forcing modes (columns).
+        ``solver_cfg["resolvent"]["eigen"]["forcing_norm"]`` selects the
+        normalisation: *W*-inner product if ``"chu"`` (default), or the
+        plain L2 norm if ``"l2"``.
     rho_fwd, rho_adj : ndarray, optional
         Returned only when ``residuals=True``.
     info : dict, optional
@@ -246,7 +251,7 @@ def _resolvent_analysis_impl(
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
-    #    KSP/PC stack is selected by typed config through factorize.
+    #    KSP/PC stack comes from typed config through factorize.
     # ------------------------------------------------------------------
     logger.info("  MUMPS factorisation of L_sigma ...")
     t_factor = time.perf_counter()
@@ -366,7 +371,7 @@ def _compute_resolvent_svd_residuals_from_apply(
         # the invW in the l2 branch measures a relation the l2 triplet does not
         # satisfy -- it evaluates to s*||(invW - I) v||, large whenever W is not
         # the identity, so the adjoint gate would reject every l2 run. Checked
-        # numerically on a dense 6x6 fixture with W spanning 1e-3..1e3: the
+        # numerically on a dense 6x6 test matrix with W spanning 1e-3..1e3: the
         # correct form gives 1e-13 where the other gives 6e+04.
         HH_Wu = apply_H_adj(W_vec * u_i)
         adj_image = invW_vec * HH_Wu if forcing_norm == "chu" else HH_Wu
@@ -396,34 +401,40 @@ def compute_resolvent_svd_residuals(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute self-residuals for resolvent SVD triplets.
 
-    ``gamma`` is REQUIRED (no default): this postcheck rebuilds the shifted
-    operator ``L0 - (gamma + i*omega) I`` and MUST use the SAME ``gamma`` the
-    analysis used, or the residual is measured against a different operator and a
-    valid discounted-resolvent result fails the postcheck gate. Pass ``gamma=0.0``
-    explicitly for the standard (undiscounted) resolvent.
+    ``gamma`` has no default.
+    This postcheck rebuilds the shifted operator
+    ``L0 - (gamma + i*omega) I``.
+    It MUST use the SAME ``gamma`` the analysis used.
+    Otherwise the residual measures a different operator
+    and a valid discounted-resolvent result fails the postcheck gate.
+    Pass ``gamma=0.0`` explicitly for the standard (undiscounted) resolvent.
 
     The resolvent analysis solves the weighted eigenvalue problem
 
-        invW H^H W H v_i = sigma_i^2 v_i
+        invW H^H W H v_i = sigma_i^2 v_i.
 
-    with ``v_i`` normalised in the W-inner product (``v_i^H W v_i = 1``) and
-    response ``u_i = H v_i / sigma_i``.  Both residuals use the W-inner-product
-    norm ``||x||_W = sqrt(x^H W x)`` consistently in numerator and denominator:
+    ``v_i`` uses the W-inner product (``v_i^H W v_i = 1``).
+    Response is ``u_i = H v_i / sigma_i``.
+    Both residuals use the W-inner-product norm
+    ``||x||_W = sqrt(x^H W x)`` in numerator and denominator.
 
-        rho_fwd[i] = ||H v_i − sigma_i u_i||_W / (sigma_i ||v_i||_W)
-        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i||_W / (sigma_i ||v_i||_W)
+        rho_fwd[i] = ||H v_i − sigma_i u_i||_W / (sigma_i ||v_i||_W).
+        rho_adj[i] = ||invW H^H (W u_i) − sigma_i v_i||_W / (sigma_i ||v_i||_W).
 
     *rho_fwd* is near machine precision by construction (u_i is defined as
-    H v_i / sigma_i).  *rho_adj* is the meaningful residual: it checks the
-    adjoint half of the weighted eigenproblem and converges to ≤ SLEPc's
-    tolerance (1e-12) when the discrete operator is solved correctly.  Measuring
-    the numerator in the W-norm (rather than the unweighted 2-norm) keeps the
-    measure norm-consistent; with a 2-norm numerator the Chu-weight dynamic range
-    amplified parallel-FP jitter into a spurious ~1e-7 reading under MPI.
+    H v_i / sigma_i).
+    *rho_adj* is the meaningful residual: it checks the adjoint half of
+    the weighted eigenproblem.
+    It converges to ≤ SLEPc's tolerance (1e-12) when the discrete
+    operator solve is correct.
+    Measuring the numerator in the W-norm (rather than the unweighted
+    2-norm) keeps the measure norm-consistent.
+    With a 2-norm numerator the Chu-weight dynamic range amplified
+    parallel-FP jitter into a spurious ~1e-7 reading under MPI.
 
-    Derivation: from ``HtrH v = sigma^2 v`` and ``u = H v / sigma``:
+    Derivation: from ``HtrH v = sigma^2 v`` and ``u = H v / sigma``.
 
-        H^H W (sigma u) = sigma^2 W v   →   invW H^H (W u) = sigma v
+        H^H W (sigma u) = sigma^2 W v   →   invW H^H (W u) = sigma v.
 
     so ``rho_adj`` ≈ SLEPc tol ≈ 1e-12 for converged triplets.
 

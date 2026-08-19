@@ -14,7 +14,7 @@ from .baseflow import BaseFlow
 def sutherland_air(bf: BaseFlow) -> None:
     """Set viscosity fields on *bf* using Sutherland's law for air.
 
-    The function modifies *bf* **in-place**, populating :pyattr:`MU`,
+    Modify *bf* **in-place**, populating :pyattr:`MU`,
     :pyattr:`dmudT`, :pyattr:`d2mudT2`, :pyattr:`cv`, :pyattr:`c1`, and
     :pyattr:`c2`.
 

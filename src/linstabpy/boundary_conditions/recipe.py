@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Declarative boundary-condition recipe applicator.
 
-Reads a list of BC rule dicts (typically from a YAML config) and
-applies them sequentially to the LNSE operator, returning the
-combined BC index set.
+Read a list of BC rule dicts (typically from a YAML config).
+Apply them sequentially to the LNSE operator.
+Return the combined BC index set.
 """
 
 from __future__ import annotations
@@ -347,12 +347,12 @@ def apply_bc_recipe(
         Variable-block index dict from ``build_lnse_operator``.
     recipe : list of dict
         Each entry has keys ``"type"``, ``"borders"``, ``"variables"``.
-        Example::
+        Example.
 
             [
                 {"type": "dirichlet", "borders": "lt",  "variables": "ruvwT"},
                 {"type": "neumann",   "borders": "b",   "variables": "T"},
-            ]
+            ].
 
     penalty : float
         Penalty parameter for all BC rows.
@@ -409,10 +409,11 @@ def analyze_bc_recipe(
 ) -> dict[str, object]:
     """Analyze sequential BC-recipe semantics without modifying a matrix.
 
-    Returns the union of Dirichlet- and Neumann-touched DOFs, plus the
-    effective row-owner after sequential application. This is the right view
-    for stability EVPs, where later Neumann rules may override earlier
-    Dirichlet rows at shared corner DOFs.
+    Return the union of Dirichlet- and Neumann-touched DOFs, plus the
+    effective row-owner after sequential application.
+    This is the right view for stability EVPs.
+    Later Neumann rules may override earlier Dirichlet rows at shared
+    corner DOFs.
     """
     return BCRecipe.from_config(recipe).analyze(mesh, idx)
 
@@ -465,7 +466,7 @@ def _analyze_bc_recipe_impl(
 
         # Two sets matter downstream and they are deliberately not identical.
         # The effective owner says which row survives after sequential recipe
-        # application. The full Dirichlet union says which columns were zeroed
+        # application. The full Dirichlet union says which columns the recipe zeroed
         # at any point, even if a later Neumann rule took over the row.
         if np.asarray(bc_idx).size:
             constrained_variable_set.update(variables)

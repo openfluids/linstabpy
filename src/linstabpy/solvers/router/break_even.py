@@ -2,19 +2,21 @@
 """Measured frequency-count break-even routing for future resolvent maps.
 
 The chooser compares direct per-frequency sparse factorizations with an
-anchor-FGMRES sweep using measured costs on the supplied operator pattern:
+anchor-FGMRES sweep using measured costs on the supplied operator pattern.
 
-``direct cost   ≈ N_f · T_fact``
-``sweep cost    ≈ K_anchors · T_fact + N_f · iters · T_apply``
-``N_f*          = K_anchors / (1 - iters · T_apply / T_fact)``
+``direct cost   ≈ N_f · T_fact``.
+``sweep cost    ≈ K_anchors · T_fact + N_f · iters · T_apply``.
+``N_f*          = K_anchors / (1 - iters · T_apply / T_fact)``.
 
-``T_fact`` is measured by one real SciPy ``splu`` factorization on fabricated,
-well-conditioned values sharing the supplied sparse pattern.  ``T_apply`` is
-measured by one representative solve with that factor.  If
-``iters · T_apply >= T_fact``, the sweep cannot amortize its anchor
-factorizations, so the decision remains ``"direct"`` for every frequency count.
-This module is intentionally additive: it exposes a pre-routing decision for a
-future entry point and does not wire itself into any solver path.
+One real SciPy ``splu`` factorization on fabricated, well-conditioned
+values sharing the supplied sparse pattern measures ``T_fact``.
+One representative solve with that factor measures ``T_apply``.
+If ``iters · T_apply >= T_fact``, the sweep cannot amortize its anchor
+factorizations.
+The decision remains ``"direct"`` for every frequency count.
+The chooser is additive.
+It exposes a pre-routing decision for a future entry point and does
+not wire itself into any solver path.
 """
 
 from __future__ import annotations
@@ -75,8 +77,9 @@ def break_even_decision(
 
     The production path runs a real sparse-LU timing probe on ``L0_pattern``.
     Tests may inject ``break_even_probe`` in ``cfg`` to make the measurement
-    deterministic; the injected probe must still return the measured quantities
-    that drive the crossover formula.
+    deterministic.
+    The injected probe must still return the measured quantities that drive
+    the crossover formula.
     """
     pattern = _as_csc_pattern(L0_pattern)
     n_freq = _positive_int(n_frequencies, "n_frequencies")

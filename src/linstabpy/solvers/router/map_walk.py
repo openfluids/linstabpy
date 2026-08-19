@@ -3,8 +3,9 @@
 
 The first two frequencies on each beta line pay a real factor. Those
 points measure factor wall and SLEPc apply count. Later frequencies
-try that factor as a right preconditioner only if a probe on the last
-response beats that cost in at most four GMRES iterations. A dead
+try that factor as a right preconditioner.
+A probe on the last response must beat that cost in at most four GMRES
+iterations. A dead
 walk raises and factors this omega. The gain still comes from SLEPc.
 """
 

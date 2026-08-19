@@ -24,8 +24,8 @@ __version__ = _package_version()
 
 # Public API — lazy via PEP 562 __getattr__. Importing linstabpy must NOT
 # initialize PETSc/MPI, because pure-math test jobs run without an MPI stack
-# installed. Names below are resolved on first attribute access and cached on
-# the module for subsequent lookups.
+# installed. Names below resolve on first attribute access and cache here
+# for later lookups.
 _LAZY_EXPORTS = {
     "build_lnse_system": "linstabpy.operators.assembly",
     "build_lnse_operator": "linstabpy.operators.assembly",
