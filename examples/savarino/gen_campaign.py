@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
-"""Generates the 200-point campaign configs and batch scripts.
+"""Generate the 200-point campaign configs and batch scripts.
 
-Reproduces the exact point grid used for the published Savarino resolvent
-gain map (see ``savarino_map3_200pt.csv``): his own sample points,
-recovered from the Zenodo mode-file listing, not a grid of our choosing.
-Requires the base config ``configs/map_base.yaml`` and the batch-job template
-``configs/point.sbatch.template``.
+Reproduce the exact point grid used for the published Savarino resolvent
+gain map (see ``savarino_map3_200pt.csv``).
+Those are his own sample points, recovered from the Zenodo mode-file
+listing, not a grid of our choosing.
+Requires the base config ``configs/map_base.yaml`` and the batch-job
+template ``configs/point.sbatch.template``.
 
-Conventions (each with a measurement behind it, see the paper supplement):
-  sponge          OFF   -- his treatment
-  mask_bc_forcing ON
-  forcing norm    L2    -- his pair is L2 forcing / Chu response
-  epsilon         0     -- rectilinear mesh, no metric cross-coupling
-  P (input_region)      -- measured from his 13 published forcing modes:
-                           vars u,v,w; y in [0, 0.29627645]; x in [0.20291667, x_max]
-                           x_max = 1.9470833 for f = 0 and f >= 2 (full domain)
-                                   1.7954167 otherwise
-  ASSUMPTION: 1 < f < 2 is unmeasured (he publishes f=1 -> 1.795, f=2 -> 1.947).
+Conventions (each with a measurement behind it; see the paper supplement).
+  sponge          OFF   -- his treatment.
+  mask_bc_forcing ON.
+  forcing norm    L2    -- his pair is L2 forcing / Chu response.
+  epsilon         0     -- rectilinear mesh, no metric cross-coupling.
+  P (input_region)      -- measured from his 13 published forcing modes.
+                           vars u,v,w; y in [0, 0.29627645]; x in [0.20291667, x_max].
+                           x_max = 1.9470833 for f = 0 and f >= 2 (full domain).
+                           x_max = 1.7954167 otherwise.
+  ASSUMPTION: 1 < f < 2 has no measurement (he publishes f=1 -> 1.795, f=2 -> 1.947).
   Those four frequencies (1.2, 1.4, 1.6, 1.8) take the 1.795 value.
 
-Usage:
-    python gen_campaign.py --out results/campaign                      # 200-pt map (Slurm)
-    python gen_campaign.py --out results/campaign --grid dense317      # 317-pt map
-    python gen_campaign.py --out results/campaign --dry-run              # generate only
-    python gen_campaign.py --out results/campaign --local              # print mpiexec commands
+Usage.
+    python gen_campaign.py --out results/campaign                      # 200-pt map (Slurm).
+    python gen_campaign.py --out results/campaign --grid dense317      # 317-pt map.
+    python gen_campaign.py --out results/campaign --dry-run              # generate only.
+    python gen_campaign.py --out results/campaign --local              # print mpiexec commands.
 """
 
 from __future__ import annotations
@@ -77,9 +78,10 @@ def env_lines(pairs):
 
     One line per pair, so the job carries its own rank placement
     (``I_MPI_PIN_DOMAIN=auto``, ``I_MPI_PIN=off``) and interpreter
-    (``LINSTABPY_PYTHON=...``) instead of inheriting them from whoever submitted.
-    A value with whitespace (``PETSC_OPTIONS=-use_gpu_aware_mpi 0``) is quoted so
-    the shell keeps it as one word.
+    (``LINSTABPY_PYTHON=...``).
+    It does not inherit them from whoever submitted.
+    A value with whitespace (``PETSC_OPTIONS=-use_gpu_aware_mpi 0``) gets
+    quotes so the shell keeps it as one word.
     """
     out = []
     for pair in pairs or ():
@@ -95,13 +97,18 @@ def env_lines(pairs):
 def gpu_block(n_gpus, log_dir):
     """Job-script lines that give the job one GPU for its lifetime, or nothing.
 
-    The Slurm on the GPU box has no GRES, so the job takes the first free
-    device with a lock that lives as long as the job's shell (fd 9); two jobs
-    running at once therefore never share a device. A ``nvidia-smi`` sampler
-    writes the device memory every 5 s next to the job log, so the run record
-    can carry the GPU peak alongside the rank-summed RSS. The sampler closes fd 9
-    first: a child that inherited the lock kept it up to one sleep after the job
-    ended, and the next job saw both devices busy (c9 jobs 2380/2382, exit 3).
+    The Slurm on the GPU box has no GRES.
+    The job takes the first free device with a lock that lives as long as
+    the job's shell (fd 9).
+    Two jobs running at once therefore never share a device.
+    A ``nvidia-smi`` sampler writes the device memory every 5 s next to
+    the job log.
+    The run record can then carry the GPU peak alongside the rank-summed
+    RSS.
+    The sampler closes fd 9 first.
+    A child that inherited the lock kept it up to one sleep after the job
+    ended.
+    The next job then saw both devices busy (c9 jobs 2380/2382, exit 3).
     """
     n = int(n_gpus or 0)
     if n <= 0:
@@ -177,7 +184,7 @@ def main() -> int:
     # The job runs from the repository root, but a point config's case_dir is
     # written relative to examples/savarino/ (configs/ and the root YAMLs alike,
     # as savarino_line.py / savarino_mapwalk.py read it). Resolve it here so a
-    # point does not depend on the CWD it is launched from.
+    # point does not depend on the CWD the job starts from.
     case_dir = Path(str(cfg0["paths"]["case_dir"]))
     if not case_dir.is_absolute():
         cfg0["paths"]["case_dir"] = str((HERE / case_dir).resolve())

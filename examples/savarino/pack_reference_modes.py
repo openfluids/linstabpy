@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Pack Savarino published response modes into shipped reference NPZs.
 
-Reads Tecplot forcing/response files (Zenodo layout), linearises to primitive
-perturbations on the shipped Tecplot base flow (``reference/baseflow/``), and
-writes ``reference/savarino_response_<name>.npz`` with the five fields
+Read Tecplot forcing/response files (Zenodo layout).
+Linearise to primitive perturbations on the shipped Tecplot base flow
+(``reference/baseflow/``).
+Write ``reference/savarino_response_<name>.npz`` with the five fields
 used by ``compare_modes.py`` (rho, u, v, w, T; complex) plus scalar f, beta.
 
 Usage (from this directory, after placing Tecplot files under reference/zenodo/):

@@ -5,12 +5,12 @@ Example 5: Paraboloid resolvent analysis.
 Translates example_5_Paraboloid.m using a curvilinear transformation to a
 parabolic physical grid and an axisymmetric model.
 
-OUTPUTS:
-  - example_5_paraboloid.npz
-  - example_5_paraboloid_baseflow.png
-  - example_5_paraboloid_modes_forcing_response_{u,v,w}[_imag]_mosaic.png
+OUTPUTS.
+  - example_5_paraboloid.npz.
+  - example_5_paraboloid_baseflow.png.
+  - example_5_paraboloid_modes_forcing_response_{u,v,w}[_imag]_mosaic.png.
 
-Mesh parity (see ``example_5_D2y_asymm_fix.md``):
+Mesh parity (see ``example_5_D2y_asymm_fix.md``).
   - ``Mesh.deform`` metric terms in ``_deform_full_2d`` use full ``Dy``/``D2y``
     when building ``dJ``/``Q`` for symm/asymm families (fixes ``D2y_asymm``).
 
@@ -153,7 +153,7 @@ def compute(cfg: dict) -> None:
 
     # Paraboloid at ω=0 can be singular depending on discretization and
     # boundary conditions; a small imaginary shift is a conservative fallback
-    # to keep this example numerically robust in reduced-memory settings.
+    # to keep this example numerically stable in reduced-memory settings.
     solve_freqs = [complex(omega)]
     if use_shift_fallback and abs(omega) < 1e-12 and omega_shift_fallback > 0.0:
         solve_freqs.append(1j * omega_shift_fallback)

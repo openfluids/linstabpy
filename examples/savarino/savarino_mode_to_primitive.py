@@ -1,43 +1,52 @@
 #!/usr/bin/env python3
 """Linearised conservative -> primitive transform for Savarino's published modes.
 
-Supporting library used by every other script in this directory: converts
-his published forcing/response modes (and his base flow) from conservative
-perturbation variables to the primitive variables linstabpy solves for.
-No inputs of its own -- ``main()`` below runs four falsifying checks on a
-synthetic state and needs nothing external.
+Every other script in this directory uses this transform.
+It converts his published forcing and response modes, and his base flow,
+from conservative perturbation variables to linstabpy primitives.
+It has no inputs of its own.
+``main()`` below runs four falsifying checks on a synthetic state and
+needs nothing external.
 
-WHY THIS IS NOT ``savarino_to_npy.py``. That file converts a STATE: it divides,
-``u = rou/ro``, which is exact for a base flow and wrong for a perturbation. His
-published forcing and response modes are perturbations in conservative variables
-(every mode header reads ``"X" "Y" "ro" "rou" "rov" "row" "roe"``), while our state
-vector is primitive ``(rho, u, v, w, T)``.  Feeding a nonlinearly-converted mode into
-the operator produces a field that looks like a mode and correlates badly, which is
-indistinguishable from "our operator is wrong" -- so the transform gets derived, and
-gated, before it touches anything.
+Why this is not ``savarino_to_npy.py``.
+That file converts a STATE: it divides, ``u = rou/ro``.
+That division is exact for a base flow and mismatched for a perturbation.
+His published forcing and response modes are perturbations in conservative
+variables.
+Every mode header reads ``"X" "Y" "ro" "rou" "rov" "row" "roe"``.
+Our state vector is primitive ``(rho, u, v, w, T)``.
+Feeding a nonlinearly-converted mode into the operator produces a field
+that looks like a mode and correlates badly.
+That is indistinguishable from a mismatched operator.
+So we derive the transform, and gate it, before it touches anything.
 
-THE DERIVATION.  Write the conservative state ``q_c = (ro, rou, rov, row, roe)`` and
-the primitive state ``q_p = (rho, u, v, w, T)``.  The base-flow identities are
+The derivation.
+Write the conservative state ``q_c = (ro, rou, rov, row, roe)``.
+Write the primitive state ``q_p = (rho, u, v, w, T)``.
+The base-flow identities are as follows.
 
-    e_int = roe/ro - |vel|^2 / 2                    (specific internal energy)
-    T     = e_int * gamma (gamma - 1) M^2
+    e_int = roe/ro - |vel|^2 / 2                    (specific internal energy).
+    T     = e_int * gamma (gamma - 1) M^2.
 
 Linearising about a base state (barred) gives ``q_p' = Minv q_c'`` with
+the following.
 
-    rho' = ro'
-    u'   = (rou)'/rho_bar - u_bar rho'/rho_bar          (v, w alike)
-    T'   = gamma (gamma - 1) M^2 * [ roe'/rho_bar
-                                     - e_tot_bar rho'/rho_bar
-                                     - (u_bar u' + v_bar v' + w_bar w') ]
+    rho' = ro'.
+    u'   = (rou)'/rho_bar - u_bar rho'/rho_bar          (v, w alike).
+    T'   = gamma (gamma - 1) M^2 times the internal-energy perturbation.
+    That perturbation is roe'/rho_bar - e_tot_bar rho'/rho_bar
+    - (u_bar u' + v_bar v' + w_bar w').
 
-where ``e_tot_bar = roe_bar / rho_bar`` is the specific TOTAL energy -- not the
-internal energy.  Dropping that distinction is the easiest way to get this wrong.
+``e_tot_bar = roe_bar / rho_bar`` is the specific TOTAL energy, not the
+internal energy.
+Dropping that distinction is the easiest way to mismatch this map.
 
-THE SAME MAP SERVES THE FORCING.  If the conservative system is forced as
-``dq_c/dt = R_c + f_c`` and the identical system in primitive variables reads
-``dq_p/dt = R_p + f_p``, then with ``q_c = Phi(q_p)`` and ``M = dPhi/dq_p`` we get
-``M dq_p/dt = R_c + f_c``, hence ``f_p = Minv f_c``.  One transform, used for both his
-response mode and his forcing mode.
+The same map serves the forcing.
+Force the conservative system as ``dq_c/dt = R_c + f_c``.
+The identical primitive system is ``dq_p/dt = R_p + f_p``.
+With ``q_c = Phi(q_p)`` and ``M = dPhi/dq_p`` we get ``M dq_p/dt = R_c + f_c``.
+Hence ``f_p = Minv f_c``.
+One transform, used for both his response mode and his forcing mode.
 
 Run this file directly to execute the four falsifying checks.
 """
@@ -87,8 +96,9 @@ def linearise_to_primitive(
 ) -> dict[str, np.ndarray]:
     """Apply ``Minv`` to a conservative PERTURBATION about ``base_cons``.
 
-    Works for real or complex perturbation arrays -- the base flow is real, the map is
-    linear, so a complex mode transforms component-wise.
+    Works for real or complex perturbation arrays.
+    The base flow is real and the map is linear, so a complex mode
+    transforms component-wise.
     """
     rho_b = base_cons["ro"]
     u_b = base_cons["rou"] / rho_b
@@ -110,8 +120,11 @@ def linearise_to_primitive(
 
 
 def _synthetic_base(n: int = 40, seed: int = 0) -> dict[str, np.ndarray]:
-    """A smooth, strictly positive synthetic state -- not his data, so the checks run
-    anywhere and cannot be accidentally satisfied by a special feature of his field."""
+    """Return a smooth, strictly positive synthetic state.
+
+    This is not his data, so the checks run anywhere.
+    They cannot be accidentally satisfied by a special feature of his field.
+    """
     rng = np.random.default_rng(seed)
     rho = 1.0 + 0.3 * rng.random((n, n))
     u = 0.5 + 0.4 * rng.random((n, n))
@@ -132,8 +145,9 @@ def check_1_zero_maps_to_zero(base: dict[str, np.ndarray]) -> float:
 def check_2_second_order_convergence(base: dict[str, np.ndarray]) -> float:
     """(exact(q+eps*d) - exact(q)) / eps  ->  Minv d  with an O(eps) error.
 
-    Halving eps must halve the error: that is what proves the map is the derivative
-    and not merely something with the right units.
+    Halving eps must halve the error.
+    That is what proves the map is the derivative and not merely something
+    with the right units.
     """
     rng = np.random.default_rng(7)
     d = {k: rng.standard_normal(base[k].shape) * np.abs(base[k]).mean() for k in CONS}

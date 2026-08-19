@@ -1,15 +1,15 @@
 """Presentation figures for Martini Example 5 (paraboloid resolvent).
 
 Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_5_paraboloid_resolvent/``:
+``cases/Martini2024/comparison/plots/example_5_paraboloid_resolvent/``.
 
-- ``example_5_paraboloid_baseflow.png`` — baseflow :math:`|\\mathbf{u}_b|`
+- ``example_5_paraboloid_baseflow.png`` — baseflow :math:`|\\mathbf{u}_b|`.
 - ``example_5_paraboloid_modes_forcing_response_{u,v,w}[_imag]_mosaic.png`` — forcing/response ranks 1–3
-  (LinStab2D | linstabpy | error triptych)
+  (LinStab2D | linstabpy | error triptych).
 
 Uses the **fixed** ``Mesh.deform`` metric terms (see ``example_5_D2y_asymm_fix.md``).
 
-LinStab2D fixtures store **pre-** :math:`C` responses and export forcings as
+LinStab2D references store **pre-** :math:`C` responses and export forcings as
 :math:`B v` (``returnPhysicalSpace``). Mosaics multiply MATLAB responses by
 :math:`C=B` and Python forcings by the same diagonal :math:`B` before error
 panels (like Examples 1–2). Python NPZ responses are already post-:math:`C`.

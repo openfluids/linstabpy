@@ -122,9 +122,10 @@ def _backend_label(cfg: Mapping[str, Any]) -> str:
 def _pin_domain(env: Mapping[str, str]) -> str:
     """Name the MPI rank placement a job asked for, as it lands in the row.
 
-    Intel MPI: ``I_MPI_PIN_DOMAIN`` when set, ``off`` when pinning was switched off,
-    ``default`` otherwise. Placement changed the factor time by 1.6x on c9
-    (job 1861), so a cost row without it is not comparable.
+    Intel MPI: ``I_MPI_PIN_DOMAIN`` when set, ``off`` when the job turns pinning
+    off, ``default`` otherwise.
+    Placement changed the factor time by 1.6x on c9 (job 1861), so a cost
+    row without it is not comparable.
     """
     domain = env.get("I_MPI_PIN_DOMAIN", "").strip()
     if domain:

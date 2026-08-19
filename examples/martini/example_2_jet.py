@@ -4,11 +4,11 @@ Example 2: Jet resolvent analysis.
 
 Translates example_2_Jet.m for an axisymmetric (m=0) jet base flow.
 
-OUTPUTS:
-  - example_2_jet.npz
-  - example_2_jet_baseflow.png
-  - example_2_jet_modes_forcing_response_{u,v}_mosaic.png
-  - example_2_jet_modes_forcing_response_{u,v}_imag_mosaic.png
+OUTPUTS.
+  - example_2_jet.npz.
+  - example_2_jet_baseflow.png.
+  - example_2_jet_modes_forcing_response_{u,v}_mosaic.png.
+  - example_2_jet_modes_forcing_response_{u,v}_imag_mosaic.png.
 
 USAGE:   python example_2_jet.py                       # .npz exists → plot only
          rm example_2_jet.npz && python example_2_jet.py  # recompute

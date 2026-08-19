@@ -57,7 +57,7 @@ def _matlab_fixture_search_dirs(npz_dir: Path) -> list[Path]:
 
 
 def matlab_bundle_path(npz_dir: Path, stem: str) -> Path:
-    """Return the on-disk path for a fixture stem (plain or split values file)."""
+    """Return the on-disk path for a reference stem (plain or split values file)."""
     for base in _matlab_fixture_search_dirs(npz_dir):
         plain = base / f"{stem}.npz"
         if plain.exists():
@@ -85,7 +85,7 @@ def _normalize_flat_keys(flat: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
 
 
 def load_matlab_bundle(npz_dir: Path, stem: str) -> dict[str, np.ndarray]:
-    """Load a MATLAB fixture, merging split values/modes files when present."""
+    """Load a MATLAB reference, merging split values/modes files when present."""
     path = matlab_bundle_path(npz_dir, stem)
     if not path.exists():
         raise FileNotFoundError(
@@ -157,10 +157,12 @@ def _prepare_resolvent_parity_payload(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Align full-stack Python modes and pre-C MATLAB responses for parity checks.
 
-    Slim ``LinStab2DResults/`` fixtures store compact u+v (or u+v+w) columns while
-    Python NPZ files keep the full LNSE stack. Case plotters apply the same
-    compaction and observation masks before error panels; the comparator must
-    mirror that or mode rel errors inflate by orders of magnitude.
+    Slim ``LinStab2DResults/`` files store compact u+v (or u+v+w) columns while
+    Python NPZ files keep the full LNSE stack.
+    Case plotters apply the same compaction and observation masks before
+    error panels.
+    The comparator must mirror that or mode rel errors inflate by orders
+    of magnitude.
     """
     from examples.martini.plot_compare_utils import (
         apply_diagonal_c,
@@ -769,12 +771,14 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             tol = dict(case.get("tolerances", {}))
             # Primary gate: SVD residual-based when both residuals and the
             # svd_residual_max tolerance are present.  Both gain_abs and
-            # gain_rel are skipped because UMFPACK (MATLAB) vs MUMPS/METIS
-            # (Python) use different fill-reducing orderings; the resulting
-            # gain mismatch is structural (~0.04–0.54% relative, up to ~0.08
-            # absolute for large gains) and does not indicate an error.  The
-            # SVD residuals prove correctness independently of the MATLAB
-            # reference; mode_rel is retained as it is satisfied.
+            # gain_rel stay unused because UMFPACK (MATLAB) vs MUMPS/METIS
+            # (Python) use different fill-reducing orderings.
+            # The resulting gain mismatch is structural (~0.04–0.54% relative,
+            # up to ~0.08 absolute for large gains) and does not indicate an
+            # error.
+            # The SVD residuals prove correctness independently of the MATLAB
+            # reference.
+            # mode_rel stays because it already holds.
             if "svd_residual_max_fwd" in report and "svd_residual_max" in tol:
                 svd_max = max(report["svd_residual_max_fwd"], report["svd_residual_max_adj"])
                 passed = (
@@ -853,7 +857,7 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             # far-field shift and is not a tight gold standard (residuals ~1e-4).
             # Python MUMPS residuals are ~1e-12; the residual gate is the
             # primary signal. Spectrum-match tolerances are kept as informational
-            # checks; they are skipped when residual_max is present.
+            # checks; they stay unused when residual_max is present.
             temporal_residual_ok: bool
             if "residual_max" in report["temporal"] and "temporal_residual_max" in tol:
                 temporal_residual_ok = report["temporal"]["residual_max"] <= float(

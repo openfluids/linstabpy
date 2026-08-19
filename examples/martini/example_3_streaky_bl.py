@@ -3,20 +3,22 @@
 Example 3: Streaky boundary-layer temporal and spatial analysis.
 
 Translates example_3_Streaky_BL.m and the four paper campaigns
-(``example_3_paper_*.yaml``) with periodic x-domain, Hanifi-like y stretch,
-temporal eigenvalues, and spatial eigenvalues in generalized (alpha) form.
+(``example_3_paper_*.yaml``).
+Uses a periodic x-domain, a Hanifi-like y stretch, temporal eigenvalues,
+and spatial eigenvalues in generalized (alpha) form.
 
-OUTPUTS (four paper NPZ bundles + campaign figures):
-  - example_3_paper_temporal_Lx2pi_nP2.npz
-  - example_3_paper_temporal_Lxpi_nfloq0.npz
-  - example_3_paper_temporal_Lxpi_nfloq2.npz
-  - example_3_paper_spatial_Lxpi_nP2.npz
-  - example_3_streaky_bl_baseflow.png
-  - example_3_streaky_bl_spectrum_*.png
-  - example_3_streaky_bl_modes_temporal_* / example_3_streaky_bl_modes_spatial_* mosaics
+OUTPUTS (four paper NPZ bundles + campaign figures).
+  - example_3_paper_temporal_Lx2pi_nP2.npz.
+  - example_3_paper_temporal_Lxpi_nfloq0.npz.
+  - example_3_paper_temporal_Lxpi_nfloq2.npz.
+  - example_3_paper_spatial_Lxpi_nP2.npz.
+  - example_3_streaky_bl_baseflow.png.
+  - example_3_streaky_bl_spectrum_*.png.
+  - example_3_streaky_bl_modes_temporal_* / example_3_streaky_bl_modes_spatial_* mosaics.
 
-USAGE:   python example_3_streaky_bl.py
-         rm example_3_paper_*.npz && python example_3_streaky_bl.py  # recompute all
+USAGE.
+    python example_3_streaky_bl.py.
+    rm example_3_paper_*.npz && python example_3_streaky_bl.py  # recompute all.
 
 Single-case override (batch / debugging):
   LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \\

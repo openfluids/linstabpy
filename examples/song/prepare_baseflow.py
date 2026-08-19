@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Map Song (2023) finite-volume cell-centre mean flow to nodal baseflow arrays.
 
-Cell-centre primitive fields on a stretched tensor-product Cartesian grid are
-reconstructed at vertices by separable one-dimensional linear interpolation in
-physical wall-normal then streamwise coordinates (equivalent to bilinear
-reconstruction on the full vertex grid).
+Cell-centre primitive fields sit on a stretched tensor-product Cartesian
+grid.
+The mapper reconstructs them at vertices by separable one-dimensional
+linear interpolation.
+It interpolates in physical wall-normal then streamwise coordinates
+(equivalent to bilinear reconstruction on the full vertex grid).
 
 Place Song's Plot3D export under ``inputs/raw/`` (``grid.grd``, ``mean_flow.dat``).
 Default output: ``inputs/baseflow/*.npy`` (599 × 301 after streamwise trim).

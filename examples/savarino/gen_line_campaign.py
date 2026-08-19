@@ -2,8 +2,9 @@
 """Write one Slurm job per Savarino beta line.
 
 The point campaign (gen_campaign.py) factors L0 at every (beta, f) in its
-own job. This generator keeps the same GRID and the same P(f), but runs
-all frequencies of one beta in one process after a single assembly.
+own job.
+This generator keeps the same GRID and the same P(f).
+It runs all frequencies of one beta in one process after a single assembly.
 
 Do not submit these jobs on a node that still runs the 200-point farm.
 

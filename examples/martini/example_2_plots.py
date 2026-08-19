@@ -1,11 +1,12 @@
 """Presentation figures for Martini Example 2 (jet resolvent).
 
 Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_2_jet_resolvent/`` with published
-``kron``/``repeat`` :math:`B=C` parity (MATLAB ``kron(B(:), ones(5,1))``):
+``cases/Martini2024/comparison/plots/example_2_jet_resolvent/``.
+Uses published ``kron``/``repeat`` :math:`B=C` parity
+(MATLAB ``kron(B(:), ones(5,1))``).
 
-- ``example_2_jet_baseflow.png`` — jet axial velocity :math:`u`
-- ``example_2_jet_modes_forcing_response_{u,v}[_imag]_mosaic.png`` — LinStab2D | linstabpy | error
+- ``example_2_jet_baseflow.png`` — jet axial velocity :math:`u`.
+- ``example_2_jet_modes_forcing_response_{u,v}[_imag]_mosaic.png`` — LinStab2D | linstabpy | error.
 
 MATLAB responses are pre-:math:`C`; mosaics apply the same diagonal :math:`C=B`
 before error panels. Forcing rows are left as exported (:math:`B v`).

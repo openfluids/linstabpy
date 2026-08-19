@@ -8,11 +8,13 @@ Krylov bases. Each frequency still uses a MUMPS factor of L0 - i omega.
 Writes savarino_line_b<beta>.csv and savarino_line_b<beta>.log next to
 --out. Rank 0 writes the files. Time every stage with time.perf_counter.
 
-This script measures wall time. It sets certification_required to False,
-so the recycled sweep logs a failed RSVD check and continues. A gain from
-this script is not a published gain. Published gains come from the farm
-campaign (gen_campaign.py) and from savarino_mapwalk.py, which both keep
-the certification and the residual checks on.
+This run measures wall time.
+It sets certification_required to False, so the recycled sweep logs a
+failed RSVD check and continues.
+A gain from this run is not a published gain.
+Published gains come from the farm campaign (gen_campaign.py) and from
+savarino_mapwalk.py.
+Those two keep the certification and the residual checks on.
 """
 
 from __future__ import annotations

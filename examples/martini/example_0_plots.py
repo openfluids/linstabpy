@@ -5,7 +5,7 @@ Matches the thesis/campaign layout under
 
 - ``example_0_curvilinear_mesh.png``
 - ``example_0_curvilinear_validation.png``
-- ``example_0_field_df_triptych.png`` (LinStab2D fixture vs Python NPZ)
+- ``example_0_field_df_triptych.png`` (LinStab2D reference vs Python NPZ).
 """
 
 from __future__ import annotations

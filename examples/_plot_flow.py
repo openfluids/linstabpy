@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Example plotting helper for a scalar field."""
+"""Plot a scalar field for the examples."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def plot_flow(
         If true, use a zero-centered symmetric color scale.
     robust_percentile : float, optional
         Percentile used to clip the color scale. ``99`` keeps the central 99%
-        of the finite values. When omitted, full data limits are used.
+        of the finite values. When omitted, the plot uses full data limits.
     aspect : {'equal', 'auto'} or float or None
         Axes aspect ratio. ``None`` leaves the current aspect unchanged.
     xlim, ylim : tuple, optional
@@ -59,8 +59,8 @@ def plot_flow(
     return_contour : bool
         If true, return the contour/pcolormesh object instead of the axis.
     vmin, vmax : float, optional
-        Explicit color limits. Ignored when ``symmetric`` is true and both are
-        omitted.
+        Explicit color limits. Ignored when ``symmetric`` is true and the
+        caller omits both.
 
     Returns
     -------
@@ -245,9 +245,9 @@ def _tricontourf_masked(
 ):
     """Render a NaN-holed structured field using grid-based triangulation.
 
-    Builds triangles directly from the (ny, nx) grid adjacency: each quad
-    cell whose 4 corners are all finite is split into 2 triangles.  This
-    naturally excludes the NaN hole with no heuristic parameters.
+    Build triangles directly from the (ny, nx) grid adjacency.
+    Each quad cell whose 4 corners are all finite is split into 2 triangles.
+    This naturally excludes the NaN hole with no heuristic parameters.
     """
     import matplotlib.tri as mtri
 

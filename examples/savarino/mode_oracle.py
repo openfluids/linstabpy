@@ -1,39 +1,54 @@
 #!/usr/bin/env python3
-"""Forced-response oracle: injects the published forcing and compares the response.
+"""Forced-response check: inject the published forcing and compare the response.
 
 He publishes no gain values, so a sigma-vs-sigma table against him is impossible.
-This is the comparison that is available, and it is stronger anyway: a gain is one
-number and can agree by accident, a field cannot.
+This is the comparison that is available.
+It is stronger anyway: a gain is one number and can agree by accident.
+A field cannot.
 
-Requires: Savarino's published base flow and resolvent modes under
-``reference/zenodo/`` (``fetch_zenodo.py``), and a case configuration reachable
-from the current working directory (see ``README.md``).
+Requires Savarino's published base flow and resolvent modes under
+``reference/zenodo/`` (``fetch_zenodo.py``).
+Also requires a case configuration reachable from the current working
+directory (see ``README.md``).
 
-WHAT IT TESTS, precisely.  The forward map is ``H v = C inv(L_sigma) B v`` and the Chu
-weight W appears nowhere in it (see ``linstabpy/resolvent/operator.py``) -- W enters
-only the optimisation, i.e. *which* forcing is best.  Handing the operator a forcing
-therefore tests ``inv(L_sigma)`` -- the assembled operator, the boundary conditions,
-the base-flow ingest, the metric transform, beta and omega -- and C.  It does NOT
-test the Chu weight, and it barely tests P, because his forcing is already exactly
-zero outside his own restriction.  That independence is the point: the oracle can
-run before the norm and P questions are settled.
+What it checks.
+The forward map is ``H v = C inv(L_sigma) B v``.
+The Chu weight W appears nowhere in it (see ``linstabpy/resolvent/operator.py``).
+W enters only the optimisation, i.e. *which* forcing is best.
+Handing the operator a forcing therefore checks ``inv(L_sigma)``.
+That includes the assembled operator, the boundary conditions, the
+base-flow ingest, the metric transform, beta and omega, and C.
+It does not check the Chu weight.
+It barely checks P, because his forcing is already exactly zero outside
+his own restriction.
+That independence is the point.
+The check can run before the norm and P questions have an answer.
 
-HOW IT RUNS.  It does not rebuild the operator -- duplicating the driver's assembly
-would risk testing a subtly different operator than the one that produces our gains.
-Instead it monkeypatches ``driver.run._stage_run_resolvent``, which receives the
-assembled ``L0_resolv`` together with ``mesh`` and ``idx``, and does the single solve
-there.  Everything upstream is the production path, unmodified.
+How it runs.
+It does not rebuild the operator.
+Duplicating the driver's assembly would risk checking a different
+operator than the one that produces our gains.
+Instead it monkeypatches ``driver.run._stage_run_resolvent``.
+That stage receives the assembled ``L0_resolv`` together with ``mesh``
+and ``idx``, and does the single solve there.
+Everything upstream is the production path, unmodified.
 
-TWO CONVENTIONS ARE TESTED, NOT ASSUMED.  Our shift is ``L_sigma = L0 - (gamma +
-i*omega) I``.  His ansatz is ``exp(i beta z - lambda t)`` with ``lambda = sigma + i
-omega``, and the relative sign of the time convention is not stated anywhere we can
-read.  Both ``+omega`` and ``-omega`` are solved and both correlations reported.  This is
-a binary convention with a right answer, not a tunable parameter: if the operator is
-right exactly one should correlate well and the other should not.  If NEITHER does, that
-is the finding, and no amount of sign-flipping fixes it.
+The check covers two conventions; it does not assume one.
+Our shift is ``L_sigma = L0 - (gamma + i*omega) I``.
+His ansatz is ``exp(i beta z - lambda t)`` with ``lambda = sigma + i omega``.
+The relative sign of the time convention is not stated anywhere we can
+read.
+The check solves both ``+omega`` and ``-omega`` and reports both
+correlations.
+This is a binary convention with a right answer, not a tunable
+parameter.
+If the operator is right, exactly one should correlate well and the
+other should not.
+If neither does, that is the finding, and no amount of sign-flipping
+fixes it.
 
 Usage (inside the case directory, via the normal run environment):
-    LINSTABPY_CASE1_CONFIG=<oracle>.yaml python mode_oracle.py
+    LINSTABPY_CASE1_CONFIG=<check>.yaml python mode_oracle.py
 """
 
 from __future__ import annotations
@@ -65,12 +80,13 @@ def _complex_mode(kind: str) -> dict[str, np.ndarray]:
 def _to_dof(prim: dict[str, np.ndarray], mesh, idx, ndof: int) -> np.ndarray:
     """Scatter primitive (streamwise, wall-normal) fields onto the state vector.
 
-    read_tecplot returns arrays with axis 0 streamwise and axis 1 wall-normal.  The
-    case loader reads the .npy with ``transpose_input=True``, so the in-memory X/Y --
-    and therefore ``mesh.used_ind`` and every idx block -- are (wall-normal,
-    streamwise).  The transpose below is what keeps the two consistent; without it the
-    error is invisible, because his grid is 300x300 and a transposed field has exactly
-    the right shape.
+    read_tecplot returns arrays with axis 0 streamwise and axis 1 wall-normal.
+    The case loader reads the .npy with ``transpose_input=True``.
+    The in-memory X/Y -- and therefore ``mesh.used_ind`` and every idx block --
+    are (wall-normal, streamwise).
+    The transpose below is what keeps the two consistent.
+    Without it the error is invisible.
+    His grid is 300x300, and a transposed field has exactly the right shape.
     """
     used = np.asarray(mesh.used_ind)
     vec = np.zeros(ndof, dtype=complex)

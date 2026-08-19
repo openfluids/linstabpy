@@ -5,13 +5,13 @@ Example 1: Blasius boundary layer resolvent analysis.
 Translates example_1_Blasius.m — computes resolvent gains, optimal forcings
 and responses for a compressible Blasius boundary layer.
 
-OUTPUTS:
-  - example_1_blasius.npz
-  - example_1_blasius_baseflow.png
-  - example_1_blasius_modes_forcing_response_u_mosaic.png
-  - example_1_blasius_modes_forcing_response_u_imag_mosaic.png
-  - example_1_blasius_modes_forcing_response_v_mosaic.png
-  - example_1_blasius_modes_forcing_response_v_imag_mosaic.png
+OUTPUTS.
+  - example_1_blasius.npz.
+  - example_1_blasius_baseflow.png.
+  - example_1_blasius_modes_forcing_response_u_mosaic.png.
+  - example_1_blasius_modes_forcing_response_u_imag_mosaic.png.
+  - example_1_blasius_modes_forcing_response_v_mosaic.png.
+  - example_1_blasius_modes_forcing_response_v_imag_mosaic.png.
 
 USAGE:   python example_1_blasius.py                       # .npz exists → plot only
          rm example_1_blasius.npz && python example_1_blasius.py  # recompute
@@ -185,7 +185,7 @@ def compute(cfg: dict):
     # at tol=1e-12, ncv = max(2*n_modes+3, 20).  Different fill-reducing
     # orderings (UMFPACK vs MUMPS/METIS) yield eigenvectors that differ at the
     # O(eps*cond) level; the resulting gain mismatch (~0.54% for this case) is
-    # structural, not a bug.  The SVD residuals are the primary closure
+    # structural, not a solver defect.  The SVD residuals are the primary closure
     # criterion: if the triplets (sigma, u, v) satisfy the discrete resolvent
     # equations to near-machine precision the result is correct independently
     # of the MATLAB reference.
