@@ -213,7 +213,10 @@ def test_provenance_hostname_is_recorded_when_explicitly_requested(monkeypatch) 
 @pytest.mark.parametrize(
     ("link_line", "expected"),
     [
-        ("-Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib -lmkl_intel_lp64 -lmkl_sequential -lmkl_core", "mkl"),
+        (
+            "-Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib -lmkl_intel_lp64 -lmkl_sequential -lmkl_core",
+            "mkl",
+        ),
         ("-L/x/lib -lopenblas", "openblas"),
         ("-L/x/lib -lflapack -lfblas", "reference"),
         ("-framework Accelerate", "accelerate"),
@@ -225,4 +228,3 @@ def test_blas_family_is_read_from_the_petsc_link_line(link_line, expected):
     from linstabpy.utils.provenance import _blas_from_link_line
 
     assert _blas_from_link_line(link_line) == expected
-

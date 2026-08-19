@@ -22,8 +22,6 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config
-
 from examples.martini.compare_martini_examples import (
     LINSTAB2D_RESULTS_DIRNAME,
     _mode_matrix,
@@ -43,6 +41,7 @@ from examples.martini.plot_compare_utils import (
     python_component_grid,
     scaled_python_mode,
 )
+from linstabpy.utils.yaml_io import load_config
 
 PYTHON_NPZ = "example_5_paraboloid.npz"
 PYTHON_YAML = "example_5_paraboloid.yaml"
@@ -332,19 +331,13 @@ def build_rows(
     )
     n_gp = int(u_j.size)
     if forces_mat.shape[0] == 3 * n_gp:
-        matlab_plot = patch_matlab_compact_uvw_idx(
-            matlab, idx_prefix=IDX_PREFIX, n_gp=n_gp
-        )
+        matlab_plot = patch_matlab_compact_uvw_idx(matlab, idx_prefix=IDX_PREFIX, n_gp=n_gp)
         idx_comp = compact_uvw_component_idx(n_gp, component, one_based=True)
         one_based = True
     else:
         matlab_plot = matlab
         idx_key = f"idx_{component}_j"
-        idx_comp = (
-            py[idx_key]
-            if idx_key in py
-            else _npz_get(matlab, f"{IDX_PREFIX}/{component}_j")
-        )
+        idx_comp = py[idx_key] if idx_key in py else _npz_get(matlab, f"{IDX_PREFIX}/{component}_j")
         one_based = idx_key not in py
     xlim = _domain_xlim(X_py)
 

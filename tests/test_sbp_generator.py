@@ -74,6 +74,10 @@ class TestFornbergInterior:
         with pytest.raises(ValueError):
             fornberg_interior(4, 3)
 
+    def test_full_stencils_reject_unvalidated_orders(self) -> None:
+        with pytest.raises(ValueError, match="validated only"):
+            generate_sbp_stencils(10)
+
 
 # ---------------------------------------------------------------------------
 # Phase 2b: Full SBP stencils (interior + boundary) match hardcoded tables

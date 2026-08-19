@@ -59,8 +59,19 @@ def test_gen_campaign_beta_filter_writes_only_those_lines(tmp_path, monkeypatch)
 
     monkeypatch.setattr(
         "sys.argv",
-        ["gen_campaign.py", "--out", str(tmp_path), "--dry-run", "--beta", "40", "45",
-         "--ncv", "5", "--env", "I_MPI_PIN=off"],
+        [
+            "gen_campaign.py",
+            "--out",
+            str(tmp_path),
+            "--dry-run",
+            "--beta",
+            "40",
+            "45",
+            "--ncv",
+            "5",
+            "--env",
+            "I_MPI_PIN=off",
+        ],
     )
     assert gen.main() == 0
     scripts = sorted(tmp_path.glob("sav_map_b*.sbatch"))
@@ -162,9 +173,26 @@ def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monk
     gpu_yaml = Path(gen.__file__).with_name("savarino_point_gpu.yaml")
     monkeypatch.setattr(
         "sys.argv",
-        ["gen_campaign.py", "--out", str(tmp_path), "--dry-run", "--beta", "40",
-         "--nranks", "1", "--cpus-per-task", "10", "--gpus", "2", "--config", str(gpu_yaml),
-         "--env", "PETSC_OPTIONS=-use_gpu_aware_mpi 0", "--env", "OMP_NUM_THREADS=10"],
+        [
+            "gen_campaign.py",
+            "--out",
+            str(tmp_path),
+            "--dry-run",
+            "--beta",
+            "40",
+            "--nranks",
+            "1",
+            "--cpus-per-task",
+            "10",
+            "--gpus",
+            "2",
+            "--config",
+            str(gpu_yaml),
+            "--env",
+            "PETSC_OPTIONS=-use_gpu_aware_mpi 0",
+            "--env",
+            "OMP_NUM_THREADS=10",
+        ],
     )
     assert gen.main() == 0
     text = (tmp_path / "sav_map_b40p0_f1.sbatch").read_text(encoding="utf-8")

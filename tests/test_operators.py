@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from tests.make_test_baseflow import make_test_baseflow
 from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,
@@ -58,6 +57,7 @@ from linstabpy.utils.petsc_core import (
     petsc_matvec_residual,
     scipy_to_petsc,
 )
+from tests.make_test_baseflow import make_test_baseflow
 from tests.mpi_helpers import assert_split_ownership, parse_mpi_reports, run_mpi_python
 
 slow = pytest.mark.slow
@@ -2514,3 +2514,32 @@ class TestInvBBlockInverse:
                 atol=1e-14,
                 err_msg=f"inv(B)[4,0] at gp {k}: expected -1 (U=V=W=0, T=RHO=1)",
             )
+
+
+def test_assembly_metrics_jsonify_path_and_numpy_scalar(monkeypatch) -> None:
+    from pathlib import Path as _Path
+
+    from linstabpy.operators import metrics as metrics_mod
+    from linstabpy.operators.metrics import (
+        _cache_5_block_derivatives,
+        _jsonify_metric_value,
+        _make_csr_derivative_cache,
+        _peak_rss_bytes,
+    )
+
+    payload = _jsonify_metric_value({"out": _Path("/tmp/metrics.json"), "vals": (np.float64(1.5),)})
+    assert payload["out"] == "/tmp/metrics.json"
+    assert payload["vals"] == [1.5]
+    linux_rss = _peak_rss_bytes()
+    assert linux_rss > 0
+    monkeypatch.setattr(metrics_mod.sys, "platform", "darwin")
+    darwin_rss = _peak_rss_bytes()
+    assert darwin_rss == linux_rss // 1024 or darwin_rss == linux_rss
+    with pytest.raises(TypeError, match="sparse matrix"):
+        _make_csr_derivative_cache(np.eye(2))
+    with pytest.raises(ValueError, match="five derivative"):
+        _cache_5_block_derivatives([sp.eye(2, format="csr")], 2)
+    with pytest.raises(TypeError, match="sparse matrix or 5-block"):
+        _cache_5_block_derivatives(np.eye(2), 2)
+    with pytest.raises(ValueError, match="shape"):
+        _cache_5_block_derivatives(sp.eye(3, format="csr"), 2)

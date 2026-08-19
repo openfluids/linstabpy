@@ -227,6 +227,21 @@ def test_song_32deg_load_is_transposed_and_shaped() -> None:
     assert info["summary"] == "disabled"
 
 
+def test_preprocess_null_boundary_block_is_a_noop(tmp_path: Path) -> None:
+    packed = _write_fields(tmp_path)
+    _X, _Y, _bf, sponge, info = load_case_fields(
+        packed,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        preprocess={"enabled": True, "sponge": {"boundary": None}},
+    )
+    np.testing.assert_array_equal(sponge, np.zeros_like(sponge))
+    assert info["sponge"]["boundary"]["enabled"] is False
+
+
 def test_load_case_fields_rejects_missing_npz(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_case_fields(tmp_path / "missing.npz", Re=1.0, Ma=1.0, Pr=1.0, kappa=1.4, T_0=300.0)

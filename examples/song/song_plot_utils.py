@@ -175,6 +175,8 @@ def hungarian_assignment(
     omega_ref: np.ndarray,
     omega_py: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    cost = np.abs(np.asarray(omega_ref).reshape(-1)[:, None] - np.asarray(omega_py).reshape(-1)[None, :])
+    cost = np.abs(
+        np.asarray(omega_ref).reshape(-1)[:, None] - np.asarray(omega_py).reshape(-1)[None, :]
+    )
     ridx, cidx = linear_sum_assignment(cost)
     return ridx, cidx, cost[ridx, cidx]

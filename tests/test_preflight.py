@@ -177,6 +177,10 @@ def test_metric_cross_coupling_rejects_a_degenerate_mesh():
     flat = np.zeros((5, 5))
     with pytest.raises(ValueError, match="degenerate"):
         metric_cross_coupling(flat, flat)
+    with pytest.raises(ValueError, match="2-D"):
+        metric_cross_coupling(np.zeros((4, 4)), np.zeros((3, 3)))
+    with pytest.raises(ValueError, match="2-D"):
+        metric_cross_coupling(np.zeros(4), np.zeros(4))
 
 
 @pytest.mark.parametrize(
@@ -310,6 +314,8 @@ def test_unknown_or_successful_codes_translate_to_nothing():
     assert translate_solver_error({"mumps_infog1": 0}) is None
     assert translate_solver_error({"mumps_infog1": -999}) is None
     assert translate_solver_error("no codes in this string at all") is None
+    assert translate_solver_error("mumps_infog1=notanint, mumps_infog2=alsobad") is None
+    assert translate_solver_error({"mumps_infog1": "nope"}) is None
 
 
 # --------------------------------------------------------------------------------------

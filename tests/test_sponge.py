@@ -8,6 +8,9 @@ import pytest
 
 from linstabpy.baseflow.sponge import (
     SPONGE_PRESETS,
+    _boundary_distance_fields,
+    _cumulative_distances,
+    _smooth_profile,
     generate_sponge,
     load_sponge_aux,
     sponge_from_config,
@@ -247,6 +250,25 @@ def test_smooth_localized_zero_widths_return_zeros() -> None:
         Y=Y,
     )
     np.testing.assert_array_equal(field, np.zeros_like(X))
+
+
+def test_cumulative_distances_need_a_mesh_axis() -> None:
+    X, Y = _xy(4, 3)
+    with pytest.raises(ValueError, match="axis"):
+        _cumulative_distances(X, Y, axis=2)
+
+
+def test_boundary_distance_fields_need_matching_xy() -> None:
+    X, Y = _xy(4, 3)
+    with pytest.raises(ValueError, match="matching shapes"):
+        _boundary_distance_fields(X, Y[:, :2])
+
+
+def test_smooth_profile_with_zero_width_is_zero() -> None:
+    distance = np.linspace(0.0, 1.0, 5)
+    width = np.zeros_like(distance)
+    ramp = _smooth_profile(distance, width, profile="smoothstep", power=1.0, steepness=4.0)
+    np.testing.assert_array_equal(ramp, np.zeros_like(distance))
 
 
 def test_pts_dir_must_be_four_nonnegative() -> None:

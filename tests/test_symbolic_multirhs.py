@@ -123,9 +123,13 @@ def test_refactorize_keeps_the_symbolic_factorisation() -> None:
     try:
         sym0 = int(sym.getPerfInfo()["count"])
         num0 = int(num.getPerfInfo()["count"])
-        assert num0 >= 1, "PETSc event logging is not counting; the assertions below would be vacuous"
+        assert num0 >= 1, (
+            "PETSc event logging is not counting; the assertions below would be vacuous"
+        )
         fac.refactorize(shifted_operator(L0, 1.5))
-        assert int(sym.getPerfInfo()["count"]) == sym0, "refactorize redid the symbolic factorization"
+        assert int(sym.getPerfInfo()["count"]) == sym0, (
+            "refactorize redid the symbolic factorization"
+        )
         assert int(num.getPerfInfo()["count"]) == num0 + 1
         rhs = np.linspace(1.0, 2.0, L0.shape[0]).astype(complex)
         x = fac.solve(rhs)

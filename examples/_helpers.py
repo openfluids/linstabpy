@@ -42,7 +42,6 @@ def load_or_compute(
 
 
 from examples.figure_style import apply as _apply_figure_style
-from examples.figure_style import signed_cmap as signed_zero_white_cmap  # noqa: F401
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARITY_NPZ_DIR = REPO_ROOT / "validation" / "martini2024" / "fixtures"

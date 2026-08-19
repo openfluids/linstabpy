@@ -13,10 +13,10 @@ Fetch resolvent mode archives when regenerating shipped references
 Usage:
     python fetch_zenodo.py modes --f 2 --beta 45
 """
+
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
 from reference_paths import zenodo_modes_dir
 
@@ -60,12 +60,24 @@ def cmd_modes(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p_modes = sub.add_parser("modes", help="download forcing/response modes for one (f, beta) point")
-    p_modes.add_argument("--f", required=True, help="frequency, formatted as in the Zenodo filenames (e.g. 2, 0.0001)")
-    p_modes.add_argument("--beta", required=True, help="spanwise wavenumber, formatted as in the Zenodo filenames (e.g. 45)")
+    p_modes = sub.add_parser(
+        "modes", help="download forcing/response modes for one (f, beta) point"
+    )
+    p_modes.add_argument(
+        "--f",
+        required=True,
+        help="frequency, formatted as in the Zenodo filenames (e.g. 2, 0.0001)",
+    )
+    p_modes.add_argument(
+        "--beta",
+        required=True,
+        help="spanwise wavenumber, formatted as in the Zenodo filenames (e.g. 45)",
+    )
     p_modes.set_defaults(func=cmd_modes)
 
     args = ap.parse_args()

@@ -15,12 +15,12 @@ import pytest
 import scipy.sparse as sp
 
 from examples._helpers import leading_mode_real_frequency
+from examples._plot_flow import plot_flow
 from examples.martini.example_3_streaky_bl import (
     _merge_temporal_target_batches,
     _resolve_baseflow_plot_field,
 )
 from linstabpy.mesh import Mesh
-from examples._plot_flow import plot_flow
 from linstabpy.utils import reconstruct_floquet
 from linstabpy.utils.petsc_core import (
     compact_petsc_matrix,

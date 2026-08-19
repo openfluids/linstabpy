@@ -267,9 +267,7 @@ def main() -> int:
             if omegas.size == 1:
                 anchors = omegas.copy()
             else:
-                anchors = np.unique(
-                    np.array([omegas[0], omegas[omegas.size // 2], omegas[-1]])
-                )
+                anchors = np.unique(np.array([omegas[0], omegas[omegas.size // 2], omegas[-1]]))
             sweep_cfg = {
                 "W": np.asarray(W_diag, dtype=complex).reshape(-1),
                 "invW": 1.0 / np.asarray(W_diag, dtype=complex).reshape(-1),
@@ -322,9 +320,7 @@ def main() -> int:
             n_anchors = int(np.unique(sweep.anchor_indices).size)
             if rank == 0:
                 for i, report in enumerate(sweep.certification_reports):
-                    failed = [
-                        name for name, check in report.checks.items() if not check.passed
-                    ]
+                    failed = [name for name, check in report.checks.items() if not check.passed]
                     _log(
                         log_path,
                         f"cert f={group[i]} passed={report.passed} "
@@ -410,9 +406,7 @@ def main() -> int:
                 rho_fwd = float(np.max(np.asarray(rho_f)))
                 rho_adj = float(np.max(np.asarray(rho_a)))
                 factor_s = float(info.get("factor_s", float("nan")))
-                rsvd_s = float(info.get("svd_s", float("nan"))) + float(
-                    info.get("residual_s", 0.0)
-                )
+                rsvd_s = float(info.get("svd_s", float("nan"))) + float(info.get("residual_s", 0.0))
             except Exception as exc:  # noqa: BLE001 - a failed frequency must stay in the CSV
                 status = f"failed:{exc.__class__.__name__}"
                 if rank == 0:
@@ -505,9 +499,7 @@ def main() -> int:
             factor_s=np.asarray([r.get("factor_s", np.nan) for r in rows], dtype=float),
             gmres_s=np.asarray([r.get("gmres_s", 0.0) for r in rows], dtype=float),
             rsvd_s=np.asarray([r.get("rsvd_s", np.nan) for r in rows], dtype=float),
-            recycle_setup_s=np.asarray(
-                [r.get("recycle_setup_s", 0.0) for r in rows], dtype=float
-            ),
+            recycle_setup_s=np.asarray([r.get("recycle_setup_s", 0.0) for r in rows], dtype=float),
             line_wall_s=np.array([line_wall_s]),
         )
         _log(log_path, f"wrote {csv_path}")

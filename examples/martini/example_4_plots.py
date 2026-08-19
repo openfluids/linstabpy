@@ -23,8 +23,8 @@ from examples.martini.compare_martini_examples import (
     load_matlab_bundle,
 )
 from examples.martini.plot_compare_utils import (
-    complex_vector,
     compact_resolvent_modes_uvw,
+    complex_vector,
     ensure_matplotlib,
     load_python_npz,
     matlab_component_grid,
@@ -343,9 +343,7 @@ def build_branch_rows(
     used_py = np.asarray(py["used_ind"], dtype=int)
     idx_key = f"idx_{component}_j"
     idx_comp = (
-        py[idx_key]
-        if idx_key in py
-        else _npz_get(grid_bundle, f"{IDX_PREFIX}/{component}_j")
+        py[idx_key] if idx_key in py else _npz_get(grid_bundle, f"{IDX_PREFIX}/{component}_j")
     )
     one_based = idx_key in py
     u_j, v_j, w_j = _matlab_uvw_idx_labels(py)
@@ -436,9 +434,7 @@ def plot_example4_figures(
         for tag in ("direct", "adjoint"):
             for component in components:
                 for part in parts:
-                    rows = build_branch_rows(
-                        example_dir, tag, component, part, n_modes=n_modes
-                    )
+                    rows = build_branch_rows(example_dir, tag, component, part, n_modes=n_modes)
                     out_path = example_dir / mosaic_name(tag, component, part)
                     plot_mode_triptych_mosaic(
                         out_path=out_path,

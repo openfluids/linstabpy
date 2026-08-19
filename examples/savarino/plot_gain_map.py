@@ -13,6 +13,7 @@ Usage:
     python plot_gain_map.py --summary path/to/summary.csv --out path/to/map.png
     python plot_gain_map.py --show-points --baseline-summary savarino_map3_200pt.csv
 """
+
 from __future__ import annotations
 
 import argparse
@@ -162,7 +163,9 @@ def _row_f_beta(row: dict[str, str]) -> tuple[float, float]:
     return f, beta
 
 
-def tensor_grid(rows: list[dict[str, str]]) -> tuple[np.ndarray, np.ndarray, np.ma.MaskedArray, dict]:
+def tensor_grid(
+    rows: list[dict[str, str]],
+) -> tuple[np.ndarray, np.ndarray, np.ma.MaskedArray, dict]:
     pts: dict[float, list[tuple[float, float]]] = {}
     for row in rows:
         if row.get("status") not in (None, "", "ok", "done"):
@@ -385,7 +388,9 @@ def plot_map(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--summary", type=Path, default=GAIN_MAP_CSV, help="run-record CSV")
     ap.add_argument("--out", type=Path, default=GAIN_MAP_PNG, help="output PNG")
     ap.add_argument("--title", type=str, default=DEFAULT_MAP_TITLE)
@@ -430,9 +435,7 @@ def main() -> int:
         extra = f", points_drawn={peak['n_points_drawn']}"
     print(f"wrote {out} (n={peak['n_points']}, vmax×1e4={peak['vmax_scaled']:.3g}{extra})")
     if "global_f" in peak:
-        print(
-            f"  global peak f={peak['global_f']:g}, beta={peak['global_beta']:g}"
-        )
+        print(f"  global peak f={peak['global_f']:g}, beta={peak['global_beta']:g}")
     return 0
 
 

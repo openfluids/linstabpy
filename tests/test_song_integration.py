@@ -21,8 +21,15 @@ BASEFLOW_DIR = unpack_song_baseflow()
 
 def test_load_case_fields_shapes() -> None:
     X, Y, bf, sponge, _info = load_case_fields(
-        BASEFLOW_DIR, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33,
-        stride_ksi=25, stride_eta=25, transpose_input=True,
+        BASEFLOW_DIR,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        stride_ksi=25,
+        stride_eta=25,
+        transpose_input=True,
     )
     assert (
         X.shape == Y.shape == bf.RHO.shape == bf.U.shape == bf.V.shape == bf.W.shape == bf.T.shape
@@ -34,8 +41,15 @@ def test_load_case_fields_shapes() -> None:
 
 def test_song_build_lnse_system_petsc_matches_scipy_operator() -> None:
     X, Y, bf, sponge, _info = load_case_fields(
-        BASEFLOW_DIR, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33,
-        stride_ksi=15, stride_eta=15, transpose_input=True,
+        BASEFLOW_DIR,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        stride_ksi=15,
+        stride_eta=15,
+        transpose_input=True,
     )
     sutherland_air(bf)
 
@@ -98,8 +112,15 @@ def test_song_build_lnse_system_petsc_matches_scipy_operator() -> None:
 
 def test_song_operator_and_small_temporal_eigs() -> None:
     X, Y, bf, sponge, _info = load_case_fields(
-        BASEFLOW_DIR, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33,
-        stride_ksi=15, stride_eta=15, transpose_input=True,
+        BASEFLOW_DIR,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        stride_ksi=15,
+        stride_eta=15,
+        transpose_input=True,
     )
     sutherland_air(bf)
 

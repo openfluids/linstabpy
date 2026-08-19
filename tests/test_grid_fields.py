@@ -33,9 +33,7 @@ def _write_npy_dir(root: Path, *, nx: int = 6, ny: int = 4) -> Path:
 
 def test_load_grid_fields_from_npy_directory(tmp_path: Path) -> None:
     _write_npy_dir(tmp_path)
-    X, Y, bf, sponge = load_grid_fields(
-        tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33
-    )
+    X, Y, bf, sponge = load_grid_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)
     assert X.shape == (4, 6)
     assert Y.shape == X.shape
     assert bf.U.shape == X.shape
@@ -49,10 +47,17 @@ def test_load_grid_fields_from_npz(tmp_path: Path) -> None:
     packed = tmp_path / "case.npz"
     np.savez_compressed(
         packed,
-        **{name: np.load(tmp_path / f"{name}.npy") for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")},
+        **{
+            name: np.load(tmp_path / f"{name}.npy")
+            for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")
+        },
     )
-    X_dir, _, bf_dir, _ = load_grid_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)
-    X_npz, _, bf_npz, _ = load_grid_fields(packed, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)
+    X_dir, _, bf_dir, _ = load_grid_fields(
+        tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33
+    )
+    X_npz, _, bf_npz, _ = load_grid_fields(
+        packed, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33
+    )
     assert np.array_equal(X_dir, X_npz)
     assert np.array_equal(bf_dir.U, bf_npz.U)
 
@@ -88,3 +93,48 @@ def test_load_case_fields_can_refuse_asymmetric_stride(tmp_path: Path) -> None:
             stride_eta=1,
             refuse_asymmetric_stride=True,
         )
+
+
+def test_read_grid_fields_rejects_bad_sources(tmp_path: Path) -> None:
+    from linstabpy.baseflow.grid_fields import read_grid_fields
+
+    txt = tmp_path / "fields.txt"
+    txt.write_text("not npz")
+    with pytest.raises(ValueError, match=".npz"):
+        read_grid_fields(txt)
+    packed = tmp_path / "partial.npz"
+    np.savez_compressed(packed, x=np.ones((2, 2)))
+    with pytest.raises(FileNotFoundError, match="missing fields"):
+        read_grid_fields(packed)
+    with pytest.raises(FileNotFoundError, match="not found"):
+        read_grid_fields(tmp_path / "no_such_dir")
+    _write_npy_dir(tmp_path)
+    (tmp_path / "rho.npy").unlink()
+    with pytest.raises(FileNotFoundError, match="Missing field file"):
+        read_grid_fields(tmp_path)
+
+
+def test_read_grid_fields_rejects_a_1d_array(tmp_path: Path) -> None:
+    packed = tmp_path / "fields.npz"
+    np.savez_compressed(
+        packed,
+        x=np.linspace(0.0, 1.0, 4),
+        y=np.ones((2, 2)),
+        rho=np.ones((2, 2)),
+        u=np.ones((2, 2)),
+        v=np.ones((2, 2)),
+        w=np.ones((2, 2)),
+        T=np.ones((2, 2)),
+        sponge=np.ones((2, 2)),
+    )
+    with pytest.raises(ValueError, match="must be 2-D"):
+        load_grid_fields(packed, Re=1.0, Ma=1.0, Pr=0.72, kappa=1.4, T_0=1.0)
+
+
+def test_load_case_fields_rejects_bad_stride_and_shape(tmp_path: Path) -> None:
+    _write_npy_dir(tmp_path)
+    with pytest.raises(ValueError, match="stride"):
+        load_case_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33, stride_ksi=0)
+    np.save(tmp_path / "u.npy", np.ones((3, 3)))
+    with pytest.raises(ValueError, match="does not match"):
+        load_case_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)

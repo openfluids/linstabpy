@@ -72,9 +72,7 @@ def should_split_stem(stem: str) -> bool:
 def _resolvent_struct_prefix(payload: dict[str, np.ndarray]) -> str | None:
     """Return the struct key prefix for a resolvent u+v reference, if present."""
     force_keys = [
-        key
-        for key in payload
-        if not key.startswith("__meta") and key.endswith("__forces")
+        key for key in payload if not key.startswith("__meta") and key.endswith("__forces")
     ]
     for forces_key in sorted(force_keys, key=len):
         prefix = forces_key[: -len("forces")]
@@ -125,7 +123,15 @@ def slice_resolvent_uv(payload: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         out[forces_key] = compact_f.T.astype(MODE_DTYPE, copy=False)
         out[responses_key] = compact_r.T.astype(MODE_DTYPE, copy=False)
 
-    drop_suffixes = ("idx__T_j", "idx__rho_j", "idx__w_j", "St", "omega", "nEig", "mode_plot_indices")
+    drop_suffixes = (
+        "idx__T_j",
+        "idx__rho_j",
+        "idx__w_j",
+        "St",
+        "omega",
+        "nEig",
+        "mode_plot_indices",
+    )
     for key in list(out):
         if key.startswith("__meta"):
             continue
@@ -434,7 +440,9 @@ def maybe_slim_ex4_plot_bundle(stem: str, payload: dict[str, np.ndarray]) -> dic
     return payload
 
 
-def split_payload(payload: dict[str, np.ndarray]) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+def split_payload(
+    payload: dict[str, np.ndarray],
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """Partition one extracted NPZ dict into values vs mode arrays."""
     meta = {k: v for k, v in payload.items() if k.startswith("__meta")}
     values: dict[str, np.ndarray] = dict(meta)
@@ -537,7 +545,9 @@ def main() -> int:
         "files": entries,
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    args.manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.manifest.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     print(
         "Martini fixture split:",

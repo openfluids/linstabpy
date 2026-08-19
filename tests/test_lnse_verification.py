@@ -357,9 +357,7 @@ def _build_L_raw(mesh, bf, kx=0.0, floquet_exp=0.0):
 
     if floquet_exp != 0.0:
         i_alpha = 1j * floquet_exp
-        DZ, D2Z, D2RZ = _apply_floquet_shift(
-            DZ, D2Z, D2RZ, i_alpha, ngp, DR=DR
-        )
+        DZ, D2Z, D2RZ = _apply_floquet_shift(DZ, D2Z, D2RZ, i_alpha, ngp, DR=DR)
 
     return _assemble_block_operator(ngp, prep["coeffs"], DR, D2R, DZ, D2Z, D2RZ)
 

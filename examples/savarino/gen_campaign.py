@@ -50,16 +50,66 @@ TEMPLATE = CONFIGS / "point.sbatch.template"
 MAP317_CSV = CONFIGS / "savarino_map317_points.csv"
 CASE_DIR = HERE
 
-FULL = [0, 1e-4, 5e-4, 1e-3, 5e-3, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,
-        0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 2.1, 2.15, 2.2, 2.3, 2.4, 2.5, 2.8, 3, 3.5,
-        4, 4.5, 5, 6, 7, 8, 9, 10]
+FULL = [
+    0,
+    1e-4,
+    5e-4,
+    1e-3,
+    5e-3,
+    0.01,
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    1,
+    1.2,
+    1.4,
+    1.6,
+    1.8,
+    2,
+    2.1,
+    2.15,
+    2.2,
+    2.3,
+    2.4,
+    2.5,
+    2.8,
+    3,
+    3.5,
+    4,
+    4.5,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+]
 BACKBONE = [0, 1e-4, 0.1, 0.5, 5, 10]
 F15 = [0, 1e-4, 0.1, 0.5, 1, 1.4, 1.6, 1.8, 2, 2.1, 2.15, 2.2, 2.5, 5, 10]
 MACK9 = [1, 1.4, 1.6, 1.8, 2, 2.1, 2.15, 2.2, 2.5]
 
-GRID = {0.0: BACKBONE, 7.5: [1], 10.0: FULL, 15.0: [1e-4], 30.0: F15, 40.0: MACK9,
-        45.0: FULL, 50.0: F15, 70.0: F15, 100.0: BACKBONE, 140.0: BACKBONE,
-        163.0: FULL, 180.0: BACKBONE, 200.0: BACKBONE}
+GRID = {
+    0.0: BACKBONE,
+    7.5: [1],
+    10.0: FULL,
+    15.0: [1e-4],
+    30.0: F15,
+    40.0: MACK9,
+    45.0: FULL,
+    50.0: F15,
+    70.0: F15,
+    100.0: BACKBONE,
+    140.0: BACKBONE,
+    163.0: FULL,
+    180.0: BACKBONE,
+    200.0: BACKBONE,
+}
 
 X_MIN, Y_MAX = 0.20291667, 0.29627645
 TWO_PI = 6.283185307179586
@@ -151,8 +201,12 @@ GRIDS = {
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", required=True, type=Path, help="Directory for generated configs and outputs")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--out", required=True, type=Path, help="Directory for generated configs and outputs"
+    )
     ap.add_argument(
         "--grid",
         choices=sorted(GRIDS),
@@ -161,21 +215,53 @@ def main() -> int:
     )
     ap.add_argument("--partition", default="LocalQ", help="Slurm partition (default: LocalQ)")
     ap.add_argument("--nranks", type=int, default=4, help="MPI ranks per point (default: 4)")
-    ap.add_argument("--dry-run", action="store_true", help="Generate configs/batch scripts but do not submit")
-    ap.add_argument("--local", action="store_true", help="Print the mpiexec command for each point instead of using Slurm")
-    ap.add_argument("--env", action="append", default=[], metavar="VAR=value",
-                    help="exported into every job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto")
-    ap.add_argument("--ncv", type=int, default=None,
-                    help="SLEPc subspace size for the H^H H gain (nev=1); default leaves the solver default")
-    ap.add_argument("--beta", type=float, nargs="+", default=None,
-                    help="only these beta lines of the chosen grid (default: all lines)")
-    ap.add_argument("--config", type=Path, default=BASE_CONFIG,
-                    help="base point config; the solver block decides CPU (MUMPS) or GPU "
-                         "(STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml")
-    ap.add_argument("--cpus-per-task", type=int, default=1,
-                    help="Slurm cores per rank (OMP threads for a GPU job's CPU part)")
-    ap.add_argument("--gpus", type=int, default=0,
-                    help="devices on the node; >0 gives each job one GPU by lock file")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="Generate configs/batch scripts but do not submit"
+    )
+    ap.add_argument(
+        "--local",
+        action="store_true",
+        help="Print the mpiexec command for each point instead of using Slurm",
+    )
+    ap.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="VAR=value",
+        help="exported into every job script (repeatable), e.g. I_MPI_PIN_DOMAIN=auto",
+    )
+    ap.add_argument(
+        "--ncv",
+        type=int,
+        default=None,
+        help="SLEPc subspace size for the H^H H gain (nev=1); default leaves the solver default",
+    )
+    ap.add_argument(
+        "--beta",
+        type=float,
+        nargs="+",
+        default=None,
+        help="only these beta lines of the chosen grid (default: all lines)",
+    )
+    ap.add_argument(
+        "--config",
+        type=Path,
+        default=BASE_CONFIG,
+        help="base point config; the solver block decides CPU (MUMPS) or GPU "
+        "(STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml",
+    )
+    ap.add_argument(
+        "--cpus-per-task",
+        type=int,
+        default=1,
+        help="Slurm cores per rank (OMP threads for a GPU job's CPU part)",
+    )
+    ap.add_argument(
+        "--gpus",
+        type=int,
+        default=0,
+        help="devices on the node; >0 gives each job one GPU by lock file",
+    )
     args = ap.parse_args()
 
     submit = not (args.dry_run or args.local)
@@ -199,7 +285,9 @@ def main() -> int:
         wanted = set(args.beta)
         on_grid = {b for b, _ in pts}
         if not wanted <= on_grid:
-            raise SystemExit(f"--beta {args.beta}: not all on the {args.grid} grid {sorted(on_grid)}")
+            raise SystemExit(
+                f"--beta {args.beta}: not all on the {args.grid} grid {sorted(on_grid)}"
+            )
         pts = [(b, f) for b, f in pts if b in wanted]
     n_lines = len({b for b, _ in pts})
     print(f"{args.grid}: {label}")
@@ -211,7 +299,10 @@ def main() -> int:
         cfg["analysis"]["omega_target"] = {"real": TWO_PI * f, "imag": 0.0}
         cfg["physics"]["sponge"] = {"enabled": False}
         cfg["solver"]["input_region"] = {
-            "space": "conservative_momentum", "vars": ["u", "v", "w"], "x": [X_MIN, x_max(f)], "y": [0.0, Y_MAX]
+            "space": "conservative_momentum",
+            "vars": ["u", "v", "w"],
+            "x": [X_MIN, x_max(f)],
+            "y": [0.0, Y_MAX],
         }
         cfg["solver"]["mask_bc_forcing"] = True
         eigen_cfg = cfg["solver"].setdefault("resolvent", {}).setdefault("eigen", {})
@@ -223,8 +314,7 @@ def main() -> int:
         config_path = gen_dir / f"{stem}.yaml"
         config_path.write_text(
             f"# GENERATED by gen_campaign.py -- Savarino point (conservative-momentum "
-            f"forcing space) beta={b} f={f}\n"
-            + yaml.safe_dump(cfg, sort_keys=False)
+            f"forcing space) beta={b} f={f}\n" + yaml.safe_dump(cfg, sort_keys=False)
         )
         d = args.out / stem
         d.mkdir(exist_ok=True)
@@ -242,10 +332,19 @@ def main() -> int:
         sb = args.out / f"{stem}.sbatch"
         sb.write_text(
             template.format(
-                jobname=stem, config=config_path, output_npz=output_npz,
-                workdir=d, nranks=args.nranks, case_dir=CASE_DIR, partition=args.partition,
-                repo_root=HERE.parents[1], beta=b, freq=f, env_lines=env_lines(args.env),
-                cpus_per_task=args.cpus_per_task, gpu_block=gpu_block(args.gpus, d),
+                jobname=stem,
+                config=config_path,
+                output_npz=output_npz,
+                workdir=d,
+                nranks=args.nranks,
+                case_dir=CASE_DIR,
+                partition=args.partition,
+                repo_root=HERE.parents[1],
+                beta=b,
+                freq=f,
+                env_lines=env_lines(args.env),
+                cpus_per_task=args.cpus_per_task,
+                gpu_block=gpu_block(args.gpus, d),
             )
         )
         if submit:

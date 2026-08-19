@@ -7,25 +7,31 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
-Martini compute scripts write NPZ and a log only. Plot scripts load those
-NPZ files and write the PNG figures. Documented module paths use
-`examples.martini.*`.
+Martini compute scripts wrote NPZ and a log only. Plot scripts loaded those
+NPZ files and wrote the PNG figures. A conda file installed the CPU stack
+from `pyproject.toml`.
 
 ### Added
-- `environment.yml` installs from `pyproject.toml` on a conda-forge complex PETSc stack.
+- `environment.yml` installed the package from `pyproject.toml` on a conda-forge complex PETSc stack.
 
 ### Changed
-- README installation names the CPU stack and states that no GPU conda file ships.
-- `benchmark.sh` runs Example 0 as `examples.martini.example_0_curvilinear_validation`.
-- `run_all_examples.sh` computes each Martini case, then runs the plot module.
-- README, tutorial, and runner help use `examples.martini.*` module names.
+- README installation named the CPU stack. It stated that no GPU conda file ships.
+- Martini `example_*.py` drivers wrote NPZ and a log only.
+- `example_*_plots.py` loaded NPZ files and wrote PNG figures.
+- `run_all_examples.sh` computed each Martini case, then ran the plot module.
+- `benchmark.sh` ran Example 0 as `examples.martini.example_0_curvilinear_validation`.
+- README, tutorial, and runner help used `examples.martini.*` module names.
 
 ### Removed
-- `.pre-commit-config.yaml`. The file-size guard stays in pytest and CI.
+- `.pre-commit-config.yaml`. The file-size guard stayed in pytest and CI.
 - Unused `tests/fixtures/curvilinear_derivative_parity.json`.
 - Campaign leftover `examples/martini/physics_audit_campaign_vs_repo.json`.
-- Unused README banner `docs/assets/readme-banner-v2.jpg`.
 - Example 0 write to `artifacts/curvilinear_derivative_parity.json`.
+
+### Verified
+- Tests locked `environment.yml` against `pyproject.toml`.
+- Tests locked the Martini compute/plot split and the leftover-file ban.
+- Tests covered driver CLI, sponge, shock cleanup, Floquet shift, and wavemaker inputs.
 
 ## [1.0.0rc7] - 2026-08-19
 

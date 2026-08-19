@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-
-from typing import Any
 
 from .baseflow import BaseFlow
 from .preprocess import apply_preprocess
@@ -77,8 +76,7 @@ def load_case_fields(
         raise ValueError("stride_ksi and stride_eta must be >= 1")
     if refuse_asymmetric_stride and sx != sy:
         raise ValueError(
-            f"Asymmetric strides are not supported on this mesh "
-            f"(stride_ksi={sx}, stride_eta={sy})."
+            f"Asymmetric strides are not supported on this mesh (stride_ksi={sx}, stride_eta={sy})."
         )
     if sx > 1 or sy > 1:
         fields = {name: arr[::sy, ::sx] for name, arr in fields.items()}

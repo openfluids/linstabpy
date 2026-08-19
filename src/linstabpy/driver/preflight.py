@@ -294,7 +294,6 @@ def baseflow_advisories(
     return out
 
 
-
 def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
     """How strongly does this mesh mix the two directions at the grid scale?
 
@@ -355,6 +354,7 @@ def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
         raise ValueError("degenerate mesh: no extent along one computational direction")
 
     return float(max(dx_deta / dx_dxi, dy_dxi / dy_deta))
+
 
 def result_advisories(
     *,

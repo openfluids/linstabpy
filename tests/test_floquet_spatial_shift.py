@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.operators.assembly import _apply_floquet_shift
+from linstabpy.operators.assembly import _apply_floquet_shift, _resolve_floquet_shift_mode
 from linstabpy.operators.spatial import build_spatial_operator
 
 
@@ -168,3 +168,10 @@ def test_reconstruct_floquet_rejects_bad_shapes() -> None:
         reconstruct_floquet(X, np.ones((2, 2, 2), dtype=complex), used, 0.0)
     with pytest.raises(ValueError, match="one dimension"):
         reconstruct_floquet(X, np.ones((2, 3), dtype=complex), used, 0.0)
+
+
+def test_floquet_shift_mode_names_matlab_and_continuum() -> None:
+    assert _resolve_floquet_shift_mode("matlab") == "matlab_parity"
+    assert _resolve_floquet_shift_mode("physics") == "continuum"
+    with pytest.raises(ValueError, match="Floquet shift mode"):
+        _resolve_floquet_shift_mode("random")

@@ -164,7 +164,6 @@ def test_stage_run_resolvent_default_path_matches_bc_only_mask(monkeypatch) -> N
     assert np.array_equal(B_diag, C_diag)
 
 
-
 def test_stage_run_resolvent_region_composes_with_bc_mask(monkeypatch) -> None:
     """A region does not switch off `mask_bc_forcing`: the two compose.
 

@@ -4,7 +4,9 @@ import math
 
 import numpy as np
 
-from linstabpy.driver.io import _jsonify_metrics_value, load_results, save_results
+import linstabpy.utils.cost_metrics as cost_metrics_module
+from linstabpy.driver.io import _is_root_rank, _jsonify_metrics_value, load_results, save_results
+from linstabpy.utils.cost_metrics import collect_cost_metrics
 
 COST_KEYS = {
     "cost_wall_total_s",
@@ -115,3 +117,34 @@ def test_save_and_load_results_preserve_provenance_and_cost_keys(tmp_path, monke
         assert isinstance(data["cost_petsc_options"].item(), str)
         assert data["cost_hardware_tag"].item() == "unknown"
         assert isinstance(data["cost_git_sha"].item(), str)
+
+
+def test_is_root_rank_when_petsc_is_absent() -> None:
+    assert _is_root_rank() is True
+
+
+def test_cost_metrics_without_petsc_or_gpu(monkeypatch) -> None:
+    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
+    monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+    result = collect_cost_metrics({}, git_sha="deadbeef", peak_rss_bytes=1)
+    assert result["cost_mpi_ranks"] == 1
+    assert result["cost_petsc_options"] == ""
+    assert math.isnan(result["cost_peak_gpu_mem_bytes"])
+    assert result["cost_gpus"] == 0
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes_cupy())
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes(1))
+
+
+def test_nvidia_smi_probe_empty_and_unparseable(monkeypatch) -> None:
+    class _Empty:
+        stdout = "\n"
+
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", lambda *a, **k: _Empty())
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
+
+    class _Bad:
+        stdout = "not-a-number\n"
+
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", lambda *a, **k: _Bad())
+    assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())

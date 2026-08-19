@@ -9,6 +9,7 @@ Wall-normal crop ``y/X_sh in [0, 0.1]`` (lift-up) and ``[0, 0.06]`` (Mack).
 Requires shipped Savarino response primitives in ``reference/`` and local
 linstabpy outputs from ``run_compare_points.py`` under ``output/compare/``.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,7 +27,6 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE))
 
-from examples.figure_style import apply, save, signed_cmap  # noqa: E402
 from reference_paths import (  # noqa: E402
     OUTPUT_COMPARE_DIR,
     OUTPUT_FIGURES_DIR,
@@ -34,6 +34,8 @@ from reference_paths import (  # noqa: E402
     SAVARINO_RESPONSE_MACK_NPZ,
 )
 from savarino_mode_to_primitive import PRIM  # noqa: E402
+
+from examples.figure_style import apply, save, signed_cmap  # noqa: E402
 
 FIELD_LABELS = {
     "rho": r"$\Re(\rho')$",
@@ -76,8 +78,7 @@ def _require_output_npz(outputs_dir: Path, name: str, stem: str) -> Path:
     path = outputs_dir / name / f"{stem}.npz"
     if not path.is_file():
         raise SystemExit(
-            f"missing {path}\n"
-            "Run the resolvent points first:  python run_compare_points.py"
+            f"missing {path}\nRun the resolvent points first:  python run_compare_points.py"
         )
     return path
 
@@ -226,7 +227,9 @@ def _plot_pair(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument(
         "--outputs-dir",
         type=Path,

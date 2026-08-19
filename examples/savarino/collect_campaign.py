@@ -215,17 +215,13 @@ def collect_from_npz(
         npz = point_dir / f"{rid}.npz"
         metrics = point_dir / f"{rid}.metrics.json"
         if not npz.is_file():
-            bad_rows.append(
-                _format_row(beta=beta, f=f, status="missing", machine=machine)
-            )
+            bad_rows.append(_format_row(beta=beta, f=f, status="missing", machine=machine))
             print(f"# missing npz: {npz}", file=sys.stderr)
             continue
 
         gain = _sigma1_from_npz(npz)
         if gain is None:
-            bad_rows.append(
-                _format_row(beta=beta, f=f, status="no_gain", machine=machine)
-            )
+            bad_rows.append(_format_row(beta=beta, f=f, status="no_gain", machine=machine))
             print(f"# no gain in {npz}", file=sys.stderr)
             continue
 
@@ -242,12 +238,24 @@ def collect_from_npz(
                 rho_adj = str(float(np.asarray(data["resolvent_rho_adj"]).reshape(-1)[0]))
             epsilon = ""
             if "numerics_operator_dissipation_epsilon" in data.files:
-                epsilon = str(float(np.asarray(data["numerics_operator_dissipation_epsilon"]).reshape(-1)[0]))
-            fd_order = str(int(np.asarray(data["fd_order"]).reshape(-1)[0])) if "fd_order" in data.files else "4"
-            stride = str(int(np.asarray(data["stride_ksi"]).reshape(-1)[0])) if "stride_ksi" in data.files else "1"
+                epsilon = str(
+                    float(np.asarray(data["numerics_operator_dissipation_epsilon"]).reshape(-1)[0])
+                )
+            fd_order = (
+                str(int(np.asarray(data["fd_order"]).reshape(-1)[0]))
+                if "fd_order" in data.files
+                else "4"
+            )
+            stride = (
+                str(int(np.asarray(data["stride_ksi"]).reshape(-1)[0]))
+                if "stride_ksi" in data.files
+                else "1"
+            )
             sponge = "false"
             if "sponge_enabled" in data.files:
-                sponge = "true" if bool(np.asarray(data["sponge_enabled"]).reshape(-1)[0]) else "false"
+                sponge = (
+                    "true" if bool(np.asarray(data["sponge_enabled"]).reshape(-1)[0]) else "false"
+                )
             ndof = str(int(np.asarray(data["ndof"]).reshape(-1)[0])) if "ndof" in data.files else ""
             nnz = str(int(np.asarray(data["nnz"]).reshape(-1)[0])) if "nnz" in data.files else ""
 
@@ -387,10 +395,16 @@ def _write_csv(path: Path | None, ok_rows: list[str], bad_rows: list[str]) -> No
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("campaign_root", nargs="?", default="results/campaign", help="Slurm campaign root")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "campaign_root", nargs="?", default="results/campaign", help="Slurm campaign root"
+    )
     ap.add_argument("machine", nargs="?", default="", help="machine label for provenance")
-    ap.add_argument("--from-npz", type=Path, default=None, help="NPZ campaign root (Savarino2026 layout)")
+    ap.add_argument(
+        "--from-npz", type=Path, default=None, help="NPZ campaign root (Savarino2026 layout)"
+    )
     ap.add_argument(
         "--points-csv",
         type=Path,

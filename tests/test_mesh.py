@@ -42,7 +42,14 @@ from linstabpy.mesh import (
     min_points,
     sbp_stencils,
 )
-from linstabpy.mesh.mesh import _axm_diag, _build_periodic_1d_operators
+from linstabpy.mesh.fdweights import fdweights
+from linstabpy.mesh.mesh import (
+    _axm_diag,
+    _build_periodic_1d_operators,
+    _line_breaks,
+    _validate_create_inputs,
+    _validate_range_pair,
+)
 
 # ===================================================================
 # Square-mesh factory (nx == ny)
@@ -1231,3 +1238,74 @@ def test_axm_diag_rejects_wrong_row_count():
     matrix = sparse.eye(3, format="csr")
     with pytest.raises(ValueError, match="row count"):
         _axm_diag(np.ones(2), matrix)
+
+
+def test_axm_diag_accepts_a_column_scale_vector():
+    matrix = sparse.eye(3, format="csr")
+    scaled = _axm_diag(np.array([[2.0], [3.0], [4.0]]), matrix)
+    np.testing.assert_allclose(scaled.diagonal(), np.array([2.0, 3.0, 4.0]))
+
+
+def test_mesh_create_rejects_bad_ranges_and_sizes():
+    with pytest.raises(TypeError, match="pair"):
+        _validate_range_pair("xrange", 1.0)
+    with pytest.raises(ValueError, match="pair"):
+        _validate_range_pair("xrange", (0.0, 1.0, 2.0))
+    with pytest.raises(TypeError, match="finite numbers"):
+        _validate_range_pair("xrange", (True, False))
+    with pytest.raises(ValueError, match="finite"):
+        _validate_range_pair("xrange", (0.0, np.inf))
+    with pytest.raises(ValueError, match="distinct"):
+        _validate_range_pair("xrange", (1.0, 1.0))
+    with pytest.raises(TypeError, match="integer"):
+        _validate_create_inputs((0.0, 1.0), (0.0, 1.0), 8.5, 8, 4)
+    with pytest.raises(ValueError, match="fd_order"):
+        _validate_create_inputs((0.0, 1.0), (0.0, 1.0), 20, 20, 3)
+    with pytest.raises(ValueError, match="nx must be"):
+        Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=4, ny=20, fd_order=4)
+    with pytest.raises(ValueError, match="ny must be"):
+        Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=20, ny=4, fd_order=4)
+
+
+def test_deform_without_new_coordinates_returns_the_same_mesh():
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=12, ny=12, fd_order=2)
+    assert mesh.deform() is mesh
+
+
+def test_y_symmetry_without_a_pole_reuses_the_plain_y_operators():
+    mesh = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(1.0, 2.0),
+        nx=12,
+        ny=12,
+        fd_order=2,
+        y_symmetry=True,
+    )
+    assert mesh.Dy_symm is not None
+    np.testing.assert_allclose(mesh.Dy_symm.toarray(), mesh.Dy.toarray())
+    np.testing.assert_allclose(mesh.Dy_asymm.toarray(), mesh.Dy.toarray())
+
+
+def test_mask_skips_short_line_segments():
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=10, ny=10, fd_order=2)
+    keep = np.ones_like(mesh.X, dtype=bool)
+    keep[0, 2:] = False
+    masked = mesh.mask(keep)
+    assert masked.ngp == int(keep.sum())
+    assert masked.Dx.shape == (masked.ngp, masked.ngp)
+
+
+def test_line_breaks_and_periodic_operators_reject_degenerate_input():
+    np.testing.assert_array_equal(_line_breaks(np.array([])), np.array([], dtype=int))
+    np.testing.assert_array_equal(_line_breaks(np.zeros(4)), np.array([], dtype=int))
+    with pytest.raises(ValueError, match="at least 2"):
+        _build_periodic_1d_operators(1, 0.1, 4)
+    d1, d2 = _build_periodic_1d_operators(6, 0.1, 8)
+    assert d1.shape == (6, 6)
+    assert d2.shape == (6, 6)
+
+
+def test_fdweights_empty_nodes_return_an_empty_stencil():
+    weights = fdweights(0.0, [], 1)
+    assert weights.shape == (0,)
+    assert weights.dtype == np.float64

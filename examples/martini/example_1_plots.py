@@ -20,8 +20,6 @@ from typing import Any
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config
-
 from examples.martini.compare_martini_examples import (
     LINSTAB2D_RESULTS_DIRNAME,
     _mode_matrix,
@@ -40,6 +38,7 @@ from examples.martini.plot_compare_utils import (
     python_component_grid,
     scaled_python_mode,
 )
+from linstabpy.utils.yaml_io import load_config
 
 MATLAB_EX1_STEM = "example_1_Blasius_results"
 IDX_PREFIX = "results_Blasius/idx"

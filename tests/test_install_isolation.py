@@ -209,11 +209,19 @@ def test_install_core_deps_cover_every_runtime_dependency() -> None:
 
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     declared = {
-        re.split(r"[\s<>=!~\[]", dep, maxsplit=1)[0].lower() for dep in pyproject["project"]["dependencies"]
+        re.split(r"[\s<>=!~\[]", dep, maxsplit=1)[0].lower()
+        for dep in pyproject["project"]["dependencies"]
     }
-    core_lines = [line for line in INSTALL_SH.read_text(encoding="utf-8").splitlines() if "CORE_DEPS=(" in line]
+    core_lines = [
+        line
+        for line in INSTALL_SH.read_text(encoding="utf-8").splitlines()
+        if "CORE_DEPS=(" in line
+    ]
     assert len(core_lines) == 2, core_lines
     for line in core_lines:
-        listed = {tok.strip("\"'").split(">")[0].split("=")[0].lower() for tok in line.split("(", 1)[1].rstrip(")").split()}
+        listed = {
+            tok.strip("\"'").split(">")[0].split("=")[0].lower()
+            for tok in line.split("(", 1)[1].rstrip(")").split()
+        }
         missing = declared - listed
         assert not missing, f"CORE_DEPS misses {sorted(missing)} in: {line.strip()}"

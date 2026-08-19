@@ -169,3 +169,22 @@ def test_conjugate_pair_completeness() -> None:
         result["missing_partner_indices"],
         np.array([2], dtype=np.int32),
     )
+
+
+def test_target_distance_without_conjugate_is_the_direct_distance() -> None:
+    from linstabpy.stability.acceptance import _postcheck_target_distance
+
+    omega = np.array([0.5 - 1.1j, 0.5 + 1.1j], dtype=complex)
+    target = 0.5 - 1.1j
+    direct = _postcheck_target_distance(omega, target, conjugate_aware=False)
+    np.testing.assert_allclose(direct, np.abs(omega - target))
+    assert float(direct[1]) > 2.0
+
+
+def test_conjugate_pair_gate_skips_on_axis_modes() -> None:
+    from linstabpy.stability.acceptance import check_conjugate_pair_completeness
+
+    omega = np.array([1.0 + 0.0j, 0.0 + 2.0j, 0.4 + 0.7j], dtype=complex)
+    result = check_conjugate_pair_completeness(omega, np.array([0, 1, 2], dtype=np.int32))
+    np.testing.assert_array_equal(result["missing_partner_indices"], np.array([2], dtype=np.int32))
+    np.testing.assert_array_equal(result["partner_rejected_indices"], np.array([], dtype=np.int32))

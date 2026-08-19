@@ -12,6 +12,7 @@ Usage (from this directory, after placing Tecplot files under reference/zenodo/)
     python pack_reference_modes.py --base-dat /path/to/state_atcenter_....dat \\
         --modes-dir /path/to/resolvent_angle308_.../
 """
+
 from __future__ import annotations
 
 import argparse

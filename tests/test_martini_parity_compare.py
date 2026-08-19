@@ -10,7 +10,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from linstabpy.utils.yaml_io import load_config
 from examples.martini import (
     compare_martini_examples,
     extract_martini_to_npz,
@@ -24,39 +23,31 @@ from examples.martini.compare_martini_examples import (
     compare_resolvent_case,
     load_matlab_bundle,
 )
+from linstabpy.utils.yaml_io import load_config
 from tests._paths import MARTINI_FIXTURE_ROOT, martini_fixture
 from tests._paths import REPO_ROOT as repo
 
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
     manifest = json.loads(
-        (repo / "examples/martini/martini_manifest.json").read_text(
-            encoding="utf-8"
-        )
+        (repo / "examples/martini/martini_manifest.json").read_text(encoding="utf-8")
     )
 
     assert manifest["input_dir"] == "martini_examples"
     assert manifest["output_dir"] == "examples/martini/LinStab2DResults"
     assert not manifest["input_dir"].startswith("/")
     assert not manifest["output_dir"].startswith("/")
-    assert all(
-        entry["npz_file"].startswith("examples/martini/")
-        for entry in manifest["files"]
-    )
+    assert all(entry["npz_file"].startswith("examples/martini/") for entry in manifest["files"])
 
 
 def test_martini_npz_default_uses_validation_fixture_root() -> None:
     assert compare_martini_examples.ROOT == repo
-    assert (
-        compare_martini_examples.DEFAULT_CONFIG
-        == repo / "examples/martini/martini_cases.yaml"
-    )
+    assert compare_martini_examples.DEFAULT_CONFIG == repo / "examples/martini/martini_cases.yaml"
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
     assert extract_martini_to_npz.ROOT == repo
     assert extract_martini_to_npz.DEFAULT_OUTPUT_DIR == MARTINI_FIXTURE_ROOT
     assert (
-        extract_martini_to_npz.DEFAULT_MANIFEST
-        == repo / "examples/martini/martini_manifest.json"
+        extract_martini_to_npz.DEFAULT_MANIFEST == repo / "examples/martini/martini_manifest.json"
     )
 
 
@@ -236,8 +227,8 @@ def test_split_martini_fixtures_partitions_modes(tmp_path) -> None:
 
 
 def test_slice_resolvent_uv_handles_double_bblasius_prefix(tmp_path) -> None:
-    from examples.martini.split_martini_fixtures import process_file, slice_resolvent_uv
     from examples.martini.compare_martini_examples import _mode_matrix
+    from examples.martini.split_martini_fixtures import process_file, slice_resolvent_uv
 
     source = (
         Path("/media/hamada/PostProcHamada/cases/Martini2024/comparison/matlab_fixtures_npz")

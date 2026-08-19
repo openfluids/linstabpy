@@ -130,9 +130,7 @@ def conservative_momentum_coefficients(
     """
     rho_bar = np.asarray(rho_bar, dtype=float)
     if rho_bar.size and np.any(rho_bar == 0.0):
-        raise ValueError(
-            "conservative-momentum forcing map is singular where rho_bar == 0"
-        )
+        raise ValueError("conservative-momentum forcing map is singular where rho_bar == 0")
     bars = {
         "u": np.asarray(u_bar, dtype=float),
         "v": np.asarray(v_bar, dtype=float),
