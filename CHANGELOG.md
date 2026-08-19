@@ -7,6 +7,17 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc7] - 2026-08-19
+
+Comments in the example scripts and tests were shortened. Ruff formatted
+the test tree. The Martini audit-plan notes were removed.
+
+### Changed
+- Example and test comments.
+
+### Removed
+- Martini audit-plan and parity-summary notes.
+
 ## [1.0.0rc6] - 2026-08-19
 
 The supplement examples ship complete: Martini 0-5, Song 32 deg, and
@@ -705,7 +716,10 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc4...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc7...HEAD
+[1.0.0rc7]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc6...v1.0.0rc7
+[1.0.0rc6]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc5...v1.0.0rc6
+[1.0.0rc5]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc4...v1.0.0rc5
 [1.0.0rc4]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc3...v1.0.0rc4
 [1.0.0rc3]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc2...v1.0.0rc3
 [1.0.0rc2]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc1...v1.0.0rc2
