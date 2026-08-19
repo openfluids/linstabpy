@@ -22,7 +22,6 @@ from linstabpy.utils.yaml_io import load_config
 from examples.martini.example_0_curvilinear_validation import (
     OUTPUT_NPZ as EX0_NPZ,
     compute as compute_ex0,
-    ensure_artifact,
 )
 from examples.martini.example_0_plots import plot_example0_figures
 from examples.martini.example_1_blasius import OUTPUT_NPZ as EX1_NPZ, compute as compute_ex1
@@ -83,7 +82,6 @@ def phase_plot() -> None:
 
     cfg0 = load_config(MARTINI_DIR / "example_0_curvilinear_validation.yaml")
     data0 = _load_npz_dict(EX0_NPZ)
-    ensure_artifact(data0)
 
     def plot0() -> None:
         paths = plot_example0_figures(data0, example_dir=MARTINI_DIR, cfg=cfg0)

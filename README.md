@@ -64,6 +64,18 @@ transform, global assembly, boundary rows, and energy norm.
 
 ## Installation
 
+One supported numerical stack: **CPU, complex-scalar PETSc/SLEPc, MUMPS**.
+That is the merge-gate and example path. Two ways to build it: `install.sh`
+or `environment.yml`. GPU is not an install path yet.
+
+| Path | Prefix | Role |
+|---|---|---|
+| `install.sh` | `.venv` | Reference workstation build. Default PETSc 3.24 with MUMPS. |
+| `environment.yml` | conda env `linstabpy` | Same contract from conda-forge. pip installs this package only. |
+| GPU / `environment-gpu.yml` | — | Not shipped. See [GPU and extra stacks](#gpu-and-extra-stacks). |
+
+`docs/COMPUTE_BACKENDS.md` is the backend audit. This section is how you install.
+
 ### Prerequisites
 
 Use the repository scripts first. They check compilers, MPI, Python bindings,
@@ -81,7 +93,7 @@ Required system tools:
 Do not mix MPI stacks in one environment. PETSc, SLEPc, `mpi4py`, and the runtime
 `mpiexec` must agree on the same MPI ABI.
 
-### Linux (recommended path)
+### Linux (recommended): `install.sh`
 
 Clone the repository and run the native checks:
 
@@ -155,6 +167,52 @@ On a provisioned workstation or cluster node, skip the system dependency check:
 LINSTABPY_SKIP_SYS_DEPS=1 bash install.sh
 ```
 
+### Conda: `environment.yml` (CPU)
+
+This file is the CPU path for people who already use conda. conda-forge supplies
+Python, NumPy/SciPy, and a **complex-scalar** PETSc/SLEPc/`mpi4py` stack.
+pip then installs this package from `pyproject.toml` with `--no-deps` and
+`-e .`, so pip does not pull a second NumPy or compile PETSc.
+
+Python is `>=3.10,<3.14`. 3.13 is the class that matches the installer default.
+3.14 stays an `install.sh` freshness test; conda-forge `petsc4py` may not
+resolve it.
+
+```bash
+# Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR first.
+# A leftover PETSc prefix will bind petsc4py to the wrong build.
+conda env create -f environment.yml
+conda activate linstabpy
+python -c "import numpy as np; from petsc4py import PETSc; assert np.issubdtype(PETSc.ScalarType, np.complexfloating)"
+```
+
+After the PyPI release, change the pip line `-e .` to `linstabpy` and recreate
+the environment. Do not add `petsc4py`, `slepc4py`, or `mpi4py` to the pip
+list. Those PyPI sdists compile PETSc from source and fight the conda MPI
+stack.
+
+`environment.yml` is not a second reference build. If conda-forge PETSc is a
+different minor than `install.sh` (3.24 + MUMPS), record both versions. A
+failing SLEPc NHEP probe or a real-scalar PETSc means the env is unusable for
+this code, even if `import linstabpy` works.
+
+### GPU and extra stacks
+
+Do not add `environment-gpu.yml` or a second named conda env. CPU and GPU PETSc
+cannot share one prefix, so two isolated installs will be the right shape
+**after** a GPU stack has a green `install.sh --check` and a passing
+EVP/resolvent residual. That has not happened.
+
+| Stack | How it exists today |
+|---|---|
+| CPU, complex PETSc, MUMPS | Live. `.venv` via `install.sh`, or conda env `linstabpy`. |
+| `gpu-strumpack` | Design only. `bash install.sh --stack gpu-strumpack --dry-run` prints the plan. `--force` may only touch `.venv-gpu-strumpack`, never `.venv`. No GPU build is claimed. |
+| SuperLU_DIST + CUDA, complex | Tested on one CUDA build; solve residuals were order one. Rejected for that path. |
+
+`LINSTABPY_FACTOR_BACKEND=strumpack` is an experimental **CPU** factor choice
+when that library is in the PETSc build. It is not a GPU install. See
+`docs/COMPUTE_BACKENDS.md`.
+
 ### macOS
 
 macOS uses the same `install.sh --diagnose` → `install.sh` → `install.sh --check` →
@@ -186,7 +244,7 @@ can bypass the patched `.venv` and try to rebuild `petsc4py`/`slepc4py` from
 source with the wrong runtime layout. Use `.venv/bin/python` directly:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius
+.venv/bin/python -m examples.martini.example_1_blasius
 ```
 
 ### Clusters and Intel MPI
@@ -306,7 +364,7 @@ A healthy Linux install should satisfy this sequence:
 ```bash
 bash install.sh --diagnose
 bash install.sh --check
-bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius
+bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius
 bash benchmark.sh
 ```
 
@@ -348,9 +406,9 @@ pressure, and reproducibility.
 Prefer the canonical example runner for MPI examples:
 
 ```bash
-bash run_all_examples.sh --mpi -m examples.example_1_blasius
-bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius -- -eps_monitor
+bash run_all_examples.sh --mpi -m examples.martini.example_1_blasius
+bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
 ```
 
 If `-n/--ranks` is omitted in `--mpi` mode, the runner starts from half of the
@@ -397,20 +455,20 @@ handled separately in [Fetching reference base flows](#fetching-reference-base-f
 Run the smallest Blasius example:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius
+.venv/bin/python -m examples.martini.example_1_blasius
 ```
 
 Run a full example:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius
+.venv/bin/python -m examples.martini.example_1_blasius
 ```
 
 Do not use `uv run` on macOS for PETSc/SLEPc examples. Use the interpreter
 installed and patched by `install.sh`:
 
 ```bash
-.venv/bin/python -m examples.example_1_blasius
+.venv/bin/python -m examples.martini.example_1_blasius
 ```
 
 Collect the test suite:
@@ -454,22 +512,23 @@ exact paths it wanted.
 ### Canonical example runner
 
 Use `run_all_examples.sh` as the single example runner for serial acceptance,
-cache cleanup, parity checks, and MPI launches. Direct module execution with
-`.venv/bin/python -m ...` is still useful for focused debugging, but the runner
-is the documented path for full example validation and MPI-safe launches. For a
-figure-by-figure walkthrough of the Martini examples, see
+cache cleanup, parity checks, and MPI launches. The runner computes each selected
+Martini example, then runs the matching `example_*_plots` module. Direct
+`.venv/bin/python -m examples.martini.example_1_blasius` writes the NPZ only.
+For a figure-by-figure walkthrough of the Martini examples, see
 `docs/tutorial/tutorial.pdf`, Section 5. That section also explains how to read
-the generated baseflow, gain/spectrum, and support-component figures, and records
+the generated baseflow, spectrum, and mosaic figures, and records
 the plotting improvements proposed for the next figure pass.
 
 | Task | Command |
 |---|---|
 | List available examples | `bash run_all_examples.sh --list` |
-| Run all examples and Martini parity | `bash run_all_examples.sh` |
+| Run all examples, plots, and Martini parity | `bash run_all_examples.sh` |
+| Re-plot one example from an existing NPZ | `.venv/bin/python -m examples.martini.example_1_plots` |
 | Recompute selected examples from cached PNGs/NPZs | `bash run_all_examples.sh --fresh --example 1 --skip-parity` |
 | Remove selected generated NPZ/PNG outputs first | `bash run_all_examples.sh --clean --example 1 --skip-parity` |
-| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.example_3_streaky_bl` |
-| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.example_1_blasius -- -eps_monitor` |
+| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl` |
+| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor` |
 
 `--mpi` folds the old one-module MPI wrapper behavior into the same script: the
 runner probes a working MPI launcher, defaults to half of the detected physical
@@ -513,6 +572,7 @@ For a maintainer map of where numerical policy belongs, see
 |-- docs/                          Architecture, backends, and tutorial
 |-- tests/                         Pytest suite, file-size and provenance checks
 |-- install.sh                     Installer and host preflight (`--diagnose`)
+|-- environment.yml                CPU conda-forge complex PETSc + pip from pyproject
 |-- benchmark.sh                   Install benchmark
 `-- run_all_examples.sh            Serial, parity, and MPI example runner
 ```
@@ -533,10 +593,9 @@ Git and either regenerated or stored externally. The guardrail is:
 .venv/bin/python -m pytest tests/test_tracked_file_size.py -q --tb=line
 ```
 
-The same guard is wired into the local `pre-commit` configuration and the GitHub
-guardrails workflow. Ignored local outputs above the report threshold are listed
-separately so they can be cleaned or archived without blocking normal source
-commits.
+The same guard runs in the GitHub guardrails workflow. Ignored local outputs
+above the report threshold are listed separately so they can be cleaned or
+archived without blocking normal source commits.
 
 Compact Martini fixtures belong under `examples/martini/`. Raw MATLAB exports such as
 `operator_convention.mat` and `coefficients_raw.mat` are intentionally not
@@ -957,16 +1016,16 @@ Reference MATLAB examples:
 
 Python counterparts:
 
-- `examples/example_0_curvilinear_validation.py`
-- `examples/example_1_blasius.py`
-- `examples/example_2_jet.py`
-- `examples/example_3_streaky_bl.py`
-- `examples/example_4_cavity.py`
-- `examples/example_5_paraboloid.py`
+- `examples/martini/example_0_curvilinear_validation.py`
+- `examples/martini/example_1_blasius.py`
+- `examples/martini/example_2_jet.py`
+- `examples/martini/example_3_streaky_bl.py`
+- `examples/martini/example_4_cavity.py`
+- `examples/martini/example_5_paraboloid.py`
 
 | MATLAB example | Python example | Status | Required artifacts |
 |---|---|---|---|
-| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz` (local), `example_0_curvilinear_validation.png`, `example_0_curvilinear_mesh.png`, `example_0_field_df_triptych.png`, `tests/fixtures/curvilinear_derivative_parity.json` |
+| `example_0_TestCurvilinearDerivative.m` | `example_0_curvilinear_validation.py` | `implemented` | `example_0_curvilinear_validation.npz` (local), `example_0_curvilinear_validation.png`, `example_0_curvilinear_mesh.png`, `example_0_field_df_triptych.png` |
 | `example_1_Blasius.m` | `example_1_blasius.py` | `implemented` | `example_1_blasius.npz` (local), `example_1_blasius_baseflow.png`, `example_1_blasius_modes_forcing_response_{u,v}[_imag]_mosaic.png` |
 | `example_2_Jet.m` | `example_2_jet.py` | `implemented` | `example_2_jet.npz` (local), `example_2_jet_baseflow.png`, `example_2_jet_modes_forcing_response_{u,v}[_imag]_mosaic.png` |
 | `example_3_Streaky_BL.m` | `example_3_streaky_bl.py` | `implemented` | `example_3_*.npz` (local), `example_3_streaky_bl_baseflow.png`, `example_3_streaky_bl_spectrum_*.png`, `example_3_streaky_bl_modes_*_mosaic.png` |

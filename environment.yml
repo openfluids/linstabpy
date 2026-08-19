@@ -1,0 +1,37 @@
+# CPU conda-forge environment for linstabpy.
+# One file, one stack: complex-scalar PETSc/SLEPc and MUMPS on CPU.
+# There is no environment-gpu.yml. GPU PETSc is not a supported conda path.
+# conda owns PETSc/SLEPc (complex scalars) and the runtime libraries.
+# pip installs only this package from pyproject.toml.
+#
+#   conda env create -f environment.yml
+#   conda activate linstabpy
+#
+# After the PyPI release, replace the pip line `-e .` with `linstabpy`.
+# Do not add petsc4py to the pip list. Those sdists compile PETSc from source.
+#
+# Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR before you create the environment.
+# Confirm complex scalars after the create step:
+#   python -c "import numpy as np; from petsc4py import PETSc; assert np.issubdtype(PETSc.ScalarType, np.complexfloating)"
+#
+# install.sh remains the reference workstation build (PETSc 3.24 + MUMPS).
+
+name: linstabpy
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python>=3.10,<3.14
+  - numpy>=1.23
+  - scipy>=1.10
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - mpi4py>=3.1
+  - petsc=*=*complex*
+  - slepc=*=*complex*
+  - petsc4py>=3.18
+  - slepc4py>=3.18
+  - pip
+  - pip:
+      - --no-deps
+      - -e .
