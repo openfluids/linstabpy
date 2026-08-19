@@ -5,9 +5,9 @@ He publishes no gain values, so a sigma-vs-sigma table against him is impossible
 This is the comparison that is available, and it is stronger anyway: a gain is one
 number and can agree by accident, a field cannot.
 
-Requires: the converted base flow and mode data under ``$SAVARINO_DATA`` (or
-``data/`` next to this script), and a case configuration reachable from the
-current working directory (see ``README.md``).
+Requires: Savarino's published base flow and resolvent modes under
+``reference/zenodo/`` (``fetch_zenodo.py``), and a case configuration reachable
+from the current working directory (see ``README.md``).
 
 WHAT IT TESTS, precisely.  The forward map is ``H v = C inv(L_sigma) B v`` and the Chu
 weight W appears nowhere in it (see ``linstabpy/resolvent/operator.py``) -- W enters
@@ -46,18 +46,12 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from reference_paths import zenodo_baseflow_dat, zenodo_modes_dir
 from savarino_mode_to_primitive import CONS, PRIM, linearise_to_primitive
 from savarino_to_npy import read_tecplot
 
-DATA_DIR = Path(os.environ.get("SAVARINO_DATA", HERE / "data"))
-
-BASE_DAT = Path(
-    os.environ.get(
-        "SAVARINO_BASE_DAT",
-        str(DATA_DIR / "state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat"),
-    )
-)
-MODES = Path(os.environ.get("SAVARINO_MODES", str(DATA_DIR / "modes")))
+BASE_DAT = zenodo_baseflow_dat()
+MODES = zenodo_modes_dir()
 POINT = os.environ.get("SAVARINO_POINT", "f2_w45")
 OUT = Path(os.environ.get("SAVARINO_ORACLE_OUT", str(HERE / "out" / "oracle")))
 
@@ -155,7 +149,7 @@ def main() -> int:
 
     run_module._stage_run_resolvent = oracle_stage
     os.environ.setdefault(
-        "LINSTABPY_CASE1_CONFIG", str(HERE / "savarino_point_f2_b45.yaml")
+        "LINSTABPY_CASE1_CONFIG", str(HERE / "configs" / "mack_f2_b45.yaml")
     )
     from linstabpy.driver.run import run as compute
 

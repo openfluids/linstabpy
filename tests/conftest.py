@@ -18,8 +18,19 @@ import contextlib
 with contextlib.suppress(ModuleNotFoundError):
     import mpi4py.MPI  # noqa: F401
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
+
+# Validation CLIs and importable audit modules live in tests/tools/ (not under
+# examples/martini/). See tests/tools/README.md for the relocation decision.
+_TOOLS_DIR = Path(__file__).resolve().parent / "tools"
+if _TOOLS_DIR.is_dir():
+    _tools_path = str(_TOOLS_DIR)
+    if _tools_path not in sys.path:
+        sys.path.insert(0, _tools_path)
 
 # ---------------------------------------------------------------------------
 # Parametrize helpers

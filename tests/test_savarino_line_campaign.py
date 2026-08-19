@@ -74,7 +74,7 @@ def test_gen_campaign_beta_filter_writes_only_those_lines(tmp_path, monkeypatch)
 
     case_dir = yaml.safe_load(cfg)["paths"]["case_dir"]
     assert Path(case_dir).is_absolute()
-    assert case_dir.endswith("examples/savarino/data/converted")
+    assert case_dir.endswith("examples/savarino/output/baseflow")
 
 
 def test_gen_line_campaign_dry_run_writes_one_script_per_beta(tmp_path, monkeypatch) -> None:
@@ -171,7 +171,7 @@ def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monk
     assert cfg["solver"]["resolvent"]["factor_backend"] == "strumpack"
     assert cfg["solver"]["resolvent"]["ksp_type"] == "fgmres"
     assert Path(cfg["paths"]["case_dir"]).is_absolute()
-    assert cfg["paths"]["case_dir"].endswith("examples/savarino/data/converted")
+    assert cfg["paths"]["case_dir"].endswith("examples/savarino/output/baseflow")
     # The CPU default is untouched: one core per rank, no device pick.
     monkeypatch.setattr(
         "sys.argv", ["gen_campaign.py", "--out", str(tmp_path / "cpu"), "--dry-run", "--beta", "40"]

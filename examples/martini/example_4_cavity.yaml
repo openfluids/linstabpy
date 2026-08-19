@@ -1,6 +1,9 @@
 # Example 4: Cavity global/adjoint stability analysis
 # Masked cavity geometry, deformed mesh, direct + adjoint temporal EVP.
 
+Pr: 0.7                    # MATLAB example_4_Cavity.m parity (Step_BF.mat stores 0.71)
+zero_dmudT: true            # MATLAB readbaseflow uses dMUdT=0 in the operator
+
 nx: 241                    # streamwise nodes
 ny: 101                    # wall-normal nodes
 fd_order: 4                # SBP interior order

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from linstabpy.baseflow import load_case_fields
+from examples.song.reference_paths import BASEFLOW_NPZ
 
 
 def _write_fields(root: Path, *, nx: int = 8, ny: int = 6) -> Path:
@@ -126,7 +127,7 @@ def test_load_case_fields_filter_changes_u(tmp_path: Path) -> None:
 
 
 def test_song_32deg_load_is_transposed_and_shaped() -> None:
-    packed = Path(__file__).resolve().parents[1] / "examples" / "song" / "song_32deg.npz"
+    packed = BASEFLOW_NPZ
     if not packed.is_file():
         pytest.skip("song_32deg.npz is not in this checkout")
     X, Y, bf, sponge, info = load_case_fields(

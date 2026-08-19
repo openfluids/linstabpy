@@ -29,6 +29,7 @@ DEFAULT_REPORT = (
 DEFAULT_TABLE = (
     ROOT / "examples" / "martini" / "martini_parity_table.csv"
 )
+LINSTAB2D_RESULTS_DIRNAME = "LinStab2DResults"
 
 
 def _now_utc() -> str:
@@ -47,29 +48,59 @@ def _load_npz_dict(path: Path) -> dict[str, np.ndarray]:
         return {key: data[key] for key in data.files}
 
 
+def _matlab_fixture_search_dirs(npz_dir: Path) -> list[Path]:
+    """Search LinStab2DResults/ first, then the martini examples root."""
+    sub = npz_dir / LINSTAB2D_RESULTS_DIRNAME
+    if sub.is_dir():
+        return [sub, npz_dir]
+    return [npz_dir]
+
+
 def matlab_bundle_path(npz_dir: Path, stem: str) -> Path:
     """Return the on-disk path for a fixture stem (plain or split values file)."""
-    plain = npz_dir / f"{stem}.npz"
-    if plain.exists():
-        return plain
-    values = npz_dir / f"{stem}_values.npz"
-    if values.exists():
-        return values
-    return plain
+    for base in _matlab_fixture_search_dirs(npz_dir):
+        plain = base / f"{stem}.npz"
+        if plain.exists():
+            return plain
+        values = base / f"{stem}_values.npz"
+        if values.exists():
+            return values
+    return npz_dir / f"{stem}.npz"
+
+
+def _normalize_flat_keys(flat: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Strip outer ``results`` / ``logs`` wrapper prefixes from extracted NPZ keys."""
+    out: dict[str, np.ndarray] = {}
+    for key, value in flat.items():
+        if key.startswith("__meta"):
+            out[key] = value
+            continue
+        new_key = key
+        if new_key.startswith("results__"):
+            new_key = new_key[len("results__") :]
+        elif new_key.startswith("logs__"):
+            new_key = new_key[len("logs__") :]
+        out[new_key] = value
+    return out
 
 
 def load_matlab_bundle(npz_dir: Path, stem: str) -> dict[str, np.ndarray]:
     """Load a MATLAB fixture, merging split values/modes files when present."""
     path = matlab_bundle_path(npz_dir, stem)
     if not path.exists():
-        raise FileNotFoundError(npz_dir / f"{stem}.npz")
+        raise FileNotFoundError(
+            f"Missing MATLAB NPZ bundle {stem}.npz under "
+            f"{npz_dir / LINSTAB2D_RESULTS_DIRNAME} or {npz_dir}"
+        )
     if path.name.endswith("_values.npz"):
         out = _load_npz_dict(path)
-        modes = npz_dir / f"{stem}_modes.npz"
+        modes = path.with_name(f"{stem}_modes.npz")
+        if not modes.exists():
+            modes = npz_dir / f"{stem}_modes.npz"
         if modes.exists():
             out.update(_load_npz_dict(modes))
-        return out
-    return _load_npz_dict(path)
+        return _normalize_flat_keys(out)
+    return _normalize_flat_keys(_load_npz_dict(path))
 
 
 def _npz_get(data: dict[str, np.ndarray], logical_key: str) -> np.ndarray:
@@ -101,6 +132,107 @@ def _best_complex_scale(reference: np.ndarray, candidate: np.ndarray) -> complex
 def _rel_l2(reference: np.ndarray, candidate: np.ndarray) -> float:
     denom = max(float(np.linalg.norm(reference)), 1e-30)
     return float(np.linalg.norm(reference - candidate) / denom)
+
+
+def _struct_prefix_from_matlab_key(logical_key: str) -> str:
+    """Return ``results_Blasius`` from ``results_Blasius/gains``."""
+    return logical_key.rsplit("/", 1)[0]
+
+
+def _maybe_npz_get(data: dict[str, np.ndarray], logical_key: str) -> np.ndarray | None:
+    try:
+        return _npz_get(data, logical_key)
+    except KeyError:
+        return None
+
+
+def _prepare_resolvent_parity_payload(
+    *,
+    case_id: str,
+    python_npz: dict[str, np.ndarray],
+    matlab_npz: dict[str, np.ndarray],
+    case: dict[str, Any],
+    responses_mat: np.ndarray,
+    forcings_mat: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Align full-stack Python modes and pre-C MATLAB responses for parity checks.
+
+    Slim ``LinStab2DResults/`` fixtures store compact u+v (or u+v+w) columns while
+    Python NPZ files keep the full LNSE stack. Case plotters apply the same
+    compaction and observation masks before error panels; the comparator must
+    mirror that or mode rel errors inflate by orders of magnitude.
+    """
+    from examples.martini.plot_compare_utils import (
+        apply_diagonal_c,
+        maybe_compact_python_resolvent_uv,
+        maybe_compact_python_resolvent_uvw,
+    )
+
+    struct_prefix = _struct_prefix_from_matlab_key(str(case["matlab_gains_key"]))
+    u_j = _maybe_npz_get(matlab_npz, f"{struct_prefix}/idx/u_j")
+    v_j = _maybe_npz_get(matlab_npz, f"{struct_prefix}/idx/v_j")
+    w_j = _maybe_npz_get(matlab_npz, f"{struct_prefix}/idx/w_j")
+
+    responses_py = python_npz["responses"]
+    forcings_py = python_npz["forcings"]
+
+    if case_id == "example_5_paraboloid":
+        from examples.martini.example_5_plots import ex5_observation_mask_diag
+
+        cfg = load_config(ROOT / "examples/martini/example_5_paraboloid.yaml")
+        forcings_py = apply_diagonal_c(
+            forcings_py, ex5_observation_mask_diag(cfg)
+        )
+
+    if u_j is not None and v_j is not None and w_j is not None:
+        responses_py = maybe_compact_python_resolvent_uvw(
+            responses_py, responses_mat, u_j=u_j, v_j=v_j, w_j=w_j
+        )
+        forcings_py = maybe_compact_python_resolvent_uvw(
+            forcings_py, forcings_mat, u_j=u_j, v_j=v_j, w_j=w_j
+        )
+    elif u_j is not None and v_j is not None:
+        responses_py = maybe_compact_python_resolvent_uv(
+            responses_py, responses_mat, u_j=u_j, v_j=v_j
+        )
+        forcings_py = maybe_compact_python_resolvent_uv(
+            forcings_py, forcings_mat, u_j=u_j, v_j=v_j
+        )
+
+    if case_id == "example_1_blasius":
+        from examples.martini.example_1_plots import ex1_observation_mask_diag
+
+        cfg = load_config(ROOT / "examples/martini/example_1_blasius.yaml")
+        n_dof = _mode_matrix(responses_mat).shape[0]
+        c_diag = ex1_observation_mask_diag(cfg, n_mode_dofs=n_dof)
+        responses_mat = apply_diagonal_c(responses_mat, c_diag)
+    elif case_id == "example_2_jet":
+        from examples.martini.plot_compare_utils import jet_bc_mask_diag, jet_sponge_zero_mask
+
+        cfg = load_config(ROOT / "examples/martini/example_2_jet.yaml")
+        X_py = np.asarray(python_npz["X"], dtype=float)
+        Y_py = np.asarray(python_npz["Y"], dtype=float)
+        used_py = (
+            np.asarray(python_npz["used_ind"], dtype=int)
+            if "used_ind" in python_npz
+            else None
+        )
+        sponge0 = jet_sponge_zero_mask(X_py, Y_py, used_ind=used_py)
+        n_gp = int(sponge0.size)
+        rm = _mode_matrix(responses_mat)
+        n_fields = 2 if rm.shape[0] == 2 * n_gp else 5
+        layout = str(cfg.get("bc_mask_layout", "kron"))
+        c_diag = jet_bc_mask_diag(sponge0, layout=layout, n_fields=n_fields)
+        responses_mat = apply_diagonal_c(responses_mat, c_diag)
+    elif case_id == "example_5_paraboloid":
+        from examples.martini.example_5_plots import ex5_observation_mask_diag
+
+        cfg = load_config(ROOT / "examples/martini/example_5_paraboloid.yaml")
+        n_dof = _mode_matrix(responses_mat).shape[0]
+        c_diag = ex5_observation_mask_diag(cfg, n_mode_dofs=n_dof)
+        responses_mat = apply_diagonal_c(responses_mat, c_diag)
+
+    return responses_py, forcings_py, responses_mat, forcings_mat
 
 
 def _field_metrics(reference: np.ndarray, candidate: np.ndarray) -> dict[str, float]:
@@ -264,7 +396,6 @@ def compare_curvilinear_protocol_case(
     *,
     python_npz: dict[str, np.ndarray],
     matlab_results: dict[str, np.ndarray],
-    matlab_logs: dict[str, np.ndarray],
     tolerances: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tol = tolerances or {}
@@ -300,18 +431,24 @@ def compare_curvilinear_protocol_case(
         for metrics in field_reports.values()
     )
 
-    timing_total = float(
-        np.asarray(_npz_get(matlab_logs, "timing_total"), dtype=float).reshape(-1)[0]
-    )
     return {
         "python_protocol_pass": python_pass,
         "matlab_df_linf": matlab_linf,
         "matlab_df_rel_l2": matlab_rel,
         "python_df_linf": python_linf,
         "python_df_rel_l2": python_rel,
-        "matlab_timing_total_seconds": timing_total,
         "fields": field_reports,
     }
+
+
+def _saved_mode_indices_1based(
+    matlab: dict[str, np.ndarray],
+    logical_key: str,
+) -> np.ndarray | None:
+    values = _maybe_npz_get(matlab, logical_key)
+    if values is None:
+        return None
+    return np.asarray(values, dtype=int).reshape(-1)
 
 
 def _compare_cavity_case(
@@ -327,10 +464,52 @@ def _compare_cavity_case(
     omega_adj_py_matlab = -1j * _complex_vector(python_npz["omega_adj"])
     adjoint_modes_py = _mode_matrix(python_npz["adjoint_modes"])
 
+    from examples.martini.plot_compare_utils import compact_resolvent_modes_uvw
+
     omega_mat = _complex_vector(_npz_get(matlab_direct, "results_Cavity_direct/omega"))
     direct_modes_mat = _mode_matrix(_npz_get(matlab_direct, "results_Cavity_direct/V"))
+    if direct_modes_mat.shape[0] != direct_modes_py.shape[0]:
+        u_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/u_j")
+        v_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/v_j")
+        w_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/w_j")
+        direct_modes_py = compact_resolvent_modes_uvw(
+            direct_modes_py, u_j, v_j, w_j
+        )
+    direct_saved = _saved_mode_indices_1based(
+        matlab_direct, "results_Cavity_direct/saved_mode_indices"
+    )
+    if direct_saved is not None and direct_modes_mat.shape[1] == direct_saved.size:
+        saved0 = direct_saved - 1
+        omega_mat = omega_mat[saved0]
+        direct_modes_mat = direct_modes_mat[:, : direct_saved.size]
+
     omega_adj_mat = _complex_vector(_npz_get(matlab_adjoint, "results_Cavity_adjoint/omegaAdj"))
     adjoint_modes_mat = _mode_matrix(_npz_get(matlab_adjoint, "results_Cavity_adjoint/VAdj"))
+    if adjoint_modes_mat.shape[0] != adjoint_modes_py.shape[0]:
+        u_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/u_j")
+        v_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/v_j")
+        w_j = _npz_get(matlab_direct, "results_Cavity_direct/idx/w_j")
+        adjoint_modes_py = compact_resolvent_modes_uvw(
+            adjoint_modes_py, u_j, v_j, w_j
+        )
+    adj_saved = _saved_mode_indices_1based(
+        matlab_adjoint, "results_Cavity_adjoint/saved_mode_indices"
+    )
+    if adj_saved is not None and adjoint_modes_mat.shape[1] == adj_saved.size:
+        saved0 = adj_saved - 1
+        omega_adj_mat = omega_adj_mat[saved0]
+        adjoint_modes_mat = adjoint_modes_mat[:, : adj_saved.size]
+
+    n_compare = int(
+        min(
+            n_compare,
+            direct_modes_mat.shape[1],
+            adjoint_modes_mat.shape[1],
+            omega_py.size,
+            omega_mat.size,
+            omega_adj_mat.size,
+        )
+    )
 
     direct_pairs = _best_spectrum_pairs(omega_mat, omega_py, n_compare)
     direct_rows = []
@@ -535,18 +714,15 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
     try:
         if comparison_kind == "curvilinear_protocol":
             matlab_results_path = matlab_bundle_path(npz_dir, str(case["matlab_results_stem"]))
-            matlab_logs_path = matlab_bundle_path(npz_dir, str(case["matlab_logs_stem"]))
-            if not matlab_results_path.exists() or not matlab_logs_path.exists():
+            if not matlab_results_path.exists():
                 raise FileNotFoundError(f"Missing MATLAB NPZ bundle(s) for {base['case_id']}")
             report = compare_curvilinear_protocol_case(
                 python_npz=python_npz,
                 matlab_results=load_matlab_bundle(npz_dir, str(case["matlab_results_stem"])),
-                matlab_logs=load_matlab_bundle(npz_dir, str(case["matlab_logs_stem"])),
                 tolerances=case.get("tolerances", {}),
             )
             base["matlab_npz"] = [
                 str(matlab_results_path.relative_to(ROOT)),
-                str(matlab_logs_path.relative_to(ROOT)),
             ]
             base["status"] = "PASS" if report["python_protocol_pass"] else "SOFT_FAIL"
             base["metrics"] = report
@@ -559,6 +735,16 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
                     f"Missing MATLAB NPZ bundle: {_display_path(matlab_results_path)}"
                 )
             matlab_npz = load_matlab_bundle(npz_dir, str(case["matlab_results_stem"]))
+            responses_mat = _npz_get(matlab_npz, str(case["matlab_responses_key"]))
+            forcings_mat = _npz_get(matlab_npz, str(case["matlab_forcings_key"]))
+            responses_py, forcings_py, responses_mat, forcings_mat = _prepare_resolvent_parity_payload(
+                case_id=str(case["case_id"]),
+                python_npz=python_npz,
+                matlab_npz=matlab_npz,
+                case=case,
+                responses_mat=responses_mat,
+                forcings_mat=forcings_mat,
+            )
             svd_res_fwd = (
                 np.asarray(python_npz["svd_residuals_fwd"]).reshape(-1)
                 if "svd_residuals_fwd" in python_npz
@@ -571,11 +757,11 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             )
             report = compare_resolvent_case(
                 gains_py=python_npz["gains"],
-                responses_py=python_npz["responses"],
-                forcings_py=python_npz["forcings"],
+                responses_py=responses_py,
+                forcings_py=forcings_py,
                 gains_mat=_npz_get(matlab_npz, str(case["matlab_gains_key"])),
-                responses_mat=_npz_get(matlab_npz, str(case["matlab_responses_key"])),
-                forcings_mat=_npz_get(matlab_npz, str(case["matlab_forcings_key"])),
+                responses_mat=responses_mat,
+                forcings_mat=forcings_mat,
                 n_compare=int(case.get("n_compare", 3)),
                 svd_residuals_fwd=svd_res_fwd,
                 svd_residuals_adj=svd_res_adj,
@@ -646,8 +832,6 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
             paths = [temporal_path, spatial_path]
             if "matlab_base_stem" in case:
                 paths.append(matlab_bundle_path(npz_dir, str(case["matlab_base_stem"])))
-            if "matlab_logs_stem" in case:
-                paths.append(matlab_bundle_path(npz_dir, str(case["matlab_logs_stem"])))
             missing = [path for path in paths if not path.exists()]
             if missing:
                 raise FileNotFoundError(

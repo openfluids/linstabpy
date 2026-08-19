@@ -119,11 +119,29 @@ _FROZEN_SIGNATURES = {
     # missed the MATLAB reference.
     "coefficients": "592595e2b4de0821343b9baeb711e4eb9aa23aada8c47dc1dd78e0f3b8024d84",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
-    # mesh re-baselined for bead r3uu.3.2: Mesh.create gained an
-    # argument-validation preamble (two new module-level validators + one call;
-    # zero math statements changed). Evidence: all 13 oracle/harness files green
-    # (154 passed) at the re-baseline commit; user-approved 2026-06-12.
-    "mesh": "8ab8227af5b90ebe7981caaa553ee3009c140e6cde4dd59c81b1e9236a2c9185",
+    # mesh re-baselined 2026-06-12 (bead r3uu.3.2): Mesh.create gained an
+    # argument-validation preamble; zero math statements changed. Evidence: all 13
+    # oracle/harness files green (154 passed); user-approved.
+    # mesh re-baselined 2026-08-19 (1.0.0rc6): a real math edit. In
+    # _deform_full_2d the dJ/Q metric terms of the symm/asymm family operators
+    # are differentiated with the full Dy/D2y (the coordinate map has no eta
+    # parity), as LinStab2D DeformMesh.m does; the family stencils still enter the
+    # operator combination unchanged. Evidence: (1) deformed y-symmetric mesh,
+    # FD4, two non-separable analytic maps, odd/even test functions with sympy
+    # second derivatives: before, max axis-row rel. error of D2y_asymm grew like
+    # 1/h (7.7 -> 61 for n = 16 -> 128; Z^2 map 3.5 -> 29) and D2y_symm sat at
+    # 0.54; after, 2.2e-4 -> 3.9e-7 (order 3) and 2.1e-3 -> 3.1e-5 (order 2).
+    # (2) Only y_symmetry=True meshes on the non-separable full-2D path are
+    # touched; the separable and y-only paths and every non-symmetric mesh are
+    # byte-identical in behaviour (Martini Ex. 0 curvilinear parity vs the
+    # LinStab2D bundle: x, y, f, df at 1e-16..1e-14). (3) Martini Ex. 5
+    # paraboloid D2y_asymm vs LinStab2D, measured in G. Hamada's audit: rel.
+    # Frobenius 4e-5 -> 2.6e-10, L0 gap 6e-6 -> parity
+    # (examples/martini/example_5_D2y_asymm_fix.md).
+    # (4) 18 oracle/harness files green at the re-baseline (367 passed, 4
+    # skipped); full suite 1432 passed. Regression guard:
+    # test_mesh.py::test_deform_full_2d_family_metric_terms_use_full_operators.
+    "mesh": "bfad6c846c80005bcb1a152b3a92ce15978e8e45ee681ea19c2ac883be549ec1",
     "sbp": "1ff8cfe68c6a3e464c2b76a7ebe5c77175a06f2868020d0a06f5b60d2036efc1",
     "sbp_generator": "42827492ac4806916ee246aa7046c706fc312c8521187c74fb280f73acd45beb",
 }

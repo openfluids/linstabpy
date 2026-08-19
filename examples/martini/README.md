@@ -9,12 +9,32 @@ Run from the repository root:
 .venv/bin/python examples/martini/compare_martini_examples.py
 ```
 
-MATLAB reference values sit in `*_values.npz`. Mode arrays sit in `*_modes.npz` at complex64. The measured max relative deviation after that cast is in `martini_c64_max_rel.txt`.
+MATLAB reference values sit in `*_values.npz`. Mode arrays use **complex128** (same as linstabpy and full campaign fixtures).
 
-The supplement SOURCE line for Example 3 spatial uses the paper spatial file:
+Regenerate MATLAB fixtures (requires `LINSTAB2D_ROOT` + MATLAB):
+
+```bash
+bash examples/martini/regenerate_martini_fixtures.sh
+```
+
+The supplement SOURCE line for Example 3 spatial uses the paper spatial file.
+By default ``example_3_streaky_bl.py`` runs all four paper YAML campaigns and
+writes the unified presentation figures (spectra + mode mosaics) using
+``LinStab2DResults/example_3_paper_*`` MATLAB fixtures. Each YAML pins
+``floquet_shift: matlab_parity`` so spectra/modes match LinStab2D; the library
+default elsewhere is continuum-correct Floquet FD.
+
+```
+.venv/bin/python examples/martini/example_3_streaky_bl.py
+```
+
+Single-case override:
 
 ```
 LINSTABPY_EXAMPLE_CONFIG=examples/martini/example_3_paper_spatial_Lxpi_nP2.yaml \
 LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \
 .venv/bin/python examples/martini/example_3_streaky_bl.py
 ```
+
+Validation audit CLIs (assembly/symbolic parity) live under `tests/tools/`; see
+`tests/tools/README.md`.

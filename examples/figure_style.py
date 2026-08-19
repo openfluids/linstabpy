@@ -14,6 +14,14 @@ import numpy as np
 FIGURE_DPI = 300
 _APPLIED = False
 
+# Debian/Ubuntu packages for matplotlib usetex (see examples/song/README.md).
+LATEX_SYSTEM_PACKAGES_DEBIAN = (
+    "texlive-latex-extra",
+    "texlive-fonts-recommended",
+    "dvipng",
+    "ghostscript",
+)
+
 
 def latex_available() -> bool:
     """Return True when Agg usetex can write a PNG of ``$x$``."""
@@ -83,6 +91,33 @@ def apply() -> None:
     _APPLIED = True
 
 
+def plotting_prerequisites_message() -> str:
+    """Human-readable install hint when LaTeX is missing."""
+    pkgs = " ".join(LATEX_SYSTEM_PACKAGES_DEBIAN)
+    return (
+        "Example figures use matplotlib usetex (Computer Modern). Install a TeX stack, e.g.\n"
+        f"  sudo apt install {' '.join(LATEX_SYSTEM_PACKAGES_DEBIAN)}\n"
+        "On Fedora: texlive-scheme-medium dvipng ghostscript."
+    )
+
+
+def check_plot_environment(*, require_latex: bool = False) -> bool:
+    """Apply journal rcParams and optionally require a working LaTeX toolchain."""
+    apply()
+    tex_ok = latex_available()
+    if require_latex and not tex_ok:
+        raise RuntimeError(plotting_prerequisites_message())
+    if not tex_ok:
+        import warnings
+
+        warnings.warn(
+            "LaTeX not available; writing figures with matplotlib mathtext fallback.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return tex_ok
+
+
 def signed_cmap():
     """Diverging map with a white band at zero."""
     import matplotlib.pyplot as plt
@@ -94,20 +129,22 @@ def signed_cmap():
     return ListedColormap(colors, name="rdbu_zero_white")
 
 
-def save(fig, path: str | Path) -> Path:
+def save(fig, path: str | Path, *, dpi: int | None = None, pad_inches: float = 0.03) -> Path:
     """Write ``path`` at 300 dpi. Retry once with mathtext if usetex fails."""
     import matplotlib as mpl
     import matplotlib.pyplot as plt
 
     apply()
     out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    save_dpi = FIGURE_DPI if dpi is None else int(dpi)
     try:
-        fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
+        fig.savefig(out, dpi=save_dpi, bbox_inches="tight", pad_inches=pad_inches)
     except Exception:
         if not mpl.rcParams.get("text.usetex"):
             raise
         mpl.rcParams["text.usetex"] = False
-        fig.savefig(out, dpi=FIGURE_DPI, bbox_inches="tight", pad_inches=0.03)
+        fig.savefig(out, dpi=save_dpi, bbox_inches="tight", pad_inches=pad_inches)
     plt.close(fig)
     return out
 

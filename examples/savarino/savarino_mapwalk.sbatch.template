@@ -29,6 +29,6 @@ echo "engine=LineWalker stem=savarino_mapwalk beta={beta} driver_args=[{driver_a
 mpiexec -n {nranks} "$PY" -u examples/savarino/savarino_mapwalk.py \
   --config {config} \
   --out {driver_out} \
-  --farm-csv examples/savarino/savarino_map2_200pt.csv \
+  --farm-csv examples/savarino/output/savarino_map2_200pt.csv \
   --beta {beta}{driver_args}
 echo "DONE {jobname}"
