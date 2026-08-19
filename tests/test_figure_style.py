@@ -5,6 +5,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import pytest
 
 from examples import figure_style
 
@@ -60,3 +61,10 @@ def test_latex_available_is_false_when_savefig_raises(monkeypatch) -> None:
 
     monkeypatch.setattr(matplotlib.figure.Figure, "savefig", fail_savefig)
     assert figure_style.latex_available() is False
+
+
+def test_check_plot_environment_requires_latex(monkeypatch) -> None:
+    monkeypatch.setattr(figure_style, "latex_available", lambda: False)
+    _reset_style()
+    with pytest.raises(RuntimeError, match="usetex"):
+        figure_style.check_plot_environment(require_latex=True)

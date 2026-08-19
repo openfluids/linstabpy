@@ -11,15 +11,174 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - Each Savarino map-walk row records its commit, its Slurm job, and its machine.
 - `resolvent_analysis` returns the factor, SVD, and residual stage clocks.
 - The Savarino line campaign times a recycled sweep against a factor at each frequency.
+- **Song (2023) example complete** (`examples/song/`, θ = 32° only): self-contained
+  supplement pipeline from Song FV export through LinStabPy validation figures.
+  - `prepare_baseflow.py` — Plot3D → nodal `.npy` (601→599 trim, interpolation, nondim).
+  - `plot_baseflow.py` — mesh + mean-flow panels (`examples.figure_style` LaTeX fonts).
+  - `configs/run_fd4_n30.yaml` — FD4, *n* = 30, β = 19.2, no operator dissipation (ε = 0).
+  - `song.py` — EVP driver; default config → `configs/run_fd4_n30.yaml`.
+  - `report_matched20.py`, `plot_spectrum_matched20.py`, `plot_eigenmode_lead.py` —
+    Hungarian matched-20 spectrum and lead eigenmode vs Song reference.
+  - `song_plot_utils.py`, `reference_paths.py`; shipped reference under `reference/`.
+  - Shipped validation figures under `figures/` (baseflow mesh/fields, matched-20
+    spectrum, lead eigenmode; FD4 *n* = 30, ε = 0).
+  - Local-only outputs: `inputs/baseflow/`, `output/fd4_n30/` (gitignored).
+  - Validated (FD4 *n* = 30, ε = 0): 20/20 Song modes within |Δω| ≤ 0.01; lead |Δω| ≈ 0.002.
+- **Martini (2024) examples 0–5 — presentation + parity closure** (`examples/martini/`):
+  audit **CLOSED 2026-08-18** (`AUDIT_PLAN.md`; steps A→E, user sign-off all six cases).
+  - Per-case plotters: `example_{0..5}_plots.py` plus shared
+    `plot_compare_utils.py`, `split_martini_fixtures.py`,
+    `run_all_martini_examples_and_plots.py` — thesis-style mosaics (LinStab2D |
+    linstabpy | peak-normalized % error), spectra, and baseflow panels.
+  - Slim MATLAB reference fixtures under `examples/martini/LinStab2DResults/`
+    (compact u+v / u+v+w, **complex128**); bundled `linstab2D_scripts/` and
+    `regenerate_martini_fixtures.sh` for MATLAB → NPZ regen.
+  - Bundled baseflow `.mat` files under `examples/martini/baseflows/`
+    (`BL_BF.mat`, `Step_BF.mat`, `M09jet.mat`, `Paraboloid_BF.mat`).
+  - Shipped presentation PNGs next to each driver (baseflow, spectrum, mode
+    mosaics for Ex. 1–5; validation triptych for Ex. 0).
+- **Savarino (2026) example — reorganized supplement reproduction** (`examples/savarino/`,
+  θ = 30.8° SWBLI resolvent validation, Figs. S4–S6):
+  - **Layout:** `configs/` (YAMLs + grids), `reference/` (author baseflow + packed
+    response modes), `output/` (run records, figures, local intermediates).
+  - **Configs** (`configs/`): `map_base.yaml`, `mack_f2_b45.yaml`,
+    `liftup_f1em4_b163.yaml`, `point.sbatch.template`, `savarino_map317_points.csv`
+    (317-pt β–f grid for dense-map campaigns).
+  - **Shipped reference:** Tecplot base flow under `reference/baseflow/`; packed
+    `reference/savarino_response_{mack,liftup}.npz` (primitive ρ′, u′, v′, w′, T′).
+  - **Shipped results** (`output/`): `savarino_map2_200pt.csv` (200-pt gain-map run
+    record), `savarino_map317pt.csv` (317-pt minimal dense subset from PhD
+    `map_minimal_keep_author200`), validation figures under `output/figures/`
+    (mode comparisons + 200-/317-pt gain maps).
+  - `collect_campaign.py --from-npz` — aggregate NPZ + `.metrics.json` trees into
+    the run-record CSV layout (for PhD dense-map campaigns without Slurm logs).
+  - `gen_campaign.py --grid {author200,dense317}` — Slurm/local campaign generator
+    for 200- or 317-point grids.
+  - Plotters aligned with PhD Savarino2026 style:
+    - `plot_gain_map.py` — tensor/PCHIP interpolation, σ₁² colorbar with ×10⁴
+      on top, Mack / lift-up peak markers (`plot_resolvent_map_savarino_style.py`
+      parity); optional `--show-points` / `--baseline-summary` for diagnostics.
+    - `compare_modes.py` — Song eigenmode layout, peak-normalised ±1 colourbar,
+      ymax 0.06 (Mack) / 0.1 (lift-up) (`plot_savarino_modes_linstabpy_template.py`
+      parity).
 
 ### Changed
 - Recycled GMRES restarts. The restart is a Krylov length. It is never the system size.
 - `certified_rsvd` logs every check when one check fails. One seed skips the multi-seed check.
+- **Floquet shift default is now `continuum`** (`LINSTABPY_FLOQUET_SHIFT`,
+  `numerics.floquet_shift`): `DZ += iα I`, `D2RZ += iα DR`, `D2Z += 2iα DZ − α² I`,
+  the chain rule of `(∂z + iα)`. The LinStab2D algebra (`D2RZ += iα I` and `D2Z`
+  built from the already-shifted `DZ`, i.e. `−3α² I`) stays available as
+  `matlab_parity`; the Martini Ex. 3 YAMLs and `examples/sawtooth` pin it.
+  Plane Poiseuille at Re = 10⁴, α = 1 (Orszag 1971): `continuum` converges to
+  ω = 0.23752649 + 0.00373967i (|Δω| 3.8e-4 → 1.8e-6 for ny 128 → 512);
+  `matlab_parity` stalls at |Δω| ≈ 3.2e-4, a growth rate 8.5 % low, at every
+  resolution. Any unpinned Floquet run changes with this default.
+- Replaced the legacy Song figure/pack/matrix scripts with the pipeline above;
+  see `examples/song/README.md` for run order.
+- `song.py` creates the output NPZ parent directory before save and reads
+  `numerics.operator_dissipation` from YAML (disabled, ε = 0 for this test).
+- `song_plot_utils.load_song_leading_mode_npz` transposes the shipped reference
+  eigenmode NPZ to LinStabPy `(ny, nx)` layout for plotting.
+- `.gitignore` re-ignores regenerated example outputs (`examples/**/figures/`,
+  `examples/**/output/`, Song `inputs/baseflow/`, logs) after the example PNG
+  whitelist; Song `figures/` and reference NPZ are shipped; raw Plot3D exports
+  under `inputs/raw/` stay local.
+- Song plot scripts require LaTeX via `figure_style.check_plot_environment`;
+  see `examples/song/README.md` for system packages (`texlive-latex-extra`, …).
+- `examples.figure_style`: `check_plot_environment(require_latex=…)` with install
+  hint, optional `dpi` / `pad_inches` on `save()`; tests in `tests/test_figure_style.py`.
+- Grouped Song (2023) **reference** assets under `examples/song/reference/`:
+  `baseflow/song_32deg.npz`, `eigenmode/song_32deg_leading_mode.npz`,
+  `spectrum/eigenvalues.dat`, `spectrum/omega_i.csv`. Added `reference_paths.py`
+  and updated configs, figure scripts, and tests.
+- **Martini fixture layout and git policy:**
+  - Shipped NPZ: **`examples/martini/LinStab2DResults/*.npz` only** (slim MATLAB
+    reference). Root-level `example_*.npz` from linstabpy drivers are
+    **gitignored** (regenerated locally; several exceed the 60 MiB tracked-file
+    guard).
+  - Raw MATLAB `.mat` exports stay outside Git in `martini_examples/` (gitignored
+    scratch; recreated by `regenerate_martini_fixtures.sh`).
+  - Run logs under `examples/martini/_run_logs/` are gitignored.
+  - Renamed `examples/martini/data/` → `baseflows/`.
+- **Martini plot/compare layer** (repo mosaics ≤ **0.49%** peak-norm vs campaign;
+  Ex. 4 cavity audit closed — residual tail is MATLAB `eigs` convergence, not
+  operator/BC):
+  - `plot_compare_utils.py`: `used_ind` 0-based gridding, `matlab_plot_grid_shape`,
+    `compact_resolvent_modes_uvw`, peak-normalized mosaic triptychs.
+  - `example_4_plots.py` / `split_martini_fixtures.py`: slim MATLAB u+v+w compare
+    with joint complex scaling; Example 4 YAML pins `Pr: 0.7` and
+    `zero_dmudT: true` for LinStab2D parity.
+  - `compare_martini_examples.py` and `tests/test_martini_parity_compare.py`
+    updated for `LinStab2DResults/` fixture paths and compact mode layout.
+- Moved library validation CLIs from `examples/martini/` to `tests/tools/`
+  (`assembly_parity.py`, `assembly_metrics_diff.py`, `lnse_equivalence_harness.py`,
+  `matlab_source_parity.py`, `symbolic_compressible_nse.py`,
+  `coefficients_reference_base.py`, `NSE_DERIVATION.md`). See
+  `tests/tools/README.md` for rationale and owner review checklist.
+- Removed unused maintainer-only scripts from `examples/martini/`:
+  `check_parity_matrices.py`, `compare_operator_construction.py`,
+  `perf_memory_operator_parity.py`, `operator_matrix.json`, `branch_matrix.json`,
+  `martini_c64_max_rel.txt`, `martini_examples.sbatch`.
+- **Savarino example layout and git policy:**
+  - Moved point YAMLs, campaign template, and 317-pt grid into `configs/`; run
+    records into `output/` (`savarino_map2_200pt.csv` was at example root).
+  - `reference_paths.py`: `GAIN_MAP_CSV`, `GAIN_MAP_317_CSV`, figure paths under
+    `output/figures/`; compare outputs under `output/compare/`.
+  - `.gitignore` ships **only** curated Savarino outputs: both map CSVs and
+    `output/figures/*.png`. **Gitignored:** `output/baseflow/*.npy` (from
+    `savarino_to_npy.py`), `output/compare/**/*.npz` (from `run_compare_points.py`),
+    `reference/zenodo/`. Whitelist repeated after root `output/` rule.
+  - `run_compare_points.py`, `gen_campaign.py`, `collect_campaign.py`, `mode_oracle.py`
+    updated for `configs/` paths.
+  - See `examples/savarino/README.md` for minimal workflow and maintainer scripts
+    (`verify_norm_convention.py`, `mode_oracle.py`, `fetch_zenodo.py`,
+    `pack_reference_modes.py`).
 
 ### Fixed
+- `Mesh.deform` on a y-symmetric mesh with a non-separable map: the `dJ`/`Q`
+  metric terms of the symm/asymm family operators are now differentiated with
+  the full `Dy`/`D2y` (the coordinate map has no η parity), as LinStab2D
+  `DeformMesh.m` does. Before, the family stencils were applied to the
+  coordinates themselves and `D2y_asymm`/`D2y_symm` did not converge at the axis
+  rows (relative error growing like 1/h under refinement: 7.7 → 61 for
+  n = 16 → 128 on a polynomial map; 3.5 → 29 on the Z² map). After: 2.2e-4 → 3.9e-7
+  (order 3, asymm) and 2.1e-3 → 3.1e-5 (order 2, symm). Only `y_symmetry=True`
+  meshes on the full-2D deform path are affected (Martini Ex. 5 paraboloid;
+  the SWBLI cases are untouched). Regression: `test_deform_full_2d_family_metric_terms_use_full_operators`.
 - The walk probe uses the last response, not a ones vector.
 - A walk GMRES has a four-iteration cap. A dead walk raises and factors this omega.
 - `append_row` refuses a row that does not match the header.
+
+### Removed
+- Dropped `song_fig{1,2,3}_*.py`, `pack_run.py`, `run_song_2023_*.py`, `song.sh`,
+  `song_32deg_spectrum_quoted.csv`, and the old `song_32deg*.yaml` / sbatch configs
+  from `examples/song/`.
+- Dropped committed LinStabPy **outputs** from the old flat `examples/song/` layout
+  (`song_32deg_modes.npz`, `song_32deg_spectrum.csv`, `song_matlab_timing.json`,
+  root-level `song_fig*.png`). Large EVP dumps and raw Plot3D inputs stay local;
+  curated reference NPZ and validation PNGs now live under `reference/` and
+  `figures/` respectively.
+- Dropped the 31.6 deg Song example from `examples/song/`: baseflow
+  (`song_316deg.npz`, `song_316deg_leading_mode.npz`), reference spectrum
+  (`song_316_eigenvalues.dat`), configs (`song_316deg.yaml`, `song_316deg.sbatch`),
+  and comparison helpers (`compare_evp_to_song316.py`, `parse_song316_eigenvalues.py`).
+  The shipped example is **32 deg only**; 31.6 deg validation stays in the PhD case tree.
+- Dropped committed **linstabpy driver NPZ** from `examples/martini/` root
+  (`example_*.npz`, legacy `*_values.npz` / `*_modes.npz` / `*_logs.npz` splits).
+  Regenerate locally via `./run_all_examples.sh` or per-case drivers; parity
+  against MATLAB uses `LinStab2DResults/` only.
+- Dropped old debug/support PNGs from `examples/martini/` (per-case
+  `*_support_components*.png`, legacy single-panel `example_*_{blasius,jet,...}.png`
+  layouts superseded by mosaic figures).
+- Dropped `savarino_corner_probe_uv.yaml` and `savarino_corner_probe_wonly.yaml`
+  (side experiments; not part of the S4–S6 reproduction path).
+- Dropped example-root Savarino YAMLs and Slurm template (now under `configs/`):
+  `savarino_point_f2_b45.yaml`, `savarino_point.sbatch.template`; renamed
+  `compare_liftup_f1em4_b163.yaml` → `liftup_f1em4_b163.yaml`.
+- Dropped committed PNGs from `examples/savarino/reference/` (figures now under
+  `output/figures/`).
+
 
 ## [1.0.0rc5] - 2026-08-15
 

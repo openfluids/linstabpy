@@ -5,11 +5,11 @@ Produces the base-flow input for the Savarino case-study reproduction
 (supplement, resolvent validation section): five primitive fields
 (rho, u, v, w, T) plus coordinates and a placeholder sponge array, written
 as individual .npy files that ``paths.case_dir`` in the case configs point
-at. Required input: the Zenodo base-flow file (see ``fetch_zenodo.py``).
+at. Required input: the published Tecplot file shipped under
+``reference/baseflow/`` (or pass ``<src.dat> <out_dir>`` explicitly).
 
-Source: Zenodo 10.5281/zenodo.18854407, file
-``state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat``
-(Tecplot ASCII, md5 5b3ed38fbe087633e4550b1e1231dc10).
+Usage:  python savarino_to_npy.py
+        python savarino_to_npy.py <src.dat> <out_dir>
 
 WHY THIS FILE IS SEPARATE FROM A SIMILAR PLOT3D READER. A different base flow
 (e.g. from a DNS/LES box) may be Plot3D (grid.grd + mean_flow.dat) with
@@ -35,8 +35,6 @@ energy ``e_int = roe/ro - |vel|^2/2``. In this nondimensionalisation
 predicted by that identity is 1/(g(g-1)M^2) = 0.386309, and the file's
 freestream ``e_int`` is 0.386309 exactly. That match is what proves the
 conversion, and with it T_inf = 1.
-
-Usage:  python savarino_to_npy.py <src.dat> <out_dir>
 """
 
 from __future__ import annotations
@@ -61,6 +59,8 @@ E_INT_INF = 1.0 / (GAMMA * (GAMMA - 1.0) * MACH**2)
 #: cell-centred field, far tighter than any mis-scale would survive (the
 #: historical errors were factors of Ma^2 ~ 4.6 and c_inf).
 FREESTREAM_TOL = 1e-3
+
+# Zenodo 10.5281/zenodo.18854407 — md5 of the shipped Tecplot base-flow file.
 
 
 def _md5(path: Path) -> str:
@@ -152,10 +152,15 @@ def freestream_gate(f: dict[str, np.ndarray]) -> tuple[int, int]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
+    if len(argv) == 1:
+        from reference_paths import BASEFLOW_DAT, BASEFLOW_NPY_DIR
+
+        src, out = BASEFLOW_DAT, BASEFLOW_NPY_DIR
+    elif len(argv) == 3:
+        src, out = Path(argv[1]), Path(argv[2])
+    else:
         print(__doc__)
         return 2
-    src, out = Path(argv[1]), Path(argv[2])
 
     digest = _md5(src)
     if digest != SRC_MD5:

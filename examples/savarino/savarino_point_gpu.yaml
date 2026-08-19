@@ -1,7 +1,7 @@
 # Savarino point (conservative-momentum forcing space), GPU arm of the 2x2 cost
 # matrix {farm, line} x {CPU MUMPS, GPU STRUMPACK+FGMRES}. Physics, numerics,
 # boundary conditions and forcing window are identical to
-# savarino_point_f2_b45.yaml; only the resolvent linear solver differs:
+# configs/mack_f2_b45.yaml; only the resolvent linear solver differs:
 # a STRUMPACK LU on one GPU wrapped in right-preconditioned FGMRES to 1e-10
 # (STRUMPACK's factor is less accurate than MUMPS's, the refinement brings the
 # solve back to machine level; its transpose-solve is not the Hermitian adjoint,
@@ -12,7 +12,7 @@
 # in a venv built with LINSTABPY_BUILD_STACK=gpu-strumpack (MUMPS+STRUMPACK+SLATE+CUDA).
 paths:
   # Point this at the directory written by savarino_to_npy.py.
-  case_dir: data/converted
+  case_dir: output/baseflow   # written by savarino_to_npy.py, relative to examples/savarino/
 physics:
   Re: 100000.0           # Reynolds number based on X_sh
   Ma: 2.15               # freestream Mach

@@ -84,6 +84,15 @@ TOP_LEVEL_ALLOWED = frozenset(
         "penalty",
         "baseflow_input",
         "baseflow_preprocess",
+        # Flat Martini example keys (standalone drivers). floquet_shift is Ex. 3's
+        # counterpart of numerics.floquet_shift in driver/run.py ("continuum" |
+        # "matlab_parity"); zero_dmudT (Ex. 4) and zero_dmudT_martini_parity (Ex. 1)
+        # zero dmu/dT after sutherland_air for LinStab2D 2-D parity; bc_mask_layout
+        # (Ex. 2) is the observation-mask layout ("kron" | "tile").
+        "floquet_shift",
+        "zero_dmudT",
+        "zero_dmudT_martini_parity",
+        "bc_mask_layout",
     }
 )
 
@@ -137,6 +146,8 @@ _NUMERIC_FIELDS = frozenset(
 
 _BOOL_FIELDS = frozenset(
     {
+        "zero_dmudT",
+        "zero_dmudT_martini_parity",
         "x_periodicity",
         "y_symmetry",
         "run_temporal",
@@ -151,6 +162,8 @@ _BOOL_FIELDS = frozenset(
 _STRING_FIELDS = frozenset(
     {
         "model",
+        "floquet_shift",
+        "bc_mask_layout",
         "assembly_backend",
         "output_root",
         "base_config",

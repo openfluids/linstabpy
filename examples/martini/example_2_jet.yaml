@@ -12,6 +12,10 @@ y_symmetry: true           # axisymmetric half-plane
 x_periodicity: false       # open streamwise ends
 model: axy                 # axisymmetric LNSE
 
+# Published MATLAB parity: kron(B(:), ones(5,1)) == np.repeat(sponge0, 5).
+# Use bc_mask_layout: tile only for the block-correct side track (not Fig.~8 parity).
+bc_mask_layout: kron
+
 # scipy is the cross-machine baseline. petsc is an explicit opt-in.
 # Do not use auto for installation baselines.
 assembly_backend: scipy

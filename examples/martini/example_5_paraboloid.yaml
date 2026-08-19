@@ -1,6 +1,9 @@
 # Example 5: Paraboloid resolvent analysis
 # Curvilinear transformation to a parabolic physical grid,
 # axisymmetric model, m=5 azimuthal Fourier mode.
+#
+# Mesh parity: see example_5_D2y_asymm_fix.md — full Dy/D2y metric terms in
+# Mesh.deform _deform_full_2d (fixes D2y_asymm vs LinStab2D on this map).
 
 nx: 100                    # computational nodes in xi
 ny: 100                    # computational nodes in eta

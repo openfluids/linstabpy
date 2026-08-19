@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from examples.song.reference_paths import BASEFLOW_NPZ
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MARTINI_ROOT = REPO_ROOT / "examples" / "martini"
 SONG_ROOT = REPO_ROOT / "examples" / "song"
@@ -24,6 +26,9 @@ def require_existing(path: Path, description: str) -> Path:
 
 def martini_fixture(filename: str) -> Path:
     """Return the canonical Martini parity fixture path."""
+    subdir = MARTINI_FIXTURE_ROOT / "LinStab2DResults" / filename
+    if subdir.is_file():
+        return subdir
     return MARTINI_FIXTURE_ROOT / filename
 
 
@@ -34,7 +39,7 @@ def martini_export(filename: str) -> Path:
 
 def unpack_song_baseflow() -> Path:
     """Write song_32deg.npz fields to a temporary npy directory."""
-    src = SONG_ROOT / "song_32deg.npz"
+    src = BASEFLOW_NPZ
     require_existing(src, "Song 32 deg base flow")
     root = Path(tempfile.mkdtemp(prefix="song32_"))
     packed = np.load(src)

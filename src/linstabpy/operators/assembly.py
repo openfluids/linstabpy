@@ -43,8 +43,8 @@ FloquetShiftMode = Literal["matlab_parity", "continuum"]
 
 
 def _resolve_floquet_shift_mode(mode: str | None = None) -> FloquetShiftMode:
-    """Resolve Floquet FD shift mode. Default matches LinStab2D."""
-    raw = mode if mode is not None else os.environ.get("LINSTABPY_FLOQUET_SHIFT", "matlab_parity")
+    """Resolve Floquet FD shift mode. Default is continuum-correct FD."""
+    raw = mode if mode is not None else os.environ.get("LINSTABPY_FLOQUET_SHIFT", "continuum")
     key = str(raw).strip().lower().replace("-", "_")
     if key in {"matlab", "matlab_parity", "parity", "linstab2d"}:
         return "matlab_parity"
@@ -1655,10 +1655,10 @@ def _apply_floquet_shift(
 
     Modes (``LINSTABPY_FLOQUET_SHIFT`` / ``mode``):
 
-    * ``matlab_parity`` (default): LinStab2D ``GetLinProblem.m``
-      ``DZ += iα I``, ``D2RZ += iα I``, ``D2Z`` uses the shifted ``DZ``.
-    * ``continuum``: ``DZ += iα I``, ``D2RZ += iα DR``,
+    * ``continuum`` (default): ``DZ += iα I``, ``D2RZ += iα DR``,
       ``D2Z`` uses the unshifted ``DZ``.
+    * ``matlab_parity``: LinStab2D ``GetLinProblem.m`` discrete algebra
+      (``D2RZ += iα I``, ``D2Z`` uses the shifted ``DZ``) for reference parity.
     """
     shift_mode = _resolve_floquet_shift_mode(mode)
     dz_blocks = [cache.csr.tocsc() for cache in _cache_5_block_derivatives(DZ, ngp)]

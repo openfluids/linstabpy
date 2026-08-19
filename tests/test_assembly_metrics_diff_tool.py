@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "examples" / "martini" / "assembly_metrics_diff.py"
+SCRIPT = ROOT / "tests" / "tools" / "assembly_metrics_diff.py"
 
 
 def _write_metrics(

@@ -1,53 +1,30 @@
 #!/usr/bin/env python3
-"""Downloads the reference dataset for the Savarino case-study reproduction.
+"""Downloads optional Zenodo artifacts for the Savarino case-study reproduction.
 
-Record 10.5281/zenodo.18854407 on zenodo.org holds the published base flow,
-forcing/response modes, and eigenmodes. Two subcommands:
+The base flow Tecplot file is **shipped** under ``reference/baseflow/``.
+This script fetches resolvent mode archives when regenerating shipped fixtures
+(e.g. ``pack_reference_modes.py``).
 
-  baseflow        Download the base-flow file into $SAVARINO_DATA (or
-                   data/ next to this script).
   modes --f F --beta B
-                   Download the four mode files (forcing/response, real and
-                   imaginary parts) for a given (f, beta) point from inside
-                   the resolvent-modes zip archive, using HTTP range
-                   requests so only the needed members are transferred.
-                   Requires the ``remotezip`` package: pip install remotezip
+                   Download forcing/response mode Tecplot files for one point
+                   into ``reference/zenodo/modes/`` (HTTP range requests into
+                   the Zenodo zip). Requires ``remotezip``.
 
 Usage:
-    python fetch_zenodo.py baseflow
     python fetch_zenodo.py modes --f 2 --beta 45
 """
 from __future__ import annotations
 
 import argparse
-import os
-import urllib.request
 from pathlib import Path
+
+from reference_paths import zenodo_modes_dir
 
 RECORD = "18854407"
 API_BASE = f"https://zenodo.org/api/records/{RECORD}/files"
 
-BASEFLOW_NAME = "state_atcenter_mesh300_y300_xend195_angle308_T157_Mach215.dat"
 MODES_ZIP = "resolvent_angle308_T157_Mach215_mesh300_y300_xend195.zip"
 ZIP_PREFIX = "resolvent_angle308_T157_Mach215_mesh300_y300_xend195/"
-
-DATA_DIR = Path(os.environ.get("SAVARINO_DATA", Path(__file__).resolve().parent / "data"))
-
-
-def _download(name: str, dest: Path) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    url = f"{API_BASE}/{name}/content"
-    print(f"downloading {url} -> {dest}")
-    urllib.request.urlretrieve(url, dest)
-
-
-def cmd_baseflow(_args: argparse.Namespace) -> int:
-    dest = DATA_DIR / BASEFLOW_NAME
-    if dest.exists():
-        print(f"already present: {dest}")
-        return 0
-    _download(BASEFLOW_NAME, dest)
-    return 0
 
 
 def cmd_modes(args: argparse.Namespace) -> int:
@@ -60,7 +37,7 @@ def cmd_modes(args: argparse.Namespace) -> int:
         )
 
     zip_url = f"{API_BASE}/{MODES_ZIP}/content"
-    out_dir = DATA_DIR / "modes"
+    out_dir = zenodo_modes_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     members = [
@@ -85,9 +62,6 @@ def cmd_modes(args: argparse.Namespace) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-
-    p_base = sub.add_parser("baseflow", help="download the base-flow file")
-    p_base.set_defaults(func=cmd_baseflow)
 
     p_modes = sub.add_parser("modes", help="download forcing/response modes for one (f, beta) point")
     p_modes.add_argument("--f", required=True, help="frequency, formatted as in the Zenodo filenames (e.g. 2, 0.0001)")

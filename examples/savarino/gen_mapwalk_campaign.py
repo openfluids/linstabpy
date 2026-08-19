@@ -3,7 +3,7 @@
 
 The walker factors the first two frequencies of a beta line, then tries
 to walk the rest. Each job times one beta line against the committed farm
-walls in savarino_map2_200pt.csv.
+walls in output/savarino_map2_200pt.csv.
 
 The repository root comes from this file, so the job script has no
 absolute path in it.
@@ -50,7 +50,7 @@ def main() -> int:
     ap.add_argument("--ncv", type=int, default=None, help="SLEPc subspace size for the gain (nev=1)")
     ap.add_argument("--driver-out", type=Path, default=REPO / "examples" / "savarino",
                     help="where the driver writes savarino_mapwalk.csv/.log (one dir per arm)")
-    ap.add_argument("--config", type=Path, default=HERE / "savarino_point_f2_b45.yaml",
+    ap.add_argument("--config", type=Path, default=HERE / "configs" / "mack_f2_b45.yaml",
                     help="point config for the line; its solver block decides CPU (MUMPS) or "
                          "GPU (STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml")
     ap.add_argument("--cpus-per-task", type=int, default=1,

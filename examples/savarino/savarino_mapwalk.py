@@ -36,7 +36,7 @@ from linstabpy.solvers.router.map_walk import WalkDeferred  # noqa: E402
 from linstabpy.solvers.router.resolvent_map import _peak_rss_bytes  # noqa: E402
 
 STEM = "savarino_mapwalk"
-FARM_CSV = HERE / "savarino_map2_200pt.csv"
+FARM_CSV = HERE / "output" / "savarino_map2_200pt.csv"
 FIELDS = (
     "beta_Xsh",
     "f_Xsh_Uinf",
@@ -234,7 +234,7 @@ def main() -> int:
     from linstabpy.utils.yaml_io import load_config
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--config", type=Path, default=HERE / "savarino_point_f2_b45.yaml")
+    ap.add_argument("--config", type=Path, default=HERE / "configs" / "mack_f2_b45.yaml")
     ap.add_argument("--out", type=Path, default=HERE)
     ap.add_argument("--farm-csv", type=Path, default=FARM_CSV)
     ap.add_argument("--beta", type=float, nargs="+", default=None)

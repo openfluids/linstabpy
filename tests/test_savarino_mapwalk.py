@@ -113,7 +113,7 @@ def test_every_row_names_the_solver_that_factored_it() -> None:
 
     assert "backend" in FIELDS
     here = Path(__file__).resolve().parents[1] / "examples" / "savarino"
-    assert _backend_label(yaml.safe_load((here / "savarino_point_f2_b45.yaml").read_text())) == "mumps"
+    assert _backend_label(yaml.safe_load((here / "configs" / "mack_f2_b45.yaml").read_text())) == "mumps"
     assert (
         _backend_label(yaml.safe_load((here / "savarino_point_gpu.yaml").read_text()))
         == "iterative/strumpack"

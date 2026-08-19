@@ -20,7 +20,7 @@ from linstabpy.operators.coefficients import (
     compute_cartesian_coefficients,
     compute_cylindrical_coefficients,
 )
-from examples.martini.symbolic_compressible_nse import (
+from symbolic_compressible_nse import (
     cartesian_lnse_coefficients_from_nse,
     cartesian_operator_coefficients,
     cartesian_symbol_table,
@@ -806,8 +806,8 @@ def run_parity(
 
 _FROZEN_REFERENCE = (
     Path(__file__).resolve().parents[1]
-    / "examples"
-    / "martini"
+    / "tests"
+    / "tools"
     / "coefficients_reference_base.py"
 )
 

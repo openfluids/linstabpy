@@ -904,6 +904,8 @@ class Mesh:
                 self.Dy_symm,
                 x,
                 y,
+                Dy_metric=Dy,
+                D2y_metric=D2y,
             )
             _, Dxy_asymm_new, Dyx_asymm_new, D2y_asymm_new = _transform_second_derivatives(
                 Ji11,
@@ -918,6 +920,8 @@ class Mesh:
                 self.Dy_asymm,
                 x,
                 y,
+                Dy_metric=Dy,
+                D2y_metric=D2y,
             )
 
         det = detJ
@@ -1610,18 +1614,28 @@ def _transform_second_derivatives(
     Dy: sp.spmatrix,
     x: np.ndarray,
     y: np.ndarray,
+    Dy_metric: sp.spmatrix | None = None,
+    D2y_metric: sp.spmatrix | None = None,
 ) -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csr_matrix, sp.csr_matrix]:
-    """Build transformed second derivatives for a full Jacobian map."""
+    """Build transformed second derivatives for a full Jacobian map.
+
+    ``Dy_metric`` / ``D2y_metric`` differentiate the coordinate mapping for the
+    ``dJ`` / ``Q`` metric terms. Geometry is parity-free, so symm/asymm family
+    updates must still use the full eta operators there (MATLAB ``DeformMesh.m``
+    lines 150–161). See ``examples/martini/example_5_D2y_asymm_fix.md``.
+    """
+    Dy_m = Dy if Dy_metric is None else Dy_metric
+    D2y_m = D2y if D2y_metric is None else D2y_metric
     # Derivatives of J = [[dx/dξ, dy/dξ], [dx/dη, dy/dη]] in computational space.
     D2x_x = D2x @ x
     D2x_y = D2x @ y
-    Dxy_x = Dx @ (Dy @ x)
-    Dxy_y = Dx @ (Dy @ y)
+    Dxy_x = Dx @ (Dy_m @ x)
+    Dxy_y = Dx @ (Dy_m @ y)
 
-    Dyx_x = Dy @ (Dx @ x)
-    Dyx_y = Dy @ (Dx @ y)
-    D2y_x = D2y @ x
-    D2y_y = D2y @ y
+    Dyx_x = Dy_m @ (Dx @ x)
+    Dyx_y = Dy_m @ (Dx @ y)
+    D2y_x = D2y_m @ x
+    D2y_y = D2y_m @ y
 
     dJ11_xi = D2x_x
     dJ12_xi = D2x_y

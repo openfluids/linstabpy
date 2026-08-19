@@ -11,7 +11,6 @@ cases:
     python_module: examples.example_0_curvilinear_validation
     python_npz: examples/martini/example_0_curvilinear_validation.npz
     matlab_results_stem: example_0_TestCurvilinearDerivative_results
-    matlab_logs_stem: example_0_TestCurvilinearDerivative_logs
     tolerances:
       field_abs: 1.0e-10
       field_rel: 1.0e-10
@@ -24,7 +23,6 @@ cases:
     python_module: examples.example_1_blasius
     python_npz: examples/martini/example_1_blasius.npz
     matlab_results_stem: example_1_Blasius_results
-    matlab_logs_stem: example_1_Blasius_logs
     matlab_gains_key: results_Blasius/gains
     matlab_responses_key: results_Blasius/responses
     matlab_forcings_key: results_Blasius/forces
@@ -48,10 +46,9 @@ cases:
     python_module: examples.example_2_jet
     python_npz: examples/martini/example_2_jet.npz
     matlab_results_stem: example_2_Jet_results
-    matlab_logs_stem: example_2_Jet_logs
-    matlab_gains_key: results_Jet/S
-    matlab_responses_key: results_Jet/U
-    matlab_forcings_key: results_Jet/V
+    matlab_gains_key: results_Jet/gains
+    matlab_responses_key: results_Jet/responses
+    matlab_forcings_key: results_Jet/forces
     n_compare: 3
     tolerances:
       # Primary closure criterion: SVD residuals; see Example 1 comment.
@@ -67,10 +64,13 @@ cases:
     comparison_scope: temporal_and_spatial
     python_module: examples.example_3_streaky_bl
     python_npz: examples/martini/example_3_streaky_bl.npz
-    matlab_base_stem: example_3_Streaky_BL_results_base
     matlab_temporal_stem: example_3_Streaky_BL_results_temporal
     matlab_spatial_stem: example_3_Streaky_BL_results_spatial
-    matlab_logs_stem: example_3_Streaky_BL_logs
+    matlab_paper_temporal_Lx2pi_stem: example_3_paper_temporal_Lx2pi_nP2_results_temporal
+    matlab_paper_temporal_Lxpi_nfloq0_stem: example_3_paper_temporal_Lxpi_nfloq0_results_temporal
+    matlab_paper_temporal_Lxpi_nfloq2_stem: example_3_paper_temporal_Lxpi_nfloq2_results_temporal
+    matlab_paper_spatial_temporal_stem: example_3_paper_spatial_Lxpi_nP2_results_temporal
+    matlab_paper_spatial_stem: example_3_paper_spatial_Lxpi_nP2_results_spatial
     matlab_temporal_omega_key: results_StreakyBL_temporal/omega
     matlab_temporal_modes_key: results_StreakyBL_temporal/V
     matlab_spatial_alpha_key: results_StreakyBL_spatial/alphas
@@ -106,7 +106,6 @@ cases:
     python_npz: examples/martini/example_4_cavity.npz
     matlab_direct_stem: example_4_Cavity_results_direct
     matlab_adjoint_stem: example_4_Cavity_results_adjoint
-    matlab_base_stem: example_4_Cavity_results_base
     omega_target: "1.5+1.0j"
     n_compare: 6
     tolerances:
@@ -121,7 +120,6 @@ cases:
     python_module: examples.example_5_paraboloid
     python_npz: examples/martini/example_5_paraboloid.npz
     matlab_results_stem: example_5_Paraboloid_results
-    matlab_logs_stem: example_5_Paraboloid_logs
     matlab_gains_key: results_Paraboloid/gains
     matlab_responses_key: results_Paraboloid/responses
     matlab_forcings_key: results_Paraboloid/forces

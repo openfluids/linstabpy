@@ -117,7 +117,7 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--beta", type=float, required=True)
-    ap.add_argument("--config", type=Path, default=HERE / "savarino_point_f2_b45.yaml")
+    ap.add_argument("--config", type=Path, default=HERE / "configs" / "mack_f2_b45.yaml")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--machine", default="")
     ap.add_argument(

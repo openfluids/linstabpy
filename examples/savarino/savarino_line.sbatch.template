@@ -22,7 +22,7 @@ echo "resolution=full-res 300x300 stride=1  epsilon=0  leak=rectilinear"
 mpiexec -n {nranks} "$PY" -u examples/savarino/savarino_line.py \
   --beta {beta} \
   --method {method} \
-  --config {repo_root}/examples/savarino/savarino_point_f2_b45.yaml \
+  --config {repo_root}/examples/savarino/configs/mack_f2_b45.yaml \
   --out {outdir} \
   --machine c9
 echo "DONE {jobname}"

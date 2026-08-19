@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Compare the 200-point MUMPS farm with the assemble-once line campaign.
 
-Reads savarino_map2_200pt.csv (or another point-farm CSV) and every
+Reads output/savarino_map2_200pt.csv (or another point-farm CSV) and every
 savarino_line_b*.csv. Writes savarino_map_timing.csv with matched
 (beta, f) gains and walls. No solver. No figure.
 
 Usage:
-    python compare_map_timings.py savarino_map2_200pt.csv campaign_line
+    python compare_map_timings.py output/savarino_map2_200pt.csv campaign_line
 """
 
 from __future__ import annotations

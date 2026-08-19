@@ -12,5 +12,6 @@ mpiexec -n 4 python -m examples.sawtooth.sawtooth --config examples/sawtooth/saw
 .venv/bin/python examples/sawtooth/sawtooth_fig2_spectrum.py
 ```
 
-The Floquet shift default is LinStab2D (`matlab_parity`). Continuum form:
-`numerics.floquet_shift: continuum` or `LINSTABPY_FLOQUET_SHIFT=continuum`.
+The Floquet shift default is the continuum form (`continuum`); `sawtooth_evp.yaml`
+pins the LinStab2D algebra with `numerics.floquet_shift: matlab_parity`
+(or `LINSTABPY_FLOQUET_SHIFT=matlab_parity`).
