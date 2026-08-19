@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Tests for the SBP artificial dissipation operator (MSN 2004).
+"""Check SBP artificial dissipation (MSN 2004) T2, T3, and T4.
 
 Gates T2 (SPSD), T3 (sawtooth damping), and T4 (smooth-mode bound) from
-phase1_execution.md, verified for fd4, fd6, and fd8 interior orders.
+phase1_execution.md, for fd4, fd6, and fd8 interior orders.
 
 T3 and T4 are dimensionless predicates so a future scaling regression
-(e.g. wrong h^{2p+1} prefactor in build_sbp_dissipation_matrices) is caught
-at unit-test time. The original Phase 1 step 7 integration test caught a
-factor-of-h^{-2} bug that the previous loose T3/T4 gates did not — these
-tighter forms are designed not to repeat that.
+(e.g. an h^{2p+1} prefactor that is not h^{2p+1} in
+build_sbp_dissipation_matrices) is caught at unit-test time.
+The original Phase 1 step 7 integration test caught a factor-of-h^{-2}
+error that the previous loose T3/T4 gates did not.
+These tighter forms exist so that error does not return.
 """
 
 from __future__ import annotations
@@ -79,30 +80,32 @@ class TestSBPDissipationSPSD:
 class TestSBPDissipationSawtoothDamping:
     """T3: dimensionless sawtooth eigenvalue is finite and O(1) — not exploding.
 
-    For even p (fd4/fd8, p=2/4), the centered p-th derivative stencil applied to
-    v[j] = (-1)^j gives a finite per-entry response and the H-norm Rayleigh
-    quotient v^T H Q_diss v / (v^T H v) remains O(1). Higher-order centered
-    stencils can have larger Nyquist symbols than the compact repeated
-    second-difference estimate.
+    For even p (fd4/fd8, p=2/4), the centered p-th derivative stencil applied
+    to v[j] = (-1)^j gives a finite per-entry response.
+    The H-norm Rayleigh quotient v^T H Q_diss v / (v^T H v) remains O(1).
+    Higher-order centered stencils can have larger Nyquist symbols than the
+    compact repeated second-difference estimate.
 
     For odd p (fd6, p=3), the centered (2p+1)-th order stencil is
-    anti-symmetric and annihilates the sawtooth at every interior row by
-    parity, so the Rayleigh quotient is dominated by the boundary closure
-    only. This is the design intent: the saw-tooth artefact in the curved-
-    wall LNSE problem is also boundary-localised, so a boundary-only
-    damping mechanism acts exactly where it is needed.
+    anti-symmetric.
+    It annihilates the sawtooth at every interior row by parity.
+    The Rayleigh quotient then comes from the boundary closure only.
+    That is the design intent: the saw-tooth artefact in the curved-wall
+    LNSE problem is also boundary-localised.
+    A boundary-only damping mechanism then acts at that same place.
 
-    The bounds below are loose enough to accommodate both regimes but tight
-    enough to catch the historical h^{-2} scaling bug (which would push the
-    quotient by ~h^-2 = 2500x at _N=51, far above the upper bound).
+    The bounds below cover both regimes.
+    They still catch the historical h^{-2} scaling error.
+    That error would push the quotient by ~h^-2 = 2500x at _N=51,
+    far above the upper bound.
     """
 
     @pytest.mark.parametrize(
         "order_interior, lo, hi",
         [
-            (4, 5.0, 100.0),  # corrected ~27; buggy ~67500
-            (6, 1.0, 50.0),  # corrected ~6.4; buggy ~16000
-            (8, 500.0, 1600.0),  # corrected ~1028; buggy ~2.6e6
+            (4, 5.0, 100.0),  # ~27 vs ~67500
+            (6, 1.0, 50.0),  # ~6.4 vs ~16000
+            (8, 500.0, 1600.0),  # ~1028 vs ~2.6e6
         ],
         ids=["fd4", "fd6", "fd8"],
     )
@@ -126,19 +129,19 @@ class TestSBPDissipationSawtoothDamping:
 class TestSBPDissipationSmoothBound:
     """T4: smooth-mode damping is small and not exploding.
 
-    A smooth probe v(x) = sin(2 pi x) gives `||Q_diss v|| / ||v||` that
-    scales as O(h^{2p}) for resolved Fourier content; the constant absorbs
-    the (2 pi)^{2p} amplitude of the analytical p-th derivative plus a
-    boundary-closure factor. We use a loose c that accommodates the
-    aliased boundary stencil but still catches an h^{-2} scaling bug
-    (which inflates damp by 2500x at _N = 51).
+    A smooth probe v(x) = sin(2 pi x) gives `||Q_diss v|| / ||v||`.
+    That scales as O(h^{2p}) for resolved Fourier content.
+    The constant absorbs the (2 pi)^{2p} amplitude of the analytical
+    p-th derivative plus a boundary-closure factor.
+    A loose c covers the aliased boundary stencil.
+    It still catches an h^{-2} scaling error (damp up 2500x at _N = 51).
     """
 
     @pytest.mark.parametrize(
         "order_interior, c",
         [
-            (4, 1.0e5),  # corrected damp ~ 1.3e-3; buggy ~ 3.2 (would fail)
-            (6, 1.0e9),  # corrected damp ~ 9.4e-3; buggy ~ 24    (would fail)
+            (4, 1.0e5),  # ~1.3e-3 vs ~3.2
+            (6, 1.0e9),  # ~9.4e-3 vs ~24
             (8, 1.0e13),
         ],
         ids=["fd4", "fd6", "fd8"],
@@ -165,16 +168,18 @@ class TestSBPDissipationSmoothBound:
 class TestSBPDissipationScalingRegression:
     """Detect a future regression in the h^{2p+1} divided-form prefactor.
 
-    If someone re-introduces an h^{2p-1} or h^{2p+3} bug in
+    If someone re-introduces an h^{2p-1} or h^{2p+3} prefactor in
     build_sbp_dissipation_matrices, the diagonal of H*Q_diss should drift
-    by orders of magnitude. We pin a representative diagonal entry against
-    the analytical scale (rather than a precise number, which would be
-    fragile to legitimate stencil tweaks).
+    by orders of magnitude.
+    Pin a representative diagonal entry against the analytical scale.
+    A precise number would be fragile to legitimate stencil tweaks.
 
     H*Q_diss = h^{2p+1} * D_p^T B_p D_p, with D_p having O(1/h^p) entries
-    and B_p O(1) interior. So a diagonal entry of H*Q_diss in the interior
-    has scale roughly h^{2p+1} * (1/h^p)^2 * O(1) * bandwidth = O(h * bw),
-    independent of p. We verify the order of magnitude.
+    and B_p O(1) interior.
+    A diagonal entry of H*Q_diss in the interior then has scale
+    O(h * bw) from h^{2p+1} * (1/h^p)^2.
+    That scale is independent of p.
+    Check the order of magnitude.
     """
 
     @pytest.mark.parametrize(
@@ -199,8 +204,8 @@ class TestSBPDissipationScalingRegression:
         # Expected magnitude: h * O(1) * (interior B_p ~ 1) = O(h).
         # Assert it lies in an O(h) band — the upper factor accommodates the
         # larger fd8 D4 stencil norm but still catches the historical h^{-2}
-        # bug (which made the diagonal ~1/h instead of ~h, four orders of
-        # magnitude wrong at _H = 1/50).
+        # prefactor (diagonal ~1/h instead of ~h, four orders of
+        # magnitude off at _H = 1/50).
         lo, hi = 0.01 * _H, hi_factor * _H
         assert lo <= diag_center <= hi, (
             f"H*Q_diss[{center},{center}] = {diag_center:.4e} outside expected "

@@ -66,7 +66,7 @@ def test_gpu_mem_falls_back_to_nvidia_smi_when_cupy_missing(monkeypatch):
     )
 
     assert cost_metrics_module._gpu_memory_bytes(1) == 1234.0 * 1024 * 1024
-    # Still nan when no GPU is declared -- the fallback must not invent a value.
+    # Still nan when the caller declares no GPU -- the fallback must not invent a value.
     assert math.isnan(cost_metrics_module._gpu_memory_bytes(0))
 
 
@@ -153,8 +153,8 @@ def test_log_stage_populates_stage_wall():
     # Regression guard: _log_stage MUST accumulate elapsed wall time into
     # _STAGE_WALL, otherwise every cost_wall_*_s in the saved artifacts is 0/nan.
     # (This wiring was silently missing on a prior commit; the unit tests passed
-    # because they injected a hand-built stage_wall dict. This test exercises the
-    # REAL wiring.)
+    # because they injected a hand-built stage_wall dict.
+    # This check exercises the REAL wiring.)
     _STAGE_WALL.clear()
     start = _stage_start()  # (perf_counter, peak_rss) tuple branch
     _log_stage("assemble_operator_bc", start)
@@ -171,7 +171,7 @@ def test_collect_cost_metrics_has_no_mpi_collective():
     # Regression guard: collect_cost_metrics runs inside the rank-0-only save
     # block, so it must contain NO MPI collective (allreduce/bcast/barrier) -- one
     # there deadlocks every multi-rank run. The cross-rank reduction lives in the
-    # collective region of compute(); peak_rss_bytes is threaded in. See
+    # collective region of compute(); peak_rss_bytes arrives as an argument. See
     # feedback_mpi_collective_rank0.
     src = inspect.getsource(cost_metrics_module.collect_cost_metrics)
     # Match CALL syntax (".allreduce(") not the bare word, so the docstring/comment

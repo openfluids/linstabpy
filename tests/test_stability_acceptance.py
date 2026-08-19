@@ -101,7 +101,7 @@ def test_reject_reason_code_bitmask() -> None:
     np.testing.assert_array_equal(result["rejected_indices"], np.array([1, 2], dtype=np.int32))
     np.testing.assert_array_equal(result["accepted_indices"], np.array([0], dtype=np.int32))
     # Default in this project is conjugate_aware=True (real-baseflow assumption).
-    # The test passes conjugate_aware implicitly -> default True.
+    # The call omits conjugate_aware, so the default True applies.
     assert result["acceptance_conjugate_aware"] is True
 
 
@@ -154,12 +154,12 @@ def test_conjugate_pair_completeness() -> None:
 
     # Omega list: modes 0 and 1 are a conjugate pair, mode 2 has no partner in the list.
     omega = np.array([0.5 + 1.0j, 0.5 - 1.0j, 3.0 + 2.0j], dtype=complex)
-    # Accepted: modes 0 and 2 only (mode 1 — the partner of mode 0 — was rejected).
+    # Accepted: modes 0 and 2 only (mode 1 — the partner of mode 0 — failed the gate).
     accepted_indices = np.array([0, 2], dtype=np.int32)
 
     result = check_conjugate_pair_completeness(omega, accepted_indices)
 
-    # Mode 0's partner (mode 1, conj = 0.5 - 1.0j) is found in omega but was rejected.
+    # Mode 0's partner (mode 1, conj = 0.5 - 1.0j) is found in omega but failed the gate.
     np.testing.assert_array_equal(
         result["partner_rejected_indices"],
         np.array([0], dtype=np.int32),

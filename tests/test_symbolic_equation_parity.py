@@ -624,18 +624,22 @@ def _cheb_diff_matrix(n: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _run_curvilinear_full2d_oracle(n: int = 8, tol: float = 1e-9) -> dict[str, Any]:
-    """Validate the production full-2D metric transform against an INDEPENDENT
-    analytic oracle.
+    """Compare the production full-2D metric transform to an independent
+    analytic closed form.
 
-    Unlike ``_run_curvilinear`` (which checks the production transform against
-    the symbolic ``curvilinear_operator_coefficients`` -- a second transcription
-    of the same ``dJi = -Ji.dJ.Ji`` algebra, hence self-referential), this oracle
-    never uses that identity. It picks an analytic map ``(X(xi,eta), Y(xi,eta))``
-    and a polynomial field ``P(xi,eta)``, computes the true physical derivatives
-    of the composite mechanically with SymPy, and asserts the production transform
-    reproduces them on a Chebyshev grid where spectral differentiation of the
-    low-degree polynomials is exact. A dropped/garbled q-term in production would
-    diverge from the SymPy ground truth and fail here.
+    Unlike ``_run_curvilinear``, this closed form never uses that identity.
+    ``_run_curvilinear`` checks the production transform against the symbolic
+    ``curvilinear_operator_coefficients``.
+    That is a second transcription of the same ``dJi = -Ji.dJ.Ji`` algebra,
+    so it is self-referential.
+    Pick an analytic map ``(X(xi,eta), Y(xi,eta))`` and a polynomial field
+    ``P(xi,eta)``.
+    Compute the true physical derivatives of the composite with SymPy.
+    Then assert the production transform reproduces them on a Chebyshev
+    grid.
+    Spectral differentiation of the low-degree polynomials is exact.
+    A dropped/garbled q-term in production would diverge from the SymPy
+    ground truth and fail here.
     """
     # --- exact computational-space tensor-product operators (CGL spectral) ---
     D1, nodes = _cheb_diff_matrix(n)
@@ -652,10 +656,10 @@ def _run_curvilinear_full2d_oracle(n: int = 8, tol: float = 1e-9) -> dict[str, A
     xi_flat = XI.reshape(-1)
     eta_flat = ETA.reshape(-1)
 
-    # --- analytic map + polynomial field (the independent oracle) ---
+    # --- analytic map + polynomial field (independent closed form) ---
     xi, eta = sp.symbols("xi eta", real=True)
-    X = xi + sp.Rational(15, 100) * xi * eta + sp.Rational(5, 100) * eta**2  # deg 2
-    Y = eta + sp.Rational(10, 100) * xi**2 - sp.Rational(8, 100) * xi * eta  # deg 2
+    X = xi + sp.Rational(15, 100) * xi * eta + sp.Rational(5, 100) * eta**2
+    Y = eta + sp.Rational(10, 100) * xi**2 - sp.Rational(8, 100) * xi * eta
     P = (
         1
         + sp.Rational(1, 2) * xi
@@ -793,12 +797,12 @@ def run_parity(
 # ---------------------------------------------------------------------------
 # pytest entry points
 #
-# This module began as a standalone CLI (see ``main`` below), so the symbolic
+# The CLI started as a standalone script (see ``main`` below), so the symbolic
 # guard it implements was never collected by pytest. It silently went dark when
 # the P1 coefficient fusion removed the named ``c_*_ij`` assignments its
-# reference parser depends on. The tests below keep the guard permanently in the
-# suite. ``_coeff_source_path`` now parses the frozen pre-fusion reference, so
-# the cartesian/cylindrical checks assert that the live fused production
+# reference parser depends on. The checks below keep the guard permanently in
+# the suite. ``_coeff_source_path`` now parses the frozen pre-fusion reference,
+# so the cartesian/cylindrical checks assert that the live fused production
 # coefficients still match the validated reference algebra (symbolically), and
 # ``test_fused_coefficients_match_frozen_reference_numerically`` states that
 # equivalence directly.
@@ -832,11 +836,11 @@ def test_cylindrical_coefficients_match_frozen_reference_symbolically():
 
 
 def test_curvilinear_metric_transforms_match_analytic_chain_rule():
-    # This harness draws (a, b, c, d) independently of the (x, y) mapping that
+    # This check draws (a, b, c, d) independently of the (x, y) mapping that
     # feeds the dJ terms, so only the x-only and y-only deformation branches form
     # a self-consistent metric; those match the analytic chain rule to machine
-    # precision and are asserted here. The full-2D block is NOT asserted in this
-    # test: with decoupled random inputs its metric is physically inconsistent and
+    # precision and this check asserts them. The full-2D block is NOT asserted
+    # here: with decoupled random inputs its metric is physically inconsistent and
     # the full-2D identity cannot hold (residual ~1e4). The full-2D transform is
     # independently validated in
     # test_curvilinear_full2d_matches_independent_analytic_oracle, which uses a
@@ -849,23 +853,26 @@ def test_curvilinear_metric_transforms_match_analytic_chain_rule():
 
 
 def test_curvilinear_full2d_matches_independent_analytic_oracle():
-    # Independent oracle for the full-2D metric transform: an analytic map and a
-    # polynomial field whose true physical derivatives are computed mechanically
-    # by SymPy (never via production's dJi = -Ji.dJ.Ji q-term algebra), checked on
-    # a Chebyshev grid where spectral differentiation of the polynomials is exact.
+    # Independent closed form for the full-2D metric transform: an analytic map
+    # and a polynomial field whose true physical derivatives SymPy computes
+    # mechanically (never via production's dJi = -Ji.dJ.Ji q-term algebra),
+    # checked on a Chebyshev grid where spectral differentiation of the
+    # polynomials is exact.
     # A dropped or garbled q-term in _transform_second_derivatives would diverge
     # from this ground truth -- the self-referential blind spot that hid the
-    # cylindrical A0_44 bug does not apply here.
+    # cylindrical A0_44 sign error does not apply here.
     # Bead ...2.6 acceptance is <1e-10; production reaches ~4.3e-13 here, so 1e-10
-    # leaves ~2 orders of margin while matching the stated oracle tolerance.
+    # leaves ~2 orders of margin while matching the stated closed-form tolerance.
     report = _run_curvilinear_full2d_oracle(n=8, tol=1e-10)
     assert report["pass"], report["residuals"]
 
 
 def test_fused_coefficients_match_frozen_reference_numerically():
     """The fused production coefficients reproduce the frozen pre-fusion
-    reference to ~machine precision on random fields (proves P1 changed no
-    algebra, only operation ordering)."""
+    reference to ~machine precision on random fields.
+
+    That proves P1 changed no algebra, only operation ordering.
+    """
     ref = _load_frozen_reference()
     Re, Ma, Pr, kappa = 1e4, 0.3, 0.7, 1.4
     fields = _make_random_cartesian_fields(ngp=512, seed=20260534)
@@ -888,9 +895,9 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
     to machine precision.  If any entry disagrees the test FAILS and prints the
     exact block, index, symbolic expression, and numeric values.
 
-    Also verifies: the continuity row of the independent derivation reproduces
-    continuity_operator_coefficients exactly (sympy.simplify == 0 for all 10
-    nonzero anchor entries).
+    Also verify the continuity row of the independent derivation.
+    It reproduces continuity_operator_coefficients exactly
+    (sympy.simplify == 0 for all 10 nonzero anchor entries).
     """
     import sympy as sp  # noqa: PLC0415 (local re-import for clarity)
 
@@ -999,12 +1006,13 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
     """Independent first-principles cylindrical NSE derivation must match
     the production compute_cylindrical_coefficients to machine precision.
 
-    This guard is NOT self-referential: the derivation in
-    cylindrical_lnse_coefficients_from_nse is a conservative cylindrical
-    NSE linearization derived mechanically from first principles, independent
-    of the production code path. It would catch a MATLAB->Python translation
-    bug (e.g. the historical A0_55 sign error in Front E) that a frozen-
-    reference round-trip cannot detect.
+    This guard is NOT self-referential.
+    The derivation in cylindrical_lnse_coefficients_from_nse is a
+    conservative cylindrical NSE linearization derived mechanically from
+    first principles, independent of the production path.
+    It would catch a MATLAB->Python translation error (e.g. the historical
+    A0_55 sign error in Front E) that a frozen-reference round-trip cannot
+    detect.
 
     Convention: frozen-base-viscosity -- Martini's LNSE operator excludes
     the perturbation-viscosity x base-stress/heat-flux divergence terms

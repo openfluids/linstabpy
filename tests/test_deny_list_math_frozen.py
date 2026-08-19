@@ -1,24 +1,30 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""DENY-LIST tripwire for the four frozen validated-math files (Invariant A).
+"""Check that the four frozen validated-math files stay unchanged (Invariant A).
 
-``coefficients.py`` (LNSE coefficient algebra -- the file that carried the
-Front-E A0_55 bug), ``mesh.py`` (SBP / curvilinear metric math), ``sbp.py``
-(the SBP generator), and ``energy_norm.py`` (the Chu energy weight W) are frozen
-during the clean-code refactor: the refactor may move their IMPORT SEAMS but must
-not rewrite their math. This guard records an AST-structural signature of each
-file's executable math body -- excluding comments, docstrings, and import
-statements -- and FAILS if any math-body statement changes.
+``coefficients.py`` is LNSE coefficient algebra (the file that carried the
+Front-E A0_55 error).
+``mesh.py`` is SBP / curvilinear metric math.
+``sbp.py`` is the SBP generator.
+``energy_norm.py`` is the Chu energy weight W.
+All four stay frozen during the clean-code rewrite.
+The rewrite may move their IMPORT SEAMS but must not rewrite their math.
+This guard records an AST-structural signature of each file's executable
+math body, excluding comments, docstrings, and import statements.
+It FAILS if any math-body statement changes.
 
-It is a REGRESSION GUARD, not a correctness gate. The seven Appendix-A oracles are
-the correctness gate. A trip here means "a frozen-math line changed -- prove
-<1e-10 oracle parity (not just unit-green) or revert", NEVER "re-baseline this
-hash to make the test pass" (the Front-E lesson: snapshotting a change makes it
-the false ground truth).
+It is a REGRESSION GUARD, not a correctness gate.
+The seven Appendix-A closed-form checks are the correctness gate.
+A trip here means "a frozen-math line changed -- prove <1e-10 closed-form
+parity (not just unit-green) or revert".
+Never re-baseline this hash to make the check pass.
+The Front-E lesson: snapshotting a change makes it the false ground truth.
 
-Allowed without tripping: comment edits, docstring edits, import-path/seam moves,
-whitespace/formatting. Trips on: any change to an executable statement in the math
-body. The AST approach drops comments inherently and we strip docstrings + imports
-explicitly, so signatures are invariant to formatting and seam relocation.
+Allowed without tripping: comment edits, docstring edits, import-path/seam
+moves, whitespace/formatting.
+Trips on: any change to an executable statement in the math body.
+The AST approach drops comments inherently.
+We strip docstrings and imports explicitly, so signatures stay invariant
+to formatting and seam relocation.
 """
 
 from __future__ import annotations
@@ -37,13 +43,13 @@ _FROZEN_FILES = {
     "sbp": _SRC / "mesh" / "sbp.py",
     # sbp.py delegates the actual stencil/norm generation to sbp_generator.py
     # (e.g. generate_sbp_stencils, _sbp_norm_weights); that file IS the SBP
-    # generator the deny-list means to freeze, so it must be guarded too,
+    # generator the deny-list means to freeze, so the guard must include it too,
     # otherwise the math could change in sbp_generator.py without tripping.
     "sbp_generator": _SRC / "mesh" / "sbp_generator.py",
 }
 
 # Known math that the frozen files delegate to: any NEW frozen file added below
-# must also be covered here. Math reachable outside this set (a future extraction
+# must also appear here. Math reachable outside this set (a future extraction
 # into an unguarded module) is a coverage gap the guard cannot see -- a reviewer
 # must keep delegated-math files in _FROZEN_FILES.
 
@@ -62,20 +68,23 @@ def _strip_leading_docstring(body: list[ast.stmt]) -> list[ast.stmt]:
 class _MathBodyNormalizer(ast.NodeTransformer):
     """Drop imports (at every nesting level) and docstrings; keep executable math.
 
-    Import statements are removed wherever they appear -- module/function/class
-    bodies AND inside ``try``/``if``/``else``/``with``/``for`` blocks -- so a seam
-    relocation (an import path changing because a module moved) never trips the
-    guard, including the ``try/except ImportError`` SciPy import in mesh.py and the
-    ``else``-branch ``sbp_generator`` import in sbp.py. Docstrings (the leading
-    string statement at module/function/class scope) are stripped so the release
-    commentary/docstring beads can improve documentation without tripping. Comments
-    never reach the AST, so they are excluded automatically.
+    Drop import statements wherever they appear -- module/function/class
+    bodies AND inside ``try``/``if``/``else``/``with``/``for`` blocks.
+    Then a seam relocation (an import path changing because a module
+    moved) never trips the guard.
+    That includes the ``try/except ImportError`` SciPy import in mesh.py
+    and the ``else``-branch ``sbp_generator`` import in sbp.py.
+    Strip docstrings (the leading string statement at module/function/class
+    scope) so documentation edits do not trip.
+    Comments never reach the AST, so they drop automatically.
 
     Not covered (documented limitations): math DELEGATED to a module outside
-    _FROZEN_FILES can change without tripping (keep delegated-math files in the set
-    -- sbp_generator.py is included for exactly this reason); and renaming a local
-    binding or changing a type annotation inside a frozen file trips, since those
-    are part of the executable AST.
+    _FROZEN_FILES can change without tripping.
+    Keep delegated-math files in the set -- sbp_generator.py is in the set
+    for exactly this reason.
+    Renaming a local binding or changing a type annotation inside a frozen
+    file trips.
+    Those names are part of the executable AST.
     """
 
     def visit_Import(self, node: ast.Import):  # noqa: N802 - ast visitor name
@@ -105,8 +114,8 @@ def math_signature(path: Path) -> str:
 
 
 # Frozen math-body signatures recorded at the revamp start (linstabpy ccdbeeb).
-# A trip means a frozen-math body changed. Prove <1e-10 oracle parity and pass the
-# seven Appendix-A oracles, then update the signature WITH that evidence in the
+# A trip means a frozen-math body changed. Prove <1e-10 closed-form parity and
+# pass the seven Appendix-A checks, then update the signature WITH that evidence in the
 # commit message -- do NOT edit these to silence a failure.
 _FROZEN_SIGNATURES = {
     # coefficients re-baselined 2026-08-12: removed the axis R-floor
@@ -121,10 +130,10 @@ _FROZEN_SIGNATURES = {
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
     # mesh re-baselined 2026-06-12 (bead r3uu.3.2): Mesh.create gained an
     # argument-validation preamble; zero math statements changed. Evidence: all 13
-    # oracle/harness files green (154 passed); user-approved.
+    # closed-form and timing files green (154 passed); user-approved.
     # mesh re-baselined 2026-08-19 (1.0.0rc6): a real math edit. In
     # _deform_full_2d the dJ/Q metric terms of the symm/asymm family operators
-    # are differentiated with the full Dy/D2y (the coordinate map has no eta
+    # use the full Dy/D2y (the coordinate map has no eta
     # parity), as LinStab2D DeformMesh.m does; the family stencils still enter the
     # operator combination unchanged. Evidence: (1) deformed y-symmetric mesh,
     # FD4, two non-separable analytic maps, odd/even test functions with sympy
@@ -138,7 +147,7 @@ _FROZEN_SIGNATURES = {
     # paraboloid D2y_asymm vs LinStab2D, measured in G. Hamada's audit: rel.
     # Frobenius 4e-5 -> 2.6e-10, L0 gap 6e-6 -> parity
     # (examples/martini/example_5_D2y_asymm_fix.md).
-    # (4) 18 oracle/harness files green at the re-baseline (367 passed, 4
+    # (4) 18 closed-form and timing files green at the re-baseline (367 passed, 4
     # skipped); full suite 1432 passed. Regression guard:
     # test_mesh.py::test_deform_full_2d_family_metric_terms_use_full_operators.
     "mesh": "bfad6c846c80005bcb1a152b3a92ce15978e8e45ee681ea19c2ac883be549ec1",

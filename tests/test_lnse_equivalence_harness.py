@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Tests for the LNSE equivalence harness."""
+"""Check the LNSE equivalence script."""
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess  # nosec B404 - tests execute the checked-in harness script.
+import subprocess  # nosec B404 - tests execute the checked-in equivalence script.
 import sys
 from pathlib import Path
 
@@ -18,11 +18,12 @@ HARNESS_TIMEOUT_LOAD_CAP = LOAD_MULTIPLIER_CAP
 
 
 def _harness_timeout() -> float:
-    """Return a load-aware timeout for harness subprocess tests.
+    """Return a load-aware timeout for equivalence-script subprocess checks.
 
-    Delegates to the shared helper so the other subprocess tests cannot drift to a
-    different policy -- this file had the load-aware timeout and its siblings did
-    not, which is why they, and not this one, timed out on a busy node.
+    Delegates to the shared timeout so the other subprocess checks cannot
+    drift to a different policy.
+    The timeout lived here and not in the sibling files.
+    That is why they, and not this one, timed out on a busy node.
     """
     return load_aware_timeout(HARNESS_TIMEOUT_BASE_SECONDS)
 
@@ -48,7 +49,7 @@ def _load_report(path: Path) -> dict[str, object]:
 
 
 def test_harness_timeout_scales_with_load(monkeypatch) -> None:
-    """The harness timeout is deterministic from load and CPU count."""
+    """The equivalence-script timeout is deterministic from load and CPU count."""
     monkeypatch.setattr(os, "cpu_count", lambda: 4)
 
     monkeypatch.setattr(os, "getloadavg", lambda: (2.0, 0.0, 0.0), raising=False)
@@ -127,7 +128,7 @@ def test_lnse_equivalence_harness_current_path_contract(tmp_path: Path) -> None:
 
 
 def test_lnse_equivalence_harness_runs_eigen_sanity(tmp_path: Path) -> None:
-    """The full harness includes a small downstream eigenvalue comparison."""
+    """The full equivalence script includes a small downstream eigenvalue comparison."""
     output = tmp_path / "lnse_equivalence_eigs.json"
 
     subprocess.run(  # nosec B603 - fixed local script path and bounded timeout.

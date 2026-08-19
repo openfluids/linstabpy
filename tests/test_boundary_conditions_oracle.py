@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Independent structural oracle for Dirichlet BC application.
+"""Independent structural check for Dirichlet BC application.
 
-``apply_dirichlet`` enforces ``q = 0`` at boundary DOFs by zeroing the
-corresponding rows AND columns of the operator and placing ``penalty`` on the
-diagonal. The DOF for variable ``v`` at grid point ``g`` is ``var*ngp + g`` with
-the documented variable order ``[rho, u, v, w, T] = 0..4``.
+``apply_dirichlet`` enforces ``q = 0`` at boundary DOFs.
+It zeros the corresponding rows AND columns of the operator and places
+``penalty`` on the diagonal.
+The DOF for variable ``v`` at grid point ``g`` is ``var*ngp + g``.
+The documented variable order is ``[rho, u, v, w, T] = 0..4``.
 
-This oracle re-encodes that contract from the documentation (not from the
-production maps) and reconstructs the expected post-BC matrix entry by entry,
-then asserts ``apply_dirichlet`` reproduces it exactly. A wrong variable index,
-a transposed DOF layout (``g*5 + var``), or row-only (no column) zeroing diverges
-from the reconstruction and fails here -- a check independent of the production
-index maps and CSR row/col plumbing.
+This check re-encodes that contract from the documentation, not from the
+production maps.
+It reconstructs the expected post-BC matrix entry by entry.
+It then asserts ``apply_dirichlet`` reproduces that matrix exactly.
+A mismatched variable index fails here.
+A transposed DOF layout (``g*5 + var``) fails here.
+Row-only (no column) zeroing fails here.
+The check does not use the production index maps or CSR plumbing.
 """
 
 from __future__ import annotations
@@ -83,7 +86,7 @@ def _run_dirichlet_oracle(
 
 
 def test_dirichlet_matches_independent_structural_oracle():
-    # Independent structural oracle: post-BC matrix reconstructed from the
+    # Independent structural check: post-BC matrix reconstructed from the
     # documented DOF contract, not from the production index maps.
     report = _run_dirichlet_oracle()
     assert report["pass"], report

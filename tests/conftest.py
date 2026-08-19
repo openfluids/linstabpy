@@ -6,10 +6,11 @@ from __future__ import annotations
 # Bind MPI at MPI_THREAD_MULTIPLE before anything can bind it at FUNNELED.
 # pytest imports this conftest before it collects any test module, and six test
 # modules import petsc4py/slepc4py at module scope. Collection therefore decides
-# the process-wide MPI thread level, which can never be raised afterwards -- so
-# without this line PETSc wins during collection and STRUMPACK/SLATE is refused
-# for the entire session, no matter what the package source does.
-# The package guards its own imports; this covers the test harness.
+# the process-wide MPI thread level, which can never rise afterwards.
+# Without this line PETSc wins during collection.
+# PETSc then refuses STRUMPACK/SLATE for the entire session, no matter what
+# linstabpy source does.
+# Production guards its own imports; this covers the test suite.
 # Suppressed rather than required: mpi4py is an optional dependency, and a
 # PETSc-free environment must still be able to run the pure-Python suite.
 # Enforced by tests/test_mpi_thread_level.py.

@@ -2,17 +2,21 @@
 """MPI regression guard for petsc_vec: no replication across ranks.
 
 petsc_vec converts a full-global numpy array (every rank holds the whole
-vector) into a PETSc Vec. The original implementation called
-``createWithArray`` with no communicator/size split, so under MPI each rank
-treated its entire copy as a local slice and the resulting vec had global
-size ``N * nranks`` -- the data replicated across ranks. Fed into a
-distributed operator, that wrong-sized vec injected silent error.
+vector) into a PETSc Vec.
+The original implementation called ``createWithArray`` with no
+communicator/size split.
+Under MPI each rank then treated its entire copy as a local slice.
+The resulting vec had global size ``N * nranks``.
+The data replicated across ranks.
+Fed into a distributed operator, that oversized vec injected silent error.
 
-The entire unit suite is otherwise serial, which is exactly why that bug hid
-behind green tests. This guard spawns real mpiexec subprocesses so the
-replication failure mode is exercised at >1 rank. The size check is
-deterministic and launcher-independent: a correct petsc_vec yields global
-size N at any rank count; the bug yields N * nranks.
+The entire unit suite is otherwise serial, which is why that failure hid
+behind green tests.
+This guard spawns real mpiexec subprocesses so the replication failure
+mode runs at >1 rank.
+The size check is deterministic and launcher-independent.
+A correct petsc_vec yields global size N at any rank count.
+The old path yields N * nranks.
 """
 
 from __future__ import annotations

@@ -109,7 +109,7 @@ class TestFilterAdjointProperty:
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
         # Exact discrete-transpose identity: measured residual ~1e-14, so the
-        # oracle asserts ~1e-12 (frozen-numerics guard oracle 1, bead ...2.3).
+        # check asserts ~1e-12 (frozen-numerics guard 1, bead ...2.3).
         assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_adjoint_property_multi_column(self, mesh_with_filter):
@@ -122,11 +122,11 @@ class TestFilterAdjointProperty:
 
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
-        # Exact discrete-transpose identity; ~1e-12 oracle tolerance (bead ...2.3).
+        # Exact discrete-transpose identity; ~1e-12 closed-form tolerance (bead ...2.3).
         assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_high_frequency_damped(self, mesh_with_filter):
-        """A high-frequency signal is damped by the filter."""
+        """The filter damps a high-frequency signal."""
         mesh = mesh_with_filter
         nx = mesh.X.shape[1]
         x = mesh.X.ravel(order="F")
@@ -156,9 +156,12 @@ def test_adjoint_property_alpha_zero():
 def test_building_and_applying_filters_needs_no_petsc():
     """The implicit filter solve is scipy (SuperLU, or nothing at alpha=0), never PETSc/MUMPS.
 
-    2026-08-18: one PETSc/MUMPS solve per column per filter call was 62 % of a
-    resolvent H^H H apply on the Savarino case. Run in a fresh interpreter so
-    petsc4py imported by other tests cannot mask a regression.
+    2026-08-18.
+    One PETSc/MUMPS solve per column per filter call was 62 % of a
+    resolvent H^H H apply.
+    That was on the Savarino case.
+    Run in a fresh interpreter so petsc4py imported by other tests cannot mask
+    a regression.
     """
     import subprocess
     import sys

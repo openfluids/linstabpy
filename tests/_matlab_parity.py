@@ -1,34 +1,40 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Opt-in gating for parity tests that need MATLAB-derived reference data.
+"""Opt-in gating for parity checks that need MATLAB-derived reference data.
 
-Policy
-------
-MATLAB reference data is **not committed to this repository** — not the raw
-``.mat`` exports, not the derived ``.npz`` bundles. Those files belong to the
-upstream MATLAB codes and to the authors who produced them.
+Policy.
+MATLAB reference data is **not committed to this repository**.
+Not the raw ``.mat`` exports, not the derived ``.npz`` bundles.
+Those files belong to the upstream MATLAB codes and to the authors who
+produced them.
 
-The consequence used to be silent: the tests that compare against that data
-called ``pytest.skip`` when it was absent, so a default suite run reported them
-as skipped. On any machine without the reference data — which is every machine
-except the two the data lives on — that is a permanent, invisible hole. A run
-saying "1361 passed, 13 skipped" reads as near-total coverage; it does not say
-that seven of those skips can never be satisfied by anything the repository
-contains.
+The old default was silent.
+Checks that compare against that data called ``pytest.skip`` when it was
+absent.
+A default suite run then reported them as skipped.
+Any machine without the reference data has a permanent hole.
+That is every machine except the two that hold the data.
+A run saying "1361 passed, 13 skipped" reads as near-total coverage.
+It does not say that seven of those skips can never run from this
+repository.
 
-So these tests are now **opt-in**, and requested explicitly:
+So these checks are now **opt-in**, and requested explicitly:
 
     LINSTABPY_MATLAB_PARITY=1 pytest -m matlab_parity
 
-Two properties follow, and both matter:
+Two properties follow, and both matter.
 
-1. **The default suite makes no claim it cannot back.** MATLAB-parity tests are
-   deselected, not skipped, so they do not pad the skip count. Every remaining
-   skip in a default run is an absent *optional backend* (STRUMPACK, CUDA,
-   superlu_dist), which is a true statement about the machine.
-2. **Asking for them means they must run.** When ``LINSTABPY_MATLAB_PARITY=1``
-   is set, a missing reference is a **failure**, not a skip. You asked for the
-   comparison; silence is the wrong answer. Skipping on request is how a missing
-   oracle turns into a green suite.
+1. **The default suite makes no claim it cannot back**.
+   pytest deselects MATLAB-parity checks; it does not skip them.
+   They do not pad the skip count.
+   Every remaining skip in a default run is an absent optional backend
+   (STRUMPACK, CUDA, superlu_dist).
+   That statement describes the machine.
+2. **Asking for them means they must run**.
+   When ``LINSTABPY_MATLAB_PARITY=1`` is set, a missing reference is a
+   **failure**, not a skip.
+   You asked for the comparison; silence is not the answer.
+   Skipping on request is how a missing closed form turns into a green
+   suite.
 """
 
 from __future__ import annotations
@@ -58,11 +64,11 @@ def requested() -> bool:
 def require_matlab_reference(*paths: Path, description: str) -> None:
     """Demand the given reference paths exist.
 
-    Fails loudly when the comparison was requested and the data is not there,
-    naming every missing path. Falls back to a skip only when the tests were not
-    requested at all, which normally cannot happen because the marker is
-    deselected by default -- it is a guard for someone running a single test by
-    node id.
+    Fail when the caller requested the comparison and the data is missing.
+    Name every missing path.
+    Skip only when the caller did not request the checks.
+    pytest deselects the marker by default, so that path is rare.
+    It is a guard for someone running a single check by node id.
     """
     missing = [str(path) for path in paths if not Path(path).exists()]
     if not missing:

@@ -265,7 +265,7 @@ def test_mumps_blr_ordering_variant_matches_baseline(
         stderr=subprocess.STDOUT,
         # Hang guard, not a performance assertion. The former hard 120 s left ~1.4x
         # headroom over this variant's own runtime on a loaded machine, so it timed
-        # out spuriously whenever the node was shared. See tests/_subprocess_timeout.py.
+        # out spuriously whenever another job used the node. See tests/_subprocess_timeout.py.
         timeout=load_aware_timeout(300),
         check=False,
     )

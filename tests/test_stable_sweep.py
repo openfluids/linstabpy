@@ -158,7 +158,7 @@ def test_forward_and_adjoint_reuse_same_anchor_factorization(monkeypatch):
 
 def test_sweep_through_production_factorize_seam():
     # No monkeypatch: exercises the real linalg.factorize call signature and
-    # PETSc-backed anchor factor end to end against the direct oracle.
+    # PETSc-backed anchor factor end to end against the direct closed form.
     L0 = _operator()
     omegas = np.array([0.95, 1.0, 1.05], dtype=complex)
     anchors = np.array([1.0], dtype=complex)

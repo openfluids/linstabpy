@@ -1,28 +1,32 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""MPI must be initialized at ``MPI_THREAD_MULTIPLE``, and PETSc must not win the race.
+"""Check that MPI starts at ``MPI_THREAD_MULTIPLE`` and PETSc does not win the race.
 
-Why this matters
-----------------
-Whoever calls ``MPI_Init`` first decides the thread level for the whole process,
-and the level can only be *requested* at init -- it can never be raised afterwards.
-``mpi4py`` requests ``MPI_THREAD_MULTIPLE`` when it is imported; PETSc requests
-only ``MPI_THREAD_FUNNELED``. So the level is decided by whichever of the two is
-imported first, anywhere in the process.
+Why this matters.
+Whoever calls ``MPI_Init`` first decides the thread level for the whole process.
+The level can only be *requested* at init -- it cannot rise afterwards.
+``mpi4py`` requests ``MPI_THREAD_MULTIPLE`` when the caller imports it.
+PETSc requests only ``MPI_THREAD_FUNNELED``.
+So whichever of the two imports first, anywhere in the process, sets the level.
 
-STRUMPACK's SLATE backend requires ``MPI_THREAD_MULTIPLE``. When PETSc wins the
-race, ``MatGetFactor_aij_strumpack()`` fails with PETSc error 57 ("No support for
-this operation on this system") and the message ``SLATE requires
-MPI_THREAD_MULTIPLE``. Measured on the GPU venv: 8 of 14 suite failures had this
-single cause, and the entire STRUMPACK/GPU factorization route was unusable.
+STRUMPACK's SLATE backend requires ``MPI_THREAD_MULTIPLE``.
+When PETSc wins the race, ``MatGetFactor_aij_strumpack()`` fails with PETSc
+error 57 ("No support for this operation on this system").
+The message is ``SLATE requires MPI_THREAD_MULTIPLE``.
+Measured on the GPU venv: 8 of 14 suite failures had this single cause.
+The entire STRUMPACK/GPU factorization route became unusable.
 
-``utils.petsc_init.init_petsc_from_argv`` already imports ``mpi4py.MPI`` first and
-documents the rule, but eight modules import ``petsc4py``/``slepc4py`` at *module
-scope*, bypassing that helper entirely. Importing any one of them first loses the
-race. Hence the lint below: the invariant is a property of the import graph, not
-of any single call site, so it is enforced by a source scan.
+``utils.petsc_init.init_petsc_from_argv`` already imports ``mpi4py.MPI`` first
+and documents the rule.
+Eight modules still import ``petsc4py``/``slepc4py`` at *module scope*,
+and those imports never call that function.
+Importing any one of them first loses the race.
+Hence the lint below: the invariant is a property of the import graph,
+not of any single call site.
+A source scan holds it.
 
-The runtime check is kept separate and skips without petsc4py, so a CPU-only or
-PETSc-free environment reports "skipped", never a silent pass.
+The runtime check stays separate and skips without petsc4py.
+A CPU-only or PETSc-free environment then reports "skipped", never a
+silent pass.
 """
 
 from __future__ import annotations
@@ -36,16 +40,16 @@ import pytest
 
 import linstabpy
 
-#: Import roots that initialize MPI at the *wrong* thread level if they win the race.
+#: Import roots that initialize MPI at THREAD_FUNNELED if they win the race.
 _PETSC_ROOTS = ("petsc4py", "slepc4py")
 
 #: The import that requests MPI_THREAD_MULTIPLE. Any module-scope PETSc import
-#: must be preceded by it, in either spelling (``import mpi4py.MPI`` or
+#: must come before it, in either spelling (``import mpi4py.MPI`` or
 #: ``from mpi4py import MPI`` -- ``driver/run.py`` uses the latter next to its
 #: ``init_petsc_from_argv()`` call). What matters is only that mpi4py binds MPI
-#: first, not how it is spelled.
+#: first, not the spelling of the import.
 #:
-#: Deliberately a *third-party* module rather than a first-party helper: isort
+#: Deliberately a *third-party* module rather than a first-party function: isort
 #: orders third-party imports above first-party ones, so a ``linstabpy.*`` guard
 #: could never stay above ``petsc4py`` and ``ruff --fix`` would silently reorder
 #: the fix away. ``mpi4py`` < ``petsc4py`` alphabetically, so the required order
@@ -60,9 +64,11 @@ def _package_root() -> pathlib.Path:
 def _module_scope_imports(tree: ast.Module) -> list[tuple[int, str]]:
     """Return (lineno, root_package) for every module-scope import.
 
-    Only ``tree.body`` is walked, so imports inside functions, ``try`` blocks and
-    ``if TYPE_CHECKING:`` guards are deliberately excluded: those do not run at
-    import time and therefore cannot win the MPI init race.
+    The walker only reads ``tree.body``.
+    Imports inside functions, ``try`` blocks and ``if TYPE_CHECKING:``
+    guards stay out.
+    Those do not run at import time and therefore cannot win the MPI
+    init race.
     """
     out: list[tuple[int, str]] = []
     for node in tree.body:
@@ -105,21 +111,24 @@ def test_module_scope_petsc_imports_are_preceded_by_an_mpi4py_import() -> None:
 
 
 def test_conftest_binds_mpi_before_collection_imports_petsc() -> None:
-    """The test harness must bind MPI first, because collection can lose the race.
+    """Check that conftest binds MPI first, because collection can lose the race.
 
-    Guarding the package source is not enough. pytest imports every test module
-    during collection, and several import ``petsc4py``/``slepc4py`` at module
-    scope; whichever is imported first sets the process-wide thread level for the
-    whole session. ``tests/conftest.py`` is imported before any of them, so one
+    Guarding the package source is not enough.
+    pytest imports every test module during collection, and several import
+    ``petsc4py``/``slepc4py`` at module scope.
+    Whichever imports first sets the process-wide thread level for the
+    whole session.
+    ``tests/conftest.py`` loads before any of them, so one
     ``import mpi4py.MPI`` there covers the entire suite.
 
-    This was measured, not assumed: with the package guarded but conftest not, the
-    GPU venv still reported all 14 STRUMPACK failures, while the same test passed
-    when run as the only module.
+    A GPU-venv run measured this; it is not an assumption.
+    With the package guarded but conftest not, the GPU venv still
+    reported all 14 STRUMPACK failures.
+    The same check passed when run as the only module.
     """
     conftest = pathlib.Path(__file__).with_name("conftest.py")
     assert conftest.is_file(), f"missing {conftest}"
-    # ``ast.walk``, not ``_module_scope_imports``: the import is wrapped in a
+    # ``ast.walk``, not ``_module_scope_imports``: the import sits inside a
     # ``contextlib.suppress(ModuleNotFoundError)`` block so a PETSc-free
     # environment can still run the pure-Python suite. It executes at import
     # time all the same, which is what decides the race.
@@ -147,9 +156,10 @@ def test_conftest_binds_mpi_before_collection_imports_petsc() -> None:
 def test_mpi_thread_level_is_multiple_after_importing_a_petsc_module(first_import: str) -> None:
     """Importing any PETSc-backed module must leave MPI at THREAD_MULTIPLE.
 
-    Runs in a subprocess because the thread level is process-global and set once:
-    a previously-imported mpi4py in the pytest process would mask the very bug
-    this test exists to catch.
+    Runs in a subprocess because the thread level is process-global and
+    set once.
+    A previously-imported mpi4py in the pytest process would hide the
+    THREAD_FUNNELED path this check exists to catch.
     """
     pytest.importorskip("petsc4py", reason="SKIPPED: petsc4py not installed in this venv")
     pytest.importorskip("mpi4py", reason="SKIPPED: mpi4py not installed in this venv")

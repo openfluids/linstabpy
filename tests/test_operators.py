@@ -462,18 +462,12 @@ class TestCylindricalCoefficients:
     NGP = 50
 
     def _call_cylindrical(self, ngp, *, R=None, m=0, **kwargs):
-        """Convenience wrapper for cylindrical coefficients.
+        """Call compute_cylindrical_coefficients with uniform defaults.
 
-        The actual signature is:
-            compute_cylindrical_coefficients(
-                U, V, W, R, RHO, T, MU, m, Re, Ma, Pr, kappa,
-                dUdr, dVdr, dWdr, dRHOdr, dTdr,
-                dUdz, dVdz, dWdz, dRHOdz, dTdz,
-                d2Udr2, d2Vdr2, d2Wdr2, d2Tdr2,
-                d2Udz2, d2Vdz2, d2Wdz2, d2Tdz2,
-                d2Udrz, d2Vdrz, d2Wdrz,
-                dmudT, d2mudT2,
-            )
+        Signature: compute_cylindrical_coefficients(U, V, W, R, RHO, T, MU, m,
+        Re, Ma, Pr, kappa).
+        Then pass first and second radial and axial derivatives.
+        Then pass dmudT and d2mudT2.
         """
         Re = kwargs.get("Re", 1e5)
         Ma = kwargs.get("Ma", 0.3)
@@ -532,8 +526,8 @@ class TestCylindricalCoefficients:
         """At R >> 1, m=0: cylindrical viscous operators approach Cartesian ones.
 
         The B matrix differs structurally between coordinate systems (e.g., the
-        cylindrical energy equation carries a cv prefactor), so only the
-        second-derivative viscous operators are compared.
+        cylindrical energy equation carries a cv prefactor).
+        Compare only the second-derivative viscous operators.
         """
         ngp = self.NGP
         R_large = np.ones(ngp) * 1e8
@@ -545,13 +539,15 @@ class TestCylindricalCoefficients:
         np.testing.assert_allclose(cyl.Ayy, cart.Ayy, atol=1e-3)
 
     def test_axis_point_at_r_zero_is_refused(self):
-        """A grid containing r = 0 is refused instead of silently floored.
+        """A grid containing r = 0 raises instead of silently floored.
 
         The old mesh-spacing floor rewrote the 1/R coefficients at any point
-        closer to the axis than the finest radial spacing — on the staggered
-        jet grid (first point at r = dr/2) this changed the axis-row equations
-        and shifted the example-2 leading gain from 413.72 to 411.72.  A true
-        r = 0 point needs a pole treatment, so the coefficients must refuse it.
+        closer to the axis than the finest radial spacing.
+        On the staggered jet grid the first point sits at r = dr/2.
+        That rewrite changed the axis-row equations.
+        The example-2 leading gain shifted from 413.72 to 411.72.
+        A true r = 0 point needs a pole treatment, so the coefficients must
+        raise.
         """
         ngp = 10
         # Grid with the axis (R=0) as the first point
@@ -606,10 +602,11 @@ class TestCylindricalCoefficients:
     def test_staggered_axis_coefficients_use_true_radius(self):
         """1/R coefficients on a staggered grid use the true radius, unfloored.
 
-        First point at r = dr/2 < dr (the finest spacing): the continuity
-        coupling A0_12 = -(RHO + R*dRHOdr)/R must be exactly -RHO/R with the
-        TRUE first radius when dRHOdr = 0.  The old mesh-spacing floor
-        replaced r0 by dr here, shrinking the coefficient by half.
+        First point at r = dr/2 < dr (the finest spacing).
+        The continuity coupling is A0_12 = -(RHO + R*dRHOdr)/R.
+        With dRHOdr = 0 it must equal -RHO/R at the true first radius.
+        The old mesh-spacing floor replaced r0 by dr here, shrinking the
+        coefficient by half.
         """
         ngp = 10
         dr = 0.1
@@ -811,12 +808,11 @@ class TestOperatorAssembly:
             raise AssertionError(f"Unexpected explicit PETSc reason: {decision.reason!r}")
 
     def test_continuity_block_no_viscous(self, small_mesh_2d, uniform_baseflow):
-        """First ngp rows (continuity) should have no second-derivative viscous entries.
+        """Check that continuity rows carry no second-derivative viscous entries.
 
-        This is a structural check: the continuity equation is inviscid, so the
-        operator block corresponding to the first variable (density) should not
-        contain viscous diffusion patterns.  We verify the continuity row block
-        is sparser than a momentum row block.
+        Continuity is inviscid.
+        The density block must not carry viscous diffusion patterns.
+        The continuity row block must be sparser than a momentum row block.
         """
         mesh = small_mesh_2d
         ngp = mesh.ngp
@@ -1065,7 +1061,7 @@ class TestOperatorAssembly:
         from linstabpy.mesh import Mesh
 
         output = tmp_path / "assembly_metrics_axy.json"
-        # axy needs r > 0 everywhere (r = 0 is refused); shift the radial range.
+        # axy needs r > 0 everywhere. The solver refuses r = 0. Shift the radial range.
         ny, nx = small_mesh_2d.X.shape
         mesh_axy = Mesh.create(
             xrange=(0.0, 2.0),
@@ -1549,7 +1545,7 @@ class TestOperatorAssembly:
             L0_petsc.destroy()
 
     def test_build_lnse_system_scipy_matches_reference_pipeline(self):
-        """Workflow helper should reproduce the existing SciPy assembly+BC path."""
+        """Check that build_lnse_system matches SciPy assembly plus BC."""
         mesh = Mesh.create(
             xrange=(0.0, 2.0),
             yrange=(0.0, 1.0),
@@ -1600,7 +1596,7 @@ class TestOperatorAssembly:
         assert delta.nnz == 0 or np.max(np.abs(delta.data)) < 1e-12
 
     def test_build_lnse_system_petsc_matches_recipe_path(self):
-        """Workflow helper should reproduce the PETSc direct-assembly+recipe path."""
+        """Check that build_lnse_system matches PETSc assembly plus the BC recipe."""
         mesh = Mesh.create(
             xrange=(0.0, 2.0),
             yrange=(0.0, 1.0),
@@ -2158,12 +2154,12 @@ class TestChuEnergyNorm:
         np.testing.assert_allclose(W_diag[4 * ngp : 5 * ngp], expected, rtol=1e-12)
 
     def test_axy_model_R_scaling(self):
-        """model='axy': R is multiplied into W_int."""
+        """model='axy' multiplies R into W_int."""
         ngp = self.NGP
         R = np.full(ngp, 3.0)
         W_diag_cart, _ = self._make_norm(model="2D")
         W_diag_cyl, _ = self._make_norm(model="axy", R=R)
-        # Each block should be scaled by R=3 relative to the 2D case.
+        # R=3 scales each block relative to the 2D case.
         # Check the rho block as representative.
         np.testing.assert_allclose(
             W_diag_cyl[:ngp],
@@ -2392,14 +2388,16 @@ class TestInvBBlockInverse:
     def _build_B_matrix(ngp, RHO, U, V, W, T, kappa, Ma):
         """Construct B/1j as a dense (5*ngp, 5*ngp) block matrix.
 
-        B/1j in physical ordering [rho, u, v, w, T]:
-          [  1     0     0     0     0    ]
-          [  U     RHO   0     0     0    ]
-          [  V     0     RHO   0     0    ]
-          [  W     0     0     RHO   0    ]
-          [  KE    U*RHO V*RHO W*RHO cv*RHO]
+        B/1j in physical ordering [rho, u, v, w, T].
 
-        where KE = 0.5*(U^2+V^2+W^2) + cv*T and cv = 1/(kappa*(kappa-1)*Ma^2).
+          [  1     0     0     0     0    ].
+          [  U     RHO   0     0     0    ].
+          [  V     0     RHO   0     0    ].
+          [  W     0     0     RHO   0    ].
+          [  KE    U*RHO V*RHO W*RHO cv*RHO].
+
+        KE equals 0.5*(U^2+V^2+W^2) + cv*T.
+        cv equals 1/(kappa*(kappa-1)*Ma^2).
         """
         cv = 1.0 / (kappa * (kappa - 1.0) * Ma**2)
         KE = 0.5 * (U**2 + V**2 + W**2) + cv * T
@@ -2496,11 +2494,11 @@ class TestInvBBlockInverse:
         # Expected diagonal
         expected_diag = np.concatenate(
             [
-                np.ones(ngp),  # rho
-                np.ones(ngp),  # u: 1/RHO
-                np.ones(ngp),  # v: 1/RHO
-                np.ones(ngp),  # w: 1/RHO
-                np.full(ngp, 1.0 / cv),  # T: 1/(RHO*cv)
+                np.ones(ngp),  # density
+                np.ones(ngp),  # streamwise
+                np.ones(ngp),  # wall-normal
+                np.ones(ngp),  # spanwise
+                np.full(ngp, 1.0 / cv),  # temperature
             ]
         )
         np.testing.assert_allclose(np.diag(dense), expected_diag, atol=1e-14)

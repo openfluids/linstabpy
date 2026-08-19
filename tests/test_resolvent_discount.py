@@ -48,7 +48,7 @@ def _dense_gain_oracle(
 
 def _near_diagonal_operator() -> sp.csc_matrix:
     # The small off-diagonal entries make this a near-diagonal matrix without
-    # changing the independent dense-SVD oracle used by the assertions.
+    # changing the independent dense-SVD closed form used by the assertions.
     dense = np.diag(
         np.array(
             [

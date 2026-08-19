@@ -42,8 +42,8 @@ def test_mumps_adjoint_keeps_single_factor_path() -> None:
     x1 = factor.solve(a)
     x2 = factor.solve_adjoint(b)
 
-    lhs = np.vdot(x1, b)  # conj(x1) . b
-    rhs_val = np.vdot(a, x2)  # conj(a) . x2
+    lhs = np.vdot(x1, b)
+    rhs_val = np.vdot(a, x2)
 
     denominator = max(np.abs(lhs), np.abs(rhs_val), 1.0e-300)
     defect = np.abs(lhs - rhs_val) / denominator
@@ -96,7 +96,7 @@ def test_metrics_recorded() -> None:
     rhs = np.random.randn(6) + 1j * np.random.randn(6)
     _ = factor.solve_adjoint(rhs)
 
-    # Now metrics should be populated
+    # Now metrics must hold values
     assert isinstance(factor.metrics["dual_factor_active"], (bool, np.bool_))
     assert isinstance(factor.metrics["adjoint_self_test_defect"], (float, np.floating))
     assert isinstance(factor.metrics["adjoint_oracle_residual"], (float, np.floating))
@@ -140,16 +140,18 @@ def test_solve_transpose_vec_alias() -> None:
 
 # --- Heal-path coverage: the cases the auto-detect/heal logic actually relies on.
 # These exercise the dual-factor MECHANISM and the TRUTH-GATE on this box (MUMPS,
-# no GPU). The end-to-end auto-trigger needs a backend with a defective complex
-# transpose-solve (STRUMPACK) and is validated on the GPU box.
+# no GPU).
+# The end-to-end auto-trigger needs a backend with a defective complex
+# transpose-solve (STRUMPACK).
+# The GPU box validates that path.
 
 
 def test_forward_solve_on_AH_equals_adjoint() -> None:
     """The heal mechanism: a FORWARD solve on A^H reproduces the adjoint solve.
 
-    This is the numerical claim the dual factorization rests on -- redirecting the
-    adjoint to A_H_factor.solve must equal the (correct, for MUMPS) conj->
-    solveTranspose->conj adjoint on A.
+    This is the numerical claim the dual factorization rests on.
+    Redirecting the adjoint to A_H_factor.solve must equal the MUMPS adjoint
+    on A (conj, then solveTranspose, then conj).
     """
     L0 = _operator(8)
     factor = factorize(L0)
@@ -164,10 +166,12 @@ def test_forward_solve_on_AH_equals_adjoint() -> None:
 
 
 def test_self_test_detects_defective_adjoint_and_passes_true_adjoint() -> None:
-    """The detector + truth-gate logic: the adjoint-identity self-test must read
-    ~0 for the true Hermitian adjoint and large for a plain TRANSPOSE (which is
-    NOT the Hilbert adjoint of a complex operator). This is exactly the check the
-    in-build truth-gate uses to reject a wrongly-formed A^H.
+    """Check the adjoint-identity self-test on a true adjoint and a transpose.
+
+    The self-test must read ~0 for the true Hermitian adjoint.
+    It must read large for a plain TRANSPOSE.
+    A plain transpose is not the Hilbert adjoint of a complex operator.
+    The in-build truth-gate uses this check to reject a mis-formed A^H.
     """
     L0 = _operator(8)
     factor = factorize(L0)
@@ -191,7 +195,7 @@ def test_heal_engages_when_transpose_self_test_raises() -> None:
 
     L0 = _operator(6)
 
-    # Count how many times the monkeypatched self-test is called
+    # Count how many times the monkeypatched self-test runs.
     call_count = [0]
     original_self_test = _run_adjoint_self_test
 
@@ -214,11 +218,11 @@ def test_heal_engages_when_transpose_self_test_raises() -> None:
         rhs = np.random.randn(6) + 1j * np.random.randn(6)
         result = factor.solve_adjoint(rhs)
 
-        # Should not raise; heal should have engaged
+        # Must not raise; heal must engage.
         assert result is not None
         assert factor.metrics["dual_factor_active"] is True
 
-        # The self-test was called at least twice: once (raised), then by truth-gate
+        # The self-test ran at least twice: once (raised), then by truth-gate.
         assert call_count[0] >= 2
 
     # Verify the adjoint result is sensible: match it against dense numpy solve
@@ -262,10 +266,11 @@ def _heal_forcing_self_test():
 def test_refactorize_keeps_healed_adjoint_on_the_new_operator() -> None:
     """After refactorize the healed K^H factor must belong to the NEW operator.
 
-    Regression: ``refactorize_operator`` refreshed the forward factor only and left
-    ``factor_H`` (and the pristine operator the heal transposes) at the FIRST
-    operator, so a line of shifted operators on a healed backend would forward-solve
-    K_new and adjoint-solve K_old^H from the second point on.
+    Regression: ``refactorize_operator`` refreshed the forward factor only.
+    It left ``factor_H`` (and the pristine operator the heal transposes) at
+    the FIRST operator.
+    A line of shifted operators on a healed backend then forward-solved
+    K_new and adjoint-solved K_old^H from the second point on.
     """
     import unittest.mock as mock
 
@@ -323,11 +328,15 @@ def test_heal_after_refactorize_transposes_the_current_operator() -> None:
 
 
 def test_heal_and_refactorize_leave_the_callers_petsc_operator_untouched() -> None:
-    """The heal transposes the caller's operator to build K^H; with a PETSc Mat,
-    ``hermitianTranspose()`` without ``out`` transposes IN PLACE and returns the
-    same object -- the caller's K silently became K^H (and the refactorize path
-    then destroyed it). Both the first heal and a refactorize must leave the
-    caller's matrices exactly as they were."""
+    """The heal transposes the caller's operator to build K^H.
+
+    With a PETSc Mat, ``hermitianTranspose()`` without ``out`` transposes
+    IN PLACE and returns the same object.
+    The caller's K silently became K^H, and the refactorize path then
+    destroyed it.
+    Both the first heal and a refactorize must leave the caller's matrices
+    exactly as they were.
+    """
     import unittest.mock as mock
 
     from petsc4py import PETSc

@@ -34,7 +34,7 @@ def test_stage_heartbeat_disabled_when_interval_non_positive(monkeypatch):
 
 
 def test_log_stage_includes_peak_rss_delta(monkeypatch):
-    """Stage completion logs carry an RSS delta when started with the runtime helper."""
+    """Stage completion logs carry an RSS delta when started with the runtime timer tuple."""
     messages: list[str] = []
     monkeypatch.setattr(driver_run, "_log", messages.append)
     monkeypatch.setattr(driver_run, "_peak_rss_bytes", lambda: 2048)

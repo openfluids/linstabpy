@@ -54,7 +54,7 @@ def test_default_danger_radius_uses_half_median_sweep_spacing_and_fires_near_pol
 
     assert marks.danger_radius == pytest.approx(0.5)
     assert marks.distances[1] == pytest.approx(0.3)
-    # This same fixture was inert under the old residual-scale default because
+    # This same case was inert under the old residual-scale default because
     # the pole distance is much larger than the historical ~1e-8 fallback.
     assert marks.distances[1] > 1.0e-8
     assert marks.labels.tolist() == [STABLE, NEAR_POLE, STABLE]
@@ -181,9 +181,10 @@ def test_reference_spectrum_marks_unstable_stripe_and_excludes_far_field() -> No
     eigs = 1j * growth
     omegas = np.unique(np.r_[np.linspace(-0.2, 0.2, 41), 0.0])
 
-    # The private oracle stores the Song 32-deg stationary global-mode growth
-    # against spanwise wavelength.  Radius 6e-2 must exceed the reference
-    # unstable peak (+0.0558) so omega_req=0 is marked for every unstable row.
+    # The private reference stores the Song 32-deg stationary global-mode growth
+    # against spanwise wavelength.
+    # Radius 6e-2 must exceed the reference unstable peak (+0.0558).
+    # Then the marker labels omega_req=0 for every unstable row.
     radius = 6.0e-2
     zero_index = int(np.flatnonzero(omegas == 0.0)[0])
 

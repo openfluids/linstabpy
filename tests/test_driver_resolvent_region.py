@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Tests for the single-point resolvent driver stage's B/C forcing masks.
+"""Check B/C forcing masks on the single-point resolvent driver stage.
 
 `_stage_run_resolvent` used to hand-roll a BC-only diagonal mask and set
-``C_mat = B_mat.copy()``, so `input_region`/`output_region` config keys were
-silently ignored on this path and B/C were always forced identical.  These
-tests pin the fix: the stage now delegates to
-`linstabpy.solvers.router.resolvent_map._forcing_response_mats`, the same
-helper the multi-point `resolvent_map` sweep uses.
+``C_mat = B_mat.copy()``.
+The `input_region`/`output_region` config keys were silently ignored
+on this path and B/C were always forced identical.
+These checks pin the repair.
+The stage now delegates to
+`linstabpy.solvers.router.resolvent_map._forcing_response_mats`.
+The multi-point `resolvent_map` sweep uses the same function.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ run_module = importlib.import_module("linstabpy.driver.run")
 
 
 def _region_mesh_idx() -> tuple[types.SimpleNamespace, dict[str, np.ndarray], int]:
-    # 2x3 grid (Ny=2, Nx=3), Fortran-order point layout, matching the fixture
+    # 2x3 grid (Ny=2, Nx=3), Fortran-order point layout, matching the mesh
     # in tests/test_router_entry.py.  Five state variables per point.
     X = np.array([[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]])
     Y = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
@@ -166,10 +168,12 @@ def test_stage_run_resolvent_default_path_matches_bc_only_mask(monkeypatch) -> N
 def test_stage_run_resolvent_region_composes_with_bc_mask(monkeypatch) -> None:
     """A region does not switch off `mask_bc_forcing`: the two compose.
 
-    Forcing a boundary-condition row is meaningless -- the row encodes a constraint,
-    not an equation -- so a DOF that is both inside the region and constrained must
-    end up zero in B.  Before the fix a region mask replaced the BC mask outright and
-    those rows were forced.
+    Forcing a boundary-condition row is meaningless.
+    The row encodes a constraint, not an equation.
+    A DOF that is both inside the region and constrained must end up zero
+    in B.
+    Before the repair a region mask replaced the BC mask outright.
+    Those rows then received forcing.
     """
     mesh, idx, ndof = _region_mesh_idx()
     calls: list[dict] = []

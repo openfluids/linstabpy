@@ -107,9 +107,10 @@ def test_factorization_solve_block_matches_single_rhs_loop() -> None:
 def test_refactorize_keeps_the_symbolic_factorisation() -> None:
     """refactorize copies values into the KSP's own Mat: MUMPS redoes the numeric phase only.
 
-    Handing the KSP a new Mat redid the analysis at every refactorize (Savarino
-    450k DOF, c9, 2026-08-18: 90.0 s new Mat vs 74.9 s in place). PETSc's event
-    log is the witness: MatLUFactorSym must not move, MatLUFactorNum must.
+    Handing the KSP a new Mat redid the analysis at every refactorize.
+    Savarino 450k DOF, c9, 2026-08-18: 90.0 s new Mat vs 74.9 s in place.
+    PETSc's event log is the witness: MatLUFactorSym must not move,
+    MatLUFactorNum must.
     """
     from petsc4py import PETSc
 

@@ -216,7 +216,7 @@ class TestDerivativeAccuracy:
 
 
 class TestUnsupportedHigherOrders:
-    """Higher-order interiors exist, but full SBP closures are unsupported."""
+    """Higher-order interiors exist, but full SBP closures do not exist for these orders."""
 
     @pytest.mark.parametrize("order", [10, 12])
     def test_full_sbp_closure_rejects_unsupported_order(self, order: int) -> None:

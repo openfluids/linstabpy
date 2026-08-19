@@ -81,9 +81,9 @@ class TestDirichletBC:
         L0, idx, ngp = operator_setup
         _, bc_indices = apply_dirichlet(L0.copy(), idx, "bt", "uvwT", ngp)
         assert isinstance(bc_indices, np.ndarray)
-        # Sorted
+        # Indices must increase.
         assert np.all(bc_indices[:-1] <= bc_indices[1:]), "bc_indices should be sorted"
-        # Unique
+        # Values must be unique.
         assert len(bc_indices) == len(np.unique(bc_indices)), (
             "bc_indices should contain unique values"
         )
@@ -120,7 +120,7 @@ class TestDirichletBC:
                 break
         assert interior_dof is not None, "Could not find an interior DOF"
 
-        # Check that the row is unchanged (excluding BC columns)
+        # The interior row must match the original (excluding BC columns).
         orig_row = L0_orig_csr.getrow(interior_dof).toarray().ravel()
         bc_row = L0_bc_csr.getrow(interior_dof).toarray().ravel()
 
@@ -142,7 +142,7 @@ class TestDirichletBC:
         L0_bc, bc_indices = apply_dirichlet(L0.copy(), idx, "", "uvwT", ngp)
 
         assert len(bc_indices) == 0, "Empty borders should produce no BC indices"
-        # Operator should be unchanged
+        # The operator must match the original.
         diff = (L0_bc - L0_orig).tocsr()
         assert diff.nnz == 0 or np.max(np.abs(diff.data)) < 1e-14, (
             "Operator should be unchanged with empty borders"
@@ -1030,8 +1030,11 @@ class TestDissipationBCInteraction:
     # T5 gate: Dirichlet rows are penalty*I regardless of dissipation flag
     # ------------------------------------------------------------------ #
     def test_dirichlet_rows_unchanged_with_dissipation(self, small_mesh_2d, uniform_baseflow):
-        """T5: Dirichlet rows must be exactly penalty*I after apply_bc_recipe,
-        whether or not operator dissipation was subtracted before BCs were applied."""
+        """T5: Dirichlet rows must be exactly penalty*I after apply_bc_recipe.
+
+        This must hold whether or not the assembler subtracted operator
+        dissipation before it applied BCs.
+        """
         L_A, bc_indices_A, _ = self._build_baseline(small_mesh_2d, uniform_baseflow)
         L_B, bc_indices_B = self._build_with_dissipation(uniform_baseflow)
 
@@ -1087,9 +1090,11 @@ class TestDissipationBCInteraction:
     def test_interior_rows_dissipated_correctly(self, small_mesh_2d, uniform_baseflow):
         """Dissipation must modify interior rows but leave Dirichlet rows intact.
 
-        This is the positive half of the T5 gate: confirms that Q_diss_block
-        is actually being subtracted (not silently skipped) and that the
-        difference lives only in non-Dirichlet rows."""
+        This is the positive half of the T5 gate.
+        It confirms that the assembler subtracts Q_diss_block (not silently
+        skipped).
+        The difference must live only in non-Dirichlet rows.
+        """
         L_A, bc_indices_A, _ = self._build_baseline(small_mesh_2d, uniform_baseflow)
         L_B, bc_indices_B = self._build_with_dissipation(uniform_baseflow)
 

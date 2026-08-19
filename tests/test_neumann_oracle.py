@@ -1,35 +1,39 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Independent geometric oracle for Neumann BC rows.
+"""Independent geometric closed form for Neumann BC rows.
 
-A homogeneous Neumann row enforces zero *normal* gradient at a boundary point:
-divided by the penalty it is a first-derivative stencil pointing along the
-outward boundary normal. The production rows are built from mesh metrics
-(``gradX``/``gradY`` on rectangular meshes, the ``J`` Jacobian arrays on mapped
-meshes), so any check that reuses those metrics would just re-derive the
-implementation.
+A homogeneous Neumann row enforces zero *normal* gradient at a boundary point.
+Divided by the penalty it is a first-derivative stencil pointing along the
+outward boundary normal.
+The production rows are built from mesh metrics (``gradX``/``gradY`` on
+rectangular meshes, the ``J`` Jacobian arrays on mapped meshes).
+Any check that reuses those metrics would just re-derive the implementation.
 
-This oracle instead takes the boundary normal from the *physical boundary
-polyline* -- the tangent is the finite difference of the physical coordinates of
-consecutive boundary points, and the normal is its perpendicular -- with no
-reference to the production normal formula. The defining geometric property of a
-normal-derivative row then is:
+This closed form instead takes the boundary normal from the *physical
+boundary polyline*.
+The tangent is the finite difference of consecutive physical boundary points.
+The normal is the perpendicular of that tangent.
+This form does not use the production normal formula.
+A normal-derivative row has these geometric properties.
 
-* it annihilates a field that varies purely along the boundary tangent
-  (``n . grad(f_tangent) = n . t = 0``),
-* it responds to a field that varies along the normal
-  (``n . grad(f_normal) = |n|^2 != 0``),
-* it annihilates constants,
-* its nonzeros stay inside the constrained variable block.
+* It annihilates a field that varies purely along the boundary tangent
+  (``n . grad(f_tangent) = n . t = 0``).
+* It responds to a field that varies along the normal
+  (``n . grad(f_normal) = |n|^2 != 0``).
+* It annihilates constants.
+* Its nonzeros stay inside the constrained variable block.
 
-A row built along the tangent instead of the normal, a swapped Jacobian
-component, or a wrong variable block all break these and fail here. Both the
-rectangular (gradient) branch and the curvilinear (Jacobian) branch are covered.
+A row built along the tangent instead of the normal fails here.
+A swapped Jacobian component fails here.
+A mismatched variable block fails here.
+The check covers the rectangular (gradient) branch and the curvilinear
+(Jacobian) branch.
 
-Note: the non-curvilinear branch uses the physical-axis normal, which equals the
-true normal only on axis-aligned boundaries -- so it is exercised on a
-rectangular mesh. The curvilinear branch carries true mapped normals and is
-exercised on a curved mesh.
+The non-curvilinear branch uses the physical-axis normal.
+That normal equals the true normal only on axis-aligned boundaries.
+This check therefore uses a rectangular mesh.
+The curvilinear branch carries true mapped normals and this check uses a
+curved mesh.
 """
 
 from __future__ import annotations
@@ -119,7 +123,7 @@ def _check_border(
 
 def _passes(rec: dict) -> bool:
     # Measured tangent/normal and constant responses are ~5e-15 on BOTH the
-    # rectangular (gradient) and curved (Jacobian) branches, so the oracle asserts
+    # rectangular (gradient) and curved (Jacobian) branches, so the check asserts
     # ~1e-12 (bead ...2.7's ~1e-15 property, with ~200x margin) rather than the
     # old 1e-9. A tangent-aligned or swapped-Jacobian mutation drives the ratio to
     # O(1), far above either threshold.

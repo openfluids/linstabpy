@@ -102,7 +102,7 @@ def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator() -> None:
     )
 
     # stability.eigenvalues solves eig(i*L0).  This diagonal therefore has
-    # temporal eigenvalues [-2, -10, 5], so the pole at omega=2 should be marked.
+    # temporal eigenvalues [-2, -10, 5], so the marker must label the pole at omega=2.
     operator = sp.diags([2.0j, 10.0j, -5.0j], format="csr", dtype=complex)
     f_range = np.array([2.0, 5.0])
     cfg = {"band_marking": {"n_modes": 1, "danger_radius": 1.0e-8}}

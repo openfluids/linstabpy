@@ -2,10 +2,12 @@
 """MPI regression guard for collective refactorize pattern rejection.
 
 The nonzero-pattern comparison in ``Factorization.refactorize`` is local to
-PETSc-owned rows.  Under MPI, a structural change present on only one rank must
-still make every rank take the same raise/fallback branch before the collective
-``KSP.setOperators()/setUp()`` path.  This test keeps the serial suite useful
-(size 1 reduces to the same logic) while being meaningful under ``mpiexec``.
+PETSc-owned rows.
+Under MPI, a structural change present on only one rank must still make
+every rank take the same raise/fallback branch.
+That must happen before the collective ``KSP.setOperators()/setUp()`` path.
+The serial suite stays useful (size 1 reduces to the same logic).
+The check is also meaningful under ``mpiexec``.
 """
 
 from __future__ import annotations
@@ -36,7 +38,7 @@ def _operator(
     upper = -0.15 - 0.03j - 0.001j * np.arange(n - 1)
     mat = sp.diags([lower, diagonal, upper], [-1, 0, 1], format="lil", dtype=complex)
     if rank0_extra:
-        # Row 0 is owned by rank 0 for PETSc's default row partition.  Column
+        # PETSc's default row partition gives rank 0 row 0.  Column
         # n-1 is outside the tridiagonal pattern for n >= 8, so this is a
         # structural mismatch localized to rank 0's local CSR rows.
         mat[0, n - 1] = 0.125 - 0.25j

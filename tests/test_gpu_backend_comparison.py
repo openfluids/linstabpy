@@ -21,7 +21,7 @@ NCV = 30
 POSTCHECK_REL_MAX = 1.0e-6
 TARGET_DISTANCE_MAX = 0.11
 
-# Dense scipy.eig-validated to 1.65e-11 (independent oracle); see docs/strumpack_pop_dense_reference.json.
+# Dense scipy.eig-validated to 1.65e-11 (independent closed form); see docs/strumpack_pop_dense_reference.json.
 MUMPS_REFERENCE_OMEGA = np.array(
     [
         -0.0012146156977368631 - 0.002073260395878823j,
@@ -148,23 +148,25 @@ def test_strumpack_fgmres_matches_mumps_temporal_reference() -> None:
 def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     """STRUMPACK's bare (PREONLY) LU apply is accurate enough to clear the probe.
 
-    This test used to assert the opposite -- that STRUMPACK under a direct
-    PREONLY solve was too inexact (compression) and had to be REJECTED by the
-    backend probe.  That premise is falsified on the current build.  Measured on
-    c9, PETSc 3.24.2, job 535, at this exact shift and problem:
+    An earlier assertion required the opposite.
+    It required the backend probe to reject STRUMPACK under a direct PREONLY
+    solve because compression made the apply too inexact.
+    The current build falsifies that premise.
+    Measured on c9, PETSc 3.24.2, job 535, at this exact shift and problem.
 
-        strumpack     ||Kx-b||/||b|| = 1.979e-12     <- 4 decades inside the gate
-        superlu_dist  ||Kx-b||/||b|| = 1.852e-06
-        mumps         probe skipped (trusted default)
+        strumpack residual ||Kx-b||/||b|| = 1.979e-12 (4 decades inside the gate).
+        superlu_dist residual ||Kx-b||/||b|| = 1.852e-06.
+        mumps probe skipped (trusted default).
 
-    1.979e-12 sits far below the 1e-8 default gate, so no RuntimeError is raised
-    and the old `pytest.raises` failed with DID NOT RAISE.  The backend got
-    better; the expectation went stale.
+    1.979e-12 sits far below the 1e-8 default gate.
+    The probe therefore raises no RuntimeError.
+    The old pytest.raises failed with DID NOT RAISE.
+    The backend got better; the expectation went stale.
 
-    Asserting the new behaviour rather than deleting the test keeps the
-    regression guard: if a STRUMPACK or PETSc upgrade reintroduces a lossy bare
-    LU apply, the accuracy assertions below fail loudly instead of the loss
-    passing unnoticed into a gain map.
+    Keep this check rather than delete it.
+    If a STRUMPACK or PETSc upgrade reintroduces a lossy bare LU apply,
+    the accuracy assertions below fail.
+    The loss then does not pass unnoticed into a gain map.
     """
     if not factor_backend_available("strumpack"):
         pytest.skip("SKIPPED: STRUMPACK/CUDA factor backend unavailable")
@@ -187,8 +189,8 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
         return_info=True,
     )
 
-    # The probe must have actually run on STRUMPACK -- otherwise "it passed"
-    # could just mean the probe was skipped, which would assert nothing.
+    # The probe must actually run on STRUMPACK.
+    # Otherwise a pass could mean the probe skipped, which asserts nothing.
     assert info["backend_probe_ran"] is True
     assert info["backend_probe_factor_backend"] == "strumpack"
 
@@ -200,6 +202,8 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
         "regressed; measured 1.979e-12 on PETSc 3.24.2 (c9 job 535)"
     )
 
-    # Clearing the probe is not enough on its own -- a backend could pass the
-    # single-RHS probe and still return the wrong spectrum.  Gate on the answer.
+    # Clearing the probe is not enough on its own.
+    # A backend could pass the single-RHS probe and still miss the reference
+    # spectrum.
+    # Gate on the answer.
     _assert_spectrum_matches_reference(omega, atol=1.0e-9)

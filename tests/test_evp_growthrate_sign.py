@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Characterization test for EVP temporal eigenvalue sign convention.
+"""Check the EVP temporal eigenvalue sign convention.
 
-FINDING: The EVP growth-rate sign convention is verified correct in code.
-  The temporal eigensolver computes omega = eig(i*L0), which under the
-  shared e^{-i*omega*t} time convention means Im(omega) = Re(lambda) = growth rate.
+FINDING: The EVP growth-rate sign convention is correct in code.
+  The temporal eigensolver computes omega = eig(i*L0).
+  Under the shared e^{-i*omega*t} time convention,
+  Im(omega) = Re(lambda) = growth rate.
   Therefore +Im(omega) > 0 indicates temporal instability (growing mode).
   This matches the reference Song/Savarino CSV convention (+omega_i = unstable).
-  NO production code change and NO sign flip is required.
+  Production code needs no change and no sign flip.
 
-This is a verification characterization test, not a redesign. The reference
-CSV is private (resolvent/archive/reference_song32deg_eigenspectrum.csv) and
-is loaded via environment variable fallback; the test announces skip status
-when absent (never silent pass).
+This is a verification characterization check, not a redesign.
+The reference CSV is private
+(resolvent/archive/reference_song32deg_eigenspectrum.csv).
+An environment variable fallback loads it.
+The check announces skip status when absent (never silent pass).
 """
 
 from __future__ import annotations
@@ -29,18 +31,20 @@ from linstabpy.stability import eigenvalues as temporal_eigenvalues
 def test_temporal_eigenvalue_sign_is_growth_positive() -> None:
     """Test that positive Im(omega) matches positive growth rate in the convention.
 
-    CONVENTION ANCHOR:
-      - Time evolution: exp(-i*omega*t)
-      - A mode grows when Re(lambda) > 0, where dq/dt = L0 q (lambda = eig(L0))
-      - Under e^{-i*omega*t}: omega = i*lambda, so Im(omega) = Re(lambda) = growth
-      - Therefore +Im(omega) = unstable (growing), -Im(omega) = stable (damped)
+    Convention.
+    Time evolution uses exp(-i*omega*t).
+    A mode grows when Re(lambda) > 0, where dq/dt = L0 q and lambda = eig(L0).
+    Under e^{-i*omega*t}, omega = i*lambda, so Im(omega) = Re(lambda) = growth.
+    Therefore +Im(omega) is unstable (growing).
+    Therefore -Im(omega) is stable (damped).
 
-    This test embeds four eigenvalues in a diagonal matrix:
-      - lam[0]: +0.05 real (GROWING) with +0.40 oscillation
-      - lam[1,2,3]: negative real (damped) with various oscillations
+    The matrix holds four eigenvalues.
+    lam[0] has +0.05 real (growing) with +0.40 oscillation.
+    lam[1,2,3] have negative real parts (damped) with various oscillations.
 
-    The solver must report the leading eigenvalue with Im(omega) > 0, and that
-    Im(omega) must equal the real part of the eigenvalue (the growth rate).
+    The solver must report the leading eigenvalue with Im(omega) > 0.
+    That Im(omega) must equal the real part of the eigenvalue (the growth
+    rate).
     """
     # Four eigenvalues: one growing (Re=+0.05), three damped (Re<0)
     lam = np.array([0.05 + 0.40j, -0.30 + 1.1j, -0.50 - 0.7j, -0.80 + 0.2j], dtype=complex)
@@ -75,27 +79,26 @@ def test_temporal_eigenvalue_sign_is_growth_positive() -> None:
 def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
     """Test that the Song32-deg reference CSV confirms +omega_i = unstable convention.
 
-    REFERENCE LOAD:
-      The Song/Savarino reference CSV lives at:
-        (1) env var LINSTABPY_SONG32_CSV if set and exists
-        (2) resolved relative to the linstabpy repo root: ../archive/reference_song32deg_eigenspectrum.csv
-        (3) resolved from this test file: ../../../archive/reference_song32deg_eigenspectrum.csv
-      If none found: pytest.skip with announcement (never silent pass).
+    Load the Song/Savarino reference CSV from the first path that exists.
+    (1) env var LINSTABPY_SONG32_CSV if set and the file exists.
+    (2) relative to the linstabpy repo root: ../archive/reference_song32deg_eigenspectrum.csv.
+    (3) from this test file: ../../../archive/reference_song32deg_eigenspectrum.csv.
+    If none exist, pytest.skip with an announcement (never a silent pass).
 
-    VERIFICATION TARGETS:
-      The reference CSV documents the Song theta=32deg (globally unstable) case
-      under the same e^{-i*omega*t} convention as linstabpy. It provides:
-        col1 = lambda/L (dimensionless spanwise wavelength)
-        col2 = omega_i (growth rate; +omega_i = unstable)
+    Targets.
+    The CSV documents the Song theta=32deg (globally unstable) case.
+    It uses the same e^{-i*omega*t} convention as linstabpy.
+    Column 1 is lambda/L (dimensionless spanwise wavelength).
+    Column 2 is omega_i (growth rate; +omega_i = unstable).
 
-      This test verifies:
-        (a) Non-empty unstable band exists (at least one row with omega_i > 0)
-        (b) Unstable band is localised in wavelength: 0.15 < lambda/L < 0.85
-        (c) Peak growth ~+0.0558 lies in [0.045, 0.065]
-        (d) Peak occurs near lambda/L~0.327, i.e. in [0.30, 0.45]
+    Checks.
+    (a) At least one row has omega_i > 0.
+    (b) The unstable band sits in 0.15 < lambda/L < 0.85.
+    (c) Peak growth ~+0.0558 lies in [0.045, 0.065].
+    (d) Peak occurs near lambda/L~0.327, i.e. in [0.30, 0.45].
 
-      These assertions document the reference's sign meaning: when linstabpy
-      reports +Im(omega), it must recover this same unstable band.
+    These assertions document the reference sign meaning.
+    When linstabpy reports +Im(omega), it must recover this same unstable band.
     """
     # Resolve the reference CSV path.
     csv_path = None
@@ -112,7 +115,7 @@ def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
         if candidate.exists():
             csv_path = candidate
 
-    # (3) Try deeper relative search (in case test is reorganized)
+    # (3) Try a deeper relative search if the test file moves.
     if csv_path is None:
         for i in range(2, 5):
             candidate = (
@@ -162,7 +165,7 @@ def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
         "No unstable modes found (all omega_i <= 0). CSV data integrity check failed."
     )
 
-    # (b) Unstable modes must be localised in wavelength.
+    # (b) Unstable modes must sit in a bounded wavelength band.
     unstable_wavelengths = wavelengths[unstable_mask]
     assert np.all(unstable_wavelengths >= 0.15), (
         f"Some unstable modes have lambda/L < 0.15 (outside expected band): {unstable_wavelengths}"
@@ -184,6 +187,6 @@ def test_reference_song32_unstable_band_is_positive_omega_i() -> None:
         f"Peak growth at lambda/L={peak_wavelength} outside expected range [0.30, 0.45]"
     )
 
-    # All assertions passed: the reference convention is documented and verified.
+    # All assertions passed: the reference convention holds.
     # Assertion messages explain that this is the target linstabpy must match
     # when reporting +Im(omega) = unstable under the shared e^{-i*omega*t} convention.

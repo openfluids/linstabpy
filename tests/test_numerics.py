@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Numerical soundness tests for the cylindrical (axy) LNSE operators.
+"""Check mathematical soundness of the cylindrical (axy) LNSE operators.
 
-These tests verify mathematical properties that must hold regardless of the
-specific eigenvalue spectrum, ensuring the assembled operators are self-consistent
-and the discretization converges.
+The properties must hold regardless of the specific eigenvalue spectrum.
+The assembled operators must be self-consistent.
+The discretization must converge.
 
-All tests are marked @pytest.mark.slow.
+Every check in this file carries @pytest.mark.slow.
 """
 
 import numpy as np
@@ -43,9 +43,10 @@ class TestGridConvergence:
     """Verify eigenvalue residuals improve under grid refinement.
 
     Direct eigenvalue convergence is hard to test on very coarse grids because
-    different modes dominate at each resolution.  Instead we check that the
-    eigenpair residual ||iL0@v - ω*v||/||v|| decreases as the grid refines,
-    which confirms the discretization is self-consistent.
+    different modes dominate at each resolution.
+    Instead check that the eigenpair residual ||iL0@v - ω*v||/||v||
+    decreases as the grid refines.
+    That residual confirms the discretization is self-consistent.
     """
 
     def test_residual_improves_with_refinement(self):
@@ -167,9 +168,10 @@ class TestSpectrumProperties:
         """Temporal eigenvalues have small real parts for this axisymmetric flow.
 
         Convention: ω = eig(iL0), so Re(ω) is the frequency and Im(ω) is
-        related to the growth rate.  For the synthetic sech² jet, the physical
-        eigenvalues (large |ω|) should have near-zero real parts because the
-        base flow has no azimuthal velocity and the problem is axisymmetric.
+        related to the growth rate.
+        For the synthetic sech² jet, the physical eigenvalues (large |ω|)
+        should have near-zero real parts.
+        The base flow has no azimuthal velocity and the problem is axisymmetric.
         """
         d = build_synthetic_jet(nx=15, ny=10, m=0)
         omega, _ = temporal_eigenvalues(d["L0"], n_modes=10, target=-0.01j)
@@ -212,7 +214,7 @@ class TestSpectrumProperties:
             target=-0.1j,
         )
 
-        # The dominant mode (most negative Im) should be even more negative
+        # The dominant mode (most negative Im) must sit even further left.
         dom_no_sponge = np.min(omega_no_sponge.imag)
         dom_sponge = np.min(omega_sponge.imag)
         assert dom_sponge < dom_no_sponge, (
@@ -398,10 +400,10 @@ class TestSpatialEVPNumerics:
     def test_spatial_operator_structure(self):
         """Spatial operator matrices satisfy structural identities.
 
-        The spatial EVP matrices are constructed from three LNSE operators
-        at different Floquet shifts:
-            R0 = L(alpha=0), Lp = L(+delta), Lm = L(-delta)
-        with R1 = (Lp - Lm)/(2*delta), R2 = (Lp - R0 - R1*delta)/delta^2.
+        The spatial EVP matrices come from three LNSE operators at
+        different Floquet shifts.
+            R0 = L(alpha=0), Lp = L(+delta), Lm = L(-delta).
+        Then R1 = (Lp - Lm)/(2*delta) and R2 = (Lp - R0 - R1*delta)/delta^2.
 
         We verify Lc, R, Lw have the expected block structure.
         """

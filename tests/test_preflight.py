@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Unit tests for the preflight/post-run advisory layer.
+"""Check the preflight and post-run advisory layer.
 
-These are pure-function tests: no PETSc, no solve, no I/O. That is deliberate -- the
-advisory surface exists to be cheap enough that it can be exercised exhaustively on a
-laptop, so it cannot rot between cluster runs.
+These are pure-function checks: no PETSc, no solve, no I/O.
+That is deliberate -- the advisory layer exists to be cheap enough
+that a laptop can run it exhaustively.
+It cannot rot between cluster runs.
 
-Two properties matter more than any individual check and are tested as invariants:
+Two properties matter more than any individual check and hold as
+invariants.
 
-1. **Advisories never raise.** They run at the top of every job. An advisory that throws
-   on an odd config would abort runs that would otherwise have succeeded -- strictly
-   worse than the trap it guards.
-2. **Every advisory carries a remedy.** The whole point is that a first-time user learns
-   what to do, not merely that something is wrong.
+1. Advisories never raise. They run at the top of every job.
+   An advisory that throws on an odd config would abort runs that
+   would otherwise succeed.
+   That is strictly worse than the trap it guards.
+2. Every advisory carries a remedy. A first-time user must learn
+   what to set, not merely that a setting is off.
 """
 
 from __future__ import annotations
@@ -92,16 +95,17 @@ def test_stability_dissipation_off_is_flagged():
 
 
 def test_preflight_uses_the_same_defaults_as_the_driver():
-    """Guards the drift that caused the bug: both must read one constant.
+    """Guard the drift that caused the mismatch: both must read one constant.
 
-    If the driver's default flipped back to False while preflight still assumed True,
-    preflight would go quiet exactly when it is most needed.
+    If the driver's default flipped back to False while preflight still
+    assumed True, preflight would go quiet.
+    That is exactly when the advisory is most needed.
     """
     assert DISSIPATION_APPLY_DEFAULTS == {
         "apply_to_stability": True,
         "apply_to_resolvent": True,
     }
-    # With the switch unset, the shared default applies and nothing is flagged.
+    # With the switch unset, the shared default applies and nothing flags.
     assert "DISS-RESOLVENT-OFF" not in codes(config_advisories(_cfg()))
 
 
@@ -123,12 +127,14 @@ def test_enabled_with_zero_epsilon_is_flagged():
 def test_no_advisory_depends_on_beta():
     """beta must not trigger a sawtooth warning at any value.
 
-    A BETA-SAWTOOTH-BAND advisory used to fire for beta in 90-135 without effective
-    dissipation. It was withdrawn 2026-08-07: the band had never actually been run
-    with the bare operator, and when it was (beta = 110, two resolutions) the gain
-    came out 1.3098e+02 against 1.3099e+02 damped -- 0.008%. Whether the odd-even
-    mode exists is decided by the MESH, not by the spanwise wavenumber, so no
-    advisory here may key on beta.
+    A BETA-SAWTOOTH-BAND advisory used to fire for beta in 90-135 without
+    effective dissipation.
+    It was withdrawn 2026-08-07: the band had never actually been run
+    with the bare operator.
+    When it was (beta = 110, two resolutions) the gain came out
+    1.3098e+02 against 1.3099e+02 damped -- 0.008%.
+    The MESH decides whether the odd-even mode exists, not the spanwise
+    wavenumber, so no advisory here may key on beta.
 
     This is the inverse of the old test on purpose. If someone reintroduces a
     beta-keyed warning, this fails.
@@ -144,10 +150,13 @@ def test_no_advisory_depends_on_beta():
 def test_metric_cross_coupling_separates_rectilinear_from_curvilinear():
     """Zero for a tensor mesh -- exactly, not approximately -- and O(1) once bent.
 
-    The rectilinear case is the load-bearing one: x depends only on xi and y only on
-    eta, so the cross-metrics are identically zero and the odd-even mode has nowhere
-    to live. Stretching must not change that, which is why the tensor mesh below is
-    strongly graded in y and still expected to read zero.
+    The rectilinear case is the load-bearing one.
+    x depends only on xi and y only on eta.
+    The cross-metrics are identically zero and the odd-even mode has
+    nowhere to live.
+    Stretching must not change that.
+    The tensor mesh below is strongly graded in y and still expected to
+    read zero.
     """
     xi = np.linspace(0.0, 2.0, 40)
     eta = np.geomspace(1.0e-4, 1.0, 30)  # 4 decades of stretching
@@ -336,13 +345,16 @@ ADVISORY_PRODUCERS = [
 
 
 def test_every_advisory_producer_is_called_from_the_runtime():
-    """A guard nothing calls is worse than no guard: it reads as coverage.
+    """Check reachability. A guard nothing calls is worse than no guard.
 
-    Every test above this line passes whether or not the driver ever invokes these
-    functions. That gap is not hypothetical -- `baseflow_advisories` and
-    `translate_solver_error` shipped with 37 green tests and zero call sites, so the
-    freestream-normalisation gate and the MUMPS error translation never ran in
-    production. This test asserts reachability, which unit tests structurally cannot.
+    Every check above this line passes whether or not the driver ever
+    invokes these functions.
+    That gap is not hypothetical.
+    `baseflow_advisories` and `translate_solver_error` shipped with 37
+    green tests and zero call sites.
+    The freestream-normalisation gate and the MUMPS error translation
+    never ran in production.
+    Unit checks structurally cannot assert that reachability.
 
     A bare import does not count; the name must appear applied to arguments.
     """
@@ -423,9 +435,10 @@ def test_no_shipped_config_depends_on_the_old_resolvent_dissipation_default():
     """Pins the blast radius of flipping apply_to_resolvent to True.
 
     The claim when that default changed was 'no shipped config changes behaviour'.
-    That was an analysis; this makes it a test. A config that trips
-    DISS-RESOLVENT-OFF is one that asks for dissipation and then withholds it from
-    the resolvent -- exactly what the old default did silently.
+    That was an analysis; this makes it a check.
+    A config that trips DISS-RESOLVENT-OFF asks for dissipation and then
+    withholds it from the resolvent.
+    That is exactly what the old default did silently.
     """
     from linstabpy.utils.yaml_io import load_config
 
@@ -440,8 +453,9 @@ def test_no_shipped_config_depends_on_the_old_resolvent_dissipation_default():
 def test_the_production_template_does_not_ship_a_trap():
     """A file named 'production template' is what a new user copies first.
 
-    It shipped with no dissipation block at all, so the very first production run a
-    newcomer made would be sawtooth-contaminated with nothing in the log to say so.
+    It shipped with no dissipation block at all.
+    The very first production run a newcomer made would then be
+    sawtooth-contaminated with nothing in the log to say so.
     """
     from linstabpy.utils.yaml_io import load_config
 

@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Independent oracle for the LNSE block assembly.
+"""Independent action check for the LNSE block assembly.
 
 The raw block operator stacks five equations and five variables into a
-``(5*ngp, 5*ngp)`` matrix whose ``(i, j)`` block is
+``(5*ngp, 5*ngp)`` matrix.
+The ``(i, j)`` block is
 
     A0[i,j]*I + Ay[i,j]*DR + Ax[i,j]*DZ + Ayy[i,j]*D2R + Axx[i,j]*D2Z
-        + Axy[i,j]*D2RZ
+        + Axy[i,j]*D2RZ.
 
-with each coefficient vector left-multiplying (row-scaling) its derivative
-operator. The production assembler builds this via COO/CSR scatter and
-``bmat``/``hstack``-``vstack``. Those paths share the same placement logic, so
-checking one against the other is self-referential.
+Each coefficient vector left-multiplies (row-scales) its derivative
+operator.
+The production assembler builds this via COO/CSR scatter and
+``bmat``/``hstack``-``vstack``.
+Those paths share the same placement logic, so checking one against the
+other is self-referential.
 
-This oracle instead computes the operator *action* on a random stacked state
-through a completely separate route -- explicit per-(equation, variable)
-coefficient multiply and derivative application -- and asserts the assembled
-matrix reproduces it. A transposed block, a coefficient paired with the wrong
-derivative, or a misplaced ``(i, j)`` block diverges between the two paths and
-fails here.
+This check instead applies the operator to a random stacked state on a
+separate route.
+It multiplies each coefficient and applies each derivative per equation
+and variable.
+It then asserts the assembled matrix reproduces that action.
+A transposed block fails here.
+A coefficient paired with a mismatched derivative fails here.
+A misplaced ``(i, j)`` block fails here.
 """
 
 from __future__ import annotations
@@ -119,12 +124,12 @@ def _run_assembly_oracle(ngp: int = 12, seed: int = 20260601) -> dict:
 
 
 def test_block_assembly_matches_independent_action_oracle():
-    # Independent oracle: the assembled raw block operator must reproduce the
-    # per-(equation, variable) action computed without assembly. Covers both
-    # production paths (direct CSR scatter and bmat/hstack-vstack). A misplaced
-    # or transposed block, or a coefficient paired with the wrong derivative,
-    # diverges from the explicit action and fails here -- not a second
-    # transcription of the same placement logic.
+    # Independent action: the assembled raw block operator must reproduce the
+    # per-(equation, variable) action computed without assembly.
+    # Covers both production paths (direct CSR scatter and bmat/hstack-vstack).
+    # A misplaced or transposed block fails here.
+    # A coefficient paired with a mismatched derivative fails here.
+    # This is not a second transcription of the same placement logic.
     report = _run_assembly_oracle(ngp=12, seed=20260601)
     assert report["pass"], report
 

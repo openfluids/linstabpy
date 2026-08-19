@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Metamorphic oracle for the shared SciPy/PETSc LNSE assembly path."""
+"""Metamorphic check for the shared SciPy/PETSc LNSE assembly path."""
 
 from __future__ import annotations
 

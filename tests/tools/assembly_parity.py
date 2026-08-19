@@ -5,8 +5,9 @@ This tool supports two workflows:
 
 1. ``artifacts``: compare two ``.npz`` sparse-matrix artifacts.
 2. ``pair``: build a deterministic synthetic case twice (for example
-   ``scipy`` vs ``petsc``), compare the assembled operators, and optionally
-   save the resulting matrix artifacts.
+   ``scipy`` vs ``petsc``).
+   Compare the assembled operators.
+   Optionally save the resulting matrix artifacts.
 """
 
 from __future__ import annotations
