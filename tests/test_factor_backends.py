@@ -175,21 +175,24 @@ def test_factor_precision_double_is_inert_by_default(monkeypatch) -> None:
 def test_factor_precision_single_is_refused_not_silently_downgraded(monkeypatch) -> None:
     """Requesting a single-precision factor must raise, not quietly give double.
 
-    This test previously asserted that ``apply_factor_backend`` WROTE
-    ``("pc_precision", "single")`` into the options database -- and it passed,
-    for years, while the feature did nothing at all.  That is the whole lesson:
-    it checked that an option was *written*, never that it had an *effect*.  A
-    fake options object cannot tell the difference, so the no-op sailed through.
+    This check previously asserted that ``apply_factor_backend`` WROTE
+    ``("pc_precision", "single")`` into the options database.
+    It passed for years, while the feature did nothing at all.
+    That is the whole lesson: it checked that an option was *written*, never
+    that it had an *effect*.
+    A fake options object cannot tell the difference, so the no-op sailed
+    through.
 
-    What the option actually does was measured on c9, PETSc 3.24.2:
-    job 536 shows ``pc_precision`` still sitting unconsumed in the options
-    database after ``pc.setFromOptions()`` + ``ksp.setUp()``, and job 535 shows
-    "single" and "double" returning bit-identical results (residual 1.852e-06
-    both ways, eigenvalues equal to 12 digits).
+    A c9 run with PETSc 3.24.2 measured what the option actually does.
+    Job 536 shows ``pc_precision`` still sitting unconsumed in the options
+    database after ``pc.setFromOptions()`` + ``ksp.setUp()``.
+    Job 535 shows "single" and "double" returning bit-identical results
+    (residual 1.852e-06 both ways, eigenvalues equal to 12 digits).
 
     So the request is now refused outright rather than silently downgraded.
-    When a real mechanism exists, this test fails and must be rewritten to
-    assert the FP32 factor's measured effect -- not that an option was set.
+    When a real mechanism exists, this check fails.
+    Rewrite it to assert the FP32 factor's measured effect -- not that an
+    option was set.
     """
     with pytest.raises(NotImplementedError) as excinfo:
         _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="single")
@@ -200,7 +203,7 @@ def test_factor_precision_single_is_refused_not_silently_downgraded(monkeypatch)
 
 
 def test_factor_precision_double_still_writes_only_the_backend_option(monkeypatch) -> None:
-    """The default (double) path is untouched by the single-precision refusal."""
+    """The default (double) path stays as it was under the single-precision refusal."""
     options, pc = _apply_with_fake_options(monkeypatch, "superlu_dist", factor_precision="double")
 
     assert options.set_calls == [("pc_factor_mat_solver_type", "superlu_dist")]
@@ -612,11 +615,14 @@ def test_absent_backend_probe_and_error_message() -> None:
 def test_ensure_factor_backend_available_reports_the_truth_either_way(backend: str) -> None:
     """Absent -> loud, actionable RuntimeError.  Present -> returns quietly.
 
-    This used to ``pytest.skip`` whenever the backend WAS available, which is
-    honest (the reason is announced) but meant the all-backends venv got no
-    coverage of this function in either direction: the absent branch was skipped
-    there, and the present branch was asserted nowhere.  Both halves are cheap,
-    so assert whichever one applies instead of standing down.
+    This used to ``pytest.skip`` whenever the backend WAS available.
+    The skip reason is honest.
+    The all-backends venv then got no coverage of this function in either
+    direction.
+    The absent branch skipped there.
+    The present branch had no assertion.
+    Both halves are cheap, so assert whichever one applies instead of
+    standing down.
     """
     if backends.factor_backend_available(backend):
         # Present: the guard must NOT raise. A false alarm here would block a
@@ -637,10 +643,11 @@ def test_ensure_factor_backend_available_reports_the_truth_either_way(backend: s
 def test_apply_factor_backend_reports_the_truth_either_way(backend: str) -> None:
     """Absent -> loud RuntimeError.  Present -> the backend is actually applied.
 
-    Same reasoning as the sibling above: skipping on an all-backends build left
-    the "it really works when present" half unasserted everywhere, so a silent
-    substitution of another backend would have gone unnoticed on exactly the
-    machine that has the backends.
+    Same reasoning as the sibling above.
+    Skipping on an all-backends build left the "it really works when present"
+    half unasserted everywhere.
+    A silent substitution of another backend would have gone unnoticed on
+    exactly the machine that has the backends.
     """
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
@@ -674,24 +681,29 @@ def test_future_backend_knob_is_honoured_and_absence_fails_loudly(monkeypatch, b
     """The backend knob is always honoured; an ABSENT backend must fail loudly.
 
     Previously this asserted ``not factor_backend_available(backend)``
-    unconditionally, which encoded "the build is CPU-only" as a fact about the
-    world.  That is false on the all-backends GPU venv, where STRUMPACK and
-    SuperLU_DIST are both present, so the test failed for describing the build
-    rather than for any defect (measured on c9: 2 of the 3 parameters failed,
-    ``cudss`` passing only because cuDSS genuinely is not built).
+    unconditionally, which encoded "the build is CPU-only" as a fact about
+    the world.
+    That is false on the all-backends GPU venv, where STRUMPACK and
+    SuperLU_DIST are both present.
+    The check then failed for describing the build rather than for any
+    defect.
+    Measured on c9: 2 of the 3 parameters failed.
+    ``cudss`` passed only because cuDSS genuinely is not built.
 
-    The invariant worth guarding does not depend on the build: the knob must be
-    honoured either way, and the *unavailable* case must raise an actionable
-    error instead of silently falling back to MUMPS.  A silent fallback would
-    hand back a run labelled with a backend that never ran -- the same class of
-    defect as a default that lies.  So branch on the measured availability and
-    assert the appropriate half; neither branch is skipped, so both build types
-    get real coverage.
+    The invariant worth guarding does not depend on the build.
+    The knob must hold either way.
+    The *unavailable* case must raise an actionable error instead of
+    silently falling back to MUMPS.
+    A silent fallback would hand back a run labelled with a backend that
+    never ran.
+    That is the same class of defect as a default that lies.
+    So branch on the measured availability and assert the appropriate half.
+    Neither branch skips, so both build types get real coverage.
     """
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", backend)
     operator = sp.eye(2, format="csr", dtype=complex)
 
-    # Build-independent: the knob is honoured regardless of what is installed.
+    # Build-independent: the knob holds regardless of the PETSc build.
     assert backends.resolve_factor_backend(None) == backend
 
     if backends.factor_backend_available(backend):
@@ -824,11 +836,13 @@ def test_strumpack_fgmres_path_matches_plain_mumps_direct_when_available() -> No
 def test_strumpack_fgmres_backend_reports_the_truth_either_way() -> None:
     """strumpack_fgmres: absent STRUMPACK -> loud error; present -> builds a KSP.
 
-    Third and last member of the "skip when the backend is available" family
-    (the siblings are the two ``..._reports_the_truth_either_way`` tests above).
-    Skipping was announced rather than silent, so nothing was hidden -- but it
-    left the strumpack_fgmres selector completely unexercised on the one venv
-    that actually has STRUMPACK, which is where it matters most.
+    Third and last member of the "skip when the backend is available" family.
+    The siblings are the two ``..._reports_the_truth_either_way`` checks above.
+    Skipping was given as a skip reason rather than silent, so nothing
+    hid.
+    The strumpack_fgmres selector then never ran on the one venv that
+    actually has STRUMPACK.
+    That is the venv where it matters most.
     """
     if backends.factor_backend_available("strumpack"):
         ksp, A = _tiny_shifted_ksp("strumpack_fgmres")
@@ -863,7 +877,7 @@ def test_fgmres_selectors_honor_eigen_factor_solver_env_override(
 def test_strumpack_fgmres_cp5_probe_policy_is_active() -> None:
     assert backends.should_probe_backend("strumpack", st_solver="strumpack_fgmres")
     # The fgmres families are inexact outer solves: even the default MUMPS
-    # factor backend must be probed there, while plain direct MUMPS stays exempt.
+    # factor backend must run the probe there, while plain direct MUMPS stays exempt.
     assert backends.should_probe_backend("mumps", st_solver="fgmres_lu")
     assert backends.should_probe_backend("mumps", st_solver="strumpack_fgmres")
     assert not backends.should_probe_backend("mumps")
@@ -1354,19 +1368,21 @@ def test_resolve_auto_factor_backend_above_threshold_strumpack_available_yields_
 def test_resolve_auto_factor_backend_above_threshold_strumpack_unavailable_yields_mumps() -> None:
     """ndof >= threshold AND strumpack_available=False -> mumps fallback.
 
-    The routing decision under test is a pure function of its two arguments, so
-    it is exercised directly.  The old version first asserted
-    ``not factor_backend_available("strumpack")`` "so the test is live, not
-    mocked", which tied a pure-logic check to what happened to be installed on
-    the runner: on the all-backends GPU venv STRUMPACK *is* present, so the
-    guard fired and the fallback branch below was never reached.  The guard's
-    own message said "if STRUMPACK is now present, delete this guard" -- but
-    deleting it alone would leave the intent unrecorded, so it is replaced by
-    passing ``strumpack_available=False`` explicitly, which is what the branch
-    means and is true on every build.
+    The routing decision under test is a pure function of its two arguments,
+    so this check calls it directly.
+    The old version first asserted ``not factor_backend_available("strumpack")``
+    "so the check is live, not mocked".
+    That tied a pure-logic check to what happened to sit on the runner.
+    On the all-backends GPU venv STRUMPACK *is* present, so the guard fired
+    and the fallback branch below was never reached.
+    The guard's own message said "if STRUMPACK is now present, delete this
+    guard".
+    Deleting it alone would leave the intent unrecorded.
+    Pass ``strumpack_available=False`` explicitly instead, which is what
+    the branch means and is true on every build.
 
-    Live STRUMPACK behaviour is covered where it belongs, against a real solve,
-    in tests/test_gpu_backend_comparison.py.
+    Live STRUMPACK behaviour belongs against a real solve, in
+    tests/test_gpu_backend_comparison.py.
     """
     from linstabpy.linalg.backends import resolve_auto_factor_backend
 
@@ -1374,14 +1390,14 @@ def test_resolve_auto_factor_backend_above_threshold_strumpack_unavailable_yield
         "mumps"
     )
     # Sibling half of the same branch: below threshold is mumps too, so the
-    # assertion above cannot pass for the wrong reason.
+    # assertion above cannot pass for a reason other than the fallback.
     assert resolve_auto_factor_backend(1_000, threshold=224_000, strumpack_available=False) == (
         "mumps"
     )
 
 
 def test_default_resolution_still_yields_mumps(monkeypatch) -> None:
-    """Default factor_backend path is unchanged: no auto, no strumpack, just mumps."""
+    """Default factor_backend path stays: no auto, no strumpack, just mumps."""
     monkeypatch.delenv("LINSTABPY_FACTOR_BACKEND", raising=False)
     assert backends.resolve_factor_backend(None) == "mumps"
     cfg = Config.load({}, env={})
@@ -1425,14 +1441,14 @@ def test_auto_route_dof_threshold_default_and_precedence(monkeypatch) -> None:
 
 
 def test_apply_factor_backend_rejects_auto_with_clear_error() -> None:
-    """'auto' must never reach apply_factor_backend — it must be resolved first."""
+    """'auto' must never reach apply_factor_backend — resolve it first."""
     with pytest.raises(ValueError, match="factor_backend='auto' must be resolved"):
         backends.apply_factor_backend(_FakePC(), "auto")
 
 
 def test_auto_factor_backend_end_to_end_small_operator_matches_mumps() -> None:
-    """End-to-end: factor_backend='auto' on a small operator picks mumps on this box
-    (strumpack absent) and returns the same eigenvalue as explicit mumps."""
+    """End-to-end: factor_backend='auto' on a small operator picks mumps here
+    (strumpack absent) and matches the explicit-mumps eigenvalue."""
     if not backends.factor_backend_available("mumps"):
         pytest.skip("SKIPPED: missing MUMPS factor backend")
 

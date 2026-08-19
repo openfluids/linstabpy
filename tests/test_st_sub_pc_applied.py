@@ -1,21 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The ST sub-preconditioner must actually be the one that was configured.
+"""Check that the ST sub-preconditioner is the one the config asked for.
 
-Background
-----------
-``_configure_st_for_eigenvalue`` used to configure the ASM/BJacobi sub-PC by calling
-``getASMSubKSP()`` immediately, before ``eps.setUp()``. PETSc only materialises
-sub-solvers once the operator is attached, so that call raises ``ierr=58``; the error
-was swallowed and both ``sub_pc_type`` and ``pc_factor_levels`` were discarded.
+Background.
+``_configure_st_for_eigenvalue`` used to configure the ASM/BJacobi sub-PC by
+calling ``getASMSubKSP()`` immediately, before ``eps.setUp()``.
+PETSc only materialises sub-solvers once the caller attaches the operator,
+so that call raises ``ierr=58``.
+The except-path swallowed the error and discarded both ``sub_pc_type``
+and ``pc_factor_levels``.
 
-The failure was invisible for a specific reason worth remembering: PETSc's *default*
-sub-PC is also ``ilu``, so the configured **type** appeared to be honoured. Only the
-fill level differed -- a config asking for ILU(2) silently ran with ILU(0). Nothing
-was wrong with the converged eigenvalues; what was wrong was the iteration count, and
-therefore any cost figure attributed to that configuration.
+The failure was invisible for a specific reason worth remembering.
+PETSc's *default* sub-PC is also ``ilu``, so the configured **type**
+appeared to match.
+Only the fill level differed -- a config asking for ILU(2) silently ran
+with ILU(0).
+Nothing was off about the converged eigenvalues.
+What was off was the iteration count, and therefore any cost figure
+attributed to that configuration.
 
-These tests pin both halves: that deferral is *necessary*, and that after deferral the
-realized stack matches the requested one.
+These checks pin both halves: that deferral is *necessary*, and that after
+deferral the realized stack matches the requested one.
 """
 
 from __future__ import annotations
@@ -45,10 +49,11 @@ def _asm_ksp(n: int = 40):
 
 
 def test_sub_ksp_query_fails_before_setup() -> None:
-    """The reason the applier must be deferred, pinned as a fact rather than a comment.
+    """Pin why the applier waits until after setUp, as a fact rather than a comment.
 
-    If a future PETSc makes this work before setUp, this test fails and the deferral
-    can be revisited deliberately -- instead of the code carrying a stale rationale.
+    If a future PETSc makes this work before setUp, this check fails.
+    Then we can revisit the deferral deliberately -- instead of the
+    code carrying a stale rationale.
     """
     _ksp, pc = _asm_ksp()
     with pytest.raises(PETSc.Error):
@@ -57,7 +62,7 @@ def test_sub_ksp_query_fails_before_setup() -> None:
 
 @pytest.mark.parametrize("levels", [0, 1, 2, 3])
 def test_configured_fill_level_is_realized(levels: int) -> None:
-    """ILU(k) requested must be ILU(k) applied -- this is the bug that shipped."""
+    """ILU(k) requested must be ILU(k) applied -- this is the mismatch that shipped."""
     ksp, pc = _asm_ksp()
     apply = _make_sub_pc_applier(pc=pc, pc_type="asm", sub_pc_type="ilu", factor_levels=levels)
     ksp.setUp()
@@ -73,11 +78,13 @@ def test_configured_fill_level_is_realized(levels: int) -> None:
 
 
 def test_unrealizable_sub_pc_raises_instead_of_downgrading() -> None:
-    """A sub-PC that cannot be realized must raise, not fall back to a default.
+    """A sub-PC that cannot exist must raise, not fall back to a default.
 
-    The original code's ``except PETSc.Error: pass`` is precisely the shape excluded
-    here: a preconditioner quietly weaker than the one requested makes reported
-    iteration counts unattributable to the configuration that supposedly produced them.
+    The original code's ``except PETSc.Error: pass`` is precisely the shape
+    excluded here.
+    A preconditioner quietly weaker than the one requested makes reported
+    iteration counts unattributable to the configuration that supposedly
+    produced them.
     """
     ksp, pc = _asm_ksp()
     apply = _make_sub_pc_applier(
@@ -92,9 +99,10 @@ def test_unrealizable_sub_pc_raises_instead_of_downgrading() -> None:
 def test_no_silent_default_when_levels_differ() -> None:
     """0 and 2 must produce different realized values, not both the built-in default.
 
-    A first version of this verification passed the config keys at the wrong nesting
-    level, so every run reported factor_levels=2 -- the InexactCfg default -- and
-    looked correct. Distinguishing two values is what makes the check meaningful.
+    A first version of this verification passed the config keys at the
+    InexactCfg nesting, so every run reported factor_levels=2.
+    That is the InexactCfg default, and it looked correct.
+    Distinguishing two values is what makes the check meaningful.
     """
     seen = []
     for levels in (0, 2):

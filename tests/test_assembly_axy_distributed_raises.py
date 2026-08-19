@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Test that _apply_inv_B_petsc raises RuntimeError for axy + distributed PETSc.
 
-G-001 guard: axisymmetric model must fail fast with a clean RuntimeError
-when the PETSc matrix spans multiple MPI ranks, rather than silently
-corrupting data via petsc_to_scipy on a distributed matrix.
+G-001 guard: the axisymmetric model must fail fast with a clean RuntimeError
+when the PETSc matrix spans multiple MPI ranks.
+It must not silently corrupt data via petsc_to_scipy on a distributed matrix.
 """
 
 from __future__ import annotations

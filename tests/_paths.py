@@ -25,7 +25,7 @@ def require_existing(path: Path, description: str) -> Path:
 
 
 def martini_fixture(filename: str) -> Path:
-    """Return the canonical Martini parity fixture path."""
+    """Return the canonical Martini parity reference path."""
     subdir = MARTINI_FIXTURE_ROOT / "LinStab2DResults" / filename
     if subdir.is_file():
         return subdir

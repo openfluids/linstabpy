@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Regenerate the CPU/MUMPS parity reference fixture.
+"""Regenerate the CPU/MUMPS parity reference file.
 
-This helper is intentionally explicit: it is never imported by production code
-and never runs automatically from the parity test. To refresh the fixture after
-a reviewed numerical-baseline decision, run from the repository root:
+Production code never imports this generator.
+The parity check never runs it automatically.
+To refresh the reference after a reviewed numerical-baseline decision, run
+from the repository root:
 
     PYTHONPATH=src .venv/bin/python tests/regenerate_mumps_parity_reference.py
 """
@@ -32,7 +33,7 @@ REFERENCE_PATH = Path(__file__).with_name("fixtures") / "mumps_parity_reference.
 #   * within one build the solve is deterministic (repeat runs agree to 0.0);
 #   * across independently configured PETSc/MUMPS/BLAS builds the converged
 #     eigenvalues move by ~1e-8 relative (measured: CPU vs GPU-stack venv on the
-#     same host, identical nconv/ncv/eps_tol/backend). That is expected: the
+#     same host, identical nconv/ncv/eps_tol/backend). That movement follows: the
 #     eigensolver converges to eps_tol=1e-10 on the residual, and for a strongly
 #     non-normal operator such as the LNSE the eigenvalue error is that residual
 #     scaled by the eigenvalue condition number, so it exceeds eps_tol.
@@ -117,12 +118,12 @@ def _polluted_linstabpy_env() -> list[str]:
 
 
 def refuse_polluted_linstabpy_env() -> None:
-    """Abort fixture regeneration when ambient LINSTABPY_* settings are present."""
+    """Abort reference regeneration when ambient LINSTABPY_* settings are present."""
     polluted = _polluted_linstabpy_env()
     if polluted:
         joined = ", ".join(polluted)
         raise RuntimeError(
-            "refusing to regenerate MUMPS parity fixture with LINSTABPY_* "
+            "refusing to regenerate MUMPS parity reference with LINSTABPY_* "
             f"environment variables set: {joined}"
         )
 
@@ -138,13 +139,16 @@ def _solve_reference(operator, *, n_modes: int, target: complex):
 
 
 def compute_reference_quantities(n_modes: int | None = None) -> dict[str, Any]:
-    """Compute the stored default-path quantities for the parity fixture.
+    """Compute the stored default-path quantities for the parity reference.
 
-    ``n_modes`` overrides ``CASE_PARAMS["n_modes"]``. The guard passes the
-    fixture's ``stored_n_modes`` so the solve asks for every frozen mode
-    directly: the reference build converged a sixth mode (the other half of a
-    +/- pair at identical distance to the target) on top of the five requested,
-    and whether that happens is a rounding accident of the PETSc/BLAS build.
+    ``n_modes`` overrides ``CASE_PARAMS["n_modes"]``.
+    The guard passes the stored ``stored_n_modes`` so the solve asks for every
+    frozen mode directly.
+    The reference build converged a sixth mode on top of the five requested.
+    That sixth mode is the other half of a +/- pair at identical distance to
+    the target.
+    Whether that extra mode appears is a rounding accident of the PETSc/BLAS
+    build.
     """
     operator = build_reference_operator()
     target = complex(CASE_PARAMS["target_real"], CASE_PARAMS["target_imag"])
@@ -154,19 +158,19 @@ def compute_reference_quantities(n_modes: int | None = None) -> dict[str, Any]:
     stored_n_modes = requested_n_modes
     if nconv > eigenvalues.size:
         # The production eigenvalue API intentionally returns only the requested
-        # nearest modes.  For this parity fixture we freeze every converged mode
+        # nearest modes.  For this parity reference we freeze every converged mode
         # reported by the reviewed baseline solve, so a second solve extracts the
         # complete converged count instead of truncating a near-degenerate pair.
         eigenvalues, storage_info = _solve_reference(operator, n_modes=nconv, target=target)
         stored_n_modes = nconv
         if eigenvalues.size != nconv:
             raise RuntimeError(
-                "could not extract all converged modes for MUMPS parity fixture: "
+                "could not extract all converged modes for MUMPS parity reference: "
                 f"baseline nconv={nconv}, extracted={eigenvalues.size}"
             )
         if int(storage_info.get("nconv", eigenvalues.size)) != nconv:
             raise RuntimeError(
-                "MUMPS parity fixture regeneration is not stable across extraction solves: "
+                "MUMPS parity reference regeneration is not stable across extraction solves: "
                 f"baseline nconv={nconv}, storage nconv={storage_info.get('nconv')}"
             )
         info = {**info, "storage_solve_nconv": storage_info.get("nconv")}
@@ -192,7 +196,7 @@ def compute_reference_quantities(n_modes: int | None = None) -> dict[str, Any]:
 
 
 def write_reference(path: Path = REFERENCE_PATH) -> None:
-    """Regenerate the fixture file at *path*."""
+    """Regenerate the reference file at *path*."""
     quantities = compute_reference_quantities()
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(

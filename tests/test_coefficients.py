@@ -9,10 +9,11 @@ from linstabpy.operators.coefficients import compute_cylindrical_coefficients
 
 
 def test_cylindrical_singularity_bounded() -> None:
-    """A grid containing r = 0 is refused; strictly positive radii stay bounded.
+    """The solver refuses a grid containing r = 0; strictly positive radii stay bounded.
 
     The old mesh-spacing floor silently rewrote 1/R coefficients at real
-    near-axis points (jet example 2: gain 411.72 vs the 413.72 reference).
+    near-axis points.
+    Jet example 2 then gave gain 411.72 vs the 413.72 reference.
     r = 0 now raises, and a staggered grid keeps its true, finite 1/R terms.
     """
     import pytest

@@ -1,41 +1,48 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Parity protocol for candidate sparse-direct backends against MUMPS.
+"""Check candidate sparse-direct backends against the MUMPS reference.
 
-This module is the CPU skeleton for the future GPU/mixed-precision parity gate.
-The reference is the repository's validated MUMPS shifted-invert path.  A
-candidate backend is run on the same small Blasius temporal-LNSE EVP and must
-satisfy the same acceptance quantities already used by the stability tests:
+CPU skeleton for the future GPU/mixed-precision parity gate.
+The reference is the repository's validated MUMPS shifted-invert path.
+A candidate backend runs on the same small Blasius temporal-LNSE EVP.
+It must satisfy the same acceptance quantities already used by the
+stability checks.
 
 * ``postcheck_residual_rel <= 1e-6`` bounds each returned eigenpair by the
-  explicit full-operator residual from ``_postcheck_stability_modes``.  This is
-  the primary quality floor: a backend cannot be parity-equivalent if either its
-  modes or the MUMPS modes fail the existing postcheck residual gate.
-* ``postcheck_target_distance <= 0.11`` bounds that both spectra came from the
-  intended shift-invert target neighbourhood.  The tolerance matches the small
-  Blasius backend-comparison convention in ``tests/test_gpu_backend_comparison.py``.
-* Matching is conjugate-aware: the assignment cost between candidate and MUMPS
-  eigenvalues is ``min(|omega_c - omega_m|, |omega_c + conj(omega_m)|)``.  The
-  ``-conj(omega)`` mirror is the temporal-spectrum convention already used by
-  the backend parity helper in ``tests/test_gpu_backend_comparison.py``
-  (reflection across the imaginary axis: opposite real frequency, same growth
-  rate).
-* The candidate-to-MUMPS matched eigenvalue distance must be no larger than the
-  postcheck residual gate (``1e-6``).  That ties the parity distance to the
-  already accepted eigenpair-defect scale instead of introducing a separate
-  backend-specific epsilon.
+  explicit full-operator residual from ``_postcheck_stability_modes``.
+  This is the primary quality floor.
+  A backend cannot be parity-equivalent if either its modes or the
+  MUMPS modes fail the existing postcheck residual gate.
+* ``postcheck_target_distance <= 0.11`` bounds that both spectra came from
+  the intended shift-invert target neighbourhood.
+  The tolerance matches the small Blasius backend-comparison convention
+  in ``tests/test_gpu_backend_comparison.py``.
+* Matching is conjugate-aware: the assignment cost between candidate and
+  MUMPS eigenvalues is ``min(|omega_c - omega_m|, |omega_c + conj(omega_m)|)``.
+  The ``-conj(omega)`` mirror is the temporal-spectrum convention.
+  The backend parity path in ``tests/test_gpu_backend_comparison.py``
+  already uses it (reflection across the imaginary axis: opposite real
+  frequency, same growth rate).
+* The candidate-to-MUMPS matched eigenvalue distance must be no larger
+  than the postcheck residual gate (``1e-6``).
+  That ties the parity distance to the already accepted eigenpair-defect
+  scale instead of introducing a separate backend-specific epsilon.
 
-Each comparison also creates a structured quality/cost record with matrix size,
-nonzeros, factor-memory estimate, setup/solve wall times, rank/GPU counts, exact
-solver options, backend-probe readbacks, postcheck maxima, target-distance
-maxima, and matched eigenvalue distances.  The record is printed with a stable
-``PARITY_RECORD`` prefix while pytest capture is disabled so batch harnesses can
-collect it from normal test output.
+Each comparison also creates a structured quality/cost record.
+It holds matrix size, nonzeros, factor-memory estimate, and setup/solve
+wall times.
+It also holds rank/GPU counts, exact solver options, backend-probe
+readbacks, postcheck maxima, target-distance maxima, and matched
+eigenvalue distances.
+The record prints with a stable ``PARITY_RECORD`` prefix.
+Pytest capture stays off so batch scripts can collect it from normal
+test output.
 
-GPU execution is intentionally deferred.  The non-MUMPS self-test here uses the
-CPU HARD path requested by bead r3uu.1.6: SuperLU_DIST with PETSc
-``-pc_precision single`` (complex64 factor with FP64 refinement) when that PETSc
-build supports it.  If SuperLU_DIST is absent, the test skip reason is loud and
-explicit.
+GPU execution is intentionally deferred.
+The non-MUMPS self-check here uses the CPU HARD path requested by bead
+r3uu.1.6.
+That path is SuperLU_DIST with PETSc ``-pc_precision single`` (complex64
+factor with FP64 refinement) when that PETSc build supports it.
+If SuperLU_DIST is absent, the skip reason is loud and explicit.
 """
 
 from __future__ import annotations
@@ -191,8 +198,8 @@ def _factor_memory_probe(
         info = factor.getInfo() if factor is not None else {}
         verified_precision = factor_precision == "double"
         if factor_precision == "single":
-            # Verify from PETSc consumption, not request state: the option must
-            # have been read by PCSetUp (Options.used), and the factor solver
+            # Verify from PETSc consumption, not request state: PCSetUp must
+            # read the option (Options.used), and the factor solver
             # readback must be SuperLU_DIST.  An ignored/unsupported
             # -pc_precision leaves used() False and fails this check.
             verified_precision = (
@@ -337,25 +344,32 @@ def test_factor_precision_single_is_refused_rather_than_silently_downgraded() ->
     """Asking for a single-precision factor must fail loudly, not lie.
 
     This replaces ``test_superlu_dist_single_precision_vs_mumps_cpu_hard_path``,
-    whose premise was measured false on c9 (PETSc 3.24.2).  That test believed it
-    was comparing an FP32 factor against the MUMPS FP64 reference.  It was not:
+    whose premise a c9 run (PETSc 3.24.2) showed to be false.
+    That check believed it was comparing an FP32 factor against the MUMPS
+    FP64 reference.
+    It was not.
 
     * job 535 -- SuperLU_DIST with ``factor_precision`` "single" and "double"
-      returned BIT-IDENTICAL results: ``||Kx-b||/||b||`` = 1.852e-06 both ways,
-      eigenvalues agreeing to all 12 printed digits;
+      returned BIT-IDENTICAL results.
+      ``||Kx-b||/||b||`` = 1.852e-06 both ways, eigenvalues agreeing to all
+      12 printed digits.
     * job 536 -- the only lever in the code is the PETSc ``-pc_precision``
-      option, and after ``pc.setFromOptions()`` + ``ksp.setUp()`` that key is
-      still sitting unconsumed in the options database.
+      option.
+      After ``pc.setFromOptions()`` + ``ksp.setUp()`` that key is still
+      sitting unconsumed in the options database.
 
-    So the knob never did anything, and the 1.852e-06 the old test tripped over
-    was SuperLU_DIST's ordinary *double*-precision accuracy at this shift -- not
-    an FP32 effect.  Relaxing the probe threshold to make it pass, which is what
-    the failure superficially invites, would have silenced a real accuracy
-    signal to accommodate a feature that does not exist.
+    So the knob never did anything.
+    The 1.852e-06 the old check tripped over was SuperLU_DIST's ordinary
+    *double*-precision accuracy at this shift -- not an FP32 effect.
+    Relaxing the probe threshold to make it pass is what the failure
+    superficially invites.
+    That would hide a real accuracy signal to accommodate a feature that
+    does not exist.
 
-    ``apply_factor_backend`` now refuses the request outright.  This test pins
-    that refusal: when a genuine mechanism lands, it will fail and must be
-    rewritten into a real FP32-vs-FP64 comparison.
+    ``apply_factor_backend`` now refuses the request outright.
+    This check pins that refusal.
+    When a genuine mechanism lands, it will fail and must become a real
+    FP32-vs-FP64 comparison.
     """
     from linstabpy.linalg.backends import apply_factor_backend
 
@@ -382,22 +396,26 @@ def test_superlu_dist_is_rejected_by_the_backend_probe_at_a_hard_shift(
 ) -> None:
     """The accuracy gate must actually reject a backend that solves badly.
 
-    Measured on c9 at this problem and shift (TARGET = -0.1j, which sits close
-    to the spectrum and so makes ``K = L0 - sigma*I`` ill-conditioned), job 535:
+    Measured on c9 at this problem and shift (TARGET = -0.1j).
+    That target sits close to the spectrum and so makes
+    ``K = L0 - sigma*I`` ill-conditioned.
+    Job 535 numbers.
 
-        mumps         probe skipped (trusted default)
-        strumpack     ||Kx-b||/||b|| = 1.979e-12
-        superlu_dist  ||Kx-b||/||b|| = 1.852e-06   <- six decades worse
+        mumps         probe skipped (trusted default).
+        strumpack     ||Kx-b||/||b|| = 1.979e-12.
+        superlu_dist  ||Kx-b||/||b|| = 1.852e-06   <- six decades worse.
 
-    SuperLU_DIST also returned visibly wrong eigenvalues there: imaginary parts
-    differing from the MUMPS and STRUMPACK answers in the third significant
-    digit.  This is backend-specific and shift-specific -- at an easier shift
-    the same backend reaches 1.189e-13 -- which is exactly why the per-solve
-    probe exists rather than a static allow-list.
+    SuperLU_DIST also returned eigenvalues that do not match there.
+    Imaginary parts differ from the MUMPS and STRUMPACK answers in the
+    third significant digit.
+    This is backend-specific and shift-specific.
+    At an easier shift the same backend reaches 1.189e-13.
+    That is exactly why the per-solve probe exists rather than a static
+    allow-list.
 
-    Guarding the rejection keeps the safety net honest: if the probe is ever
-    loosened or bypassed, this test fails instead of a wrong spectrum flowing
-    silently into a gain map.
+    Guarding the rejection keeps the safety net honest.
+    If the probe is ever loosened or bypassed, this check fails.
+    A mismatched spectrum then cannot flow silently into a gain map.
     """
     if not factor_backend_available("superlu_dist"):
         pytest.skip("SKIPPED: superlu_dist not in this PETSc build")

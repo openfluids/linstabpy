@@ -1,27 +1,33 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Front-F oracle: pin the resolvent frequency-axis SIGN convention.
+"""Front-F closed form: pin the resolvent frequency-axis SIGN convention.
 
 Production factors the resolvent as ``H(omega) = (L0 - i*omega*I)^{-1}``
-(solvers/resolvent.py ``_shifted_operator``). For an ASYMMETRIC operator with a
-dominant eigenvalue ``lambda = -gamma + i*Omega`` (Omega != 0) the leading gain
-``sigma(omega) = 1 / sigma_min(L0 - i*omega*I)`` peaks at ``omega = +Omega =
-Im(lambda)``: the operator is closest to singular when ``i*omega`` meets the
-eigenvalue. The OPPOSITE shift ``(L0 + i*omega*I)`` would peak at ``-Omega`` -- a
-flipped frequency axis. This matters only for genuinely asymmetric / k_z != 0
-base flows (the production SWBLI / Savarino-like gain map); for a real/symmetric
-operator the gain is even in omega and both conventions agree, so every shipped
-symmetric example (Blasius spanwise-homogeneous, jet m=0, paraboloid m=5) is
-convention-invariant.
+(solvers/resolvent.py ``_shifted_operator``).
+Take an ASYMMETRIC operator with dominant eigenvalue
+``lambda = -gamma + i*Omega`` (Omega != 0).
+The leading gain peaks at ``omega = +Omega = Im(lambda)``.
+The gain is ``sigma(omega) = 1 / sigma_min(L0 - i*omega*I)``.
+The operator is closest to singular when ``i*omega`` meets the eigenvalue.
+The OPPOSITE shift ``(L0 + i*omega*I)`` would peak at ``-Omega``.
+That is a flipped frequency axis.
+This matters only for genuinely asymmetric / k_z != 0 base flows
+(the production SWBLI / Savarino-like gain map).
+For a real/symmetric operator the gain does not change when omega changes
+sign, so both conventions agree.
+Every shipped symmetric example (Blasius spanwise-homogeneous, jet m=0,
+paraboloid m=5) is convention-invariant.
 
-This is an INDEPENDENT closed-form oracle (a tiny diagonal complex operator whose
-resolvent peak frequency is known exactly), CI-only, no external data. It PINS
-the as-implemented convention so a wrong shift sign trips here. It does NOT edit
-the production shift -- that is STOP-gated (Front-F). If the intended convention
-is ever changed (Ricardo's call), the expected sign below flips with it.
+This is an independent closed form: a tiny diagonal complex operator whose
+resolvent peak frequency is known exactly.
+CI only; no external data.
+It pins the as-implemented convention so a flipped shift sign trips here.
+It does not edit the production shift -- that is STOP-gated (Front-F).
+If the intended convention ever changes (Ricardo's call), the expected
+sign below flips with it.
 
-Measured both-signs table (production H = (L0 - i*omega*I)^{-1}):
-    asymmetric  gain(+Omega)=5.000  gain(-Omega)=0.167  ratio 30x  -> DIFFER
-    symmetric   gain(+Omega)=0.329  gain(-Omega)=0.329  ratio  1.0 -> AGREE
+Measured both-signs table (production H = (L0 - i*omega*I)^{-1}).
+    Asymmetric: gain(+Omega)=5.000, gain(-Omega)=0.167, ratio 30x, DIFFER.
+    Symmetric: gain(+Omega)=0.329, gain(-Omega)=0.329, ratio 1.0, AGREE.
 """
 
 from __future__ import annotations
@@ -67,7 +73,7 @@ def _asymmetric_operator() -> sp.spmatrix:
 
 
 def _symmetric_operator() -> sp.spmatrix:
-    # Real eigenvalues -> resolvent gain is even in omega.
+    # Real eigenvalues: resolvent gain does not change when omega changes sign.
     return sp.diags(
         np.array([-0.5, -2, -3, -4, -5, -6, -7, -8], dtype=complex),
         format="csc",

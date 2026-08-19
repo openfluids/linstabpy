@@ -52,7 +52,7 @@ def _install_optional_petsc_stubs() -> None:
         pass
 
     class _FakeOptions:
-        # PETSc.Options().getAll() is queried by the cost-metrics provenance.
+        # Cost-metrics provenance reads PETSc.Options().getAll().
         def getAll(self):
             return {}
 
@@ -382,14 +382,14 @@ def test_apply_to_resolvent_false_isolates_stages(monkeypatch, tmp_path):
             '"apply_to_stability": true, "apply_to_resolvent": false}'
         ),
     )
-    # build_lnse_system is called once (stability only, run_resolvent=false by default)
-    # With apply_to_resolvent=false: eps_resolv=0.0, eps_stab=1.0
-    # The stability call uses eps_stab
+    # build_lnse_system runs once (stability only, run_resolvent=false by default).
+    # With apply_to_resolvent=false: eps_resolv=0.0, eps_stab=1.0.
+    # The stability call uses eps_stab.
     stab_epsilons = [kw["dissipation_epsilon"] for kw in build_lnse_kwargs]
     assert any(eps == 1.0 for eps in stab_epsilons), (
         f"Expected dissipation_epsilon=1.0 for stability, got: {stab_epsilons}"
     )
-    # eps_resolv is 0.0 when apply_to_resolvent=False; verify it is recorded in NPZ
+    # eps_resolv is 0.0 when apply_to_resolvent=False; the NPZ must store that.
     output_path = tmp_path / "case.npz"
     with np.load(output_path, allow_pickle=False) as data:
         assert data["solver_apply_to_resolvent_effective"].item() is False
@@ -397,7 +397,9 @@ def test_apply_to_resolvent_false_isolates_stages(monkeypatch, tmp_path):
 
 def test_cache_invalidation_on_config_change(monkeypatch, tmp_path):
     """Changing the config with the same output NPZ path must trigger recompute.
-    Verified by checking that build_lnse_system is called a second time."""
+
+    The second run must invoke build_lnse_system again.
+    """
     import time as _time
 
     # First run
@@ -443,6 +445,6 @@ def test_cache_invalidation_on_config_change(monkeypatch, tmp_path):
     )
     mtime_2 = output_path.stat().st_mtime
 
-    # Recompute must have happened (file mtime advanced and build was called again)
+    # Recompute must run (file mtime advanced and build ran again).
     assert mtime_2 > mtime_1, "NPZ was not rewritten on config change"
     assert len(build_calls_2) > 0, "build_lnse_system was not called in second run"

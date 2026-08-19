@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Metamorphic tests for linstabpy linear stability / resolvent analysis.
+"""Check metamorphic relations for linear stability and resolvent analysis.
 
-The oracle problem in scientific computing: there is no "correct answer" to
-compare against for a complex eigenvalue of a 2-D compressible LNSE operator.
-These tests instead verify mathematical *invariants* (metamorphic relations)
-that must hold across input transformations, independently of the reference
-solution.
+There is no closed-form answer for a complex eigenvalue of a 2-D
+compressible LNSE operator.
+Check mathematical *invariants* (metamorphic relations) that must hold
+across input transformations, independently of any reference solution.
 
 All tests are PURE NUMPY/SCIPY — no petsc4py, no slepc4py, no mpi4py, no
 linstabpy module imports.  Reason: every linstabpy sub-package (operators,
 mesh, boundary_conditions, baseflow) transitively imports ``linstabpy.utils.
 petsc_init``, which in turn imports ``petsc4py`` at module load time.  Pytest
 collection would therefore fail on systems without a PETSc installation.
-The tests below build the mathematical objects by hand and call
+The checks below build the mathematical objects by hand and call
 ``numpy.linalg.eig`` directly.
 
 Relations implemented
@@ -21,51 +20,54 @@ A. **Eigenvalue shift invariance**
    σ(A + α·I) = {λ + α : λ ∈ σ(A)} for any complex scalar α.
    Parametrized over three shifts.
 
-B. **Direct ↔ adjoint conjugacy**
-   For a weight matrix W = diag(w) with w > 0, define the weighted adjoint
-   A† = W⁻¹ A^H W.  Then σ(A†) = conj(σ(A)).
+B. **Direct ↔ adjoint conjugacy**.
+   For a weight matrix W = diag(w) with w > 0, define the weighted
+   adjoint A† = W⁻¹ A^H W.
+   Then σ(A†) = conj(σ(A)).
    Tested on random complex matrices with random positive diagonal weights.
    Parametrized over matrix sizes.
 
-C. **Eigenvector residual**
-   For every returned eigenpair (λᵢ, vᵢ): ‖A·vᵢ − λᵢ·vᵢ‖₂ / ‖vᵢ‖₂
+C. **Eigenvector residual**.
+   For every returned eigenpair (λᵢ, vᵢ), ‖A·vᵢ − λᵢ·vᵢ‖₂ / ‖vᵢ‖₂
    must be below 100× machine epsilon times ‖A‖_F.
-   This confirms numpy.linalg.eig satisfies its own definition, which would
-   break if an assembly or scaling bug produced a non-square or degenerate
-   operator.
+   This confirms numpy.linalg.eig satisfies its own definition.
+   An assembly or scaling error that produced a non-square or degenerate
+   operator would break that.
 
-F. **Chu energy norm Hermitian positive-definite**
-   The compressible energy norm (Chu 1965) is a diagonal 5×ngp matrix whose
-   entries are products of strictly positive mean-flow quantities.  We
-   reproduce the formula in closed form and verify: all W_diag > 0,
-   invW_diag = 1/W_diag to 14 significant figures, and W_diag = W_diag^H
+F. **Chu energy norm Hermitian positive-definite.**
+   The compressible energy norm (Chu 1965) is a diagonal 5×ngp matrix.
+   Its entries are products of strictly positive mean-flow quantities.
+   Reproduce the formula in closed form and verify all W_diag > 0.
+   Also invW_diag = 1/W_diag to 14 significant figures, and W_diag = W_diag^H
    (trivially true for real diagonal).
    Parametrized over (kappa, Ma) pairs covering subsonic and supersonic cases.
 
-H. **Reality symmetry — conjugate pairs**
+H. **Reality symmetry — conjugate pairs.**
    For a real matrix A ∈ ℝⁿˣⁿ, non-real eigenvalues appear in conjugate
-   pairs: if λ ∈ σ(A) then conj(λ) ∈ σ(A).
+   pairs.
+   If λ ∈ σ(A) then conj(λ) ∈ σ(A).
    Parametrized over matrix sizes.
 
 Relations skipped and why
 -------------------------
-D. **Resolvent lower bound** σ₁(s) ≥ 1/dist(s, σ(L)):
-   A full resolvent solve at a given frequency requires the linstabpy
+D. **Resolvent lower bound.** σ₁(s) ≥ 1/dist(s, σ(L)).
+   A full resolvent solve at a given frequency needs the linstabpy
    ``solvers.resolvent`` module, which imports PETSc/SLEPc at load time.
    Building a meaningful resolvent operator by hand (size >1000 DOF) without
-   linstabpy makes this a 30+ second test.  Deferred.
+   linstabpy makes this a 30+ second check.  Deferred.
 
 E. **Mesh-refinement convergence rate**:
    Covered by ``test_analytical.py`` (Orszag 1971 benchmark) which already
    exercises the SLEPc solver path.  Cannot be replicated as a pure-numpy
    test without rebuilding the SBP finite-difference stack from scratch.
 
-G. **Scale invariance under density scaling**:
-   The non-dimensional spectrum depends on Re and Ma in a way that is
-   entangled with the density scaling.  The exact scaling law requires
-   tracing through the inv(B) transformation and the coefficient matrices.
-   Skipped to avoid a fragile hand-coded derivation that might embed wrong
-   physics.
+G. **Scale invariance under density scaling.**
+   The non-dimensional spectrum depends on Re and Ma.
+   That dependence mixes with the density scaling.
+   The exact scaling law requires tracing through the inv(B)
+   transformation and the coefficient matrices.
+   Skipped to avoid a fragile hand-coded derivation that might embed
+   physics that does not match the operator.
 """
 
 from __future__ import annotations
@@ -116,9 +118,9 @@ _SHIFT_PARAMS = [
 def test_A_eigenvalue_shift_invariance(alpha: complex) -> None:
     """σ(A + α·I) = {λ + α : λ ∈ σ(A)} for any complex α.
 
-    Build one 12×12 random complex matrix A (seeded deterministically), then
-    verify that numpy.linalg.eig obeys the shift law for several α values.
-    The seed is fixed per (alpha) so each parametrize variant is independent.
+    Build one 12×12 random complex matrix A (seeded deterministically).
+    Then verify that numpy.linalg.eig obeys the shift law for several α values.
+    The seed stays fixed per (alpha) so each parametrize variant is independent.
     """
     rng = np.random.default_rng(42)
     n = 12
@@ -263,11 +265,11 @@ _CHU_PARAMS = [
 def test_F_chu_norm_positive_definite(kappa: float, Ma: float, label: str) -> None:
     """Chu energy norm weight matrix is Hermitian positive-definite.
 
-    Reproduces the formula from ``linstabpy/operators/energy_norm.py``:
+    Reproduces the formula from ``linstabpy/operators/energy_norm.py``.
 
-        W[rho block] = 0.5 * T / (rho * kappa * Ma²) * w_int
-        W[u,v,w block] = 0.5 * rho * w_int
-        W[T block] = 0.5 * rho / (kappa * (kappa-1) * T * Ma²) * w_int
+        W[rho block] = 0.5 * T / (rho * kappa * Ma²) * w_int.
+        W[u,v,w block] = 0.5 * rho * w_int.
+        W[T block] = 0.5 * rho / (kappa * (kappa-1) * T * Ma²) * w_int.
 
     Verified properties:
     1. All W_diag entries are strictly positive (products of positive inputs).
@@ -287,10 +289,10 @@ def test_F_chu_norm_positive_definite(kappa: float, Ma: float, label: str) -> No
 
     W_diag = 0.5 * np.concatenate(
         [
-            T / (rho * kappa * Ma2) * w_int,  # rho block
-            rho * w_int,  # u block
-            rho * w_int,  # v block
-            rho * w_int,  # w block
+            T / (rho * kappa * Ma2) * w_int,  # continuity
+            rho * w_int,  # streamwise
+            rho * w_int,  # wall-normal
+            rho * w_int,  # spanwise
             rho / (kappa * (kappa - 1.0) * T * Ma2) * w_int,  # T block
         ]
     )
@@ -329,9 +331,10 @@ def test_H_real_matrix_conjugate_pairs(n: int) -> None:
 
     If λ ∈ σ(A) and Im(λ) ≠ 0, then conj(λ) ∈ σ(A).
 
-    Implementation note: for each complex eigenvalue λ in the returned set,
-    we check that conj(λ) is also in the set within tolerance _EIG_ATOL.
-    Real eigenvalues (|Im| < _EIG_ATOL) are excluded from this check.
+    For each complex eigenvalue λ in the returned set, check that conj(λ)
+    is also present.
+    Use tolerance _EIG_ATOL.
+    Real eigenvalues (|Im| < _EIG_ATOL) stay out of this check.
     """
     rng = np.random.default_rng(55 + n)
     A = rng.standard_normal((n, n)).astype(float)  # explicitly real

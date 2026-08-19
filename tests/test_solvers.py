@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Tests for resolvent and eigenvalue solvers.
+"""Check resolvent and eigenvalue solvers.
 
-All tests in this file are marked @pytest.mark.slow.
+Every check in this file carries @pytest.mark.slow.
 """
 
 import json
@@ -497,14 +497,16 @@ def test_resolvent_svd_residual_norm() -> None:
 def test_resolvent_svd_residual_uses_w_norm_numerator() -> None:
     """rho_fwd numerator must use the W-norm, not the unweighted 2-norm.
 
-    A norm-mismatched residual (2-norm numerator over W-norm denominator)
-    amplifies a tiny parallel-FP jitter into a spurious ~1e-7 reading under MPI
-    when the Chu weight spans orders of magnitude. The measure must be
-    W-consistent. This builds a diagonal (analytic) resolvent action, injects a
-    known error e on a high-weight component, and asserts rho_fwd equals the
-    W-norm prediction ||e||_W/(sigma||v||_W) -- which differs ~1000x from the
-    2-norm prediction here. See
-    resolvent/docs/mpi_resolvent_residual_investigation.md.
+    A 2-norm numerator over a W-norm denominator is a mismatched residual.
+    That mismatch amplifies a tiny parallel-FP jitter into a spurious ~1e-7
+    reading under MPI.
+    That happens when the Chu weight spans orders of magnitude.
+    The measure must be W-consistent.
+    Build a diagonal (analytic) resolvent action.
+    Inject a known error e on a high-weight component.
+    Assert rho_fwd equals the W-norm prediction ||e||_W/(sigma||v||_W).
+    That prediction differs ~1000x from the 2-norm prediction here.
+    See resolvent/docs/mpi_resolvent_residual_investigation.md.
     """
     diag = -np.array([1.0, 2.0, 3.0, 4.0], dtype=float)
     L0 = sp.diags(diag, format="csc", dtype=complex)
@@ -538,8 +540,8 @@ def test_resolvent_svd_residual_uses_w_norm_numerator() -> None:
         gamma=0.0,
     )
 
-    expected_w = float(np.sqrt(np.real(e.conj() @ (W_diag * e)))) / sigma  # W-norm, ||v||_W==1
-    expected_2 = float(np.linalg.norm(e)) / sigma  # unweighted 2-norm
+    expected_w = float(np.sqrt(np.real(e.conj() @ (W_diag * e)))) / sigma  # Chu residual
+    expected_2 = float(np.linalg.norm(e)) / sigma  # Euclidean residual
     np.testing.assert_allclose(rho_fwd[0], expected_w, rtol=1e-7)
     assert abs(rho_fwd[0] - expected_2) > 0.5 * expected_w, (
         f"rho_fwd={rho_fwd[0]:.3e} matches the 2-norm prediction {expected_2:.3e}, "
@@ -623,7 +625,7 @@ class TestResolventAnalysis:
     """Tests for the resolvent_analysis solver."""
 
     def test_gain_monotonicity(self, blasius_problem):
-        """Singular values must be sorted in decreasing order."""
+        """Singular values must decrease with index."""
         _, _, L0, _, ngp, W_diag, _ = blasius_problem
         gains, _, _ = resolvent_analysis(L0, omega=60.0, n_modes=3, W_diag=W_diag)
         assert gains[0] >= gains[1] >= gains[2] > 0
@@ -797,7 +799,7 @@ class TestTemporalEigenvalues:
             assert rel_err < 1e-6, f"Mode {i}: relative residual {rel_err:.2e}"
 
     def test_eigenvalues_near_target(self, blasius_problem):
-        """Eigenvalues should be sorted by distance to the target."""
+        """Eigenvalues must sit in order of distance to the target."""
         _, _, L0, _, _, _, _ = blasius_problem
         target = -0.1j
         omega, _ = temporal_eigenvalues(L0, n_modes=5, target=target)
@@ -1078,8 +1080,9 @@ class TestAdjointEigenvalues:
     def test_adjoint_eigenvector_residual(self, blasius_problem):
         """Adjoint eigenvector must satisfy L_adj @ v = omega_a * v.
 
-        adjoint_eigenvalues builds L_adj = W^{-1} L0^H W (the raw adjoint
-        of L0, NOT the temporal adjoint of i*L0) and returns its eigenvalues.
+        adjoint_eigenvalues builds L_adj = W^{-1} L0^H W.
+        That is the raw adjoint of L0, not the temporal adjoint of i*L0.
+        adjoint_eigenvalues then returns those eigenvalues.
         """
         _, _, L0, _, _, W_diag, invW_diag = blasius_problem
         omega_a, modes_a = adjoint_eigenvalues(
@@ -1123,9 +1126,10 @@ class TestAdjointEigenvalues:
     def test_adjoint_temporal_scaling(self, blasius_problem):
         """temporal=True flag should return conj(direct_omegas).
 
-        When adjoint_eigenvalues is called with temporal=True and the same
-        target as temporal_eigenvalues, the returned eigenvalues should be
-        np.conj(direct_omegas) (up to spectral-neighborhood ordering).
+        When the caller passes temporal=True and the same target as
+        temporal_eigenvalues, the returned eigenvalues must be
+        np.conj(direct_omegas).
+        Ordering may follow the spectral neighbourhood.
         """
         _, _, L0, _, _, W_diag, invW_diag = blasius_problem
         omega_d, _ = temporal_eigenvalues(L0, n_modes=3, target=-0.1j)
@@ -1224,7 +1228,8 @@ class TestSpatialEigenvalues:
         """Spatial eigenvalues are finite; eigenvectors are nonzero.
 
         On this small 15x10 grid, R is rank-deficient after penalty BCs
-        (rank 1495 of 1500), so the generalized EVP is ill-conditioned.
+        (rank 1495 of 1500).
+        The generalized EVP is therefore ill-conditioned.
         We verify structural properties rather than the eigenpair residual.
         """
         _, _, Lc, Lw, R_mat, _ = spatial_problem

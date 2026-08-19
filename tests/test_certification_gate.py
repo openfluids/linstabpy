@@ -157,8 +157,9 @@ def test_multi_seed_rsvd_positive_and_single_seed_disagreement_negative():
     assert ok.passed
 
     # Planted defect: stateless input-dependent drift makes the randomized
-    # normal action seed-sensitive.  A broken multi-seed check that reuses one
-    # seed would see identical probe vectors and miss this disagreement.
+    # normal action seed-sensitive.
+    # A multi-seed check that reuses one seed would see identical probe vectors
+    # and miss this disagreement.
     drift = np.array([1.0, -0.5j, 0.25, 0.1j], dtype=complex)
 
     def seed_sensitive_apply(x):
@@ -186,7 +187,7 @@ def test_certified_rsvd_matches_independent_direct_lu_oracle():
     finally:
         fac.destroy()
 
-    # Independent direct-LU oracle: form H from dense direct solves and compute
+    # Independent direct LU: form H from dense direct solves and compute
     # its singular values with NumPy, not by snapshotting certified_rsvd output.
     oracle_gain = np.linalg.svd(h, compute_uv=False)[0]
     assert report.passed

@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Analytical benchmark tests against classical hydrodynamic stability results.
+"""Check the pipeline against classical hydrodynamic stability results.
 
-These tests validate the entire linstabpy pipeline — coefficient computation,
-operator assembly, inv(B) application, boundary conditions, and eigenvalue
-solver — against known analytical/reference solutions from the literature.
+The checks cover coefficient computation, operator assembly, inv(B),
+boundary conditions, and the eigenvalue solver.
+The references are known analytical and literature solutions.
 
 For parallel flows (U = U(y) only), the 2D global solver reduces to the
-equivalent 1D Orr-Sommerfeld problem via:
+equivalent 1D Orr-Sommerfeld problem.
 
-  - Periodic x-mesh (x_periodicity=True, small nx) — x-direction transparent
-  - floquet_exp=α — streamwise wavenumber α imposed via Floquet shift on Dx
-  - kx=0 — 2D perturbation (no spanwise variation)
+  - Periodic x-mesh (x_periodicity=True, small nx): x-direction is transparent.
+  - floquet_exp=α: Floquet shift on Dx imposes streamwise wavenumber α.
+  - kx=0: 2D perturbation (no spanwise variation).
 
 Eigenvalue convention (verified empirically):
 
@@ -39,7 +39,7 @@ from linstabpy.operators import build_lnse_operator
 from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 # ---------------------------------------------------------------------------
-# Helper: build parallel-flow LNSE problem
+# Factory: build a parallel-flow LNSE problem.
 # ---------------------------------------------------------------------------
 
 
@@ -263,7 +263,7 @@ class TestCouetteFlow:
 
     @pytest.mark.slow
     def test_couette_all_stable(self):
-        """All eigenvalues of Couette flow are damped."""
+        """All eigenvalues of Couette flow must have Im(ω) < 0."""
         d = _build_parallel_flow(
             self._couette,
             yrange=(-1, 1),
@@ -298,8 +298,8 @@ class TestMixingLayerKH:
     """Hyperbolic-tangent mixing layer: U(y) = 0.5·(1 + tanh(2y)).
 
     Reference: Michalke (1964), JFM 19:543–556.
-    The tanh(2y) profile scales the classical cutoff by approximately 2:
-    it is unstable for lower α and stable once α is above the scaled cutoff.
+    The tanh(2y) profile scales the classical cutoff by approximately 2.
+    It is unstable for lower α and stable once α is above the scaled cutoff.
     Maximum growth rate near α ≈ 0.4446.
 
     Code convention: unstable modes have Im(ω) > 0.

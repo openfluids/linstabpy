@@ -37,9 +37,11 @@ def test_every_row_states_its_build_and_box() -> None:
 
 
 def test_every_row_states_what_made_its_cost() -> None:
-    """Same commit, same box: reference BLAS vs MKL was 5.6x on the factor,
-    rank placement 1.6x, ncv 2.5x on the solves (jobs 1850/1859/1861). A row
-    without these four cannot be compared with another."""
+    """Same commit, same box.
+    Reference BLAS vs MKL was 5.6x on the factor, rank placement 1.6x, ncv
+    2.5x on the solves (jobs 1850/1859/1861).
+    A row without these four cannot sit next to another row in a comparison.
+    """
     for column in ("blas", "ncv", "n_anchor", "pin_domain"):
         assert column in FIELDS
 
@@ -55,8 +57,10 @@ def test_pin_domain_names_the_placement_the_job_asked_for() -> None:
 
 
 def test_walk_rows_carry_the_farm_cost_columns() -> None:
-    """A cost comparison needs the same measurements on both sides, and a
-    gain needs the same certification (rho_fwd, rho_adj) on both sides."""
+    """A cost comparison needs the same measurements on both sides.
+
+    A gain needs the same certification (rho_fwd, rho_adj) on both sides.
+    """
     farm_cols = FARM_CSV.read_text(encoding="utf-8").splitlines()[0].split(",")
     for column in ("wall_s", "peak_rss_bytes", "ndof", "ranks", "git_sha", "machine", "rho_fwd", "rho_adj"):
         assert column in farm_cols
@@ -79,8 +83,10 @@ def test_walk_peak_rss_means_the_same_as_the_farm_column() -> None:
 
 def test_gen_mapwalk_campaign_writes_the_arm_into_the_job_script(tmp_path, monkeypatch) -> None:
     """The job script must carry its own placement, interpreter, ncv and
-    n_anchor; a run that inherits them from the submitting shell is not
-    reproducible from the script."""
+    n_anchor.
+    A run that inherits them from the submitting shell is not reproducible
+    from the script.
+    """
     import examples.savarino.gen_mapwalk_campaign as gen
 
     monkeypatch.setattr(
@@ -106,7 +112,9 @@ def test_gen_mapwalk_campaign_writes_the_arm_into_the_job_script(tmp_path, monke
 
 def test_every_row_names_the_solver_that_factored_it() -> None:
     """CPU (MUMPS) and GPU (FGMRES around a STRUMPACK LU) rows share one CSV
-    layout in the 2x2 cost matrix; the row must say which it was."""
+    layout in the 2x2 cost matrix.
+    The row must say which solver factored it.
+    """
     import yaml
 
     from examples.savarino.savarino_mapwalk import _backend_label

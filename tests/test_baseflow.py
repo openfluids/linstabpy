@@ -146,7 +146,7 @@ class TestBlasiusLoader:
 # LINSTABPY_MATLAB_PARITY=1 asks for it.
 @matlab_parity
 def test_streaky_bl_loader_matches_matlab_exported_base_bundle() -> None:
-    # This test needs TWO references, and the guard must cover BOTH. Checking only the
+    # The loader needs TWO references, and the guard must cover BOTH. Checking only the
     # npz bundle meant that restoring it -- while the .mat base-flow directory stayed
     # absent -- turned a clean skip into a hard FileNotFoundError that reads like a
     # numerical parity failure. A partially satisfied guard is worse than an unsatisfied

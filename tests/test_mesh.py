@@ -1,28 +1,30 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Comprehensive tests for the linstabpy.mesh module.
+"""Check the linstabpy.mesh module.
 
 Covers SBP stencils, 1-D derivative operators, integration, mesh creation,
 deformation, masking, pole stencils, and periodic operators.
 
-Notes on the 2-D operator layout
----------------------------------
+Notes on the 2-D operator layout.
 The 2-D operator assembly in ``_build_operators`` iterates over unique
-coordinate values to build 1-D SBP operators along each grid line
-(matching MATLAB ``AddDW2mesh.m``).  Data is flattened in column-major
-(Fortran) order to match MATLAB indexing.  The operators satisfy the
-standard convention:
+coordinate values.
+It builds 1-D SBP operators along each grid line
+(matching MATLAB ``AddDW2mesh.m``).
+The assembler flattens data in column-major (Fortran) order to match MATLAB
+indexing.
+The operators satisfy the standard convention.
 
-    - ``Dx @ x_flat = 1``  (Dx differentiates along x)
-    - ``Dx @ y_flat = 0``  (Dx does not differentiate along y)
-    - ``Dy @ y_flat = 1``  (Dy differentiates along y)
-    - ``Dy @ x_flat = 0``  (Dy does not differentiate along x)
+    - ``Dx @ x_flat = 1``.  (Dx differentiates along x)
+    - ``Dx @ y_flat = 0``.  (Dx does not differentiate along y)
+    - ``Dy @ y_flat = 1``.  (Dy differentiates along y)
+    - ``Dy @ x_flat = 0``.  (Dy does not differentiate along x)
 
 This works for both square (``nx == ny``) and rectangular (``nx != ny``)
 grids.
 
 Pole-condition operators (``build_sbp_pole_matrices``) only work for
 **order 2**; higher orders raise a broadcasting error in the Mohseni
-pole-stencil code.  Tests are parametrised only over order 2.
+pole-stencil code.
+These checks cover order 2 only.
 """
 
 from __future__ import annotations
@@ -43,7 +45,7 @@ from linstabpy.mesh import (
 from linstabpy.mesh.mesh import _axm_diag, _build_periodic_1d_operators
 
 # ===================================================================
-# Helper: square-mesh factory (nx == ny)
+# Square-mesh factory (nx == ny)
 # ===================================================================
 
 
@@ -120,8 +122,10 @@ class TestSBPStencils:
 # TestSBPProperty
 # ===================================================================
 class TestSBPProperty:
-    """Verify fundamental SBP properties: constant preservation, row-sum
-    condition, and (for order 2) the full SBP identity Q + Q^T = B."""
+    """Check constant preservation, the row-sum condition, and the SBP identity.
+
+    For order 2 the identity is Q + Q^T = B.
+    """
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
     @pytest.mark.parametrize("n", [20, 40, 60, 80])
@@ -608,7 +612,7 @@ class TestMeshDeformation:
         np.testing.assert_allclose(mesh_def.X, mesh.X)
 
     def test_shape_mismatch_raises(self, small_mesh_2d):
-        """Deform with wrong shape raises ValueError."""
+        """Deform with a mismatched array shape raises ValueError."""
         mesh = small_mesh_2d
         wrong_shape = np.ones((5, 5))
         with pytest.raises(ValueError):
@@ -660,7 +664,7 @@ class TestMeshMasking:
             mesh.mask(mask)
 
     def test_mask_shape_mismatch(self, small_mesh_2d):
-        """Mask with wrong shape raises ValueError."""
+        """Mask with a mismatched array shape raises ValueError."""
         mesh = small_mesh_2d
         wrong_mask = np.ones((5, 5), dtype=bool)
         with pytest.raises(ValueError):
@@ -682,8 +686,8 @@ class TestMeshMasking:
 class TestPoleStencils:
     """Verify pole-compatible SBP operators for cylindrical coordinates.
 
-    Only order 2 is supported (higher orders raise a broadcasting error
-    in the Mohseni pole-stencil code).
+    Only order 2 works.
+    Higher orders raise a broadcasting error in the Mohseni pole-stencil code.
     """
 
     def test_pole_matrices_have_correct_shape(self):
@@ -696,8 +700,8 @@ class TestPoleStencils:
     def test_pole_d1_sym_row0_modified(self):
         """D1_sym row 0 should match the Mohseni symmetric pole closure.
 
-        For the order-2 interior stencil ``[-1/2, 0, 1/2]``, the symmetric
-        pole folding turns the first stored row into ``[-1/2, 1/2] / dz``.
+        The order-2 interior stencil is ``[-1/2, 0, 1/2]``.
+        Symmetric pole folding turns the first stored row into ``[-1/2, 1/2] / dz``.
         This is the closure used by the MATLAB reference operators.
         """
         n = 40

@@ -90,7 +90,7 @@ def test_assembly_parity_cli_pair_and_artifacts(model: str, tmp_path: Path):
 
 
 def test_assembly_parity_cli_runs_default_eigen_sanity(tmp_path: Path):
-    """The default pair mode executes the eigenvalue sanity check on the small harness case."""
+    """The default pair mode executes the eigenvalue sanity check on the small equivalence case."""
     output = tmp_path / "pair_default_eigs.json"
 
     run = subprocess.run(

@@ -60,13 +60,17 @@ def _cfg(mesh, *, danger_radius, regime_b_gamma=None):
 
 
 def test_resolvent_map_near_pole_routes_regime_b_finite_gain():
-    """End-to-end: a NEAR_POLE point is computed via regime-b (gamma>0) with a FINITE gain.
+    """End-to-end: a NEAR_POLE point uses regime-b (gamma>0) with a FINITE gain.
 
     A large danger_radius forces the band-marker to label the forcing frequency
-    NEAR_POLE; the discounted-resolvent wiring must then (a) route it to
-    engine='regime-b', (b) record the discount gamma, and (c) yield a finite gain
-    (the CP1 well-posedness gate). The pole-taming numerics themselves are covered
-    by tests/test_resolvent_discount.py; here we prove the resolvent_map wiring.
+    NEAR_POLE.
+    The discounted-resolvent wiring must then (a) route it to
+    engine='regime-b'.
+    It must (b) record the discount gamma.
+    It must (c) yield a finite gain.
+    That finite gain is the CP1 well-posedness gate.
+    tests/test_resolvent_discount.py covers the pole-taming numerics.
+    This check proves the resolvent_map wiring.
     """
     pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     pytest.importorskip("slepc4py", reason="SKIPPED: missing SLEPc stack")
@@ -88,7 +92,7 @@ def test_resolvent_map_near_pole_routes_regime_b_finite_gain():
 
 
 def test_resolvent_map_stable_point_regime_a_bit_identical_to_gamma0():
-    """A STABLE point still uses regime-a (gamma=0) and matches the direct gamma=0 oracle."""
+    """A STABLE point still uses regime-a (gamma=0) and matches the direct gamma=0 path."""
     pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     pytest.importorskip("slepc4py", reason="SKIPPED: missing SLEPc stack")
 
@@ -125,7 +129,7 @@ def test_resolvent_map_stable_point_regime_a_bit_identical_to_gamma0():
         mesh.ngp,
     )
     direct_gains, *_ = resolvent_analysis(L0, float(omega[0]), 1, W_diag, solver_cfg=cfg)
-    # gamma=0 regime-a path must be bit-identical to the direct gamma=0 oracle
+    # gamma=0 regime-a path must be bit-identical to the direct gamma=0 path.
     np.testing.assert_allclose(result.gain[0, 0], direct_gains[0], rtol=1.0e-7, atol=1.0e-7)
 
 

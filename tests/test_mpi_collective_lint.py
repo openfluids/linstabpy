@@ -1,29 +1,38 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Source-wide lint: no MPI collective inside a rank-0-only region.
+"""Scan sources so no MPI collective sits inside a rank-0-only region.
 
-Why this is a source scan and not a runtime test
+Why this is a source scan and not a runtime check.
 ------------------------------------------------
-An MPI collective (``allreduce``, ``bcast``, ``barrier``, ...) reached by only one
-rank hangs every other rank forever. The serial test suite runs at size 1, where
-rank 0 is the only rank, so the deadlock is *structurally invisible* -- the suite
-goes green and the bug surfaces only on a multi-rank cluster run, typically after
-a long queue wait. That is exactly how it happened here: a reduction placed inside
-the rank-0-only NPZ writer deadlocked every multi-rank run while the suite passed.
+An MPI collective (``allreduce``, ``bcast``, ``barrier``, ...) reached by only
+one rank hangs every other rank forever.
+The serial test suite runs at size 1, where rank 0 is the only rank.
+The deadlock stays structurally invisible.
+The suite goes green.
+The hang appears only on a multi-rank cluster run, typically after a long
+queue wait.
+That is what happened here.
+A reduction inside the rank-0-only NPZ writer deadlocked every multi-rank
+run while the suite passed.
 
-``test_refactorize_mpi_guard.py`` covers one function's collective branch agreement.
-This file covers the whole package, and it is cheap: pure AST, no MPI, no PETSc.
+``test_refactorize_mpi_guard.py`` covers one function's collective branch
+agreement.
+This scan covers the whole package.
+It is cheap: pure AST, no MPI, no PETSc.
 
-Two shapes are detected, because both make a region rank-0-only:
+The scan detects two shapes.
+Both make a region rank-0-only.
 
 1. ``if rank == 0:`` -- collectives lexically inside the body.
 2. ``if rank != 0: return`` -- collectives anywhere in the rest of the function.
 
-The fix is always the same: do the collective in the collective region, then pass
-the resulting scalar/array into the rank-0 block.
+The repair is always the same.
+Do the collective in the collective region.
+Then pass the resulting scalar or array into the rank-0 block.
 
-If a collective here is ever genuinely correct (e.g. on a sub-communicator that
-really does contain only this rank), name that communicator so it does not match
-``*rank*``, or restructure -- do not weaken the lint.
+If a collective here is ever genuinely correct, name that communicator so it
+does not match ``*rank*``, or restructure.
+An example is a sub-communicator that really does contain only this rank.
+Do not weaken the lint.
 """
 
 from __future__ import annotations
@@ -152,7 +161,7 @@ def test_no_mpi_collective_in_rank_zero_region() -> None:
 
 # ----------------------------------------------------------------------------------
 # Positive controls. A lint that has never been shown to fire is indistinguishable
-# from one that cannot fire -- these pin its sensitivity to both bug shapes.
+# from one that cannot fire -- these pin its sensitivity to both deadlock shapes.
 # ----------------------------------------------------------------------------------
 
 VIOLATING_IF_BLOCK = """

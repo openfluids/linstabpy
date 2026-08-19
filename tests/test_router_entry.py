@@ -168,7 +168,7 @@ def test_skip_band_marking_bypasses_evp_and_forces_regime_a(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     # Fake seams would label SMOOTH if band-marking ran; the override below turns
-    # any call into a hard failure, so a green test proves the EVP was skipped.
+    # any call into a hard failure, so a green result proves the EVP did not run.
     _install_fake_seams(monkeypatch, labels=(SMOOTH,))
 
     def _must_not_run(*_args, **_kwargs):

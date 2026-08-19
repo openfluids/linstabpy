@@ -207,9 +207,11 @@ def test_first_two_frequencies_are_mumps_anchors(mumps_or_skip: None) -> None:
 
 
 def test_every_point_carries_the_farm_svd_residuals(mumps_or_skip: None) -> None:
-    """A direct point is certified like a farm point: rho_fwd / rho_adj of the
-    returned triplet, computed with one forward and one adjoint apply, at the
-    farm's own level (the 200-point farm rows sit at 1e-9 .. 6e-9)."""
+    """A direct point carries rho_fwd / rho_adj like a farm point.
+
+    Compute those residuals with one forward and one adjoint apply.
+    The farm's own level is 1e-9 .. 6e-9 on the 200-point farm rows.
+    """
     from linstabpy.resolvent.analysis import resolvent_analysis
 
     L0 = _operator()

@@ -91,7 +91,7 @@ def test_round_trip_maps_conservative_momentum_to_primitive_T() -> None:
     g = np.zeros(ndof, dtype=complex)
     g[momentum_dofs] = f_c[momentum_dofs] / momentum_dewhiten[momentum_dofs]
 
-    # Round trip: de-whitening g must reproduce f_c exactly.
+    # Invert: de-whitening g must reproduce f_c exactly.
     f_c_recovered = dewhiten_forcing(g, momentum_dewhiten, momentum_dofs)
     np.testing.assert_allclose(f_c_recovered, f_c, atol=1e-14, rtol=1e-14)
 
@@ -313,9 +313,12 @@ def test_conservative_momentum_b_mat_is_built_for_the_walk() -> None:
 
 
 def test_excluded_T_row_drops_induced_T_entry_but_keeps_momentum() -> None:
-    """A BC row on the T equation must receive no induced-T forcing entry,
-    matching the diagonal-mask convention that forcing never lands on BC rows;
-    the momentum entry of the same column survives (its row is not a BC row)."""
+    """A BC row on the T equation must receive no induced-T forcing entry.
+
+    That matches the diagonal-mask convention that forcing never lands on BC
+    rows.
+    The momentum entry of the same column survives (its row is not a BC row).
+    """
     X, Y, idx, ngp = _grid_idx()
     ndof = 5 * ngp
     flow = _base_flow_arrays(ngp, seed=5)
@@ -343,14 +346,14 @@ def test_excluded_T_row_drops_induced_T_entry_but_keeps_momentum() -> None:
         col = int(idx[f"{var}_j"][0])
         assert dense[col, col] != 0.0
         assert col in set(info["momentum_dofs"].tolist())
-    # Other points' T rows are untouched by the exclusion.
+    # Exclusion must not zero T rows of other points.
     other_T = int(idx["T_j"][1])
     assert np.any(dense[other_T, :] != 0.0)
 
 
 def test_conservative_momentum_requires_forcing_norm_l2() -> None:
     """The default forcing_norm='chu' would re-weight the whitened coefficients
-    and silently produce a wrong sigma; the builder must refuse to run."""
+    and silently produce a mismatched sigma; the builder must refuse to run."""
     mesh, idx, ngp, base_flow = _fake_mesh_and_base_flow()
     ndof = 5 * ngp
     L0 = sp.eye(ndof, format="csc")

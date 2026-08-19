@@ -1,24 +1,31 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The resolvent's forcing (input) norm must be selectable: Chu or plain L2.
+"""Check that the resolvent forcing (input) norm is selectable: Chu or plain L2.
 
-The optimal gain is ``sigma^2 = max_f ||H f||_E^2 / ||f||_F^2``. We have always used the
-Chu weight ``W`` for *both* norms, which solves the eigenproblem of ``invW H^H W H``. The
-reference we reproduce uses Chu on the response and plain **L2** on the forcing, which is
-the eigenproblem of ``H^H W H`` -- the same operator with the leading ``invW`` dropped.
+The optimal gain is ``sigma^2 = max_f ||H f||_E^2 / ||f||_F^2``.
+We have always used the Chu weight ``W`` for *both* norms, which solves
+the eigenproblem of ``invW H^H W H``.
+The reference we reproduce uses Chu on the response and plain **L2** on
+the forcing.
+That eigenproblem is ``H^H W H``.
+That is the same operator with the leading ``invW`` dropped.
 
-Two properties of the fixture below are load-bearing, and both were got wrong on a first
-attempt at these tests:
+Two properties of the setup below are load-bearing, and both failed on a
+first attempt at these checks.
 
-**It must be big enough for SLEPc.** ``_resolve_resolvent_ncv`` computes
-``min(max(2*nev + 3, 20), ndof - 1)``, so on a tiny problem the subspace collapses to
-``ndof - 1``. With ``ndof = 3`` and ``nev = 2`` that gives ``ncv = 2 = nev``, and SLEPc
-refuses with "The value of ncv must be at least nev+1" before solving anything. Six degrees
-of freedom leaves ``ncv = 5``.
+**It must be big enough for SLEPc.**
+``_resolve_resolvent_ncv`` computes ``min(max(2*nev + 3, 20), ndof - 1)``.
+On a tiny problem the subspace collapses to ``ndof - 1``.
+With ``ndof = 3`` and ``nev = 2`` that gives ``ncv = 2 = nev``.
+SLEPc then refuses with "The value of ncv must be at least nev+1"
+before solving anything.
+Six degrees of freedom leaves ``ncv = 5``.
 
-**W must not be the identity.** With ``W = I`` the two norms coincide, ``invW`` disappears,
-and a wrong implementation passes every check. ``_W`` below spans a factor of 800 and is
-arranged so the two norms peak on *different* diagonal entries, so the gains differ for a
-real reason rather than by rounding.
+**W must not be the identity.**
+With ``W = I`` the two norms coincide and ``invW`` disappears.
+An implementation that dropped ``invW`` then passes every check.
+``_W`` below spans a factor of 800.
+The two norms peak on *different* diagonal entries, so the gains differ
+for a real reason rather than by rounding.
 """
 
 from __future__ import annotations
@@ -30,7 +37,7 @@ import scipy.sparse as sp
 from linstabpy.resolvent import resolvent_analysis
 
 # --------------------------------------------------------------------------------------
-# Fixture, and the gains worked out by hand from it
+# Setup, and the gains worked out by hand from it
 # --------------------------------------------------------------------------------------
 
 #: L0 = -diag(1..6), so H = (L0 - i*omega*I)^-1 is diagonal with H_kk = 1/(-k - i*omega).
@@ -56,20 +63,20 @@ def _cfg(forcing_norm: str | None = None) -> dict:
 
 
 def _abs_H_squared() -> np.ndarray:
-    """|H_kk|^2 = 1 / (k^2 + omega^2) for this diagonal fixture."""
+    """|H_kk|^2 = 1 / (k^2 + omega^2) for this diagonal setup."""
     return 1.0 / (_DIAG**2 + _OMEGA**2)
 
 
 def _expected_gain(forcing_norm: str) -> float:
     """The leading sigma, derived analytically rather than measured.
 
-    H and W are diagonal, so the normal operator is diagonal too and its eigenvalues are
-    just its diagonal entries::
+    H and W are diagonal, so the normal operator is diagonal too.
+    Its eigenvalues are just its diagonal entries.
 
-        chu:  M_kk = |H_kk|^2 * W_kk / W_kk = |H_kk|^2
-        l2:   M_kk = |H_kk|^2 * W_kk
+        chu:  M_kk = |H_kk|^2 * W_kk / W_kk = |H_kk|^2.
+        l2:   M_kk = |H_kk|^2 * W_kk.
 
-    and the leading gain is the square root of the largest.
+    The leading gain is the square root of the largest.
     """
     m = _abs_H_squared()
     if forcing_norm == "l2":
@@ -78,14 +85,14 @@ def _expected_gain(forcing_norm: str) -> float:
 
 
 def test_the_fixture_makes_the_two_norms_peak_on_different_modes():
-    """Guards the fixture itself: if these coincided, the tests below would prove nothing."""
+    """Guard the setup itself: if these coincided, the checks below would prove nothing."""
     assert int(np.argmax(_abs_H_squared())) == 0
     assert int(np.argmax(_abs_H_squared() * _W)) == 2
     assert _expected_gain("chu") != pytest.approx(_expected_gain("l2"), rel=1e-6)
 
 
 # --------------------------------------------------------------------------------------
-# The option is wired, and the default has not moved
+# The option reaches the operator, and the default has not moved
 # --------------------------------------------------------------------------------------
 
 
@@ -135,16 +142,18 @@ def test_an_unknown_forcing_norm_is_refused():
 def test_residual_gate_passes_for_both_norms(forcing_norm):
     """Forward AND adjoint residuals must be small under both choices.
 
-    The adjoint relation the singular triplet satisfies differs between the two, by
-    exactly ``invW``::
+    The adjoint relation the singular triplet satisfies differs between the
+    two, by exactly ``invW``.
 
-        chu:  invW H^H (W u) = sigma v
-        l2:        H^H (W u) = sigma v
+        chu:  invW H^H (W u) = sigma v.
+        l2:        H^H (W u) = sigma v.
 
-    Measuring the chu relation on an l2 triplet evaluates to ``sigma*||(invW - I) v||``,
-    which is large for any non-identity W. This test therefore only has teeth because
-    ``_W`` is not the identity: on a dense 6x6 check with W spanning 1e-3..1e3, the wrong
-    form gives 6e+04 where the right one gives 1e-13.
+    Measuring the chu relation on an l2 triplet evaluates to
+    ``sigma*||(invW - I) v||``.
+    That quantity is large for any non-identity W.
+    This check therefore only has teeth because ``_W`` is not the identity.
+    On a dense 6x6 check with W spanning 1e-3..1e3, the mismatched form
+    gives 6e+04 where the matching one gives 1e-13.
     """
     *_, rho_fwd, rho_adj = resolvent_analysis(
         _L0(),

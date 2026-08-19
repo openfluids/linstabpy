@@ -3,36 +3,37 @@
 
 Two complementary approaches:
 
-1. **Complex-step Jacobian** — Write the nonlinear compressible NS residual
-   R(q), then verify dR/dq|_{q_bar} = L_raw via complex-step differentiation
-   (machine-precision, no truncation error).  Works for kx=0 (real residual).
-   For kx != 0, central finite differences are used (still ~10 digits).
+1. **Complex-step Jacobian.** Write the nonlinear compressible NS residual
+   R(q).
+   Then verify dR/dq|_{q_bar} = L_raw via complex-step differentiation
+   (machine-precision, no truncation error). Works for kx=0 (real residual).
+   For kx != 0, use central finite differences (still ~10 digits).
 
 2. **SymPy coefficient verification** — Verify individual LNSE coefficient
    matrix entries against analytically derived values from the compressible
    NS equations.
 
 Both verify the LNSE operator *before* the inv(B) transformation, i.e. they
-check L_raw = _assemble_block_operator(...).  This is the natural comparison
-point because:
+check L_raw = _assemble_block_operator(...).
+This is the natural comparison point.
 
-    Physical equations:  B_phys * dq'/dt = J * q'   (J = Jacobian of NS residual)
-    Code assembly:       L0 = inv(B_phys) * L_raw
+    Physical equations:  B_phys * dq'/dt = J * q'.   (J = Jacobian of NS residual)
+    Code assembly:       L0 = inv(B_phys) * L_raw.
 
 So L_raw = B_phys * L0 = J.  The complex-step Jacobian gives J directly.
 
-Sign convention notes
----------------------
-The LNSE system from coefficients.py uses B with 1j prefactors:
-    B_code = 1j * diag(1, rho, rho, rho, rho)
-    L0 = inv(B_code / 1j) * L_raw = inv(B_phys) * L_raw
+Sign convention notes.
+The LNSE system from coefficients.py uses B with 1j prefactors.
 
-The nonlinear equations in the residual function R(q) = [f1, ..., f5]:
-    drho/dt  = f1(q)            (continuity)
-    rho*du/dt = f2(q)           (x-momentum)
-    rho*dv/dt = f3(q)           (y-momentum)
-    rho*dw/dt = f4(q)           (z-momentum)
-    rho*dT/dt = f5(q)           (energy)
+    B_code = 1j * diag(1, rho, rho, rho, rho).
+    L0 = inv(B_code / 1j) * L_raw = inv(B_phys) * L_raw.
+
+The residual function is R(q) = [f1, ..., f5].
+    drho/dt  = f1(q)            (continuity).
+    rho*du/dt = f2(q)           (x-momentum).
+    rho*dv/dt = f3(q)           (y-momentum).
+    rho*dw/dt = f4(q)           (z-momentum).
+    rho*dT/dt = f5(q)           (energy).
 
 Linearizing: B_phys * dq'/dt = dR/dq * q', so J = dR/dq = L_raw.
 """
@@ -106,7 +107,7 @@ def _ns_residual(q_flat, mesh, bf_params):
     .. math::
 
         \begin{bmatrix} 1 \\ \rho \\ \rho \\ \rho \\ \rho \end{bmatrix}
-        \frac{\partial q}{\partial t} = R(q)
+        \frac{\partial q}{\partial t} = R(q).
 
     The Jacobian dR/dq at the base state equals L_raw from
     ``_assemble_block_operator``.
@@ -274,7 +275,7 @@ def _ns_residual(q_flat, mesh, bf_params):
     f4 = -rho * (u * dwdx + v * dwdy + w * dwdz) - dpdz + div_tau_z / Re
 
     # Eq 5: Energy — temperature equation divided by cv
-    # The code uses rho*dT/dt form where cv = 1/(kappa*(kappa-1)*Ma^2).
+    # The energy equation uses rho*dT/dt form where cv = 1/(kappa*(kappa-1)*Ma^2).
     # Pressure-dilatation: -(kappa-1)*p*div_u / cv = -(kappa-1)*rho*T*div_u
     # Viscous dissipation: Phi/(Re*cv) = kappa*(kappa-1)*Ma^2 * Phi/Re
     # Heat conduction: kappa*div(mu*grad(T))/(Re*Pr) stays as-is
@@ -389,7 +390,7 @@ def _make_bf_params(bf, kx):
 
 
 # =====================================================================
-# Diagnostic helper for mismatches
+# Diagnostic printer for mismatches
 # =====================================================================
 
 
@@ -551,9 +552,10 @@ class TestComplexStepCompressible:
 
     For non-uniform base flows, 'linearize-then-discretize' (L_raw) and
     'discretize-then-linearize' (complex-step Jacobian) differ by a
-    commutator error of O(h^p) where h is the grid spacing and p the
-    FD order.  We verify this by checking grid convergence: the error
-    must decrease at the expected rate when the grid is refined.
+    commutator error of O(h^p).
+    Here h is the grid spacing and p the FD order.
+    Check grid convergence: the error must decrease at the expected rate
+    under grid refinement.
     """
 
     @staticmethod
@@ -596,10 +598,11 @@ class TestComplexStepCompressible:
     def test_compressible_grid_convergence(self):
         """Error between J and L_raw converges at O(h^2) for fd_order=2.
 
-        The 'linearize-then-discretize' vs 'discretize-then-linearize'
-        commutator error arises from terms like diag(f) @ Dy != Dy @ diag(f)
-        when f is spatially varying.  For a 2nd-order FD scheme, this error
-        is O(h^2) and should decrease by ~4x when the grid is refined 2x.
+        The linearize-then-discretize and discretize-then-linearize paths differ.
+        The commutator is terms like diag(f) @ Dy != Dy @ diag(f)
+        when f varies in space.
+        For a 2nd-order FD scheme, this error is O(h^2).
+        It should decrease by ~4x under 2x grid refinement.
         """
         ny_coarse, ny_fine = 16, 32
         mesh_c, bf_c = self._make_case(ny_coarse)
@@ -636,10 +639,11 @@ class TestLinearizedResidualKxNonzero:
     """Verify LNSE operator with kx != 0 via a linearized perturbation residual.
 
     For kx != 0, the Fourier decomposition d/dz -> ikx is only valid AFTER
-    linearization (nonlinear products of Fourier modes generate harmonics).
-    We therefore write a linearized residual R_lin(q') that computes the
-    LNSE RHS for a perturbation q' with frozen base flow q_bar.  Since
-    R_lin is linear in q', its matrix representation can be extracted by
+    linearization.
+    Nonlinear products of Fourier modes generate harmonics.
+    Write a linearized residual R_lin(q') that computes the LNSE RHS for
+    a perturbation q' with frozen base flow q_bar.
+    Since R_lin is linear in q', extract its matrix representation by
     evaluating R_lin(e_j) for each unit vector e_j.
     """
 
@@ -648,11 +652,12 @@ class TestLinearizedResidualKxNonzero:
         r"""Linearized spatial RHS of LNSE for a perturbation Fourier mode.
 
         Computes R_lin(q') = L_raw @ q' by evaluating the linearized
-        physics term by term.  The base flow is frozen (from bf_params).
+        physics term by term.
+        The base flow stays frozen (from bf_params).
 
-        The key difference from ``_ns_residual`` is that d/dz -> ikx is
-        applied only to perturbation fields, NOT to base-flow fields
-        (which are 2D and z-invariant).
+        The key difference from ``_ns_residual`` is that d/dz -> ikx
+        applies only to perturbation fields, NOT to base-flow fields.
+        Those base-flow fields are 2D and z-invariant.
         """
         ngp = mesh.ngp
         Re = bf_params["Re"]
@@ -814,8 +819,8 @@ class TestLinearizedResidualKxNonzero:
         d2u_b_dxdy = Dx @ du_b_dy
         d2v_b_dxdy = Dx @ dv_b_dy
         d2w_b_dxdy = Dx @ dw_b_dy
-        d_div_ub_dx = D2x @ u_b + Dx @ dv_b_dy  # d(du_b/dx+dv_b/dy)/dx
-        d_div_ub_dy = Dx @ du_b_dy + D2y @ v_b  # d(du_b/dx+dv_b/dy)/dy
+        d_div_ub_dx = D2x @ u_b + Dx @ dv_b_dy  # streamwise deriv of base divergence
+        d_div_ub_dy = Dx @ du_b_dy + D2y @ v_b  # wall-normal deriv of base divergence
         visc_u_pert_div = mu_p * (
             (2 * d2u_b_dx2 - (2 / 3) * d_div_ub_dx)  # d(S_bar_xx)/dx
             + (d2u_b_dy2 + d2v_b_dxdy)  # d(S_bar_xy)/dy
@@ -1222,8 +1227,10 @@ class TestSymPyCoefficients:
         """Viscous second-derivative coefficients in momentum equations.
 
         For x-momentum (row 1), the viscous stress divergence gives:
-            d2u'/dx2 coefficient = (4/3)*mu/Re
-            d2u'/dy2 coefficient = mu/Re
+
+            d2u'/dx2 coefficient = (4/3)*mu/Re.
+            d2u'/dy2 coefficient = mu/Re.
+
         Similarly for y and z momentum with the appropriate components.
         """
         coeffs, p = self._make_uniform_coefficients()
@@ -1254,9 +1261,9 @@ class TestSymPyCoefficients:
             A0[1,4] from dp'/dx: includes -T/(gamma*Ma^2) * drho'/dx ... no,
             that's Ax[1,0].  Let me be careful.
 
-        Pressure: p = rho*T/(gamma*Ma^2)
-        dp'/dx = (drho'/dx * T + rho * dT'/dx) / (gamma*Ma^2)
-               = drho'/dx * 1/(gamma*Ma^2) + dT'/dx * 1/(gamma*Ma^2)  [for rho=T=1]
+        Pressure: p = rho*T/(gamma*Ma^2).
+        dp'/dx = (drho'/dx * T + rho * dT'/dx) / (gamma*Ma^2).
+        For rho=T=1: drho'/dx * 1/(gamma*Ma^2) + dT'/dx * 1/(gamma*Ma^2).
 
         x-momentum: f2 has -dp'/dx, so:
             Ax[1,0] contribution from pressure: -T/(gamma*Ma^2) = -1/gM2
@@ -1306,19 +1313,19 @@ class TestSymPyCoefficients:
     def test_momentum_convective_A0(self):
         """Convective A0 entries for uniform flow.
 
-        For x-momentum with U=0.5, kx=0, all gradients zero:
-            f2 = -rho*(u*du/dx + v*du/dy + w*du/dz) - dp/dx + viscous/Re
+        For x-momentum with U=0.5, kx=0, all gradients zero.
 
-        Linearization:
-            df2/du' at (rho_bar, U_bar, ...):
-            From -rho_bar*(U*du'/dx + u'*dU/dx + V*du'/dy):
-              A0 contrib from u': -rho_bar*dUdx = 0 (uniform)
-            Plus viscous A0 from kx: mu*kx^2/Re = 0 (kx=0)
-            So A0[1,1] = 0 for kx=0, uniform flow.
+            f2 = -rho*(u*du/dx + v*du/dy + w*du/dz) - dp/dx + viscous/Re.
 
-            df2/drho' = -(U*dU/dx + V*dU/dy) ... all zero for uniform.
-            Plus pressure: -dp'/dx has no rho' A0 contribution (only Ax).
-            So A0[1,0] = 0.
+        Linearization of df2/du' at (rho_bar, U_bar, ...).
+        From -rho_bar*(U*du'/dx + u'*dU/dx + V*du'/dy):
+        A0 contrib from u': -rho_bar*dUdx = 0 (uniform).
+        Plus viscous A0 from kx: mu*kx^2/Re = 0 (kx=0).
+        So A0[1,1] = 0 for kx=0, uniform flow.
+
+        df2/drho' = -(U*dU/dx + V*dU/dy) ... all zero for uniform.
+        Plus pressure: -dp'/dx has no rho' A0 contribution (only Ax).
+        So A0[1,0] = 0.
         """
         coeffs, _ = self._make_uniform_coefficients(kx=0.0)
 
@@ -1329,17 +1336,18 @@ class TestSymPyCoefficients:
         """A0 diagonal entries with kx != 0 (Fourier-mode viscous damping).
 
         The kx²-dependent A0 entries come from d(tau_iz)/dz linearized
-        w.r.t. the same velocity component via du'/dz = ikx*u':
+        w.r.t. the same velocity component.
+        The chain is du'/dz = ikx*u'.
 
-        x-momentum: d(tau_xz)/dz where tau_xz = mu*(du/dz + dw/dx)
-            → mu*(ikx)²*u' = -mu*kx²*u'  → A0[1,1] = -mu*kx²/Re
+        x-momentum: d(tau_xz)/dz where tau_xz = mu*(du/dz + dw/dx).
+            → mu*(ikx)²*u' = -mu*kx²*u'  → A0[1,1] = -mu*kx²/Re.
 
-        y-momentum: d(tau_yz)/dz where tau_yz = mu*(dv/dz + dw/dy)
-            → -mu*kx²*v'  → A0[2,2] = -mu*kx²/Re
+        y-momentum: d(tau_yz)/dz where tau_yz = mu*(dv/dz + dw/dy).
+            → -mu*kx²*v'  → A0[2,2] = -mu*kx²/Re.
 
-        z-momentum: d(tau_zz)/dz where tau_zz = mu*(2*dw/dz - 2/3*div_u)
-            and dw'/dz in div_u gives: mu*(2 - 2/3)*ikx² = -(4/3)*mu*kx²
-            → A0[3,3] = -(4/3)*mu*kx²/Re
+        z-momentum: d(tau_zz)/dz where tau_zz = mu*(2*dw/dz - 2/3*div_u).
+            and dw'/dz in div_u gives: mu*(2 - 2/3)*ikx² = -(4/3)*mu*kx².
+            → A0[3,3] = -(4/3)*mu*kx²/Re.
 
         The (4/3) factor appears ONLY in z-momentum because dw'/dz
         enters both the 2*dw/dz and the -2/3*div_u parts of tau_zz.
@@ -1374,8 +1382,8 @@ class TestSymPyCoefficients:
         """Second derivative matrices should be symmetric in their role.
 
         For uniform flow: Axx[i,j] = Ayy[i,j] for diagonal blocks (i=j)
-        in the z-momentum equation (row 3), since tau_zx and tau_zy have
-        the same structure.
+        in the z-momentum equation (row 3).
+        tau_zx and tau_zy have the same structure.
         """
         coeffs, _ = self._make_uniform_coefficients()
 

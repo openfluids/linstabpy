@@ -2,8 +2,8 @@
 """
 End-to-end integration tests for linstabpy.
 
-All tests are marked @pytest.mark.slow since they assemble large operators
-and/or call iterative solvers.
+Every check in this file carries @pytest.mark.slow.
+They assemble large operators and/or call iterative solvers.
 """
 
 import numpy as np
@@ -124,7 +124,8 @@ class TestBlasiusResolventReference:
 
         MATLAB reference on 300x100: [128.62, 14.54, 7.49] at Re=6e5, Ma=0.3, omega=60.
         On the coarser 100x50 grid with the current `lrbt` boundary treatment,
-        the gains are much lower but should still show amplification above unity.
+        the gains are much lower.
+        They should still show amplification above unity.
         """
         d = blasius_large
         gains, _, _ = resolvent_analysis(
@@ -173,10 +174,10 @@ class TestOperatorSymmetryConsistency:
         u = rng.standard_normal(n) + 1j * rng.standard_normal(n)
         v = rng.standard_normal(n) + 1j * rng.standard_normal(n)
 
-        # LHS: v^H W (L0 u)
+        # Weighted inner product of v with L0 u.
         lhs = np.vdot(v, W * (L0 @ u))
 
-        # RHS: (L_adj v)^H W u  where L_adj v = invW * (L0^H (W * v))
+        # Weighted inner product of L_adj v with u.
         L_adj_v = invW * (L0.conj().T @ (W * v))
         rhs = np.vdot(L_adj_v, W * u)
 
@@ -204,8 +205,9 @@ def synthetic_jet():
 class TestCylindricalIntegration:
     """End-to-end integration tests for the cylindrical (axy) model.
 
-    Uses a synthetic tanh jet profile on a 15×10 grid to test the full
-    pipeline: mesh → baseflow → operator assembly → BCs → eigensolve.
+    Use a synthetic tanh jet profile on a 15×10 grid.
+    Cover the full pipeline: mesh, baseflow, operator assembly, BCs,
+    eigensolve.
     """
 
     @pytest.mark.slow

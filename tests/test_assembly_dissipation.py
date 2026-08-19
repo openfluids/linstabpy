@@ -3,18 +3,19 @@
 
 T1 (flag off): assembler with epsilon=0.0 is bitwise identical to baseline.
 T1+ (positive correctness): with epsilon=0.1, the difference is exactly
-    epsilon * I_5 (x) Q_diss_2D before BCs are applied.
+    epsilon * I_5 (x) Q_diss_2D before the assembler applies BCs.
 
 Comparison notes
 ----------------
 build_lnse_operator does NOT apply BCs.  Dirichlet rows are therefore not
 involved in these tests; the comparison is on the raw pre-BC operator.
-This is option (b) from the task description: the gate is on the post-BC-free
-(pre-BC) operator, and Dirichlet rows are identical by construction anyway.
+This is option (b) from the task description.
+The gate is on the pre-BC operator.
+Dirichlet rows are identical by construction anyway.
 
-All heavy imports (Mesh, BaseFlow, build_lnse_operator) are done lazily inside
-each test method to avoid module-level petsc4py/mpi4py import failures on
-machines without PETSc (e.g. macOS developer machines).
+Each test method imports Mesh, BaseFlow, and build_lnse_operator lazily.
+That avoids module-level petsc4py/mpi4py import failures on machines
+without PETSc (e.g. macOS developer machines).
 """
 
 from __future__ import annotations
@@ -84,9 +85,10 @@ class TestDissipationT1FlagOff:
     def test_diss_mesh_epsilon_zero_identical_to_nodiss_mesh(self) -> None:
         """Mesh WITH Q_diss populated but epsilon=0.0 yields same operator as mesh without Q_diss.
 
-        This is the load-bearing T1 gate: when epsilon=0.0 (default), the
-        if-guard in build_lnse_operator is False, so no dissipation is applied
-        and the operator is bitwise identical to the baseline path.
+        This is the load-bearing T1 gate.
+        When epsilon=0.0 (default), the if-guard in build_lnse_operator is
+        False, so the assembler applies no dissipation.
+        The operator matches the baseline path bitwise.
         Both meshes have identical grid parameters so the LNSE operators must match.
         """
         from linstabpy.operators import build_lnse_operator
@@ -114,9 +116,10 @@ class TestDissipationPositiveCorrectness:
     def test_epsilon_subtracts_correct_block(self) -> None:
         """With epsilon=0.1, L_on - L_baseline == -0.1 * Q_diss_block entrywise (tol=1e-12).
 
-        Verifies the kron order: Q_diss_x (nx,nx) is the outer factor,
-        Q_diss_y (ny,ny) is the inner factor — matching the Dx_g = kron(D1x, I_ny)
-        convention used in _build_operators_kron.
+        Check the kron order.
+        Q_diss_x (nx,nx) is the outer factor.
+        Q_diss_y (ny,ny) is the inner factor.
+        That matches Dx_g = kron(D1x, I_ny) in _build_operators_kron.
         """
         from linstabpy.operators import build_lnse_operator
 

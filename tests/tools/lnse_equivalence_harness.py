@@ -2,8 +2,10 @@
 """Compare two LNSE assembly paths on deterministic safety cases.
 
 The default ``baseline`` and ``candidate`` paths both call the current assembly
-implementation. That is deliberate: before P1/P2/P3 land, this script proves the
-harness itself and writes the comparison contract that future paths must satisfy.
+implementation.
+That is deliberate.
+Before P1/P2/P3 land, this script proves the comparison path itself.
+It writes the contract that future paths must satisfy.
 """
 
 from __future__ import annotations

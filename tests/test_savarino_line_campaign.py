@@ -51,8 +51,10 @@ def test_x_max_follows_the_measured_window() -> None:
 
 
 def test_gen_campaign_beta_filter_writes_only_those_lines(tmp_path, monkeypatch) -> None:
-    """A farm arm for two lines must not queue the other 153 points, and the
-    job script must carry its own placement/interpreter and the ncv it ran."""
+    """A farm arm for two lines must not queue the other 153 points.
+
+    The job script must carry its own placement/interpreter and the ncv it ran.
+    """
     import examples.savarino.gen_campaign as gen
 
     monkeypatch.setattr(
@@ -149,7 +151,10 @@ def test_gpu_block_gives_the_job_one_device_by_lock(tmp_path) -> None:
 
 def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monkeypatch) -> None:
     """The GPU farm arm: STRUMPACK+FGMRES config, one rank, ten cores, a device
-    by lock -- all visible in the generated files, none inherited from the shell."""
+    by lock.
+    All of that is visible in the generated files.
+    The generated files inherit none of it from the shell.
+    """
     import yaml
 
     import examples.savarino.gen_campaign as gen
@@ -172,7 +177,7 @@ def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monk
     assert cfg["solver"]["resolvent"]["ksp_type"] == "fgmres"
     assert Path(cfg["paths"]["case_dir"]).is_absolute()
     assert cfg["paths"]["case_dir"].endswith("examples/savarino/output/baseflow")
-    # The CPU default is untouched: one core per rank, no device pick.
+    # The CPU default stays as-is: one core per rank, no device pick.
     monkeypatch.setattr(
         "sys.argv", ["gen_campaign.py", "--out", str(tmp_path / "cpu"), "--dry-run", "--beta", "40"]
     )

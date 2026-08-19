@@ -160,16 +160,20 @@ def test_explicit_output_path_is_honored_unchanged(tmp_path, monkeypatch):
 def test_provenance_carries_no_machine_identity_by_default(monkeypatch) -> None:
     """No provenance field may leak the host name unless explicitly asked for.
 
-    ``cost_hardware_tag`` has enforced this policy for a long time, guarded by
-    ``test_cost_metrics.py::test_hardware_tag_default_is_unknown_not_hostname``.
-    ``hostname`` sat in the very same artifact calling ``socket.gethostname()``
-    unconditionally, so every sidecar shipped the fully-qualified host name
-    beside the field that was carefully withholding it -- one was found in a
-    saved gain-map sidecar (``map_s2/pt_b9_f0.metrics.json``).
+    ``cost_hardware_tag`` already follows this policy.
+    ``test_cost_metrics.py::test_hardware_tag_default_is_unknown_not_hostname``
+    guards it.
+    ``hostname`` sat in the same artifact and called ``socket.gethostname()``
+    unconditionally.
+    Every sidecar then shipped the fully-qualified host name beside the field
+    that withheld it.
+    One such leak sat in a saved gain-map sidecar
+    (``map_s2/pt_b9_f0.metrics.json``).
 
-    The guard was real; it just had a sibling nobody had checked. This test is
-    that sibling's guard, and it sweeps EVERY field rather than naming one, so
-    the next field added cannot walk around the policy the same way.
+    The old guard was real; it just had a sibling nobody checked.
+    This check is that sibling's guard.
+    It sweeps EVERY field rather than naming one.
+    A new field then cannot walk around the policy the same way.
     """
     import socket
 
@@ -194,7 +198,8 @@ def test_provenance_hostname_is_recorded_when_explicitly_requested(monkeypatch) 
     """The opt-in still works: private runs can label which machine ran them.
 
     Withholding the host name by default must not remove the ability to tell
-    c8 from c9 in a cost study -- it just makes recording it a deliberate act.
+    c8 from c9 in a cost study.
+    Recording it must stay a deliberate act.
     """
     monkeypatch.setenv("LINSTABPY_HOSTNAME", "workstation-A")
     assert collect_provenance(None)["hostname"] == "workstation-A"

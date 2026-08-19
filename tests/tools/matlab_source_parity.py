@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Genericized MATLAB-source parity audit for linstabpy coefficient functions.
 
-Exposes ``audit(cyl_m_path, cart_m_path)`` which parses two MATLAB ``.m``
-coefficient files and symbolically compares every (block, i, j) entry against
-the live ``compute_cartesian_coefficients`` /
-``compute_cylindrical_coefficients`` in ``coefficients.py``.
+Exposes ``audit(cyl_m_path, cart_m_path)``.
+That function parses two MATLAB ``.m`` coefficient files.
+It then symbolically compares every (block, i, j) entry against the live
+``compute_cartesian_coefficients`` and ``compute_cylindrical_coefficients``
+in ``coefficients.py``.
 
-All parsing and comparison logic is carried over verbatim from the original
+All parsing and comparison logic comes verbatim from the original
 ``_matlab_translation_audit.py`` scratch script.
 """
 

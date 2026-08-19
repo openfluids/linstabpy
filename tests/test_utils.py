@@ -77,7 +77,7 @@ class TestFloquetReconstruction:
         assert result.shape == (n_fields, *self.X.shape)
 
     def test_wrong_length_raises(self):
-        """V with wrong length raises ValueError."""
+        """V with a mismatched length raises ValueError."""
         V = np.zeros(self.ngp + 5, dtype=complex)
         with pytest.raises(ValueError):
             reconstruct_floquet(self.X, V, self.used_ind, floquet_exp=0.0)

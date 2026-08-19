@@ -5,10 +5,10 @@ Three checks:
   - test_default_off  : flag absent -> both fields are None (T1 gate prerequisite).
   - test_enabled_populates : flag on -> both fields are csr_matrix with correct
     shape and H*Q_diss_x is symmetric (SPSD passthrough).
-  - test_explicit_order : order_diss parameter is honoured independently of fd_order.
+  - test_explicit_order : order_diss may differ from fd_order.
 
-Mesh is imported lazily inside each test method to match the conftest.py pattern
-and avoid module-level petsc4py import failures on machines without PETSc.
+Each test method imports Mesh lazily to match the conftest.py pattern.
+That avoids module-level petsc4py import failures on machines without PETSc.
 """
 
 from __future__ import annotations
@@ -145,10 +145,12 @@ class TestMeshDissipationExplicitOrder:
         """Phase 1 enforces order_diss == fd_order; mixed orders must raise.
 
         Without this guard, a config like fd_order=4, order_diss=6 would
-        silently build a fd6 dissipation operator on a fd4 mesh, breaking
-        the SPSD-in-the-correct-H-norm argument that Phase 1's energy proof
-        relies on. Phase 3 (decoupled orders, MSN 2004 §4) is the legitimate
-        place to lift this restriction; until then it must be a hard error.
+        silently build a fd6 dissipation operator on a fd4 mesh.
+        That would break the SPSD-in-the-correct-H-norm argument that Phase
+        1's energy proof relies on.
+        Phase 3 (decoupled orders, MSN 2004 §4) is the legitimate place to
+        lift this restriction.
+        Until then mixed orders must raise.
         """
         import pytest
 

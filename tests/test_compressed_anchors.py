@@ -161,21 +161,27 @@ def _strumpack_adjoint_identity_defect(L0: sp.spmatrix, *, compressed: bool) -> 
 def test_compressed_anchor_strumpack_certifies_via_dual_factor_heal() -> None:
     """UPDATED 2026-06-23 (bead r3uu.14.17 — dual-factor adjoint heal) — validated on c9.
 
-    HISTORICAL FINDING (bead r3uu.14.9, measured on c9 2026-06-16): STRUMPACK's complex
-    transpose-solve is a non-conjugate transpose, so the bare adjoint identity defect was
-    ~3.2e-2 (MUMPS ~3e-16) and the compressed-anchor sweep correctly REFUSED rather than
-    use an uncertified adjoint.
+    HISTORICAL FINDING (bead r3uu.14.9, measured on c9 2026-06-16).
+    STRUMPACK's complex transpose-solve is a non-conjugate transpose.
+    The bare adjoint identity defect was ~3.2e-2 (MUMPS ~3e-16).
+    The compressed-anchor sweep correctly REFUSED rather than use an
+    uncertified adjoint.
 
-    That backend-adjoint blocker is now REMOVED: ``factorize`` auto-detects the adjoint
-    defect on first adjoint use and, for a defective backend, FORWARD-solves an explicitly
-    factored ``K^H`` (the dual factorization). Measured on real STRUMPACK (c9, 2026-06-23):
-    the raw transpose-solve defect is ~0.72, the heal activates, and the healed adjoint
-    identity drops to ~6e-16. So the compressed-anchor sweep now CERTIFIES (returns a
-    ``SweepResult``) instead of refusing.
+    That backend-adjoint blocker is now REMOVED.
+    ``factorize`` auto-detects the adjoint defect on first adjoint use.
+    For a defective backend it FORWARD-solves an explicitly factored ``K^H``
+    (the dual factorization).
+    Measured on real STRUMPACK (c9, 2026-06-23).
+    The raw transpose-solve defect is ~0.72.
+    The heal activates.
+    The healed adjoint identity drops to ~6e-16.
+    The compressed-anchor sweep now CERTIFIES (returns a ``SweepResult``)
+    instead of refusing.
 
-    CAVEAT (capacity lever): the heal builds the ``K^H`` factor at full accuracy
-    (uncompressed), so the certified adjoint is exact but does NOT inherit BLR
-    compression — the memory saving applies to the forward factor, not the healed adjoint.
+    CAVEAT (capacity lever).
+    The heal builds the ``K^H`` factor at full accuracy (uncompressed).
+    The certified adjoint is exact but does NOT inherit BLR compression.
+    The memory saving applies to the forward factor, not the healed adjoint.
     """
     if not factor_backend_available("strumpack"):
         pytest.skip("SKIPPED: strumpack backend unavailable")

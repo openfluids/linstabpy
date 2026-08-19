@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Parity + structural oracle for Chu's compressible energy norm.
+"""Parity and structural check for Chu's compressible energy norm.
 
 The Chu norm is a canonical diagonal quadratic form on the primitive
-perturbation variables ``[rho, u, v, w, T]``:
+perturbation variables ``[rho, u, v, w, T]``.
 
     W = 0.5 * [ T/(rho*kappa*Ma^2),  rho,  rho,  rho,
-                rho/(kappa*(kappa-1)*T*Ma^2) ] (.) W_int
+                rho/(kappa*(kappa-1)*T*Ma^2) ] (.) W_int.
 
-with ``W_int -> W_int * R`` for the axisymmetric (``axy``) model. The three
-distinct coefficients are not a multi-step derivation that could silently drop a
-term -- they are a short canonical form, identical across the production code,
-the checked-in upstream reference
-the LinStab2D ``GetCompEnergyNorm.m`` reference,
-and the Chu (1965) literature. So a from-scratch re-derivation here would only
-risk being tuned to match.
+``W_int -> W_int * R`` for the axisymmetric (``axy``) model.
+The three distinct coefficients are a short canonical form.
+They are not a multi-step derivation that could silently drop a term.
+The form is identical across the production code, the LinStab2D
+``GetCompEnergyNorm.m`` reference, and the Chu (1965) literature.
+A from-scratch re-derivation here would only risk being tuned to match.
 
-Instead this oracle (1) pins production to the canonical coefficient form -- any
-drift (e.g. a kappa/(kappa-1) slip) diverges and fails -- and (2) independently
-verifies the assembly plumbing that genuinely can break: block concatenation
-order, the 0.5 factor, the W_int multiplication, the axy radial factor, and the
-inverse relationship invW = 1/W.
+Instead this check (1) pins production to the canonical coefficient form.
+Any drift (e.g. a kappa/(kappa-1) slip) diverges and fails.
+It also independently checks the assembly plumbing that can break.
+That plumbing is block concatenation order, the 0.5 factor, the W_int
+multiplication, the axy radial factor, and invW = 1/W.
 """
 
 from __future__ import annotations
@@ -39,11 +38,11 @@ def _canonical_blocks(
     """Canonical Chu weight blocks (GetCompEnergyNorm.m), built independently."""
     Ma2 = Ma**2
     return [
-        0.5 * T / (RHO * kappa * Ma2) * W_int,  # rho
-        0.5 * RHO * W_int,  # u
-        0.5 * RHO * W_int,  # v
-        0.5 * RHO * W_int,  # w
-        0.5 * RHO / (kappa * (kappa - 1.0) * T * Ma2) * W_int,  # T
+        0.5 * T / (RHO * kappa * Ma2) * W_int,  # density
+        0.5 * RHO * W_int,  # streamwise
+        0.5 * RHO * W_int,  # wall-normal
+        0.5 * RHO * W_int,  # spanwise
+        0.5 * RHO / (kappa * (kappa - 1.0) * T * Ma2) * W_int,  # temperature
     ]
 
 

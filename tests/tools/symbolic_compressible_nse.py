@@ -186,8 +186,10 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
 
     Governing equations: non-dimensional compressible Navier-Stokes in primitive
     variables q = [rho, u, v, w, T].  Physical coordinates: x=streamwise,
-    y=wall-normal, z=spanwise.  Linearization about a 2-D steady base flow
-    (Q_bar = RHO, U, V, W, T, MU, P) with all base-flow z-derivatives zero.
+    y=wall-normal, z=spanwise.
+    Linearization about a 2-D steady base flow
+    (Q_bar = RHO, U, V, W, T, MU, P).
+    All base-flow z-derivatives are zero.
 
     Fourier ansatz in z: d/dz on perturbations -> I*kx  (kx = spanwise wavenumber).
     System convention: B*dq/dt = L*q, so B[i,j] = sp.I*(coeff of dq_j/dt in eq_i).
@@ -198,11 +200,13 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     Nondimensionalisation: lengths by L_ref, velocities by U_inf, density by
     rho_inf, temperature by T_inf.  Pressure: p = rho*T/(kappa*Ma^2).
     Viscous stress: tau_ij = mu*(dui/dxj + duj/dxi) - 2/3*mu*div(u)*delta_ij.
-    Energy (temperature form):
+    Energy (temperature form).
+
         rho*DT/Dt = -(kappa-1)*T*rho*div(u)
                   + kappa/(Re*Pr) * div(mu*grad(T))
-                  + kappa*(kappa-1)*Ma^2/Re * Phi
-    where Phi = mu*[2*(du/dx)^2 + 2*(dv/dy)^2 + 2*(dw/dz)^2 + (du/dy+dv/dx)^2
+                  + kappa*(kappa-1)*Ma^2/Re * Phi.
+
+    Phi = mu*[2*(du/dx)^2 + 2*(dv/dy)^2 + 2*(dw/dz)^2 + (du/dy+dv/dx)^2
                     + (du/dz+dw/dx)^2 + (dv/dz+dw/dy)^2 - 2/3*div(u)^2].
     """
     I = sp.I
@@ -560,10 +564,12 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
 def cylindrical_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
     """Derive all 175 cylindrical LNSE coefficients from conservative NSE.
 
-    The derivation is performed in cylindrical component order
-    ``[rho, u_r, u_theta, u_z, T]`` from the conservative equations for
-    ``[rho, rho*u_r, rho*u_theta, rho*u_z, E]``.  The returned dictionary is
-    remapped to the public physical order ``[rho, u_z, u_r, u_theta, T]``.
+    The derivation uses cylindrical component order
+    ``[rho, u_r, u_theta, u_z, T]``.
+    The conservative equations are
+    ``[rho, rho*u_r, rho*u_theta, rho*u_z, E]``.
+    The returned dictionary is remapped to the public physical order
+    ``[rho, u_z, u_r, u_theta, T]``.
     """
     internal = _derive_internal_cylindrical_coefficients(symbols)
     return _map_internal_to_physical(internal)
@@ -705,7 +711,7 @@ def _derive_internal_cylindrical_coefficients(
 
     # Martini's coefficient convention keeps pure T' multipliers from base
     # viscous flux divergences in the steady base equations rather than in the
-    # perturbation operator.  These compact subtractions are derived from the
+    # perturbation operator.  These compact subtractions come from the
     # cylindrical unit-stress fluxes directly.
     for row, correction in _momentum_temperature_base_stress_corrections(symbols).items():
         internal["A0"][(row, 4)] = sp.expand(internal["A0"][(row, 4)] - correction)
@@ -730,16 +736,18 @@ def _momentum_temperature_base_stress_corrections(
 def _energy_temperature_base_flux_correction(symbols: dict[str, sp.Symbol]) -> sp.Expr:
     """Frozen-base-viscosity convention correction for the energy equation T' row.
 
-    Applies the frozen-base-viscosity convention used in Martini's LNSE operator:
-    perturbation-viscosity x base-stress/heat-flux divergence terms (all O(dmudT/Re))
-    are excluded from the operator. The two terms here capture the O(dmudT)
-    contributions from the base viscous-work divergence and the base
-    temperature-gradient divergence.
+    Applies the frozen-base-viscosity convention used in Martini's LNSE operator.
+    Perturbation-viscosity x base-stress/heat-flux divergence terms (all
+    O(dmudT/Re)) stay out of the operator.
+    The two terms here capture the O(dmudT) contributions from the base
+    viscous-work divergence and the base temperature-gradient divergence.
 
     The '- W*dRHOdz/c2' term present in an earlier scratch version was a tuning
-    artifact matching a since-fixed bug. The W*dRHOdz/c2 contribution is a genuine
-    conservative pressure-flux term already produced by the normal linearization
-    path; subtracting it again would double-count it. It must NOT appear here.
+    artifact matching a since-fixed A0_55 sign error.
+    The W*dRHOdz/c2 contribution is a genuine conservative pressure-flux term
+    already produced by the normal linearization path.
+    Subtracting it again would double-count it.
+    It must NOT appear here.
     """
     R = symbols["R"]
     Re = symbols["Re"]
@@ -915,7 +923,7 @@ def _map_internal_to_physical(
 def _coeff_source_path() -> Path:
     # Parse the FROZEN pre-fusion reference (snapshot of coefficients.py at commit
     # 4d4d07b), which still exposes the 175 named ``c_*_ij`` assignments this tool
-    # needs. The live production coefficients.py was fused (P1) and no longer
+    # needs. The live production coefficients.py fused (P1) and no longer
     # exposes them; comparing the live fused numeric output against the symbolic
     # evaluation of these frozen expressions is exactly the "fusion preserved the
     # validated algebra" guard. Sibling-relative, so no repo-root guessing.

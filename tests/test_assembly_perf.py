@@ -2,28 +2,38 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """PERF1 assembly profiling record and equivalence guard.
 
-Representative profile case used for r3uu.14.2 measurements:
+Representative profile case used for r3uu.14.2 measurements.
 Blasius 2-D operator, fd6 mesh, nx=100, ny=80 (ngp=8000, ndof=40000),
-kx=0.25, with mesh/baseflow constructed once and five timed repeats of
-``build_lnse_operator`` on the shared dev box.
+kx=0.25.
+The mesh and baseflow are built once.
+Then five timed repeats of ``build_lnse_operator`` run on the shared dev
+box.
 
-Before optimization (baseline assembly.py): times [s] = 0.107545, 0.100286,
-0.103195, 0.103143, 0.101942; median = 0.103143 s. cProfile hot paths by
-cumulative time: ``_assemble_block_operator`` 0.057 s, scipy ``csr_tocsc``
-0.035 s total, ``_build_block_csr`` 0.026 s, and 2-D ``_apply_inv_B`` sparse
-``diag @ L0`` 0.026 s.
+Before optimization (baseline assembly.py).
+Times [s] = 0.107545, 0.100286, 0.103195, 0.103143, 0.101942.
+Median = 0.103143 s.
+cProfile hot paths by cumulative time.
+``_assemble_block_operator`` 0.057 s.
+scipy ``csr_tocsc`` 0.035 s total.
+``_build_block_csr`` 0.026 s.
+2-D ``_apply_inv_B`` sparse ``diag @ L0`` 0.026 s.
 
-After optimization (CSR raw orchestration plus direct 2-D row scaling): times
-[s] = 0.075539, 0.079442, 0.076685, 0.076899, 0.076183; median = 0.076685 s.
-cProfile hot paths by cumulative time: ``_assemble_block_operator_csr``
-0.049 s, final ``csr_tocsc`` 0.014 s, ``_build_block_csr`` 0.028 s, and
-``hstack``/``vstack`` CSR stacking 0.021 s total. The measured median reduction
-on this noisy shared box was 0.026458 s (about 25.7%).
+After optimization (CSR raw orchestration plus direct 2-D row scaling).
+Times [s] = 0.075539, 0.079442, 0.076685, 0.076899, 0.076183.
+Median = 0.076685 s.
+cProfile hot paths by cumulative time.
+``_assemble_block_operator_csr`` 0.049 s.
+Final ``csr_tocsc`` 0.014 s.
+``_build_block_csr`` 0.028 s.
+``hstack``/``vstack`` CSR stacking 0.021 s total.
+The measured median reduction on this noisy shared box was 0.026458 s
+(about 25.7%).
 
-This test gates correctness only. It intentionally has no wall-time assertion.
-The reference below uses the already validated raw block assembly route plus an
-explicit sparse diagonal ``inv(B)`` multiply; it is not a snapshot of the
-optimized full-assembly output.
+The check gates correctness only.
+It has no wall-time assertion.
+The reference below uses the already validated raw block assembly route
+plus an explicit sparse diagonal ``inv(B)`` multiply.
+It is not a snapshot of the optimized full-assembly output.
 """
 
 from __future__ import annotations

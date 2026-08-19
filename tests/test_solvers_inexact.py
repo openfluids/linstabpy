@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Plumb-tests for the inexact shift-invert ST configuration.
+"""Check the inexact shift-invert ST configuration.
 
-These tests verify that ``_configure_st_for_eigenvalue`` wires up the
-SLEPc KSP/PC chain correctly for each ``st_solver`` value.  No actual
-eigensolve is performed; we only check that the PETSc/SLEPc objects are
-configured with the expected types and tolerances.
+Check that ``_configure_st_for_eigenvalue`` wires the SLEPc KSP/PC chain
+for each ``st_solver`` value.
+The checks do not run an eigensolve.
+They only inspect PETSc/SLEPc types and tolerances.
 
-Note on pc.setUp() and sub-KSP access
+Note on pc.setUp() and sub-KSP access.
 --------------------------------------
-``pc.getASMSubKSP()`` requires the PC to have been set up with an operator
-matrix attached.  In the plumb-tests here we only have a bare EPS without
-a matrix bound to the ST yet.  We therefore test KSP/PC types (which can
-be queried immediately after ``setType()``) and tolerances; sub-KSP tests
-check the non-error path at EPS-setup time when a matrix is present.
+``pc.getASMSubKSP()`` requires the PC to complete setup with an operator
+matrix attached.
+These checks only have a bare EPS without a matrix bound to the ST yet.
+The caller can query KSP/PC types immediately after ``setType()``.
+The checks therefore inspect types and tolerances.
+Sub-KSP checks inspect the non-error path at EPS-setup time when a matrix
+is present.
 """
 
 from __future__ import annotations
@@ -84,8 +86,8 @@ class TestInexactBranchPlumbs:
         """Default ksp_type for inexact must be fgmres."""
         _, st, ksp, pc, _ = _make_st_ksp_pc()
         _configure_st_for_eigenvalue("inexact", {}, ksp, pc, st)
-        # getType() returns the type string set by ksp.setType(); does not
-        # require the operator to be attached.
+        # getType() returns the type string set by ksp.setType().
+        # It does not require the operator to sit on the KSP.
         assert "fgmres" in ksp.getType().lower()
 
     def test_inexact_pc_type(self):
@@ -122,14 +124,14 @@ class TestInexactOverrides:
     """Verify custom values propagate through the inexact config dict."""
 
     def test_custom_ksp_type(self):
-        """A custom ksp_type in the inexact sub-dict must be applied."""
+        """A custom ksp_type in the inexact sub-dict must take effect."""
         _, st, ksp, pc, _ = _make_st_ksp_pc()
         ecfg = {"inexact": {"ksp_type": "fgmres", "pc_type": "bjacobi", "ksp_max_it": 100}}
         _configure_st_for_eigenvalue("inexact", ecfg, ksp, pc, st)
         assert "fgmres" in ksp.getType().lower()
 
     def test_custom_pc_type_bjacobi(self):
-        """pc_type='bjacobi' in inexact sub-dict must be applied."""
+        """pc_type='bjacobi' in the inexact sub-dict must take effect."""
         _, st, ksp, pc, _ = _make_st_ksp_pc()
         ecfg = {"inexact": {"pc_type": "bjacobi"}}
         _configure_st_for_eigenvalue("inexact", ecfg, ksp, pc, st)
@@ -162,8 +164,9 @@ from linstabpy.solvers.eigenvalue import _raise_eps_setup_failure  # noqa: E402
 class TestRaiseEpsSetupFailureDispatch:
     """Verify _raise_eps_setup_failure branches on exception type correctly.
 
-    All calls use real (tiny) PETSc/SLEPc objects so that the _safe_petsc_info
-    helpers succeed; only the ``exc`` argument is fabricated.
+    All calls use real (tiny) PETSc/SLEPc objects so that _safe_petsc_info
+    succeeds.
+    Only the ``exc`` argument is a stand-in.
     """
 
     def _call(self, exc: Exception) -> None:
