@@ -7,6 +7,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc6] - 2026-08-19
+
+The supplement examples ship complete: Martini 0-5, Song 32 deg, and
+Savarino, with their parity audits, slim reference fixtures, and the
+paper-style figures. Two operator corrections came out of that audit.
+On a deformed y-symmetric mesh the metric terms now come from the full
+eta operators, so the family second derivatives converge at the axis.
+The Floquet shift defaults to the continuum chain rule; the LinStab2D
+discrete form stays behind `matlab_parity`.
+
 ### Added
 - Each Savarino map-walk row records its commit, its Slurm job, and its machine.
 - `resolvent_analysis` returns the factor, SVD, and residual stage clocks.
