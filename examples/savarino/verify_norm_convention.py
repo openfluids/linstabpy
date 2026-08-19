@@ -6,19 +6,20 @@ Requires: Savarino's published resolvent modes under ``reference/`` (or
 ``reference/zenodo/``), plus the Mack-point ``.npz`` from
 ``run_compare_points.py``.
 
-RESULT (the last section is the decisive one):
+RESULT (the last section is the decisive one).
 
-  ||q_his||^2_E  in OUR Chu*w_int response norm            = 3.162130e+04
-  ||f_his||^2    mass-weighted L2, CONSERVATIVE momentum   = 0.9960735  (= 1)
-  => sigma^2 = E/F                                         = 3.174595e+04
-  his figure at this point (values in units of 1e4)        ~ 3.2e4      (0.4%)
+  ||q_his||^2_E  in OUR Chu*w_int response norm            = 3.162130e+04.
+  ||f_his||^2    mass-weighted L2, CONSERVATIVE momentum   = 0.9960735  (= 1).
+  => sigma^2 = E/F                                         = 3.174595e+04.
+  his figure at this point (values in units of 1e4)        ~ 3.2e4      (0.4%).
 
-So: his stored forcing is unit-norm in F = mass-weighted L2 over the
-conservative momentum components (rou, rov, row); his response norm is the Chu
-energy WITH integration weights, i.e. exactly what compute_chu_norm builds; and
-the colourbar label "sigma^2 x 10^4" means the display is sigma^2/1e4. Every
-other candidate weighting misses by orders of magnitude (95.4, 1.02e8, 5.6e7,
-5.99e13, 297.9 in the tables below).
+So his stored forcing is unit-norm in F = mass-weighted L2 over the
+conservative momentum components (rou, rov, row).
+His response norm is the Chu energy WITH integration weights, i.e. exactly
+what compute_chu_norm builds.
+The colourbar label "sigma^2 x 10^4" means the display is sigma^2/1e4.
+Every other candidate weighting misses by orders of magnitude
+(95.4, 1.02e8, 5.6e7, 5.99e13, 297.9 in the tables below).
 """
 import argparse
 import sys

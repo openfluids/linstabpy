@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run the two resolvent points used by ``compare_modes.py``.
 
-Writes local outputs under ``output/compare/`` (gitignored):
+Write local outputs under ``output/compare/`` (gitignored).
 
-  output/compare/mack/sav_map_b45p0_f2.npz
-  output/compare/liftup/sav_map_b163p0_f0p0001.npz
+  output/compare/mack/sav_map_b45p0_f2.npz.
+  output/compare/liftup/sav_map_b163p0_f0p0001.npz.
 
 Usage (from this directory, with linstabpy installed and MPI available):
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Downloads optional Zenodo artifacts for the Savarino case-study reproduction.
+"""Download optional Zenodo artifacts for the Savarino case-study reproduction.
 
 The base flow Tecplot file is **shipped** under ``reference/baseflow/``.
-This script fetches resolvent mode archives when regenerating shipped fixtures
+Fetch resolvent mode archives when regenerating shipped references
 (e.g. ``pack_reference_modes.py``).
 
-  modes --f F --beta B
+  modes --f F --beta B.
                    Download forcing/response mode Tecplot files for one point
                    into ``reference/zenodo/modes/`` (HTTP range requests into
                    the Zenodo zip). Requires ``remotezip``.

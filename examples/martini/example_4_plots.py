@@ -1,11 +1,11 @@
 """Presentation figures for Martini Example 4 (cavity direct / adjoint).
 
 Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_4_cavity/``:
+``cases/Martini2024/comparison/plots/example_4_cavity/``.
 
-- ``example_4_cavity_baseflow.png`` — cavity baseflow :math:`u/U_\\infty`
-- ``example_4_cavity_spectrum_direct.png`` / ``example_4_cavity_spectrum_adjoint.png`` — LinStab2D vs linstabpy
-- ``example_4_cavity_modes_{direct,adjoint}_{u,v,w}[_imag]_mosaic.png`` — ranks 1–3
+- ``example_4_cavity_baseflow.png`` — cavity baseflow :math:`u/U_\\infty`.
+- ``example_4_cavity_spectrum_direct.png`` / ``example_4_cavity_spectrum_adjoint.png`` — LinStab2D vs linstabpy.
+- ``example_4_cavity_modes_{direct,adjoint}_{u,v,w}[_imag]_mosaic.png`` — ranks 1–3.
 """
 
 from __future__ import annotations

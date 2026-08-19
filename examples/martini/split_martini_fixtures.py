@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split extracted Martini NPZ bundles into values + modes fixtures."""
+"""Split extracted Martini NPZ bundles into values + modes files."""
 
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ if str(ROOT) not in sys.path:
 MODE_LEAVES = frozenset({"V", "VAdj", "responses", "forces"})
 
 # Match linstabpy resolvent/EVP storage (``dtype=complex`` → complex128) and full
-# campaign MATLAB fixtures; do not downcast slim bundles to complex64.
+# campaign MATLAB references; do not downcast slim bundles to complex64.
 MODE_DTYPE = np.complex128
 
-# Resolvent fixtures that ship compact mode DOFs for presentation plots.
+# Resolvent references that ship compact mode DOFs for presentation plots.
 RESOLVENT_UV_STEMS = (
     "example_1_Blasius_results",
     "example_2_Jet_results",
@@ -70,7 +70,7 @@ def should_split_stem(stem: str) -> bool:
 
 
 def _resolvent_struct_prefix(payload: dict[str, np.ndarray]) -> str | None:
-    """Return the struct key prefix for a resolvent u+v fixture, if present."""
+    """Return the struct key prefix for a resolvent u+v reference, if present."""
     force_keys = [
         key
         for key in payload
@@ -92,9 +92,10 @@ def _mode_matrix(values: np.ndarray) -> np.ndarray:
 def slice_resolvent_uv(payload: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """Drop rho/w/T DOFs from resolvent modes; keep compact u+v layout for plots.
 
-    Mode columns are stacked u-then-v. ``idx__u_j`` / ``idx__v_j`` keep the
-    original global DOF labels from the full-stack export (not renumbered to
-    1..2*n_gp); plot code maps them to compact columns when gridding.
+    Mode columns stack as u-then-v.
+    ``idx__u_j`` / ``idx__v_j`` keep the original global DOF labels from the
+    full-stack export (not renumbered to 1..2*n_gp).
+    Plot code maps them to compact columns when gridding.
     """
     prefix = _resolvent_struct_prefix(payload)
     if prefix is None:
@@ -151,9 +152,9 @@ def _paraboloid_prefix(payload: dict[str, np.ndarray]) -> str | None:
 def slice_resolvent_uvw(payload: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """Drop rho/T DOFs from Ex.~5 resolvent modes; keep compact u+v+w layout for plots.
 
-    Mode columns are stacked u-then-v-then-w. Global ``idx__*_j`` labels are
-    preserved (not renumbered); plot code maps them to compact columns when
-    gridding.
+    Mode columns stack as u-then-v-then-w.
+    Global ``idx__*_j`` labels stay as exported (not renumbered).
+    Plot code maps them to compact columns when gridding.
     """
     try:
         forces_key = _payload_key(payload, "forces")
@@ -282,7 +283,7 @@ def slim_ex3_temporal_plot_payload(
 
 
 def slim_ex3_spatial_plot_payload(payload: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-    """Spatial MATLAB fixture is spectrum-only for plots."""
+    """Spatial MATLAB reference is spectrum-only for plots."""
     prefix = _spatial_struct_prefix(payload)
     if prefix is None:
         return payload

@@ -1,13 +1,13 @@
 """Presentation figures for Martini Example 3 (streaky BL / Floquet).
 
 Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_3_streaky_bl/``:
+``cases/Martini2024/comparison/plots/example_3_streaky_bl/``.
 
-- ``example_3_streaky_bl_baseflow.png`` — streak :math:`W` (from :math:`L_x=2\pi` case)
-- ``example_3_streaky_bl_spectrum_temporal_{Lx2pi,Lxpi_nfloq0,Lxpi_nfloq2}.png``
-- ``example_3_streaky_bl_spectrum_temporal_Lxpi_spatial_run.png``, ``example_3_streaky_bl_spectrum_spatial_Lxpi.png``
-- ``example_3_streaky_bl_modes_temporal_{tag}_w[_imag]_mosaic.png`` — LinStab2D | linstabpy | error
-- ``example_3_streaky_bl_modes_spatial_Lxpi_w[_imag]_mosaic.png`` — linstabpy-only spatial modes
+- ``example_3_streaky_bl_baseflow.png`` — streak :math:`W` (from :math:`L_x=2\pi` case).
+- ``example_3_streaky_bl_spectrum_temporal_{Lx2pi,Lxpi_nfloq0,Lxpi_nfloq2}.png``.
+- ``example_3_streaky_bl_spectrum_temporal_Lxpi_spatial_run.png``, ``example_3_streaky_bl_spectrum_spatial_Lxpi.png``.
+- ``example_3_streaky_bl_modes_temporal_{tag}_w[_imag]_mosaic.png`` — LinStab2D | linstabpy | error.
+- ``example_3_streaky_bl_modes_spatial_Lxpi_w[_imag]_mosaic.png`` — linstabpy-only spatial modes.
 """
 
 from __future__ import annotations

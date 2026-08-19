@@ -2,9 +2,9 @@
 """Figures S4/S5 — Savarino vs linstabpy leading response (Song eigenmode layout).
 
 Same panel template as the Savarino2026 case plotter: shared -1..1 colourbar,
-``\\Re`` labels, gouraud shading, matched panel aspect. Domain: full streamwise
-mesh with ``x`` from 0.2 to the outflow; wall-normal crop ``y/X_sh in [0, 0.1]``
-(lift-up) and ``[0, 0.06]`` (Mack).
+``\\Re`` labels, gouraud shading, matched panel aspect.
+Domain: full streamwise mesh with ``x`` from 0.2 to the outflow.
+Wall-normal crop ``y/X_sh in [0, 0.1]`` (lift-up) and ``[0, 0.06]`` (Mack).
 
 Requires shipped Savarino response primitives in ``reference/`` and local
 linstabpy outputs from ``run_compare_points.py`` under ``output/compare/``.

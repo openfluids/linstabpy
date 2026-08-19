@@ -35,8 +35,9 @@ def load_song_leading_mode_npz(
 ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """Load Song lead eigenmode from the shipped ``reference/eigenmode`` NPZ.
 
-    On-disk arrays are ``(nx, ny)`` in the Song export layout; transpose to the
-    LinStabPy mesh convention ``(ny, nx)`` before plotting or interpolation.
+    On-disk arrays are ``(nx, ny)`` in the Song export layout.
+    Transpose to the LinStabPy mesh convention ``(ny, nx)`` before plotting
+    or interpolation.
     """
     with np.load(path, allow_pickle=False) as z:
         x_scaled = np.asarray(z["x"], dtype=float).T / scale

@@ -64,8 +64,9 @@ def _style_triptych_axes(
 ) -> None:
     """x labels on every panel; y label/ticks only on the leftmost panel.
 
-    Do not pair this with ``sharey=True``: shared y-tick Text objects mean
-    hiding labels on an inner panel also clears the left panel.
+    Do not pair this with ``sharey=True``.
+    Shared y-tick Text objects mean hiding labels on an inner panel also
+    clears the left panel.
     """
     if ylim is None:
         ylim = axes[0].get_ylim()
@@ -119,9 +120,10 @@ def to_grid(
 def matlab_plot_grid_shape(X: np.ndarray) -> tuple[int, int]:
     """Return ``(ny, nx)`` for ``to_grid`` from a saved MATLAB ``plot_grid/X``.
 
-    Some fixtures keep raw MATLAB ``mesh.X`` transposed vs LinStabPy
-    (``Xm.T == X_py``); ``plotFlow.m`` still indexes ``var(usedInd)`` on the
-    untransposed ``(ny, nx)`` layout, so reshape with ``X.shape[::-1]``.
+    Some reference files keep raw MATLAB ``mesh.X`` transposed vs LinStabPy
+    (``Xm.T == X_py``).
+    ``plotFlow.m`` still indexes ``var(usedInd)`` on the untransposed
+    ``(ny, nx)`` layout, so reshape with ``X.shape[::-1]``.
 
     Other fixtures (e.g. ``matlab_fixtures_npz``) already store ``X`` on the
     Python ``(ny, nx)`` layout — detect that and do **not** transpose again.
@@ -213,7 +215,7 @@ def symmetric_vmax(
     *arrays: np.ndarray,
     percentile: float | None = None,
 ) -> float:
-    """Robust symmetric color limit for diverging mode plots."""
+    """Symmetric color limit for diverging mode plots, from a percentile of |field|."""
     chunks: list[np.ndarray] = []
     for arr in arrays:
         values = np.asarray(arr, dtype=float)
@@ -494,9 +496,10 @@ def jet_resolvent_response_c_diag(
 ) -> np.ndarray:
     """Diagonal ``C`` for Ex.~2 MATLAB responses before plotting.
 
-    Full ``5×ngp`` stacks use the published ``kron(B, I_5)`` layout. Slim ``2×ngp``
-    u-then-v fixtures must mask each row with the matching entry from that full
-    diagonal (via ``u_j``/``v_j``), not ``repeat(sponge0, 2)``.
+    Full ``5×ngp`` stacks use the published ``kron(B, I_5)`` layout.
+    Slim ``2×ngp`` u-then-v reference files must mask each row with the
+    matching entry from that full diagonal (via ``u_j``/``v_j``).
+    Do not use ``repeat(sponge0, 2)``.
     """
     sponge0 = np.asarray(sponge0, dtype=float).reshape(-1)
     n_gp = int(sponge0.size)
@@ -1039,7 +1042,7 @@ def plot_field_triptych(
     python_field = np.asarray(python_field, dtype=float)
 
     # Keep (X, Y, field) in one layout. Example 0 Python export is the transpose
-    # of the MATLAB fixture; transpose the whole MATLAB triple together.
+    # of the MATLAB reference; transpose the whole MATLAB triple together.
     if matlab_field.shape != python_field.shape and matlab_field.T.shape == python_field.shape:
         matlab_field = matlab_field.T
         X_mat = X_mat.T
@@ -1159,17 +1162,21 @@ def plot_mode_triptych_mosaic(
 ) -> None:
     """Stack of Ex0-style mode triptychs (LinStab2D | linstabpy | |error|%).
 
-    Each ``rows`` entry needs::
+    Each ``rows`` entry needs these keys.
 
-        row_label, X_mat, Y_mat, matlab_grid, X_py, Y_py, python_grid
+        row_label, X_mat, Y_mat, matlab_grid, X_py, Y_py, python_grid.
 
     Optional ``ref_gain`` / ``py_gain`` (forcing rows): σ titles on the matching
-    columns only. Optional ``banner_ref`` / ``banner_py`` (mode rows): ω (or
-    similar) above the LinStab2D and linstabpy panels; a single ``banner`` is
-    still accepted and centred over both field columns. All panel rows share
-    the same height; a thin σ strip sits above forcing rows only. Left ylabel
-    is ``$y-\\Re(\\ldots)$``. Outer figure titles are omitted (thesis captions
-    carry that text); pass a non-empty ``title`` only for slide dumps.
+    columns only.
+    Optional ``banner_ref`` / ``banner_py`` (mode rows): ω (or similar) above
+    the LinStab2D and linstabpy panels.
+    A single ``banner`` is still accepted and centred over both field
+    columns.
+    All panel rows share the same height.
+    A thin σ strip sits above forcing rows only.
+    Left ylabel is ``$y-\\Re(\\ldots)$``.
+    Thesis captions carry the outer figure titles.
+    Pass a non-empty ``title`` only for slide dumps.
     """
     if not rows:
         raise ValueError("rows must be non-empty")
@@ -1188,10 +1195,10 @@ def plot_mode_triptych_mosaic(
     gap_23 = 0.075
     gap_cbar = 0.005
     cbar_w = 0.016
-    # Extra strip above a forcing row for σ titles (figure fraction of that row).
+    # Extra strip above a forcing row for σ titles, as a figure fraction of that row.
     sigma_strip = 0.032
-    gap_after_forcing = 0.020  # forcing → response
-    gap_after_response = 0.002  # response → next forcing (Ex1 stack)
+    gap_after_forcing = 0.020  # after a forcing row
+    gap_after_response = 0.002  # after a response row (Ex1 stack)
     # Mode-only mosaics (Ex4): visible white gutter between ranks (0.002 looked glued).
     gap_mode_rows = 0.045
     # ω banner strip sized in *inches* (unused when rows omit banner keys).

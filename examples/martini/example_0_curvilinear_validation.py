@@ -2,16 +2,17 @@
 """
 Example 0: Curvilinear derivative validation.
 
-Translates `example_0_TestCurvilinearDerivative.m` directly:
-- build the symmetric computational mesh
-- deform it to the parabolic physical domain
-- evaluate `f = cos(x)` and `df = Dx @ f`
+Translates `example_0_TestCurvilinearDerivative.m` directly.
 
-OUTPUTS (``examples/martini/``):
-  - example_0_curvilinear_validation.npz
-  - example_0_curvilinear_mesh.png
-  - example_0_curvilinear_validation.png
-  - example_0_field_df_triptych.png  (LinStab2D fixture under LinStab2DResults/ vs Python NPZ)
+- build the symmetric computational mesh.
+- deform it to the parabolic physical domain.
+- evaluate `f = cos(x)` and `df = Dx @ f`.
+
+OUTPUTS (``examples/martini/``).
+  - example_0_curvilinear_validation.npz.
+  - example_0_curvilinear_mesh.png.
+  - example_0_curvilinear_validation.png.
+  - example_0_field_df_triptych.png  (LinStab2D reference under LinStab2DResults/ vs Python NPZ).
 
 USAGE:   python example_0_curvilinear_validation.py
          rm example_0_curvilinear_validation.npz && python example_0_curvilinear_validation.py
@@ -75,7 +76,8 @@ def _compute_reference_fields(cfg: dict) -> dict[str, np.ndarray | float | bool]
     df_rel_l2 = float(np.linalg.norm(df - df_an) / max(np.linalg.norm(df_an), 1e-30))
 
     # The slim LinStab2DResults/ bundles keep MATLAB's (ny, nx) layout, the same
-    # as mesh.X; the earlier root-level export was transposed, hence the old .T.
+    # as mesh.X.
+    # The earlier root-level export used the transpose, hence the old .T.
     return {
         "x": x,
         "y": y,

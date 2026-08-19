@@ -334,16 +334,16 @@ def _blasius_profiles(
     Returns
     -------
     U, V, T, RHO : np.ndarray
-        Streamwise velocity, wall-normal velocity, temperature, and density
-        fields on the ``(ny, nx)`` grid.
+        Streamwise velocity, wall-normal velocity, temperature, and density.
+        Fields sit on the ``(ny, nx)`` grid.
 
     Notes
     -----
-    Based on the compressible self-similar boundary-layer theory presented in
-    White's *Viscous Fluid Flow* (section 7-3.1) and Anderson's *Hypersonic
-    and High-Temperature Gas Dynamics*.  The similarity variable
-    transformation maps the incompressible Blasius solution to a compressible
-    one.
+    Based on the compressible self-similar boundary-layer theory in White's
+    *Viscous Fluid Flow* (section 7-3.1).
+    Also based on Anderson's *Hypersonic and High-Temperature Gas Dynamics*.
+    The similarity variable transformation maps the incompressible Blasius
+    solution to a compressible one.
     """
     ny, nx = X.shape
 
@@ -537,7 +537,7 @@ def load_streaky_bl(mesh) -> BaseFlow:
 
     # MATLAB BL_BF.mat stores the streak components as [spanwise, wall-normal,
     # streamwise] in [U, V, W]. Python BaseFlow uses [streamwise, wall-normal,
-    # spanwise], so the components must be remapped here.
+    # spanwise], so this loader remaps the components here.
     U = _interp_spline2d(Xq, Yq, X, Y, data["W"])
     V = _interp_spline2d(Xq, Yq, X, Y, data["V"])
     W = _interp_spline2d(Xq, Yq, X, Y, data["U"])

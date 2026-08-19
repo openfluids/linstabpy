@@ -73,12 +73,12 @@ def _get_memory_mb() -> float:
 def _resolve_frequency_target(cfg: dict) -> tuple[complex, str]:
     """Resolve the spectral target frequency from the YAML configuration.
 
-    Supported forms:
-    - explicit ``omega_target`` (preferred, direct solver input)
-    - legacy scalar ``St`` interpreted as ``omega_target = 2π St``
-    - structured ``frequency_target`` block with either:
-      - ``{"omega": ...}``
-      - ``{"St": ..., "omega_scale": ...}``
+    Supported forms.
+
+    - explicit ``omega_target`` (preferred, direct solver input).
+    - legacy scalar ``St`` interpreted as ``omega_target = 2π St``.
+    - structured ``frequency_target`` block with either
+      ``{"omega": ...}`` or ``{"St": ..., "omega_scale": ...}``.
     """
     if "omega_target" in cfg:
         omega_target = parse_complex(cfg["omega_target"])
@@ -397,7 +397,7 @@ def run_case(
             _status(f"PETSc operator (type={matrix_type}, ownership_ranges={ownership_ranges})")
     _status(f"assembled operator shape={(mesh.ngp * 5, mesh.ngp * 5)}, nnz={nnz}")
 
-    # 4) Chu energy norm
+    # 4) Chu inner-product weights.
     _status("building Chu energy norm")
     t_start = time.perf_counter()
     mem_start = _get_memory_mb()

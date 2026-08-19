@@ -1,15 +1,16 @@
 """Presentation figures for Martini Example 1 (Blasius resolvent).
 
 Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_1_blasius_resolvent/``:
+``cases/Martini2024/comparison/plots/example_1_blasius_resolvent/``.
 
-- ``example_1_blasius_baseflow.png`` — Blasius baseflow :math:`u/U_\\infty`
-- ``example_1_blasius_modes_forcing_response_{u,v}_mosaic.png`` — LinStab2D | linstabpy | error (Re)
-- ``example_1_blasius_modes_forcing_response_{u,v}_imag_mosaic.png`` — same for Im
+- ``example_1_blasius_baseflow.png`` — Blasius baseflow :math:`u/U_\\infty`.
+- ``example_1_blasius_modes_forcing_response_{u,v}_mosaic.png`` — LinStab2D | linstabpy | error (Re).
+- ``example_1_blasius_modes_forcing_response_{u,v}_imag_mosaic.png`` — same for Im.
 
-Only :math:`u` and :math:`v` are forced/observed (:math:`\\rho,w,T` masked in
-:math:`B=C`). MATLAB responses are pre-:math:`C`; mosaics apply the same
-diagonal :math:`C=B` before plotting responses.
+Only :math:`u` and :math:`v` receive forcing and observation
+(:math:`\\rho,w,T` masked in :math:`B=C`).
+MATLAB responses are pre-:math:`C`.
+Mosaics apply the same diagonal :math:`C=B` before plotting responses.
 """
 
 from __future__ import annotations

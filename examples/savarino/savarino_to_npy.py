@@ -1,33 +1,42 @@
 #!/usr/bin/env python3
 """Convert Savarino's 30.8 deg SWBLI base flow to linstabpy .npy fields.
 
-Produces the base-flow input for the Savarino case-study reproduction
-(supplement, resolvent validation section): five primitive fields
-(rho, u, v, w, T) plus coordinates and a placeholder sponge array, written
-as individual .npy files that ``paths.case_dir`` in the case configs point
-at. Required input: the published Tecplot file shipped under
+Produce the base-flow input for the Savarino case-study reproduction
+(supplement, resolvent validation section).
+Write five primitive fields (rho, u, v, w, T) plus coordinates and a
+placeholder sponge array as individual .npy files.
+``paths.case_dir`` in the case configs points at that directory.
+Required input: the published Tecplot file shipped under
 ``reference/baseflow/`` (or pass ``<src.dat> <out_dir>`` explicitly).
 
 Usage:  python savarino_to_npy.py
         python savarino_to_npy.py <src.dat> <out_dir>
 
-WHY THIS FILE IS SEPARATE FROM A SIMILAR PLOT3D READER. A different base flow
-(e.g. from a DNS/LES box) may be Plot3D (grid.grd + mean_flow.dat) with
-primitive variables at cell centres plus an edge ghost, needing a
-cell-centre -> vertex interpolation. Savarino's is a single Tecplot file
-carrying its own coordinates and *conservative* variables, already at the
-points we intend to solve on. Two different formats, two readers.
+Why this file is separate from a similar Plot3D reader.
+A different base flow (e.g. from a DNS/LES box) may be Plot3D
+(grid.grd + mean_flow.dat) with primitive variables at cell centres plus
+an edge ghost.
+That format needs a cell-centre -> vertex interpolation.
+Savarino's file is a single Tecplot file.
+It carries its own coordinates and *conservative* variables, already at
+the points we intend to solve on.
+Two different formats, two readers.
 
-NO INTERPOLATION, BY DESIGN. His 90,000 cell-centre points are taken as the
-mesh. Resampling his field onto a mesh of our choosing would mean we
-validated our interpolation as much as our operator. The mesh is x-uniform
-and y-geometric (growth 1.020/cell), which ``Mesh.create(...).deform(...)``
-handles through the metric transform.
+No interpolation, by design.
+His 90,000 cell-centre points are taken as the mesh.
+Resampling his field onto a mesh of our choosing would mean we
+validated our interpolation as much as our operator.
+The mesh is x-uniform and y-geometric (growth 1.020/cell).
+``Mesh.create(...).deform(...)`` handles that through the metric
+transform.
 
-CONVENTION. His config states "Pressure, temperature, density and velocities
-are referenced to the free-stream static quantities", which is the canonical
-convention this code already enforces (freestream rho = u = T = 1). Nothing
-is rescaled. The freestream gate below asserts it rather than trusting it.
+Convention.
+His config states "Pressure, temperature, density and velocities are
+referenced to the free-stream static quantities".
+That is the canonical convention this code already enforces
+(freestream rho = u = T = 1).
+The converter rescales nothing.
+The freestream gate below asserts it rather than trusting it.
 
 THE TEMPERATURE CONVERSION IS NOT A GUESS. From ``roe`` we get the internal
 energy ``e_int = roe/ro - |vel|^2/2``. In this nondimensionalisation
@@ -74,10 +83,11 @@ def _md5(path: Path) -> str:
 def read_tecplot(path: Path) -> dict[str, np.ndarray]:
     """Parse the Tecplot ASCII point-format file into (Nx, Ny) arrays.
 
-    The header declares ``ZONE I = 300, J = 300`` and the rows run with i
-    fastest, so the flat data reshapes as (I, J) in Fortran order -- axis 0
-    streamwise, axis 1 wall-normal, which is the layout linstabpy's loader
-    expects.
+    The header declares ``ZONE I = 300, J = 300``.
+    The rows run with i fastest, so the flat data reshapes as (I, J) in
+    Fortran order.
+    Axis 0 is streamwise and axis 1 is wall-normal.
+    That is the layout linstabpy's loader expects.
     """
     ni = nj = None
     rows: list[list[float]] = []
@@ -120,9 +130,10 @@ def freestream_gate(f: dict[str, np.ndarray]) -> tuple[int, int]:
     """Assert a contiguous inlet plateau at rho = u = T = 1.
 
     Taken on the inlet column, above the boundary layer and below the
-    incident shock. Returns the (first, last) wall-normal index of the
-    plateau so the caller can report how thick it was -- a gate that passes
-    on two stray cells is not a gate.
+    incident shock.
+    Return the (first, last) wall-normal index of the plateau so the
+    caller can report how thick it was.
+    A gate that passes on two stray cells is not a gate.
     """
     i = 0  # inlet column
     ok = (
@@ -191,8 +202,8 @@ def main(argv: list[str]) -> int:
         raise SystemExit(f"expected a 2-D base flow with w == 0 exactly, got max|w| = {wmax}")
 
     out.mkdir(parents=True, exist_ok=True)
-    # The sponge is rebuilt from x, y by the run config (physics.sponge preset), so
-    # what is written here is a placeholder of the right shape, never the sponge used.
+    # The sponge is rebuilt from x, y by the run config (physics.sponge preset).
+    # This write is a placeholder of the right shape, never the sponge the run uses.
     f["sponge"] = np.zeros_like(f["x"])
     for name, arr in f.items():
         np.save(out / f"{name}.npy", np.ascontiguousarray(arr, dtype=float))

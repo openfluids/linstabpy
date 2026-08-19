@@ -5,15 +5,15 @@ Example 4: Cavity global/adjoint stability analysis.
 Translates example_4_Cavity.m using a masked cavity geometry, deformed mesh,
 and direct + adjoint temporal eigenvalue problems.
 
-OUTPUTS:
-  - example_4_cavity.npz
-  - example_4_cavity_baseflow.png
-  - example_4_cavity_spectrum_direct.png / example_4_cavity_spectrum_adjoint.png
-  - modes_{direct,adjoint}_{u,v,w}[_imag]_mosaic.png
+OUTPUTS.
+  - example_4_cavity.npz.
+  - example_4_cavity_baseflow.png.
+  - example_4_cavity_spectrum_direct.png / example_4_cavity_spectrum_adjoint.png.
+  - modes_{direct,adjoint}_{u,v,w}[_imag]_mosaic.png.
 
-Martini parity (see ``martini_ex4_cavity_operator_audit/AGENT.md``):
-  - ``Pr: 0.7`` (MATLAB driver; ``Step_BF.mat`` stores 0.71)
-  - ``zero_dmudT: true`` (LinStab2D ``readbaseflow`` uses ``dMUdT=0``)
+Martini parity (see ``martini_ex4_cavity_operator_audit/AGENT.md``).
+  - ``Pr: 0.7`` (MATLAB driver; ``Step_BF.mat`` stores 0.71).
+  - ``zero_dmudT: true`` (LinStab2D ``readbaseflow`` uses ``dMUdT=0``).
 
 USAGE:   python example_4_cavity.py                       # .npz exists → plot only
          rm example_4_cavity.npz && python example_4_cavity.py  # recompute
