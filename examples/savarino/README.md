@@ -55,24 +55,41 @@ script), with mode files under `data/modes/`.
    LINSTABPY_CASE1_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
    python -c "from linstabpy.driver.run import run; run()"
    ```
-5. **Run a (beta, f) map** through `resolvent_map` (the shipped walk): one
-   factor at the first frequency of each beta line, later frequencies
-   preconditioned by that live factor, SLEPc for the gain. No recycle
-   knobs. The 200-point farm (`gen_campaign.py`) is the per-point MUMPS
-   baseline already computed; do not resubmit it. `savarino_line.py` is a
-   **1-D frequency-line** tool (RSVD / recycle) for a single beta, not the
-   published 2-D map.
+5. **Run the (beta, f) map.** Two execution modes, same result:
+   `gen_campaign.py` submits one job per point (assemble, factor, SLEPc
+   gain, from scratch); `gen_mapwalk_campaign.py --n-anchor 99` submits one
+   job per beta line (assemble once, symbolic analysis once, numeric
+   refactorization in place at every frequency, SLEPc gain). The line
+   walker's preconditioned path (`--n-anchor 2`, the `LineWalker` default:
+   later frequencies by GMRES with the live factor, taken only when a probe
+   beats a fresh factor) never wins on this operator -- GMRES needs 11-32
+   iterations at the map's frequency spacings against a break-even below
+   11 -- so the map of record was run with every point factorized.
+   `savarino_line.py` is a **1-D frequency-line** tool (RSVD / recycle) for
+   a single beta, not the published 2-D map.
    ```
-   python gen_campaign.py --out campaign --local   # existing per-point farm
+   python gen_campaign.py --out campaign --local          # per-point jobs
+   python gen_mapwalk_campaign.py --out lines --beta 45 --n-anchor 99 --driver-out lines/b45
    ```
+   Both generators take `--config`, `--cpus-per-task` and `--gpus` for the
+   GPU-capable backend (`savarino_point_gpu.yaml`); on a workstation-class
+   card that path returns the same gains and is slower (see the cost
+   section of the supplementary material).
 6. **Collect** the per-point outputs into one run-record CSV:
    ```
    python collect_campaign.py campaign > campaign.csv
    ```
-   The committed `savarino_map2_200pt.csv` is this file from the original run.
+   The committed `savarino_map3_200pt.csv` is this file from the 200-point
+   run of record (per-point jobs); `savarino_map3_lines_200pt.csv` is the
+   same 200 points from the line driver (the 14 per-line
+   `savarino_mapwalk.csv` files concatenated), agreeing to 4.7e-10.
+   `savarino_map2_200pt.csv` is the earlier campaign the line driver's
+   `farm_gain` / `rel_err` columns compare against; its gains predate the
+   filter-placement fix (`6b3ae2a`, <= 4.4e-3 relative) and its wall times
+   were measured with reference BLAS, so neither is quoted.
 7. **Make the figures**:
    ```
-   python plot_gain_map.py savarino_map2_200pt.csv savarino_gain_map.png
+   python plot_gain_map.py savarino_map3_200pt.csv savarino_gain_map.png
    python compare_modes.py --campaign-dir campaign --out-dir .
    ```
 
@@ -106,10 +123,14 @@ published (2, 45) point).
 
 ## Run record
 
-`results/savarino_map2_200pt.csv` is the committed 200-point gain map: one
-row per (beta, f) point, with gain, residuals, wall time, memory, DOF, nnz,
-and full provenance (git SHA, machine, ranks, backend, epsilon, forcing
-region) so each row is self-describing outside the repository.
+`savarino_map3_200pt.csv` is the committed 200-point gain map (per-point
+jobs): one row per (beta, f) point, with gain, residuals, wall time,
+memory, DOF, nnz, and full provenance (git SHA, machine, ranks, backend,
+epsilon, forcing region) so each row is self-describing outside the
+repository. `savarino_map3_lines_200pt.csv` is the line-driver run of the
+same 200 points (gain, per-point factor and solve time, factor count,
+memory, ranks, BLAS, `ncv`, git SHA, job). `savarino_map2_200pt.csv` is
+the superseded earlier campaign (see step 6).
 `results/savarino308_backend_parity_2_45.csv` is a CPU/GPU backend parity
 check at the (2, 45) point.
 
