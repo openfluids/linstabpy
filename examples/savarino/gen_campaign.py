@@ -95,7 +95,9 @@ def gpu_block(n_gpus, log_dir):
     device with a lock that lives as long as the job's shell (fd 9); two jobs
     running at once therefore never share a device. A ``nvidia-smi`` sampler
     writes the device memory every 5 s next to the job log, so the run record
-    can carry the GPU peak alongside the rank-summed RSS.
+    can carry the GPU peak alongside the rank-summed RSS. The sampler closes fd 9
+    first: a child that inherited the lock kept it up to one sleep after the job
+    ended, and the next job saw both devices busy (c9 jobs 2380/2382, exit 3).
     """
     n = int(n_gpus or 0)
     if n <= 0:
@@ -109,7 +111,7 @@ def gpu_block(n_gpus, log_dir):
         "done\n"
         f'[ -n "${{CUDA_VISIBLE_DEVICES:-}}" ] || {{ echo "no free GPU among {n}"; exit 3; }}\n'
         'echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"\n'
-        "( while true; do nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu "
+        "( exec 9>&-; while true; do nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu "
         '--format=csv,noheader,nounits -i "$CUDA_VISIBLE_DEVICES"; sleep 5; done '
         f'> "{log_dir}/nvsmi.${{SLURM_JOB_ID:-local}}.log" 2>&1 ) &\n'
         "_NVSMI_PID=$!\n"

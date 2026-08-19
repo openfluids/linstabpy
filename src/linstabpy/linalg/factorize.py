@@ -34,6 +34,11 @@ from ..utils._solver_cfg import DIRECT_SOLVER_TYPES, ITERATIVE_LINEAR_SOLVER_TYP
 from ..utils.petsc_init import init_petsc_from_argv
 from .backends import apply_factor_backend
 
+# Iteration cap for the adjoint self-test's own solves on an iterative KSP (see
+# _maybe_run_adjoint_test_and_heal). Forward FGMRES around the STRUMPACK LU needs
+# 2-3 iterations on the Savarino operator; 50 leaves a wide margin.
+ADJOINT_SELF_TEST_MAX_IT = 50
+
 if TYPE_CHECKING:
     # Type-only import; ``from __future__ import annotations`` keeps every
     # ``PETSc.*`` annotation below a string, so importing this module does not
@@ -276,8 +281,13 @@ def factorize(
     def _hermitian_transpose_of(op: sp.spmatrix | PETSc.Mat) -> sp.spmatrix | PETSc.Mat:
         # Same recipe for the first heal and for every refactorize, so the K^H
         # factor sees one nonzero pattern for the life of the factorization.
+        # petsc4py's Mat.hermitianTranspose(out=None) transposes IN PLACE and
+        # returns the same object: the previous heal turned the CALLER's operator
+        # into K^H (measured 2026-08-19, c9 job 2386: K x - b residual 1e10 after
+        # the heal, 1e-6 before, ||A - K||_F = 0). An empty Mat as `out` asks for
+        # a new matrix.
         if _is_petsc_matrix(op):
-            return op.hermitianTranspose()
+            return op.hermitianTranspose(out=PETSc.Mat())
         return op.conj().T.tocsc()
 
     if env_prefix == "LINSTABPY_LINSOLVE":
@@ -500,11 +510,23 @@ def factorize(
         b.assemblyEnd()
         return b
 
+    def _raise_if_diverged(what: str) -> None:
+        # PETSc returns from KSPSolve whatever the last iterate was, converged or not
+        # (unless -ksp_error_if_not_converged is set). A diverged FGMRES around a
+        # sparse LU must fail here, not surface as a silently wrong resolvent mode.
+        reason = int(ksp.getConvergedReason())
+        if reason < 0:
+            raise RuntimeError(
+                f"{what}: KSP diverged (reason {reason}, {ksp.getIterationNumber()} iterations, "
+                f"residual norm {ksp.getResidualNorm():.3e})"
+            )
+
     def solve_vec(rhs: PETSc.Vec) -> PETSc.Vec:
         """Solve ``A x = rhs`` while preserving PETSc vector distribution."""
         _check_vec_size(rhs)
         x = rhs.duplicate()
         ksp.solve(rhs, x)
+        _raise_if_diverged("forward solve")
         return x
 
     def solve_transpose_vec_original(rhs: PETSc.Vec) -> PETSc.Vec:
@@ -515,6 +537,7 @@ def factorize(
         try:
             b.conjugate()
             ksp.solveTranspose(b, x)
+            _raise_if_diverged("transpose solve")
             x.conjugate()
             return x
         finally:
@@ -690,7 +713,16 @@ def factorize(
             return
         adjoint_test_done = True
 
-        # Run self-test with original paths
+        # Run self-test with original paths. On an iterative KSP a defective native
+        # transpose (STRUMPACK) sends the transposed FGMRES to its full iteration cap
+        # before the identity can fail -- measured 400 iterations, 276 s of a 437 s
+        # point (c9 job 2381). A correct adjoint of an LU preconditioner converges in a
+        # handful of iterations, so the self-test's own solves get a short cap and the
+        # production tolerances are restored right after.
+        rtol0, atol0, dtol0, max_it0 = ksp.getTolerances()
+        capped = ksp.getType() != PETSc.KSP.Type.PREONLY and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
+        if capped:
+            ksp.setTolerances(max_it=ADJOINT_SELF_TEST_MAX_IT)
         try:
             defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
         except Exception as exc:
@@ -699,6 +731,9 @@ def factorize(
                 exc,
             )
             defect = float("inf")
+        finally:
+            if capped:
+                ksp.setTolerances(rtol=rtol0, atol=atol0, divtol=dtol0, max_it=max_it0)
         metrics["adjoint_self_test_defect"] = defect
 
         # ``adjoint_tol`` (closure scope, above): trigger threshold for the heal.

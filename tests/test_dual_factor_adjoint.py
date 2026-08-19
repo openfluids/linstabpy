@@ -320,3 +320,52 @@ def test_heal_after_refactorize_transposes_the_current_operator() -> None:
     assert factor.metrics["dual_factor_active"] is True
     assert factor.metrics["adjoint_refactor_count"] == 0  # heal came after the refactorize
     factor.destroy()
+
+
+def test_heal_and_refactorize_leave_the_callers_petsc_operator_untouched() -> None:
+    """The heal transposes the caller's operator to build K^H; with a PETSc Mat,
+    ``hermitianTranspose()`` without ``out`` transposes IN PLACE and returns the
+    same object -- the caller's K silently became K^H (and the refactorize path
+    then destroyed it). Both the first heal and a refactorize must leave the
+    caller's matrices exactly as they were."""
+    import unittest.mock as mock
+
+    from petsc4py import PETSc
+
+    from linstabpy.utils.petsc_core import scipy_to_petsc
+
+    n = 6
+    L0 = _operator(n)
+    L1 = _shifted_same_pattern(L0, 0.3 - 0.2j)
+    K0 = scipy_to_petsc(L0)
+    K1 = scipy_to_petsc(L1)
+    K0_ref = K0.copy()
+    K1_ref = K1.copy()
+    rng = np.random.default_rng(3)
+    rhs = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+
+    def unchanged(K: PETSc.Mat, K_ref: PETSc.Mat) -> bool:
+        D = K.copy()
+        D.axpy(-1.0, K_ref)
+        d = D.norm()
+        D.destroy()
+        return d == 0.0
+
+    with mock.patch(
+        "linstabpy.linalg.factorize._run_adjoint_self_test", side_effect=_heal_forcing_self_test()
+    ):
+        factor = factorize(K0)
+        y0 = factor.solve_adjoint(rhs)  # heal engages: builds K0^H
+        assert factor.metrics["dual_factor_active"] is True
+        assert unchanged(K0, K0_ref), "the heal transposed the caller's operator in place"
+        factor.refactorize(K1)
+        y1 = factor.solve_adjoint(rhs)
+        assert unchanged(K1, K1_ref), "refactorize transposed the caller's new operator in place"
+        assert unchanged(K0, K0_ref)
+
+    assert np.linalg.norm(L0.conj().T @ y0 - rhs) / np.linalg.norm(rhs) < 1.0e-10
+    assert np.linalg.norm(L1.conj().T @ y1 - rhs) / np.linalg.norm(rhs) < 1.0e-10
+    factor.destroy()
+    # the caller still owns its matrices: destroying them must not double-free
+    for K in (K0, K1, K0_ref, K1_ref):
+        K.destroy()

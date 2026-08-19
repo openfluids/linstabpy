@@ -143,6 +143,8 @@ def test_gpu_block_gives_the_job_one_device_by_lock(tmp_path) -> None:
     assert "no free GPU among 2" in block
     assert f'"{tmp_path}/nvsmi.${{SLURM_JOB_ID:-local}}.log"' in block
     assert "nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu" in block
+    # the sampler must not inherit the lock: "( exec 9>&-; while true; do nvidia-smi"
+    assert "( exec 9>&-; while true; do nvidia-smi" in block
 
 
 def test_gen_campaign_gpu_arm_writes_config_cores_and_device_pick(tmp_path, monkeypatch) -> None:
