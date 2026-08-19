@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figure S6, the 200-point gain map from savarino_map2_200pt.csv.
+"""Figure S6, the 200-point gain map from savarino_map3_200pt.csv.
 
 Render the resolvent gain map styled to match the published reference
 figure's layout and color scheme (950x780 px; square 549x549 axes at rect
@@ -11,7 +11,7 @@ log10 f along each swept beta line, then 1-D across beta), which is the
 correct rendering for a per-line sweep and introduces no cross-line
 Delaunay artifacts.
 
-Requires: the run-record CSV (default: savarino_map2_200pt.csv).
+Requires: the run-record CSV (default: savarino_map3_200pt.csv).
 
 Usage: plot_gain_map.py [map.csv] [out.png]
 """
@@ -75,7 +75,7 @@ def tensor_grid(rows):
 
 
 def main():
-    src = sys.argv[1] if len(sys.argv) > 1 else str(HERE / "savarino_map2_200pt.csv")
+    src = sys.argv[1] if len(sys.argv) > 1 else str(HERE / "savarino_map3_200pt.csv")
     dst = sys.argv[2] if len(sys.argv) > 2 else str(HERE / "savarino_gain_map.png")
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     rows = [r for r in csv.DictReader(open(src)) if r["status"] == "ok"]
