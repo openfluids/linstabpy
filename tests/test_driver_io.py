@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-from linstabpy.driver.io import load_results, save_results
+from linstabpy.driver.io import _jsonify_metrics_value, load_results, save_results
 
 COST_KEYS = {
     "cost_wall_total_s",
@@ -46,6 +46,18 @@ PROVENANCE_KEYS = {
     "stability_accepted_indices",
     "stability_rejected_indices",
 }
+
+
+def test_jsonify_metrics_value_handles_numpy_and_complex() -> None:
+    assert _jsonify_metrics_value(float("nan")) is None
+    assert _jsonify_metrics_value(np.float64(float("nan"))) is None
+    assert _jsonify_metrics_value(np.float32(np.nan)) is None
+    assert _jsonify_metrics_value(np.float64(1.5)) == 1.5
+    assert _jsonify_metrics_value(np.complex128(1.0 + 2.0j)) == {"real": 1.0, "imag": 2.0}
+    assert _jsonify_metrics_value(3.0 + 4.0j) == {"real": 3.0, "imag": 4.0}
+    assert _jsonify_metrics_value(np.array(5, dtype=np.int64)) == 5
+    assert _jsonify_metrics_value(np.array([1.0, float("nan")])) == [1.0, None]
+    assert _jsonify_metrics_value((1.0 + 0.0j, 2)) == [{"real": 1.0, "imag": 0.0}, 2]
 
 
 def _assert_npz_value_unchanged(actual, expected):

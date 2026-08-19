@@ -16,8 +16,12 @@ from linstabpy.utils._solver_cfg import (
     ITERATIVE_EIGEN_SOLVER_TYPES,
     ITERATIVE_LINEAR_SOLVER_TYPES,
     SolverConfig,
+    _parse_optional_int,
     _scfg,
     _scfg_bool,
+    _scfg_float,
+    _scfg_int,
+    _scfg_optional_int,
 )
 
 
@@ -37,6 +41,43 @@ def test_solver_config_bool_resolution(monkeypatch) -> None:
     assert _scfg_bool({"root_scatter": False}, "root_scatter", "LINSTABPY_BOOL_KEY", True) is False
     assert _scfg_bool(None, "root_scatter", "LINSTABPY_BOOL_KEY", False) is True
     assert _scfg_bool(None, "root_scatter", "LINSTABPY_MISSING_BOOL", False) is False
+
+
+def test_solver_config_float_and_int_resolution(monkeypatch) -> None:
+    monkeypatch.setenv("LINSTABPY_FLOAT_KEY", "0.25")
+    monkeypatch.setenv("LINSTABPY_INT_KEY", "8")
+
+    assert _scfg_float({"eps_tol": 1e-6}, "eps_tol", "LINSTABPY_FLOAT_KEY", 1e-8) == 1e-6
+    assert _scfg_float(None, "eps_tol", "LINSTABPY_FLOAT_KEY", 1e-8) == 0.25
+    assert _scfg_float(None, "eps_tol", "LINSTABPY_MISSING_FLOAT", 1e-8) == 1e-8
+    assert _scfg_int({"max_it": 40}, "max_it", "LINSTABPY_INT_KEY", 20) == 40
+    assert _scfg_int(None, "max_it", "LINSTABPY_INT_KEY", 20) == 8
+    assert _scfg_int(None, "max_it", "LINSTABPY_MISSING_INT", 20) == 20
+
+
+def test_parse_optional_int_sentinels_and_invalid() -> None:
+    assert _parse_optional_int(None, "ncv") is None
+    assert _parse_optional_int("none", "ncv") is None
+    assert _parse_optional_int("petsc", "ncv") is None
+    assert _parse_optional_int("7", "ncv") == 7
+    with pytest.raises(ValueError, match="ncv"):
+        _parse_optional_int("nope", "ncv")
+
+
+def test_scfg_optional_int_yaml_then_env_then_default(monkeypatch) -> None:
+    monkeypatch.setenv("LINSTABPY_NCV", "12")
+    assert _scfg_optional_int({"ncv": "none"}, "ncv", "LINSTABPY_NCV", 4) is None
+    assert _scfg_optional_int(None, "ncv", "LINSTABPY_NCV", 4) == 12
+    monkeypatch.delenv("LINSTABPY_NCV")
+    assert _scfg_optional_int(None, "ncv", "LINSTABPY_NCV", 4) == 4
+
+
+def test_solver_config_len_matches_mapping() -> None:
+    cfg = SolverConfig({"a": 1, "b": 2})
+    assert len(cfg) == 2
+    assert SolverConfig.from_config(None) is None
+    assert _scfg_bool({"root_scatter": "on"}, "root_scatter", "LINSTABPY_BOOL_KEY", False) is True
+    assert _scfg_bool({"root_scatter": "nope"}, "root_scatter", "LINSTABPY_BOOL_KEY", True) is False
 
 
 def test_solver_config_wrapper_preserves_mapping_behavior() -> None:

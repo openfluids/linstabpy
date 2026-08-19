@@ -335,9 +335,7 @@ def build_mosaic_rows(
         else np.arange(int(np.prod(X_py.shape)), dtype=int)
     )
     if forces_mat.shape[0] == 2 * n_gp:
-        matlab_plot = patch_matlab_compact_uv_idx(
-            matlab, idx_prefix=IDX_PREFIX, n_gp=n_gp
-        )
+        matlab_plot = patch_matlab_compact_uv_idx(matlab, idx_prefix=IDX_PREFIX, n_gp=n_gp)
         idx_comp = compact_uv_component_idx(n_gp, component, one_based=True)
         one_based = True
     else:
@@ -448,3 +446,20 @@ def plot_example1_figures(
             outputs.append(out_path)
 
     return outputs
+
+
+def _load_npz(path: Path) -> dict[str, np.ndarray]:
+    with np.load(path, allow_pickle=False) as raw:
+        return {key: raw[key] for key in raw.files}
+
+
+def main() -> None:
+    """Load the Example 1 NPZ and write the presentation PNGs."""
+    example_dir = Path(__file__).resolve().parent
+    data = _load_npz(example_dir / "example_1_blasius.npz")
+    for path in plot_example1_figures(data, example_dir=example_dir):
+        print(f"Wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

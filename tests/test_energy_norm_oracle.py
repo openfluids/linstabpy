@@ -25,6 +25,7 @@ multiplication, the axy radial factor, and invW = 1/W.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from linstabpy.operators.energy_norm import compute_chu_norm
 
@@ -123,3 +124,12 @@ def test_chu_norm_oracle_stable_across_seeds():
     for seed in (1, 13, 101, 20260601):
         report = _run_norm_oracle(ngp=20, seed=seed)
         assert report["pass"], (seed, report)
+
+
+def test_chu_axy_requires_radial_coordinate():
+    ngp = 8
+    W_int = np.ones(ngp)
+    RHO = np.ones(ngp)
+    T = np.ones(ngp)
+    with pytest.raises(ValueError, match="R is required"):
+        compute_chu_norm(W_int, RHO, T, _KAPPA, _MA, ngp, model="axy")

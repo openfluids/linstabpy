@@ -100,8 +100,11 @@ def test_round_trip_maps_conservative_momentum_to_primitive_T() -> None:
     u_p = f_c[idx["u_j"]] / flow["rho_bar"]
     v_p = f_c[idx["v_j"]] / flow["rho_bar"]
     w_p = f_c[idx["w_j"]] / flow["rho_bar"]
-    expected_T = -KAPPA * (KAPPA - 1.0) * MA**2 * (
-        flow["u_bar"] * u_p + flow["v_bar"] * v_p + flow["w_bar"] * w_p
+    expected_T = (
+        -KAPPA
+        * (KAPPA - 1.0)
+        * MA**2
+        * (flow["u_bar"] * u_p + flow["v_bar"] * v_p + flow["w_bar"] * w_p)
     )
 
     np.testing.assert_allclose(primitive[idx["rho_j"]], 0.0, atol=1e-14)
@@ -276,8 +279,7 @@ def test_forcing_response_mats_conservative_momentum_requires_base_flow() -> Non
 
 def test_resolvent_map_walks_the_line_and_never_calls_the_rsvd_sweep() -> None:
     src = (
-        Path(__file__).resolve().parents[1]
-        / "src/linstabpy/solvers/router/resolvent_map.py"
+        Path(__file__).resolve().parents[1] / "src/linstabpy/solvers/router/resolvent_map.py"
     ).read_text(encoding="utf-8")
     assert "sweep_stable_regime" not in src
     assert "LineWalker" in src
@@ -394,3 +396,12 @@ def test_unknown_input_space_is_rejected() -> None:
         resolvent_map._forcing_response_mats(
             L0, ndof, bc_indices, cfg, mesh=mesh, idx=idx, base_flow=base_flow
         )
+
+
+def test_resolvent_package_lazy_exports_conservative_forcing() -> None:
+    import linstabpy.resolvent as resolvent_pkg
+
+    assert "dewhiten_forcing" in resolvent_pkg.__dir__()
+    assert resolvent_pkg.dewhiten_forcing is dewhiten_forcing
+    with pytest.raises(AttributeError, match="no attribute"):
+        getattr(resolvent_pkg, "not_an_export")

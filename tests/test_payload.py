@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from linstabpy.driver.payload import RUNTIME_NPZ_CONTRACT_KEYS, build_runtime_payload
+from linstabpy.utils.provenance import _blas_from_link_line
 from linstabpy.utils.yaml_io import parse_complex, parse_complex_list, parse_int_list
 
 
@@ -67,3 +68,12 @@ def test_parse_complex_rejects_bad_values() -> None:
 def test_parse_complex_list_and_int_list() -> None:
     assert parse_complex_list([[0.0, 1.0], 2]) == [1.0j, 2.0 + 0.0j]
     assert parse_int_list([0, 2, 4.0]) == [1, 2, 4]
+
+
+def test_blas_from_link_line_names_known_families() -> None:
+    assert _blas_from_link_line("-lmkl_intel_lp64 -lmkl_core") == "mkl"
+    assert _blas_from_link_line("-lopenblas") == "openblas"
+    assert _blas_from_link_line("-lfblas -lflapack") == "reference"
+    assert _blas_from_link_line("-framework Accelerate") == "accelerate"
+    assert _blas_from_link_line("  ") == "unavailable"
+    assert _blas_from_link_line("-lblas") == "-lblas"

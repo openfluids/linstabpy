@@ -26,6 +26,43 @@ def _shock_like_fields(
     return rho, u, v, w, T, sponge
 
 
+def test_shock_cleanup_rejects_bad_config_and_filter_lists() -> None:
+    X, Y = _regular_grid(8, 6)
+    rho, u, v, w, T, sponge = _shock_like_fields(X, Y)
+    apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, sponge, None)
+    with pytest.raises(TypeError, match="JSON object"):
+        apply_optional_shock_cleanup(X, Y, rho, u, v, w, T, sponge, "on")
+    bad_filter = {"enabled": True, "sensor": {"enabled": True}, "filter": {"enabled": True}}
+    with pytest.raises(ValueError, match="directions"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**bad_filter, "filter": {"enabled": True, "directions": []}},
+        )
+    with pytest.raises(ValueError, match="fields"):
+        apply_optional_shock_cleanup(
+            X, Y, rho, u, v, w, T, sponge, {**bad_filter, "filter": {"enabled": True, "fields": []}}
+        )
+    with pytest.raises(ValueError, match="only"):
+        apply_optional_shock_cleanup(
+            X,
+            Y,
+            rho,
+            u,
+            v,
+            w,
+            T,
+            sponge,
+            {**bad_filter, "filter": {"enabled": True, "fields": ["pressure"]}},
+        )
+
+
 def test_shock_cleanup_disabled_is_noop() -> None:
     X, Y = _regular_grid()
     rho, u, v, w, T, sponge = _shock_like_fields(X, Y)

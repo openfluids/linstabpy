@@ -142,7 +142,9 @@ def plot_validation(data: dict[str, np.ndarray], out_path: Path) -> None:
     df_lim = max(df_lim, 1e-30)
     err_abs = np.abs(error)
     err_pct = 100.0 * err_abs / df_lim
-    err_vmax = float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    err_vmax = (
+        float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    )
     err_vmax = max(err_vmax, 1e-30)
 
     title_fs = 22
@@ -378,7 +380,9 @@ def plot_field_df_triptych(
     vmax = float(np.nanmax(np.abs(np.stack([matlab_field, python_field]))))
     vmax = max(vmax, 1e-30)
     err_pct = 100.0 * err / vmax
-    err_vmax = float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    err_vmax = (
+        float(np.nanmax(err_pct[np.isfinite(err_pct)])) if np.any(np.isfinite(err_pct)) else 1.0
+    )
     err_vmax = max(err_vmax, 1e-30)
 
     phys_xlim = (-0.5, float(np.nanmax(np.concatenate([X_mat.ravel(), X_py.ravel()]))))
@@ -482,3 +486,20 @@ def plot_example0_figures(
         out_path=triptych_path,
     )
     return mesh_path, validation_path, triptych_path
+
+
+def _load_npz(path: Path) -> dict[str, np.ndarray]:
+    with np.load(path, allow_pickle=False) as raw:
+        return {key: raw[key] for key in raw.files}
+
+
+def main() -> None:
+    """Load the Example 0 NPZ and write the three presentation PNGs."""
+    example_dir = Path(__file__).resolve().parent
+    data = _load_npz(example_dir / "example_0_curvilinear_validation.npz")
+    for path in plot_example0_figures(data, example_dir=example_dir):
+        print(f"Wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

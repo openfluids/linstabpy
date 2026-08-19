@@ -523,3 +523,14 @@ def plot_example3_figures(
                 outputs.append(out_path)
 
     return outputs
+
+
+def main() -> None:
+    """Load the Example 3 NPZ files and write the presentation PNGs."""
+    example_dir = Path(__file__).resolve().parent
+    for path in plot_example3_figures(example_dir):
+        print(f"Wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

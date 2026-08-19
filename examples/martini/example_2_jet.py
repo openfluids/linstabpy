@@ -6,12 +6,11 @@ Translates example_2_Jet.m for an axisymmetric (m=0) jet base flow.
 
 OUTPUTS.
   - example_2_jet.npz.
-  - example_2_jet_baseflow.png.
-  - example_2_jet_modes_forcing_response_{u,v}_mosaic.png.
-  - example_2_jet_modes_forcing_response_{u,v}_imag_mosaic.png.
+  - example_2_jet.log.
 
-USAGE:   python example_2_jet.py                       # .npz exists → plot only
-         rm example_2_jet.npz && python example_2_jet.py  # recompute
+USAGE:   python example_2_jet.py
+         rm example_2_jet.npz && python example_2_jet.py
+         python example_2_plots.py
 """
 
 from __future__ import annotations
@@ -21,13 +20,12 @@ from pathlib import Path
 
 import numpy as np
 
-from linstabpy.utils.yaml_io import load_config
-
 from examples._helpers import load_or_compute
-from examples.martini.example_2_plots import plot_example2_figures
+from linstabpy.utils.yaml_io import load_config
 
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
+LOG_PATH = SCRIPT.with_suffix(".log")
 REFERENCE_MAT = SCRIPT.with_name("example_2_reference.mat")
 
 
@@ -254,25 +252,17 @@ def compute(cfg: dict):
     print(f"Results saved to {OUTPUT_NPZ}")
 
 
-def plot(data):
-    """Plot campaign-style jet baseflow and resolvent mosaics."""
-    cfg = load_config(SCRIPT.with_suffix(".yaml"))
-    bc_layout = _bc_mask_layout(cfg)
-    if "bc_mask_layout" in data:
-        bc_layout = str(np.asarray(data["bc_mask_layout"]).reshape(-1)[0])
-    paths = plot_example2_figures(
-        data,
-        example_dir=SCRIPT.parent,
-        bc_mask_layout=bc_layout,
-    )
-    for path in paths:
-        print(f"Wrote {path}")
+def _log(line: str) -> None:
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def main():
     cfg = load_config(SCRIPT.with_suffix(".yaml"))
-    data = load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
-    plot(data)
+    t0 = time.perf_counter()
+    load_or_compute(OUTPUT_NPZ, lambda: compute(cfg))
+    _log(f"example_2_jet  {time.perf_counter() - t0:.3f} s")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ The MATLAB code uses an internal coordinate system (x-spanwise,
 y-wall-normal, z-streamwise) that differs from the physical one
 (x-streamwise, y-wall-normal, z-spanwise).  All inputs and outputs of
 :func:`compute_cartesian_coefficients` use the *physical* coordinate
-system, so callers never need to worry about the internal mapping.
+system. Callers do not apply the internal mapping.
 
 Physical coordinate system::
 
@@ -150,11 +150,11 @@ def _pack_coefficients_in_physical_order(
 class _PhysicalCoefficientBuilder:
     """Write coefficient entries directly into final physical-order tensors.
 
-    The public coefficient functions keep the MATLAB-derived formula order, but
-    the assembly seam should not keep hundreds of ``c_<block>_<ij>`` vectors
-    alive until ``locals()`` is packed.  This builder applies the same source
-    block mapping, variable permutation, and sign convention as
-    ``_pack_coefficients_in_physical_order`` while each formula is evaluated.
+    Public coefficient functions keep the MATLAB-derived formula order.
+    The builder does not keep hundreds of ``c_<block>_<ij>`` vectors
+    until a late ``locals()`` pack. It applies the same source-block
+    mapping, variable permutation, and sign convention as
+    ``_pack_coefficients_in_physical_order`` while it evaluates each formula.
     """
 
     def __init__(
@@ -240,9 +240,9 @@ def compute_cartesian_coefficients(
     r"""Compute LNSE coefficient matrices for a Cartesian 2-D base flow.
 
     All inputs use the physical coordinate system (x = streamwise,
-    y = wall-normal, z = spanwise).  The returned coefficients are in
-    physical variable ordering ``[rho, u, v, w, T]`` and physical
-    derivative naming (``Ax`` = streamwise, ``Ay`` = wall-normal).
+    y = wall-normal, z = spanwise).  Returned coefficients use physical
+    variable ordering ``[rho, u, v, w, T]``.  Derivative names are
+    physical (``Ax`` = streamwise, ``Ay`` = wall-normal).
 
     Parameters
     ----------
@@ -270,12 +270,13 @@ def compute_cartesian_coefficients(
     Notes
     -----
     Internally, the function maps physical quantities to the MATLAB
-    coefficient coordinate system (x_coeff = -z_phys, y_coeff = y_phys,
-    z_coeff = x_phys) used in ``getCoeffsLaminar_Cartesian.m``, computes
-    all 175 coefficient entries, then maps the results back to the
-    physical variable ordering.  The ``-LHS`` sign flip from
-    ``GetLinProblem.m`` (line 228) and the permutation matrix ``T``
-    (lines 272--285) are both absorbed.
+    coefficient coordinate system. That system is x_coeff = -z_phys,
+    y_coeff = y_phys, z_coeff = x_phys, as in
+    ``getCoeffsLaminar_Cartesian.m``. It computes all 175 coefficient
+    entries. Then it maps the results back to the physical variable
+    ordering.  The ``-LHS`` sign flip from ``GetLinProblem.m``
+    (line 228) and the permutation matrix ``T`` (lines 272--285) are
+    both absorbed.
     """
     ngp = U.shape[0]
 
@@ -333,8 +334,8 @@ def compute_cartesian_coefficients(
     # ------------------------------------------------------------------
     # Step 2: Compute all coefficient entries.
     #
-    # These formulas are transcribed verbatim from
-    # getCoeffsLaminar_Cartesian.m.  Variable names (U, V, W, kz, r, z)
+    # These formulas copy getCoeffsLaminar_Cartesian.m verbatim.
+    # Variable names (U, V, W, kz, r, z)
     # refer to the coefficient coordinate system.
     #
     # C = 0 in the Cartesian formulation (curvature term).
@@ -884,9 +885,10 @@ def compute_cylindrical_coefficients(
 ) -> LNSECoefficients:
     r"""Compute LNSE coefficient matrices for a cylindrical 2-D base flow.
 
-    Inputs and coefficients use the physical coordinate system (x = axial,
-    y = radius, z = azimuth, with Fourier mode ``m``).  The returned
-    coefficients are in physical variable ordering ``[rho, u, v, w, T]``.
+    Inputs and coefficients use the physical coordinate system.
+    That system is x = axial, y = radius, z = azimuth, with Fourier
+    mode ``m``.  Returned coefficients use physical variable ordering
+    ``[rho, u, v, w, T]``.
 
     Parameters
     ----------
@@ -920,7 +922,7 @@ def compute_cylindrical_coefficients(
     R = np.asarray(R, dtype=float)
     # Guard only a true axis point (r = 0), where 1/R is undefined.  On a
     # staggered/cell-centred grid the first point sits at r = dr/2 > 0 and its
-    # 1/R, 1/R² coefficients are legitimate and must not be altered: flooring R
+    # 1/R, 1/R² coefficients are legitimate; do not alter them.  Flooring R
     # at the local mesh spacing silently rewrote the equations in the axis row
     # (jet example 2: leading gain 411.72 vs the 413.72 reference).  A grid that
     # actually contains r = 0 needs a pole treatment, not a floor, so refuse it.

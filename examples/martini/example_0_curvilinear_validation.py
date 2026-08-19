@@ -10,31 +10,27 @@ Translates `example_0_TestCurvilinearDerivative.m` directly.
 
 OUTPUTS (``examples/martini/``).
   - example_0_curvilinear_validation.npz.
-  - example_0_curvilinear_mesh.png.
-  - example_0_curvilinear_validation.png.
-  - example_0_field_df_triptych.png  (LinStab2D reference under LinStab2DResults/ vs Python NPZ).
+  - example_0_curvilinear_validation.log.
 
 USAGE:   python example_0_curvilinear_validation.py
          rm example_0_curvilinear_validation.npz && python example_0_curvilinear_validation.py
+         python example_0_plots.py
 """
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+import time
 from pathlib import Path
 
 import numpy as np
 
+from examples._helpers import load_or_compute
 from linstabpy.mesh import Mesh
 from linstabpy.utils.yaml_io import load_config
 
-from examples._helpers import load_or_compute
-from examples.martini.example_0_plots import plot_example0_figures
-
 SCRIPT = Path(__file__).resolve()
 OUTPUT_NPZ = SCRIPT.with_suffix(".npz")
-ARTIFACT_JSON = SCRIPT.parents[2] / "artifacts" / "curvilinear_derivative_parity.json"
+LOG_PATH = SCRIPT.with_suffix(".log")
 
 
 def _build_computational_mesh(cfg: dict) -> Mesh:
@@ -90,29 +86,14 @@ def _compute_reference_fields(cfg: dict) -> dict[str, np.ndarray | float | bool]
     }
 
 
-def _write_artifact_report(fields: dict[str, np.ndarray | float | bool]) -> None:
-    """Write the local Example 0 diagnostic report inside the repo."""
-    report = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "status": "computed",
-        "note": (
-            "This artifact stores Python-versus-analytic derivative errors only. "
-            "Use examples/martini/martini_parity_latest.json for MATLAB parity status."
-        ),
-        "df_linf": float(fields["df_linf"]),
-        "df_rel_l2": float(fields["df_rel_l2"]),
-        "analytical_self_check_pass": bool(fields["overall_pass"]),
-    }
-
-    ARTIFACT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    with ARTIFACT_JSON.open("w", encoding="utf-8") as fh:
-        json.dump(report, fh, indent=2, sort_keys=True)
-        fh.write("\n")
+def _log(line: str) -> None:
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def compute(cfg: dict) -> None:
     fields = _compute_reference_fields(cfg)
-    _write_artifact_report(fields)
 
     np.savez_compressed(
         OUTPUT_NPZ,
@@ -126,45 +107,19 @@ def compute(cfg: dict) -> None:
         overall_pass=np.array([fields["overall_pass"]], dtype=bool),
     )
     print(f"Saved fields: {OUTPUT_NPZ}")
-    print(f"Saved artifact: {ARTIFACT_JSON}")
-
-
-def plot(data: dict[str, np.ndarray], cfg: dict) -> None:
-    mesh_path, validation_path, triptych_path = plot_example0_figures(
-        data,
-        example_dir=SCRIPT.parent,
-        cfg=cfg,
-    )
-    print(f"Saved figure: {mesh_path}")
-    print(f"Saved figure: {validation_path}")
-    print(f"Saved figure: {triptych_path}")
-
-
-def ensure_artifact(data: dict[str, np.ndarray]) -> None:
-    """Ensure the local analytic-error artifact exists inside the repo."""
-    if ARTIFACT_JSON.exists():
-        return
-    _write_artifact_report(
-        {
-            "df_linf": float(np.asarray(data["df_linf"]).reshape(-1)[0]),
-            "df_rel_l2": float(np.asarray(data["df_rel_l2"]).reshape(-1)[0]),
-            "overall_pass": bool(np.asarray(data["overall_pass"]).reshape(-1)[0]),
-        }
-    )
 
 
 def main() -> None:
     cfg = load_config(SCRIPT.with_suffix(".yaml"))
-    raw = load_or_compute(
+    t0 = time.perf_counter()
+    load_or_compute(
         OUTPUT_NPZ,
         lambda: compute(cfg),
         required_keys={"x", "y", "f", "df", "df_an", "overall_pass"},
         allow_pickle=False,
         verbose=False,
     )
-    data = {key: raw[key] for key in raw.files}
-    ensure_artifact(data)
-    plot(data, cfg)
+    _log(f"example_0_curvilinear_validation  {time.perf_counter() - t0:.3f} s")
 
 
 if __name__ == "__main__":

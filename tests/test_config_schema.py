@@ -73,6 +73,17 @@ def test_bool_not_accepted_for_int_field() -> None:
     assert "expected int, got bool" in str(exc_info.value)
 
 
+def test_schema_rejects_wrong_python_types_for_known_fields() -> None:
+    with pytest.raises(ConfigValidationError, match="expected int or float, got bool"):
+        validate_config({"Re": True})
+    with pytest.raises(ConfigValidationError, match="expected int or float, got str"):
+        validate_config({"Re": "fast"})
+    with pytest.raises(ConfigValidationError, match="expected bool, got int"):
+        validate_config({"x_periodicity": 1})
+    with pytest.raises(ConfigValidationError, match="expected str, got int"):
+        validate_config({"model": 2})
+
+
 def test_driver_rejects_malformed_config_before_case_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
