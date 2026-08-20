@@ -11,12 +11,16 @@ Martini compute scripts wrote NPZ and a log only. Plot scripts loaded those
 NPZ files and wrote the PNG figures. A conda file installed the CPU stack
 from `pyproject.toml`.
 
+PETSc-free omit-list coverage rose from 75% (4969/6618) to 83% (5467/6618).
+
 ### Added
 - `environment.yml` installed the package from `pyproject.toml` on a conda-forge complex PETSc stack.
 
 ### Changed
 - PETSc-only tests skipped collection when mpi4py or petsc4py was missing.
 - Auto PETSc matrix layout stayed local when petsc4py was absent.
+- `driver.run` re-exported `RUNTIME_NPZ_CONTRACT_KEYS` from the payload module.
+- Dissipation tests dropped PETSc stubs after import. Later tests saw a missing stack.
 - README installation named the CPU stack. It stated that no GPU conda file ships.
 - Martini `example_*.py` drivers wrote NPZ and a log only.
 - `example_*_plots.py` loaded NPZ files and wrote PNG figures.
@@ -34,8 +38,11 @@ from `pyproject.toml`.
 - Tests locked `environment.yml` against `pyproject.toml`.
 - Tests locked the Martini compute/plot split and the leftover-file ban.
 - PETSc-free omit-list coverage rose from 75% (4969/6618) to 83% (5467/6618).
-- Full-package coverage without PETSc was 50% (5467/11008). `.coveragerc` left out 4390 solver, linalg, and PETSc-helper statements at 0%.
-- The PETSc-free suite collected 913 passed tests. PETSc tests on this CPU box did not collect or did not pass.
+- Full-package coverage without PETSc was 50% (5467/11008).
+- `.coveragerc` left out 4390 solver, linalg, and PETSc-helper statements at 0%.
+- 31 omit-list files reached 100%. 22 omitted files stayed at 0%.
+- The PETSc-free suite passed 1125 tests. It skipped 113 tests. 29 MATLAB-parity tests stayed deselected.
+- `ruff check` and `ruff format --check` passed on every Python file.
 - Tests covered driver CLI, sponge, shock cleanup, Floquet shift, and wavemaker inputs.
 - Tests covered grid-field load, filters, conservative-momentum forcing, and typed solver config.
 - Tests covered mesh create limits, SBP dissipation errors, and empty Dirichlet recipes.
@@ -95,33 +102,35 @@ Omit-list files (`.coveragerc` source, solvers and linalg omitted). Hit 5467, mi
 | `utils/_solver_cfg.py` | 67 | 0 | 67 | 100% |
 | `utils/floquet.py` | 32 | 0 | 32 | 100% |
 | `utils/yaml_io.py` | 30 | 0 | 30 | 100% |
+| **Total** | **5467** | **1151** | **6618** | **83%** |
 
-Files omitted by `.coveragerc`. Statement count from the coverage parser. Hit 0 on this CPU box.
+Files omitted by `.coveragerc`. Statement count from the coverage parser. Hit 0 without PETSc.
 
-| File | Stmts | Cover |
-|---|---:|---:|
-| `solvers/router/stable_sweep.py` | 675 | 0% |
-| `solvers/router/resolvent_map.py` | 573 | 0% |
-| `linalg/factorize.py` | 452 | 0% |
-| `utils/petsc_core.py` | 387 | 0% |
-| `solvers/eigenvalue.py` | 320 | 0% |
-| `solvers/router/map_walk.py` | 265 | 0% |
-| `linalg/backends.py` | 262 | 0% |
-| `solvers/router/ram_autoselect.py` | 252 | 0% |
-| `solvers/router/anchors.py` | 204 | 0% |
-| `solvers/router/recycling.py` | 199 | 0% |
-| `solvers/router/certification.py` | 172 | 0% |
-| `solvers/router/break_even.py` | 159 | 0% |
-| `solvers/spatial_eig.py` | 102 | 0% |
-| `solvers/router/band_marking.py` | 96 | 0% |
-| `solvers/router/map_record.py` | 78 | 0% |
-| `utils/petsc_init.py` | 66 | 0% |
-| `solvers/_eps_helpers.py` | 63 | 0% |
-| `linalg/shifted.py` | 21 | 0% |
-| `solvers/router/__init__.py` | 19 | 0% |
-| `linalg/__init__.py` | 13 | 0% |
-| `solvers/__init__.py` | 11 | 0% |
-| `solvers/petsc_utils.py` | 1 | 0% |
+| File | Hit | Miss | Stmts | Cover |
+|---|---:|---:|---:|---:|
+| `solvers/router/stable_sweep.py` | 0 | 675 | 675 | 0% |
+| `solvers/router/resolvent_map.py` | 0 | 573 | 573 | 0% |
+| `linalg/factorize.py` | 0 | 452 | 452 | 0% |
+| `utils/petsc_core.py` | 0 | 387 | 387 | 0% |
+| `solvers/eigenvalue.py` | 0 | 320 | 320 | 0% |
+| `solvers/router/map_walk.py` | 0 | 265 | 265 | 0% |
+| `linalg/backends.py` | 0 | 262 | 262 | 0% |
+| `solvers/router/ram_autoselect.py` | 0 | 252 | 252 | 0% |
+| `solvers/router/anchors.py` | 0 | 204 | 204 | 0% |
+| `solvers/router/recycling.py` | 0 | 199 | 199 | 0% |
+| `solvers/router/certification.py` | 0 | 172 | 172 | 0% |
+| `solvers/router/break_even.py` | 0 | 159 | 159 | 0% |
+| `solvers/spatial_eig.py` | 0 | 102 | 102 | 0% |
+| `solvers/router/band_marking.py` | 0 | 96 | 96 | 0% |
+| `solvers/router/map_record.py` | 0 | 78 | 78 | 0% |
+| `utils/petsc_init.py` | 0 | 66 | 66 | 0% |
+| `solvers/_eps_helpers.py` | 0 | 63 | 63 | 0% |
+| `linalg/shifted.py` | 0 | 21 | 21 | 0% |
+| `solvers/router/__init__.py` | 0 | 19 | 19 | 0% |
+| `linalg/__init__.py` | 0 | 13 | 13 | 0% |
+| `solvers/__init__.py` | 0 | 11 | 11 | 0% |
+| `solvers/petsc_utils.py` | 0 | 1 | 1 | 0% |
+| **Total** | **0** | **4390** | **4390** | **0%** |
 
 ## [1.0.0rc7] - 2026-08-19
 
