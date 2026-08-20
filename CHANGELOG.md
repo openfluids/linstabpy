@@ -7,6 +7,122 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added --- cuDSS GPU sparse-direct backend
+
+The largest performance change since the package was created. A new GPU
+backend factors the linearized operator with NVIDIA cuDSS (through
+`nvmath-python`) and wraps it in the same right-preconditioned FGMRES that
+already owns the accuracy of the iterative path. On the 450,000-unknown
+SWBLI resolvent operator (2.0--2.3e7 nonzeros, complex double) one
+factorization drops from 41--55 s (STRUMPACK on an NVIDIA RTX A6000) to
+5.7--9.0 s (cuDSS, double precision) on the same card. A complete
+frequency-line resolvent point --- two refactorizations plus ten forward and
+ten adjoint solves converged to 1e-10 --- costs 23 s, against 60--82 s for
+the four-rank MUMPS CPU line mode and 130--180 s for the STRUMPACK GPU
+path. The GPU changes from the slower arm into the fastest solver on the
+node, in full double precision, with no accuracy loss.
+
+- Added `linalg/cudss_factor.py`: a cuDSS solver wrapper with the four
+  operations the resolvent map needs: `plan` (analysis, once per sparsity
+  pattern), `factorize`, `refactorize` (new values on the kept pattern,
+  through `reset_operands(a=...)` --- nvmath copies a host operand to the
+  device when it is set, not on each call), and per-right-hand-side `solve`
+  (`reset_operands(b=...)` for the same reason). The cuDSS threading layer
+  (`libcudss_mtlayer_gomp`) is discovered inside the installed NVIDIA wheel
+  and enabled with the job's host threads; it halves the analysis time.
+- Added `factor_backend: cudss` to the solver configuration: FGMRES in
+  complex double, right-preconditioned by the cuDSS LU, tolerance owned by
+  the iteration (`ksp_rtol`, default 1e-10). The direct MUMPS and STRUMPACK
+  paths are unchanged.
+- Adjoint solves build a second cuDSS factorization of the conjugate
+  transpose. cuDSS 0.8 has no transposed or adjoint solve
+  (`CUDSS_CONFIG_SOLVE_MODE` accepts only its default), so the dual factor
+  is the design, not a heal: both factors share one analysis cost profile
+  and refactorize together along a frequency line.
+- Added `factor_precision: single` (opt-in, cudss only): the factorization
+  runs in complex64 --- 0.7--1.2 s per factor, half the device memory ---
+  while FGMRES stays in complex double and restores the solution to 1e-12.
+  The option force-enables the two settings measured to be necessary:
+  MC64-style matching (`MAX_DIAG_PRODUCT`) and double-precision row/column
+  equilibration before the cast. Without matching the single-precision
+  factor fails near zero frequency; with both, it converges at every tested
+  point of the gain map.
+- The adjoint self-test for this backend draws its probe vectors from the
+  forcing-masked subspace instead of using dense random vectors. Random
+  probes excite the boundary-penalty rows (row norms up to 5.5e12), where a
+  single-precision factor cannot precondition; they would fail a
+  configuration that is healthy on every right-hand side the resolvent map
+  actually produces.
+- Added the optional dependency group `cudss` (`pip install
+  "linstabpy[cudss]"`): `nvmath-python[cu12] >= 1.0, < 2`, which brings the
+  cuDSS 0.8 wheels. Requires a CUDA 12 runtime and an NVIDIA GPU supported
+  by cuDSS. The core install is unchanged.
+
+### Performance --- measured (dual-socket Xeon Silver 4210R, MKL, one RTX A6000 48 GB)
+
+All numbers from the 450,000-unknown SWBLI operator of the validation
+study, on an otherwise idle node, with the solve tolerance at 1e-10.
+
+- cuDSS double: analysis 3.3--3.4 s (threading layer on; 6.7--8.1 s
+  without), factorization 5.7--9.0 s, 4.1--5.8e8 nonzeros in L+U, one solve
+  26--30 ms, two resident factors (K and its adjoint) 15--20 GB device
+  memory.
+- Refactorization on the kept analysis costs a full numeric factorization
+  (9.0--9.2 s); what a frequency line saves is the analysis. Timings are
+  reproducible across independent runs to about 1 percent.
+- Line-mode point (two refactorizations + 20 solves): 23 s double, 12--14 s
+  single. Reference points on the same operator and node: MUMPS CPU line
+  mode 60--82 s (4 ranks), MUMPS factorization alone 24--33 s (10 threads),
+  STRUMPACK GPU point 130--180 s.
+- FGMRES iteration counts: 1--2 (double), 5--20 (single with matching and
+  equilibration).
+
+### Accuracy --- measured
+
+- Solutions through the cuDSS-preconditioned FGMRES match the MUMPS double
+  reference to 1.2e-12 relative; the discrete adjoint identity holds to
+  2.5e-14--5.9e-12 with the dual factor.
+- The single-precision option reaches the same 1e-12 through the double
+  iteration. Its scope is the production right-hand-side family (forcing-
+  and response-masked vectors); on dense unmasked vectors the iteration can
+  stall, which is why the option stays opt-in and the self-test uses masked
+  probes.
+- For a unit-norm right-hand side the attainable true-residual floor is
+  about 1e-5, set by the boundary-penalty rows; MUMPS shows the same floor
+  on the same operator. Solution error stays at 1e-12.
+
+### Fixed --- adjoint documentation
+
+- Corrected the explanation of why the GPU path needs a second
+  factorization. PETSc's STRUMPACK interface registers no transposed solve,
+  and `MatSolveTranspose` then silently substitutes the forward solve (the
+  factor's symmetry flag is unknown, which the fallback treats as true).
+  The measured "transpose defect" therefore comes from the PETSc interface,
+  not from STRUMPACK's arithmetic. Earlier comments and the paper draft
+  attributed it to STRUMPACK's transpose solve; code comments and
+  documentation now state the fallback. The dual-factor construction was
+  and remains the correct route on both GPU backends.
+
+### Evaluated and rejected --- measured dead ends, recorded so they are not re-walked
+
+- Block low-rank (BLR) compression as a loose FGMRES preconditioner, the
+  standard advice for cheaper factors: STRUMPACK GPU BLR at tolerances 1e-2
+  and 1e-4 produces factors whose plain solve residuals are 1e16--1e31 on
+  this operator (the CPU BLR arm reached 4e39) and stalls FGMRES outright,
+  while factoring 9--21x slower than the exact GPU factorization (469--1118
+  s against 41--55 s). MUMPS BLR at 1e-3 stalls the iteration; at 1e-5 it
+  converges in 36--39 iterations and the extra solves cancel the 20 percent
+  factor saving. Shock-dominated operators with 11 decades of row-norm
+  spread do not compress.
+- cuDSS explicit batching (factoring K and its adjoint, or several
+  frequencies, in one call): requires device-resident operands and is moot
+  at 1-second factors.
+- Hybrid CPU+GPU execution and pivot-type overrides: no measurable fit for
+  this operator size.
+- A single-precision factorization without matching: fails (stalls) near
+  zero frequency even with equilibration --- the reason
+  `factor_precision: single` force-enables matching.
+
 Martini compute scripts wrote NPZ and a log only. Plot scripts loaded those
 NPZ files and wrote the PNG figures. A conda file installed the CPU stack
 from `pyproject.toml`.

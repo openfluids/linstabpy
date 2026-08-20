@@ -679,7 +679,12 @@ def test_apply_factor_backend_reports_the_truth_either_way(backend: str) -> None
         A.destroy()
 
 
-@pytest.mark.parametrize("backend", ["strumpack", "superlu_dist", "cudss"])
+# "cudss" left this parametrize in the cuDSS-backend release: it is deliberately
+# NOT a PETSc factor type (the LU preconditions the iterative path instead), so
+# the direct route refuses it regardless of availability. That refusal is
+# asserted by tests/test_cudss_backend.py::test_direct_solver_type_with_cudss_raises
+# and ::test_apply_factor_backend_refuses_cudss.
+@pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
 def test_future_backend_knob_is_honoured_and_absence_fails_loudly(monkeypatch, backend) -> None:
     """The backend knob is always honoured; an ABSENT backend must fail loudly.
 

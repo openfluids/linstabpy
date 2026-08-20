@@ -9,12 +9,16 @@ _LAZY_EXPORTS = {
     "Factorization": "linstabpy.linalg.factorize",
     "factorize": "linstabpy.linalg.factorize",
     "shifted_operator": "linstabpy.linalg.shifted",
+    "CudssSolver": "linstabpy.linalg.cudss_factor",
+    "cudss_available": "linstabpy.linalg.cudss_factor",
 }
 
 __all__ = [
     "Backend",
+    "CudssSolver",
     "Factorization",
     "available",
+    "cudss_available",
     "ensure",
     "factorize",
     "select",

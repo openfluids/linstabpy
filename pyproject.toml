@@ -40,6 +40,12 @@ petsc = [
     "petsc4py >= 3.18",
     "slepc4py >= 3.18",
 ]
+# GPU sparse-direct backend through NVIDIA cuDSS. Proprietary NVIDIA runtime
+# wheels as an optional dependency (same standing as CUDA under PETSc); needs
+# a CUDA 12 runtime and an NVIDIA GPU supported by cuDSS.
+cudss = [
+    "nvmath-python[cu12] >= 1.0, < 2",
+]
 
 [dependency-groups]
 test = ["pytest", "pytest-cov", "sympy>=1.13"]

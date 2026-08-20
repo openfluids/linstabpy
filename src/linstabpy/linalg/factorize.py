@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     # pull in petsc4py or initialize PETSc.
     from petsc4py import PETSc  # noqa: F401
 
+    from .cudss_factor import CudssSolver
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,19 +86,29 @@ def _run_adjoint_self_test(
     solve_adjoint_func: Callable[[np.ndarray], np.ndarray],
     n: int,
     k: int = 3,
+    probe_family: Callable[[np.random.RandomState], np.ndarray] | None = None,
 ) -> float:
     """Run k random complex probe pairs to detect adjoint defect.
 
     Returns max defect over all probes:
       defect_i = |<solve(a_i), b_i> - <a_i, solve_adjoint(b_i)>|
                  / max(|<solve(a_i), b_i>|, |<a_i, solve_adjoint(b_i)>|, 1e-300)
+
+    ``probe_family``, when given, draws each probe from the production
+    right-hand-side family instead of dense random vectors. A
+    single-precision cuDSS factor preconditions only that family; dense
+    probes stall its FGMRES and would abort a healthy configuration.
     """
     max_defect = 0.0
     rng = np.random.RandomState(42)  # deterministic for reproducibility
 
     for _ in range(k):
-        a = rng.randn(n) + 1j * rng.randn(n)
-        b = rng.randn(n) + 1j * rng.randn(n)
+        if probe_family is None:
+            a = rng.randn(n) + 1j * rng.randn(n)
+            b = rng.randn(n) + 1j * rng.randn(n)
+        else:
+            a = probe_family(rng)
+            b = probe_family(rng)
 
         x1 = solve_func(a)
         x2 = solve_adjoint_func(b)
@@ -116,6 +128,7 @@ def _run_oracle_residual(
     A_H: PETSc.Mat,
     n: int,
     k: int = 3,
+    probe_family: Callable[[np.random.RandomState], np.ndarray] | None = None,
 ) -> float:
     """Run k random RHS through the healed adjoint and measure ||A_H @ x - b|| / ||b||.
 
@@ -139,7 +152,10 @@ def _run_oracle_residual(
         return b
 
     for _ in range(k):
-        b_arr = rng.randn(n) + 1j * rng.randn(n)
+        if probe_family is None:
+            b_arr = rng.randn(n) + 1j * rng.randn(n)
+        else:
+            b_arr = probe_family(rng)
         x_arr = solve_adjoint_func(b_arr)
 
         # Compute residual using matvec
@@ -177,6 +193,11 @@ class Factorization:
     _solve_block: Callable[[np.ndarray], np.ndarray] | None = None
     _refactorize: Callable[[sp.spmatrix | PETSc.Mat], None] | None = None
     metrics: dict[str, float | int] | None = None
+    # Production-family probe generator for the adjoint self-test; set by
+    # ResolventOperator when a forcing mask exists. Used only where dense
+    # probes sit outside the validated envelope (single-precision cuDSS).
+    probe_family: Callable[[np.random.RandomState], np.ndarray] | None = None
+    _cudss: CudssSolver | None = None
 
     @property
     def solve_transpose(self) -> Callable[[np.ndarray], np.ndarray]:
@@ -211,6 +232,25 @@ class Factorization:
         if self._mat is not None:
             self._mat.destroy()
             self._mat = None
+        if self._cudss is not None:
+            self._cudss.free()
+            self._cudss = None
+
+
+class _CudssShellPC:
+    """petsc4py Python PC context: one cuDSS solve per apply.
+
+    No ``applyTranspose`` on purpose: cuDSS has no transpose or adjoint
+    solve, so the adjoint must ride a dedicated K^H factor (the dual-factor
+    path in ``factorize``). A missing method fails loudly instead of
+    silently solving the wrong system.
+    """
+
+    def __init__(self, solver: CudssSolver) -> None:
+        self.solver = solver
+
+    def apply(self, pc, x, y) -> None:  # noqa: ANN001, ARG002 -- PETSc PCShell signature
+        y.setArray(self.solver.solve(x.getArray(readonly=True)))
 
 
 def factorize(
@@ -270,8 +310,11 @@ def factorize(
     # adjoint must meet, including after each refactorize. This is NOT a
     # precision target: it separates "the backend's transpose really is the
     # Hermitian adjoint" from "it is something else" (a plain transpose leaves
-    # the adjoint identity defective at O(1e-1), and STRUMPACK's complex
-    # transpose-solve at ~3e-2). The attainable floor is set by the operator's
+    # the adjoint identity defective at O(1e-1); the STRUMPACK path measured
+    # ~3e-2 -- traced to PETSc's MatSolveTranspose, which finds no registered
+    # solvetranspose for STRUMPACK and silently substitutes the FORWARD solve
+    # because the factor's symmetry flag "unknown" is treated as true; the
+    # defect is the interface fallback, not STRUMPACK's arithmetic). The attainable floor is set by the operator's
     # conditioning, roughly kappa(A)*eps_machine, so a fixed 1e-10 sits BELOW
     # what a well-conditioned-but-not-trivial operator can deliver: the
     # paraboloid example measured 3.07e-10 with a perfectly good MUMPS adjoint,
@@ -311,6 +354,9 @@ def factorize(
         solver_subsection = {}
 
     solver_type = lin.type
+    # Set by the iterative cuDSS route below; ``refactorize_operator`` and the
+    # adjoint self-test read it. None on every other path.
+    cudss_solver: CudssSolver | None = None
 
     ksp = PETSc.KSP().create(comm=A.getComm())
     ksp.setOperators(A)
@@ -404,10 +450,49 @@ def factorize(
             raise ValueError(
                 f"Invalid {env_prefix}_KSP_PC_SIDE '{pc_side}'; expected left|right|symmetric"
             )
-        pc.setType(pc_type)
-        if pc_type == "lu":
-            factor_backend = lin.factor_backend
-            apply_factor_backend(pc, factor_backend, options_prefix=ksp.getOptionsPrefix() or "")
+        cudss_requested = (
+            pc_type == "lu" and str(lin.factor_backend or "").strip().lower() == "cudss"
+        )
+        if cudss_requested:
+            # cuDSS is not a PETSc factor type. The LU lives in a Python
+            # preconditioner (one cuDSS solve per apply) around this Krylov
+            # iteration; the outer iteration owns the tolerance. Measured on
+            # the 450k-DOF SWBLI operator (RTX A6000): factor 5.7-9.0 s vs
+            # 41-55 s STRUMPACK on the same GPU, FGMRES 1-2 iterations,
+            # solution matches MUMPS to 1.2e-12.
+            if A.getComm().getSize() > 1:
+                raise ValueError(
+                    "factor_backend='cudss' is a one-rank GPU backend; "
+                    "run without MPI parallelism or use mumps/strumpack"
+                )
+            from .cudss_factor import CudssSolver as _CudssSolver
+
+            indptr_csr, indices_csr, values_csr = A.getValuesCSR()
+            cudss_solver = _CudssSolver(
+                sp.csr_matrix((values_csr, indices_csr, indptr_csr), shape=(n, n)),
+                precision=lin.factor_precision,
+            )
+            pc.setType(PETSc.PC.Type.PYTHON)
+            pc.setPythonContext(_CudssShellPC(cudss_solver))
+            metrics["cudss_precision"] = lin.factor_precision
+            metrics["cudss_plan_seconds"] = cudss_solver.plan_seconds
+            metrics["cudss_factor_seconds"] = cudss_solver.factor_seconds
+            if cudss_solver.lu_nnz is not None:
+                metrics["cudss_lu_nnz"] = cudss_solver.lu_nnz
+            logger.info(
+                "Linear solver: %s + cuDSS %s-precision LU preconditioner (n=%d, nnz=%d)",
+                ksp_type,
+                lin.factor_precision,
+                n,
+                nnz,
+            )
+        else:
+            pc.setType(pc_type)
+            if pc_type == "lu":
+                factor_backend = lin.factor_backend
+                apply_factor_backend(
+                    pc, factor_backend, options_prefix=ksp.getOptionsPrefix() or ""
+                )
         ksp.setTolerances(rtol=ksp_rtol, atol=ksp_atol, max_it=ksp_max_it)
         ksp.setErrorIfNotConverged(True)
 
@@ -487,7 +572,7 @@ def factorize(
             ksp_rtol,
             ksp_max_it,
         )
-        backend = "PETSc-iterative"
+        backend = "cudss-fgmres" if cudss_solver is not None else "PETSc-iterative"
     else:
         raise ValueError(
             f"Unsupported {env_prefix}_TYPE={solver_type!r}; "
@@ -671,6 +756,16 @@ def factorize(
             # (c9, MKL) 90.0 s new Mat, 80.9 s new Mat + reuse-ordering, 74.9 s
             # values copied into the same Mat -- the 9 s analysis, per point.
             new_A.copy(result=A, structure=PETSc.Mat.Structure.SAME_NONZERO_PATTERN)
+            if cudss_solver is not None:
+                # The Python PC wraps its own device factor; the values copy
+                # above only feeds the FGMRES matvec. Push the new values to
+                # the device and redo the numeric factorization on the kept
+                # analysis (measured 9.0-9.2 s at 450k DOF; a fresh plan
+                # would add 3-8 s per point).
+                indptr_new, indices_new, values_new = A.getValuesCSR()
+                cudss_solver.refactorize(
+                    sp.csr_matrix((values_new, indices_new, indptr_new), shape=(n, n))
+                )
             ksp.setOperators(A)
             ksp.setUp()
         finally:
@@ -679,8 +774,9 @@ def factorize(
         metrics["refactor_count"] += 1
         metrics["refactor_seconds"] += time.perf_counter() - start
         # The adjoint must follow the operator. With the dual-factor heal active
-        # (STRUMPACK: its transpose-solve is not the Hermitian adjoint, so the
-        # adjoint is a FORWARD solve on a separate K^H factor) a refactorize that
+        # (STRUMPACK: PETSc's MatSolveTranspose silently substitutes the forward
+        # solve -- no registered solvetranspose -- so the true adjoint must be a
+        # FORWARD solve on a separate K^H factor) a refactorize that
         # left ``factor_H`` alone would forward-solve K_new and adjoint-solve
         # K_old^H from the second operator on -- silently. Refactorize K^H from
         # the new operator with the heal's own recipe, then re-run the adjoint
@@ -695,7 +791,9 @@ def factorize(
                 if _is_petsc_matrix(A_H_new):
                     A_H_new.destroy()
             metrics["adjoint_refactor_count"] += 1
-            healed_defect = _run_adjoint_self_test(solve, factor_H.solve, n, k=3)
+            healed_defect = _run_adjoint_self_test(
+                solve, factor_H.solve, n, k=3, probe_family=_self_test_probe_family()
+            )
             metrics["adjoint_healed_defect"] = healed_defect
             if healed_defect > adjoint_tol:
                 raise RuntimeError(
@@ -703,6 +801,21 @@ def factorize(
                     f"> tolerance {adjoint_tol:.3e} -- the healed K^H factor does not match "
                     "the refactorized operator."
                 )
+
+    def _self_test_probe_family() -> Callable[[np.random.RandomState], np.ndarray] | None:
+        """Return production-family probes where dense probes are invalid.
+
+        A single-precision cuDSS factor preconditions the production
+        (forcing-masked) right-hand-side family, not dense random vectors:
+        dense probes excite the boundary-penalty rows and stall FGMRES on a
+        configuration that is healthy on every RHS the resolvent produces
+        (measured on the 450k-DOF SWBLI operator). Every other path keeps
+        the stricter dense probes, unchanged.
+        """
+        if cudss_solver is None or lin.factor_precision != "single":
+            return None
+        factor_obj = holder.get("factor")
+        return getattr(factor_obj, "probe_family", None)
 
     # --- DUAL-FACTOR AUTO-HEAL LOGIC ---
     # Lazy adjoint self-test: run on first adjoint use via a wrapper.
@@ -715,27 +828,40 @@ def factorize(
             return
         adjoint_test_done = True
 
-        # Run self-test with original paths. On an iterative KSP a defective native
-        # transpose (STRUMPACK) sends the transposed FGMRES to its full iteration cap
-        # before the identity can fail -- measured 400 iterations, 276 s of a 437 s
-        # point (c9 job 2381). A correct adjoint of an LU preconditioner converges in a
-        # handful of iterations, so the self-test's own solves get a short cap and the
-        # call restores production tolerances right after.
-        rtol0, atol0, dtol0, max_it0 = ksp.getTolerances()
-        capped = ksp.getType() != PETSc.KSP.Type.PREONLY and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
-        if capped:
-            ksp.setTolerances(max_it=ADJOINT_SELF_TEST_MAX_IT)
-        try:
-            defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
-        except Exception as exc:
-            logger.info(
-                "Adjoint self-test transpose-solve failed (%s); treating native transpose as defective and activating dual-factor heal",
-                exc,
-            )
+        if cudss_solver is not None:
+            # cuDSS has no transpose or adjoint solve at all (cuDSS 0.8:
+            # CUDSS_CONFIG_SOLVE_MODE accepts only its default value), so
+            # there is no native path worth testing: go straight to the
+            # dedicated K^H factor.
             defect = float("inf")
-        finally:
+            logger.info(
+                "cuDSS has no transpose solve; building a dedicated K^H factor for the adjoint"
+            )
+        else:
+            # Run self-test with original paths. On an iterative KSP a defective native
+            # transpose (STRUMPACK) sends the transposed FGMRES to its full iteration cap
+            # before the identity can fail -- measured 400 iterations, 276 s of a 437 s
+            # point (c9 job 2381). A correct adjoint of an LU preconditioner converges in a
+            # handful of iterations, so the self-test's own solves get a short cap and the
+            # call restores production tolerances right after.
+            rtol0, atol0, dtol0, max_it0 = ksp.getTolerances()
+            capped = (
+                ksp.getType() != PETSc.KSP.Type.PREONLY
+                and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
+            )
             if capped:
-                ksp.setTolerances(rtol=rtol0, atol=atol0, divtol=dtol0, max_it=max_it0)
+                ksp.setTolerances(max_it=ADJOINT_SELF_TEST_MAX_IT)
+            try:
+                defect = _run_adjoint_self_test(solve, solve_transpose_original, n, k=3)
+            except Exception as exc:
+                logger.info(
+                    "Adjoint self-test transpose-solve failed (%s); treating native transpose as defective and activating dual-factor heal",
+                    exc,
+                )
+                defect = float("inf")
+            finally:
+                if capped:
+                    ksp.setTolerances(rtol=rtol0, atol=atol0, divtol=dtol0, max_it=max_it0)
         metrics["adjoint_self_test_defect"] = defect
 
         # ``adjoint_tol`` (closure scope, above): trigger threshold for the heal.
@@ -751,6 +877,21 @@ def factorize(
             defect,
             adjoint_tol,
         )
+
+        # Fail before paying for the K^H factor: a single-precision cuDSS
+        # factor cannot pass dense-probe gates (measured), so without the
+        # production probe family the heal would build the second factor and
+        # then stall in its own self-test.
+        probe_family = _self_test_probe_family()
+        if cudss_solver is not None and lin.factor_precision == "single" and probe_family is None:
+            raise RuntimeError(
+                "factor_precision='single' with the cudss backend validates its "
+                "adjoint against the production right-hand-side family "
+                "(forcing-masked probes), and none is attached (probe_family is "
+                "unset). Dense random probes stall a single-precision factor by "
+                "design. Run through the resolvent driver, which attaches the "
+                "family, or use factor_precision='double'."
+            )
 
         # Build the A^H factor through the SAME factorize() machinery (identical
         # backend, options, assembly) -- NOT a hand-rolled KSP, which proved
@@ -770,7 +911,7 @@ def factorize(
         # defect O(0.1), so the identity rejects the heal. A residual-only check
         # (||A_H x - b||) is self-consistent and would PASS a plain transpose, so
         # it cannot be the wiring gate -- this identity is.
-        healed_defect = _run_adjoint_self_test(solve, solve_H, n, k=3)
+        healed_defect = _run_adjoint_self_test(solve, solve_H, n, k=3, probe_family=probe_family)
         metrics["adjoint_healed_defect"] = healed_defect
         if healed_defect > adjoint_tol:
             # The heal did not reach the target. Two very different situations:
@@ -807,7 +948,9 @@ def factorize(
 
         # Secondary A_H residual check (factorization quality): ||A_H x - b|| / ||b||
         # against the concrete A^H matvec, independent of the factor's own claim.
-        oracle_residual = _run_oracle_residual(solve_H, factor_H._mat, n, k=3)
+        oracle_residual = _run_oracle_residual(
+            solve_H, factor_H._mat, n, k=3, probe_family=probe_family
+        )
         metrics["adjoint_oracle_residual"] = oracle_residual
         oracle_tol = 1.0e-8
         if oracle_residual > oracle_tol:
@@ -852,6 +995,7 @@ def factorize(
         _solve_block=solve_block,
         _refactorize=refactorize_operator,
         metrics=metrics,
+        _cudss=cudss_solver,
     )
     holder["factor"] = factor
     return factor

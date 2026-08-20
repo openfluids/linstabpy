@@ -206,30 +206,63 @@ NVPL NumPy/SciPy Meson build (-Dblas=nvpl-blas-lp64-omp):
   https://docs.nvidia.com/nvpl/latest/numerical-python.html
 -->
 
+## cuDSS GPU Backend
+
+`factor_backend: cudss` factors the operator with NVIDIA cuDSS through
+`nvmath-python` and applies it as a preconditioner inside the existing
+right-preconditioned FGMRES path. It is not a PETSc factor package: configure
+the iterative solver family, not the direct one.
+
+```yaml
+solver:
+  resolvent:
+    type: iterative
+    ksp_type: fgmres
+    pc_type: lu
+    ksp_pc_side: right
+    factor_backend: cudss
+    # factor_precision: single   # opt-in, see below
+```
+
+Install with `pip install "linstabpy[cudss]"` (brings the cuDSS wheels;
+needs a CUDA 12 runtime and an NVIDIA GPU supported by cuDSS). The backend is
+one-rank: run without MPI parallelism. The adjoint uses a second cuDSS
+factorization of the conjugate transpose because cuDSS has no transposed or
+adjoint solve; the existing dual-factor machinery builds and gates it.
+
+Measured on a 450k-unknown SWBLI resolvent operator (complex double,
+2.0-2.3e7 nonzeros, one RTX A6000): factorization 5.7-9.0 s against
+41-55 s for STRUMPACK on the same card; FGMRES converges in 1-2 iterations;
+solutions match a MUMPS reference to 1.2e-12. A refactorization on the kept
+analysis costs a full numeric factorization (9.0-9.2 s); the analysis
+(3.3-3.4 s with the threading layer) is what a frequency line saves.
+
+Two environment overrides: `LINSTABPY_CUDSS_MT_LIB` points at the cuDSS
+OpenMP threading layer (auto-discovered in the installed wheels by default;
+`none` disables it) and `LINSTABPY_CUDSS_THREADS` sets the host threads for
+the analysis phase (default: the process CPU affinity).
+
 ## Mixed-Precision Factorization Knob
 
-`LINSTABPY_FACTOR_PRECISION` and the matching YAML `factor_precision` field
-select the factor precision surface. The default is `double`, which is inert and
-does not add any PETSc options. The experimental value `single` is accepted only
-with the `superlu_dist` factor backend, where it inserts the PETSc option
-`pc_precision single` alongside `pc_factor_mat_solver_type`. Any other backend
-with `single` raises a `ValueError` naming the backend and
-`LINSTABPY_FACTOR_PRECISION`; it is never silently ignored.
+`LINSTABPY_FACTOR_PRECISION` (environment) and the YAML `factor_precision`
+field select the factor precision. The default is `double`, which is inert.
 
-Today only the environment variable is enforced at factorization time. The
-YAML `factor_precision` field is validated and carried in the typed config
-but is not yet consumed by the solver call sites; the Phase B.4
-mixed-precision iterative-refinement work wires it through.
+`factor_precision: single` works with the `cudss` backend only. The
+factorization runs in complex64 — measured 6-9x faster and half the device
+memory — while FGMRES stays in complex double and restores the solution to
+1e-12. The backend force-enables the two measures required for convergence:
+MC64-style matching (`MAX_DIAG_PRODUCT`) and double-precision equilibration
+before the cast. The validated scope is the production right-hand-side
+family (forcing-masked vectors); the adjoint self-test for this
+configuration draws its probes from that family and fails loudly when no
+family is attached.
 
-SuperLU_DIST is the only backend that currently accepts `factor_precision:
-single`. When paired with this backend, `pc_precision single` enables FP32
-factorization with FP64 iterative refinement — the CPU mixed-precision role
-that is live and not rejected. See Build-Stack Isolation above for the manual
-build recipe.
-
-This knob only exposes configuration for later mixed-precision iterative
-refinement work. It is not a production recommendation, and `double` remains the
-reference/default path.
+For PETSc factor backends, `single` is refused. The historical
+`superlu_dist` route drove it through the PETSc `-pc_precision` option,
+which PETSc 3.24 ignores — the factor would silently be computed in double
+while provenance recorded single. The guard in
+`linstabpy/linalg/backends.py` explains this and names the cudss route.
+`double` remains the reference and default path everywhere.
 
 ## MUMPS BLR Low-Rank Compression Knob
 

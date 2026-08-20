@@ -40,6 +40,14 @@ class ResolventOperator:
         self.C_mat = C_mat
         self._filt = filter_fn if filter_fn is not None else (lambda v: v)
         self._filt_ct = filter_ct_fn if filter_ct_fn is not None else (lambda v: v)
+        # Attach the production probe family to the factorization when it can
+        # take one (only a Factorization has the attribute; wrappers reach it
+        # through ``_lu``). The adjoint self-test draws from it where dense
+        # probes sit outside the validated envelope (single-precision cuDSS);
+        # every other path ignores it.
+        target = getattr(lu, "_lu", lu)
+        if getattr(target, "probe_family", "absent") is None:
+            target.probe_family = _make_production_probe_family(B_mat, self._filt)
 
     def apply(self, v: np.ndarray) -> np.ndarray:
         """Apply resolvent: H v = C FILTER(inv(L_sigma) FILTER(B v))."""
@@ -58,6 +66,28 @@ class ResolventOperator:
         w = self._filt_ct(w)
         w = _apply_optional_adjoint_matrix(self.B_mat, w)
         return w
+
+
+def _make_production_probe_family(
+    B_mat: sp.spmatrix | PETSc.Mat | None,
+    filter_fn: Callable[[np.ndarray], np.ndarray],
+) -> Callable[[np.random.RandomState], np.ndarray] | None:
+    """Build a generator of production-family probes: ``FILTER(B v)``, unit norm.
+
+    Returns None when there is no forcing mask: the production family is
+    then dense, and dense probes are what the self-test already uses.
+    """
+    if B_mat is None:
+        return None
+    m = int(B_mat.getSize()[1]) if _is_petsc_matrix(B_mat) else int(B_mat.shape[1])
+
+    def _probe(rng: np.random.RandomState) -> np.ndarray:
+        v = rng.randn(m) + 1j * rng.randn(m)
+        w = filter_fn(_apply_optional_matrix(B_mat, v))
+        norm = float(np.linalg.norm(w))
+        return w / norm if norm > 0.0 else w
+
+    return _probe
 
 
 def _apply_optional_matrix(
