@@ -8,6 +8,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 

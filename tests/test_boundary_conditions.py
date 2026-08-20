@@ -1187,3 +1187,19 @@ def test_empty_bc_recipe_is_a_noop(small_mesh_2d, uniform_baseflow) -> None:
     bogus = BCRecipe(rules=(BCRule(type="robin", borders="b", variables="u"),))
     with pytest.raises(ValueError, match="Unknown BC type"):
         apply_bc_recipe(L0.copy(), mesh, idx, bogus)
+
+
+def test_spatial_dirichlet_helpers_noop_on_empty_indices() -> None:
+    from linstabpy.boundary_conditions.recipe import (
+        _apply_spatial_dirichlet_indices,
+        _spatial_doubled_indices,
+    )
+
+    empty = np.array([], dtype=np.int64)
+    np.testing.assert_array_equal(_spatial_doubled_indices(empty, 4), empty)
+    lc = sp.eye(8, format="csc")
+    r = 2.0 * sp.eye(8, format="csc")
+    lc_out, r_out, bc = _apply_spatial_dirichlet_indices(lc, r, empty, 4, penalty=1.0e4)
+    assert bc.size == 0
+    np.testing.assert_array_equal(lc_out.toarray(), lc.toarray())
+    np.testing.assert_array_equal(r_out.toarray(), r.toarray())

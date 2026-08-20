@@ -13,6 +13,10 @@ The multi-point `resolvent_map` sweep uses the same function.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import importlib
 import types
 

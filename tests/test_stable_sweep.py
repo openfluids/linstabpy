@@ -5,8 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 
 from linstabpy.solvers.router import stable_sweep
 from linstabpy.solvers.router.certification import certified_rsvd

@@ -32,6 +32,10 @@ Measured both-signs table (production H = (L0 - i*omega*I)^{-1}).
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import numpy as np
 import scipy.sparse as sp
 

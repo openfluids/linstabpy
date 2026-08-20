@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 from pathlib import Path
 
 import numpy as np

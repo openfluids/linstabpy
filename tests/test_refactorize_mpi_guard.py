@@ -12,6 +12,10 @@ The check is also meaningful under ``mpiexec``.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import numpy as np
 import scipy.sparse as sp
 from mpi4py import MPI

@@ -11,7 +11,7 @@ import numpy as np
 import yaml
 
 
-def _install_optional_petsc_stubs() -> None:
+def _install_optional_petsc_stubs() -> list[str]:
     """Provide single-rank PETSc/MPI stubs for runtime tests without PETSc."""
     try:
         import mpi4py.MPI  # noqa: F401
@@ -20,7 +20,7 @@ def _install_optional_petsc_stubs() -> None:
     except ModuleNotFoundError:
         pass
     else:
-        return
+        return []
 
     class _FakeComm:
         def getRank(self):
@@ -55,6 +55,12 @@ def _install_optional_petsc_stubs() -> None:
         # Cost-metrics provenance reads PETSc.Options().getAll().
         def getAll(self):
             return {}
+
+        def setValue(self, key, value):
+            return None
+
+        def getValue(self, key, default=None):
+            return default
 
     fake_mpi = types.ModuleType("mpi4py")
     fake_mpi_submodule = types.ModuleType("mpi4py.MPI")
@@ -111,18 +117,33 @@ def _install_optional_petsc_stubs() -> None:
     fake_slepc4py.init = lambda *args, **kwargs: None
     fake_slepc4py.SLEPc = types.SimpleNamespace(EPS=_FakeEPS, ST=_FakeST)
 
-    sys.modules["mpi4py"] = fake_mpi
-    sys.modules["mpi4py.MPI"] = fake_mpi_submodule
-    sys.modules["petsc4py"] = fake_petsc4py
-    sys.modules["slepc4py"] = fake_slepc4py
+    installed = []
+    for name, module in (
+        ("mpi4py", fake_mpi),
+        ("mpi4py.MPI", fake_mpi_submodule),
+        ("petsc4py", fake_petsc4py),
+        ("slepc4py", fake_slepc4py),
+    ):
+        if name not in sys.modules:
+            sys.modules[name] = module
+            installed.append(name)
+    return installed
 
 
-_install_optional_petsc_stubs()
+def _remove_optional_petsc_stubs(names: list[str]) -> None:
+    """Drop session stubs so later tests see a missing PETSc stack."""
+    for name in names:
+        sys.modules.pop(name, None)
+
+
+_STUB_NAMES = _install_optional_petsc_stubs()
 
 import importlib
 
 results_runtime = importlib.import_module("linstabpy.driver.run")
 from linstabpy.operators import LNSESystem
+
+_remove_optional_petsc_stubs(_STUB_NAMES)
 
 DISSIPATION_KEYS = (
     "numerics_operator_dissipation_enabled",

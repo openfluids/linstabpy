@@ -15,6 +15,8 @@ from `pyproject.toml`.
 - `environment.yml` installed the package from `pyproject.toml` on a conda-forge complex PETSc stack.
 
 ### Changed
+- PETSc-only tests skipped collection when mpi4py or petsc4py was missing.
+- Auto PETSc matrix layout stayed local when petsc4py was absent.
 - README installation named the CPU stack. It stated that no GPU conda file ships.
 - Martini `example_*.py` drivers wrote NPZ and a log only.
 - `example_*_plots.py` loaded NPZ files and wrote PNG figures.
@@ -31,7 +33,95 @@ from `pyproject.toml`.
 ### Verified
 - Tests locked `environment.yml` against `pyproject.toml`.
 - Tests locked the Martini compute/plot split and the leftover-file ban.
+- PETSc-free omit-list coverage rose from 75% (4969/6618) to 83% (5467/6618).
+- Full-package coverage without PETSc was 50% (5467/11008). `.coveragerc` left out 4390 solver, linalg, and PETSc-helper statements at 0%.
+- The PETSc-free suite collected 913 passed tests. PETSc tests on this CPU box did not collect or did not pass.
 - Tests covered driver CLI, sponge, shock cleanup, Floquet shift, and wavemaker inputs.
+- Tests covered grid-field load, filters, conservative-momentum forcing, and typed solver config.
+- Tests covered mesh create limits, SBP dissipation errors, and empty Dirichlet recipes.
+
+Omit-list files (`.coveragerc` source, solvers and linalg omitted). Hit 5467, miss 1151, stmts 6618.
+
+| File | Hit | Miss | Stmts | Cover |
+|---|---:|---:|---:|---:|
+| `resolvent/gain.py` | 19 | 100 | 119 | 16% |
+| `operators/spatial.py` | 39 | 101 | 140 | 28% |
+| `stability/_eigenvalues.py` | 102 | 232 | 334 | 31% |
+| `resolvent/operator.py` | 18 | 33 | 51 | 35% |
+| `resolvent/analysis.py` | 47 | 78 | 125 | 38% |
+| `driver/run.py` | 447 | 213 | 660 | 68% |
+| `utils/provenance.py` | 78 | 26 | 104 | 75% |
+| `operators/assembly.py` | 519 | 165 | 684 | 76% |
+| `boundary_conditions/recipe.py` | 172 | 44 | 216 | 80% |
+| `boundary_conditions/dirichlet.py` | 150 | 32 | 182 | 82% |
+| `utils/cost_metrics.py` | 42 | 8 | 50 | 84% |
+| `boundary_conditions/neumann.py` | 127 | 24 | 151 | 84% |
+| `mesh/sbp_generator.py` | 147 | 23 | 170 | 86% |
+| `operators/metrics.py` | 178 | 15 | 193 | 92% |
+| `mesh/mesh.py` | 615 | 47 | 662 | 93% |
+| `driver/io.py` | 55 | 2 | 57 | 96% |
+| `config/typed.py` | 296 | 4 | 300 | 99% |
+| `baseflow/sponge.py` | 205 | 2 | 207 | 99% |
+| `stability/sensitivity.py` | 104 | 1 | 105 | 99% |
+| `baseflow/preprocess.py` | 139 | 1 | 140 | 99% |
+| `__init__.py` | 28 | 0 | 28 | 100% |
+| `baseflow/__init__.py` | 5 | 0 | 5 | 100% |
+| `baseflow/baseflow.py` | 21 | 0 | 21 | 100% |
+| `baseflow/grid_fields.py` | 63 | 0 | 63 | 100% |
+| `baseflow/shock_cleanup.py` | 215 | 0 | 215 | 100% |
+| `baseflow/viscosity.py` | 23 | 0 | 23 | 100% |
+| `boundary_conditions/__init__.py` | 11 | 0 | 11 | 100% |
+| `config/__init__.py` | 4 | 0 | 4 | 100% |
+| `config/defaults.py` | 3 | 0 | 3 | 100% |
+| `config/schema.py` | 53 | 0 | 53 | 100% |
+| `driver/__init__.py` | 1 | 0 | 1 | 100% |
+| `driver/cli.py` | 63 | 0 | 63 | 100% |
+| `driver/payload.py` | 12 | 0 | 12 | 100% |
+| `driver/preflight.py` | 165 | 0 | 165 | 100% |
+| `mesh/__init__.py` | 11 | 0 | 11 | 100% |
+| `mesh/fdweights.py` | 25 | 0 | 25 | 100% |
+| `mesh/filters.py` | 189 | 0 | 189 | 100% |
+| `mesh/sbp.py` | 211 | 0 | 211 | 100% |
+| `metrics_schema.py` | 38 | 0 | 38 | 100% |
+| `mumps_options.py` | 3 | 0 | 3 | 100% |
+| `operators/__init__.py` | 4 | 0 | 4 | 100% |
+| `operators/coefficients.py` | 453 | 0 | 453 | 100% |
+| `operators/energy_norm.py` | 12 | 0 | 12 | 100% |
+| `resolvent/__init__.py` | 12 | 0 | 12 | 100% |
+| `resolvent/conservative_forcing.py` | 99 | 0 | 99 | 100% |
+| `stability/__init__.py` | 20 | 0 | 20 | 100% |
+| `stability/acceptance.py` | 93 | 0 | 93 | 100% |
+| `utils/__init__.py` | 2 | 0 | 2 | 100% |
+| `utils/_solver_cfg.py` | 67 | 0 | 67 | 100% |
+| `utils/floquet.py` | 32 | 0 | 32 | 100% |
+| `utils/yaml_io.py` | 30 | 0 | 30 | 100% |
+
+Files omitted by `.coveragerc`. Statement count from the coverage parser. Hit 0 on this CPU box.
+
+| File | Stmts | Cover |
+|---|---:|---:|
+| `solvers/router/stable_sweep.py` | 675 | 0% |
+| `solvers/router/resolvent_map.py` | 573 | 0% |
+| `linalg/factorize.py` | 452 | 0% |
+| `utils/petsc_core.py` | 387 | 0% |
+| `solvers/eigenvalue.py` | 320 | 0% |
+| `solvers/router/map_walk.py` | 265 | 0% |
+| `linalg/backends.py` | 262 | 0% |
+| `solvers/router/ram_autoselect.py` | 252 | 0% |
+| `solvers/router/anchors.py` | 204 | 0% |
+| `solvers/router/recycling.py` | 199 | 0% |
+| `solvers/router/certification.py` | 172 | 0% |
+| `solvers/router/break_even.py` | 159 | 0% |
+| `solvers/spatial_eig.py` | 102 | 0% |
+| `solvers/router/band_marking.py` | 96 | 0% |
+| `solvers/router/map_record.py` | 78 | 0% |
+| `utils/petsc_init.py` | 66 | 0% |
+| `solvers/_eps_helpers.py` | 63 | 0% |
+| `linalg/shifted.py` | 21 | 0% |
+| `solvers/router/__init__.py` | 19 | 0% |
+| `linalg/__init__.py` | 13 | 0% |
+| `solvers/__init__.py` | 11 | 0% |
+| `solvers/petsc_utils.py` | 1 | 0% |
 
 ## [1.0.0rc7] - 2026-08-19
 

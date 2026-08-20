@@ -131,7 +131,8 @@ def test_compare_map_timings_matches_shared_points(tmp_path) -> None:
         str(tmp_path / "timing.csv"),
     ]
     assert compare_main() == 0
-    rows = list(csv.DictReader((tmp_path / "timing.csv").open(encoding="utf-8")))
+    with (tmp_path / "timing.csv").open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
     assert len(rows) == 1
     assert float(rows[0]["gain_rel"]) == 0.0
 

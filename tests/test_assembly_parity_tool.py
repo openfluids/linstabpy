@@ -10,6 +10,9 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tests" / "tools" / "assembly_parity.py"
 

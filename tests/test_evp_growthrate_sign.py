@@ -25,6 +25,9 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
 from linstabpy.stability import eigenvalues as temporal_eigenvalues
 
 
