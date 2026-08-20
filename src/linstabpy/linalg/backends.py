@@ -246,7 +246,18 @@ def apply_factor_backend(
     if precision == "single" and backend != "superlu_dist":
         raise ValueError(
             "LINSTABPY_FACTOR_PRECISION=single is only supported with "
-            f"backend 'superlu_dist' (got backend {backend!r})"
+            f"backend 'superlu_dist' (got backend {backend!r}). The working "
+            "single-precision route is the GPU backend factor_backend='cudss' "
+            "on the iterative path."
+        )
+    if backend == "cudss":
+        # After the knob-specific rejections above, so a BLR/ordering/precision
+        # misconfiguration keeps its own actionable message.
+        raise ValueError(
+            "factor_backend='cudss' is not a PETSc factor type; the cuDSS LU runs "
+            "as a preconditioner inside the iterative path. Configure solver type "
+            "'iterative' with ksp_type 'fgmres', pc_type 'lu' and "
+            "factor_backend 'cudss'."
         )
     if precision == "single":
         # MEASURED 2026-07-30 on PETSc 3.24.2 (c9, job 536): the only lever this
@@ -424,6 +435,12 @@ def factor_backend_available(backend: str) -> bool:
     backend = _normalize_backend(backend)
     if backend is None:
         return True
+    if backend == "cudss":
+        # cuDSS is not a PETSc factor package; availability means the nvmath
+        # wheels are installed and a tiny factorization runs on the GPU.
+        from .cudss_factor import cudss_available
+
+        return cudss_available()
     PETSc = _get_petsc()
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)

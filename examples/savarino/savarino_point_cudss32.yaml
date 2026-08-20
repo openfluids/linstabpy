@@ -1,0 +1,92 @@
+# Savarino point (conservative-momentum forcing space), cuDSS GPU arm, SINGLE-precision factor.
+# Physics, numerics, boundary conditions and forcing window are identical to
+# configs/mack_f2_b45.yaml; only the resolvent linear solver differs:
+# the operator is factored by NVIDIA cuDSS (through nvmath-python) and applied
+# as a preconditioner inside right-preconditioned FGMRES to 1e-10. cuDSS has
+# no transpose or adjoint solve, so the adjoint rides a second cuDSS factor of
+# K^H (the dual-factor path in linalg/factorize.py). Run with
+#   mpiexec -n 1, CUDA_VISIBLE_DEVICES=<device>, PETSC_OPTIONS='-use_gpu_aware_mpi 0',
+#   OMP_NUM_THREADS = the job's cores (cuDSS analysis threads through the
+#   bundled threading layer; see docs/COMPUTE_BACKENDS.md),
+# in a venv with the cudss extra installed (pip install "linstabpy[cudss]").
+# factor_precision: single factors in complex64 (6-9x faster, half the device
+# memory) while FGMRES stays complex double and restores the solution to 1e-12.
+# The backend force-enables MC64-style matching and double equilibration; the
+# adjoint self-test uses production forcing-masked probes (see CHANGELOG).
+paths:
+  # Point this at the directory written by savarino_to_npy.py.
+  case_dir: output/baseflow   # written by savarino_to_npy.py, relative to examples/savarino/
+physics:
+  Re: 100000.0           # Reynolds number based on X_sh
+  Ma: 2.15               # freestream Mach
+  Pr: 0.72               # Prandtl number
+  kappa: 1.4             # ratio of specific heats
+  T_0: 156.92            # reference temperature [K]
+  zero_spanwise: false
+  zero_mu_t_derivs: false
+  use_matlab_sponge_aux: false
+  sponge:
+    enabled: false       # use the packed sponge only
+numerics:
+  stride_ksi: 1          # 1 = as packed
+  stride_eta: 1
+  fd_order: 4            # SBP interior order
+  beta: 45.0             # spanwise wavenumber * X_sh
+  alpha_filter: 0.0      # implicit filter; 0 keeps the filter real
+  operator_dissipation:
+    enabled: false       # rectilinear mesh; leak ~ 1e-17
+    epsilon: 0.0
+    apply_to_stability: true
+    apply_to_resolvent: true
+bc:
+  penalty: 100000000.0
+  recipe:
+    - {type: dirichlet, borders: lt, variables: ruvwT}  # inlet + freestream
+    - {type: dirichlet, borders: b, variables: ruvw}    # no-slip wall
+    - {type: neumann, borders: b, variables: T}         # adiabatic wall
+    - {type: neumann, borders: r, variables: ruvwT}     # outflow
+analysis:
+  ratio_uinf: 1.0
+  ratio_l: 0.1
+  St: 0.1                # unused while omega_target is set
+  run_stability: false
+  run_resolvent: true
+  use_raw_eigs: false
+  n_modes_stability: 20
+  n_modes_resolvent: 1
+  skip_band_marking: true   # band-marking EVP reads solver.eigen (CPU MUMPS); not scalable here
+  omega_target:
+    real: 12.566370614359172   # 2 pi f with f = 2
+    imag: 0.0
+solver:
+  petsc_matrix_mode: distributed
+  factor_backend: mumps      # lowest-priority default; the resolvent block below overrides it
+  eigen:
+    st_solver: mumps         # unused: skip_band_marking
+    eps_tol: 1.0e-6
+    ncv: 160
+    conv_test: rel
+    true_residual: false
+  linsolve:
+    type: mumps
+  resolvent:
+    type: iterative          # FGMRES around the STRUMPACK LU (PCLU, right side)
+    ksp_type: fgmres
+    pc_type: lu
+    ksp_pc_side: right
+    ksp_rtol: 1.0e-10        # "tight" = the CPU arm's accuracy; a "loose" GPU row uses 1e-6
+    ksp_atol: 1.0e-12
+    ksp_max_it: 400
+    factor_backend: cudss
+    factor_precision: single
+    ksp_monitor: false
+    eigen:
+      forcing_norm: l2
+      # Krylov-Schur on H^H H with nev=1: ncv 5 needs 10 solves per point (job 1859).
+      ncv: 5
+  input_region:
+    space: conservative_momentum
+    vars: [u, v, w]
+    x: [0.20291667, 1.9470833]
+    y: [0.0, 0.29627645]
+  mask_bc_forcing: true

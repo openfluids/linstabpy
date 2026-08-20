@@ -202,14 +202,14 @@ def test_heal_engages_when_transpose_self_test_raises() -> None:
     call_count = [0]
     original_self_test = _run_adjoint_self_test
 
-    def mock_self_test(solve_func, solve_adjoint_func, n, k=3):
+    def mock_self_test(solve_func, solve_adjoint_func, n, k=3, probe_family=None):
         """First call raises (simulating STRUMPACK divergence); subsequent calls delegate to real impl."""
         call_count[0] += 1
         if call_count[0] == 1:
             # First call (the initial adjoint test in _maybe_run_adjoint_test_and_heal)
             raise RuntimeError("KSP DIVERGED_ITS: transpose solve failed to converge")
         # Subsequent calls (the truth-gate and any other validations) use the real implementation
-        return original_self_test(solve_func, solve_adjoint_func, n, k)
+        return original_self_test(solve_func, solve_adjoint_func, n, k, probe_family=probe_family)
 
     # Patch the self-test at the module level so factorize sees it
     with mock.patch(
@@ -257,11 +257,11 @@ def _heal_forcing_self_test():
 
     calls = [0]
 
-    def mock_self_test(solve_func, solve_adjoint_func, n, k=3):
+    def mock_self_test(solve_func, solve_adjoint_func, n, k=3, probe_family=None):
         calls[0] += 1
         if calls[0] == 1:
             raise RuntimeError("simulated defective native transpose (STRUMPACK-like)")
-        return real_self_test(solve_func, solve_adjoint_func, n, k)
+        return real_self_test(solve_func, solve_adjoint_func, n, k, probe_family=probe_family)
 
     return mock_self_test
 

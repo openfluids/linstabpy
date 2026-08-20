@@ -682,7 +682,7 @@ instead of silently falling back to MUMPS or PETSc native LU.
 | `mumps` | Validated default | CPU sparse-direct backend used by the current test suite. |
 | `strumpack` | Experimental | Not built by default; GPU claims are unvalidated for LinStabPy matrices. |
 | `superlu_dist` | Experimental | Not built by default; PETSc requires a SuperLU_DIST build with GPU offload support for GPU use. |
-| `cudss` | Not available by default | No released PETSc factor-solver interface is assumed by LinStabPy. |
+| `cudss` | Validated GPU backend | Not a PETSc factor type: the cuDSS LU (through `nvmath-python`, `pip install "linstabpy[cudss]"`) preconditions the right-preconditioned FGMRES path. One rank, one GPU; the adjoint uses a second factorization of the conjugate transpose. Solutions match MUMPS to 1e-12; see `docs/COMPUTE_BACKENDS.md`. |
 
 See `docs/COMPUTE_BACKENDS.md` for the backend audit, version floors, and the
 current GPU go/no-go notes.
@@ -1329,7 +1329,7 @@ Roadmap:
 | Independent operator verification | Done | Provenance-independent oracles for the coefficients, global assembly, boundary rows, curvilinear transform, and energy norm. |
 | SWBLI validation and resolvent results | In progress | Song/Robinet global-stability reproduction and a new SWBLI resolvent gain map. |
 | Factor-backend seam | Done | Central backend selection for PETSc LU paths; `mumps` is the validated default. |
-| GPU sparse-direct backends | In progress | `strumpack`, `superlu_dist`, and `cudss` paths are under active development; `mumps` stays the validated CPU default until the GPU paths are verified for LinStabPy matrices. |
+| GPU sparse-direct backends | `cudss` validated | `cudss` (through nvmath-python, FGMRES-wrapped) is the validated GPU route, with an opt-in single-precision factorization; `strumpack` works through PETSc but is slower on the same card; `superlu_dist` GPU offload remains unvalidated. `mumps` stays the CPU default. |
 
 ## References
 
