@@ -10,7 +10,6 @@ import pytest
 
 import linstabpy.utils.cost_metrics as cost_metrics_module
 from linstabpy.driver.io import save_results
-from linstabpy.driver.run import _STAGE_WALL, _log_stage, _stage_start
 from linstabpy.utils.cost_metrics import collect_cost_metrics
 
 COST_KEYS = {
@@ -115,6 +114,9 @@ def test_factor_is_nan():
 
 
 def test_npz_and_sidecar_agreement(tmp_path):
+    from linstabpy.driver.run import _STAGE_WALL
+
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
     _STAGE_WALL.clear()
     _STAGE_WALL.update(
         {
@@ -150,6 +152,9 @@ def test_npz_and_sidecar_agreement(tmp_path):
 
 
 def test_log_stage_populates_stage_wall():
+    from linstabpy.driver.run import _STAGE_WALL, _log_stage, _stage_start
+
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
     # Regression guard: _log_stage MUST accumulate elapsed wall time into
     # _STAGE_WALL, otherwise every cost_wall_*_s in the saved artifacts is 0/nan.
     # (This wiring was silently missing on a prior commit; the unit tests passed

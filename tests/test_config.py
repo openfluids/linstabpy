@@ -12,7 +12,6 @@ import pytest
 
 from linstabpy.config import Config
 from linstabpy.linalg.backends import _as_bool, resolve_factor_backend
-from linstabpy.solvers.eigenvalue import _probe_residual_rel_max, _resolve_st_factor_backend
 from linstabpy.utils._solver_cfg import (
     SolverConfig,
     _scfg,
@@ -929,6 +928,9 @@ def test_spatial_factor_backend_matches_context_reader(monkeypatch: pytest.Monke
 def test_eigen_st_factor_backend_matches_live_reader(
     monkeypatch: pytest.MonkeyPatch, st_solver: str, extra: dict[str, Any]
 ) -> None:
+    from linstabpy.solvers.eigenvalue import _resolve_st_factor_backend
+
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     raw = {"eigen": {"st_solver": st_solver, **extra}}
     assert Config.load(raw).eigen.st_factor_backend == _resolve_st_factor_backend(
         st_solver, raw["eigen"]
@@ -941,6 +943,9 @@ def test_eigen_st_factor_backend_matches_live_reader(
 
 
 def test_eigen_st_factor_backend_yaml_beats_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from linstabpy.solvers.eigenvalue import _resolve_st_factor_backend
+
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     monkeypatch.setenv("LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE", "mumps")
     raw = {
         "eigen": {
@@ -998,6 +1003,9 @@ def test_eigen_inexact_matches_plain_cast_yaml_reader(monkeypatch: pytest.Monkey
 
 
 def test_eigen_backend_probe_matches_live_reader() -> None:
+    from linstabpy.solvers.eigenvalue import _probe_residual_rel_max
+
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     assert Config.load({}).eigen.backend_probe.residual_rel_max == _probe_residual_rel_max({})
     assert Config.load({}).eigen.backend_probe.enabled is None
 
@@ -1048,4 +1056,7 @@ def test_site_to_field_table_covers_known_reader_surface() -> None:
     assert len(FIELD_SPECS) == 63
     assert len(RAW_VALUE_SPECS) == 3
     # factor backends are context readers, not simple _scfg tuples.
+    from linstabpy.solvers.eigenvalue import _resolve_st_factor_backend
+
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     assert Config.load({}).eigen.st_factor_backend == _resolve_st_factor_backend("mumps", {})

@@ -33,6 +33,9 @@ from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
+from linstabpy.driver.payload import (
+    RUNTIME_NPZ_CONTRACT_KEYS as RUNTIME_NPZ_CONTRACT_KEYS,  # noqa: F401
+)
 from linstabpy.driver.payload import build_runtime_payload
 from linstabpy.driver.preflight import (
     baseflow_advisories,

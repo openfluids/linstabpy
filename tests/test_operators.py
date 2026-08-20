@@ -667,6 +667,16 @@ class TestCylindricalCoefficients:
 class TestOperatorAssembly:
     """Tests for build_lnse_operator using small_mesh_2d + uniform_baseflow."""
 
+    def setup_method(self, method) -> None:
+        name = method.__name__.lower()
+        if (
+            "petsc" in name
+            or "distributed" in name
+            or name == "test_neumann_rejects_ambiguous_corner_rules"
+        ):
+            pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+            pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
     def test_build_lnse_system_public_signature_is_stable(self):
         params = signature(build_lnse_system).parameters
         expected = [
@@ -2175,6 +2185,11 @@ class TestChuEnergyNorm:
 
 class TestSpatialOperator:
     """Parity checks for spatial SciPy/PETSc operator assembly."""
+
+    def setup_method(self, method) -> None:
+        if "petsc" in method.__name__.lower():
+            pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+            pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 
     def test_direct_petsc_spatial_operator_has_sparse_parity(self):
         """Direct PETSc spatial matrices should match the SciPy reference entrywise."""

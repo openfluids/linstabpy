@@ -111,8 +111,11 @@ def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
         return True
     if mode in {"local", "serial"}:
         return False
-    # auto
-    PETSc = _get_petsc()
+    # auto: one rank when PETSc is absent
+    try:
+        PETSc = _get_petsc()
+    except ModuleNotFoundError:
+        return False
     return PETSc.COMM_WORLD.getSize() > 1
 
 

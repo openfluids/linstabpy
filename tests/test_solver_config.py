@@ -307,3 +307,16 @@ def test_typed_config_rejects_removed_mumps_icntl7() -> None:
         Config.load({"solver": {"mumps_icntl_7": 5}}, env={})
     with pytest.raises(ValueError, match="LINSTABPY_MUMPS_ORDERING"):
         Config.load(None, env={"LINSTABPY_PETSC_SET_MUMPS_ICNTL_7": "1"})
+
+
+def test_typed_helpers_cover_none_mapping_and_string_bools() -> None:
+    from linstabpy.config import typed as typed_mod
+
+    assert typed_mod._solver_mapping(None) == {}
+    assert typed_mod._scfg_bool({"ksp_monitor": "yes"}, "ksp_monitor", {}, "X", False) is True
+    assert typed_mod._parse_optional_int(None) is None
+    cfg = Config.load(
+        {"solver": {"linsolve": {}}},
+        env={"LINSTABPY_LINSOLVE_PC_FACTOR_SOLVER_TYPE": "strumpack"},
+    )
+    assert cfg.linsolve.factor_backend == "strumpack"

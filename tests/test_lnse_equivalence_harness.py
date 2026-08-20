@@ -9,7 +9,12 @@ import subprocess  # nosec B404 - tests execute the checked-in equivalence scrip
 import sys
 from pathlib import Path
 
+import pytest
+
 from tests._subprocess_timeout import LOAD_MULTIPLIER_CAP, load_aware_timeout
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tests" / "tools" / "lnse_equivalence_harness.py"

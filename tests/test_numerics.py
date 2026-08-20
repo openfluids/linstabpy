@@ -10,6 +10,9 @@ Every check in this file carries @pytest.mark.slow.
 
 import numpy as np
 import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import scipy.sparse as sp
 
 from linstabpy.baseflow import BaseFlow, sutherland_air

@@ -11,6 +11,9 @@ from typing import Any
 import numpy as np
 import pytest
 
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
 from tests.regenerate_mumps_parity_reference import (
     REFERENCE_PATH,
     RELATIVE_DRIFT_TOL,

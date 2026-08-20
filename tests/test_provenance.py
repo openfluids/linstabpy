@@ -11,6 +11,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
 from linstabpy.driver.io import load_results, save_results
 from linstabpy.driver.run import _output_npz_path
 from linstabpy.utils.provenance import collect_provenance

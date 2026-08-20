@@ -40,6 +40,8 @@ def test_load_case_fields_shapes() -> None:
 
 
 def test_song_build_lnse_system_petsc_matches_scipy_operator() -> None:
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     X, Y, bf, sponge, _info = load_case_fields(
         BASEFLOW_DIR,
         Re=1.0e5,
@@ -111,6 +113,8 @@ def test_song_build_lnse_system_petsc_matches_scipy_operator() -> None:
 
 
 def test_song_operator_and_small_temporal_eigs() -> None:
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     X, Y, bf, sponge, _info = load_case_fields(
         BASEFLOW_DIR,
         Re=1.0e5,

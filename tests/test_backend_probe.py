@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+
 from petsc4py import PETSc
 
 from linstabpy.linalg.backends import (

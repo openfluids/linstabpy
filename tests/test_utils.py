@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Tests for Floquet reconstruction, PETSc/SciPy parity utilities, and flow plotting utilities."""
 
+import importlib.util
 import shutil
 import textwrap
 
@@ -125,6 +126,10 @@ class TestPlotFlow:
         assert not has_quadmesh, "NaN field fell back to pcolormesh"
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="SKIPPED: missing PETSc stack",
+)
 class TestPetscSciPyParityUtilities:
     """Tests for PETSc/SciPy conversion and comparison helpers."""
 

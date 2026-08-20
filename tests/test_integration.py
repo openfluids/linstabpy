@@ -8,6 +8,9 @@ They assemble large operators and/or call iterative solvers.
 
 import numpy as np
 import pytest
+
+pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import scipy.sparse as sp
 
 from examples.martini.matlab_baseflow import load_blasius

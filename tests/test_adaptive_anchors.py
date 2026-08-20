@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+import pytest
 import scipy.sparse as sp
 
 from linstabpy.solvers.router import stable_sweep
@@ -194,6 +195,8 @@ def test_default_cheap_probe_reads_measured_iteration_arrays():
 
 
 def test_adaptive_anchors_feed_stable_sweep_and_log_fixed_baseline_measurement(caplog):
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
     L0 = _operator()
     omegas = np.array([0.75, 0.9, 1.0, 1.1, 1.25], dtype=complex)
     marks = _marks(omegas.real, [1.0, 1.0, 0.02, 1.0, 1.0], radius=0.05)
