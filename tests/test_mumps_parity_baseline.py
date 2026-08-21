@@ -110,7 +110,7 @@ def test_default_mumps_parity_matches_frozen_reference(monkeypatch: pytest.Monke
 
 def test_regeneration_refuses_polluted_linstabpy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LINSTABPY_EIGEN_EPS_TOL", "1e-4")
-    with pytest.raises(RuntimeError, match="refusing to regenerate MUMPS parity fixture"):
+    with pytest.raises(RuntimeError, match="refusing to regenerate MUMPS parity reference"):
         refuse_polluted_linstabpy_env()
 
 

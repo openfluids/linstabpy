@@ -4,8 +4,9 @@ Cite Zenodo [10.5281/zenodo.18854407](https://doi.org/10.5281/zenodo.18854407).
 
 ## `baseflow/`
 
-Savarino's published Tecplot mean-flow file. Convert with `python savarino_to_npy.py`
-→ `output/baseflow/` (gitignored).
+Savarino's published Tecplot mean-flow file — not tracked (the Zenodo record
+states no redistribution license). Download with `python fetch_zenodo.py baseflow`,
+then convert with `python savarino_to_npy.py` → `output/baseflow/` (gitignored).
 
 ## Files in `reference/`
 

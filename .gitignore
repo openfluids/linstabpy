@@ -26,6 +26,8 @@ examples/martini/_run_logs/
 # Song validation figures (shipped with the example).
 !examples/song/figures/
 !examples/song/figures/**
+# Savarino base flow: fetched from Zenodo (no redistribution license on the record).
+examples/savarino/reference/baseflow/*.dat
 # Savarino output: ship run-record CSVs + figure PNGs only (not baseflow .npy / compare .npz).
 !examples/savarino/output/
 !examples/savarino/output/savarino_map2_200pt.csv

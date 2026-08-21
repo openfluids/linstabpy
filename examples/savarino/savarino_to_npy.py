@@ -7,7 +7,8 @@ Write five primitive fields (rho, u, v, w, T) plus coordinates and a
 placeholder sponge array as individual .npy files.
 ``paths.case_dir`` in the case configs points at that directory.
 Required input: the published Tecplot file shipped under
-``reference/baseflow/`` (or pass ``<src.dat> <out_dir>`` explicitly).
+``reference/baseflow/`` — download it first with ``fetch_zenodo.py baseflow``
+(or pass ``<src.dat> <out_dir>`` explicitly).
 
 Usage:  python savarino_to_npy.py
         python savarino_to_npy.py <src.dat> <out_dir>

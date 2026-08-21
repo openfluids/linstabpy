@@ -70,7 +70,8 @@ def main() -> int:
         type=Path,
         default=HERE / "configs" / "mack_f2_b45.yaml",
         help="point config for the line; its solver block decides CPU (MUMPS) or "
-        "GPU (STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml",
+        "GPU (STRUMPACK or cuDSS under FGMRES) -- see savarino_point_gpu.yaml "
+        "and savarino_point_cudss.yaml",
     )
     ap.add_argument(
         "--cpus-per-task",

@@ -7,6 +7,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc8] - 2026-08-21
+
 ### Added --- cuDSS GPU sparse-direct backend
 
 The largest performance change since the package was created. A new GPU
@@ -71,17 +73,36 @@ study, on an otherwise idle node, with the solve tolerance at 1e-10.
   (9.0--9.2 s); what a frequency line saves is the analysis. Timings are
   reproducible across independent runs to about 1 percent.
 - Line-mode point (two refactorizations + 20 solves): 23 s double, 12--14 s
-  single. Reference points on the same operator and node: MUMPS CPU line
+  single at a benign point --- the production sweep below shows single is
+  slower overall. Reference points on the same operator and node: MUMPS CPU line
   mode 60--82 s (4 ranks), MUMPS factorization alone 24--33 s (10 threads),
   STRUMPACK GPU point 130--180 s.
 - FGMRES iteration counts: 1--2 (double), 5--20 (single with matching and
-  equilibration).
+  equilibration, at points where it converges; the 47-point sweep below found
+  21 points where it exceeds the 400-iteration cap).
+- Production campaign (two A6000s, one job per card, two concurrent): the
+  47-point beta=40/45 subset runs at 57.1 s/pt as independent jobs (CPU record
+  118.5 s/pt) and 34.0 s/pt in line mode (CPU 76.6 s/pt); the full 200-point
+  map runs at 57.1 s/pt, 103.9 min wall against 83.6 min for five concurrent
+  CPU jobs on twenty cores --- wall-clock is bound by device count, per-point
+  cost halves. Run records committed as
+  `examples/savarino/savarino_cudss_*.csv`.
+- Single precision, measured end-to-end on the same 47 points: converged
+  points average 207 s/pt against 58 s/pt double (the weaker factor needs the
+  extra iterations), and 21 of 47 points --- the resonant band
+  2 <= f <= 7 at beta=45, the response peak at beta=40, and the
+  zero-frequency corner --- exceed 400 FGMRES iterations. Evaluated and
+  rejected for production; the opt-in stays for the masked-RHS niche and as
+  the memory route (halved factor storage).
 
 ### Accuracy --- measured
 
 - Solutions through the cuDSS-preconditioned FGMRES match the MUMPS double
   reference to 1.2e-12 relative; the discrete adjoint identity holds to
   2.5e-14--5.9e-12 with the dual factor.
+- The full production campaign reproduces the committed map-of-record gains
+  to every printed digit: all 200 map points and both 47-point arms (jobs and
+  line mode) show zero difference at the CSV's ten-digit precision.
 - The single-precision option reaches the same 1e-12 through the double
   iteration. Its scope is the production right-hand-side family (forcing-
   and response-masked vectors); on dense unmasked vectors the iteration can
@@ -102,6 +123,58 @@ study, on an otherwise idle node, with the solve tolerance at 1e-10.
   attributed it to STRUMPACK's transpose solve; code comments and
   documentation now state the fallback. The dual-factor construction was
   and remains the correct route on both GPU backends.
+
+### Fixed --- reproduction documentation
+
+- A reproduction audit of the shipped tree closed four seams between the new
+  backend and its documentation: the "Current Status" backend table in
+  `docs/COMPUTE_BACKENDS.md` still said cuDSS was not wired (contradicting
+  the new section in the same file); the install line named only the `cudss`
+  extra when the iterative path also needs the `petsc` extra, and did not say
+  that a standard CPU PETSc/SLEPc build is enough (the GPU work happens
+  inside cuDSS); the Savarino example README did not mention the two shipped
+  cuDSS configs (`savarino_point_cudss.yaml`, `savarino_point_cudss32.yaml`)
+  or that the campaign generators drive them via `--config`; and both
+  campaign generators' `--config` help text named only the STRUMPACK GPU
+  route. All four are corrected.
+
+### Changed --- Savarino base flow fetched, no longer tracked
+
+- The published Savarino base flow (`reference/baseflow/*.dat`, 10.9 MB) is no
+  longer tracked: its Zenodo record (10.5281/zenodo.18854407) is open access
+  but states no redistribution license, so the repository ships no file from
+  it. `fetch_zenodo.py baseflow` downloads it (md5 checked against the Zenodo
+  files API) and `savarino_to_npy.py` re-verifies the md5 before converting.
+  The shipped `reference/savarino_response_*.npz` (repackaged from the same
+  record) remain tracked pending the same license decision.
+
+### Added --- every published number now has its run record and recipe in the tree
+
+A second reproduction audit, this time claim-by-claim against the manuscript,
+brought in everything a reader needs to check or rerun the measurements:
+
+- The STRUMPACK GPU campaign records (`savarino_strumpack_farm_fp64.csv`,
+  `savarino_strumpack_lines_fp64.csv`) and the dedicated CPU 47-point
+  references (`savarino_cpu_farm_47pt.csv`, `savarino_cpu_lines_47pt.csv`) —
+  the previously unshipped halves of the backend comparison.
+- The backend benchmarks (`examples/savarino/benchmarks/`): the five
+  measurement CSVs behind the per-backend factorization times and the
+  single-precision verdict, together with the harness scripts that produced
+  them and the operator-dump tool they consume.
+- `savarino_campaign_walltimes.csv`: wall-clock of every campaign arm from
+  Slurm accounting, first job start to last job end, with job-id ranges. This
+  corrected one published number: the cuDSS 200-point map wall-clock is
+  103.9 min, not 100.2 (the earlier figure was measured from the submission
+  loop's completion, while the first jobs were already running).
+- `savarino_mpi_scaling.csv`: MPI strong scaling at the Mack point measured
+  on the same node as every other row (190.5 / 154.6 / 148.2 s at 4/8/16
+  ranks, gain identical to ten significant digits). This replaces an earlier
+  scaling table whose hardware could not be traced to any machine or record.
+- `compare_backend_modes.py`: prints the Chu-weighted correlation between the
+  leading response modes of two runs of the same point, so the "GPU modes
+  match the CPU modes" statement is checkable with one command.
+- The example README now lists, for every shipped CSV, the exact generator
+  command and config that produced it.
 
 ### Evaluated and rejected --- measured dead ends, recorded so they are not re-walked
 

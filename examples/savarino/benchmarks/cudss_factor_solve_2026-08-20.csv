@@ -1,0 +1,24 @@
+# cuDSS factor/solve benchmark (c9 job 2696, 2026-08-20, venv-cudss = GPU venv + nvmath-python 1.0.0 + nvidia-cudss-cu12 0.8.0.10, one A6000, 1 rank, system CUDA 12.8 only).
+# cuDSS through nvmath DirectSolver as the right preconditioner of complex128 FGMRES (rtol 1e-10, max_it 200); MUMPS64 = PETSc MUMPS preonly reference in the same job.
+# plan = analysis (single-threaded, no threading lib specified); factor/adj_factor = numeric factorization of K and K^H; solve = mean per-RHS after first.
+# its/res/err on the forcing RHS (production family); err vs the MUMPS double solution. plain = one factor solve, no refinement.
+# adjoint defect for `single` uses random probe vectors, which stall FP32-preconditioned FGMRES (the FP32-preconditioner benchmark shows the same random-RHS effect) - not an adjoint-specific failure; adj_its is the adjoint FGMRES count on the last probe.
+beta,f,variant,mumps64_factor_s,plan_s,factor_s,adj_plan_s,adj_factor_s,solve_s,lu_nnz,mem_two_factors_MiB,fgmres_its,fgmres_res,err_vs_mumps,plain_res,adj_its
+0,0.0001,double,23.8,6.7,5.7,6.6,5.7,0.026,412805192,15353,2,2.1e-07,7.3e-12,8.3e-04,2
+0,0.0001,single,23.8,6.5,0.7,6.4,0.7,0.016,412805192,7940,200_stall,1.0,1.0,7.0e+05,200_stall
+0,0.0001,single_eq,23.8,6.5,0.7,6.4,0.7,0.016,412805192,7938,200_stall,1.0,1.0,9.2e+04,21
+163,0.0001,double,30.4,8.1,9.0,8.7,9.1,0.029,576360664,19774,2,2.5e-06,6.6e-12,7.5e-03,2
+163,0.0001,single,30.4,7.8,1.0,7.8,1.0,0.018,576360664,10830,200_stall,1.0,1.0,5.7e+06,200_stall
+163,0.0001,single_eq,30.4,7.8,1.0,7.8,1.0,0.018,576360664,10830,200_stall,1.0,1.0,4.2e+05,56
+40,1.0,double,31.7,7.8,9.0,7.8,9.1,0.030,576360664,19646,2,3.4e-07,4.4e-12,1.2e-06,1
+40,1.0,single,31.7,7.8,1.0,7.8,1.0,0.019,576360664,10830,9,4.1e-07,4.4e-12,5.1e+02,6
+40,1.0,single_eq,31.7,7.8,1.0,7.8,1.0,0.019,576360664,10830,8,4.4e-07,4.4e-12,5.3e+02,6
+40,1.8,double,32.0,7.8,9.0,7.8,9.0,0.030,576360664,19646,2,1.9e-06,1.2e-12,5.1e-06,1
+40,1.8,single,32.0,7.7,1.0,7.8,1.0,0.019,576360664,10830,12,2.4e-06,1.2e-12,2.8e+03,5
+40,1.8,single_eq,32.0,7.8,1.0,7.8,1.0,0.019,576360664,10830,20,2.5e-06,1.2e-12,2.4e+03,5
+# Rescue run (job 2697): cuDSS FP32 with matching_algorithm = MAX_DIAG_PRODUCT (MC64-like) at the two omega~1e-4 points that stalled above.
+# Matching runs inside plan (single-threaded: plan 15-26 s) and grows lu_nnz ~19%; factor stays ~1 s. With matching + equilibration FP32 converges at ALL four points.
+0,0.0001,single_match,24.0,19.0,0.8,,0.8,0.017,488958712,9957,23,2.7e-07,2.3e-11,9.4e+03,
+0,0.0001,single_eq_match,24.0,14.7,0.8,,0.8,0.017,488958712,9182,10,2.5e-07,6.8e-12,5.4e+03,
+163,0.0001,single_match,30.8,26.4,1.2,,1.2,0.021,686759638,12670,15,2.9e-06,6.9e-12,6.3e+03,
+163,0.0001,single_eq_match,30.8,17.6,1.2,,1.2,0.020,689974958,12598,8,3.0e-06,6.9e-12,5.6e+03,

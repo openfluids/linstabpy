@@ -1,0 +1,13 @@
+# FP32-preconditioner benchmark (c9 job 2693, 2026-08-19/20, MKL venv, 1 rank, COLAMD, diag_pivot_thresh 1).
+# Question: does an FP32 LU (SuperLU complex64) work as the right preconditioner of complex128 FGMRES (rtol 1e-10) on the 450k-DOF Savarino operator?
+# kappa1 = 1-norm condition estimate (onenormest through the MUMPS factor; estimator checked against dense on 400x400). eq = double-precision row/col inf-norm equilibration before the cast.
+# err = solution error vs the MUMPS double preonly reference. forcing RHS = B@f (production family); random RHS = dense random complex (stress test, touches the 1e8-penalty BC rows).
+# factor32_s is SEQUENTIAL scipy SuperLU on CPU - a numerics rehearsal only, it says nothing about cuDSS GPU speed (see the cuDSS benchmark).
+# 4th point (40,1.8) not reached: 4h time limit. Timeout, not a numerical failure.
+beta,f,kappa1_K,kappa1_eq,eq,factor32_s,nnz_LU,forcing_its,forcing_err,random_its,random_err
+0,0.0001,6.43e16,3.78e6,off,866,8.63e8,6,8.6e-12,36,3.9e-12
+0,0.0001,6.43e16,3.78e6,on,984,8.70e8,6,8.6e-12,200_stall,9.5e-01
+163,0.0001,5.80e15,2.13e7,off,1687,1.31e9,5,4.3e-12,200_stall,9.8e-01
+163,0.0001,5.80e15,2.13e7,on,2142,1.32e9,6,4.3e-12,200_stall,1.0e+00
+40,1.0,9.36e15,1.03e7,off,1250,1.31e9,5,2.3e-11,32,2.6e-11
+40,1.0,9.36e15,1.03e7,on,1473,1.32e9,6,2.3e-11,200_stall,1.0e+00

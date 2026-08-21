@@ -58,7 +58,7 @@ def zenodo_root() -> Path:
 
 
 def zenodo_baseflow_dat() -> Path:
-    """Published Tecplot base flow (shipped under reference/baseflow/)."""
+    """Published Tecplot base flow (downloaded by ``fetch_zenodo.py baseflow``)."""
     override = os.environ.get("SAVARINO_BASE_DAT")
     if override:
         return Path(override)
