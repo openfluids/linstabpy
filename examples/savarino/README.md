@@ -17,7 +17,7 @@ new result.
 examples/savarino/
   configs/                  # point YAMLs, grids, campaign template
   reference/
-    baseflow/               # Savarino Tecplot .dat
+    baseflow/               # Savarino Tecplot .dat (fetched, not tracked)
     savarino_response_*.npz
     savarino_grid.csv
     savarino_forcing_mask_measured.csv
@@ -29,6 +29,11 @@ examples/savarino/
     figures/                # plots (compare_modes.py, plot_gain_map.py)
   savarino_map3_200pt.csv        # 200-pt map of record, per-point jobs
   savarino_map3_lines_200pt.csv  # the same 200 points from the line driver
+  savarino_cudss_map_200pt.csv   # the same 200 points on the cuDSS GPU backend (gains identical)
+  savarino_cudss_farm_fp64.csv   # beta=40/45 subset (47 pts), cuDSS double, per-point jobs
+  savarino_cudss_lines_fp64.csv  # the same 47 points from the line driver on cuDSS
+  savarino_cudss_farm_fp32.csv   # the same 47 points, single-precision factor; 21 points
+                                 #   fail (status != ok) -- kept as the FP32 record
   savarino_gain_map.png          # S6 rendered from savarino_map3_200pt.csv
   savarino_point_gpu.yaml        # GPU (STRUMPACK + FGMRES) variant of configs/mack_f2_b45.yaml
   savarino_line.py, savarino_mapwalk.py, gen_line_campaign.py, gen_mapwalk_campaign.py,
@@ -40,14 +45,46 @@ examples/savarino/
 | Path | Contents |
 |------|----------|
 | `savarino_map3_200pt.csv` | Our 200-point gain-map run record (map of record, `plot_gain_map.py` default). |
+| `savarino_map3_lines_200pt.csv` | The same 200 points computed by the line driver (in-place refactorization); `rel_err` compares against the farm gains. |
+| `savarino_cpu_farm_47pt.csv` / `savarino_cpu_lines_47pt.csv` | Dedicated CPU reference runs of the 47-pt (β=40/45) subset, both execution modes — the CPU side of every GPU comparison. |
+| `savarino_strumpack_farm_fp64.csv` / `savarino_strumpack_lines_fp64.csv` | The STRUMPACK+FGMRES GPU campaign on the same 47 points, both modes. |
+| `savarino_cudss_*.csv` | The cuDSS GPU campaign: the 200-pt map and the 47-pt (β=40/45) subset in both execution modes reproduce the map-of-record gains to every printed digit; the `fp32` file records the rejected single-precision arm with its failed points. |
+| `savarino_mpi_scaling.csv` | MPI strong scaling of the Mack point at 4/8/16 ranks (MUMPS, one idle node). |
+| `savarino_campaign_walltimes.csv` | Wall-clock of every campaign arm from Slurm accounting (first job start to last job end), with the Slurm job ranges. |
+| `benchmarks/` | Controlled single-stage backend measurements (factor times, FP32 behaviour, tolerance ladder) with their harness scripts — see `benchmarks/README.md`. |
 | `output/savarino_map2_200pt.csv` | Earlier 200-point campaign, superseded (see step 6). |
-| `reference/baseflow/` | Savarino Tecplot mean-flow `.dat` (published). |
+| `reference/baseflow/` | Savarino Tecplot mean-flow `.dat` — downloaded by `fetch_zenodo.py baseflow`, not tracked. |
 | `reference/savarino_response_*.npz` | Savarino resolvent response (Mack + lift-up). |
 | `reference/savarino_grid.csv` | Published sample-point grid (metadata). |
 | `reference/savarino_forcing_mask_measured.csv` | Forcing-region bounds (metadata). |
 | `output/figures/` | Plots from `compare_modes.py` / `plot_gain_map.py`. |
 
 See `reference/README.md` for details.
+
+## How each run record was produced
+
+All compute jobs ran through Slurm on one node (dual Xeon Silver 4210R, 20
+cores, MKL BLAS, `I_MPI_PIN=off`; GPU rows add one NVIDIA RTX A6000 per job).
+Each CSV row carries its own commit, machine, ranks, and Slurm job id. The
+commands, from this directory:
+
+| Record | Command |
+|--------|---------|
+| `savarino_map3_200pt.csv` | `python gen_campaign.py --config configs/map_base.yaml --nranks 4` (200 jobs, 5 concurrent) |
+| `savarino_map3_lines_200pt.csv` | `python gen_mapwalk_campaign.py --config configs/map_base.yaml --nranks 4` per β line (14 line jobs, 5 concurrent) |
+| `savarino_cpu_farm_47pt.csv` | `gen_campaign.py --beta 40 45 --config configs/map_base.yaml --nranks 4` |
+| `savarino_cpu_lines_47pt.csv` | `gen_mapwalk_campaign.py --beta 40` and `--beta 45`, same config |
+| `savarino_strumpack_*.csv` | same two generators with `--config savarino_point_gpu.yaml --nranks 1` (one A6000 per job) |
+| `savarino_cudss_*.csv` | same two generators with `--config savarino_point_cudss.yaml` (fp64) or `savarino_point_cudss32.yaml` (fp32), `--nranks 1` |
+| `savarino_mpi_scaling.csv` | the (2,45) per-point config from `gen_campaign.py`, run serially with `mpiexec -n {4,8,16}` on an idle node |
+| `benchmarks/*.csv` | the `benchmarks/bench_*.py` harnesses on operator dumps from `benchmarks/dump_operator.py` |
+
+To compare the leading response modes of two runs of the same point (for
+example a GPU backend against the MUMPS reference):
+
+```
+python compare_backend_modes.py reference.npz other.npz
+```
 
 ## Configs (`configs/`)
 
@@ -61,20 +98,34 @@ See `reference/README.md` for details.
 
 `savarino_point_gpu.yaml` (example root) is the same Mack point with the
 GPU-capable solver block (FGMRES right-preconditioned by a STRUMPACK LU).
+`savarino_point_cudss.yaml` and `savarino_point_cudss32.yaml` (example root)
+are the same point on the cuDSS GPU backend (FGMRES right-preconditioned by a
+cuDSS LU; the `32` variant factors in single precision via `factor_precision:
+single`). Both run single-rank on one GPU -- see the "cuDSS GPU Backend"
+section of `docs/COMPUTE_BACKENDS.md`.
 
 ## Data
 
-Zenodo DOI 10.5281/zenodo.18854407. The **base-flow Tecplot file** is shipped
-under `reference/baseflow/`. Use `fetch_zenodo.py modes` only when regenerating
-`savarino_response_*.npz` from the Zenodo mode archive.
+Zenodo DOI 10.5281/zenodo.18854407. The record is open access but states no
+redistribution license, so the repository ships no file from it. Download the
+**base-flow Tecplot file** first:
+
+```
+python fetch_zenodo.py baseflow
+```
+
+Use `fetch_zenodo.py modes` only when regenerating `savarino_response_*.npz`
+from the Zenodo mode archive.
 
 ## Workflow
 
-1. **Convert** the base flow to linstabpy `.npy` fields:
+1. **Fetch and convert** the base flow to linstabpy `.npy` fields:
    ```
+   python fetch_zenodo.py baseflow
    python savarino_to_npy.py
    ```
-   Reads `reference/baseflow/state_atcenter_....dat` → `output/baseflow/`.
+   Downloads `reference/baseflow/state_atcenter_....dat` (md5-checked), then
+   converts it to `output/baseflow/`.
    This asserts the file's md5, parses the Tecplot ASCII grid, converts
    conservative to primitive variables, and checks the freestream plateau
    (rho = u = T = 1) before writing anything.
@@ -114,9 +165,11 @@ under `reference/baseflow/`. Use `fetch_zenodo.py modes` only when regenerating
    python gen_mapwalk_campaign.py --out lines --beta 45 --n-anchor 99 --driver-out lines/b45
    ```
    Both generators take `--config`, `--cpus-per-task` and `--gpus` for the
-   GPU-capable backend (`savarino_point_gpu.yaml`); on a workstation-class
-   card that path returns the same gains and is slower (see the cost
-   section of the supplementary material).
+   GPU backends: `savarino_point_gpu.yaml` (STRUMPACK LU; same gains, slower
+   than the CPU reference on a workstation-class card) and
+   `savarino_point_cudss.yaml` / `savarino_point_cudss32.yaml` (cuDSS LU;
+   same gains, and on the same card faster than the CPU reference --
+   measured numbers in `docs/COMPUTE_BACKENDS.md`).
 6. **Collect** the per-point outputs into one run-record CSV:
    ```
    python collect_campaign.py campaign > campaign.csv

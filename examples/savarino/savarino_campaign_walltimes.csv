@@ -1,0 +1,13 @@
+# Wall-clock of each campaign arm: first job start to last job end, from Slurm accounting (sacct -X) on c9, 2026-08-21.
+# Per-point costs live in each arm's source CSV; slurm_jobs is the id range recorded in that CSV.
+arm,backend,mode,points,slurm_jobs,first_start,last_end,wall_s,wall_min,source_csv,note
+cpu_farm_200,mumps,independent jobs,200,2171-2370,2026-08-18T15:00:50,2026-08-18T16:24:23,5013,83.55,savarino_map3_200pt.csv,5 jobs concurrent on 20 cores
+cpu_lines_200,mumps,line driver,200,2157-2170,2026-08-18T13:59:42,2026-08-18T14:59:25,3583,59.72,savarino_map3_lines_200pt.csv,5 lines concurrent
+cpu_farm_47,mumps,independent jobs,47,2063-2109,2026-08-18T13:10:13,2026-08-18T13:30:40,1227,20.45,savarino_cpu_farm_47pt.csv,
+cpu_lines_47,mumps,line driver,47,2158-2163,2026-08-18T13:59:42,2026-08-18T14:50:07,3025,50.42,savarino_cpu_lines_47pt.csv,node shared with the 200-pt line campaign; quote per-point cost only
+strumpack_farm_47,strumpack+fgmres,independent jobs,47,2390-2436,2026-08-19T08:08:31,2026-08-19T09:30:52,4941,82.35,savarino_strumpack_farm_fp64.csv,"2 jobs concurrent, one A6000 each"
+strumpack_lines_47,strumpack+fgmres,line driver,47,2437-2438,2026-08-19T09:33:11,2026-08-19T11:06:57,5626,93.77,savarino_strumpack_lines_fp64.csv,"2 lines concurrent, one A6000 each"
+cudss_map_200,cudss+fgmres,independent jobs,200,2809-3008,2026-08-21T01:03:07,2026-08-21T02:47:02,6235,103.92,savarino_cudss_map_200pt.csv,"2 jobs concurrent, one A6000 each"
+cudss_farm_47,cudss+fgmres,independent jobs,47,2710-2756,2026-08-20T23:07:07,2026-08-20T23:32:03,1496,24.93,savarino_cudss_farm_fp64.csv,"2 jobs concurrent, one A6000 each"
+cudss_lines_47,cudss+fgmres,line driver,47,2707-2708,2026-08-20T22:44:34,2026-08-20T23:07:06,1352,22.53,savarino_cudss_lines_fp64.csv,"2 lines concurrent, one A6000 each"
+cudss_farm_fp32_47,cudss+fgmres fp32,independent jobs,47,2761-2807,2026-08-20T23:39:10,2026-08-21T01:03:06,5036,83.93,savarino_cudss_farm_fp32.csv,rejected arm; 21/47 points diverged

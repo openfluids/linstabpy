@@ -224,8 +224,12 @@ solver:
     # factor_precision: single   # opt-in, see below
 ```
 
-Install with `pip install "linstabpy[cudss]"` (brings the cuDSS wheels;
-needs a CUDA 12 runtime and an NVIDIA GPU supported by cuDSS). The backend is
+Install with `pip install "linstabpy[petsc,cudss]"`: the `cudss` extra brings
+the nvmath-python/cuDSS wheels (needs a CUDA 12 runtime and an NVIDIA GPU
+supported by cuDSS), and the `petsc` extra provides the PETSc/SLEPc bindings
+the iterative path runs on. A standard CPU build of PETSc/SLEPc is enough --
+the GPU work happens inside cuDSS, so this backend needs no GPU-enabled PETSc
+build and no STRUMPACK. The backend is
 one-rank: run without MPI parallelism. The adjoint uses a second cuDSS
 factorization of the conjugate transpose because cuDSS has no transposed or
 adjoint solve; the existing dual-factor machinery builds and gates it.
@@ -392,7 +396,7 @@ using the result.
 | `mumps` | Default/reference. | CPU sparse-direct path used for accepted solver results. Keep this path byte-identical unless a separate change explicitly updates the default solver contract. |
 | `strumpack` | Experimental with automatic MUMPS fallback. | STRUMPACK can be selected through PETSc as a LU factor backend, but larger shifted EVP operators can fail during `EPS.setUp`: STRUMPACK reports `ZERO_PIVOT` (PETSc err 76, surfaced as opaque `factorization failed`) when static pivoting encounters a pivot below about `sqrt(eps)·||A||_1` (~`1e-8` in the reproduced case). Tiny-pivot replacement is off and PETSc 3.24 does not expose STRUMPACK's `replace_tiny_pivots` option. `linstabpy` catches this STRUMPACK setup failure and retries once with MUMPS, whose dynamic partial pivoting factorizes the same matrices. The STRUMPACK+FGMRES path remains diagnostic for small/probe cases. |
 | `superlu_dist` | Two roles — see notes. | **CPU mixed-precision IR (live)**: `factor_precision: single` uses `pc_precision single` to enable FP32 factorization with FP64 iterative refinement; this path is not rejected and is the target of the B.4/B.6 work. **Complex+CUDA GPU solve (rejected for the tested build)**: the complex SuperLU_DIST path on the local CUDA build produced order-one solve residuals and an inconsistent EVP spectrum; changing iterative-refinement and GPU-offload flags did not fix it. The rejection applies specifically to complex sparse-direct solving on that CUDA build, not to the backend wholesale. |
-| `cudss` | Not wired. | There is no `linstabpy` PETSc factor-backend interface for cuDSS today. |
+| `cudss` | Validated GPU sparse-direct backend on the iterative path. | Not a PETSc factor package: the cuDSS LU runs as the preconditioner inside the right-preconditioned FGMRES path (`type: iterative`, `factor_backend: cudss`). Single rank, one GPU. See the "cuDSS GPU Backend" section above. |
 
 The STRUMPACK result is a diagnostic result, not a production default. For the
 current direct shift-invert route, STRUMPACK `ZERO_PIVOT` falls back to MUMPS

@@ -248,7 +248,8 @@ def main() -> int:
         type=Path,
         default=BASE_CONFIG,
         help="base point config; the solver block decides CPU (MUMPS) or GPU "
-        "(STRUMPACK+FGMRES) -- see savarino_point_gpu.yaml",
+        "(STRUMPACK or cuDSS under FGMRES) -- see savarino_point_gpu.yaml "
+        "and savarino_point_cudss.yaml",
     )
     ap.add_argument(
         "--cpus-per-task",

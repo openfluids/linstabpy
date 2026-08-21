@@ -51,11 +51,11 @@ def test_tracked_tree_has_no_plan_or_goal_markdown() -> None:
 def test_tracked_tree_has_no_leftover_campaign_files() -> None:
     root = _repo_root()
     tracked = {path.relative_to(root).as_posix() for path in _git_list(root, ["ls-files"])}
+    # The readme-banner-v2 pair is a kept design asset,
+    # not a campaign leftover; only the two JSONs stay banned.
     leftover = {
         "tests/fixtures/curvilinear_derivative_parity.json",
         "examples/martini/physics_audit_campaign_vs_repo.json",
-        "docs/assets/readme-banner-v2.jpg",
-        "docs/assets/readme-banner-v2.md",
     }
     assert leftover.isdisjoint(tracked)
 

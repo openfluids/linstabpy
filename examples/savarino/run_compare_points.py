@@ -37,7 +37,8 @@ def _require_baseflow() -> None:
     marker = BASEFLOW_NPY_DIR / "rho.npy"
     if not marker.is_file():
         raise SystemExit(
-            f"missing {marker}\nConvert the shipped base flow first:  python savarino_to_npy.py"
+            f"missing {marker}\nFetch and convert the base flow first:\n"
+            "  python fetch_zenodo.py baseflow && python savarino_to_npy.py"
         )
 
 
