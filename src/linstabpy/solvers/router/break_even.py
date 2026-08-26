@@ -30,6 +30,8 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
+from linstabpy.utils._solver_cfg import cfg_get
+
 from .ram_autoselect import (
     _DEFAULT_REORDER,
     _SPLU_REORDER,
@@ -173,21 +175,7 @@ def _timing_probe(
 
 
 def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if isinstance(cfg, Mapping):
-        if key in cfg:
-            return cfg[key]
-        nested = cfg.get("break_even")
-        if isinstance(nested, Mapping) and key in nested:
-            return nested[key]
-        return default
-    nested = getattr(cfg, "break_even", None)
-    if hasattr(cfg, key):
-        return getattr(cfg, key)
-    if isinstance(nested, Mapping) and key in nested:
-        return nested[key]
-    return getattr(nested, key, default) if nested is not None else default
+    return cfg_get(cfg, key, default, section="break_even")
 
 
 def _cfg_first(cfg: Mapping[str, Any] | object | None, keys: Sequence[str]) -> Any:

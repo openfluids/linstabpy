@@ -19,8 +19,9 @@ from ..mesh.mesh import Mesh
 from .dirichlet import (
     _BORDER_MAP,
     _VARIABLE_MAP,
+    _apply_spatial_dirichlet_indices,
+    _apply_spatial_dirichlet_indices_petsc,
     _collect_dirichlet_indices,
-    _set_diagonal_entries_csc,
     _set_diagonal_entries_csr,
     _zero_cols_csc,
     _zero_rows_csr,
@@ -540,73 +541,3 @@ def _require_spatial_dirichlet_recipe(analysis: dict[str, object]) -> None:
     # derivation before they can be made equivalent to the temporal operator.
     if any(report["type"] == "neumann" for report in analysis["rule_reports"]):
         raise ValueError("Spatial BC recipes currently support Dirichlet rules only.")
-
-
-def _spatial_doubled_indices(base_indices: np.ndarray, ngp: int) -> np.ndarray:
-    """Lift single-half boundary indices into both halves of the spatial EVP."""
-    base_indices = np.unique(np.asarray(base_indices, dtype=np.int64))
-    if base_indices.size == 0:
-        return np.array([], dtype=np.int64)
-    n = ngp * 5
-    return np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
-
-
-def _apply_spatial_dirichlet_indices(
-    Lc: sp.csc_matrix,
-    R: sp.csc_matrix,
-    base_indices: np.ndarray,
-    ngp: int,
-    *,
-    penalty: float,
-) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
-    bc_indices = _spatial_doubled_indices(base_indices, ngp)
-    if bc_indices.size == 0:
-        return Lc, R, np.array([], dtype=np.int64)
-
-    # Spatial Dirichlet enforcement follows the MATLAB generalized-EVP form:
-    # constrain Lc with a penalty row, but leave R with a zero row/column so the
-    # boundary condition does not create artificial alpha=1 eigenvalues.
-    def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
-        mat = mat.tocsr()
-        _zero_rows_csr(mat, bc_indices)
-        mat = mat.tocsc()
-        _zero_cols_csc(mat, bc_indices)
-        mat.eliminate_zeros()
-        return mat
-
-    Lc = _zero_rows_cols(Lc)
-    Lc = _set_diagonal_entries_csc(Lc, bc_indices, penalty)
-    Lc.eliminate_zeros()
-    R = _zero_rows_cols(R)
-    return Lc, R, bc_indices
-
-
-def _apply_spatial_dirichlet_indices_petsc(
-    Lc: "PETSc.Mat",
-    R: "PETSc.Mat",
-    base_indices: np.ndarray,
-    ngp: int,
-    *,
-    penalty: float,
-) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
-    from petsc4py import PETSc
-
-    bc_indices = _spatial_doubled_indices(base_indices, ngp)
-    if bc_indices.size == 0:
-        return Lc, R, np.array([], dtype=np.int64)
-
-    if Lc.getSize()[0] != Lc.getSize()[1] or R.getSize()[0] != R.getSize()[1]:
-        raise ValueError("Lc and R must be square")
-    if Lc.getSize() != R.getSize():
-        raise ValueError("Lc and R must have identical shapes")
-    if bc_indices.min() < 0 or bc_indices.max() >= Lc.getSize()[0]:
-        raise ValueError("Dirichlet indices are out of bounds for the spatial PETSc matrices")
-
-    bc_idx = np.asarray(bc_indices, dtype=np.int32)
-    Lc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-    R.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-    Lc.zeroRowsColumns(bc_idx, diag=complex(penalty))
-    R.zeroRowsColumns(bc_idx, diag=0.0)
-    Lc.assemble()
-    R.assemble()
-    return Lc, R, bc_indices

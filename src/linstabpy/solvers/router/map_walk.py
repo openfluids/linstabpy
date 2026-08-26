@@ -501,8 +501,6 @@ class _GatedPcSolve:
         return self.solve_transpose(rhs)
 
     def _solve(self, rhs: np.ndarray, *, adjoint: bool) -> np.ndarray:
-        from linstabpy.solvers.router.stable_sweep import _adjoint_matvec
-
         rhs_arr = np.asarray(rhs, dtype=complex).reshape(-1)
         if self.failed or (self.deadline is not None and time.perf_counter() >= self.deadline):
             if self.deadline is not None and time.perf_counter() >= self.deadline:
@@ -513,7 +511,6 @@ class _GatedPcSolve:
             if self.last is not None and self.last.size == rhs_arr.size:
                 return self.last
             return np.zeros(rhs_arr.size, dtype=complex)
-        matvec = _adjoint_matvec if adjoint else _matvec
         prec = self._pc.solve_adjoint if adjoint else self._pc.solve
         start = None if adjoint else self.x0
         if start is not None and np.asarray(start).size != rhs_arr.size:
@@ -523,7 +520,7 @@ class _GatedPcSolve:
             local = time.perf_counter() + self.apply_budget_s
             apply_deadline = local if apply_deadline is None else min(apply_deadline, local)
         x, iters, residual = _right_preconditioned_gmres(
-            lambda z: matvec(self._operator, z),
+            lambda z: _matvec(self._operator, z, adjoint=adjoint),
             prec,
             rhs_arr,
             rtol=self.rtol,

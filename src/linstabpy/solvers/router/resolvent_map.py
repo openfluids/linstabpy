@@ -41,8 +41,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import resource
-import sys
 import time
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager, nullcontext
@@ -56,6 +54,9 @@ import scipy.sparse as sp
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
 from linstabpy.solvers.router.map_record import atomic_savez
 from linstabpy.solvers.router.map_walk import LineWalker, WalkDeferred
+from linstabpy.utils._solver_cfg import as_bool as _as_bool
+from linstabpy.utils.cost_metrics import peak_rss_bytes as _peak_rss_bytes
+from linstabpy.utils.petsc_core import _is_petsc_matrix
 
 LOGGER = logging.getLogger(__name__)
 
@@ -161,21 +162,6 @@ def _cfg_value(cfg: Mapping[str, Any], key: str, default: Any = None) -> Any:
     return default
 
 
-def _as_bool(value: Any, *, name: str) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return bool(value)
-    text = str(value).strip().lower()
-    if text in {"1", "true", "yes", "y", "on"}:
-        return True
-    if text in {"0", "false", "no", "n", "off", "", "none", "null"}:
-        return False
-    raise ValueError(f"{name} must be boolean-like, got {value!r}")
-
-
 def _cfg_bool(cfg: Mapping[str, Any], key: str, default: bool = False) -> bool:
     value = _cfg_value(cfg, key, default)
     return _as_bool(value, name=key)
@@ -219,13 +205,6 @@ def _finite_1d_range(values: Sequence[float] | np.ndarray, name: str) -> np.ndar
     if not np.all(np.isfinite(arr)):
         raise ValueError(f"{name} must contain only finite values")
     return arr
-
-
-def _peak_rss_bytes() -> int:
-    rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-    if sys.platform == "darwin":
-        return rss
-    return rss * 1024
 
 
 def _heartbeat_seconds(cfg: Mapping[str, Any]) -> float:
@@ -356,10 +335,6 @@ def _compute_w_diag(mesh: Any, base_flow: Any, cfg: Mapping[str, Any]) -> np.nda
     else:
         W_diag, _inv = compute_chu_norm(W_int, RHO, T, base_flow.kappa, base_flow.Ma, mesh.ngp)
     return np.asarray(W_diag, dtype=float).reshape(-1)
-
-
-def _is_petsc_matrix(operator: Any) -> bool:
-    return hasattr(operator, "getInfo") and hasattr(operator, "getSize")
 
 
 def _maybe_petsc_diag(

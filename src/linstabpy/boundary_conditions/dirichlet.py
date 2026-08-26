@@ -159,28 +159,9 @@ def apply_dirichlet(
     # ------------------------------------------------------------------
     # 1. Collect DOF indices for all (border, variable) pairs
     # ------------------------------------------------------------------
-    dof_list: list[np.ndarray] = []
-
-    for b in borders:
-        border_key = _BORDER_MAP.get(b)
-        if border_key is None:
-            raise ValueError(
-                f"Unknown border character '{b}'; expected one of 'l', 'r', 'b', 't', 'm'"
-            )
-        grid_pts = idx[border_key]
-
-        for v in variables:
-            var_idx = _VARIABLE_MAP.get(v)
-            if var_idx is None:
-                raise ValueError(
-                    f"Unknown variable character '{v}'; expected one of 'r', 'u', 'v', 'w', 'T'"
-                )
-            dof_list.append(var_idx * ngp + grid_pts)
-
-    if len(dof_list) == 0:
-        return L0.tocsc(), np.array([], dtype=int)
-
-    bc_indices = np.unique(np.concatenate(dof_list))
+    bc_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
+    if bc_indices.size == 0:
+        return L0.tocsc(), bc_indices
 
     # Dirichlet rows remove the equation, and Dirichlet columns remove the
     # constrained variable from every interior equation. Keep the column-zeroing
@@ -260,6 +241,76 @@ def _collect_dirichlet_indices(
     return np.unique(np.concatenate(dof_list))
 
 
+def _spatial_doubled_indices(base_indices: np.ndarray, ngp: int) -> np.ndarray:
+    """Lift single-half boundary indices into both halves of the spatial EVP."""
+    base_indices = np.unique(np.asarray(base_indices, dtype=np.int64))
+    if base_indices.size == 0:
+        return np.array([], dtype=np.int64)
+    n = ngp * 5
+    return np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
+
+
+def _apply_spatial_dirichlet_indices(
+    Lc: sp.csc_matrix,
+    R: sp.csc_matrix,
+    base_indices: np.ndarray,
+    ngp: int,
+    *,
+    penalty: float,
+) -> tuple[sp.csc_matrix, sp.csc_matrix, np.ndarray]:
+    bc_indices = _spatial_doubled_indices(base_indices, ngp)
+    if bc_indices.size == 0:
+        return Lc, R, np.array([], dtype=np.int64)
+
+    # Spatial Dirichlet enforcement follows the MATLAB generalized-EVP form:
+    # constrain Lc with a penalty row, but leave R with a zero row/column so the
+    # boundary condition does not create artificial alpha=1 eigenvalues.
+    def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
+        mat = mat.tocsr()
+        _zero_rows_csr(mat, bc_indices)
+        mat = mat.tocsc()
+        _zero_cols_csc(mat, bc_indices)
+        mat.eliminate_zeros()
+        return mat
+
+    Lc = _zero_rows_cols(Lc)
+    Lc = _set_diagonal_entries_csc(Lc, bc_indices, penalty)
+    Lc.eliminate_zeros()
+    R = _zero_rows_cols(R)
+    return Lc, R, bc_indices
+
+
+def _apply_spatial_dirichlet_indices_petsc(
+    Lc: "PETSc.Mat",
+    R: "PETSc.Mat",
+    base_indices: np.ndarray,
+    ngp: int,
+    *,
+    penalty: float,
+) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
+    from petsc4py import PETSc
+
+    bc_indices = _spatial_doubled_indices(base_indices, ngp)
+    if bc_indices.size == 0:
+        return Lc, R, np.array([], dtype=np.int64)
+
+    if Lc.getSize()[0] != Lc.getSize()[1] or R.getSize()[0] != R.getSize()[1]:
+        raise ValueError("Lc and R must be square")
+    if Lc.getSize() != R.getSize():
+        raise ValueError("Lc and R must have identical shapes")
+    if bc_indices.min() < 0 or bc_indices.max() >= Lc.getSize()[0]:
+        raise ValueError("Dirichlet indices are out of bounds for the spatial PETSc matrices")
+
+    bc_idx = np.asarray(bc_indices, dtype=np.int32)
+    Lc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    R.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+    Lc.zeroRowsColumns(bc_idx, diag=complex(penalty))
+    R.zeroRowsColumns(bc_idx, diag=0.0)
+    Lc.assemble()
+    R.assemble()
+    return Lc, R, bc_indices
+
+
 def apply_dirichlet_spatial(
     Lc: sp.csc_matrix,
     R: sp.csc_matrix,
@@ -279,31 +330,7 @@ def apply_dirichlet_spatial(
     This matches MATLAB ``BC_Dirichlet_Spatial.m``.
     """
     base_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
-    if base_indices.size == 0:
-        return Lc, R, np.array([], dtype=int)
-
-    n = ngp * 5
-    bc_indices = np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
-
-    # In the spatial EVP each physical boundary constraint appears in both
-    # halves of the doubled state vector.
-    def _zero_rows_cols(mat: sp.csc_matrix) -> sp.csc_matrix:
-        mat = mat.tocsr()
-        _zero_rows_csr(mat, bc_indices)
-        mat = mat.tocsc()
-        _zero_cols_csc(mat, bc_indices)
-        mat.eliminate_zeros()
-        return mat
-
-    # Lc: zero rows/cols + penalty on diagonal
-    Lc = _zero_rows_cols(Lc)
-    Lc = _set_diagonal_entries_csc(Lc, bc_indices, penalty)
-    Lc.eliminate_zeros()
-
-    # R: zero rows/cols only (no penalty)
-    R = _zero_rows_cols(R)
-
-    return Lc, R, bc_indices
+    return _apply_spatial_dirichlet_indices(Lc, R, base_indices, ngp, penalty=penalty)
 
 
 def apply_dirichlet_spatial_petsc(
@@ -316,30 +343,8 @@ def apply_dirichlet_spatial_petsc(
     penalty: float = 1e4,
 ) -> tuple["PETSc.Mat", "PETSc.Mat", np.ndarray]:
     """Apply Dirichlet BCs directly to doubled spatial PETSc matrices."""
-    from petsc4py import PETSc
-
     base_indices = _collect_dirichlet_indices(idx, borders, variables, ngp)
-    if base_indices.size == 0:
-        return Lc, R, np.array([], dtype=int)
-
-    if Lc.getSize()[0] != Lc.getSize()[1] or R.getSize()[0] != R.getSize()[1]:
-        raise ValueError("Lc and R must be square")
-    if Lc.getSize() != R.getSize():
-        raise ValueError("Lc and R must have identical shapes")
-
-    n = ngp * 5
-    bc_indices = np.sort(np.unique(np.concatenate([base_indices, base_indices + n])))
-    if bc_indices.min() < 0 or bc_indices.max() >= Lc.getSize()[0]:
-        raise ValueError("Dirichlet indices are out of bounds for the spatial PETSc matrices")
-
-    bc_idx = np.asarray(bc_indices, dtype=np.int32)
-    Lc.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-    R.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-    Lc.zeroRowsColumns(bc_idx, diag=complex(penalty))
-    R.zeroRowsColumns(bc_idx, diag=0.0)
-    Lc.assemble()
-    R.assemble()
-    return Lc, R, bc_indices
+    return _apply_spatial_dirichlet_indices_petsc(Lc, R, base_indices, ngp, penalty=penalty)
 
 
 def build_dirichlet_restriction_matrices(

@@ -116,3 +116,54 @@ def _scfg_bool(cfg: Mapping[str, Any] | None, key: str, env_var: str, default: b
         return str(v).strip().lower() in {"1", "true", "yes", "on"}
     raw = os.getenv(env_var, "1" if default else "0").strip().lower()
     return raw in {"1", "true", "yes", "on"}
+
+
+def cfg_get(
+    cfg: Mapping[str, Any] | object | None,
+    key: str,
+    default: Any = None,
+    *,
+    section: str | None = None,
+) -> Any:
+    """Read ``key`` from a mapping or an attribute-style config object.
+
+    A top-level entry wins.  When ``section`` names a nested block, that
+    block is consulted next.  Router modules bind their own section name.
+    """
+    if cfg is None:
+        return default
+    if isinstance(cfg, Mapping):
+        if key in cfg:
+            return cfg[key]
+        if section is not None:
+            nested = cfg.get(section)
+            if isinstance(nested, Mapping) and key in nested:
+                return nested[key]
+        return default
+    if hasattr(cfg, key):
+        return getattr(cfg, key)
+    if section is not None:
+        nested = getattr(cfg, section, None)
+        if isinstance(nested, Mapping) and key in nested:
+            return nested[key]
+        if nested is not None:
+            return getattr(nested, key, default)
+    return default
+
+
+def as_bool(value: Any, *, name: str | None = None) -> bool:
+    """Parse a boolean-like config value; ``None`` and empty text mean False."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off", "", "none", "null"}:
+        return False
+    if name is not None:
+        raise ValueError(f"{name} must be boolean-like, got {value!r}")
+    raise ValueError(f"expected boolean-like value, got {value!r}")
