@@ -18,6 +18,8 @@ from typing import Any
 
 import numpy as np
 
+from linstabpy.utils._solver_cfg import cfg_get as _cfg_get
+
 LOGGER = logging.getLogger(__name__)
 
 Array = np.ndarray
@@ -61,12 +63,6 @@ class CertificationReport:
             "seeds": self.seeds,
             "checks": {name: result.as_dict() for name, result in self.checks.items()},
         }
-
-
-def _cfg_get(cfg: Mapping[str, Any] | object, key: str, default: Any = None) -> Any:
-    if isinstance(cfg, Mapping):
-        return cfg.get(key, default)
-    return getattr(cfg, key, default)
 
 
 def _as_vector(v: Array, n: int | None = None) -> Array:

@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 
 from linstabpy.solvers.router.band_marking import BandMarks
+from linstabpy.utils._solver_cfg import as_bool as _as_bool
+from linstabpy.utils._solver_cfg import cfg_get
 
 Array = np.ndarray
 Cfg = Mapping[str, Any] | object | None
@@ -168,38 +170,9 @@ def choose_anchors_adaptive(
 
 
 def _cfg_get(cfg: Cfg, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if isinstance(cfg, Mapping):
-        if key in cfg:
-            value = cfg[key]
-        else:
-            nested = cfg.get("adaptive_anchors")
-            value = nested.get(key, default) if isinstance(nested, Mapping) else default
-    elif hasattr(cfg, key):
-        value = getattr(cfg, key)
-    else:
-        nested = getattr(cfg, "adaptive_anchors", None)
-        if isinstance(nested, Mapping):
-            value = nested.get(key, default)
-        else:
-            value = getattr(nested, key, default) if nested is not None else default
+    # An explicit ``None`` value counts as unset for anchor controls.
+    value = cfg_get(cfg, key, default, section="adaptive_anchors")
     return default if value is None else value
-
-
-def _as_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    text = str(value).strip().lower()
-    if text in {"1", "true", "yes", "y", "on"}:
-        return True
-    if text in {"0", "false", "no", "n", "off", "", "none", "null"}:
-        return False
-    raise ValueError(f"expected boolean-like value, got {value!r}")
 
 
 def _as_1d_complex(values: Sequence[complex] | Array, name: str) -> Array:

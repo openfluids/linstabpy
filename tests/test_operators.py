@@ -2534,7 +2534,6 @@ class TestInvBBlockInverse:
 def test_assembly_metrics_jsonify_path_and_numpy_scalar(monkeypatch) -> None:
     from pathlib import Path as _Path
 
-    from linstabpy.operators import metrics as metrics_mod
     from linstabpy.operators.metrics import (
         _cache_5_block_derivatives,
         _jsonify_metric_value,
@@ -2547,7 +2546,7 @@ def test_assembly_metrics_jsonify_path_and_numpy_scalar(monkeypatch) -> None:
     assert payload["vals"] == [1.5]
     linux_rss = _peak_rss_bytes()
     assert linux_rss > 0
-    monkeypatch.setattr(metrics_mod.sys, "platform", "darwin")
+    monkeypatch.setattr("sys.platform", "darwin")
     darwin_rss = _peak_rss_bytes()
     assert darwin_rss == linux_rss // 1024 or darwin_rss == linux_rss
     with pytest.raises(TypeError, match="sparse matrix"):

@@ -20,6 +20,7 @@ from linstabpy.linalg.backends import (
     DEFAULT_MUMPS_BLR,
     DEFAULT_MUMPS_BLR_TOL,
     _as_bool,
+    _normalize_backend,
     _normalize_factor_precision,
     _normalize_mumps_blr_tol,
     _normalize_mumps_ordering,
@@ -136,15 +137,6 @@ def _raw_cfg_value(
         return None
     raw = raw.strip()
     return raw or None
-
-
-def _normalize_backend(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip().lower()
-    if text in _OPTIONAL_INT_SENTINELS:
-        return None
-    return text
 
 
 def _factor_backend(

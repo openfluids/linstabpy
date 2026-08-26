@@ -5,7 +5,27 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from math import nan
+
+try:
+    import resource as _resource
+except ImportError:  # pragma: no cover - the resource module is POSIX-only
+    _resource = None
+
+
+def peak_rss_bytes() -> int:
+    """Return this process's peak resident set size in bytes.
+
+    Linux reports ``ru_maxrss`` in kilobytes; macOS reports bytes.
+    Returns 0 when the ``resource`` module is not available.
+    """
+    if _resource is None:
+        return 0
+    rss = int(_resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss)
+    if sys.platform == "darwin":
+        return rss
+    return rss * 1024
 
 
 def _petsc_comm():

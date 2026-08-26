@@ -29,6 +29,8 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
+from linstabpy.utils._solver_cfg import cfg_get
+
 BackendChoice = Literal["direct", "compressed-sweep"]
 Precision = Literal["double", "single"]
 
@@ -182,21 +184,7 @@ def available_ram_bytes(cfg: Mapping[str, Any] | object | None = None) -> int:
 
 
 def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if isinstance(cfg, Mapping):
-        if key in cfg:
-            return cfg[key]
-        nested = cfg.get("ram_autoselect")
-        if isinstance(nested, Mapping) and key in nested:
-            return nested[key]
-        return default
-    nested = getattr(cfg, "ram_autoselect", None)
-    if hasattr(cfg, key):
-        return getattr(cfg, key)
-    if isinstance(nested, Mapping) and key in nested:
-        return nested[key]
-    return getattr(nested, key, default) if nested is not None else default
+    return cfg_get(cfg, key, default, section="ram_autoselect")
 
 
 def _available_ram_bytes(cfg: Mapping[str, Any] | object | None) -> int:

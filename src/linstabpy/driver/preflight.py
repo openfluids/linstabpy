@@ -31,6 +31,7 @@ from typing import Any
 import numpy as np
 
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
+from linstabpy.linalg.backends import _normalize_backend
 
 __all__ = [
     "Advisory",
@@ -231,10 +232,16 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
         res_sub = solver.get("resolvent")
         if not isinstance(res_sub, Mapping):
             res_sub = solver.get("linsolve")
-        res_backend = res_sub.get("factor_backend") if isinstance(res_sub, Mapping) else None
+        # Normalize with the resolver's own rule so sentinel strings such as
+        # "none" or "default" do not count as a configured backend.
+        res_backend = _normalize_backend(
+            res_sub.get("factor_backend") if isinstance(res_sub, Mapping) else None
+        )
         eigen_sub = solver.get("eigen")
-        eigen_backend = eigen_sub.get("factor_backend") if isinstance(eigen_sub, Mapping) else None
-        solver_backend = solver.get("factor_backend")
+        eigen_backend = _normalize_backend(
+            eigen_sub.get("factor_backend") if isinstance(eigen_sub, Mapping) else None
+        )
+        solver_backend = _normalize_backend(solver.get("factor_backend"))
         eigen_resolved = eigen_backend or solver_backend
         if not skip_band and res_backend and not eigen_resolved:
             out.append(

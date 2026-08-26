@@ -1190,7 +1190,7 @@ def test_empty_bc_recipe_is_a_noop(small_mesh_2d, uniform_baseflow) -> None:
 
 
 def test_spatial_dirichlet_helpers_noop_on_empty_indices() -> None:
-    from linstabpy.boundary_conditions.recipe import (
+    from linstabpy.boundary_conditions.dirichlet import (
         _apply_spatial_dirichlet_indices,
         _spatial_doubled_indices,
     )

@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import json
 import logging
-import resource
-import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -20,6 +18,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from linstabpy.config import Config
+from linstabpy.utils.cost_metrics import peak_rss_bytes as _peak_rss_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +31,6 @@ _COEFF_TENSOR_NAMES = ("A0", "Ax", "Ay", "Axx", "Ayy", "Axy", "B")
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _peak_rss_bytes() -> int:
-    rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-    if sys.platform == "darwin":
-        return rss
-    return rss * 1024
 
 
 def _jsonify_metric_value(value: Any) -> Any:

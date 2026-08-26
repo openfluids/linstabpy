@@ -4,21 +4,12 @@
 from __future__ import annotations
 
 import os
-import sys
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import resource as _resource_module
-
-try:
-    import resource as _resource
-except ImportError:  # pragma: no cover - Windows fallback
-    _resource: "_resource_module | None" = None
+from typing import Any
 
 import numpy as np
 import scipy.sparse as sp
@@ -60,6 +51,8 @@ from linstabpy.stability.acceptance import (
     check_conjugate_pair_completeness,
     evaluate_stability_acceptance,
 )
+from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
+from linstabpy.utils.cost_metrics import peak_rss_bytes as _peak_rss_bytes
 from linstabpy.utils.provenance import _git_head_sha, collect_provenance  # noqa: F401
 from linstabpy.utils.yaml_io import load_config
 
@@ -152,16 +145,6 @@ def _log(message: str) -> None:
     """Print a consistent prefixed progress message."""
     if PETSc.COMM_WORLD.getRank() == 0:
         print(f"[{_log_prefix()}] {message}", flush=True)
-
-
-def _peak_rss_bytes() -> int:
-    """Return this rank's peak resident set size in bytes."""
-    if _resource is None:
-        return 0
-    rss = int(_resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss)
-    if sys.platform == "darwin":
-        return rss
-    return rss * 1024
 
 
 def _stage_start() -> tuple[float, int]:
@@ -1355,10 +1338,8 @@ def run() -> None:
 
     # Read solver knobs from YAML (env-var fallback for backward compat).
     _ecfg = solver_cfg.get("eigen", {})
-    st_solver = (
-        _ecfg.get("st_solver", os.getenv("LINSTABPY_EIGEN_ST_SOLVER", "mumps")).strip().lower()
-    )
-    iterative_st_solver = st_solver in {"iterative", "krylov", "slepc"}
+    st_solver = cfg_obj.eigen.st_solver
+    iterative_st_solver = st_solver in ITERATIVE_EIGEN_SOLVER_TYPES
     _root_raw = _first_env(
         "LINSTABPY_CASE_ROOT_ASSEMBLY",
         "LINSTABPY_CASE2_ROOT_ASSEMBLY",

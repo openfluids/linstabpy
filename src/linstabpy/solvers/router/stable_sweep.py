@@ -27,6 +27,8 @@ from linstabpy.solvers.router.recycling import (
     prepare_recycle_subspace,
     recycled_right_preconditioned_gmres,
 )
+from linstabpy.utils._solver_cfg import as_bool as _as_bool
+from linstabpy.utils._solver_cfg import cfg_get as _cfg_get
 from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
 
@@ -103,29 +105,6 @@ class SweepResult:
     stage_gmres_s: Array = field(default_factory=lambda: np.zeros(0))
     stage_rsvd_s: Array = field(default_factory=lambda: np.zeros(0))
     stage_recycle_setup_s: Array = field(default_factory=lambda: np.zeros(0))
-
-
-def _cfg_get(cfg: Mapping[str, Any] | object | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if isinstance(cfg, Mapping):
-        return cfg.get(key, default)
-    return getattr(cfg, key, default)
-
-
-def _as_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    text = str(value).strip().lower()
-    if text in {"1", "true", "yes", "y", "on"}:
-        return True
-    if text in {"0", "false", "no", "n", "off", "", "none", "null"}:
-        return False
-    raise ValueError(f"expected boolean-like value, got {value!r}")
 
 
 def _cfg_lookup(mapping: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
@@ -246,12 +225,12 @@ def _operator_size(operator: sp.spmatrix | PETSc.Mat) -> int:
     return int(operator.shape[0])
 
 
-def _matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
+def _matvec(operator: sp.spmatrix | PETSc.Mat, x: Array, *, adjoint: bool = False) -> Array:
     PETSc = _get_petsc()
     x_arr = np.asarray(x, dtype=complex).reshape(-1)
     if _is_petsc_matrix(operator):
-        b = operator.createVecRight()
-        y = operator.createVecLeft()
+        b = operator.createVecLeft() if adjoint else operator.createVecRight()
+        y = operator.createVecRight() if adjoint else operator.createVecLeft()
         r0, r1 = b.getOwnershipRange()
         if r1 > r0:
             rows = np.arange(r0, r1, dtype=PETSc.IntType)
@@ -259,39 +238,23 @@ def _matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
         b.assemblyBegin()
         b.assemblyEnd()
         try:
-            operator.mult(b, y)
+            if adjoint:
+                operator.multHermitianTranspose(b, y)
+            else:
+                operator.mult(b, y)
             return vec_to_numpy(y)
         finally:
             y.destroy()
             b.destroy()
+    if adjoint:
+        return np.asarray(operator.conjugate().transpose() @ x_arr, dtype=complex).reshape(-1)
     return np.asarray(operator @ x_arr, dtype=complex).reshape(-1)
-
-
-def _adjoint_matvec(operator: sp.spmatrix | PETSc.Mat, x: Array) -> Array:
-    PETSc = _get_petsc()
-    x_arr = np.asarray(x, dtype=complex).reshape(-1)
-    if _is_petsc_matrix(operator):
-        b = operator.createVecLeft()
-        y = operator.createVecRight()
-        r0, r1 = b.getOwnershipRange()
-        if r1 > r0:
-            rows = np.arange(r0, r1, dtype=PETSc.IntType)
-            b.setValues(rows, x_arr[r0:r1], addv=PETSc.InsertMode.INSERT_VALUES)
-        b.assemblyBegin()
-        b.assemblyEnd()
-        try:
-            operator.multHermitianTranspose(b, y)
-            return vec_to_numpy(y)
-        finally:
-            y.destroy()
-            b.destroy()
-    return np.asarray(operator.conjugate().transpose() @ x_arr, dtype=complex).reshape(-1)
 
 
 def _relative_residual(
     operator: sp.spmatrix | PETSc.Mat, x: Array, rhs: Array, *, adjoint: bool = False
 ) -> float:
-    residual = (_adjoint_matvec(operator, x) if adjoint else _matvec(operator, x)) - rhs
+    residual = _matvec(operator, x, adjoint=adjoint) - rhs
     return float(np.linalg.norm(residual) / max(np.linalg.norm(rhs), np.finfo(float).tiny))
 
 
