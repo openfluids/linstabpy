@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -92,7 +94,12 @@ def test_collect_provenance_accepts_supported_compute_modes(tmp_path, monkeypatc
 def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
     script = REPO_ROOT / "tests" / "freeze_env.sh"
 
-    subprocess.run([script, "test"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    # Freeze the interpreter that runs the tests, so the check does not
+    # require a .venv inside the checkout.
+    env = {**os.environ, "FREEZE_ENV_PYTHON": sys.executable}
+    subprocess.run(
+        [script, "test"], cwd=tmp_path, env=env, check=True, capture_output=True, text=True
+    )
 
     constraints = tmp_path / "constraints-test.txt"
     assert constraints.is_file()

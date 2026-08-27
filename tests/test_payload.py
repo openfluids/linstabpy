@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -80,11 +82,25 @@ def test_blas_from_link_line_names_known_families() -> None:
 
 
 def test_collect_provenance_without_petsc_and_without_config(tmp_path, monkeypatch) -> None:
+    from linstabpy.utils import provenance
     from linstabpy.utils.provenance import collect_provenance
 
     monkeypatch.delenv("LINSTABPY_COMPUTE_MODE", raising=False)
     monkeypatch.delenv("LINSTABPY_HOSTNAME", raising=False)
     monkeypatch.setenv("LINSTABPY_HOSTNAME", "  ")
+
+    # Simulate a host without the PETSc stack. Without this the asserts
+    # depend on the machine and fail where petsc4py is installed.
+    real_version = provenance.metadata.version
+
+    def _version_without_petsc(name: str) -> str:
+        if name in {"petsc4py", "slepc4py"}:
+            raise provenance.metadata.PackageNotFoundError(name)
+        return real_version(name)
+
+    monkeypatch.setattr(provenance.metadata, "version", _version_without_petsc)
+    monkeypatch.setitem(sys.modules, "petsc4py", None)
+    monkeypatch.setitem(sys.modules, "mpi4py", None)
     missing = collect_provenance(tmp_path / "no_such.yaml")
     assert missing["config_md5"] == ""
     assert missing["hostname"] == "unknown"
