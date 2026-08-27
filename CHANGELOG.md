@@ -7,6 +7,37 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc9] - 2026-08-27
+
+Release-hardening pass before 1.0.0.
+
+### Changed
+
+- Consolidated duplicated private helpers into shared modules: config lookup
+  (`cfg_get`, `as_bool`) in `utils/_solver_cfg`, `peak_rss_bytes()` in
+  `utils/cost_metrics`, the spatial Dirichlet helpers in
+  `boundary_conditions/dirichlet`, the backend normalizer in
+  `linalg/backends`, and one `_matvec(operator, x, adjoint=...)` in the
+  solver router in place of a forward/adjoint pair. Net -142 lines with no
+  behavior change; every module now imports the one canonical copy instead
+  of carrying a private variant that could drift.
+
+### Fixed
+
+- Four call sites in `solvers/router/stable_sweep.py` still called the
+  removed `_adjoint_matvec` after the mat-vec merge, so PETSc-backend sweeps
+  raised `NameError`. These paths only execute where petsc4py is installed,
+  which is why a PETSc-less checkout did not catch it.
+- Environment-absence tests (missing nvidia-smi, missing PETSc stack,
+  missing repository `.venv`, empty PETSc options database) now simulate the
+  absent component instead of asserting properties of the host machine. The
+  full suite passes unmodified on CPU-only machines and on GPU nodes.
+- The Martini export tools now locate the upstream MATLAB code through
+  `LINSTAB2D_ROOT` only, and the one parity test that reads a raw MATLAB
+  fixture bundle takes its directory from `LINSTABPY_MATLAB_FIXTURES_NPZ`;
+  the machine-specific fallback paths are gone, and the public-provenance
+  scanner now rejects those path forms.
+
 ## [1.0.0rc8] - 2026-08-21
 
 ### Added --- cuDSS GPU sparse-direct backend
