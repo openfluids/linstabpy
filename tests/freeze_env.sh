@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Write a pip freeze file for the repository virtual environment.
+# FREEZE_ENV_PYTHON overrides the interpreter, so a checkout without its
+# own .venv (a test tree, a CI clone) can freeze the environment in use.
 set -euo pipefail
 
 version="${1:-dev}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-python="${repo_root}/.venv/bin/python"
+python="${FREEZE_ENV_PYTHON:-${repo_root}/.venv/bin/python}"
 output="constraints-${version}.txt"
 
 if [[ ! -x "${python}" ]]; then

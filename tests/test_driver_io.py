@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import math
+import sys
 
 import numpy as np
 
@@ -131,6 +132,14 @@ def test_cost_metrics_without_petsc_or_gpu(monkeypatch) -> None:
     assert result["cost_petsc_options"] == ""
     assert math.isnan(result["cost_peak_gpu_mem_bytes"])
     assert result["cost_gpus"] == 0
+
+    # Simulate a host with neither cupy nor nvidia-smi. Without this the
+    # asserts depend on the machine and fail on GPU nodes.
+    def _no_nvidia_smi(*args, **kwargs):
+        raise OSError("nvidia-smi not available")
+
+    monkeypatch.setitem(sys.modules, "cupy", None)
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", _no_nvidia_smi)
     assert math.isnan(cost_metrics_module._gpu_memory_bytes_cupy())
     assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
     assert math.isnan(cost_metrics_module._gpu_memory_bytes(1))
