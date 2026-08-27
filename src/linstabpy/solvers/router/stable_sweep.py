@@ -782,7 +782,7 @@ def sweep_stable_regime(
                 orth_tol=recycling_orth_tol,
             )
             adjoint_recycle = prepare_recycle_subspace(
-                lambda z: _adjoint_matvec(operator, z),
+                lambda z: _matvec(operator, z, adjoint=True),
                 adjoint_basis,
                 n=n,
                 max_dim=recycling_max_dim,
@@ -912,7 +912,7 @@ def sweep_stable_regime(
                 if measure_baseline:
                     t_base = time.perf_counter()
                     baseline = _right_preconditioned_gmres(
-                        lambda z: _adjoint_matvec(operator, z),
+                        lambda z: _matvec(operator, z, adjoint=True),
                         factor.solve_adjoint,
                         rhs,
                         rtol=rtol,
@@ -925,7 +925,7 @@ def sweep_stable_regime(
                     record_unrecycled_counts(baseline[1], actual=False)
                 t_gmres = time.perf_counter()
                 recycled = recycled_right_preconditioned_gmres(
-                    lambda z: _adjoint_matvec(operator, z),
+                    lambda z: _matvec(operator, z, adjoint=True),
                     factor.solve_adjoint,
                     rhs,
                     rtol=rtol,
@@ -952,7 +952,7 @@ def sweep_stable_regime(
             else:
                 t_gmres = time.perf_counter()
                 x, iters, gmres_residual = _right_preconditioned_gmres(
-                    lambda z: _adjoint_matvec(operator, z),
+                    lambda z: _matvec(operator, z, adjoint=True),
                     factor.solve_adjoint,
                     rhs,
                     rtol=rtol,
