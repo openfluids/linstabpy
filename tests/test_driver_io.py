@@ -127,19 +127,23 @@ def test_is_root_rank_when_petsc_is_absent() -> None:
 def test_cost_metrics_without_petsc_or_gpu(monkeypatch) -> None:
     monkeypatch.setenv("LINSTAB2D_GPUS", "0")
     monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+
+    # Simulate a host with no PETSc stack and neither cupy nor nvidia-smi.
+    # Without this the asserts depend on the machine: on a PETSc host the
+    # process-global options database leaks earlier tests' MUMPS settings
+    # into cost_petsc_options, and GPU nodes report real GPU memory.
+    def _no_nvidia_smi(*args, **kwargs):
+        raise OSError("nvidia-smi not available")
+
+    monkeypatch.setitem(sys.modules, "petsc4py", None)
+    monkeypatch.setitem(sys.modules, "cupy", None)
+    monkeypatch.setattr(cost_metrics_module.subprocess, "run", _no_nvidia_smi)
+
     result = collect_cost_metrics({}, git_sha="deadbeef", peak_rss_bytes=1)
     assert result["cost_mpi_ranks"] == 1
     assert result["cost_petsc_options"] == ""
     assert math.isnan(result["cost_peak_gpu_mem_bytes"])
     assert result["cost_gpus"] == 0
-
-    # Simulate a host with neither cupy nor nvidia-smi. Without this the
-    # asserts depend on the machine and fail on GPU nodes.
-    def _no_nvidia_smi(*args, **kwargs):
-        raise OSError("nvidia-smi not available")
-
-    monkeypatch.setitem(sys.modules, "cupy", None)
-    monkeypatch.setattr(cost_metrics_module.subprocess, "run", _no_nvidia_smi)
     assert math.isnan(cost_metrics_module._gpu_memory_bytes_cupy())
     assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
     assert math.isnan(cost_metrics_module._gpu_memory_bytes(1))

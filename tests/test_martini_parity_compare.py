@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -230,10 +231,15 @@ def test_slice_resolvent_uv_handles_double_bblasius_prefix(tmp_path) -> None:
     from examples.martini.compare_martini_examples import _mode_matrix
     from examples.martini.split_martini_fixtures import process_file, slice_resolvent_uv
 
-    source = (
-        Path("/media/hamada/PostProcHamada/cases/Martini2024/comparison/matlab_fixtures_npz")
-        / "example_1_Blasius_results.npz"
-    )
+    # The raw MATLAB export bundles are not distributed with the repository;
+    # point LINSTABPY_MATLAB_FIXTURES_NPZ at a directory of raw fixture .npz
+    # files to run this check.
+    fixtures_dir = os.environ.get("LINSTABPY_MATLAB_FIXTURES_NPZ", "")
+    if not fixtures_dir:
+        pytest.skip(
+            "Missing raw MATLAB fixture bundles; set LINSTABPY_MATLAB_FIXTURES_NPZ to enable"
+        )
+    source = Path(fixtures_dir) / "example_1_Blasius_results.npz"
     if not source.is_file():
         pytest.skip(f"Missing reference fixture: {source}")
 
