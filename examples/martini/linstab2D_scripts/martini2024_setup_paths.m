@@ -14,7 +14,7 @@ addpath(genpath(fullfile(scripts_root, 'aux_matlab')));
 linstab2d = getenv('LINSTAB2D_ROOT');
 if isempty(linstab2d)
     error(['martini2024: set LINSTAB2D_ROOT to a LinStab2D checkout ', ...
-        '(e.g. $POSTPROCHAMADA_ROOT/cases/Martini2024/LinStab2D).']);
+        '(a tree with aux_matlab/ and BaseFlows/).']);
 end
 if ~exist(linstab2d, 'dir')
     error('martini2024: LINSTAB2D_ROOT does not exist: %s', linstab2d);

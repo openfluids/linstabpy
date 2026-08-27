@@ -42,18 +42,6 @@ def _display_path(path: Path) -> str:
         return str(path)
 
 
-def _default_linstab2d_root() -> Path | None:
-    postproc = os.environ.get("POSTPROCHAMADA_ROOT", "")
-    candidates = [
-        Path(postproc) / "cases" / "Martini2024" / "LinStab2D" if postproc else None,
-        Path("/media/hamada/PostProcHamada/cases/Martini2024/LinStab2D"),
-    ]
-    for candidate in candidates:
-        if candidate is not None and candidate.is_dir():
-            return candidate
-    return None
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--matlab", default="matlab", help="MATLAB executable (via MATLAB_BIN).")
@@ -102,7 +90,7 @@ def main() -> int:
     linstab2d_root = args.linstab2d_root
     if linstab2d_root is None:
         env_root = os.environ.get("LINSTAB2D_ROOT", "")
-        linstab2d_root = Path(env_root) if env_root else _default_linstab2d_root()
+        linstab2d_root = Path(env_root) if env_root else None
     if linstab2d_root is None or not linstab2d_root.is_dir():
         raise FileNotFoundError("Set --linstab2d-root or LINSTAB2D_ROOT to a LinStab2D checkout.")
 

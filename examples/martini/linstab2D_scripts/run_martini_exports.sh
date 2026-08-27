@@ -2,7 +2,7 @@
 # Run Martini parity MATLAB drivers from examples/martini/linstab2D_scripts/.
 #
 # Prerequisites:
-#   LINSTAB2D_ROOT  — LinStab2D checkout (cases/Martini2024/LinStab2D or upstream clone)
+#   LINSTAB2D_ROOT  — LinStab2D checkout (a tree with aux_matlab/ and BaseFlows/)
 #   MATLAB on PATH (or set MATLAB_BIN)
 #
 # Outputs (gitignored):
@@ -18,16 +18,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-POSTPROCHAMADA_ROOT="${POSTPROCHAMADA_ROOT:-}"
-
-if [[ -z "${LINSTAB2D_ROOT:-}" ]]; then
-  if [[ -n "${POSTPROCHAMADA_ROOT}" && -d "${POSTPROCHAMADA_ROOT}/cases/Martini2024/LinStab2D" ]]; then
-    export LINSTAB2D_ROOT="${POSTPROCHAMADA_ROOT}/cases/Martini2024/LinStab2D"
-  elif [[ -d "/media/hamada/PostProcHamada/cases/Martini2024/LinStab2D" ]]; then
-    export LINSTAB2D_ROOT="/media/hamada/PostProcHamada/cases/Martini2024/LinStab2D"
-  fi
-fi
-
 export MARTINI2024_OUTPUT_ROOT="${MARTINI2024_OUTPUT_ROOT:-${REPO_ROOT}/martini_examples}"
 export MARTINI2024_BATCH=1
 
