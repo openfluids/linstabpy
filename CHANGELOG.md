@@ -7,6 +7,15 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Martini parity manifest still pointed Example 3 at a combined
+  `example_3_streaky_bl.npz` that nothing writes since the example was split
+  into the four paper campaigns, so every full parity run reported a hard
+  failure on a missing artifact. The compare now walks the per-campaign
+  NPZs, each against its own MATLAB bundle, with the same residual-first
+  gates as before.
+
 ## [1.0.0rc9] - 2026-08-27
 
 Release-hardening pass before 1.0.0.

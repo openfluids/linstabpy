@@ -675,6 +675,100 @@ def _compare_streaky_bl_case(
     return {"temporal": temporal_block, "spatial": spatial_block}
 
 
+def _compare_streaky_bl_campaigns(
+    case: dict[str, Any], npz_dir: Path, base: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare each Example 3 paper campaign NPZ against its MATLAB bundle(s).
+
+    Example 3 writes one NPZ per paper campaign (three temporal, one
+    spatial+temporal); there is no combined artifact. Each campaign gets the
+    same residual-first gates that the single-bundle path used before the
+    example was split into campaigns.
+    """
+    tol = dict(case.get("tolerances", {}))
+    n_compare = int(case.get("n_compare", 10))
+    campaign_metrics: dict[str, Any] = {}
+    python_paths: list[str] = []
+    matlab_paths: list[str] = []
+    all_pass = True
+    notes: list[str] = []
+    for campaign in case["campaigns"]:
+        name = str(campaign["name"])
+        python_path = ROOT / str(campaign["python_npz"])
+        if not python_path.exists():
+            base["note"] = f"Missing Python artifact: {_display_path(python_path)}"
+            return base
+        temporal_stem = str(campaign["matlab_temporal_stem"])
+        spatial_stem = campaign.get("matlab_spatial_stem")
+        temporal_path = matlab_bundle_path(npz_dir, temporal_stem)
+        missing = [] if temporal_path.exists() else [temporal_path]
+        spatial_path: Path | None = None
+        if spatial_stem is not None:
+            spatial_path = matlab_bundle_path(npz_dir, str(spatial_stem))
+            if not spatial_path.exists():
+                missing.append(spatial_path)
+        if missing:
+            raise FileNotFoundError(
+                f"Missing MATLAB NPZ bundle(s) for {base['case_id']}/{name}: "
+                + ", ".join(_display_path(path) for path in missing)
+            )
+        report = _compare_streaky_bl_case(
+            python_npz=_load_npz_dict(python_path),
+            matlab_temporal=load_matlab_bundle(npz_dir, temporal_stem),
+            matlab_spatial=(
+                load_matlab_bundle(npz_dir, str(spatial_stem)) if spatial_stem is not None else {}
+            ),
+            n_compare=n_compare,
+            temporal_omega_key=str(case["matlab_temporal_omega_key"]),
+            temporal_modes_key=str(case["matlab_temporal_modes_key"]),
+            spatial_alpha_key=str(case["matlab_spatial_alpha_key"]),
+        )
+        # Temporal closure: prefer the residual criterion when available; see
+        # the tolerance comments in martini_cases.yaml.
+        if "residual_max" in report["temporal"] and "temporal_residual_max" in tol:
+            temporal_ok = report["temporal"]["residual_max"] <= float(tol["temporal_residual_max"])
+        else:
+            temporal_ok = (
+                report["temporal"]["spectrum_max_abs_error"]
+                <= float(tol.get("temporal_spectrum_abs", np.inf))
+                and report["temporal"]["spectrum_max_rel_error"]
+                <= float(tol.get("temporal_spectrum_rel", np.inf))
+                and report["temporal"]["mode_max_rel_l2"]
+                <= float(tol.get("temporal_mode_rel", np.inf))
+            )
+        # The spatial gate applies only to the campaign that declares a
+        # spatial bundle; temporal campaigns carry no spatial spectrum.
+        spatial_ok = True
+        if spatial_stem is not None:
+            if "residual_max" in report["spatial"] and "spatial_residual_max" in tol:
+                spatial_ok = report["spatial"]["residual_max"] <= float(tol["spatial_residual_max"])
+            elif "spatial_residual_max" in tol:
+                # Stale cache: config expects residuals but the NPZ lacks them.
+                notes.append(f"{name}: stale NPZ, spatial_residuals absent; delete NPZ and rerun")
+                spatial_ok = False
+            else:
+                spatial_ok = (
+                    report["spatial"]["spectrum_max_abs_error"]
+                    <= float(tol.get("spatial_spectrum_abs", np.inf))
+                    and report["spatial"]["spectrum_max_rel_error"]
+                    <= float(tol.get("spatial_spectrum_rel", np.inf))
+                )
+        report["campaign_status"] = "PASS" if (temporal_ok and spatial_ok) else "SOFT_FAIL"
+        all_pass = all_pass and temporal_ok and spatial_ok
+        campaign_metrics[name] = report
+        python_paths.append(str(python_path.relative_to(ROOT)))
+        matlab_paths.append(str(temporal_path.relative_to(ROOT)))
+        if spatial_path is not None:
+            matlab_paths.append(str(spatial_path.relative_to(ROOT)))
+    base["python_npz"] = python_paths
+    base["matlab_npz"] = matlab_paths
+    if notes:
+        base["note"] = "; ".join(notes)
+    base["status"] = "PASS" if all_pass else "SOFT_FAIL"
+    base["metrics"] = {"campaigns": campaign_metrics}
+    return base
+
+
 def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
     status = "HARD_FAIL"
     note = str(case.get("note", ""))
@@ -691,6 +785,13 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
     if comparison_kind == "unavailable":
         base["status"] = "UNAVAILABLE"
         return base
+
+    if comparison_kind == "streaky_bl":
+        try:
+            return _compare_streaky_bl_campaigns(case, npz_dir, base)
+        except Exception as exc:
+            base["note"] = str(exc)
+            return base
 
     python_npz_path = ROOT / str(case["python_npz"])
     if not python_npz_path.exists():
@@ -814,70 +915,6 @@ def _compare_case(case: dict[str, Any], npz_dir: Path) -> dict[str, Any]:
                 str(direct_path.relative_to(ROOT)),
                 str(adjoint_path.relative_to(ROOT)),
             ]
-            base["status"] = "PASS" if passed else "SOFT_FAIL"
-            base["metrics"] = report
-            return base
-
-        if comparison_kind == "streaky_bl":
-            temporal_path = matlab_bundle_path(npz_dir, str(case["matlab_temporal_stem"]))
-            spatial_path = matlab_bundle_path(npz_dir, str(case["matlab_spatial_stem"]))
-            paths = [temporal_path, spatial_path]
-            if "matlab_base_stem" in case:
-                paths.append(matlab_bundle_path(npz_dir, str(case["matlab_base_stem"])))
-            missing = [path for path in paths if not path.exists()]
-            if missing:
-                raise FileNotFoundError(
-                    f"Missing MATLAB NPZ bundle(s) for {base['case_id']}: "
-                    + ", ".join(_display_path(path) for path in missing)
-                )
-            report = _compare_streaky_bl_case(
-                python_npz=python_npz,
-                matlab_temporal=load_matlab_bundle(npz_dir, str(case["matlab_temporal_stem"])),
-                matlab_spatial=load_matlab_bundle(npz_dir, str(case["matlab_spatial_stem"])),
-                n_compare=int(case.get("n_compare", 10)),
-                temporal_omega_key=str(case["matlab_temporal_omega_key"]),
-                temporal_modes_key=str(case["matlab_temporal_modes_key"]),
-                spatial_alpha_key=str(case["matlab_spatial_alpha_key"]),
-            )
-            tol = dict(case.get("tolerances", {}))
-            # Temporal closure: prefer residual-based criterion when available.
-            # The MATLAB reference for Example 3 uses opts.p=1500 with a
-            # far-field shift and is not a tight gold standard (residuals ~1e-4).
-            # Python MUMPS residuals are ~1e-12; the residual gate is the
-            # primary signal. Spectrum-match tolerances are kept as informational
-            # checks; they stay unused when residual_max is present.
-            temporal_residual_ok: bool
-            if "residual_max" in report["temporal"] and "temporal_residual_max" in tol:
-                temporal_residual_ok = report["temporal"]["residual_max"] <= float(
-                    tol["temporal_residual_max"]
-                )
-            else:
-                temporal_residual_ok = (
-                    report["temporal"]["spectrum_max_abs_error"]
-                    <= float(tol.get("temporal_spectrum_abs", np.inf))
-                    and report["temporal"]["spectrum_max_rel_error"]
-                    <= float(tol.get("temporal_spectrum_rel", np.inf))
-                    and report["temporal"]["mode_max_rel_l2"]
-                    <= float(tol.get("temporal_mode_rel", np.inf))
-                )
-            if "residual_max" in report["spatial"] and "spatial_residual_max" in tol:
-                spatial_ok = report["spatial"]["residual_max"] <= float(tol["spatial_residual_max"])
-            elif "spatial_residual_max" in tol and "residual_max" not in report.get("spatial", {}):
-                # Stale cache: config expects residuals but NPZ lacks them.
-                base["note"] = "Stale NPZ: spatial_residuals absent. Delete NPZ and rerun."
-                base["status"] = "SOFT_FAIL"
-                base["metrics"] = report
-                return base
-            else:
-                spatial_present = "spectrum_max_abs_error" in report["spatial"]
-                spatial_ok = not spatial_present or (
-                    report["spatial"]["spectrum_max_abs_error"]
-                    <= float(tol.get("spatial_spectrum_abs", np.inf))
-                    and report["spatial"]["spectrum_max_rel_error"]
-                    <= float(tol.get("spatial_spectrum_rel", np.inf))
-                )
-            passed = temporal_residual_ok and spatial_ok
-            base["matlab_npz"] = [str(path.relative_to(ROOT)) for path in paths]
             base["status"] = "PASS" if passed else "SOFT_FAIL"
             base["metrics"] = report
             return base
