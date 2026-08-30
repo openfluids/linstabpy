@@ -585,7 +585,33 @@ def _compare_streaky_bl_case(
     omega_mat = _complex_vector(_npz_get(matlab_temporal, temporal_omega_key))
     temporal_modes_mat = _mode_matrix(_npz_get(matlab_temporal, temporal_modes_key))
 
-    temporal_pairs = _best_spectrum_pairs(omega_mat, omega_py, n_compare)
+    # The repository bundles store a component-sliced subset of the temporal
+    # modes (idx/w_j rows, saved_mode_indices columns). Align both sides the
+    # way the cavity compare does before pairing; full-size bundles pass
+    # through unchanged.
+    struct = _struct_prefix_from_matlab_key(temporal_omega_key)
+    if temporal_modes_mat.shape[0] != temporal_modes_py.shape[0]:
+        w_j = _maybe_npz_get(matlab_temporal, f"{struct}/idx/w_j")
+        if w_j is not None:
+            w = np.asarray(w_j, dtype=int).reshape(-1)
+            if int(w.min()) >= 1:
+                w = w - 1
+            temporal_modes_py = temporal_modes_py[w, :]
+    saved = _saved_mode_indices_1based(matlab_temporal, f"{struct}/saved_mode_indices")
+    if saved is not None and temporal_modes_mat.shape[1] == saved.size:
+        omega_mat = omega_mat[saved - 1]
+        temporal_modes_mat = temporal_modes_mat[:, : saved.size]
+    n_compare_temporal = int(
+        min(
+            n_compare,
+            temporal_modes_mat.shape[1],
+            temporal_modes_py.shape[1],
+            omega_mat.size,
+            omega_py.size,
+        )
+    )
+
+    temporal_pairs = _best_spectrum_pairs(omega_mat, omega_py, n_compare_temporal)
     temporal_rows = []
     for mat_i, py_i, abs_err, rel_err in temporal_pairs:
         ref = temporal_modes_mat[:, mat_i]
