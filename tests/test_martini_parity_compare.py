@@ -504,3 +504,111 @@ def test_compare_streaky_bl_case_matches_temporal_modes_and_spatial_spectrum() -
     assert report["temporal"]["mode_max_rel_l2"] < 1e-12
     assert report["spatial"]["spectrum_max_abs_error"] == 0.0
     assert report["spatial"]["spectrum_max_rel_error"] == 0.0
+
+
+def test_compare_case_streaky_bl_walks_campaign_npzs(tmp_path, monkeypatch) -> None:
+    """The dispatcher compares the per-campaign NPZs Example 3 actually writes.
+
+    Guards the wiring that rotted once: the manifest pointed at a combined
+    example_3_streaky_bl.npz no code writes, so every full parity run
+    HARD_FAILed on a missing artifact while the campaign NPZs sat on disk.
+    """
+    monkeypatch.setattr(compare_martini_examples, "ROOT", tmp_path)
+    npz_dir = tmp_path / "bundles"
+    npz_dir.mkdir()
+
+    temporal_omega = np.array([0.1 + 0.2j, 0.3 + 0.4j], dtype=complex)
+    temporal_modes = np.array(
+        [
+            [1.0 + 0.0j, 2.0 + 1.0j],
+            [0.5 + 0.5j, 1.5 - 0.5j],
+            [2.0 - 1.0j, 1.0 + 0.0j],
+        ],
+        dtype=complex,
+    )
+    spatial_alpha = np.array([0.7 + 0.1j, 0.8 + 0.2j], dtype=complex)
+    residuals = np.array([1.0e-12, 1.0e-12])
+
+    np.savez_compressed(
+        tmp_path / "camp_temporal.npz",
+        temporal_omega=temporal_omega,
+        temporal_modes=temporal_modes,
+        temporal_residuals=residuals,
+    )
+    np.savez_compressed(
+        tmp_path / "camp_spatial.npz",
+        temporal_omega=temporal_omega,
+        temporal_modes=temporal_modes,
+        temporal_residuals=residuals,
+        spatial_alpha=spatial_alpha,
+        spatial_residuals=residuals,
+    )
+    matlab_temporal_payload = {
+        "results__results_StreakyBL_temporal__omega": temporal_omega,
+        "results__results_StreakyBL_temporal__V": temporal_modes,
+    }
+    np.savez_compressed(npz_dir / "camp_temporal_results_temporal.npz", **matlab_temporal_payload)
+    np.savez_compressed(npz_dir / "camp_spatial_results_temporal.npz", **matlab_temporal_payload)
+    np.savez_compressed(
+        npz_dir / "camp_spatial_results_spatial.npz",
+        **{"results__results_StreakyBL_spatial__alphas": spatial_alpha},
+    )
+
+    case = {
+        "case_id": "example_3_streaky_bl",
+        "label": "Example 3",
+        "comparison_kind": "streaky_bl",
+        "comparison_scope": "temporal_and_spatial",
+        "campaigns": [
+            {
+                "name": "t1",
+                "python_npz": "camp_temporal.npz",
+                "matlab_temporal_stem": "camp_temporal_results_temporal",
+            },
+            {
+                "name": "sp",
+                "python_npz": "camp_spatial.npz",
+                "matlab_temporal_stem": "camp_spatial_results_temporal",
+                "matlab_spatial_stem": "camp_spatial_results_spatial",
+            },
+        ],
+        "matlab_temporal_omega_key": "results_StreakyBL_temporal/omega",
+        "matlab_temporal_modes_key": "results_StreakyBL_temporal/V",
+        "matlab_spatial_alpha_key": "results_StreakyBL_spatial/alphas",
+        "n_compare": 2,
+        "tolerances": {"temporal_residual_max": 1.0e-8, "spatial_residual_max": 1.0e-8},
+    }
+
+    result = compare_martini_examples._compare_case(case, npz_dir)
+
+    assert result["status"] == "PASS"
+    campaigns = result["metrics"]["campaigns"]
+    assert set(campaigns) == {"t1", "sp"}
+    assert campaigns["t1"]["campaign_status"] == "PASS"
+    assert campaigns["t1"]["spatial"]["n_compare"] == 0
+    assert campaigns["sp"]["spatial"]["residual_max"] <= 1.0e-8
+    assert result["python_npz"] == ["camp_temporal.npz", "camp_spatial.npz"]
+    assert len(result["matlab_npz"]) == 3
+
+
+def test_compare_case_streaky_bl_missing_campaign_npz_is_hard_fail(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(compare_martini_examples, "ROOT", tmp_path)
+    case = {
+        "case_id": "example_3_streaky_bl",
+        "comparison_kind": "streaky_bl",
+        "campaigns": [
+            {
+                "name": "t1",
+                "python_npz": "absent.npz",
+                "matlab_temporal_stem": "camp_temporal_results_temporal",
+            },
+        ],
+        "matlab_temporal_omega_key": "results_StreakyBL_temporal/omega",
+        "matlab_temporal_modes_key": "results_StreakyBL_temporal/V",
+        "matlab_spatial_alpha_key": "results_StreakyBL_spatial/alphas",
+    }
+
+    result = compare_martini_examples._compare_case(case, tmp_path)
+
+    assert result["status"] == "HARD_FAIL"
+    assert "Missing Python artifact" in result["note"]

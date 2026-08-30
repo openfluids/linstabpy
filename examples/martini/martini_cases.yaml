@@ -63,14 +63,23 @@ cases:
     comparison_kind: streaky_bl
     comparison_scope: temporal_and_spatial
     python_module: examples.example_3_streaky_bl
-    python_npz: examples/martini/example_3_streaky_bl.npz
-    matlab_temporal_stem: example_3_Streaky_BL_results_temporal
-    matlab_spatial_stem: example_3_Streaky_BL_results_spatial
-    matlab_paper_temporal_Lx2pi_stem: example_3_paper_temporal_Lx2pi_nP2_results_temporal
-    matlab_paper_temporal_Lxpi_nfloq0_stem: example_3_paper_temporal_Lxpi_nfloq0_results_temporal
-    matlab_paper_temporal_Lxpi_nfloq2_stem: example_3_paper_temporal_Lxpi_nfloq2_results_temporal
-    matlab_paper_spatial_temporal_stem: example_3_paper_spatial_Lxpi_nP2_results_temporal
-    matlab_paper_spatial_stem: example_3_paper_spatial_Lxpi_nP2_results_spatial
+    # The example writes one NPZ per paper campaign; there is no combined
+    # example_3_streaky_bl.npz. Each campaign compares against its own MATLAB
+    # bundle, and only the spatial campaign carries a spatial spectrum.
+    campaigns:
+      - name: temporal_Lx2pi_nP2
+        python_npz: examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz
+        matlab_temporal_stem: example_3_paper_temporal_Lx2pi_nP2_results_temporal
+      - name: temporal_Lxpi_nfloq0
+        python_npz: examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz
+        matlab_temporal_stem: example_3_paper_temporal_Lxpi_nfloq0_results_temporal
+      - name: temporal_Lxpi_nfloq2
+        python_npz: examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz
+        matlab_temporal_stem: example_3_paper_temporal_Lxpi_nfloq2_results_temporal
+      - name: spatial_Lxpi_nP2
+        python_npz: examples/martini/example_3_paper_spatial_Lxpi_nP2.npz
+        matlab_temporal_stem: example_3_paper_spatial_Lxpi_nP2_results_temporal
+        matlab_spatial_stem: example_3_paper_spatial_Lxpi_nP2_results_spatial
     matlab_temporal_omega_key: results_StreakyBL_temporal/omega
     matlab_temporal_modes_key: results_StreakyBL_temporal/V
     matlab_spatial_alpha_key: results_StreakyBL_spatial/alphas
