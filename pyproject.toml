@@ -50,6 +50,9 @@ cudss = [
     "nvmath-python[cu12] >= 1.0, < 2",
 ]
 
+harmonic = [
+    "resolvent4py",
+]
 [dependency-groups]
 test = ["pytest", "pytest-cov", "sympy>=1.13"]
 dev = [

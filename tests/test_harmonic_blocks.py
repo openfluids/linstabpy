@@ -1,0 +1,415 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Tests for harmonic operator blocks."""
+
+from __future__ import annotations
+
+import sys
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import pytest
+import scipy.sparse as sp
+
+from linstabpy.baseflow.periodic import PeriodicBaseFlow
+from linstabpy.baseflow.viscosity import sutherland_air
+from linstabpy.operators.harmonic_blocks import (
+    HarmonicBlocks,
+    assemble_harmonic_blocks,
+)
+
+
+@pytest.fixture
+def small_mesh_2d():
+    """20x30 mesh on [0,2]x[0,1], order 4."""
+    from linstabpy.mesh import Mesh
+
+    return Mesh.create(
+        xrange=(0.0, 2.0),
+        yrange=(0.0, 1.0),
+        nx=20,
+        ny=30,
+        fd_order=4,
+    )
+
+
+@pytest.fixture
+def steady_pbf(small_mesh_2d) -> PeriodicBaseFlow:
+    """Steady base flow (only k=0, no oscillation)."""
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+
+    # Extract 1D coordinate vectors from the 2D grids
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    # Only k=0 (steady)
+    qhat = np.zeros((1, 5, ny, nx), dtype=complex)
+    # Synthetic steady profile
+    qhat[0, 0] = 1.0  # rho
+    qhat[0, 1] = 1.0  # u
+    qhat[0, 2] = 0.0  # v
+    qhat[0, 3] = 0.0  # w
+    qhat[0, 4] = 1.0  # T
+
+    return PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=1.0,
+        x=x_1d,
+        y=y_1d,
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+
+
+def test_harmonic_blocks_steady(small_mesh_2d, steady_pbf) -> None:
+    """Test steady base flow: Ahat_0 == build_lnse_system, higher Ahat_k ~ 0."""
+
+    from linstabpy.operators.assembly import build_lnse_system
+
+    # Build reference LNSE operator at steady state
+    bf = steady_pbf.reconstruct(0.0)
+    L0_ref, _, _ = build_lnse_system(small_mesh_2d, bf, kx=0.0, model="2D")
+
+    # Assemble harmonic blocks from steady base flow
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        steady_pbf,
+        N_h=0,
+        N_t=4,  # Small N_t for steady
+        kx=0.0,
+        model="2D",
+    )
+
+    assert len(blocks.Ahat) == 1
+    assert blocks.N_h == 0
+    assert blocks.N_t == 4
+
+    # Ahat[0] should equal L0_ref to high precision
+    L0_ref_csr = L0_ref.tocsr()
+    diff = L0_ref_csr - blocks.Ahat[0]
+    if diff.nnz > 0:
+        max_err = np.max(np.abs(diff.data))
+        assert max_err < 1e-10, f"Ahat[0] differs from L0_ref by {max_err}"
+
+
+def test_harmonic_blocks_manufactured(small_mesh_2d) -> None:
+    r"""Test manufactured harmonic: Q = Qbar + eps*Qtilde*cos(omega0*t).
+
+    For a linear operator in Q, Ahat[1] should scale linearly with eps.
+    Verify the scaling and check O(eps^2) accuracy via central differences.
+    """
+
+    from linstabpy.baseflow.baseflow import BaseFlow
+    from linstabpy.operators.assembly import build_lnse_system
+
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    omega0 = 2.0 * np.pi
+    T_period = 1.0
+
+    # Build Qbar (mean)
+    qbar = np.zeros((5, ny, nx))
+    qbar[0] = 1.0  # rho
+    qbar[1] = 1.0  # u
+    qbar[2] = 0.0  # v
+    qbar[3] = 0.0  # w
+    qbar[4] = 1.0  # T
+
+    # Build Qtilde (perturbation, kept small so T stays positive)
+    qtilde = np.zeros((5, ny, nx))
+    qtilde[0] = 0.02  # small rho perturbation
+    qtilde[1] = 0.01  # small u perturbation
+    qtilde[2:4] = 0.0
+    qtilde[4] = 0.01  # small T perturbation
+
+    def test_one_eps(eps_val: float) -> tuple[np.ndarray, np.ndarray]:
+        """Assemble blocks and compute reference via central differences."""
+        # Q(t) = Qbar + eps*Qtilde*cos(omega0*t)
+        # Harmonics: Qhat[0] = Qbar, Qhat[1] = eps*Qtilde/2
+        qhat = np.zeros((2, 5, ny, nx), dtype=complex)
+        qhat[0] = qbar
+        qhat[1] = (eps_val / 2.0) * qtilde
+
+        pbf = PeriodicBaseFlow(
+            Qhat=qhat,
+            T_period=T_period,
+            x=x_1d,
+            y=y_1d,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+        # Assemble harmonic blocks (k=-1..0..+1)
+        N_t = 64
+        blocks = assemble_harmonic_blocks(
+            small_mesh_2d,
+            pbf,
+            N_h=1,
+            N_t=N_t,
+            kx=0.0,
+            model="2D",
+        )
+
+        # Compute reference: central difference gives dL0/dQ * Qtilde
+        qhat_plus = np.zeros((2, 5, ny, nx), dtype=complex)
+        qhat_plus[0] = qbar + eps_val * qtilde
+        qhat_plus[1] = 0.0
+
+        qhat_minus = np.zeros((2, 5, ny, nx), dtype=complex)
+        qhat_minus[0] = qbar - eps_val * qtilde
+        qhat_minus[1] = 0.0
+
+        pbf_plus = PeriodicBaseFlow(
+            Qhat=qhat_plus,
+            T_period=T_period,
+            x=x_1d,
+            y=y_1d,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+        pbf_minus = PeriodicBaseFlow(
+            Qhat=qhat_minus,
+            T_period=T_period,
+            x=x_1d,
+            y=y_1d,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+        bf_plus = pbf_plus.reconstruct(0.0)
+        bf_minus = pbf_minus.reconstruct(0.0)
+
+        L0_plus, _, _ = build_lnse_system(small_mesh_2d, bf_plus, kx=0.0, model="2D")
+        L0_minus, _, _ = build_lnse_system(small_mesh_2d, bf_minus, kx=0.0, model="2D")
+
+        # Central difference: (L0(Qbar + eps*Qtilde) - L0(Qbar - eps*Qtilde)) / (2*eps)
+        L0_central = (L0_plus - L0_minus) / (2.0 * eps_val)
+        L0_central_csr = L0_central.tocsr()
+
+        # Ahat[1] is at index N_h + 1 = 2 (for N_h=1)
+        Ahat_1_pos = blocks.Ahat[2]
+
+        # Ahat[1] should equal (eps/2) * L0_central (linear scaling)
+        return Ahat_1_pos, L0_central_csr
+
+    # Test at two eps values
+    ahat_eps, ref_eps = test_one_eps(0.05)
+    ahat_half, ref_half = test_one_eps(0.025)
+
+    # Check linear scaling: error in Ahat[k] / (eps/2) should fall by factor 4 when eps -> eps/2
+    eps1, eps2 = 0.05, 0.025
+    scaled_ahat_eps = ahat_eps / (eps1 / 2.0)
+    scaled_ahat_half = ahat_half / (eps2 / 2.0)
+
+    # Compare scaled versions to reference
+    diff_eps = scaled_ahat_eps - ref_eps
+    diff_half = scaled_ahat_half - ref_half
+
+    if diff_eps.nnz > 0:
+        norm_diff_eps = np.max(np.abs(diff_eps.data)) if diff_eps.nnz > 0 else 0.0
+    else:
+        norm_diff_eps = 0.0
+
+    if diff_half.nnz > 0:
+        norm_diff_half = np.max(np.abs(diff_half.data)) if diff_half.nnz > 0 else 0.0
+    else:
+        norm_diff_half = 0.0
+
+    # Both should be small (within discretization error)
+    # For a more robust test, check that the ratio falls by factor ~4 (O(eps^2))
+    if norm_diff_eps > 1e-12 and norm_diff_half > 1e-12:
+        rate = norm_diff_eps / norm_diff_half
+        # Should be ~4 for O(eps^2) convergence, but accept wider range due to discretization
+        assert 2.5 <= rate <= 6.0, f"Convergence rate {rate} not in [2.5, 6]; expected O(eps^2), first order would give 2"
+
+
+def test_harmonic_blocks_asymmetry_kx_zero(small_mesh_2d) -> None:
+    """Test that conjugation asymmetry is ~0 at kx=0 (where Ahat[-k] = conj(Ahat[k]))."""
+
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    # Simple two-harmonic case
+    qhat = np.zeros((2, 5, ny, nx), dtype=complex)
+    qhat[0, 0] = 1.0  # rho
+    qhat[0, 1] = 1.0  # u
+    qhat[0, 2:4] = 0.0
+    qhat[0, 4] = 1.0  # T
+    qhat[1, 0] = 0.05  # small harmonic
+    qhat[1, 1] = 0.02
+    qhat[1, 4] = 0.02
+
+    pbf = PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=1.0,
+        x=x_1d,
+        y=y_1d,
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        pbf,
+        N_h=1,
+        N_t=8,
+        kx=0.0,  # Real operator: Ahat[-k] = conj(Ahat[k])
+        model="2D",
+    )
+
+    # At kx=0, conjugation asymmetry should be very small (~1e-12)
+    assert blocks.conjugation_asymmetry is not None
+    assert blocks.conjugation_asymmetry < 1e-12, (
+        f"At kx=0, asymmetry should be ~0, got {blocks.conjugation_asymmetry}"
+    )
+
+
+def test_harmonic_blocks_asymmetry_kx_nonzero(small_mesh_2d) -> None:
+    """Test that conjugation asymmetry is >1e-3 at kx!=0 (genuinely complex operator)."""
+
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    # Simple two-harmonic case
+    qhat = np.zeros((2, 5, ny, nx), dtype=complex)
+    qhat[0, 0] = 1.0  # rho
+    qhat[0, 1] = 1.0  # u
+    qhat[0, 2:4] = 0.0
+    qhat[0, 4] = 1.0  # T
+    qhat[1, 0] = 0.05
+    qhat[1, 1] = 0.02
+    qhat[1, 4] = 0.02
+
+    pbf = PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=1.0,
+        x=x_1d,
+        y=y_1d,
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        pbf,
+        N_h=1,
+        N_t=8,
+        kx=0.5,  # Complex operator: i*kx derivatives make Ahat[-k] != conj(Ahat[k])
+        model="2D",
+    )
+
+    # At kx!=0, asymmetry should be > 1e-3 (measured ~6.6e-2 at kx=0.5 on this mesh)
+    assert blocks.conjugation_asymmetry is not None
+    assert blocks.conjugation_asymmetry > 1e-3, (
+        f"At kx=0.5, asymmetry should be >1e-3, got {blocks.conjugation_asymmetry}"
+    )
+
+
+def test_harmonic_blocks_tail_ratio(small_mesh_2d, steady_pbf) -> None:
+    """Test tail_ratio computation when N_t allows it."""
+
+    # With N_t = 32 and N_h = 5, we can compute tail_ratio
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        steady_pbf,
+        N_h=5,
+        N_t=32,
+        kx=0.0,
+        model="2D",
+    )
+
+    assert blocks.tail_ratio is not None
+    assert blocks.tail_ratio >= 0.0
+
+
+def test_harmonic_blocks_write_resolvent4py_coo(small_mesh_2d, steady_pbf) -> None:
+    """Test COO export function structure and naming conventions."""
+
+    from unittest.mock import MagicMock, patch
+
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        steady_pbf,
+        N_h=0,
+        N_t=4,
+        kx=0.0,
+        model="2D",
+    )
+
+    # Create mock resolvent4py module to test the export logic
+    mock_r4py_io = MagicMock()
+    mock_resolvent4py_utils = MagicMock()
+    mock_resolvent4py_utils.io = mock_r4py_io
+    mock_resolvent4py = MagicMock()
+    mock_resolvent4py.utils = mock_resolvent4py_utils
+
+    write_calls = []
+
+    def track_write(path, data):
+        write_calls.append((path, data.dtype, data.shape))
+
+    mock_r4py_io.write_to_file = track_write
+
+    # Mock the resolvent4py import in the harmonic_blocks module
+    with patch.dict(
+        "sys.modules",
+        {
+            "resolvent4py": mock_resolvent4py,
+            "resolvent4py.utils": mock_resolvent4py_utils,
+            "resolvent4py.utils.io": mock_r4py_io,
+        },
+    ):
+        # Reload the module to pick up the mocked imports
+        import importlib
+
+        import linstabpy.operators.harmonic_blocks as hb_module
+
+        importlib.reload(hb_module)
+
+        from linstabpy.operators.harmonic_blocks import write_resolvent4py_coo
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fnames = write_resolvent4py_coo(blocks, tmp)
+
+            # Check structure
+            assert len(fnames) == 1, f"Expected 1 file triple, got {len(fnames)}"
+            rows_path, cols_path, vals_path = fnames[0]
+
+            # Check naming convention
+            assert "rows_00.dat" in rows_path, f"Expected rows_00.dat in {rows_path}"
+            assert "cols_00.dat" in cols_path, f"Expected cols_00.dat in {cols_path}"
+            assert "vals_00.dat" in vals_path, f"Expected vals_00.dat in {vals_path}"
+
+            # Verify write calls were made (3 per harmonic)
+            assert len(write_calls) >= 3, "Expected at least 3 write calls for indices and data"
+
+            # Check data types
+            for path, dtype, shape in write_calls:
+                if "rows" in path or "cols" in path:
+                    assert dtype == np.int64, f"Indices should be int64, got {dtype} for {path}"
+                elif "vals" in path:
+                    assert dtype == np.complex128, (
+                        f"Values should be complex128, got {dtype} for {path}"
+                    )
