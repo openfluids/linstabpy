@@ -566,6 +566,11 @@ def _bc_mask(L0: Any, ndof: int, bc_indices: np.ndarray, solver_cfg: Mapping[str
     return _maybe_petsc_diag(diag, L0, solver_cfg)
 
 
+# Public alias: the prescribed-forcing path (resolvent/prescribed.py) applies
+# the same BC forcing mask as identity-B, so it needs this under a public name.
+bc_mask = _bc_mask
+
+
 _CONSERVATIVE_MOMENTUM_SPACE = "conservative_momentum"
 
 
@@ -746,6 +751,11 @@ def _forcing_response_mats(
                 default_mask = _bc_mask(L0, ndof, bc_indices, solver_cfg)
             C_mat = default_mask.copy() if hasattr(default_mask, "copy") else default_mask
     return B_mat, C_mat
+
+
+# Public alias: the prescribed-forcing path (resolvent/prescribed.py) builds
+# B_mat/C_mat through this function under a public name.
+forcing_response_mats = _forcing_response_mats
 
 
 def _mark_unstable_band(L0_beta: Any, f_range: np.ndarray, cfg: Mapping[str, Any]) -> BandMarks:

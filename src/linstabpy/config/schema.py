@@ -99,6 +99,10 @@ TOP_LEVEL_ALLOWED = frozenset(
         "zero_dmudT_martini_parity",
         "matlab_parity_dmudt",
         "bc_mask_layout",
+        # Prescribed-forcing resolvent path (1.1): path to the npz forcing
+        # file, and whether to accept the (beta, omega) = (0, 0) bin.
+        "prescribed_forcing",
+        "prescribed_allow_zero_bin",
     }
 )
 
@@ -167,6 +171,7 @@ _BOOL_FIELDS = frozenset(
         "run_stability",
         "run_resolvent",
         "use_omega_shift_fallback",
+        "prescribed_allow_zero_bin",
     }
 )
 
@@ -176,6 +181,7 @@ _STRING_FIELDS = frozenset(
         "bc_mask_layout",
         "assembly_backend",
         "schema_version",
+        "prescribed_forcing",
     }
 )
 
