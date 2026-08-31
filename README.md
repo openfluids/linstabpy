@@ -65,6 +65,51 @@ layer of provenance-independent checks: a symbolic re-derivation of the
 coefficients, a complex-step Jacobian, and direct verification of the curvilinear
 transform, global assembly, boundary rows, and energy norm.
 
+### Harmonic Resolvent Analysis (linstabpy 1.2+)
+
+Harmonic resolvent analysis extends the resolvent framework to T-periodic base
+flows Q(t), enabled through the optional `resolvent4py` library (Padovan et al.,
+SoftwareX 2025). Instead of a steady base flow, the method linearizes about a
+measured or computed periodic orbit and extracts frequency responses across the
+Floquet–harmonic ladder.
+
+Install with `pip install "linstabpy[harmonic]"`. This brings `resolvent4py` (MIT
+license) and ensures `petsc4py >= 3.20` compatibility. The same complex PETSc/SLEPc
+and MUMPS stack that powers the reference resolvent path is sufficient; no separate
+build is needed.
+
+**What is included in 1.2.0:**
+
+- Periodic base-flow loader: `load_periodic_baseflow()` reads Fourier harmonics
+  Qhat_k (k=0..N_h) from `.npz` and validates canonical normalization
+  (ρ_∞ = u_∞ = T_∞ = 1).
+- Harmonic operator blocks: time-stepping through one period, assembling the
+  LNSE Jacobian at each instant, FFT to extract harmonics, automatic sparsity
+  union to preserve memory efficiency.
+- Block-Toeplitz assembly via `resolvent4py`: constructs the stacked frequency-ladder
+  operator T with optional phase-shift projectors to remove the
+  frequency-offset null direction.
+- Steady-limit validation: single-harmonic (k=0) resolvent recovers the classical
+  resolvent_analysis to machine precision (1e-12).
+- Toy-problem validator: Padovan ODE (JFM 2020 §3) wrapper, examples/harmonic/padovan_ode/padovan_toy.py.
+
+**Known scope limits in 1.2.0:**
+
+- Two-sided harmonic storage (k=-N_h..N_h) is required at non-zero spanwise
+  wavenumber β ≠ 0. The conjugation symmetry Â_{-k} = conj(Â_k) breaks when
+  β ≠ 0 because i·β derivatives make the operator genuinely complex; this is
+  handled automatically in the FFT path.
+- Real SWBLI-scale (901k-DOF) periodic maps are out of single-node reach at
+  present. The stacked operator size grows as (2*N_h+3)*n, and LU factorization
+  memory scales as the square. Tag gates use toy models (3 DOF) and small
+  demonstration meshes.
+- Time-stepping (Farghadan RSVD-Δt) is not yet implemented; the assembled
+  block-Toeplitz matrix must fit in memory.
+
+See `docs/COMPUTE_BACKENDS.md` § Harmonic Resolvent for technical details and
+memory constraints.
+
+
 ## Installation
 
 One supported numerical stack: CPU, complex-scalar PETSc/SLEPc, MUMPS. On Linux:

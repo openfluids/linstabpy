@@ -57,6 +57,45 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   frequency range, not only at its centre. Poles near the ends of the range were
   missed before. Each target costs one shift-invert factorization;
   `skip_band_marking` still removes the stage.
+Harmonic resolvent analysis via resolvent4py.
+
+### Added
+
+- Harmonic resolvent solver for T-periodic base flows via `resolvent4py` (MIT,
+  SoftwareX 2025). Periodic base-flow loader `load_periodic_baseflow()` in
+  `linstabpy.baseflow.periodic` validates canonical normalization and reads
+  Fourier harmonics from `.npz`.
+- Harmonic operator blocks: `assemble_harmonic_blocks()` reconstructs the LNSE
+  system at each time instant, assembles the set of instantaneous Jacobians,
+  FFTs across the period, and extracts harmonics k=-N_h..N_h with automatic
+  union-pattern alignment to preserve sparsity structure.
+- COO exporter `write_resolvent4py_coo()` outputs Fourier blocks in resolvent4py
+  binary format for the block-Toeplitz operator assembly pipeline.
+- Thin caller `harmonic_resolvent_gains()` delegates to resolvent4py's
+  assembler, MUMPS LU factorization, and randomized SVD. Supports optional
+  phase-shift projectors to remove the frequency-offset null direction.
+- Steady-limit gate test (executes on a machine with resolvent4py and
+  petsc4py): the k=0-only harmonic resolvent must recover the classical
+  resolvent_analysis leading gain to 1e-12, phase-aligned.
+- Toy-problem wrapper and validator: examples/harmonic/padovan_ode/padovan_toy.py
+  integrates the Padovan et al. JFM 2020 §3 three-state ODE to its periodic
+  orbit, FFTs the state and linearization, and exports for resolvent4py
+  end-to-end testing.
+- New optional extra: `pip install "linstabpy[harmonic]"` installs
+  resolvent4py. It does not install petsc4py or slepc4py: a complex
+  PETSc build with MUMPS (petsc4py >= 3.20) must already exist in the
+  environment.
+
+### Known Limitations
+
+- Two-sided harmonic storage (k=-N_h..N_h) is required at non-zero spanwise
+  wavenumber β ≠ 0 because the operator is genuinely complex through i·β
+  derivatives, breaking conjugation symmetry. This is handled automatically.
+- Real SWBLI-scale harmonic maps are out of single-node reach at present;
+  the stacked operator has size (2*N_p+1)*n with N_p >= N_h+3 perturbation
+  harmonics, and the direct factor's memory grows superlinearly in that
+  size. Tag gates use toy models and small meshes.
+- Time-stepping (Farghadan RSVD-Δt) is not yet implemented.
 
 ### Fixed
 

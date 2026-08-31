@@ -452,3 +452,53 @@ No speedup claim is made here. The evidence so far is numerical:
 
 Real backend adoption still needs end-to-end timings, peak memory, factorization
 reuse behavior, and repeated right-hand-side costs on the actual case sizes.
+
+## Harmonic Resolvent (resolvent4py)
+
+Harmonic resolvent analysis via `resolvent4py` (MIT license, SoftwareX 2025) is available as an optional add-on in `linstabpy 1.2+`. The path requires a complex-valued PETSc build (same as the reference CPU stack) and MUMPS for the factorization, plus the `resolvent4py` package.
+
+### Dependency and Installation
+
+Install with `pip install "linstabpy[harmonic]"`. This brings resolvent4py and ensures petsc4py >= 3.20 (the resolvent4py/PETSc compatibility constraint). The same `.venv` or `-gpu-*` environment that provides complex PETSc/SLEPc is sufficient; no separate PETSc build is needed.
+
+### Operator Size and Memory Scaling
+
+The harmonic-resolvent generator `T` is a block-Toeplitz operator stacking `2*N_p+1` copies of the base-flow Jacobian, where `N_p = N_h + 3` is the padding (N_h = highest harmonic to keep). The total DOF is:
+
+```
+N_full = (2*N_p + 1) * n,  where n = base-flow DOF on one harmonic
+```
+
+For example, a base-flow operator with n = 1000 DOF and N_h = 10 gives:
+- N_p = 13
+- N_full = 27 * 1000 = 27,000
+- Memory for the LU factor scales as O(N_full^2) with a large constant (dense triangular factors in a sparse-direct solve)
+
+A 901k-DOF SWBLI operator with N_h would require stacking 25–27 copies, reaching 22–24M DOF in the full operator. A single-node MUMPS factorization at that scale risks out-of-core spillage or failure. The tag gates (resolvent4py toy model with 3 DOF and steady-limit with ~200 DOF) are scaled to stay within single-node scope by design.
+
+### Configuration
+
+Enable harmonic resolvent in YAML:
+
+```yaml
+periodic_baseflow:
+  path: periodic_qhat.npz
+
+harmonic_resolvent:
+  enabled: true
+  N_h: 5
+  perts_freqs: [-1.0, 0.0, 1.0]
+  kappa: 0.001
+  n_modes: 10
+```
+
+The periodic base-flow loader validates the input `.npz` for canonical freestream normalization (ρ_∞ = u_∞ = T_∞ = 1) and rejects mismatched mesh shapes.
+
+### Known Limitations
+
+1. Harmonics at non-zero spanwise wavenumber (β ≠ 0) require two-sided storage (k = -N_h..N_h). The conjugation assumption Â_{-k} = conj(Â_k) fails when β ≠ 0 because the operator is genuinely complex through i·β derivatives. This is handled automatically by the FFT path.
+
+2. Real SWBLI-scale cases are out of single-node reach at present. The 1.2.0 tag gate runs only the resolvent4py toy model (3 DOF) and a steady-limit validation on small meshes.
+
+3. Time-stepping alternatives (Farghadan RSVD-Δt) are not yet implemented; the assembled `T` matrix must fit in memory.
+
