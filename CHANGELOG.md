@@ -57,6 +57,20 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   frequency range, not only at its centre. Poles near the ends of the range were
   missed before. Each target costs one shift-invert factorization;
   `skip_band_marking` still removes the stage.
+### Added
+
+- **Prescribed-forcing resolvent (v1.1):** solve the linear resolvent for a known
+  external forcing vector, rather than computing the optimal-forcing SVD. The
+  module `linstabpy.resolvent.prescribed` provides `prescribed_forcing_response()`,
+  which solves `(L0 - (gamma + i*omega) I)^-1 (B f_hat)` once per point with
+  identical assembly and BC masking as the classical resolvent path. The map
+  driver `linstabpy.solvers.router.prescribed_map()` reads a table of
+  `(beta, omega, npz_path)` rows from the config and outputs a CSV with gains,
+  residuals, and provenance. Config exclusivity gate ensures the prescribed and
+  SVD paths do not mix: both ask coherent questions, but answering both at once
+  is silent drift. See `docs/plan_1.1_prescribed_forcing.md` for the design,
+  physics framing, and the npz forcing-file contract. Example: 
+  `examples/prescribed_forcing/prescribed_demo.py`.
 
 ### Fixed
 

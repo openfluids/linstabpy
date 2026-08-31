@@ -17,6 +17,7 @@ from .certification import (
     derive_solve_tolerance,
     randomized_resolvent_svd,
 )
+from .prescribed_map import PrescribedMapResult, prescribed_map
 from .ram_autoselect import OperatingPoint, SymbolicProbeResult, ram_autoselect
 from .resolvent_map import RouterResult, resolvent_map
 
@@ -26,6 +27,8 @@ _LAZY_EXPORTS = {
     "resolvent_map": "linstabpy.solvers.router.resolvent_map",
     "stable_sweep": "linstabpy.solvers.router.stable_sweep",
     "sweep_stable_regime": "linstabpy.solvers.router.stable_sweep",
+    "PrescribedMapResult": "linstabpy.solvers.router.prescribed_map",
+    "prescribed_map": "linstabpy.solvers.router.prescribed_map",
 }
 
 __all__ = [
@@ -61,6 +64,8 @@ __all__ = [
     "recycling",
     "resolvent_map",
     "sweep_stable_regime",
+    "PrescribedMapResult",
+    "prescribed_map",
 ]
 
 

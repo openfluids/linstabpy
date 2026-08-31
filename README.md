@@ -430,6 +430,50 @@ result = resolvent_map(base_flow, beta_range=[20.0], f_range=[0.15], cfg=cfg)
 A windowed/component-restricted gain changes the forcing/response question; it is
 not an approximation of the global unmasked gain.
 
+### Prescribed forcing (version 1.1+)
+
+For a known (external) forcing field, `prescribed_forcing_response` solves the linear 
+resolvent problem once per point instead of running the SVD:
+
+```python
+from linstabpy.resolvent.prescribed import prescribed_forcing_response
+
+q_hat, gain, info = prescribed_forcing_response(
+    L0=L0,
+    omega=0.5,
+    W_diag=W_diag,
+    f_hat=my_forcing_vector,  # complex, shape (ndof,)
+    B_mat=B_mask,  # input mask (optional)
+    C_mat=C_mask,  # output mask (optional)
+    forcing_norm="chu",  # or "l2"
+)
+```
+
+The `f_hat` npz contract:
+
+| Key | Type | Notes |
+|---|---|---|
+| `f` | complex ndarray, shape `(ndof,)` | Prescribed forcing in the DOF order of your operator |
+| `beta` | float | Spanwise wavenumber |
+| `omega` | float | Frequency in nondimensional units (same convention as the resolvent operator) |
+| `gamma` | float (optional) | Discount factor; must match config if both are present |
+
+The unknown order in `f` follows your base flow's variable convention (e.g. `[rho, u, v, w, T]` 
+for a 2-D compressible flow). The loader does not guess; it checks only the length.
+
+**Key difference from SVD:** the gain is bounded by the leading singular value of the 
+resolvent operator—not equal to it—since you specify `f_hat` rather than finding the 
+optimal forcing. The gain measures the energy amplification of your specific forcing.
+
+**Conjugate symmetry:** for a real leftover field, `f_hat(-beta, -omega) = conj(f_hat(beta, omega))`. 
+Compute one half-plane; the other follows by conjugation.
+
+**Mean-flow bin rejection:** `(beta, omega) = (0, 0)` is rejected by default (mean-flow distortion 
+is a separate question). Set `prescribed_allow_zero_bin: true` in the config to override.
+
+Examples: `examples/prescribed_forcing/prescribed_demo.py` manufactures a test forcing field and 
+runs a small prescribed map. See also `docs/plan_1.1_prescribed_forcing.md` for the full design.
+
 ### Boundary-condition acceptance
 
 Returned stability modes are postchecked against:

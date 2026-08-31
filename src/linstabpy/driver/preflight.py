@@ -259,6 +259,26 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 )
             )
 
+
+    # Prescribed-forcing exclusivity check (1.1 feature).
+    if config.get("prescribed_forcing"):
+        classical_markers = [
+            ("beta_range", "classical beta_range"),
+            ("f_range", "classical f_range"),
+            ("run_resolvent", "classical run_resolvent"),
+        ]
+        for key, label in classical_markers:
+            if key in config:
+                out.append(
+                    Advisory(
+                        "PRESCRIBED-EXCLUSIVITY",
+                        "error",
+                        f"config has both prescribed_forcing and {label}; these answer "
+                        "different questions (known forcing vs optimal-forcing SVD)",
+                        f"remove prescribed_forcing to run the classical SVD map, or remove "
+                        f"{key} to run the prescribed path",
+                    )
+                )
     return out
 
 
