@@ -14,7 +14,10 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   into the four paper campaigns, so every full parity run reported a hard
   failure on a missing artifact. The compare now walks the per-campaign
   NPZs, each against its own MATLAB bundle, with the same residual-first
-  gates as before.
+  gates as before, and aligns the component-sliced mode subsets the
+  repository bundles store (idx rows, saved-mode columns) before pairing.
+  With the wiring repaired, the full parity run reports four passes, two
+  documented structural soft failures, and no hard failures.
 
 ## [1.0.0rc9] - 2026-08-27
 
@@ -46,6 +49,27 @@ Release-hardening pass before 1.0.0.
   fixture bundle takes its directory from `LINSTABPY_MATLAB_FIXTURES_NPZ`;
   the machine-specific fallback paths are gone, and the public-provenance
   scanner now rejects those path forms.
+
+### Verification
+
+The tagged commit passes the full test suite with zero failures on both
+supported stacks: 1574 tests pass on a CPU-only environment (MKL BLAS,
+MUMPS) and 1584 on a GPU environment (CUDA-enabled PETSc with STRUMPACK
+plus the cuDSS backend, on an NVIDIA RTX A6000). Every remaining skip
+names either an optional backend absent from that environment or a
+reference file that is not distributed with the repository, and between
+the two environments every backend-gated test runs at least once.
+
+The six examples (the five Martini flows plus the Example 0 derivative
+protocol) were recomputed from scratch for this release — every cached
+NPZ deleted first — through `./run_all_examples.sh`, and all six pass.
+Against the shipped MATLAB reference bundles, the Blasius and jet
+resolvent gains agree to 1.7e-11 and 3.3e-12 relative, the cavity spectra
+agree to 6e-6 with eigenvalue residuals below 2e-8, and the Example 3
+temporal and spatial eigenpairs satisfy their discrete problems to
+residuals of 5e-9 or better. (The Example 3 parity check required the
+manifest repair recorded under Unreleased; the artifacts it verifies are
+the ones recomputed here.)
 
 ## [1.0.0rc8] - 2026-08-21
 
