@@ -8,13 +8,21 @@ The first frequency on a line is a real factor. Later frequencies apply
 ``K(omega)^{-1}`` with that factor as a preconditioner. A residual gate
 falls back to a new factor. The leading gain still comes from SLEPc.
 
-Clean gain maps need SBP sawtooth dissipation.
-Without operator-level SBP dissipation the assembled operator carries
-grid-scale (odd/even "sawtooth") modes.
-Those modes appear in a gain map as spurious near-singular resonances
-at high spanwise wavenumber.
-They form bright horizontal stripes (constant ``beta``, all low frequencies).
-Their gain can sit many decades above the physical OM-1 / LU-S responses.
+Whether a gain map needs SBP sawtooth dissipation depends on the MESH.
+The odd-even ("sawtooth") mode needs the two mesh directions to exchange
+grid-scale content.
+That happens only on a mesh that is curvilinear in BOTH directions, where
+the metric cross-terms ``Ji12``/``Ji21`` are O(1).
+On a rectilinear tensor mesh (``x = x(xi)``, ``y = y(eta)``, stretched or
+not) the cross-terms vanish identically and the mode has nowhere to live.
+There, dissipation measured 0.008-1.4% on the gain for +15% nnz and about
+triple the wall time.
+Measure the mesh with ``driver.preflight.metric_cross_coupling(X, Y)``.
+Above ~1e-8, enable dissipation and tune ``epsilon`` at that mesh.
+At or below it, record the coupling and run undamped on purpose, as the
+shipped Savarino case declares (``enabled: false  # rectilinear mesh``).
+On a mesh that mixes, the undamped operator carries grid-scale modes that
+appear as spurious near-singular resonances in the map.
 To suppress them this path needs BOTH halves of the dissipation, set
 independently.
 
@@ -31,8 +39,9 @@ Setting ``dissipation_epsilon`` without enabling
 ``operator_dissipation`` is also a silent no-op.
 The operator then stays as assembled.
 ``epsilon`` must clear the sawtooth poles yet stay below the
-physical-mode scale.
-For the Song SWBLI fd4 stride-4 case the sweet spot is ``~0.10``.
+physical-mode scale, and a value tuned on one mesh does not transfer.
+For the Song SWBLI fd4 stride-4 case on the curved-wall LES mesh the
+tuned value was ``~0.10``.
 ``1.0`` over-damps the real OM-1/LU-S ridges by ~100x.
 """
 

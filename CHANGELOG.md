@@ -9,6 +9,15 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- The `solvers/router/resolvent_map` module docstring said every gain map
+  needs SBP sawtooth dissipation. That claim is wrong on rectilinear
+  meshes. The odd-even mode exists only on a mesh that is curvilinear in
+  both directions, where the metric cross-terms mix grid-scale content.
+  The docstring now states the mesh condition, points to
+  `driver.preflight.metric_cross_coupling()` as the test, and scopes the
+  tuned `epsilon ~ 0.10` to the curved-wall mesh it came from. This aligns
+  the last remaining text with the measured story already in
+  `config/defaults.py` and `driver/preflight.py`.
 - The Martini parity manifest still pointed Example 3 at a combined
   `example_3_streaky_bl.npz` that nothing writes since the example was split
   into the four paper campaigns, so every full parity run reported a hard
