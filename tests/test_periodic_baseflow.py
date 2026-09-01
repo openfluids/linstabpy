@@ -273,3 +273,169 @@ def test_load_periodic_baseflow_mesh_mismatch() -> None:
 
         with pytest.raises(ValueError, match="Mesh shape mismatch"):
             load_periodic_baseflow(npz_path, mesh_shape=(5, 5))
+
+
+def test_periodic_baseflow_qhat_ndim_error() -> None:
+    """Test that a 3-D Qhat raises ValueError (the contract needs 4-D)."""
+    qhat_3d = np.ones((2, 5, 3))
+    x = np.array([0.0, 1.0])
+    y = np.array([0.0, 0.5, 1.0])
+    with pytest.raises(ValueError, match="got ndim=3"):
+        PeriodicBaseFlow(
+            Qhat=qhat_3d,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_periodic_baseflow_qhat_variables_error() -> None:
+    """Test that a 4-variable Qhat raises ValueError (the contract needs 5)."""
+    qhat_4vars = np.ones((2, 4, 3, 2), dtype=complex)
+    x = np.array([0.0, 1.0])
+    y = np.array([0.0, 0.5, 1.0])
+    with pytest.raises(ValueError, match="must have 5 variables"):
+        PeriodicBaseFlow(
+            Qhat=qhat_4vars,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_periodic_baseflow_qhat_nonfinite_error() -> None:
+    """Test that non-finite Qhat raises ValueError."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    qhat[0, 0, 0, 0] = np.nan
+    x = np.array([0.0, 1.0])
+    y = np.array([0.0, 0.5, 1.0])
+    with pytest.raises(ValueError, match="non-finite"):
+        PeriodicBaseFlow(
+            Qhat=qhat,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_periodic_baseflow_x_shape_error() -> None:
+    """Test that x shape mismatch raises ValueError."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    x = np.array([0.0, 1.0, 2.0])  # length 3, should be 2 (nx)
+    y = np.array([0.0, 0.5, 1.0])
+    with pytest.raises(ValueError, match="expected"):
+        PeriodicBaseFlow(
+            Qhat=qhat,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_periodic_baseflow_y_shape_error() -> None:
+    """Test that y shape mismatch raises ValueError."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    x = np.array([0.0, 1.0])
+    y = np.array([0.0, 0.5, 1.0, 1.5])  # length 4, should be 3 (ny)
+    with pytest.raises(ValueError, match="expected"):
+        PeriodicBaseFlow(
+            Qhat=qhat,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_periodic_baseflow_qhat0_imaginary_error() -> None:
+    """Test that large imaginary part in Qhat[0] raises ValueError."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    qhat[0] = 1.0 + 0.5 * 1j  # Imaginary ratio 0.5, far above the 1e-10 gate.
+    x = np.array([0.0, 1.0])
+    y = np.array([0.0, 0.5, 1.0])
+    with pytest.raises(ValueError, match="imaginary part"):
+        PeriodicBaseFlow(
+            Qhat=qhat,
+            T_period=1.0,
+            x=x,
+            y=y,
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+
+
+def test_load_periodic_baseflow_qhat_4_variables() -> None:
+    """Test load raises ValueError when npz Qhat has 4 variables."""
+    with tempfile.TemporaryDirectory() as tmp:
+        npz_path = Path(tmp) / "bad_vars.npz"
+        qhat = np.ones((2, 4, 3, 2), dtype=complex)  # 4 vars instead of 5
+        qhat[0] = np.real(qhat[0])
+        qhat[0, 0, -1, :] = 1.0
+        qhat[0, 1, -1, :] = 1.0
+        qhat[0, 3, -1, :] = 1.0  # Last var is index 3, not 4
+        np.savez(
+            npz_path,
+            Qhat=qhat,
+            T_period=1.0,
+            x=np.array([0, 1]),
+            y=np.array([0, 1, 2]),
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+        with pytest.raises(ValueError, match="must have 5 variables"):
+            load_periodic_baseflow(npz_path)
+
+
+def test_load_periodic_baseflow_qhat0_imaginary() -> None:
+    """Test load raises ValueError when npz Qhat[0] has large imaginary part."""
+    with tempfile.TemporaryDirectory() as tmp:
+        npz_path = Path(tmp) / "bad_imag.npz"
+        qhat = np.ones((2, 5, 3, 2), dtype=complex)
+        qhat[0] = 1.0 + 0.5 * 1j  # Large imaginary part
+        qhat[0, 0, -1, :] = 1.0
+        qhat[0, 1, -1, :] = 1.0
+        qhat[0, 4, -1, :] = 1.0
+        np.savez(
+            npz_path,
+            Qhat=qhat,
+            T_period=1.0,
+            x=np.array([0, 1]),
+            y=np.array([0, 1, 2]),
+            Re=1000.0,
+            Ma=0.5,
+            Pr=0.71,
+            kappa=1.4,
+            T_0=300.0,
+        )
+        with pytest.raises(ValueError, match="imaginary part"):
+            load_periodic_baseflow(npz_path)

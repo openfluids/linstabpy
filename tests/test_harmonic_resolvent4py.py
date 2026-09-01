@@ -428,3 +428,147 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
                 f"resolvent4py {gains[i]:.6e}, dense {sigma_ref[i]:.6e}, "
                 f"rel_err {rel_err:.2e}"
             )
+
+
+@pytest.mark.skipif(
+    find_spec("resolvent4py") is None,
+    reason="resolvent4py needed so the first import succeeds",
+)
+def test_harmonic_resolvent_petsc4py_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test harmonic_resolvent_gains raises ImportError when petsc4py missing.
+
+    resolvent4py is present. Import it to warm the module cache so the
+    function's own resolvent4py imports succeed from cache. Then poison
+    petsc4py to trigger its guard.
+    """
+    import sys
+
+    # Warm resolvent4py module cache.
+    import resolvent4py
+    import resolvent4py.linalg
+    import resolvent4py.linear_operators
+
+    # Poison petsc4py in module cache to force ImportError.
+    monkeypatch.setitem(sys.modules, "petsc4py", None)
+
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    # The petsc4py guard fires before any file is read, so fake names safe.
+    coo_fnames = [("r.dat", "c.dat", "v.dat")]
+    perts_freqs = np.array([1.0])
+
+    with pytest.raises(ImportError, match="petsc4py not found"):
+        harmonic_resolvent_gains(
+            coo_fnames,
+            2,
+            perts_freqs=perts_freqs,
+        )
+
+
+@_requires_stack
+def test_harmonic_resolvent_slepc4py_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test harmonic_resolvent_gains raises ImportError when slepc4py missing.
+
+    The full stack (petsc, slepc, resolvent) is present. Build a tiny
+    well-conditioned system, write COO files, then poison slepc4py to
+    trigger its guard in the projector branch.
+    """
+    import sys
+    import tempfile
+
+    import scipy.sparse as sp
+
+    from linstabpy.operators.harmonic_blocks import (
+        HarmonicBlocks,
+        write_resolvent4py_coo,
+    )
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    # Build tiny well-conditioned system (4-DOF).
+    A = sp.csr_matrix(-2.0 * np.eye(4, dtype=complex))
+    blocks = HarmonicBlocks(Ahat=[A], N_h=0, N_t=2)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
+
+        # Poison slepc4py in module cache to force ImportError.
+        monkeypatch.setitem(sys.modules, "slepc4py", None)
+
+        # Call with dq_fnames to enter the projector branch.
+        # The slepc4py guard fires before dq files are read, so fake safe.
+        perts_freqs = np.array([1.0])
+
+        with pytest.raises(ImportError, match="slepc4py not found"):
+            harmonic_resolvent_gains(
+                coo_fnames,
+                4,
+                perts_freqs=perts_freqs,
+                n_modes=1,
+                dq_fnames=["dq_never_read.dat"],
+            )
+
+
+@_requires_stack
+def test_harmonic_resolvent_kappa_dense_reference() -> None:
+    """Test kappa (discount) factor against dense numpy reference.
+
+    Build a 6-DOF system, apply kappa=0.4 shift, compute the gain via
+    harmonic_resolvent_gains, and compare against an independent dense
+    SVD reference. The system is smaller than n_rand=30, so the sketch
+    clamps to full space and the comparison is tight (rel_err < 1e-8).
+    """
+    import tempfile
+
+    import scipy.sparse as sp
+
+    from linstabpy.operators.harmonic_blocks import (
+        HarmonicBlocks,
+        write_resolvent4py_coo,
+    )
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    # Seed and build a dense 6x6 matrix.
+    rng = np.random.default_rng(11)
+    A_dense = rng.standard_normal((6, 6)) + 1j * rng.standard_normal((6, 6)) - 6.0 * np.eye(6)
+
+    # Convert to CSR and wrap in blocks.
+    blocks = HarmonicBlocks(
+        Ahat=[sp.csr_matrix(A_dense)],
+        N_h=0,
+        N_t=2,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
+
+        # Seed global RNG before call (resolvent4py derives PETSc seed
+        # from numpy's legacy global stream).
+        np.random.seed(2024)
+        gains, _info = harmonic_resolvent_gains(
+            coo_fnames,
+            6,
+            perts_freqs=np.array([1.3]),
+            n_modes=1,
+            kappa=0.4,
+        )
+
+        # Dense reference: T = -(A - 0.4*I) + i*1.3*I + eps_reg*I.
+        # eps_reg defaults to 1e-7 in the solver.
+        eps_reg = 1e-7
+        T_dense = -(A_dense - 0.4 * np.eye(6)) + 1j * 1.3 * np.eye(6) + eps_reg * np.eye(6)
+
+        sigma_min = np.linalg.svd(T_dense, compute_uv=False)[-1]
+        expected_gain = 1.0 / sigma_min
+
+        assert len(gains) >= 1, "harmonic_resolvent_gains returned no gains"
+
+        rel_err = abs(gains[0] - expected_gain) / (abs(expected_gain) + 1e-16)
+        detail = (
+            f"kappa=0.4, omega=1.3: solver {gains[0]:.6e}, "
+            f"dense {expected_gain:.6e}, rel_err {rel_err:.2e}"
+        )
+        assert rel_err < 1e-8, f"Dense-reference mismatch: {detail}"

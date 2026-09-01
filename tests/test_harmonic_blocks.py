@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
+import importlib.util
 
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
 from linstabpy.baseflow.periodic import PeriodicBaseFlow
-from linstabpy.baseflow.viscosity import sutherland_air
 from linstabpy.operators.harmonic_blocks import (
     HarmonicBlocks,
     assemble_harmonic_blocks,
@@ -65,7 +63,6 @@ def steady_pbf(small_mesh_2d) -> PeriodicBaseFlow:
 
 def test_harmonic_blocks_steady(small_mesh_2d, steady_pbf) -> None:
     """Test steady base flow: Ahat_0 == build_lnse_system, higher Ahat_k ~ 0."""
-
     from linstabpy.operators.assembly import build_lnse_system
 
     # Build reference LNSE operator at steady state
@@ -100,8 +97,6 @@ def test_harmonic_blocks_manufactured(small_mesh_2d) -> None:
     For a linear operator in Q, Ahat[1] should scale linearly with eps.
     Verify the scaling and check O(eps^2) accuracy via central differences.
     """
-
-    from linstabpy.baseflow.baseflow import BaseFlow
     from linstabpy.operators.assembly import build_lnse_system
 
     ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
@@ -240,7 +235,6 @@ def test_harmonic_blocks_manufactured(small_mesh_2d) -> None:
 
 def test_harmonic_blocks_asymmetry_kx_zero(small_mesh_2d) -> None:
     """Test that conjugation asymmetry is ~0 at kx=0 (where Ahat[-k] = conj(Ahat[k]))."""
-
     ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
     x_1d = small_mesh_2d.X[0, :]
     y_1d = small_mesh_2d.Y[:, 0]
@@ -285,7 +279,6 @@ def test_harmonic_blocks_asymmetry_kx_zero(small_mesh_2d) -> None:
 
 def test_harmonic_blocks_asymmetry_kx_nonzero(small_mesh_2d) -> None:
     """Test that conjugation asymmetry is >1e-3 at kx!=0 (genuinely complex operator)."""
-
     ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
     x_1d = small_mesh_2d.X[0, :]
     y_1d = small_mesh_2d.Y[:, 0]
@@ -330,7 +323,6 @@ def test_harmonic_blocks_asymmetry_kx_nonzero(small_mesh_2d) -> None:
 
 def test_harmonic_blocks_tail_ratio(small_mesh_2d, steady_pbf) -> None:
     """Test tail_ratio computation when N_t allows it."""
-
     # With N_t = 32 and N_h = 5, we can compute tail_ratio
     blocks = assemble_harmonic_blocks(
         small_mesh_2d,
@@ -347,7 +339,6 @@ def test_harmonic_blocks_tail_ratio(small_mesh_2d, steady_pbf) -> None:
 
 def test_harmonic_blocks_rejects_aliasing_N_t(small_mesh_2d, steady_pbf) -> None:
     """Test that aliasing guard rejects N_t <= 2*N_h."""
-
     # N_h=3, N_t=6: extracting k=-3..3 from 6-point FFT aliases (N_t must be > 2*N_h)
     with pytest.raises(ValueError, match="N_t=.*must be.*2.*N_h"):
         assemble_harmonic_blocks(
@@ -358,3 +349,119 @@ def test_harmonic_blocks_rejects_aliasing_N_t(small_mesh_2d, steady_pbf) -> None
             kx=0.0,
             model="2D",
         )
+
+
+def test_harmonic_blocks_ahat_length_mismatch() -> None:
+    """Test that len(Ahat) != 2*N_h + 1 raises ValueError."""
+    # N_h=1 needs 3 blocks (k=-1, 0, +1); give only 2.
+    A_list = [sp.csr_matrix(np.eye(3)), sp.csr_matrix(np.eye(3))]
+    with pytest.raises(ValueError, match="must have"):
+        HarmonicBlocks(
+            Ahat=A_list,
+            N_h=1,
+            N_t=4,
+        )
+
+
+def test_harmonic_blocks_odd_N_t_error(small_mesh_2d, steady_pbf) -> None:
+    """Test that odd N_t raises ValueError."""
+    # N_t=5 is odd; the assembler rejects it before any sampling.
+    with pytest.raises(ValueError, match="must be even"):
+        assemble_harmonic_blocks(
+            small_mesh_2d,
+            steady_pbf,
+            N_h=1,
+            N_t=5,
+            kx=0.0,
+            model="2D",
+        )
+
+
+def test_write_resolvent4py_coo_petsc_missing(tmp_path) -> None:
+    """Test write_resolvent4py_coo raises ImportError when petsc4py missing."""
+    import importlib.util
+
+    if importlib.util.find_spec("petsc4py") is not None:
+        pytest.skip("petsc4py installed; the guard needs its absence")
+
+    # Create minimal HarmonicBlocks with one identity block
+    A_list = [sp.csr_matrix(np.eye(3))]
+    blocks = HarmonicBlocks(
+        Ahat=A_list,
+        N_h=0,
+        N_t=2,
+    )
+
+    from linstabpy.operators.harmonic_blocks import write_resolvent4py_coo
+
+    with pytest.raises(ImportError, match="petsc4py not found"):
+        write_resolvent4py_coo(blocks, str(tmp_path))
+
+
+def test_write_resolvent4py_vecs_petsc_missing(tmp_path) -> None:
+    """Test write_resolvent4py_vecs raises ImportError when petsc4py missing."""
+    import importlib.util
+
+    if importlib.util.find_spec("petsc4py") is not None:
+        pytest.skip("petsc4py installed; the guard needs its absence")
+
+    vecs = [np.zeros(3, dtype=complex)]
+
+    from linstabpy.operators.harmonic_blocks import write_resolvent4py_vecs
+
+    with pytest.raises(ImportError, match="petsc4py not found"):
+        write_resolvent4py_vecs(vecs, str(tmp_path))
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="petsc4py absent; the first guard fires before this one",
+)
+def test_write_resolvent4py_coo_resolvent4py_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Test write_resolvent4py_coo raises ImportError when resolvent4py missing.
+
+    petsc4py is present but resolvent4py is poisoned in sys.modules.
+    """
+    import sys
+
+    # Poison resolvent4py in module cache to force ImportError.
+    monkeypatch.setitem(sys.modules, "resolvent4py", None)
+
+    # Create minimal HarmonicBlocks with one identity block.
+    A_list = [sp.csr_matrix(np.eye(3))]
+    blocks = HarmonicBlocks(
+        Ahat=A_list,
+        N_h=0,
+        N_t=2,
+    )
+
+    from linstabpy.operators.harmonic_blocks import write_resolvent4py_coo
+
+    with pytest.raises(ImportError, match="resolvent4py not found"):
+        write_resolvent4py_coo(blocks, str(tmp_path))
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="petsc4py absent; the first guard fires before this one",
+)
+def test_write_resolvent4py_vecs_resolvent4py_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Test write_resolvent4py_vecs raises ImportError when resolvent4py missing.
+
+    petsc4py is present but resolvent4py is poisoned in sys.modules.
+    """
+    import sys
+
+    # Poison resolvent4py in module cache to force ImportError.
+    monkeypatch.setitem(sys.modules, "resolvent4py", None)
+
+    vecs = [np.zeros(3, dtype=complex)]
+
+    from linstabpy.operators.harmonic_blocks import write_resolvent4py_vecs
+
+    with pytest.raises(ImportError, match="resolvent4py not found"):
+        write_resolvent4py_vecs(vecs, str(tmp_path))

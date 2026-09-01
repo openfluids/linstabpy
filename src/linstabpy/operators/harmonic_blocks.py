@@ -196,7 +196,10 @@ def assemble_harmonic_blocks(
         # a keying or searchsorted error.
         reconstructed = sp.csr_matrix((out, union_indices, union_indptr), shape=(n_dof, n_dof))
         diff = A_n - reconstructed
-        if diff.nnz > 0 and np.max(np.abs(diff.data)) > 0:
+        # The union pattern holds every entry of A_n by construction, so
+        # this raise fires only on an internal defect. No public input can
+        # reach it, which is why coverage excludes the branch.
+        if diff.nnz > 0 and np.max(np.abs(diff.data)) > 0:  # pragma: no cover
             message = (
                 f"Union pattern alignment failed at instant {inst}: "
                 f"reconstructed matrix differs from original in {diff.nnz} entries"
