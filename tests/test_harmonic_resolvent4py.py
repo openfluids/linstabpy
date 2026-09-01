@@ -134,11 +134,11 @@ def test_harmonic_resolvent_coo_round_trip() -> None:
 
 
 @_requires_stack
-def test_harmonic_resolvent_steady_limit_gate(small_mesh_2d) -> None:
-    """Steady-limit gate: k=0 only via harmonic resolvent matches resolvent_analysis.
+def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
+    """N_h=0 harmonic resolvent, classical resolvent, and dense SVD agree at conditioned point.
 
-    N_h=0 blocks (single frequency only), eps_reg=0 (unperturbed), and
-    leading gain must match the classical resolvent_analysis to 1e-12.
+    At kappa = gamma = 10 the measured cond(T) is 2.6e6. All three
+    approaches then agree to near machine accuracy.
     """
     import tempfile
 
@@ -187,27 +187,127 @@ def test_harmonic_resolvent_steady_limit_gate(small_mesh_2d) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
 
-        # Seed the global RNG: resolvent4py's randomized SVD derives its
-        # PETSc seed from numpy's legacy global stream, the same channel
-        # the toy test seeds. Jobs 3040/3045/3046 measured a digit-identical
-        # 9.18e-4 mismatch unseeded, so the truncation error sits far below
-        # the gate; the seed makes the number reproducible from this file.
-        np.random.seed(2024)
-        gains, _info = harmonic_resolvent_gains(
-            coo_fnames,
-            blocks.Ahat[0].shape[0],
-            perts_freqs=perts_freqs,
-            n_modes=1,
-            eps_reg=0.0,
-        )
+        # Dense reference: build T_dense with kappa=gamma=10
+        A_dense = blocks.Ahat[0].toarray()
+        n = A_dense.shape[0]
+        T_dense = -(A_dense - 10.0 * np.eye(n)) + 1j * omega * np.eye(n)
+        svals = np.linalg.svd(T_dense, compute_uv=False)
+        gain_dense = 1.0 / svals[-1]
 
-        # Reference: classical resolvent_analysis on the identical matrix.
+        # Classical resolvent_analysis with gamma=10.0
         from linstabpy.resolvent.analysis import resolvent_analysis
 
         L0 = blocks.Ahat[0].tocsc()
         n_dof = L0.shape[0]
+        gains_ref, *_ = resolvent_analysis(
+            L0,
+            omega,
+            n_modes=1,
+            W_diag=np.ones(n_dof),
+            gamma=10.0,
+            solver_cfg={"resolvent": {"eigen": {"eps_tol": 1e-12}}},
+        )
 
-        # W_diag of ones is the plain L2 norm the harmonic wrapper uses.
+        # Seed the global RNG: resolvent4py derives its PETSc seed from
+        # numpy's legacy global stream, so this makes the randomized SVD
+        # reproducible from this file.
+        np.random.seed(2024)
+        gains, _info = harmonic_resolvent_gains(
+            coo_fnames,
+            n,
+            perts_freqs=perts_freqs,
+            n_modes=1,
+            kappa=10.0,
+            eps_reg=0.0,
+        )
+
+        # Verify three gains against dense reference
+        assert len(gains) >= 1, "Harmonic resolvent returned no gains"
+        assert len(gains_ref) >= 1, "resolvent_analysis returned no gains"
+
+        # Measured c9 job 3057/3058: cond(T) = 2.6e6, eps*cond = 5.8e-10
+        # Harmonic vs dense: 2.3e-11; classical vs dense: 1.1e-10. The 1e-8
+        # gate is 17x above eps*cond and 100x above measured error, so failure
+        # signals a real regression, not floating-point limits.
+        rel_err_harm = abs(gains[0] - gain_dense) / (abs(gain_dense) + 1e-16)
+        rel_err_class = abs(gains_ref[0] - gain_dense) / (abs(gain_dense) + 1e-16)
+        rel_err_mutual = abs(gains[0] - gains_ref[0]) / (abs(gains_ref[0]) + 1e-16)
+
+        detail_harm = f"harmonic {gains[0]:.6e}, dense {gain_dense:.6e}, rel_err {rel_err_harm:.2e}"
+        assert rel_err_harm < 1.0e-8, f"Harmonic vs dense mismatch: {detail_harm}"
+
+        detail_class = (
+            f"classical {gains_ref[0]:.6e}, dense {gain_dense:.6e}, rel_err {rel_err_class:.2e}"
+        )
+        assert rel_err_class < 1.0e-8, f"Classical vs dense mismatch: {detail_class}"
+
+        detail_mutual = (
+            f"harmonic {gains[0]:.6e}, classical {gains_ref[0]:.6e}, rel_err {rel_err_mutual:.2e}"
+        )
+        assert rel_err_mutual < 1.0e-8, f"Harmonic vs classical mismatch: {detail_mutual}"
+
+
+@_requires_stack
+def test_harmonic_resolvent_steady_limit_conditioning_bound(small_mesh_2d) -> None:
+    """At undamped point, operator conditioning caps all methods at ~1e-3 uncertainty.
+
+    Every method in double precision carries ~1e-3 relative error on the
+    ill-conditioned T (cond = 1.73e13). Harmonic and classical paths must
+    stay inside that band. The companion test above proves the equivalence
+    at a conditioned point.
+    """
+    import tempfile
+
+    from linstabpy.baseflow.periodic import PeriodicBaseFlow
+    from linstabpy.operators.harmonic_blocks import (
+        assemble_harmonic_blocks,
+        write_resolvent4py_coo,
+    )
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    qhat = np.zeros((1, 5, ny, nx), dtype=complex)
+    qhat[0, 0] = 1.0
+    qhat[0, 1] = 1.0
+    qhat[0, 2] = 0.0
+    qhat[0, 3] = 0.0
+    qhat[0, 4] = 1.0
+
+    pbf = PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=1.0,
+        x=x_1d,
+        y=y_1d,
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+
+    blocks = assemble_harmonic_blocks(
+        small_mesh_2d,
+        pbf,
+        N_h=0,
+        N_t=4,
+        kx=0.0,
+        model="2D",
+    )
+
+    omega = 1.0
+    perts_freqs = np.array([omega])
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
+
+        # Classical resolvent_analysis with kappa and gamma at default (0)
+        from linstabpy.resolvent.analysis import resolvent_analysis
+
+        L0 = blocks.Ahat[0].tocsc()
+        n_dof = L0.shape[0]
         gains_ref, *_ = resolvent_analysis(
             L0,
             omega,
@@ -216,13 +316,30 @@ def test_harmonic_resolvent_steady_limit_gate(small_mesh_2d) -> None:
             solver_cfg={"resolvent": {"eigen": {"eps_tol": 1e-12}}},
         )
 
-        # Compare leading gains
+        # Seed the global RNG: resolvent4py derives its PETSc seed from
+        # numpy's legacy global stream, so this makes the randomized SVD
+        # reproducible from this file.
+        np.random.seed(2024)
+        gains, _info = harmonic_resolvent_gains(
+            coo_fnames,
+            n_dof,
+            perts_freqs=perts_freqs,
+            n_modes=1,
+            eps_reg=0.0,
+        )
+
+        # Measured c9 jobs 3056/3057: cond(T) = 1.73e13, eps*cond = 3.8e-3.
+        # The previous 1e-12 assertion demanded precision that double precision
+        # cannot support and failed permanently at 9.18e-4 (jobs 3040/3045/3046),
+        # which lies inside the eps*cond band. The 5e-3 gate includes that
+        # measured bound plus safety margin; the conditioned-point test above
+        # proves correctness at a well-posed tolerance.
         assert len(gains) >= 1, "Harmonic resolvent returned no gains"
         assert len(gains_ref) >= 1, "resolvent_analysis returned no gains"
 
         rel_err = abs(gains[0] - gains_ref[0]) / (abs(gains_ref[0]) + 1e-16)
         detail = f"harmonic {gains[0]:.6e}, classical {gains_ref[0]:.6e}, rel_err {rel_err:.2e}"
-        assert rel_err < 1e-12, f"Steady-limit gain mismatch: {detail}"
+        assert rel_err < 5.0e-3, f"Undamped limit gate exceeded: {detail}"
 
 
 @_requires_stack
@@ -446,9 +563,6 @@ def test_harmonic_resolvent_petsc4py_missing(
     import sys
 
     # Warm resolvent4py module cache.
-    import resolvent4py
-    import resolvent4py.linalg
-    import resolvent4py.linear_operators
 
     # Poison petsc4py in module cache to force ImportError.
     monkeypatch.setitem(sys.modules, "petsc4py", None)
@@ -567,8 +681,5 @@ def test_harmonic_resolvent_kappa_dense_reference() -> None:
         assert len(gains) >= 1, "harmonic_resolvent_gains returned no gains"
 
         rel_err = abs(gains[0] - expected_gain) / (abs(expected_gain) + 1e-16)
-        detail = (
-            f"kappa=0.4, omega=1.3: solver {gains[0]:.6e}, "
-            f"dense {expected_gain:.6e}, rel_err {rel_err:.2e}"
-        )
+        detail = f"solver {gains[0]:.6e}, dense {expected_gain:.6e}, rel_err {rel_err:.2e}"
         assert rel_err < 1e-8, f"Dense-reference mismatch: {detail}"

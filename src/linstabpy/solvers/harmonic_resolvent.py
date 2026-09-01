@@ -37,6 +37,11 @@ def harmonic_resolvent_gains(
         Number of leading singular values to extract. Default 10.
     n_rand_cycles : int, optional
         Randomized SVD number of subspace iterations. Default 3.
+        The sigma_1 estimate converges through the sigma_1/sigma_2 gap,
+        so nearly degenerate leading singular values need more cycles and
+        a larger sketch. Measured on a gap-free spectrum (sigma_1/sigma_2 =
+        1.0): relative error 3.6e-2 at the defaults, 1.4e-16 with n_rand=100
+        and n_rand_cycles=20 (c9 job 3058).
     n_rand : int, optional
         Oversampling dimension for randomized SVD. Default 30.
         Clamped internally to min(n_rand, N_full).
