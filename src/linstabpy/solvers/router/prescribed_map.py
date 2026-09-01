@@ -106,6 +106,11 @@ def prescribed_map(
 
     solver_cfg = dict(_solver_cfg(cfg_map))
     gamma = float(cfg_map.get("resolvent_discount_gamma", 0.0))
+    config_gamma = (
+        float(cfg_map["resolvent_discount_gamma"])
+        if "resolvent_discount_gamma" in cfg_map
+        else None
+    )
     forcing_norm = cfg_map.get("forcing_norm", "chu")
     allow_zero_bin = _analysis_bool(cfg_map, "prescribed_allow_zero_bin", default=False)
     assembled_betas: dict[float, dict[str, object]] = {}
@@ -161,7 +166,7 @@ def prescribed_map(
             forcing = load_prescribed_forcing(
                 forcing_path,
                 expected_ndof=ndof,
-                config_gamma=gamma if gamma > 0.0 else None,
+                config_gamma=config_gamma,
                 allow_zero_bin=allow_zero_bin,
             )
             _require_row_matches_forcing(

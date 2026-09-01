@@ -147,8 +147,8 @@ def test_prescribed_forcing_roundtrips_leading_svd_vector(forcing_norm: str) -> 
     """Gate 2b: the SVD's own optimal forcing returns exactly its gain.
 
     This round-trip test catches energy-losing bugs in the pipeline that
-    the inequality test (bounded_by_leading_svd) passes through. A wrong
-    mask, wrong norm, or a factor-of-2 error will make gain < sigma1, and
+    the inequality test (bounded_by_leading_svd) passes through. A mismatched
+    mask, a mismatched norm, or a factor-of-2 error will make gain < sigma1, and
     only this test—which recovers the SVD's own optimal vector—detects
     the loss.
     """
@@ -240,6 +240,54 @@ def test_prescribed_forcing_matches_resolvent_analysis_leading_mode() -> None:
         forcings[:, 0],
         gamma=gamma,
         B_mat=B_mat,
+        solver_cfg={"resolvent": {"eigen": {}}},
+    )
+
+    assert gain == pytest.approx(float(gains[0]), abs=1e-8, rel=1e-8)
+    np.testing.assert_allclose(q_hat, gains[0] * responses[:, 0], atol=1e-8, rtol=1e-8)
+
+
+@_requires_solver
+@pytest.mark.parametrize("forcing_norm", ["chu", "l2"])
+def test_prescribed_forcing_roundtrips_resolvent_analysis_weighted(
+    forcing_norm: str,
+) -> None:
+    """A non-identity W binds the forcing_norm switch between paths.
+
+    When W_diag is non-uniform, the Chu-weighted and L2 gains differ.
+    This test roundtrips both branches through resolvent_analysis to bind
+    the forcing_norm parameter across both SVD and prescribed paths.
+    """
+    assert resolvent_analysis is not None  # guaranteed by _requires_solver
+
+    omega, gamma = 1.3, 0.0
+    L0 = _seeded_operator(10, seed=5)
+    rng = np.random.default_rng(13)
+    w_diag = 0.5 + rng.random(10)
+    b_diag = np.array([1.0, 1.0, 0.0, 1.0, 1.0, 1.2, 1.0, 1.0, 0.0, 1.0])
+    B_mat = sp.diags(b_diag)
+
+    gains, responses, forcings = cast(
+        "tuple[np.ndarray, np.ndarray, np.ndarray]",
+        resolvent_analysis(
+            L0,
+            omega=omega,
+            n_modes=1,
+            W_diag=w_diag,
+            B_mat=B_mat,
+            gamma=gamma,
+            solver_cfg={"resolvent": {"eigen": {"eps_tol": 1e-12, "forcing_norm": forcing_norm}}},
+        ),
+    )
+
+    q_hat, gain, _ = prescribed_forcing_response(
+        L0,
+        omega,
+        w_diag,
+        forcings[:, 0],
+        gamma=gamma,
+        B_mat=B_mat,
+        forcing_norm=forcing_norm,
         solver_cfg={"resolvent": {"eigen": {}}},
     )
 
@@ -613,18 +661,16 @@ def test_prescribed_map_mismatched_npz_fails(tmp_path: Path) -> None:
     importlib.util.find_spec("petsc4py") is None,
     reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
 )
-def test_prescribed_forcing_zero_forcing_yields_zero_gain() -> None:
-    """Zero-denominator branches: all-zero forcing yields zero gain."""
-    q_hat, gain, info = prescribed_forcing_response(
-        _seeded_operator(6, seed=3),
-        1.0,
-        np.ones(6),
-        np.zeros(6, dtype=complex),
-        solver_cfg={"resolvent": {"eigen": {}}},
-    )
-    assert np.all(q_hat == 0)
-    assert gain == 0.0
-    assert info["rho_fwd"] == 0.0
+def test_prescribed_forcing_zero_forcing_raises() -> None:
+    """All-zero forcing cannot yield a gain; a ValueError is raised."""
+    with pytest.raises(ValueError, match="zero.*norm.*cannot compute gain"):
+        prescribed_forcing_response(
+            _seeded_operator(6, seed=3),
+            1.0,
+            np.ones(6),
+            np.zeros(6, dtype=complex),
+            solver_cfg={"resolvent": {"eigen": {}}},
+        )
 
 
 @pytest.mark.skipif(

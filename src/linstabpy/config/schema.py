@@ -181,7 +181,6 @@ _STRING_FIELDS = frozenset(
         "bc_mask_layout",
         "assembly_backend",
         "schema_version",
-        "prescribed_forcing",
     }
 )
 
@@ -262,6 +261,20 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
         value = cfg[key]
         if not isinstance(value, bool):
             violations.append(f"{key}: expected bool, got {type(value).__name__}")
+
+    # Prescribed-forcing: if present, must be a list of dicts.
+    if "prescribed_forcing" in cfg:
+        value = cfg["prescribed_forcing"]
+        if not isinstance(value, list):
+            violations.append(
+                f"prescribed_forcing: expected list of row dicts, got {type(value).__name__}"
+            )
+        else:
+            for row_idx, row in enumerate(value):
+                if not isinstance(row, dict):
+                    violations.append(
+                        f"prescribed_forcing[{row_idx}]: expected dict, got {type(row).__name__}"
+                    )
 
     for key in sorted(_STRING_FIELDS & cfg.keys()):
         value = cfg[key]

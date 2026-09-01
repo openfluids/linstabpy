@@ -18,6 +18,44 @@ from linstabpy.solvers.router.prescribed_map import (
 )
 
 
+class TestPrescribedConfigSchema:
+    """Schema validation for prescribed_forcing config."""
+
+    def test_validate_config_prescribed_forcing_valid_list(self) -> None:
+        """A minimal config with prescribed_forcing as list of dicts passes."""
+        from linstabpy.config.schema import validate_config
+
+        cfg = {
+            "prescribed_forcing": [
+                {"beta": 0.1, "omega": 0.5, "path": "dummy.npz"},
+            ]
+        }
+        assert validate_config(cfg) is None
+
+    def test_validate_config_prescribed_forcing_string_raises(self) -> None:
+        """prescribed_forcing as string (not list) raises ConfigValidationError."""
+        from linstabpy.config.schema import validate_config
+
+        cfg = {
+            "prescribed_forcing": "path/to/file.npz",
+        }
+        with pytest.raises(ConfigValidationError, match="prescribed_forcing.*expected list"):
+            validate_config(cfg)
+
+    def test_validate_config_prescribed_forcing_non_dict_row_raises(self) -> None:
+        """prescribed_forcing list containing non-dict raises ConfigValidationError."""
+        from linstabpy.config.schema import validate_config
+
+        cfg = {
+            "prescribed_forcing": [
+                {"beta": 0.1, "omega": 0.5, "path": "dummy.npz"},
+                "not_a_dict",
+            ]
+        }
+        with pytest.raises(ConfigValidationError, match="prescribed_forcing.*expected dict"):
+            validate_config(cfg)
+
+
 class TestPrescribedConfigExclusivity:
     """Config exclusivity gate: prescribed and classical options cannot coexist."""
 
@@ -99,7 +137,7 @@ class TestPrescribedIOValidation:
             np.testing.assert_array_almost_equal(forcing.f, f_hat)
 
     def test_load_wrong_ndof_raises(self):
-        """Loading with wrong ndof raises."""
+        """Loading with a mismatched ndof raises."""
         with tempfile.TemporaryDirectory() as tmpdir:
             npz_path = Path(tmpdir) / "test.npz"
             f_hat = np.array([1.0 + 0.5j, 2.0 - 0.3j])
@@ -564,3 +602,84 @@ def test_prescribed_map_solve_failure_records_failed(
     assert record["status"] == "failed"
     assert "exception" in record
     assert "injected solve failure" in record["exception"]
+
+
+def test_prescribed_map_config_gamma_mismatch_records_failure(tmp_path: Path) -> None:
+    """Config gamma differing from npz gamma records a failed row."""
+    from examples.martini.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    Re = 6.0e5
+    Ma = 0.3
+    Pr = 0.7
+    kappa = 1.4
+    T_0 = 273.15
+
+    nx = 12
+    ny = 8
+    dx = 0.01
+    xrange = (5 * dx, 1.25 + dx)
+    yrange = (-1.0, 1.0)
+    fd_order = 4
+
+    cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter="none")
+
+    Y = cmesh.Y.copy()
+    y_i = 0.01
+    y_max = 0.05
+    a = y_i * y_max / (y_max - 2 * y_i)
+    b = 1 + 2 * a / y_max
+    Y_phys = a * (1 + Y) / (b - Y)
+    mesh = cmesh.deform(Y_new=Y_phys)
+
+    bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
+    sutherland_air(bf)
+
+    x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
+    y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
+    weight = np.exp(-(((x_pts - 0.65) / 0.08) ** 2 + ((y_pts - 0.01) / 0.01) ** 2))
+    f_hat = np.tile(weight.astype(complex), 5)
+    norm = np.linalg.norm(f_hat)
+    if norm > 0.0:
+        f_hat /= norm
+
+    npz_path = tmp_path / "forcing.npz"
+    np.savez(npz_path, f=f_hat, beta=0.001, omega=60.0, gamma=0.1)
+
+    cfg = {
+        "mesh": mesh,
+        "Re": Re,
+        "Ma": Ma,
+        "Pr": Pr,
+        "kappa": kappa,
+        "T_0": T_0,
+        "fd_order": fd_order,
+        "model": "2D",
+        "bc_recipe": [
+            {
+                "type": "dirichlet",
+                "borders": "lrbt",
+                "variables": "uvwT",
+            }
+        ],
+        "bc_penalty": 1.0e4,
+        "prescribed_forcing": [
+            {
+                "beta": 0.001,
+                "omega": 60.0,
+                "forcing_path": str(npz_path),
+            }
+        ],
+        "forcing_norm": "l2",
+        "resolvent_discount_gamma": 0.0,
+    }
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert len(result.point_records) == 1
+    record = result.point_records[0]
+    assert record["status"] == "failed"
+    assert "exception" in record
+    assert "gamma" in record["exception"]

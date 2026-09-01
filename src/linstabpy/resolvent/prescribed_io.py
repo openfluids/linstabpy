@@ -142,7 +142,7 @@ def _check_zero_bin(beta: float, omega: float, path: str | Path, *, allow_zero_b
     the disturbance field. A non-zero mean-flow distortion would be a physical
     statement about the base-flow correction; a zero-bin forcing is a different
     question from the prescribed-forcing resolvent problem. Rejecting (0, 0)
-    by default prevents a caller from silently asking the wrong question.
+    by default prevents a caller from asking a different question by accident.
 
     Raises
     ------
@@ -150,7 +150,7 @@ def _check_zero_bin(beta: float, omega: float, path: str | Path, *, allow_zero_b
         If ``(beta, omega) == (0.0, 0.0)`` and ``allow_zero_bin`` is False.
     """
     if not allow_zero_bin and (beta, omega) == (0.0, 0.0):
-        message = f"{path}: (beta, omega) = (0, 0) is the mean-flow bin; set allow_zero_bin=True to accept it"
+        message = f"{path}: (beta, omega) = (0, 0) is the mean-flow bin; set allow_zero_bin=True"
         raise ValueError(message)
 
 
@@ -165,7 +165,7 @@ def _reconcile_gamma(
     encodes the physics of the external forcing (a deliberate choice at
     generation time), while config_gamma comes from the user's solver
     setup. A silent disagreement would poison every row of a gain map with
-    the wrong discount—the resolvent response would be solved for one
+    a discount mismatch—the resolvent response would be solved for one
     gamma but reported under another. The comparison is exact bitwise
     equality, not approximate: the only valid outcome is that both carry
     the same value or only one is present.

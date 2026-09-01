@@ -323,7 +323,14 @@ def prescribed_forcing_response(
     q_w_norm = _w_norm(q_hat, w)
     f_w_norm = _w_norm(f, w)
     denom = f_w_norm if forcing_norm == "chu" else _l2_norm(f)
-    gain = q_w_norm / denom if denom > 0.0 else q_w_norm
+    # Zero denominator means the forcing has zero norm, so the gain
+    # cannot be computed. This is an error: the caller must provide
+    # a non-zero forcing vector.
+    if denom <= 0.0:
+        norm_label = "Chu-weighted" if forcing_norm == "chu" else "L2"
+        message = f"forcing has zero {norm_label} norm; cannot compute gain"
+        raise ValueError(message)
+    gain = q_w_norm / denom
     info: dict[str, float | str] = {
         "rho_fwd": rho_fwd,
         "gain": gain,
