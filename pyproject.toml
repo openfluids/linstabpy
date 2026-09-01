@@ -102,6 +102,27 @@ markers = [
 # coverage. A user-supplied -m on the command line takes precedence over this.
 addopts = "-m 'not matlab_parity'"
 
+[tool.mutmut]
+source_paths = ["src/"]
+pytest_add_cli_args_test_selection = ["tests/test_viscosity.py"]
+mutate_only_covered_lines = true
+timeout_multiplier = 30.0
+timeout_constant = 2.0
+only_mutate = [
+  "src/linstabpy/baseflow/viscosity.py",
+]
+do_not_mutate = [
+  "*plotting.py",
+  "*__tests.py",
+]
+do_not_mutate_patterns = [
+  'logger\.\w+',
+  'logging\.\w+',
+  'print\(',
+  'plt\.',
+  'matplotlib',
+]
+
 # Strict agent gate for new Python files (ruff all-rules, basedpyright, STE).
 [tool.py-strict]
 scope = "new"
