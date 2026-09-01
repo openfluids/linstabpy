@@ -195,7 +195,7 @@ def load_periodic_baseflow(
     ------
     ValueError
         Missing required key, non-finite entries, T_period <= 0,
-        Qhat wrong shape/ndim, mesh_shape mismatch, imaginary Qhat[0],
+        Qhat mismatched shape/ndim, mesh_shape mismatch, imaginary Qhat[0],
         freestream check failure.
     """
     with np.load(path) as data:

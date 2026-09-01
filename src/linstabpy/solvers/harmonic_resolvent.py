@@ -41,7 +41,7 @@ def harmonic_resolvent_gains(
         so nearly degenerate leading singular values need more cycles and
         a larger sketch. Measured on a gap-free spectrum (sigma_1/sigma_2 =
         1.0): relative error 3.6e-2 at the defaults, 1.4e-16 with n_rand=100
-        and n_rand_cycles=20 (c9 job 3058).
+        and n_rand_cycles=20 (measured on the reference compute stack).
     n_rand : int, optional
         Oversampling dimension for randomized SVD. Default 30.
         Clamped internally to min(n_rand, N_full).
@@ -52,10 +52,9 @@ def harmonic_resolvent_gains(
         Default 1e-7 (matches resolvent4py toy). Set to 0.0 for
         unperturbed solve (e.g., steady-state gate).
     dq_fnames : list[str], optional
-        File paths for the dQ harmonics, one Vec file per perturbation
-        harmonic in two-sided order k=-N_p..N_p. That is 2*N_p+1 files,
-        with N_p = N_h + 3. When present, the solver builds the
-        phase-shift projectors P_d and P_r.
+        One Vec file per base harmonic k=-N_h..N_h
+        (2*N_h+1 files). Reader centers them on the
+        perturbation ladder (2*N_p+1 blocks).
 
     Returns
     -------

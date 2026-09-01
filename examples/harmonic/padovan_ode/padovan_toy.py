@@ -176,7 +176,7 @@ Harmonic Content
 
     log_text += "\nPETSc/resolvent4py Stage\n"
     log_text += "------------------------\n"
-    log_text += "Run on c9 (complex PETSc + MUMPS) to compute harmonic resolvent gains.\n"
+    log_text += "Run with complex PETSc, SLEPc, MUMPS and resolvent4py for the gains.\n"
 
     (out_dir / "padovan_toy.log").write_text(log_text)
     print(f"Wrote {out_dir / 'padovan_toy.npz'} and {out_dir / 'padovan_toy.log'}")
@@ -215,11 +215,9 @@ Harmonic Content
         print(f"COO files written to {out_dir / 'coo'}")
     except ImportError:
         print("resolvent4py not available; COO export skipped")
-        print("To run harmonic resolvent on c9, install resolvent4py and run:")
+        print("To run harmonic resolvent, install resolvent4py and run:")
         print(f"  cd {out_dir}")
-        print(
-            '  python -c "from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains"'
-        )
+        print("  python -c 'from linstabpy.solvers import harmonic_resolvent'")
         return
 
     # Build phase-shift vectors dQ_k (one per harmonic, two-sided order).

@@ -40,7 +40,7 @@ def plot_singular_values(
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
         print(f"Saved {out_path}")
     else:
-        print("sigma_j not in npz; skipping plot (requires resolvent4py on c9)")
+        print("sigma_j not in npz; skipping plot (needs resolvent4py on a complex PETSc build)")
 
 
 if __name__ == "__main__":

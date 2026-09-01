@@ -172,10 +172,10 @@ def test_load_periodic_baseflow_missing_key() -> None:
 
 
 def test_load_periodic_baseflow_bad_shape() -> None:
-    """Test that wrong Qhat shape raises ValueError."""
+    """Test that mismatched Qhat shape raises ValueError."""
     with tempfile.TemporaryDirectory() as tmp:
         npz_path = Path(tmp) / "bad_shape.npz"
-        # Wrong ndim
+        # Mismatched ndim
         qhat_bad = np.random.randn(2, 5, 3)  # should be 4D
         np.savez(
             npz_path,

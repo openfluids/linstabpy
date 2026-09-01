@@ -224,7 +224,7 @@ def test_harmonic_blocks_manufactured(small_mesh_2d) -> None:
         norm_diff_half = 0.0
 
     # Both should be small (within discretization error)
-    # For a more robust test, check that the ratio falls by factor ~4 (O(eps^2))
+    # Check that the ratio falls by a factor of about 4 (O(eps^2)).
     if norm_diff_eps > 1e-12 and norm_diff_half > 1e-12:
         rate = norm_diff_eps / norm_diff_half
         # Should be ~4 for O(eps^2) convergence, but accept wider range due to discretization
@@ -334,7 +334,80 @@ def test_harmonic_blocks_tail_ratio(small_mesh_2d, steady_pbf) -> None:
     )
 
     assert blocks.tail_ratio is not None
-    assert blocks.tail_ratio >= 0.0
+    # Measured 4.22e-11; bound at 5e-10 (10x margin).
+    assert np.isfinite(blocks.tail_ratio) and 0.0 <= blocks.tail_ratio <= 5e-10
+
+
+def test_harmonic_blocks_stable_under_N_t_doubling(small_mesh_2d) -> None:
+    """Doubling N_t leaves every kept Ahat_k unchanged to the measured floor.
+
+    Same manufactured base as test_harmonic_blocks_manufactured, N_h=2.
+    A misaligned union pattern or FFT bin would move Ahat_k by O(1).
+    """
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    x_1d = small_mesh_2d.X[0, :]
+    y_1d = small_mesh_2d.Y[:, 0]
+
+    # Build mean
+    qbar = np.zeros((5, ny, nx))
+    qbar[0] = 1.0
+    qbar[1] = 1.0
+    qbar[4] = 1.0
+
+    # Build perturbation
+    qtilde = np.zeros((5, ny, nx))
+    qtilde[0] = 0.02
+    qtilde[1] = 0.01
+    qtilde[4] = 0.01
+
+    # Manufactured periodic base
+    eps_val = 0.05
+    qhat = np.zeros((2, 5, ny, nx), dtype=complex)
+    qhat[0] = qbar
+    qhat[1] = (eps_val / 2.0) * qtilde
+
+    pbf = PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=1.0,
+        x=x_1d,
+        y=y_1d,
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+
+    # Assemble at N_t=32 and N_t=64 with N_h=2
+    N_h = 2
+    blocks_32 = assemble_harmonic_blocks(
+        small_mesh_2d,
+        pbf,
+        N_h=N_h,
+        N_t=32,
+        kx=0.0,
+        model="2D",
+    )
+    blocks_64 = assemble_harmonic_blocks(
+        small_mesh_2d,
+        pbf,
+        N_h=N_h,
+        N_t=64,
+        kx=0.0,
+        model="2D",
+    )
+
+    # Per-k relative change: ||Ahat_k(64) - Ahat_k(32)||_F / ||Ahat_k(64)||_F
+    # Measured: max 1.96e-10; tolerance 2e-9 (10x margin).
+    for k_idx in range(len(blocks_64.Ahat)):
+        A_64 = blocks_64.Ahat[k_idx]
+        A_32 = blocks_32.Ahat[k_idx]
+        # Frobenius norms from the stored entries; complex-safe (uses |z|).
+        diff = A_64 - A_32
+        norm_diff = float(np.linalg.norm(diff.data)) if diff.nnz else 0.0
+        norm_A64 = float(np.linalg.norm(A_64.data))
+        rel_err = norm_diff / norm_A64 if norm_A64 > 0.0 else 0.0
+        assert rel_err < 2e-9, f"k={k_idx - N_h}: rel_change {rel_err:.4e} exceeds 2e-9"
 
 
 def test_harmonic_blocks_rejects_aliasing_N_t(small_mesh_2d, steady_pbf) -> None:

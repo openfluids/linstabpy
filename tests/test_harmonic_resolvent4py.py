@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 # Conditional gate: skip @_requires_stack tests where the stack is missing.
-# petsc4py and slepc4py are only on c9; resolvent4py is a pip-installed extra.
+# The complex PETSc/SLEPc stack is absent on plain hosts; resolvent4py is an extra.
 _HAS_STACK = (
     find_spec("petsc4py") is not None
     and find_spec("slepc4py") is not None
@@ -19,7 +19,7 @@ _HAS_STACK = (
 )
 _requires_stack = pytest.mark.skipif(
     not _HAS_STACK,
-    reason="SKIPPED: requires petsc4py/slepc4py/mpi4py/resolvent4py (c9)",
+    reason="SKIPPED: requires petsc4py/slepc4py/mpi4py/resolvent4py (complex PETSc build)",
 )
 
 
@@ -225,7 +225,7 @@ def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
         assert len(gains) >= 1, "Harmonic resolvent returned no gains"
         assert len(gains_ref) >= 1, "resolvent_analysis returned no gains"
 
-        # Measured c9 job 3057/3058: cond(T) = 2.6e6, eps*cond = 5.8e-10
+        # Measured on reference stack: cond(T) = 2.6e6, eps*cond = 5.8e-10
         # Harmonic vs dense: 2.3e-11; classical vs dense: 1.1e-10. The 1e-8
         # gate is 17x above eps*cond and 100x above measured error, so failure
         # signals a real regression, not floating-point limits.
@@ -328,9 +328,9 @@ def test_harmonic_resolvent_steady_limit_conditioning_bound(small_mesh_2d) -> No
             eps_reg=0.0,
         )
 
-        # Measured c9 jobs 3056/3057: cond(T) = 1.73e13, eps*cond = 3.8e-3.
+        # Measured on reference stack: cond(T) = 1.73e13, eps*cond = 3.8e-3.
         # The previous 1e-12 assertion demanded precision that double precision
-        # cannot support and failed permanently at 9.18e-4 (jobs 3040/3045/3046),
+        # cannot support and failed permanently at 9.18e-4 in every earlier run,
         # which lies inside the eps*cond band. The 5e-3 gate includes that
         # measured bound plus safety margin; the conditioned-point test above
         # proves correctness at a well-posed tolerance.
