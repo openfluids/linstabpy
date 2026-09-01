@@ -51,43 +51,38 @@ def _setup_logging() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def _manufacture_forcing_field(ny: int, nx: int) -> np.ndarray:
+def _manufacture_forcing_field(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Create a synthetic localized forcing field in all five state fields.
 
-    Returns a complex vector with a Gaussian bump at the domain center.
-    The forcing is unit-normalized before returning.
+    The state vector holds five field blocks. Each block lists the grid
+    points in the solver's column-major order, which *x* and *y* already
+    follow. The same Gaussian bump goes into every block, centered in the
+    streamwise direction and near the boundary layer. The result is
+    unit-normalized.
 
     Parameters
     ----------
-    ny, nx : int
-        Grid dimensions.
+    x, y : ndarray
+        Physical grid-point coordinates in the solver's grid ordering,
+        one entry per point.
 
     Returns
     -------
     f_hat : ndarray
-        Complex forcing vector, shape (5*ny*nx,).
+        Complex forcing vector, shape (5 * x.size,).
     """
-    ndof = 5 * ny * nx
-    f_hat = np.zeros(ndof, dtype=complex)
+    x_min = float(x.min())
+    x_max = float(x.max())
+    x_c = 0.5 * (x_min + x_max)
+    # 0.01 is the mapping parameter y_i of example 1: half of the
+    # wall-normal points sit below this height, so the grid resolves
+    # the bump.
+    y_c = 0.01
+    s_x = 0.1 * (x_max - x_min)
+    s_y = 0.01
 
-    x_min, x_max = 0.0, 1.0
-    y_min, y_max = -1.0, 1.0
-    x_center = (x_min + x_max) / 2.0
-    y_center = (y_min + y_max) / 2.0
-
-    dx = (x_max - x_min) / (nx - 1)
-    dy = (y_max - y_min) / (ny - 1)
-
-    for j in range(ny):
-        for i in range(nx):
-            xi = x_min + i * dx
-            yi = y_min + j * dy
-            dist = np.sqrt((xi - x_center) ** 2 + (yi - y_center) ** 2)
-            weight = np.exp(-(dist**2) / 0.01)
-
-            flat_idx = j * nx + i
-            for field_offset in range(5):
-                f_hat[field_offset * ny * nx + flat_idx] = weight * (1.0 + 0.1j)
+    weight = np.exp(-(((x - x_c) / s_x) ** 2 + ((y - y_c) / s_y) ** 2))
+    f_hat = np.tile(weight.astype(complex), 5)
 
     norm = np.linalg.norm(f_hat)
     if norm > 0.0:
@@ -116,16 +111,21 @@ def compute() -> None:
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map
 
-    logger.info("Loading Blasius base flow")
-    Re = 420.0
+    # Physical parameters follow example_1_blasius.yaml. kappa is the
+    # ratio of specific heats: sutherland_air divides by kappa*(kappa-1),
+    # and T_0 [K] makes the Sutherland temperature dimensional.
+    Re = 6.0e5
     Ma = 0.3
-    Pr = 0.72
-    kappa = 0.0
-    T_0 = 1.0
+    Pr = 0.7
+    kappa = 1.4
+    T_0 = 273.15
 
+    # Domain and mapping also follow example 1: x starts away from the
+    # leading edge because the Blasius solution is singular at x = 0.
     nx = 40
     ny = 25
-    xrange = (0.0, 1.0)
+    dx = 0.01
+    xrange = (5 * dx, 1.25 + dx)
     yrange = (-1.0, 1.0)
     fd_order = 4
 
@@ -133,8 +133,8 @@ def compute() -> None:
     cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter="none")
 
     Y = cmesh.Y.copy()
-    y_i = 0.2
-    y_max = 6.0
+    y_i = 0.01
+    y_max = 0.05
     a = y_i * y_max / (y_max - 2 * y_i)
     b = 1 + 2 * a / y_max
     Y_phys = a * (1 + Y) / (b - Y)
@@ -145,8 +145,13 @@ def compute() -> None:
     sutherland_air(bf)
 
     logger.info("Manufacturing forcing field")
-    f_hat = _manufacture_forcing_field(ny, nx)
-    np.savez(OUTPUT_NPZ, f=f_hat, beta=0.0, omega=0.5)
+    # The solver flattens each field block in column-major order and then
+    # keeps the points in mesh.used_ind (operators/assembly.py). Build the
+    # bump on the same point sequence so it lands where the comment says.
+    x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
+    y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
+    f_hat = _manufacture_forcing_field(x_pts, y_pts)
+    np.savez(OUTPUT_NPZ, f=f_hat, beta=0.0, omega=60.0)
     logger.info("Saved forcing to %s", OUTPUT_NPZ)
 
     cfg = {
@@ -161,7 +166,7 @@ def compute() -> None:
         "prescribed_forcing": [
             {
                 "beta": 0.0,
-                "omega": 0.5,
+                "omega": 60.0,
                 "forcing_path": str(OUTPUT_NPZ),
             },
         ],
