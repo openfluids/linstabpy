@@ -47,14 +47,17 @@ def harmonic_resolvent_gains(
         Default 1e-7 (matches resolvent4py toy). Set to 0.0 for
         unperturbed solve (e.g., steady-state gate).
     dq_fnames : list[str], optional
-        File paths for the dQ harmonics, one Vec file per harmonic in
-        two-sided order k=-N_h..N_h. When present, the solver builds the
+        File paths for the dQ harmonics, one Vec file per perturbation
+        harmonic in two-sided order k=-N_p..N_p. That is 2*N_p+1 files,
+        with N_p = N_h + 3. When present, the solver builds the
         phase-shift projectors P_d and P_r.
 
     Returns
     -------
     gains : np.ndarray
-        Shape (n_modes,), leading singular values of T^{-1} or P_r T^{-1} P_d.
+        Leading singular values of T^{-1} or P_r T^{-1} P_d. The length is
+        min(n_modes, n_rand, N_full): a randomized sketch cannot return
+        more values than its own dimension.
     info : dict
         Metadata: eps_reg, kappa, projected (bool), N_p, N_h, N_full, n,
         n_modes, n_rand (used).
@@ -206,14 +209,17 @@ def harmonic_resolvent_gains(
         H = Top
         action = Top.solve_mat
 
-    # Randomized SVD with oversampling parameter clamped to available DOF
+    # Randomized SVD with oversampling parameter clamped to available DOF.
+    # The sketch delivers at most n_rand_used singular values, so the
+    # request clamps to it as well; info reports the delivered count.
     n_rand_used = min(n_rand, N_full)
+    n_svals_used = min(n_modes, n_rand_used)
     _u, S, _v = randomized_svd(
         H,
         action,
         n_rand=n_rand_used,
         n_loops=n_rand_cycles,
-        n_svals=min(n_modes, N_full),
+        n_svals=n_svals_used,
         verbose=0,
     )
 
@@ -228,7 +234,7 @@ def harmonic_resolvent_gains(
         "N_h": N_h,
         "N_full": N_full,
         "n": n,
-        "n_modes": n_modes,
+        "n_modes": n_svals_used,
         "n_rand": n_rand_used,
     }
 

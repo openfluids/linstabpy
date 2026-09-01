@@ -50,8 +50,11 @@ cudss = [
     "nvmath-python[cu12] >= 1.0, < 2",
 ]
 
+# The wrapper targets the 1.0.1 wheel API: assemble_harmonic_resolvent_generator
+# takes two positional operators and builds the identity mass matrix itself.
+# Upstream main added a third mass argument, so an unpinned install can break.
 harmonic = [
-    "resolvent4py",
+    "resolvent4py == 1.0.1",
 ]
 [dependency-groups]
 test = ["pytest", "pytest-cov", "sympy>=1.13"]

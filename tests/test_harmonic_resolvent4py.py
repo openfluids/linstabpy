@@ -187,6 +187,12 @@ def test_harmonic_resolvent_steady_limit_gate(small_mesh_2d) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
 
+        # Seed the global RNG: resolvent4py's randomized SVD derives its
+        # PETSc seed from numpy's legacy global stream, the same channel
+        # the toy test seeds. Jobs 3040/3045/3046 measured a digit-identical
+        # 9.18e-4 mismatch unseeded, so the truncation error sits far below
+        # the gate; the seed makes the number reproducible from this file.
+        np.random.seed(2024)
         gains, _info = harmonic_resolvent_gains(
             coo_fnames,
             blocks.Ahat[0].shape[0],
@@ -226,6 +232,9 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
     Integrate the Padovan ODE and compute FFT harmonics of Q and A.
     Build T densely in numpy with blocks T_{jk} = Ahat_{j-k}.
     Compare leading singular values against harmonic_resolvent_gains.
+    Also check the phase-shift property on the cycle. The projected
+    gains do not move with the eps regularization. The phase mode
+    dominates the unprojected T^-1; the projectors remove it.
     """
     import importlib.util
     import tempfile
@@ -367,6 +376,31 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
         H_dense = Pr @ T_inv @ Pd
 
         sigma_ref = np.linalg.svd(H_dense, compute_uv=False)
+
+        # Phase-shift gate, dense side (Padovan 2020, the toy's own
+        # comparison). The truncated ladder leaves the phase direction
+        # nearly null in T, so that direction dominates the unprojected
+        # T^-1: measured sigma1 = 2.9e3 against a projected gain of 5.69
+        # (a factor of 512; the bound 100 leaves margin).
+        sigma_unproj = np.linalg.svd(T_inv, compute_uv=False)[0]
+        detail = f"unprojected sigma1 {sigma_unproj:.3e}, projected {sigma_ref[0]:.3e}"
+        assert sigma_unproj > 100.0 * sigma_ref[0], f"phase mode not dominant: {detail}"
+
+        # The projected gain must not move with the eps regularization.
+        # Measured: rel change 1.8e-5 between eps 1e-7 and 1e-5; the
+        # bound 1e-3 leaves margin. T_dense already carries +eps_reg*I,
+        # so shift by the difference. Pr depends only on dQ; Pd carries
+        # the eps-dependent left direction w = T^{-H} dQ.
+        eps_alt = 1e-5
+        T_alt = T_dense + (eps_alt - eps_reg) * np.eye(N_full)
+        w_alt = np.linalg.solve(T_alt.conj().T, dq_all)
+        w_alt /= np.linalg.norm(w_alt)
+        Pd_alt = np.eye(N_full) - np.outer(w_alt, w_alt.conj())
+        sigma_alt = np.linalg.svd(Pr @ np.linalg.inv(T_alt) @ Pd_alt, compute_uv=False)[0]
+        rel_change = abs(sigma_alt - sigma_ref[0]) / sigma_ref[0]
+        assert rel_change < 1e-3, (
+            f"projected sigma1 moved {rel_change:.2e} between eps 1e-7 and 1e-5"
+        )
 
         perts_freqs = np.arange(-N_p, N_p + 1) * omega0
         # resolvent4py seeds its PETSc RNG from numpy's global RNG

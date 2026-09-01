@@ -459,7 +459,7 @@ Harmonic resolvent analysis via `resolvent4py` (MIT license, SoftwareX 2025) is 
 
 ### Dependency and Installation
 
-Install with `pip install "linstabpy[harmonic]"`. This brings resolvent4py and ensures petsc4py >= 3.20 (the resolvent4py/PETSc compatibility constraint). The same `.venv` or `-gpu-*` environment that provides complex PETSc/SLEPc is sufficient; no separate PETSc build is needed.
+Install with `pip install "linstabpy[harmonic]"`. This brings resolvent4py 1.0.1 (the wheel API the wrapper targets). Note that resolvent4py declares only numpy/scipy/matplotlib as dependencies — it does not install petsc4py, so the complex PETSc/SLEPc stack must already be present. The same `.venv` or `-gpu-*` environment that provides complex PETSc/SLEPc is sufficient; no separate PETSc build is needed.
 
 ### Operator Size and Memory Scaling
 
