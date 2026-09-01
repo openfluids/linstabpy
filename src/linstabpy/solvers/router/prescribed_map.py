@@ -77,7 +77,7 @@ def prescribed_map(
         If the ``prescribed_forcing`` table is empty or a row has no
         ``forcing_path`` (or ``path``) key.
     """
-    from linstabpy.driver.preflight import config_advisories
+    from linstabpy.driver.preflight import config_advisories, format_advisories
     from linstabpy.solvers.router.resolvent_map import (
         _analysis_bool,
         _assemble_beta_operator,
@@ -112,9 +112,9 @@ def prescribed_map(
     point_records: list[dict[str, object]] = []
     stage_wall: dict[str, float] = {}
 
-    advisories = config_advisories(cfg_map, mesh)
+    advisories = config_advisories(cfg_map)
     if advisories:
-        LOGGER.warning("Config advisories:\n%s", "\n".join(advisories))
+        LOGGER.warning("%s", format_advisories(advisories, title="Config advisories"))
 
     # Extract filter functions from mesh.
     use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", default=True)
@@ -238,7 +238,7 @@ def prescribed_map(
         )
         point_records.append(record)
         LOGGER.info(
-            "prescribed_map point complete row=%d beta=%.12g omega=%.12g gain=%s rho_fwd=%s wall_s=%.6g",
+            "point complete row=%d beta=%.12g omega=%.12g gain=%s rho_fwd=%s wall_s=%.6g",
             row_index,
             beta,
             omega,
