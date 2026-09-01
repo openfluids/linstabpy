@@ -472,7 +472,7 @@ Compute one half-plane; the other follows by conjugation.
 is a separate question). Set `prescribed_allow_zero_bin: true` in the config to override.
 
 Examples: `examples/prescribed_forcing/prescribed_demo.py` manufactures a test forcing field and 
-runs a small prescribed map. See also `docs/plan_1.1_prescribed_forcing.md` for the full design.
+runs a small prescribed map.
 
 ### Boundary-condition acceptance
 

@@ -68,8 +68,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   `(beta, omega, npz_path)` rows from the config and outputs a CSV with gains,
   residuals, and provenance. Config exclusivity gate ensures the prescribed and
   SVD paths do not mix: both ask coherent questions, but answering both at once
-  is silent drift. See `docs/plan_1.1_prescribed_forcing.md` for the design,
-  physics framing, and the npz forcing-file contract. Example: 
+  is silent drift. See the README section "Prescribed forcing (version 1.1+)"
+  for the design, physics framing, and the npz forcing-file contract. Example: 
   `examples/prescribed_forcing/prescribed_demo.py`.
 
 ### Fixed

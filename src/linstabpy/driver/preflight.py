@@ -90,12 +90,12 @@ class Advisory:
     """One actionable finding. ``code`` is stable and greppable. ``remedy`` names the fix."""
 
     code: str
-    severity: str  # "warning" | "note"
+    severity: str  # "warning" | "note" | "error"
     message: str
     remedy: str
 
     def render(self) -> str:
-        tag = "WARNING" if self.severity == "warning" else "note"
+        tag = {"warning": "WARNING", "error": "ERROR"}.get(self.severity, "note")
         return f"  [{tag}] {self.code}: {self.message}\n           -> {self.remedy}"
 
 
@@ -116,7 +116,11 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
         return out
 
     run_stab = bool(_get(config, "analysis.run_stability", False))
-    run_res = bool(_get(config, "analysis.run_resolvent", False))
+    # A prescribed-forcing run assembles the same LNSE operator as the
+    # classical resolvent, so the dissipation advisories apply to it too.
+    run_res = bool(_get(config, "analysis.run_resolvent", False)) or bool(
+        config.get("prescribed_forcing")
+    )
     od = _get(config, "numerics.operator_dissipation", {})
     od = od if isinstance(od, Mapping) else {}
     od_enabled = bool(od.get("enabled", False))
@@ -259,16 +263,19 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 )
             )
 
-
     # Prescribed-forcing exclusivity check (1.1 feature).
     if config.get("prescribed_forcing"):
+        # The classical markers may sit at top level or under ``analysis``,
+        # which is where the driver reads run_resolvent from.
+        analysis = _get(config, "analysis", {})
+        analysis = analysis if isinstance(analysis, Mapping) else {}
         classical_markers = [
             ("beta_range", "classical beta_range"),
             ("f_range", "classical f_range"),
             ("run_resolvent", "classical run_resolvent"),
         ]
         for key, label in classical_markers:
-            if key in config:
+            if key in config or key in analysis:
                 out.append(
                     Advisory(
                         "PRESCRIBED-EXCLUSIVITY",

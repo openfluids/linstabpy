@@ -142,7 +142,7 @@ def prescribed_map(
             raise ValueError(message)
 
         if beta not in assembled_betas:
-            LOGGER.info("prescribed_map assembling beta_index=%d beta=%.12g", row_index, beta)
+            LOGGER.info("prescribed_map assembling operator row=%d beta=%.12g", row_index, beta)
             assembly = _assemble_beta_operator(mesh, base_flow, beta, cfg_map)
             stage_wall["assemble_operator_bc"] = (
                 stage_wall.get("assemble_operator_bc", 0.0) + assembly.wall_s
@@ -163,6 +163,14 @@ def prescribed_map(
                 expected_ndof=ndof,
                 config_gamma=gamma if gamma > 0.0 else None,
                 allow_zero_bin=allow_zero_bin,
+            )
+            _require_row_matches_forcing(
+                row_index=row_index,
+                forcing_path=forcing_path,
+                beta_row=beta,
+                omega_row=omega,
+                beta_npz=forcing.beta,
+                omega_npz=forcing.omega,
             )
         except ValueError as e:
             record = _prescribed_point_record(
@@ -236,13 +244,15 @@ def prescribed_map(
             peak_rss_bytes=_peak_rss_bytes(),
             exception=exception,
         )
+        stage_wall["prescribed_solve"] = stage_wall.get("prescribed_solve", 0.0) + wall_s
         point_records.append(record)
         LOGGER.info(
-            "point complete row=%d beta=%.12g omega=%.12g gain=%s rho_fwd=%s wall_s=%.6g",
+            "point %s row=%d beta=%.12g omega=%.12g gain=%s rho_fwd=%s wall_s=%.6g",
+            status,
             row_index,
             beta,
             omega,
-            gain if gain is not None else "FAILED",
+            gain if gain is not None else "none",
             info.get("rho_fwd"),
             wall_s,
         )
@@ -280,13 +290,17 @@ def _validate_prescribed_exclusivity(cfg_map: dict[str, object]) -> None:
         return
 
     # Check for classical resolvent options that would be silent no-ops or confusing.
+    # They may sit at top level or under ``analysis``, which is where the
+    # classical path reads run_resolvent from (_analysis_bool).
+    analysis = cfg_map.get("analysis")
+    analysis = analysis if isinstance(analysis, dict) else {}
     classical_markers = [
         ("beta_range", "classical beta_range"),
         ("f_range", "classical f_range"),
         ("run_resolvent", "classical run_resolvent"),
     ]
     for key, label in classical_markers:
-        if key in cfg_map:
+        if key in cfg_map or key in analysis:
             message = (
                 f"Config has both prescribed_forcing and {label}. "
                 "These answer different questions (known f_hat vs SVD optimal forcing). "
@@ -294,6 +308,38 @@ def _validate_prescribed_exclusivity(cfg_map: dict[str, object]) -> None:
                 f"or remove {key} to run the prescribed path."
             )
             raise ConfigValidationError(message)
+
+
+def _require_row_matches_forcing(
+    *,
+    row_index: int,
+    forcing_path: str,
+    beta_row: float,
+    omega_row: float,
+    beta_npz: float,
+    omega_npz: float,
+) -> None:
+    """Raise when the forcing npz (beta, omega) differ from the table row.
+
+    The npz carries its own (beta, omega). A difference means the row
+    names the file of another point. The solve would then fill this map
+    cell from that other point's forcing.
+
+    Raises
+    ------
+    ValueError
+        If either value differs by more than 1e-9 relative.
+    """
+    for name, row_value, npz_value in (
+        ("beta", beta_row, beta_npz),
+        ("omega", omega_row, omega_npz),
+    ):
+        if abs(npz_value - row_value) > 1.0e-9 * max(1.0, abs(row_value)):
+            message = (
+                f"prescribed_forcing row {row_index}: table {name}={row_value:.12g} "
+                f"but {forcing_path} carries {name}={npz_value:.12g}"
+            )
+            raise ValueError(message)
 
 
 def _prescribed_point_record(

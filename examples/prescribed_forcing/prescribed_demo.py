@@ -31,6 +31,11 @@ OUTPUT_NPZ = SCRIPT_DIR / "prescribed_demo_forcing.npz"
 OUTPUT_CSV = SCRIPT_DIR / "prescribed_demo_gains.csv"
 OUTPUT_LOG = SCRIPT_DIR / "prescribed_demo.log"
 
+# The single demo point. The forcing npz and the config row must carry
+# the same pair, so both read these constants.
+BETA = 0.0
+OMEGA = 60.0
+
 
 def _setup_logging() -> logging.Logger:
     """Configure logging to both file and console.
@@ -96,6 +101,11 @@ def compute() -> None:
 
     Loads Blasius base flow, manufactures a forcing field,
     saves it to npz, and calls prescribed_map to solve the resolvent.
+
+    Raises
+    ------
+    RuntimeError
+        If more than one MPI rank runs the demo.
     """
     logger = logging.getLogger(__name__)
     logger.info("prescribed_demo compute starting")
@@ -105,6 +115,14 @@ def compute() -> None:
     from linstabpy.utils.petsc_init import init_petsc_from_argv
 
     init_petsc_from_argv()
+
+    from petsc4py import PETSc
+
+    # prescribed_map is serial. Under mpiexec every rank would write the
+    # same npz and append to the same CSV, so refuse more than one rank.
+    if PETSc.COMM_WORLD.getSize() > 1:
+        message = "prescribed_demo is serial; run it without mpiexec"
+        raise RuntimeError(message)
 
     from examples.martini.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
@@ -130,6 +148,9 @@ def compute() -> None:
     fd_order = 4
 
     logger.info("Building mesh: nx=%d ny=%d", nx, ny)
+    # alpha_filter="none" disables the stencil filter. Example 1 instead
+    # runs alpha_filter 0.0, which builds the maximum-strength filter
+    # (the MATLAB convention; see mesh/filters.py).
     cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter="none")
 
     Y = cmesh.Y.copy()
@@ -144,6 +165,27 @@ def compute() -> None:
     bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
     sutherland_air(bf)
 
+    # Sponge follows example 1: an absorbing layer at the outlet and the
+    # top boundary keeps reflections out of the response.
+    sponge_amp = 5.0
+    xs_trans = 0.02
+    xs_offset = 0.02
+    ys_trans = 0.01
+    ys_offset = 0.01
+    x_grid = mesh.X
+    y_grid = mesh.Y
+    mesh.sponge = (
+        sponge_amp
+        / 2
+        * np.maximum(
+            np.tanh((y_grid - y_grid.max() + ys_offset) / ys_trans) + 1,
+            np.tanh(-(x_grid - x_grid.min() - xs_offset) / xs_trans)
+            + 1
+            + np.tanh((x_grid - x_grid.max() + xs_offset) / xs_trans)
+            + 1,
+        )
+    )
+
     logger.info("Manufacturing forcing field")
     # The solver flattens each field block in column-major order and then
     # keeps the points in mesh.used_ind (operators/assembly.py). Build the
@@ -151,7 +193,7 @@ def compute() -> None:
     x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
     y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
     f_hat = _manufacture_forcing_field(x_pts, y_pts)
-    np.savez(OUTPUT_NPZ, f=f_hat, beta=0.0, omega=60.0)
+    np.savez(OUTPUT_NPZ, f=f_hat, beta=BETA, omega=OMEGA)
     logger.info("Saved forcing to %s", OUTPUT_NPZ)
 
     cfg = {
@@ -163,16 +205,24 @@ def compute() -> None:
         "T_0": T_0,
         "fd_order": fd_order,
         "model": "2D",
+        # Dirichlet walls on all four borders follow example 1. Without a
+        # recipe the assembly applies no boundary conditions at all.
+        "bc_recipe": [{"type": "dirichlet", "borders": "lrbt", "variables": "uvwT"}],
+        "bc_penalty": 1.0e4,
         "prescribed_forcing": [
             {
-                "beta": 0.0,
-                "omega": 60.0,
+                "beta": BETA,
+                "omega": OMEGA,
                 "forcing_path": str(OUTPUT_NPZ),
             },
         ],
         "prescribed_output_csv": str(OUTPUT_CSV),
         "forcing_norm": "l2",
     }
+
+    # The CSV writer appends rows. Remove a previous file so a rerun
+    # cannot keep old rows next to the new one.
+    OUTPUT_CSV.unlink(missing_ok=True)
 
     logger.info("Running prescribed_map")
     t0 = time.perf_counter()
@@ -188,9 +238,18 @@ def compute() -> None:
             record.get("row"),
             record.get("beta"),
             record.get("omega"),
-            f"{gain:.6g}" if gain is not None else "FAILED",
+            f"{gain:.6g}" if gain is not None else "none",
             status,
         )
+
+    # Add the gain to the npz only after a successful solve. main() requires
+    # the key, so a crash between the first savez and here cannot leave a
+    # cache that reads as complete. A failed point stores gain as None, so
+    # the float check is the success gate.
+    records = result.point_records
+    gain_value = records[0].get("gain") if records else None
+    if isinstance(gain_value, float):
+        np.savez(OUTPUT_NPZ, f=f_hat, beta=BETA, omega=OMEGA, gain=gain_value)
 
 
 def main() -> None:
@@ -207,7 +266,7 @@ def main() -> None:
         return
 
     t0 = time.perf_counter()
-    load_or_compute(OUTPUT_NPZ, compute, required_keys={"f", "beta", "omega"})
+    load_or_compute(OUTPUT_NPZ, compute, required_keys={"f", "beta", "omega", "gain"})
     elapsed = time.perf_counter() - t0
     logger.info("prescribed_demo complete (%.3f s)", elapsed)
 

@@ -26,20 +26,20 @@ def main():
         print(f"{CSV_PATH} not found; run prescribed_demo.py first")
         return
 
-    # Read CSV.
+    # Read CSV. Skip a row with a missing column or text in a numeric
+    # column.
+    import contextlib
     import csv
 
     records = []
-    with open(CSV_PATH, newline="") as f:
+    with Path(CSV_PATH).open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            try:
+            with contextlib.suppress(ValueError, KeyError):
                 omega = float(row["omega"])
                 gain = float(row["gain"]) if row["gain"] and row["gain"] != "None" else None
                 if gain is not None:
                     records.append((omega, gain))
-            except (ValueError, KeyError):
-                pass
 
     if not records:
         print("No valid gain data in CSV")
@@ -53,7 +53,9 @@ def main():
     fig, ax = plt.subplots(figsize=(8, 5), dpi=300)
     ax.semilogy(omegas, gains, "o-", linewidth=1.5, markersize=6, label="Prescribed gain")
     ax.set_xlabel(r"Frequency $\omega$ (nondimensional)", fontsize=11)
-    ax.set_ylabel(r"Gain $\|\hat q\|_W / \|\hat f\|_W$", fontsize=11)
+    # The demo sets forcing_norm "l2": Chu-weighted response over plain L2
+    # forcing norm, so the label names the two norms it actually plots.
+    ax.set_ylabel(r"Gain $\|\hat q\|_W / \|\hat f\|_2$", fontsize=11)
     ax.set_title("Prescribed-Forcing Resolvent Response", fontsize=12)
     ax.grid(True, which="both", alpha=0.3)
     ax.legend()
