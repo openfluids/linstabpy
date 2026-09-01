@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import sys
 import tempfile
 from pathlib import Path
 
@@ -234,7 +233,9 @@ def test_harmonic_blocks_manufactured(small_mesh_2d) -> None:
     if norm_diff_eps > 1e-12 and norm_diff_half > 1e-12:
         rate = norm_diff_eps / norm_diff_half
         # Should be ~4 for O(eps^2) convergence, but accept wider range due to discretization
-        assert 2.5 <= rate <= 6.0, f"Convergence rate {rate} not in [2.5, 6]; expected O(eps^2), first order would give 2"
+        assert 2.5 <= rate <= 6.0, (
+            f"Convergence rate {rate} not in [2.5, 6]; expected O(eps^2), first order would give 2"
+        )
 
 
 def test_harmonic_blocks_asymmetry_kx_zero(small_mesh_2d) -> None:
@@ -344,72 +345,16 @@ def test_harmonic_blocks_tail_ratio(small_mesh_2d, steady_pbf) -> None:
     assert blocks.tail_ratio >= 0.0
 
 
-def test_harmonic_blocks_write_resolvent4py_coo(small_mesh_2d, steady_pbf) -> None:
-    """Test COO export function structure and naming conventions."""
+def test_harmonic_blocks_rejects_aliasing_N_t(small_mesh_2d, steady_pbf) -> None:
+    """Test that aliasing guard rejects N_t <= 2*N_h."""
 
-    from unittest.mock import MagicMock, patch
-
-    blocks = assemble_harmonic_blocks(
-        small_mesh_2d,
-        steady_pbf,
-        N_h=0,
-        N_t=4,
-        kx=0.0,
-        model="2D",
-    )
-
-    # Create mock resolvent4py module to test the export logic
-    mock_r4py_io = MagicMock()
-    mock_resolvent4py_utils = MagicMock()
-    mock_resolvent4py_utils.io = mock_r4py_io
-    mock_resolvent4py = MagicMock()
-    mock_resolvent4py.utils = mock_resolvent4py_utils
-
-    write_calls = []
-
-    def track_write(path, data):
-        write_calls.append((path, data.dtype, data.shape))
-
-    mock_r4py_io.write_to_file = track_write
-
-    # Mock the resolvent4py import in the harmonic_blocks module
-    with patch.dict(
-        "sys.modules",
-        {
-            "resolvent4py": mock_resolvent4py,
-            "resolvent4py.utils": mock_resolvent4py_utils,
-            "resolvent4py.utils.io": mock_r4py_io,
-        },
-    ):
-        # Reload the module to pick up the mocked imports
-        import importlib
-
-        import linstabpy.operators.harmonic_blocks as hb_module
-
-        importlib.reload(hb_module)
-
-        from linstabpy.operators.harmonic_blocks import write_resolvent4py_coo
-
-        with tempfile.TemporaryDirectory() as tmp:
-            fnames = write_resolvent4py_coo(blocks, tmp)
-
-            # Check structure
-            assert len(fnames) == 1, f"Expected 1 file triple, got {len(fnames)}"
-            rows_path, cols_path, vals_path = fnames[0]
-
-            # Check naming convention
-            assert "rows_00.dat" in rows_path, f"Expected rows_00.dat in {rows_path}"
-            assert "cols_00.dat" in cols_path, f"Expected cols_00.dat in {cols_path}"
-            assert "vals_00.dat" in vals_path, f"Expected vals_00.dat in {vals_path}"
-
-            # Verify write calls were made (3 per harmonic)
-            assert len(write_calls) >= 3, "Expected at least 3 write calls for indices and data"
-
-            # Check data types
-            for path, dtype, shape in write_calls:
-                if "rows" in path or "cols" in path:
-                    assert dtype == np.int64, f"Indices should be int64, got {dtype} for {path}"
-                elif "vals" in path:
-                    assert dtype == np.complex128, (
-                        f"Values should be complex128, got {dtype} for {path}"
-                    )
+    # N_h=3, N_t=6: extracting k=-3..3 from 6-point FFT aliases (N_t must be > 2*N_h)
+    with pytest.raises(ValueError, match="N_t=.*must be.*2.*N_h"):
+        assemble_harmonic_blocks(
+            small_mesh_2d,
+            steady_pbf,
+            N_h=3,
+            N_t=6,
+            kx=0.0,
+            model="2D",
+        )

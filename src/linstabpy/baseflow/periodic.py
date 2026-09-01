@@ -26,9 +26,9 @@ class PeriodicBaseFlow:
         Complex array of shape (N_h+1, 5, ny, nx) holding harmonics k=0..N_h
         of Q(t). Variables in order: rho, u, v, w, T.
     T_period : float
-        Period of oscillation [s].
+        Period of oscillation, in case nondimensional time units (t·U_inf/L).
     x, y : np.ndarray
-        Mesh coordinate arrays [m].
+        Mesh coordinate arrays, in case nondimensional length units (L is ref length).
     Re : float
         Reynolds number.
     Ma : float
@@ -39,7 +39,7 @@ class PeriodicBaseFlow:
         Heat capacity ratio (gamma).
     T_0 : float
         Reference temperature [K].
-    extras : dict, optional
+    extras : dict | None, optional
         Optional metadata: commit, source, n_snapshots, n_cycles.
     """
 
@@ -52,7 +52,7 @@ class PeriodicBaseFlow:
     Pr: float
     kappa: float
     T_0: float
-    extras: dict = None
+    extras: dict | None = None
 
     @property
     def N_h(self) -> int:
@@ -96,14 +96,14 @@ class PeriodicBaseFlow:
             )
 
     def reconstruct(self, t: float) -> BaseFlow:
-        """Reconstruct Q(t) at instant t [s].
+        """Reconstruct Q(t) at instant t.
 
         Q(t) = Qhat[0] + 2 * sum_{k=1..N_h} Re(Qhat[k] * exp(+i*k*omega0*t))
 
         Parameters
         ----------
         t : float
-            Time instant [s].
+            Time instant, in case nondimensional time units.
 
         Returns
         -------
@@ -156,7 +156,7 @@ class PeriodicBaseFlow:
         -------
         np.ndarray
             Array of shape (N_t,) with times t_n = n * T_period / N_t,
-            n = 0..N_t-1.
+            n = 0..N_t-1, in case nondimensional time units.
         """
         return np.arange(N_t) * self.T_period / N_t
 
@@ -171,8 +171,8 @@ def load_periodic_baseflow(
 
     File contract (required keys):
       - Qhat: complex, shape (N_h+1, 5, ny, nx), harmonics k=0..N_h.
-      - T_period: float, period [s].
-      - x, y: coordinate arrays [m].
+      - T_period: float, period in case nondimensional time units.
+      - x, y: coordinate arrays in case nondimensional length units.
       - Re, Ma, Pr, kappa, T_0: scalar parameters.
 
     Optional keys: commit, source, n_snapshots, n_cycles.
@@ -198,29 +198,28 @@ def load_periodic_baseflow(
         Qhat wrong shape/ndim, mesh_shape mismatch, imaginary Qhat[0],
         freestream check failure.
     """
-    data = np.load(path)
+    with np.load(path) as data:
+        # Check required keys
+        required = {"Qhat", "T_period", "x", "y", "Re", "Ma", "Pr", "kappa", "T_0"}
+        missing = required - set(data.files)
+        if missing:
+            raise ValueError(f"Missing required keys: {missing}")
 
-    # Check required keys
-    required = {"Qhat", "T_period", "x", "y", "Re", "Ma", "Pr", "kappa", "T_0"}
-    missing = required - set(data.files)
-    if missing:
-        raise ValueError(f"Missing required keys: {missing}")
+        qhat = np.array(data["Qhat"], dtype=complex)
+        t_period = float(data["T_period"])
+        x_arr = np.array(data["x"])
+        y_arr = np.array(data["y"])
+        re = float(data["Re"])
+        ma = float(data["Ma"])
+        pr = float(data["Pr"])
+        kappa_param = float(data["kappa"])
+        t_0 = float(data["T_0"])
 
-    qhat = np.array(data["Qhat"], dtype=complex)
-    t_period = float(data["T_period"])
-    x_arr = np.array(data["x"])
-    y_arr = np.array(data["y"])
-    re = float(data["Re"])
-    ma = float(data["Ma"])
-    pr = float(data["Pr"])
-    kappa_param = float(data["kappa"])
-    t_0 = float(data["T_0"])
-
-    # Optional fields
-    extras: dict[str, Any] = {}
-    for key in ["commit", "source", "n_snapshots", "n_cycles"]:
-        if key in data.files:
-            extras[key] = data[key].item() if hasattr(data[key], "item") else data[key]
+        # Optional fields
+        extras: dict[str, Any] = {}
+        for key in ["commit", "source", "n_snapshots", "n_cycles"]:
+            if key in data.files:
+                extras[key] = data[key].item() if hasattr(data[key], "item") else data[key]
 
     # Shape check
     if qhat.ndim != 4:
@@ -256,7 +255,7 @@ def load_periodic_baseflow(
                 f"not within {freestream_rtol} of 1.0 (canonical normalization)"
             )
 
-    # Drop imaginary part of Qhat[0] if below tolerance
+    # Check and drop imaginary part of Qhat[0] if below tolerance
     qhat0_imag_norm = np.max(np.abs(np.imag(qhat[0])))
     qhat0_real_norm = np.max(np.abs(np.real(qhat[0])))
     if qhat0_real_norm > 0 and qhat0_imag_norm / qhat0_real_norm > 1e-10:
@@ -264,6 +263,7 @@ def load_periodic_baseflow(
             f"Qhat[0] has imaginary part {qhat0_imag_norm:.2e} relative to "
             f"real {qhat0_real_norm:.2e}, exceeds tolerance 1e-10"
         )
+    # Cast to real (this is why the imaginary magnitude check must come before)
     qhat[0] = np.real(qhat[0])
 
     return PeriodicBaseFlow(

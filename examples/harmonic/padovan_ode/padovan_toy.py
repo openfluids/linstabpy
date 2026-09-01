@@ -133,7 +133,7 @@ def main(
         "N_t": len(t_period),
         "params": np.array(params),
     }
-    np.save(str(out_dir / "padovan_toy.npz"), data_to_save)
+    np.savez(out_dir / "padovan_toy.npz", **data_to_save)
 
     log_text = f"""{Path(__file__).name} — Padovan ODE Harmonic Resolvent Validation
 
@@ -168,10 +168,11 @@ Harmonic Content
         norm_a = np.linalg.norm(Ashat[:, k])
         log_text += f"k={k:2d}: ||Qhat_k||_2={norm_q:.4e}, ||Ahat_k||_2={norm_a:.4e}\n"
 
-    log_text += "\nCOO Export\n"
-    log_text += "----------\n"
+    log_text += "\nCOO and dQ Export\n"
+    log_text += "-----------------\n"
     log_text += f"Exported harmonics k=0..{N_h} to COO format (rows, cols, vals).\n"
-    log_text += f"Two-sided storage: k=-{N_h}..{N_h} (via conjugation at kx=0).\n"
+    log_text += f"Two-sided storage: k=-{N_h}..{N_h} via conjugation (real operator).\n"
+    log_text += "Exported phase-shift vectors dQ_k (one Vec file per harmonic).\n"
 
     log_text += "\nPETSc/resolvent4py Stage\n"
     log_text += "------------------------\n"
@@ -181,7 +182,11 @@ Harmonic Content
     print(f"Wrote {out_dir / 'padovan_toy.npz'} and {out_dir / 'padovan_toy.log'}")
 
     try:
-        from linstabpy.operators.harmonic_blocks import HarmonicBlocks, write_resolvent4py_coo
+        from linstabpy.operators.harmonic_blocks import (
+            HarmonicBlocks,
+            write_resolvent4py_coo,
+            write_resolvent4py_vecs,
+        )
     except ImportError:
         print("linstabpy not in PYTHONPATH; skipping COO export")
         return
@@ -192,14 +197,21 @@ Harmonic Content
         ahat_csr = sp.csr_matrix(ahat_k_dense)
         ahat_csr_list.append(ahat_csr)
 
+    # Build two-sided storage via conjugation (real operator at kx=0).
+    # For k=0, use Ahat[0] as is. For k>0, use Ahat[k] for positive k and
+    # conj(Ahat[k]) for the corresponding negative harmonic.
+    ahat_two_sided = [
+        ahat_csr_list[abs(k)].conj() if k < 0 else ahat_csr_list[k] for k in range(-N_h, N_h + 1)
+    ]
+
     blocks = HarmonicBlocks(
-        Ahat=ahat_csr_list,
+        Ahat=ahat_two_sided,
         N_h=N_h,
         N_t=len(t_period),
     )
 
     try:
-        coo_fnames = write_resolvent4py_coo(blocks, str(out_dir / "coo"))
+        write_resolvent4py_coo(blocks, str(out_dir / "coo"))
         print(f"COO files written to {out_dir / 'coo'}")
     except ImportError:
         print("resolvent4py not available; COO export skipped")
@@ -208,6 +220,29 @@ Harmonic Content
         print(
             '  python -c "from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains"'
         )
+        return
+
+    # Build phase-shift vectors dQ_k (one per harmonic, two-sided order).
+    # dQ_k = 1j * k * omega0 * Qhat_k. The limit cycle is real, so
+    # Qhat_{-k} = conj(Qhat_k) and therefore dQ_{-k} = conj(dQ_k):
+    # dQ_{-k} = i(-k)*omega0*conj(Qhat_k) = conj(i*k*omega0*Qhat_k).
+    # dQ_0 is zero (no time derivative for the mean).
+    dq_vecs = []
+    for k in range(-N_h, N_h + 1):
+        if k == 0:
+            dq_vecs.append(np.zeros(3, dtype=complex))
+        else:
+            abs_k = abs(k)
+            dq_k = 1j * abs_k * omega0 * Qhat[:, abs_k]
+            if k < 0:
+                dq_k = np.conj(dq_k)
+            dq_vecs.append(dq_k)
+
+    try:
+        write_resolvent4py_vecs(dq_vecs, str(out_dir / "coo"), prefix="dQ")
+        print(f"Phase-shift vectors written to {out_dir / 'coo'}")
+    except ImportError:
+        print("resolvent4py not available; dQ export skipped")
 
 
 if __name__ == "__main__":
