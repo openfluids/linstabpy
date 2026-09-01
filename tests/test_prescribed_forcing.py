@@ -318,3 +318,355 @@ def test_load_prescribed_forcing_gamma_match_is_accepted(tmp_path: Path) -> None
     np.savez(path, f=np.ones(3, dtype=complex), beta=1.0, omega=0.5, gamma=0.2)
     loaded = load_prescribed_forcing(path, expected_ndof=3, config_gamma=0.2)
     assert loaded.gamma == pytest.approx(0.2)
+
+
+# --------------------------------------------------------------------------
+# Operator and npz-loader validation branches
+# --------------------------------------------------------------------------
+
+
+def test_prescribed_forcing_numpy_array_operator_raises() -> None:
+    """A dense array operator raises TypeError before any solve."""
+    with pytest.raises(TypeError, match="must be a 2-D sparse matrix or PETSc Mat"):
+        prescribed_forcing_response(np.ones((5, 5)), 1.0, np.ones(5), np.ones(5, dtype=complex))
+
+
+def test_prescribed_forcing_non_square_operator_raises() -> None:
+    """A non-square sparse operator raises ValueError before any solve."""
+    with pytest.raises(ValueError, match="must be a square matrix"):
+        prescribed_forcing_response(
+            sp.csr_matrix(np.ones((3, 4))),
+            1.0,
+            np.ones(3),
+            np.ones(3, dtype=complex),
+        )
+
+
+def test_prescribed_forcing_w_diag_length_mismatch_raises() -> None:
+    """A W_diag shorter than the operator size raises ValueError."""
+    L0 = _seeded_operator(6, seed=3)
+    with pytest.raises(ValueError, match="does not match operator ndof"):
+        prescribed_forcing_response(L0, 1.0, np.ones(4), np.ones(6, dtype=complex))
+
+
+def test_npz_scalar_plain_float_returns_unchanged() -> None:
+    """A plain Python float is returned unchanged."""
+    from linstabpy.resolvent.prescribed_io import _npz_scalar
+
+    result = _npz_scalar(2.5)
+    assert result == 2.5
+
+
+def test_load_prescribed_forcing_f_shape_ndof_mismatch_raises(tmp_path: Path) -> None:
+    """An f vector whose length differs from expected_ndof raises ValueError."""
+    path = tmp_path / "point.npz"
+    np.savez(path, f=np.ones(5, dtype=complex), beta=1.0, omega=0.5)
+    with pytest.raises(ValueError, match="does not match expected ndof"):
+        load_prescribed_forcing(path, expected_ndof=7)
+
+
+def test_load_prescribed_forcing_f_not_1d_raises(tmp_path: Path) -> None:
+    """Forcing vector that is not 1-D raises ValueError.
+
+    The external forcing must be stored as a 1-D vector, not a matrix.
+    """
+    path = tmp_path / "point.npz"
+    f = np.ones((3, 2), dtype=complex)
+    np.savez(path, f=f, beta=1.0, omega=0.5)
+    with pytest.raises(ValueError, match="f must be a 1-D vector"):
+        load_prescribed_forcing(path, expected_ndof=6)
+
+
+def test_prescribed_forcing_f_hat_not_1d_raises() -> None:
+    """Non-1-D f_hat raises ValueError.
+
+    The forcing vector must be a 1-D array.
+    """
+    L0 = _seeded_operator(6, seed=3)
+    w_diag = np.ones(6)
+    f_hat = np.ones((6, 1), dtype=complex)
+    with pytest.raises(ValueError, match="f_hat must be a 1-D vector"):
+        prescribed_forcing_response(L0, 1.0, w_diag, f_hat)
+
+
+def test_prescribed_forcing_w_diag_non_finite_raises() -> None:
+    """Non-finite W_diag (NaN or Inf) raises ValueError.
+
+    The Chu weight vector must contain only finite values.
+    """
+    L0 = _seeded_operator(6, seed=3)
+    w_diag = np.ones(6)
+    w_diag[2] = np.nan
+    f_hat = np.ones(6, dtype=complex)
+    with pytest.raises(ValueError, match="W_diag contains NaN or Inf"):
+        prescribed_forcing_response(L0, 1.0, w_diag, f_hat)
+
+
+def test_validate_w_diag_success_returns_float_array() -> None:
+    """Valid W_diag passes validation and returns float array.
+
+    This covers the success path return statement in _validate_w_diag.
+    """
+    from linstabpy.resolvent.prescribed import _validate_w_diag
+
+    w_input = np.array([1.0, 2.5, 0.3, 4.7])
+    w_result = _validate_w_diag(w_input, ndof=4)
+    assert isinstance(w_result, np.ndarray)
+    assert w_result.dtype == np.float64
+    np.testing.assert_array_equal(w_result, w_input)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
+)
+def test_prescribed_map_end_to_end_passing_point(tmp_path: Path) -> None:
+    """End-to-end resolvent: shrunk mesh, real base flow, prescribed forcing."""
+    from examples.martini.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+    from linstabpy.utils.petsc_init import init_petsc_from_argv
+
+    init_petsc_from_argv()
+
+    from petsc4py import PETSc
+
+    if PETSc.COMM_WORLD.getSize() > 1:
+        message = "test requires serial execution"
+        raise RuntimeError(message)
+
+    Re = 6.0e5
+    Ma = 0.3
+    Pr = 0.7
+    kappa = 1.4
+    T_0 = 273.15
+
+    nx = 12
+    ny = 8
+    dx = 0.01
+    xrange = (5 * dx, 1.25 + dx)
+    yrange = (-1.0, 1.0)
+    fd_order = 4
+
+    cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter="none")
+
+    Y = cmesh.Y.copy()
+    y_i = 0.01
+    y_max = 0.05
+    a = y_i * y_max / (y_max - 2 * y_i)
+    b = 1 + 2 * a / y_max
+    Y_phys = a * (1 + Y) / (b - Y)
+    mesh = cmesh.deform(Y_new=Y_phys)
+
+    bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
+    sutherland_air(bf)
+
+    x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
+    y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
+    weight = np.exp(-(((x_pts - 0.65) / 0.08) ** 2 + ((y_pts - 0.01) / 0.01) ** 2))
+    f_hat = np.tile(weight.astype(complex), 5)
+    norm = np.linalg.norm(f_hat)
+    if norm > 0.0:
+        f_hat /= norm
+
+    npz_path = tmp_path / "forcing.npz"
+    np.savez(npz_path, f=f_hat, beta=0.0, omega=60.0)
+
+    csv_path = tmp_path / "gains.csv"
+    cfg = {
+        "mesh": mesh,
+        "Re": Re,
+        "Ma": Ma,
+        "Pr": Pr,
+        "kappa": kappa,
+        "T_0": T_0,
+        "fd_order": fd_order,
+        "model": "2D",
+        "bc_recipe": [
+            {
+                "type": "dirichlet",
+                "borders": "lrbt",
+                "variables": "uvwT",
+            }
+        ],
+        "bc_penalty": 1.0e4,
+        "prescribed_forcing": [
+            {
+                "beta": 0.0,
+                "omega": 60.0,
+                "forcing_path": str(npz_path),
+            }
+        ],
+        "prescribed_output_csv": str(csv_path),
+        "forcing_norm": "l2",
+    }
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert len(result.point_records) == 1
+    record = result.point_records[0]
+    assert record["status"] == "ok"
+    assert record["gain"] is not None
+    assert record["gain"] > 0
+    assert record["rho_fwd"] is not None
+    assert record["rho_fwd"] < 1e-8
+    assert csv_path.exists()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
+)
+def test_prescribed_map_mismatched_npz_fails(tmp_path: Path) -> None:
+    """Mismatched table beta and npz beta causes failed record."""
+    from examples.martini.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+    from linstabpy.utils.petsc_init import init_petsc_from_argv
+
+    init_petsc_from_argv()
+
+    from petsc4py import PETSc
+
+    if PETSc.COMM_WORLD.getSize() > 1:
+        message = "test requires serial execution"
+        raise RuntimeError(message)
+
+    Re = 6.0e5
+    Ma = 0.3
+    Pr = 0.7
+    kappa = 1.4
+    T_0 = 273.15
+
+    nx = 12
+    ny = 8
+    dx = 0.01
+    xrange = (5 * dx, 1.25 + dx)
+    yrange = (-1.0, 1.0)
+    fd_order = 4
+
+    cmesh = Mesh.create(xrange, yrange, nx, ny, fd_order, alpha_filter="none")
+
+    Y = cmesh.Y.copy()
+    y_i = 0.01
+    y_max = 0.05
+    a = y_i * y_max / (y_max - 2 * y_i)
+    b = 1 + 2 * a / y_max
+    Y_phys = a * (1 + Y) / (b - Y)
+    mesh = cmesh.deform(Y_new=Y_phys)
+
+    bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
+    sutherland_air(bf)
+
+    x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
+    y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
+    weight = np.exp(-(((x_pts - 0.65) / 0.08) ** 2 + ((y_pts - 0.01) / 0.01) ** 2))
+    f_hat = np.tile(weight.astype(complex), 5)
+    norm = np.linalg.norm(f_hat)
+    if norm > 0.0:
+        f_hat /= norm
+
+    npz_path = tmp_path / "forcing.npz"
+    np.savez(npz_path, f=f_hat, beta=0.001, omega=60.0)
+
+    csv_path = tmp_path / "gains.csv"
+    cfg = {
+        "mesh": mesh,
+        "Re": Re,
+        "Ma": Ma,
+        "Pr": Pr,
+        "kappa": kappa,
+        "T_0": T_0,
+        "fd_order": fd_order,
+        "model": "2D",
+        "bc_recipe": [
+            {
+                "type": "dirichlet",
+                "borders": "lrbt",
+                "variables": "uvwT",
+            }
+        ],
+        "bc_penalty": 1.0e4,
+        "prescribed_forcing": [
+            {
+                "beta": 0.0,
+                "omega": 60.0,
+                "forcing_path": str(npz_path),
+            }
+        ],
+        "prescribed_output_csv": str(csv_path),
+        "forcing_norm": "l2",
+    }
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert len(result.point_records) == 1
+    record = result.point_records[0]
+    assert record["status"] == "failed"
+    assert "exception" in record
+    assert "table beta" in record["exception"]
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
+)
+def test_prescribed_forcing_zero_forcing_yields_zero_gain() -> None:
+    """Zero-denominator branches: all-zero forcing yields zero gain."""
+    q_hat, gain, info = prescribed_forcing_response(
+        _seeded_operator(6, seed=3),
+        1.0,
+        np.ones(6),
+        np.zeros(6, dtype=complex),
+        solver_cfg={"resolvent": {"eigen": {}}},
+    )
+    assert np.all(q_hat == 0)
+    assert gain == 0.0
+    assert info["rho_fwd"] == 0.0
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("petsc4py") is None,
+    reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
+)
+def test_prescribed_forcing_petsc_mat_input_parity() -> None:
+    """PETSc Mat and scipy sparse matrix inputs give identical gains."""
+    from petsc4py import PETSc
+
+    L0_scipy = _seeded_operator(6, seed=3)
+    # createAIJ reads the index triplet as CSR. _seeded_operator returns
+    # CSC, whose triplet read as CSR builds the transpose, so convert
+    # first. The transpose keeps every singular value but changes the
+    # response to a fixed forcing, which is what this test compares.
+    L0_csr = L0_scipy.tocsr()
+    L0_petsc = PETSc.Mat().createAIJ(
+        size=L0_csr.shape,
+        csr=(L0_csr.indptr, L0_csr.indices, L0_csr.data),
+    )
+    L0_petsc.assemble()
+
+    rng = np.random.default_rng(42)
+    f_hat = rng.standard_normal(6) + 1j * rng.standard_normal(6)
+    w_diag = np.ones(6)
+
+    _, gain_scipy, _ = prescribed_forcing_response(
+        L0_scipy,
+        1.0,
+        w_diag,
+        f_hat,
+        solver_cfg={"resolvent": {"eigen": {}}},
+    )
+
+    _, gain_petsc, _ = prescribed_forcing_response(
+        L0_petsc,
+        1.0,
+        w_diag,
+        f_hat,
+        solver_cfg={"resolvent": {"eigen": {}}},
+    )
+
+    L0_petsc.destroy()
+
+    assert gain_scipy == pytest.approx(gain_petsc, rel=1e-12)

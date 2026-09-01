@@ -580,3 +580,51 @@ def test_banner_and_summary_render_all_fields():
 
 def test_banner_handles_empty_fields():
     assert "linstabpy run configuration" in format_banner({})
+
+
+# --------------------------------------------------------------------------------------
+# Prescribed-forcing config checks
+# --------------------------------------------------------------------------------------
+
+
+def test_config_advisories_diss_key_mismatch_enabled_with_string_epsilon() -> None:
+    """A non-numeric dissipation_epsilon still yields DISS-KEY-MISMATCH."""
+    cfg = {
+        "prescribed_forcing": {"table": "t.csv"},
+        "numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}},
+        "dissipation_epsilon": "three",
+    }
+    adv = config_advisories(cfg)
+    found = next(a for a in adv if a.code == "DISS-KEY-MISMATCH")
+    assert found.severity == "warning"
+
+
+def test_config_advisories_diss_key_mismatch_without_top_level_epsilon() -> None:
+    """Enabled dissipation without a top-level epsilon flags DISS-KEY-MISMATCH."""
+    cfg = {
+        "prescribed_forcing": {"table": "t.csv"},
+        "numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}},
+    }
+    assert "DISS-KEY-MISMATCH" in codes(config_advisories(cfg))
+
+
+def test_config_advisories_prescribed_exclusivity_with_beta_range() -> None:
+    """prescribed_forcing plus beta_range yields a PRESCRIBED-EXCLUSIVITY error."""
+    cfg = {
+        "prescribed_forcing": {"table": "t.csv"},
+        "beta_range": [0.0, 1.0],
+    }
+    adv = config_advisories(cfg)
+    found = next(a for a in adv if a.code == "PRESCRIBED-EXCLUSIVITY")
+    assert found.severity == "error"
+
+
+def test_config_advisories_prescribed_exclusivity_with_run_resolvent() -> None:
+    """prescribed_forcing plus run_resolvent yields a PRESCRIBED-EXCLUSIVITY error."""
+    cfg = {
+        "prescribed_forcing": {"table": "t.csv"},
+        "analysis": {"run_resolvent": True},
+    }
+    adv = config_advisories(cfg)
+    found = next(a for a in adv if a.code == "PRESCRIBED-EXCLUSIVITY")
+    assert found.severity == "error"
