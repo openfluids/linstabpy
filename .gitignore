@@ -108,3 +108,8 @@ htmlcov/
 # private planning notes — never ship
 plan*.md
 goal*.md
+
+# Mutation-testing scratch (cov-mut-loop)
+mutants/
+.coverage.mutloop
+.mutmut-cache
