@@ -215,9 +215,8 @@ def test_harmonic_resolvent_steady_limit_gate(small_mesh_2d) -> None:
         assert len(gains_ref) >= 1, "resolvent_analysis returned no gains"
 
         rel_err = abs(gains[0] - gains_ref[0]) / (abs(gains_ref[0]) + 1e-16)
-        assert rel_err < 1e-12, (
-            f"Steady-limit gain mismatch: harmonic {gains[0]:.6e}, classical {gains_ref[0]:.6e}, rel_err {rel_err:.2e}"
-        )
+        detail = f"harmonic {gains[0]:.6e}, classical {gains_ref[0]:.6e}, rel_err {rel_err:.2e}"
+        assert rel_err < 1e-12, f"Steady-limit gain mismatch: {detail}"
 
 
 @_requires_stack
@@ -370,12 +369,19 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
         sigma_ref = np.linalg.svd(H_dense, compute_uv=False)
 
         perts_freqs = np.arange(-N_p, N_p + 1) * omega0
+        # resolvent4py seeds its PETSc RNG from numpy's global RNG
+        # (randomized_svd.py: setSeed(np.random.randint(...))). Seed it here
+        # so the randomized SVD is deterministic. With n_rand=20 the
+        # truncation error of the near-degenerate pair (modes 2-3) sits at
+        # the 1e-8 gate itself and run-to-run seeds crossed it; n_rand=30
+        # (the solver default) keeps that nuisance error below the gate.
+        np.random.seed(2024)
         gains, _info = harmonic_resolvent_gains(
             coo_fnames,
             n,
             perts_freqs=perts_freqs,
             n_modes=5,
-            n_rand=20,
+            n_rand=30,
             eps_reg=eps_reg,
             dq_fnames=write_resolvent4py_vecs(dq_vecs_dense, tmpdir),
         )
