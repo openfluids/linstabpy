@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Protocol, TypeGuard
+from typing import TYPE_CHECKING
 
 import numpy as np
 import scipy.sparse as sp
@@ -34,76 +34,22 @@ import scipy.sparse as sp
 from linstabpy.config import Config
 from linstabpy.linalg import shifted_operator
 from linstabpy.linalg.factorize import Factorization, factorize
-from linstabpy.resolvent.operator import ResolventOperator
-from linstabpy.utils.petsc_core import petsc_vec, vec_to_numpy
+from linstabpy.resolvent.operator import (
+    ResolventOperator,
+    _apply_optional_matrix,
+)
+from linstabpy.utils.petsc_core import _is_petsc_matrix
+
+if TYPE_CHECKING:
+    # Type-only import keeps this module PETSc-free at runtime.
+    from petsc4py import PETSc
 
 logger = logging.getLogger(__name__)
 
 _VALID_FORCING_NORMS = ("chu", "l2")
 
 
-class _PetscVecLike(Protocol):
-    """Structural stand-in for ``petsc4py.PETSc.Vec``.
-
-    Declared locally so this module type-checks without petsc4py
-    installed. ``linstabpy.resolvent.operator`` uses the real PETSc type
-    at runtime. This Protocol only describes the two calls made here.
-    """
-
-    def duplicate(self) -> _PetscVecLike: ...
-    def destroy(self) -> None: ...
-
-
-class _PetscMatLike(Protocol):
-    """Structural stand-in for ``petsc4py.PETSc.Mat``.
-
-    See ``_PetscVecLike`` for why this is a local Protocol rather than
-    a petsc4py import. The shape accessor is PETSc's own camelCase method
-    ``getSize()``.
-    """
-
-    def mult(self, x: _PetscVecLike, y: _PetscVecLike) -> None: ...
-    def destroy(self) -> None: ...
-
-
-def _petsc_shape(operator: _PetscMatLike) -> tuple[int, int]:
-    """Return the (rows, cols) shape of a PETSc-like matrix.
-
-    Returns
-    -------
-    tuple[int, int]
-        The matrix shape.
-    """
-    nrows, ncols = operator.getSize()
-    return int(nrows), int(ncols)
-
-
-def _is_petsc_like(operator: object) -> TypeGuard[_PetscMatLike]:
-    """Return whether ``operator`` is a PETSc matrix, by duck type.
-
-    Returns
-    -------
-    bool
-        True when ``operator`` looks like a ``petsc4py.PETSc.Mat``.
-    """
-    cls = type(operator)
-    return cls.__module__.startswith("petsc4py") and cls.__name__ == "Mat"
-
-
-def _operator_shape(operator: sp.spmatrix | _PetscMatLike) -> tuple[int, int]:
-    """Return the (rows, cols) shape for a SciPy or PETSc operator.
-
-    Returns
-    -------
-    tuple[int, int]
-        The matrix shape.
-    """
-    if isinstance(operator, sp.spmatrix):
-        return int(operator.shape[0]), int(operator.shape[1])
-    return _petsc_shape(operator)
-
-
-def _operator_ndof(operator: sp.spmatrix | _PetscMatLike) -> int:
+def _operator_ndof(operator: sp.spmatrix | PETSc.Mat) -> int:
     """Return the square-system size for a SciPy or PETSc operator.
 
     Returns
@@ -118,40 +64,18 @@ def _operator_ndof(operator: sp.spmatrix | _PetscMatLike) -> int:
     ValueError
         If ``operator`` is not square.
     """
-    if not (_is_petsc_like(operator) or sp.issparse(operator)):
+    if not (sp.issparse(operator) or _is_petsc_matrix(operator)):
         message = "L0 must be a 2-D sparse matrix or PETSc Mat"
         raise TypeError(message)
-    nrows, ncols = _operator_shape(operator)
+    nrows, ncols = (
+        (int(operator.shape[0]), int(operator.shape[1]))
+        if sp.issparse(operator)
+        else (int(operator.getSize()[0]), int(operator.getSize()[1]))
+    )
     if nrows != ncols:
         message = "L0 must be a square matrix"
         raise ValueError(message)
     return nrows
-
-
-def _apply_matrix(
-    matrix: sp.spmatrix | _PetscMatLike | None,
-    vector: np.ndarray,
-) -> np.ndarray:
-    """Apply an optional SciPy or PETSc matrix to a NumPy vector.
-
-    Returns
-    -------
-    numpy.ndarray
-        ``matrix @ vector``, or ``vector`` unchanged when ``matrix`` is None.
-    """
-    if matrix is None:
-        return vector
-    if isinstance(matrix, sp.spmatrix):
-        return matrix @ vector
-    x: _PetscVecLike = petsc_vec(vector)
-    y: _PetscVecLike = x.duplicate()
-    try:
-        matrix.mult(x, y)
-        result: np.ndarray = vec_to_numpy(y)
-        return result
-    finally:
-        x.destroy()
-        y.destroy()
 
 
 def _w_norm(vector: np.ndarray, w_diag: np.ndarray) -> float:
@@ -241,9 +165,9 @@ def _validate_w_diag(w_diag: np.ndarray, ndof: int) -> np.ndarray:
 
 
 def _inner_solve_residual(
-    L_sigma: sp.spmatrix | _PetscMatLike,
+    L_sigma: sp.spmatrix | PETSc.Mat,
     lu: Factorization,
-    B_mat: sp.spmatrix | _PetscMatLike | None,
+    B_mat: sp.spmatrix | PETSc.Mat | None,
     filt: Callable[[np.ndarray], np.ndarray],
     f: np.ndarray,
 ) -> float:
@@ -252,18 +176,18 @@ def _inner_solve_residual(
     ``y`` is ``f`` after the input mask and filter; ``x = lu.solve(y)``.
     This is an extra solve, on top of ``ResolventOperator.apply``'s own.
     It stays separate so that method keeps its classical pipeline.
-    The residual certifies only the linear-system solve: the B mask and
-    filter apply exact matrix operations before and after, so the solve
-    is the only inexact computational stage.
+    The residual certifies only the linear-system solve. The B mask and
+    the filter are exact matrix operations. The solve is the only
+    inexact stage.
 
     Returns
     -------
     float
         The relative residual norm.
     """
-    y = filt(_apply_matrix(B_mat, f))
+    y = filt(_apply_optional_matrix(B_mat, f))
     x = lu.solve(y)
-    residual = _apply_matrix(L_sigma, x) - y
+    residual = _apply_optional_matrix(L_sigma, x) - y
     y_norm = _l2_norm(y)
     if y_norm > 0.0:
         return _l2_norm(residual) / y_norm
@@ -271,12 +195,12 @@ def _inner_solve_residual(
 
 
 def _solve_pipeline(
-    L0: sp.spmatrix | _PetscMatLike,
+    L0: sp.spmatrix | PETSc.Mat,
     omega: float,
     gamma: float,
     f: np.ndarray,
-    B_mat: sp.spmatrix | _PetscMatLike | None,
-    C_mat: sp.spmatrix | _PetscMatLike | None,
+    B_mat: sp.spmatrix | PETSc.Mat | None,
+    C_mat: sp.spmatrix | PETSc.Mat | None,
     filter_fn: Callable[[np.ndarray], np.ndarray] | None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None,
     solver_cfg: dict[str, object] | None,
@@ -286,11 +210,10 @@ def _solve_pipeline(
 
     One shifted-operator factorization backs both ``op.apply`` (the
     untouched classical pipeline) and the separate residual solve.
-    The ResolventOperator pipeline must use identical instances of
-    shifted_operator() and factorize() as the SVD path—any skew in
-    setup or discretization between this path and resolvent_analysis
-    voids the prescribed-gain <= sigma_1 inequality that both methods
-    enforce.
+    This path must call the same shifted_operator() and factorize()
+    as the SVD path. Any setup or discretization skew against
+    resolvent_analysis voids the prescribed-gain <= sigma_1
+    inequality that both methods enforce.
 
     Returns
     -------
@@ -317,7 +240,7 @@ def _solve_pipeline(
         rho_fwd = _inner_solve_residual(L_sigma, lu, B_mat, filt, f)
         residual_s = time.perf_counter() - t0
     finally:
-        if _is_petsc_like(L_sigma):
+        if _is_petsc_matrix(L_sigma):
             L_sigma.destroy()
         lu.destroy()
 
@@ -325,56 +248,15 @@ def _solve_pipeline(
     return q_hat, rho_fwd, timings
 
 
-def _gain_and_info(
-    q_hat: np.ndarray,
-    f: np.ndarray,
-    w: np.ndarray,
-    forcing_norm: str,
-    gamma: float,
-    rho_fwd: float,
-    timings: dict[str, float],
-) -> tuple[float, dict[str, float | str]]:
-    """Compute the gain and assemble the diagnostics dict.
-
-    The gain denominator branches on forcing_norm exactly like
-    WeightedNormalOperator in the resolvent_analysis SVD path.
-    When forcing_norm is "chu", both the response and forcing are
-    normalized by the Chu-weighted norm (invW.H^H.W.H construction).
-    When forcing_norm is "l2", the response stays Chu-weighted but
-    the forcing uses the plain 2-norm. Mixing these norms across
-    the two paths would violate the sigma_1 <= gain <= sigma_1
-    bounds that both methods enforce.
-
-    Returns
-    -------
-    tuple
-        ``(gain, info)``.
-    """
-    q_w_norm = _w_norm(q_hat, w)
-    f_w_norm = _w_norm(f, w)
-    denom = f_w_norm if forcing_norm == "chu" else _l2_norm(f)
-    gain = q_w_norm / denom if denom > 0.0 else q_w_norm
-    info: dict[str, float | str] = {
-        "rho_fwd": rho_fwd,
-        "gain": gain,
-        "forcing_norm": forcing_norm,
-        "gamma": float(gamma),
-        "q_hat_w_norm": q_w_norm,
-        "f_hat_w_norm": f_w_norm,
-        **timings,
-    }
-    return gain, info
-
-
 def prescribed_forcing_response(
-    L0: sp.spmatrix | _PetscMatLike,
+    L0: sp.spmatrix | PETSc.Mat,
     omega: float,
     W_diag: np.ndarray,
     f_hat: np.ndarray,
     *,
     gamma: float = 0.0,
-    B_mat: sp.spmatrix | _PetscMatLike | None = None,
-    C_mat: sp.spmatrix | _PetscMatLike | None = None,
+    B_mat: sp.spmatrix | PETSc.Mat | None = None,
+    C_mat: sp.spmatrix | PETSc.Mat | None = None,
     filter_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None = None,
     forcing_norm: str = "chu",
@@ -429,5 +311,26 @@ def prescribed_forcing_response(
     q_hat, rho_fwd, timings = _solve_pipeline(
         L0, omega, gamma, f, B_mat, C_mat, filter_fn, filter_ct_fn, solver_cfg, cfg
     )
-    gain, info = _gain_and_info(q_hat, f, w, forcing_norm, gamma, rho_fwd, timings)
+
+    # The gain denominator branches on forcing_norm exactly like
+    # WeightedNormalOperator in the resolvent_analysis SVD path.
+    # When forcing_norm is "chu", both the response and forcing are
+    # normalized by the Chu-weighted norm (invW.H^H.W.H construction).
+    # When forcing_norm is "l2", the response stays Chu-weighted but
+    # the forcing uses the plain 2-norm. Mixing these norms across
+    # the two paths would violate the sigma_1 <= gain <= sigma_1
+    # bounds that both methods enforce.
+    q_w_norm = _w_norm(q_hat, w)
+    f_w_norm = _w_norm(f, w)
+    denom = f_w_norm if forcing_norm == "chu" else _l2_norm(f)
+    gain = q_w_norm / denom if denom > 0.0 else q_w_norm
+    info: dict[str, float | str] = {
+        "rho_fwd": rho_fwd,
+        "gain": gain,
+        "forcing_norm": forcing_norm,
+        "gamma": float(gamma),
+        "q_hat_w_norm": q_w_norm,
+        "f_hat_w_norm": f_w_norm,
+        **timings,
+    }
     return q_hat, gain, info

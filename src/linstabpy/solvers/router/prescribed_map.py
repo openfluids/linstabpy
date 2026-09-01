@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Map driver for prescribed-forcing resolvent: known f_hat, single solve per point.
 
-Reads a table of (beta, omega, npz_path) rows from the config, loads each
-prescribed forcing vector, and solves the linear resolvent once per point.
+Reads a table of (beta, omega, npz_path) rows from the config. Loads each
+prescribed forcing vector and solves the linear resolvent once per point.
 Reuses assembly and BC masking from the classical resolvent path.
 No SVD, no band-marking, no LineWalker.
 """
@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from linstabpy.resolvent.prescribed import prescribed_forcing_response
 from linstabpy.resolvent.prescribed_io import load_prescribed_forcing
@@ -22,6 +20,21 @@ from linstabpy.solvers.router.map_record import append_row
 from linstabpy.utils.cost_metrics import peak_rss_bytes as _peak_rss_bytes
 
 LOGGER = logging.getLogger(__name__)
+
+# CSV record fields and provenance columns.
+_RECORD_FIELDS = (
+    "row",
+    "beta",
+    "omega",
+    "gain",
+    "rho_fwd",
+    "gamma",
+    "forcing_norm",
+    "status",
+    "wall_s",
+    "peak_rss_bytes",
+)
+_PROVENANCE_FIELDS = ("git_sha", "backend", "ranks", "fd_order", "epsilon")
 
 
 @dataclass(frozen=True)
@@ -33,8 +46,8 @@ class PrescribedMapResult:
 
 
 def prescribed_map(
-    base_flow: Any,
-    cfg: Mapping[str, Any] | str | Path | object | None = None,
+    base_flow: object,
+    cfg: object = None,
 ) -> PrescribedMapResult:
     """Compute prescribed-forcing resolvent gains from a table of forcing files.
 
@@ -60,6 +73,9 @@ def prescribed_map(
     ConfigValidationError
         If both ``prescribed_forcing`` and classical SVD/band-marking options
         are set (they answer different questions and cannot coexist).
+    ValueError
+        If the ``prescribed_forcing`` table is empty or a row has no
+        ``forcing_path`` (or ``path``) key.
     """
     from linstabpy.driver.preflight import config_advisories
     from linstabpy.solvers.router.resolvent_map import (
@@ -82,7 +98,8 @@ def prescribed_map(
     # Load prescribed-forcing table.
     forcing_table = cfg_map.get("prescribed_forcing", [])
     if not forcing_table:
-        raise ValueError("prescribed_forcing config is empty or missing")
+        message = "prescribed_forcing config is empty or missing"
+        raise ValueError(message)
 
     mesh = _resolve_mesh(base_flow, cfg_map)
     W_diag = _compute_w_diag(mesh, base_flow, cfg_map)
@@ -90,7 +107,7 @@ def prescribed_map(
     solver_cfg = dict(_solver_cfg(cfg_map))
     gamma = float(cfg_map.get("resolvent_discount_gamma", 0.0))
     forcing_norm = cfg_map.get("forcing_norm", "chu")
-    allow_zero_bin = _analysis_bool(cfg_map, "prescribed_allow_zero_bin", False)
+    allow_zero_bin = _analysis_bool(cfg_map, "prescribed_allow_zero_bin", default=False)
     assembled_betas: dict[float, dict[str, object]] = {}
     point_records: list[dict[str, object]] = []
     stage_wall: dict[str, float] = {}
@@ -100,7 +117,7 @@ def prescribed_map(
         LOGGER.warning("Config advisories:\n%s", "\n".join(advisories))
 
     # Extract filter functions from mesh.
-    use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", True)
+    use_mesh_filters = _cfg_bool(cfg_map, "use_mesh_filters", default=True)
     filter_fn = (
         mesh.filters.filter
         if use_mesh_filters and getattr(mesh, "filters", None) is not None
@@ -115,11 +132,16 @@ def prescribed_map(
     for row_index, row in enumerate(forcing_table):
         beta = float(row.get("beta"))
         omega = float(row.get("omega"))
-        # Accept both "forcing_path" and "path" keys.
-        forcing_path = str(row.get("forcing_path", row.get("path")))
+        # Accept both "forcing_path" and "path" keys; raise on both missing.
+        if "forcing_path" in row:
+            forcing_path = str(row["forcing_path"])
+        elif "path" in row:
+            forcing_path = str(row["path"])
+        else:
+            message = f"prescribed_forcing row {row_index}: missing 'forcing_path' (or 'path') key"
+            raise ValueError(message)
 
         if beta not in assembled_betas:
-            t0 = time.perf_counter()
             LOGGER.info("prescribed_map assembling beta_index=%d beta=%.12g", row_index, beta)
             assembly = _assemble_beta_operator(mesh, base_flow, beta, cfg_map)
             stage_wall["assemble_operator_bc"] = (
@@ -153,12 +175,11 @@ def prescribed_map(
                 exception=e,
             )
             point_records.append(record)
-            LOGGER.error(
-                "prescribed_map load failed row=%d beta=%.12g omega=%.12g: %s",
+            LOGGER.exception(
+                "prescribed_map load failed row=%d beta=%.12g omega=%.12g",
                 row_index,
                 beta,
                 omega,
-                str(e),
             )
             continue
 
@@ -172,7 +193,7 @@ def prescribed_map(
 
         try:
             t0 = time.perf_counter()
-            q_hat, gain, info = prescribed_forcing_response(
+            _q_hat, gain, info = prescribed_forcing_response(
                 L0,
                 omega=omega,
                 W_diag=W_diag,
@@ -195,12 +216,11 @@ def prescribed_map(
             exception = e
             gain = None
             info = {}
-            LOGGER.error(
-                "prescribed_map solve failed row=%d beta=%.12g omega=%.12g: %s",
+            LOGGER.exception(
+                "prescribed_map solve failed row=%d beta=%.12g omega=%.12g",
                 row_index,
                 beta,
                 omega,
-                str(e),
             )
 
         record = _prescribed_point_record(
@@ -218,8 +238,7 @@ def prescribed_map(
         )
         point_records.append(record)
         LOGGER.info(
-            "prescribed_map point complete row=%d beta=%.12g omega=%.12g "
-            "gain=%s rho_fwd=%s wall_s=%.6g",
+            "prescribed_map point complete row=%d beta=%.12g omega=%.12g gain=%s rho_fwd=%s wall_s=%.6g",
             row_index,
             beta,
             omega,
@@ -229,8 +248,9 @@ def prescribed_map(
         )
 
     # Write the CSV file with provenance columns.
-    csv_path = _prescribed_csv_path(cfg_map)
-    if csv_path is not None:
+    csv_path_raw = cfg_map.get("prescribed_output_csv")
+    if csv_path_raw:
+        csv_path = Path(csv_path_raw).resolve()
         _write_prescribed_csv(csv_path, point_records, cfg_map)
 
     cost_metrics = _collect_cost_metrics(stage_wall)
@@ -340,17 +360,6 @@ def _prescribed_point_record(
     return record
 
 
-def _prescribed_csv_path(cfg_map: dict[str, object]) -> Path | None:
-    """Return the output CSV path for prescribed-forcing results, or None."""
-    prescribed = cfg_map.get("prescribed_forcing")
-    if not prescribed:
-        return None
-    cfg_path_raw = cfg_map.get("prescribed_output_csv")
-    if cfg_path_raw:
-        return Path(cfg_path_raw).resolve()
-    return None
-
-
 def _write_prescribed_csv(
     csv_path: Path,
     point_records: list[dict[str, object]],
@@ -363,24 +372,8 @@ def _write_prescribed_csv(
         LOGGER.info("No point records to write to CSV")
         return
 
-    # Build the header from the first record plus standard provenance columns.
-    fields = [
-        "row",
-        "beta",
-        "omega",
-        "gain",
-        "rho_fwd",
-        "gamma",
-        "forcing_norm",
-        "status",
-        "wall_s",
-        "peak_rss_bytes",
-        "git_sha",
-        "backend",
-        "ranks",
-        "fd_order",
-        "epsilon",
-    ]
+    # Build the full header from record fields and provenance fields.
+    fields = list(_RECORD_FIELDS) + list(_PROVENANCE_FIELDS)
 
     # Provenance data to append to every row.
     git_sha = _git_head_sha()
@@ -388,21 +381,16 @@ def _write_prescribed_csv(
     solver_cfg = cfg_map.get("solver", {})
     if isinstance(solver_cfg, dict):
         backend_cfg = solver_cfg.get("linear_solver_backend", "unknown")
-        if isinstance(backend_cfg, dict):
-            backend = str(backend_cfg.get("name", "unknown"))
-        else:
-            backend = str(backend_cfg)
-    ranks = 1
+        backend = (
+            str(backend_cfg.get("name", "unknown"))
+            if isinstance(backend_cfg, dict)
+            else str(backend_cfg)
+        )
+    ranks = 1  # Prescribed path is serial today; column exists for schema consistency.
     fd_order = int(cfg_map.get("fd_order", 4))
     epsilon = float(cfg_map.get("dissipation_epsilon", 0.0))
 
     for record in point_records:
-        row_values = [record.get(field) for field in fields[:-5]]
+        row_values = [record.get(f) for f in _RECORD_FIELDS]
         row_values.extend([git_sha, backend, ranks, fd_order, epsilon])
         append_row(csv_path, fields, row_values)
-        LOGGER.info(
-            "prescribed_map CSV row: beta=%.6g omega=%.6g gain=%s",
-            record.get("beta"),
-            record.get("omega"),
-            record.get("gain"),
-        )
