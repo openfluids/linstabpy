@@ -82,13 +82,13 @@ def test_one_missing_key_per_required_section_surfaces_errors():
 
 def test_multiple_missing_keys_are_all_reported_at_once():
     payload = _complete_metrics_payload()
-    for key in ("git_sha", "case", "cost_wall_total_s"):
+    for key in ("git_sha", "hostname", "cost_wall_total_s"):
         payload.pop(key)
 
     errors = validate_metrics(payload)
 
     assert "provenance.git_sha: missing required key" in errors
-    assert "problem.case: missing required key" in errors
+    assert "provenance.hostname: missing required key" in errors
     assert "cost.cost_wall_total_s: missing required key" in errors
     assert len(errors) == 3
 
@@ -98,8 +98,8 @@ def test_type_mismatch_is_reported():
     payload["cost_mpi_ranks"] = "one"
 
     errors = validate_metrics(payload)
-
-    assert any("cost.cost_mpi_ranks: expected" in error for error in errors)
+    expected = _type_name(SCHEMA["cost"]["cost_mpi_ranks"].types)
+    assert errors == [f"cost.cost_mpi_ranks: expected {expected}, got str"]
 
 
 def test_quality_section_is_run_type_optional():

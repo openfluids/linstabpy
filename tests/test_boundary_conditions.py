@@ -1138,6 +1138,28 @@ def test_empty_dirichlet_helpers_are_noops() -> None:
     assert _set_diagonal_entries_csr(mat_csr, np.array([], dtype=int), 2.0) is mat_csr
 
 
+def test_set_diagonal_entries_csr_inserts_missing_slots() -> None:
+    mat = sp.csr_matrix((4, 4), dtype=float)
+    out = _set_diagonal_entries_csr(mat, np.array([1, 2], dtype=int), 5.0)
+    dense = out.toarray()
+    assert dense[1, 1] == 5.0
+    assert dense[2, 2] == 5.0
+    assert dense[0, 0] == 0.0
+
+
+def test_zero_cols_csc_skips_empty_stored_column() -> None:
+    mat = sp.csc_matrix((4, 4), dtype=float)
+    _zero_cols_csc(mat, np.array([1], dtype=int))
+    assert mat.nnz == 0
+
+
+def test_dirichlet_free_dofs_empty_indices_keep_every_dof() -> None:
+    free = dirichlet_free_dofs(5, np.array([], dtype=int))
+    np.testing.assert_array_equal(free, np.arange(5))
+    with pytest.raises(ValueError, match="valid 0-based"):
+        dirichlet_free_dofs(3, np.array([3], dtype=int))
+
+
 def test_dirichlet_spatial_empty_borders_leave_both_blocks() -> None:
     n = 10
     lc = sp.eye(n, format="csc")

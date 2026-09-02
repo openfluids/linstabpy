@@ -315,8 +315,12 @@ def test_typed_helpers_cover_none_mapping_and_string_bools() -> None:
     assert typed_mod._solver_mapping(None) == {}
     assert typed_mod._scfg_bool({"ksp_monitor": "yes"}, "ksp_monitor", {}, "X", False) is True
     assert typed_mod._parse_optional_int(None) is None
+    assert typed_mod._scfg_float({"ksp_rtol": 1.0e-8}, "ksp_rtol", {}, "X", 1.0e-10) == 1.0e-8
+    assert typed_mod._scfg_int({"ksp_max_it": 12}, "ksp_max_it", {}, "X", 20000) == 12
     cfg = Config.load(
-        {"solver": {"linsolve": {}}},
+        {"solver": {"linsolve": {"ksp_rtol": 3.0e-9, "ksp_max_it": 33}}},
         env={"LINSTABPY_LINSOLVE_PC_FACTOR_SOLVER_TYPE": "strumpack"},
     )
     assert cfg.linsolve.factor_backend == "strumpack"
+    assert cfg.linsolve.ksp_rtol == 3.0e-9
+    assert cfg.linsolve.ksp_max_it == 33
