@@ -27,11 +27,19 @@ import pytest
 
 # Validation CLIs and importable audit modules live in tests/tools/ (not under
 # examples/martini/). See tests/tools/README.md for the relocation decision.
-_TOOLS_DIR = Path(__file__).resolve().parent / "tools"
+_HERE = Path(__file__).resolve()
+_TOOLS_DIR = _HERE.parent / "tools"
 if _TOOLS_DIR.is_dir():
     _tools_path = str(_TOOLS_DIR)
     if _tools_path not in sys.path:
         sys.path.insert(0, _tools_path)
+
+# tests import `examples.*`. mutmut runs pytest from a `mutants/` copy that
+# does not include the examples tree, so walk up until that package is visible.
+for _cand in (_HERE.parents[1], _HERE.parents[2]):
+    if (_cand / "examples").is_dir() and str(_cand) not in sys.path:
+        sys.path.insert(0, str(_cand))
+        break
 
 # ---------------------------------------------------------------------------
 # Parametrize helpers

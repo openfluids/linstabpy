@@ -388,3 +388,17 @@ def test_resolve_baseflow_plot_field_prefers_streamwise_w() -> None:
     )
     np.testing.assert_allclose(field, np.array([[3.0, 4.0]], dtype=float))
     assert title.endswith("$W$")
+
+
+def test_shifted_operator_scipy_subtracts_i_omega_on_the_diagonal() -> None:
+    from linstabpy.linalg.shifted import shifted_operator
+
+    op = sp.eye(3, format="csc", dtype=complex)
+    op = op + sp.diags([0.1, 0.2, 0.3], format="csc")
+    omega = 2.0
+    shifted = shifted_operator(op, omega)
+    expected = op.diagonal() - 1j * omega
+    np.testing.assert_allclose(shifted.diagonal(), expected)
+    damped = shifted_operator(op, omega, gamma=0.5)
+    np.testing.assert_allclose(damped.diagonal(), op.diagonal() - (0.5 + 1j * omega))
+    assert damped.format == "csc"

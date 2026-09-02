@@ -49,7 +49,10 @@ cudss = [
 
 [dependency-groups]
 test = ["pytest", "pytest-cov", "sympy>=1.13"]
-dev = [{include-group = "test"}]
+dev = [
+    {include-group = "test"},
+    "pytest-gremlins>=1.9.0 ; python_full_version >= '3.11'",
+]
 parity = ["h5py"]
 
 [project.urls]
@@ -104,12 +107,12 @@ addopts = "-m 'not matlab_parity'"
 
 [tool.mutmut]
 source_paths = ["src/"]
-pytest_add_cli_args_test_selection = ["tests/test_viscosity.py"]
+pytest_add_cli_args_test_selection = ["tests/test_sponge.py"]
 mutate_only_covered_lines = true
 timeout_multiplier = 30.0
 timeout_constant = 2.0
 only_mutate = [
-  "src/linstabpy/baseflow/viscosity.py",
+  "src/linstabpy/baseflow/sponge.py",
 ]
 do_not_mutate = [
   "*plotting.py",

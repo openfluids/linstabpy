@@ -115,6 +115,19 @@ def test_round_trip_maps_conservative_momentum_to_primitive_T() -> None:
     np.testing.assert_allclose(primitive[idx["T_j"]], expected_T, rtol=1e-12, atol=1e-13)
 
 
+def test_temperature_coeff_scales_with_mach_squared() -> None:
+    """T_coeff must go as Ma^2, not Ma. Ma=2 hides **2 vs *2."""
+    rho = np.array([1.0, 2.0])
+    u = np.array([0.5, 0.25])
+    v = np.zeros(2)
+    w = np.zeros(2)
+    ma_lo, ma_hi = 1.5, 3.0
+    t_lo = conservative_momentum_coefficients(rho, u, v, w, KAPPA, ma_lo)["u"][1]
+    t_hi = conservative_momentum_coefficients(rho, u, v, w, KAPPA, ma_hi)["u"][1]
+    np.testing.assert_allclose(t_hi, t_lo * (ma_hi / ma_lo) ** 2)
+    assert not np.allclose(t_hi, t_lo * (ma_hi / ma_lo))
+
+
 # ---------------------------------------------------------------------------
 # 2. NORM: plain L2 of the whitened coefficient == mass-weighted L2 of f_c
 # ---------------------------------------------------------------------------

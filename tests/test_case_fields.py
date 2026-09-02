@@ -385,11 +385,53 @@ def test_apply_preprocess_filter_loud_fails_and_none_blocks(tmp_path: Path) -> N
         )
 
 
+def test_apply_preprocess_drops_duplicate_filter_directions(tmp_path: Path) -> None:
+    X, Y, rho, u, v, w, T, sponge = _preprocess_fields(tmp_path)
+    u = np.zeros_like(u)
+    u[3, 4] = 1.0
+    base = {
+        "enabled": True,
+        "filter": {"enabled": True, "passes": 1, "fields": ["u"], "directions": ["x"]},
+    }
+    dup = {
+        "enabled": True,
+        "filter": {
+            "enabled": True,
+            "passes": 1,
+            "fields": ["u"],
+            "directions": ["x", "X", "x"],
+        },
+    }
+    out_once = apply_preprocess(X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), base)
+    out_dup = apply_preprocess(X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), dup)
+    np.testing.assert_allclose(out_once[3], out_dup[3])
+    assert out_dup[-1]["filter"]["directions"] == ["x"]
+    assert out_once[3][3, 4] == pytest.approx(6.0 / 16.0)
+
+
 def test_binomial5_filter_rejects_bad_shape_and_axis() -> None:
     with pytest.raises(ValueError, match="2-D"):
         _binomial5_filter(np.ones(4), axis=0)
     with pytest.raises(ValueError, match="axis must be 0 or 1"):
         _binomial5_filter(np.ones((3, 3)), axis=2)
+
+
+def test_preprocess_binomial5_kernel_is_1_4_6_4_1_over_16() -> None:
+    constant = np.full((7, 6), 2.5)
+    np.testing.assert_allclose(_binomial5_filter(constant, axis=0), constant)
+    np.testing.assert_allclose(_binomial5_filter(constant, axis=1), constant)
+    y = np.arange(7.0)[:, None]
+    x = np.arange(6.0)[None, :]
+    linear = 3.0 * y + 0.5 * x
+    np.testing.assert_allclose(_binomial5_filter(linear, axis=0)[2:-2, :], linear[2:-2, :])
+    np.testing.assert_allclose(_binomial5_filter(linear, axis=1)[:, 2:-2], linear[:, 2:-2])
+    impulse = np.zeros((9, 7))
+    impulse[4, 3] = 1.0
+    kernel = np.array([1.0, 4.0, 6.0, 4.0, 1.0]) / 16.0
+    out0 = _binomial5_filter(impulse, axis=0)
+    np.testing.assert_allclose(out0[2:7, 3], kernel)
+    out1 = _binomial5_filter(impulse, axis=1)
+    np.testing.assert_allclose(out1[4, 1:6], kernel)
 
 
 def test_apply_preprocess_can_enable_shock_cleanup(tmp_path: Path) -> None:

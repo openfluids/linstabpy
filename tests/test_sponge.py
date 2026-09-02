@@ -205,6 +205,20 @@ def test_sponge_from_config_disabled_is_zero() -> None:
     np.testing.assert_array_equal(disabled, np.zeros((5, 7)))
 
 
+def test_sponge_from_config_without_preset_uses_explicit_type() -> None:
+    field = sponge_from_config(
+        (6, 8),
+        {
+            "enabled": True,
+            "type": "constant",
+            "pts_dir": (0, 2, 0, 0),
+            "amp_dir": (0.0, 5.0, 0.0, 0.0),
+        },
+    )
+    assert float(field[-1, 3]) == 5.0
+    assert float(field[0, 3]) == 0.0
+
+
 def test_constant_sponge_covers_each_edge() -> None:
     right = generate_sponge(
         (6, 8), sponge_type="constant", pts_dir=(0, 2, 0, 0), amp_dir=(0, 5, 0, 0)

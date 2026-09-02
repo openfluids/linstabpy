@@ -47,6 +47,47 @@ def test_sutherland_mu_is_scaled_by_mu_at_T0_not_mu_ref() -> None:
     assert not np.isclose(bf.MU[0, 0], 1.0)
 
 
+def test_sutherland_energy_coefficients_follow_gamma_re_pr_ma() -> None:
+    """cv, c1 and c2 are the LNSE groups from gamma, Re, Pr and Ma."""
+    cases = (
+        {"ma": 0.3, "kappa": 1.4, "re": 1.0e4, "pr": 0.72},
+        {"ma": 2.15, "kappa": 1.4, "re": 1.0e5, "pr": 0.72},
+    )
+    cv_values: list[float] = []
+    c2_values: list[float] = []
+    for case in cases:
+        temperature = np.array([[1.0]], dtype=float)
+        bf = BaseFlow(
+            Re=case["re"],
+            Ma=case["ma"],
+            Pr=case["pr"],
+            kappa=case["kappa"],
+            T_0=300.0,
+            RHO=np.ones_like(temperature),
+            U=np.ones_like(temperature),
+            V=np.zeros_like(temperature),
+            W=np.zeros_like(temperature),
+            T=temperature,
+        )
+        sutherland_air(bf)
+        gamma = case["kappa"]
+        mach = case["ma"]
+        np.testing.assert_allclose(
+            bf.cv, 1.0 / (gamma * (gamma - 1.0) * mach**2), rtol=1e-14, atol=0.0
+        )
+        np.testing.assert_allclose(
+            bf.c1, (gamma - 1.0) * case["re"] * case["pr"] * mach**2, rtol=1e-14, atol=0.0
+        )
+        np.testing.assert_allclose(bf.c2, gamma * mach**2, rtol=1e-14, atol=0.0)
+        assert bf.cv > 0.0
+        assert bf.c1 > 0.0
+        assert bf.c2 > 0.0
+        cv_values.append(float(bf.cv))
+        c2_values.append(float(bf.c2))
+    assert c2_values[1] > c2_values[0]
+    assert cv_values[1] < cv_values[0]
+
+
 def test_sutherland_derivatives_are_with_respect_to_nondimensional_temperature() -> None:
     t0 = 288.15
     nondim_temperature = np.array([[0.85, 1.0, 1.35]], dtype=float)

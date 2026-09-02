@@ -101,6 +101,7 @@ src/linstabpy/data/baseflows
 
 # Coverage artifacts
 .coverage
+.coverage.*
 coverage.xml
 coverage.json
 htmlcov/
@@ -111,5 +112,6 @@ goal*.md
 
 # Mutation-testing scratch (cov-mut-loop)
 mutants/
-.coverage.mutloop
-.mutmut-cache
+.gremlins_cache/
+coverage/gremlins/
+.gremlins_loop.md

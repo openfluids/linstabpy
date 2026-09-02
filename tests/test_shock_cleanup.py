@@ -227,6 +227,35 @@ def test_shock_cleanup_rejects_duplicate_and_unknown_lists() -> None:
         _binomial5_filter(field, axis=2)
 
 
+def test_binomial5_kernel_is_1_4_6_4_1_over_16() -> None:
+    """Compact binomial smoother: constants and linears stay put; impulse is 1-4-6-4-1."""
+    from linstabpy.baseflow.shock_cleanup import _binomial5_filter
+
+    constant = np.full((7, 6), 2.5)
+    np.testing.assert_allclose(_binomial5_filter(constant, axis=0), constant)
+    np.testing.assert_allclose(_binomial5_filter(constant, axis=1), constant)
+
+    y = np.arange(7.0)[:, None]
+    x = np.arange(6.0)[None, :]
+    linear = 3.0 * y + 0.5 * x
+    # Edge pad (mode="edge") is not a linear extension, so only the interior
+    # two cells in from the filtered axis must stay on the plane.
+    np.testing.assert_allclose(_binomial5_filter(linear, axis=0)[2:-2, :], linear[2:-2, :])
+    np.testing.assert_allclose(_binomial5_filter(linear, axis=1)[:, 2:-2], linear[:, 2:-2])
+
+    impulse = np.zeros((9, 7))
+    impulse[4, 3] = 1.0
+    kernel = np.array([1.0, 4.0, 6.0, 4.0, 1.0]) / 16.0
+    out0 = _binomial5_filter(impulse, axis=0)
+    np.testing.assert_allclose(out0[2:7, 3], kernel)
+    np.testing.assert_allclose(out0[:, :3], 0.0)
+    np.testing.assert_allclose(out0[:, 4:], 0.0)
+    out1 = _binomial5_filter(impulse, axis=1)
+    np.testing.assert_allclose(out1[4, 1:6], kernel)
+    np.testing.assert_allclose(out1[:4, :], 0.0)
+    np.testing.assert_allclose(out1[5:, :], 0.0)
+
+
 def test_compression_only_sensor_masks_on_divergence() -> None:
     X, Y = _regular_grid()
     rho, u, v, w, T, sponge = _shock_like_fields(X, Y)

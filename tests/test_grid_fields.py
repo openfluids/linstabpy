@@ -138,3 +138,48 @@ def test_load_case_fields_rejects_bad_stride_and_shape(tmp_path: Path) -> None:
     np.save(tmp_path / "u.npy", np.ones((3, 3)))
     with pytest.raises(ValueError, match="does not match"):
         load_case_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)
+
+
+def test_load_case_fields_transposes_packed_axes(tmp_path: Path) -> None:
+    _write_npy_dir(tmp_path, nx=6, ny=4)
+    u = np.zeros((4, 6))
+    u[1, 5] = 7.0
+    np.save(tmp_path / "u.npy", u.T)
+    for name in ("x", "y", "rho", "v", "w", "T", "sponge"):
+        arr = np.load(tmp_path / f"{name}.npy")
+        np.save(tmp_path / f"{name}.npy", arr.T)
+    X, _, bf, sponge, _info = load_case_fields(
+        tmp_path,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        transpose_input=True,
+    )
+    assert X.shape == (4, 6)
+    assert bf.U.shape == (4, 6)
+    assert bf.U[1, 5] == pytest.approx(7.0)
+    assert sponge.shape == X.shape
+
+
+def test_load_grid_fields_zeros_spanwise_velocity(tmp_path: Path) -> None:
+    _write_npy_dir(tmp_path)
+    np.save(tmp_path / "w.npy", np.full((4, 6), 3.0))
+    _, _, bf_kept, _ = load_grid_fields(
+        tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33
+    )
+    np.testing.assert_allclose(bf_kept.W, 3.0)
+    np.testing.assert_allclose(bf_kept.U, 2.15)
+    _, _, bf, _ = load_grid_fields(
+        tmp_path,
+        Re=1.0e5,
+        Ma=2.15,
+        Pr=0.72,
+        kappa=1.4,
+        T_0=153.33,
+        zero_spanwise=True,
+    )
+    np.testing.assert_allclose(bf.W, 0.0)
+    assert bf.W.shape == bf.U.shape
+    np.testing.assert_allclose(bf.U, 2.15)
