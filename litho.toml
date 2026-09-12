@@ -1,0 +1,121 @@
+# Litho (deepwiki-rs) 1.5.1. Generates C4 Markdown under wiki/.
+# Install: cargo install deepwiki-rs --version 1.5.1 --locked
+# Run:     export LITHO_LLM_API_KEY=... && deepwiki-rs --config litho.toml
+# Do not write into docs/. That tree is the human architecture notes.
+
+project_name = "LinStabPy"
+project_path = "."
+output_path = "./wiki"
+internal_path = ".litho"
+target_language = "en"
+
+include_tests = false
+include_hidden = false
+git_tracked_only = true
+
+excluded_dirs = [
+    ".litho",
+    "wiki",
+    "docs/tutorial",
+    "docs/assets",
+    "graft",
+    ".venv",
+    ".git",
+    "build",
+    "dist",
+    "site",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".grok",
+    ".claude",
+    ".agents",
+    "examples",
+    "tests",
+]
+
+excluded_files = [
+    "litho.toml",
+    "mkdocs.yml",
+    "CHANGELOG.md",
+    "uv.lock",
+    "LICENSE",
+    "NOTICE",
+    "*.log",
+    "*.npz",
+    "*.png",
+    "*.jpg",
+    "*.tex",
+]
+
+included_extensions = ["py", "yml", "yaml"]
+
+[llm]
+provider = "openai"
+api_key = "${LITHO_LLM_API_KEY}"
+# Grok CLI OAuth access token is accepted here as a Bearer (not an xai- API key).
+api_base_url = "https://api.x.ai/v1"
+model_efficient = "grok-4.5"
+model_powerful = "grok-4.6"
+max_tokens = 4096
+temperature = 0.1
+retry_attempts = 5
+retry_delay_ms = 5000
+timeout_seconds = 300
+disable_preset_tools = false
+max_parallels = 3
+
+[cache]
+enabled = true
+cache_dir = ".litho/cache"
+expire_hours = 8760
+
+[knowledge.local_docs]
+enabled = true
+cache_dir = ".litho/cache/knowledge/local_docs"
+watch_for_changes = true
+
+[knowledge.local_docs.default_chunking]
+enabled = true
+max_chunk_size = 8000
+chunk_overlap = 200
+strategy = "semantic"
+min_size_for_chunking = 10000
+
+[[knowledge.local_docs.categories]]
+name = "architecture"
+description = "Ownership map and numerical policy"
+paths = [
+    "docs/architecture.md",
+    "README.md",
+]
+target_agents = [
+    "SystemContextResearcher",
+    "ArchitectureResearcher",
+    "DomainModulesDetector",
+    "OverviewEditor",
+    "ArchitectureEditor",
+]
+
+[[knowledge.local_docs.categories]]
+name = "deployment"
+description = "Solver backends and release workflow"
+paths = [
+    "docs/COMPUTE_BACKENDS.md",
+    "docs/DEVELOPMENT.md",
+]
+target_agents = [
+    "ArchitectureResearcher",
+    "BoundaryAnalyzer",
+    "ArchitectureEditor",
+    "BoundaryEditor",
+]
+
+[[knowledge.local_docs.categories]]
+name = "general"
+description = "Runtime NPZ contract"
+paths = [
+    "docs/runtime_npz_contract.md",
+]
+target_agents = []

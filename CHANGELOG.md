@@ -7,6 +7,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `wiki/` architecture pages and `.github/workflows/pages.yml`. MkDocs
+  builds the site. Litho fills the C4 pages from the source tree.
+
 ### Fixed
 
 - The `solvers/router/resolvent_map` module docstring said every gain map

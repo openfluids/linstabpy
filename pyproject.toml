@@ -54,6 +54,7 @@ dev = [
     "pytest-gremlins>=1.9.0 ; python_full_version >= '3.11'",
 ]
 parity = ["h5py"]
+wiki = ["mkdocs-material>=9.6"]
 
 [project.urls]
 Repository = "https://github.com/openfluids/linstabpy"

@@ -115,3 +115,19 @@ mutants/
 .gremlins_cache/
 coverage/gremlins/
 .gremlins_loop.md
+
+# graft — local graph, MCP server, and agent wiring. Regenerable (`graft build`).
+# Do not ship to the public repo.
+/graft/
+.mcp.json
+.ignore
+AGENTS.md
+.agents/
+.claude/
+.grok/
+
+# Litho (deepwiki-rs) cache. Regenerable. Do not commit API material.
+.litho/
+
+# MkDocs HTML output. CI uploads this; do not commit it.
+site/
