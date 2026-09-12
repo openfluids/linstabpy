@@ -1,23 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Schema and validator for per-run metrics sidecars.
+"""Cost and quality record written next to each run NPZ.
 
-Single source of truth for the uniform cost+quality metrics payload.
-CAMPAIGN §2 names stay where the production emitters already use them.
-The schema matches known emitter deltas rather than renaming them.
+Rank 0 writes ``<stem>.metrics.json`` after ``save_results`` stores the NPZ.
+The JSON is a flat dict. ``SCHEMA`` groups the same keys into provenance,
+problem, cost, and quality so an error names the group.
 
-- cost keys use a ``cost_`` prefix and byte units
-  (``cost_peak_rss_bytes``/``cost_peak_gpu_mem_bytes`` rather than KiB/MiB).
-- wall-time keys use ``cost_wall_*_s``.
-- SLEPc setup/solve timings and convergence metadata use
-  ``stability_eps_*`` keys.
-- stability quality maxima sit as arrays under
-  ``stability_postcheck_residual_rel`` and
-  ``stability_postcheck_target_distance``.
-  The validator accepts these measured arrays instead of inventing
-  aggregate sidecar defaults.
-- factor backend provenance uses ``provenance_factor_backend``.
-- the provenance emitter does not currently emit a run date.
-  This schema does not require a fabricated date.
+Units
+-----
+- Wall time in seconds: ``cost_wall_*_s``, ``stability_eps_*_seconds``.
+- Memory in bytes: ``cost_peak_rss_bytes``, ``cost_peak_gpu_mem_bytes``.
+- No run date. The emitters do not write one.
+
+Required keys must be present. Quality keys are optional: a resolvent run
+may omit eigenvalue residuals, and a stability run may omit gains.
+``validate_metrics`` reports every missing or mistyped key. It never fills
+a default.
 """
 
 from __future__ import annotations
@@ -34,14 +31,13 @@ TypeSpec = type | tuple[type, ...]
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """Validation rule for one emitted metrics field."""
+    """Accepted types. ``required`` is True when the key must be present."""
 
     types: TypeSpec
     required: bool = True
 
 
 _STRING = (str, np.str_)
-_BOOL = (bool, np.bool_)
 _INT = (Integral, np.integer)
 _REAL = (Real, np.floating, np.integer)
 _REAL_NULLABLE = (Real, np.floating, np.integer, type(None))
@@ -77,13 +73,9 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
     "problem": {
         "case": FieldSpec(_STRING),
         "fd_order": FieldSpec(_INT),
-        # `stride` is a single number by contract, but the mesh uses independent strides
-        # independently in ksi and eta. The emitter sets `stride` to the common
-        # value when they agree and -1 when they do not, and always emits both
-        # axes here so an anisotropic run is never reported as if one axis
-        # governed both. Optional: they are additions, so an older sidecar
-        # without them is still valid.
+        # Common mesh stride, or -1 when the ksi and eta strides differ.
         "stride": FieldSpec(_INT),
+        # Optional ksi and eta strides. Older JSON without them stays valid.
         "stride_ksi": FieldSpec(_INT, required=False),
         "stride_eta": FieldSpec(_INT, required=False),
         "nx": FieldSpec(_INT),
@@ -110,8 +102,12 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
         "cost_peak_rss_bytes": FieldSpec(_INT),
         "cost_peak_gpu_mem_bytes": FieldSpec(_REAL_NULLABLE),
         "cost_petsc_options": FieldSpec(_STRING),
+        "cost_hardware_tag": FieldSpec(_STRING, required=False),
+        "cost_git_sha": FieldSpec(_STRING, required=False),
     },
     "quality": {
+        # Optional. A stability run emits residual and acceptance keys.
+        # A resolvent run emits gains. Neither run type must emit the other.
         "stability_eps_nconv": FieldSpec(_INT, required=False),
         "stability_accepted_count": FieldSpec(_INT, required=False),
         "omega": FieldSpec(_ARRAY_OR_SCALAR, required=False),
@@ -122,34 +118,18 @@ SCHEMA: dict[str, dict[str, FieldSpec]] = {
     },
 }
 
-QUALITY_VARIANTS: dict[str, tuple[str, ...]] = {
-    "stability": (
-        "stability_eps_nconv",
-        "stability_accepted_count",
-        "omega",
-        "stability_postcheck_residual_rel",
-        "stability_postcheck_target_distance",
-        "stability_all_reject_reason_code",
-    ),
-    "resolvent": ("gains",),
-}
+METRICS_SIDECAR_KEYS = frozenset(key for fields in SCHEMA.values() for key in fields)
 
-METRICS_SIDECAR_KEYS = frozenset(key for fields in SCHEMA.values() for key in fields) | {
-    "cost_hardware_tag",
-    "cost_git_sha",
-}
+__all__ = ["FieldSpec", "SCHEMA", "METRICS_SIDECAR_KEYS", "validate_metrics"]
 
 
 def validate_metrics(d: Mapping[str, Any]) -> list[str]:
-    """Return all schema errors for a per-run metrics payload.
+    """Return every schema error for a per-run metrics payload.
 
     The validator never fills defaults.
-    Required section fields must be present.
-    Optional quality/run-type fields, when present, still go through the
-    same checks.
-    Run types that do not produce them need not include them.
+    Required keys must be present.
+    Optional keys that are present go through the same type checks.
     """
-
     errors: list[str] = []
     for section, fields in SCHEMA.items():
         for key, spec in fields.items():
@@ -165,6 +145,7 @@ def validate_metrics(d: Mapping[str, Any]) -> list[str]:
 
 
 def _type_name(types: TypeSpec) -> str:
+    """Render a type or a union for a validator error message."""
     if isinstance(types, tuple):
         return " or ".join(t.__name__ for t in types)
     return types.__name__
