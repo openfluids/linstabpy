@@ -1,15 +1,15 @@
 # Linear Algebra Infrastructure
 
 !!! info "Math you need for this page"
-    One factorization serves many solves. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS. SLEPc calls it repeatedly inside shift-invert Krylov-Schur and inside every $H$ and $H^H$ apply. A direct factor belongs to exactly one shift $(\omega, \gamma)$. Reuse across shifts happens only in the router as preconditioning under a residual gate, never as an exact solve. Iterative paths are explicit opt-in, never silent fallback.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    One factorization serves many solves. The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). [SLEPc](https://en.wikipedia.org/wiki/SLEPc) calls it repeatedly inside shift-invert Krylov-Schur and inside every $H$ and $H^H$ apply. A direct factor belongs to exactly one shift $(\omega, \gamma)$. Reuse across shifts happens only in the router as [preconditioning](https://grokipedia.com/page/Preconditioner) under a residual gate, never as an exact solve. Iterative paths are explicit opt-in, never silent fallback.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or SLEPc vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-The **Linear Algebra Infrastructure** domain is the shared numerical core of LinStabPy. It provides reusable sparse factorization, backend selection, and shifted-operator helpers so that stability eigenproblems and resolvent analyses can **factorize once and solve many times**.
+The **Linear Algebra Infrastructure** domain is the shared numerical core of LinStabPy. It provides reusable [sparse](https://grokipedia.com/page/Sparse_matrix) factorization, backend selection, and shifted-operator helpers so that stability eigenproblems and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analyses can **factorize once and solve many times**.
 
-In the staged LNSE pipeline this domain sits after operator assembly and before SLEPc-driven eigen/resolvent work. Callers hand it a square sparse operator, typically a shifted linearized Navier–Stokes system such as \(L_0 - i\omega I\), and receive a `Factorization` object that exposes forward solves, Hermitian-adjoint solves, block right-hand sides, in-place refactorization on a fixed sparsity pattern, residual checks, and explicit resource teardown.
+In the staged LNSE pipeline this domain sits after operator assembly and before SLEPc-driven eigen/resolvent work. Callers hand it a square sparse operator, typically a shifted linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) system such as \(L_0 - i\omega I\), and receive a `Factorization` object that exposes forward solves, Hermitian-[adjoint](https://grokipedia.com/page/Adjoint) solves, block right-hand sides, in-place refactorization on a fixed sparsity pattern, residual checks, and explicit resource teardown.
 
 **Design posture**
 
@@ -51,12 +51,12 @@ src/linstabpy/mumps_options.py   # PETSc-free MUMPS ICNTL(7) ordering map
 
 Linear Algebra Infrastructure is an **infrastructure domain** consumed by:
 
-- **Stability Analysis**, shift-invert temporal, spatial, and adjoint EPS
+- **Stability Analysis**, [shift-invert](../solver-glossary.md) temporal, spatial, and adjoint [EPS](../solver-glossary.md)
 - **Resolvent Analysis**, repeated applies of \(H = C\,(L_0 - i\omega I)^{-1}\,B\)
 - **Solver Routing**, anchor factorization, preconditioner reuse, residual-gated refactor on \(\beta\)–\(\omega\) maps
 - **Case Orchestration**, backend policy from YAML/env and cost/provenance metrics
 
-It does **not** assemble LNSE physics, choose eigenpairs, or schedule frequency walks. Those domains call into this layer for linear solves only.
+It does **not** assemble LNSE physics, choose [eigenpairs](https://grokipedia.com/page/Eigenvalues_and_eigenvectors), or schedule frequency walks. Those domains call into this layer for linear solves only.
 
 ```mermaid
 flowchart TD
@@ -102,7 +102,7 @@ Package entry: `linstabpy.linalg`.
 | `CudssSolver` | `linalg.cudss_factor` |
 | `cudss_available` | `linalg.cudss_factor` |
 
-This keeps `import linstabpy` and light library use free of PETSc/MPI startup cost.
+This keeps `import linstabpy` and light library use free of PETSc/[MPI](https://grokipedia.com/page/Message_Passing_Interface) startup cost.
 
 ### 3.2 Typical call pattern
 
@@ -165,7 +165,7 @@ Unknown strings are accepted via `_missing_`, producing a dynamic enum member so
 | `PRECONDITIONER_PROBE_RESIDUAL_REL_MAX` | `1e-4` | Sanity ceiling when factor is only a PC |
 | `ERR_SUP` | `92` | PETSc "not supported" error code used by availability probes |
 
-The auto-route threshold is a **measured approximation** (c9, dual A6000): MUMPS wins below ~224k DOF; STRUMPACK wins near ~900k DOF. The true crossover is not fully mapped; treat the constant as tunable, not universal.
+The auto-route threshold is a **measured approximation** (c9, dual A6000): MUMPS wins below ~224k DOF; [STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/) wins near ~900k DOF. The true crossover is not fully mapped; treat the constant as tunable, not universal.
 
 ### 4.4 Option resolution
 
@@ -201,8 +201,8 @@ resolve_auto_factor_backend(ndof, threshold=224_000, strumpack_available=…)
 `apply_factor_backend(pc, backend, *, options_prefix="", factor_precision=…, mumps_blr=…, mumps_blr_tol=…, mumps_ordering=…)` runs after `pc.setType("lu")` and:
 
 1. Validates BLR / ordering only with MUMPS  
-2. Rejects `factor_backend="cudss"` as a PETSc factor type (cuDSS is a shell PC on the iterative path)  
-3. Currently **refuses** `factor_precision="single"` on PETSc SuperLU_DIST paths: measured PETSc builds ignore `-pc_precision`, which would silently keep double factors while provenance claimed single  
+2. Rejects `factor_backend="cudss"` as a PETSc factor type ([cuDSS](https://docs.nvidia.com/cuda/cudss/) is a shell PC on the iterative path)  
+3. Currently **refuses** `factor_precision="single"` on PETSc [SuperLU_DIST](https://portal.nersc.gov/project/sparse/superlu/) paths: measured PETSc builds ignore `-pc_precision`, which would silently keep double factors while provenance claimed single  
 4. Calls `ensure_factor_backend_available`  
 5. Writes PETSc options (`pc_factor_mat_solver_type`, optional MUMPS ICNTL/CNTL keys), `pc.setFromOptions()`, `pc.setFactorSolverType(backend)`, then clears transient option keys  
 
@@ -219,12 +219,12 @@ MUMPS BLR keys are explicitly deleted when BLR is off so a previous BLR-enabled 
 
 ### 4.8 Shifted-KSP residual probe
 
-`shifted_ksp_probe_residual(ksp, rhs_seed=17)` solves one deterministic complex RHS and returns absolute/relative residual, iteration count, KSP reason, and PC metadata. It is a **diagnostic**, not eigen acceptance policy.
+`shifted_ksp_probe_residual(ksp, rhs_seed=17)` solves one deterministic complex RHS and returns absolute/relative residual, iteration count, [KSP](../solver-glossary.md) reason, and PC metadata. It is a **diagnostic**, not eigen acceptance policy.
 
 `should_probe_backend` / `backend_probe_is_preconditioner_role` distinguish:
 
 - **Genuine direct solves**, default MUMPS skips the probe; other backends probe by default  
-- **Preconditioner role** (iterative eigen families / FGMRES+LU), probe remains diagnostic even for MUMPS unless disabled; outer Krylov/SLEPc convergence is the primary gate  
+- **Preconditioner role** (iterative eigen families / [FGMRES](https://grokipedia.com/page/Generalized_minimal_residual_method)+[LU](https://grokipedia.com/page/LU_decomposition)), probe remains diagnostic even for MUMPS unless disabled; outer [Krylov](https://grokipedia.com/page/Krylov_subspace)/SLEPc convergence is the primary gate  
 
 ---
 
@@ -295,7 +295,7 @@ Configurable pieces include KSP type, PC type/side, tolerances, ASM overlap, sub
 - Record plan/factor seconds and optional `lu_nnz` in metrics
 - Outer FGMRES owns accuracy; cuDSS iterative refinement is disabled inside the wrapper
 
-**ASM / block-Jacobi**: after outer `setUp`, configure sub-KSPs with hard-fail on local divergence and optional pivot shift (default NONZERO for stiff non-normal LNSE operators).
+**ASM / block-Jacobi**: after outer `setUp`, configure sub-KSPs with hard-fail on local divergence and optional pivot shift (default NONZERO for stiff [non-normal](https://en.wikipedia.org/wiki/Defective_matrix) LNSE operators).
 
 Diverged outer KSP raises in `_raise_if_diverged` so a failed FGMRES cannot appear as a silently wrong resolvent mode.
 
@@ -430,7 +430,7 @@ Related runtime options (via backends / factorize):
 
 PETSc-free wrapper around NVIDIA cuDSS through **nvmath-python**. PETSc coupling lives only in `factorize._CudssShellPC`.
 
-Install: optional extra `pip install 'linstabpy[cudss]'` (CUDA 12 + NVIDIA GPU).
+Install: optional extra `pip install 'linstabpy[cudss]'` ([CUDA](https://en.wikipedia.org/wiki/CUDA) 12 + NVIDIA GPU).
 
 ### 8.2 Lifecycle operations
 
@@ -561,7 +561,7 @@ sequenceDiagram
 
 ### 11.2 Adjoint correctness over convenience
 
-The dual-factor heal exists because a wrong adjoint silently corrupts resolvent \(H^H\) actions and structural sensitivity. The identity gate rejects plain-transpose mistakes that residual-only checks would miss on non-normal complex operators.
+The dual-factor heal exists because a wrong adjoint silently corrupts resolvent \(H^H\) actions and [structural sensitivity](../core-concepts.md). The identity gate rejects plain-transpose mistakes that residual-only checks would miss on non-normal complex operators.
 
 ### 11.3 Probe discipline
 
@@ -594,4 +594,4 @@ When extending this domain:
 
 **Linear Algebra Infrastructure** is LinStabPy's reusable factorization stack: a backend registry (MUMPS by default, SuperLU family, STRUMPACK, optional cuDSS), a `Factorization` object with NumPy and PETSc solve surfaces, shifted-operator helpers for SciPy and PETSc, and MUMPS ordering constants shared with configuration.
 
-It underpins the project's performance spine, **factorize once, solve many**, for temporal/spatial/adjoint eigenproblems, resolvent gain extraction, and cost-aware \(\beta\)–\(\omega\) campaigns, while enforcing complex-arithmetic correctness, honest backend availability, and Hermitian-adjoint integrity through dual-factor healing where vendor transpose paths are incomplete.
+It underpins the project's performance spine, **factorize once, solve many**, for temporal/spatial/adjoint eigenproblems, resolvent [gain](../core-concepts.md) extraction, and cost-aware \(\beta\)–\(\omega\) campaigns, while enforcing complex-arithmetic correctness, honest backend availability, and Hermitian-adjoint integrity through dual-factor healing where vendor transpose paths are incomplete.

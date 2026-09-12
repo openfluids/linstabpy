@@ -8,11 +8,6 @@ site_dir: site
 use_directory_urls: true
 strict: true
 
-# Generator dump reports. Do not publish the 400 kB detail file.
-exclude_docs: |
-  __Litho_Summary_Detail__.md
-  __Litho_Summary_Brief__.md
-
 validation:
   omitted_files: ignore
   absolute_links: warn
@@ -20,6 +15,7 @@ validation:
 
 theme:
   name: material
+  custom_dir: overrides
   logo: assets/images/logo.svg
   palette:
     # Default: Slate (Dark Mode)
@@ -86,41 +82,46 @@ markdown_extensions:
 
 extra_css:
   - stylesheets/extra.css
+  - assets/katex/katex.min.css
 
 extra_javascript:
+  - javascripts/mermaid-zoom.js
   - javascripts/font-size.js
-  - javascripts/mathjax.js
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js
+  - javascripts/sidebar-toggle.js
+  - javascripts/katex.js
+  - assets/katex/katex.min.js
+  - assets/katex/contrib/auto-render.min.js
 
 nav:
   - Home: index.md
-  - Getting started: 0.Getting-Started.md
-  - Overview: 1.Overview.md
-  - Architecture: 2.Architecture.md
-  - Workflow: 3.Workflow.md
-  - Deep exploration:
-      - 4.Deep-Exploration/modules.md
-      - Ownership:
-          - Runtime driver: 4.Deep-Exploration/driver.md
-          - LNSE assembly: 4.Deep-Exploration/operators.md
-          - BC recipes: 4.Deep-Exploration/boundary-conditions.md
-          - Structured mesh: 4.Deep-Exploration/mesh.md
-          - Packed fields: 4.Deep-Exploration/baseflow.md
-          - YAML and Config: 4.Deep-Exploration/config.md
-          - Eigenvalues: 4.Deep-Exploration/stability.md
-          - Resolvent: 4.Deep-Exploration/resolvent.md
-          - Solvers: 4.Deep-Exploration/solvers.md
-          - Sparse factors: 4.Deep-Exploration/linalg.md
+  - Getting started: getting-started.md
+  - Overview: overview.md
+  - Architecture: architecture.md
+  - Workflow: workflow.md
+  - Module guide:
+      - modules/index.md
+      - Quick reference:
+          - Runtime driver: modules/driver.md
+          - LNSE assembly: modules/operators.md
+          - BC recipes: modules/boundary-conditions.md
+          - Structured mesh: modules/mesh.md
+          - Packed fields: modules/baseflow.md
+          - YAML and Config: modules/config.md
+          - Eigenvalues: modules/stability.md
+          - Resolvent: modules/resolvent.md
+          - Solvers: modules/solvers.md
+          - Sparse factors: modules/linalg.md
       - Package notes:
-          - Case pipeline: "4.Deep-Exploration/Case Orchestration.md"
-          - Configuration: "4.Deep-Exploration/Configuration Management.md"
-          - Baseflow: "4.Deep-Exploration/Baseflow Management.md"
-          - Mesh: "4.Deep-Exploration/Mesh Discretization.md"
-          - LNSE operator: "4.Deep-Exploration/LNSE Operator Assembly.md"
-          - Stability: "4.Deep-Exploration/Stability Analysis.md"
-          - Resolvent: "4.Deep-Exploration/Resolvent Analysis.md"
-          - Solver routing: "4.Deep-Exploration/Solver Routing and Sweep Optimization.md"
-          - Linear algebra: "4.Deep-Exploration/Linear Algebra Infrastructure.md"
-          - Utilities: "4.Deep-Exploration/Shared Scientific Utilities.md"
-  - Boundaries: 5.Boundary-Interfaces.md
-  - Solver glossary: 6.PETSc-SLEPc-Glossary.md
+          - Case pipeline: modules/case-orchestration.md
+          - Configuration: modules/configuration-management.md
+          - Baseflow: modules/baseflow-management.md
+          - Mesh: modules/mesh-discretization.md
+          - LNSE operator: modules/lnse-operator-assembly.md
+          - Stability: modules/stability-analysis.md
+          - Resolvent: modules/resolvent-analysis.md
+          - Solver routing: modules/solver-routing.md
+          - Linear algebra: modules/linear-algebra.md
+          - Utilities: modules/shared-utilities.md
+  - Boundaries: boundaries.md
+  - Solver glossary: solver-glossary.md
+  - Core concepts: core-concepts.md

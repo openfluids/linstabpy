@@ -1,13 +1,13 @@
 # Baseflow Management, Technical Implementation Documentation
 
 !!! info "What this package owns, in one paragraph"
-    The base flow is the steady compressible solution you linearize about. This package loads it from `npy` or `npz` files, cleans it up (sponge layers, shock treatment, viscosity from Sutherland), and hands mesh aligned `(ny, nx)` arrays to assembly. Fields are nondimensional primitives with freestream density, velocity, and temperature equal to 1. If spectra look wrong, start here: a misaligned or uncleaned base flow propagates directly into every eigenvalue and gain.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    The base flow is the steady [compressible](https://grokipedia.com/page/Compressible_flow) solution you linearize about. This package loads it from `npy` or `npz` files, cleans it up ([sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), shock treatment, viscosity from Sutherland), and hands mesh aligned `(ny, nx)` arrays to assembly. Fields are nondimensional primitives with freestream density, velocity, and temperature equal to 1. If spectra look wrong, start here: a misaligned or uncleaned base flow propagates directly into every [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and [gain](../core-concepts.md).
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Baseflow Management** is a core business domain in LinStabPy. It turns on-disk CFD mean-flow dumps into a mesh-aligned `BaseFlow` object that LNSE coefficient generation and operator assembly can consume.
+**Baseflow Management** is a core business domain in LinStabPy. It turns on-disk [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into a mesh-aligned `BaseFlow` object that LNSE coefficient generation and operator assembly can consume.
 
 The domain owns:
 
@@ -16,7 +16,7 @@ The domain owns:
 - Structured sponge generation (presets and mesh-aware smooth profiles)
 - Sutherland air viscosity and transport coefficient fill
 
-It does **not** generate nonlinear CFD baseflows. Scope starts at loaded mean-flow files and ends at a completed `BaseFlow` plus sponge field ready for mesh/SBP attachment and LNSE linearization.
+It does **not** generate nonlinear CFD baseflows. Scope starts at loaded mean-flow files and ends at a completed `BaseFlow` plus sponge field ready for mesh/[SBP](https://grokipedia.com/page/Summation_by_parts) attachment and LNSE linearization.
 
 **Package path:** `src/linstabpy/baseflow/`
 
@@ -34,7 +34,7 @@ It does **not** generate nonlinear CFD baseflows. Scope starts at loaded mean-fl
 | `load_sponge_aux` | Optional MATLAB HDF5 `sponge_aux` loader |
 | `sutherland_air` | In-place viscosity and derived coefficients |
 
-`BaseFlow` is also exposed on the top-level lazy public API (`import linstabpy` → `BaseFlow`) without initializing PETSc/MPI.
+`BaseFlow` is also exposed on the top-level lazy public API (`import linstabpy` → `BaseFlow`) without initializing PETSc/[MPI](https://grokipedia.com/page/Message_Passing_Interface).
 
 ---
 
@@ -46,7 +46,7 @@ Baseflow Management is stage 3 of the staged scientific pipeline:
 config → baseflow → mesh/SBP → coefficients → L0 + BCs → factorize → eigen/resolvent → payload
 ```
 
-All major analysis products (temporal/adjoint eigen, spatial eigen, resolvent gains, β–ω maps) share this preparation path. Downstream LNSE assembly reads primitives (`RHO,U,V,W,T`), parameters (`Re,Ma,Pr,kappa,T_0`), and viscosity derivatives (`MU,dmudT,d2mudT2,cv,c1,c2`). Sponge damping is applied later during operator assembly (after analytical `inv(B/1j)` scaling, before artificial dissipation and BC recipes).
+All major analysis products (temporal/[adjoint](https://grokipedia.com/page/Adjoint) eigen, spatial eigen, [resolvent](https://grokipedia.com/page/Resolvent_formalism) gains, β–ω maps) share this preparation path. Downstream LNSE assembly reads primitives (`RHO,U,V,W,T`), parameters (`Re,Ma,Pr,kappa,T_0`), and viscosity derivatives (`MU,dmudT,d2mudT2,cv,c1,c2`). Sponge damping is applied later during operator assembly (after analytical `inv(B/1j)` scaling, before artificial dissipation and BC recipes).
 
 ```mermaid
 flowchart TD
@@ -418,7 +418,7 @@ where \(\mu_0\) is Sutherland viscosity evaluated at reference \(T_0\).
 
 ### 9.2 Downstream use
 
-LNSE coefficient generation needs `MU`, `dmudT`, and often `d2mudT2` for viscous linearization of compressible Navier–Stokes. Call `sutherland_air` after preprocess and before coefficient assembly.
+LNSE coefficient generation needs `MU`, `dmudT`, and often `d2mudT2` for viscous linearization of compressible [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations). Call `sutherland_air` after preprocess and before coefficient assembly.
 
 ---
 

@@ -1,13 +1,13 @@
 # Shared Scientific Utilities, Technical Implementation Documentation
 
 !!! info "What this package owns, in one paragraph"
-    Crosscutting helpers with no physics of their own: PETSc init order and SciPy to PETSc conversion in `petsc_core`, YAML IO, cost and provenance recording, Floquet helpers, and the versioned metrics schema. If two domains need the same conversion or the same provenance key, it lives here so the spelling stays identical. These modules never own case flow.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    Crosscutting helpers with no physics of their own: [PETSc](https://en.wikipedia.org/wiki/PETSc) init order and SciPy to PETSc conversion in `petsc_core`, YAML IO, cost and provenance recording, [Floquet](https://grokipedia.com/page/Floquet_theory) helpers, and the versioned metrics schema. If two domains need the same conversion or the same provenance key, it lives here so the spelling stays identical. These modules never own case flow.
+    New to PETSc or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Shared Scientific Utilities** is the cross-cutting infrastructure domain of LinStabPy. It sits beneath mesh discretization, LNSE operator assembly, linear algebra, stability, and resolvent analysis, and provides the common services those layers need without owning any scientific workflow of its own.
+**Shared Scientific Utilities** is the cross-cutting infrastructure domain of LinStabPy. It sits beneath mesh discretization, LNSE operator assembly, linear algebra, stability, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis, and provides the common services those layers need without owning any scientific workflow of its own.
 
 The domain covers two logical sub-modules:
 
@@ -35,7 +35,7 @@ src/linstabpy/
 
 **Design goals**
 
-- Keep `import linstabpy` and light CLI paths free of PETSc/MPI initialization.
+- Keep `import linstabpy` and light CLI paths free of PETSc/[MPI](https://grokipedia.com/page/Message_Passing_Interface) initialization.
 - Give mesh filters and solver backends one shared SciPy–PETSc bridge so those packages do not depend on each other.
 - Unify YAML / environment / default precedence for solver policy across eigen, resolvent, and linear-solve paths.
 - Persist reproducible, privacy-safe cost and provenance sidecars next to run NPZ artifacts.
@@ -150,7 +150,7 @@ require_complex(solver_cfg=None)
 ```
 
 1. Asserts `PETSc.ScalarType` is complex-floating; otherwise raises `RuntimeError` (production stability requires `--with-scalar-type=complex`).
-2. On first successful call only (`_petsc_configured`), installs project MUMPS ICNTL defaults into the process-global PETSc options database from typed `Config.mpi` via `mumps_icntl_petsc_options`.
+2. On first successful call only (`_petsc_configured`), installs project [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) ICNTL defaults into the process-global PETSc options database from typed `Config.mpi` via `mumps_icntl_petsc_options`.
 
 `mumps_icntl_petsc_options(mpi: MpiCfg)` maps:
 
@@ -161,7 +161,7 @@ require_complex(solver_cfg=None)
 
 ICNTL(7) ordering is **not** set here; it is controlled by `mumps_ordering` / `LINSTABPY_MUMPS_ORDERING` and the PETSc-free map in `mumps_options.MUMPS_ORDERING_TO_ICNTL_7` (`amd`, `pord`, `metis`, `qamd`, `auto`).
 
-One-shot configuration prevents later solver-module imports from rewriting options behind an already-created KSP/EPS.
+One-shot configuration prevents later solver-module imports from rewriting options behind an already-created [KSP](../solver-glossary.md)/[EPS](../solver-glossary.md).
 
 ### 4.4 Matrix layout policy
 
@@ -231,7 +231,7 @@ ITERATIVE_EIGEN_SOLVER_TYPES  = {iterative, krylov, slepc}
 INEXACT_EIGEN_SOLVER_TYPES    = {inexact}
 ```
 
-These frozensets are the policy boundary for backend name normalization across eigenvalue, resolvent, and linear-solve paths.
+These frozensets are the policy boundary for backend name normalization across [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors), resolvent, and linear-solve paths.
 
 ### 5.2 `SolverConfig`
 
@@ -338,7 +338,7 @@ Builds the cost subsection dict:
 
 Failed probes degrade to `"unavailable"` via `_probe_string` rather than aborting the run.
 
-**Why BLAS is first-class:** factorization cost is not comparable across BLAS families; reference Fortran BLAS has been measured substantially slower than MKL on the same code and commit. Cost rows without `blas` cannot be ranked against each other.
+**Why [BLAS](https://en.wikipedia.org/wiki/BLAS) is first-class:** factorization cost is not comparable across BLAS families; reference Fortran BLAS has been measured substantially slower than MKL on the same code and commit. Cost rows without `blas` cannot be ranked against each other.
 
 **Privacy policy:** Artifacts may be published (papers, Zenodo). Hostname and hardware tags stay generic unless the operator deliberately sets environment labels.
 
@@ -363,7 +363,7 @@ Units:
 - Memory: bytes (`cost_peak_rss_bytes`, `cost_peak_gpu_mem_bytes`)
 - No run date is written by emitters
 
-Optional problem keys include `stride_ksi` / `stride_eta` for older JSON compatibility. Quality keys are optional so a resolvent run may omit eigenvalue residuals and a stability run may omit gains.
+Optional problem keys include `stride_ksi` / `stride_eta` for older JSON compatibility. Quality keys are optional so a resolvent run may omit eigenvalue residuals and a stability run may omit [gains](../core-concepts.md).
 
 ### 9.2 `validate_metrics(d) -> list[str]`
 

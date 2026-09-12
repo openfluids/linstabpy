@@ -1,15 +1,15 @@
 # Mesh Discretization, Technical Implementation Documentation
 
 !!! info "Math you need for this page"
-    Structured 2D grids with SBP finite differences at even orders $2$, $4$, $6$, $8$ only, each with validated boundary closures and diagonal norm $H$. Filters are implicit 10th order Mattsson style with `alpha_filter` strength control. Artificial dissipation is the Mattsson, Svard, and Nordstrom operator $Q_{\mathrm{diss}}$ scaled by $\varepsilon$ and applied as $L_0 - \varepsilon Q$. Deformation chain rules the derivatives and scales quadrature by $|\det J|$. Fortran order flattening keeps indices aligned with the MATLAB reference.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    Structured 2D grids with [SBP](https://grokipedia.com/page/Summation_by_parts) [finite differences](https://grokipedia.com/page/Finite_difference_method) at even orders $2$, $4$, $6$, $8$ only, each with validated boundary closures and diagonal norm $H$. Filters are implicit 10th order Mattsson style with `alpha_filter` strength control. Artificial dissipation is the Mattsson, Svard, and Nordstrom operator $Q_{\mathrm{diss}}$ scaled by $\varepsilon$ and applied as $L_0 - \varepsilon Q$. Deformation chain rules the derivatives and scales quadrature by $|\det J|$. Fortran order flattening keeps indices aligned with the MATLAB reference.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-The **Mesh Discretization** domain (`src/linstabpy/mesh/`) is the structured-mesh foundation of LinStabPy. It supplies geometry, summation-by-parts (SBP) finite-difference operators, integration weights, optional artificial dissipation, spatial filters, mesh deformation, pole-line handling, and masking for linearized Navier–Stokes (LNSE) spatial discretization on structured 2-D grids.
+The **Mesh Discretization** domain (`src/linstabpy/mesh/`) is the structured-mesh foundation of LinStabPy. It supplies geometry, summation-by-parts (SBP) finite-difference operators, integration weights, optional artificial dissipation, spatial filters, mesh deformation, pole-line handling, and masking for linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) spatial discretization on structured 2-D grids.
 
-The implementation ports LinStab2D MATLAB workflows (`CreateMesh.m`, `AddDW2mesh.m`, `DeformMesh.m`, `GetFilter.m` / `CreateFilter.m`, `Dmats_SBP.m`) into Python dataclasses and SciPy sparse linear algebra. Downstream LNSE assembly, energy norms, stability eigenproblems, and resolvent analysis all consume this mesh contract.
+The implementation ports LinStab2D MATLAB workflows (`CreateMesh.m`, `AddDW2mesh.m`, `DeformMesh.m`, `GetFilter.m` / `CreateFilter.m`, `Dmats_SBP.m`) into Python dataclasses and SciPy [sparse](https://grokipedia.com/page/Sparse_matrix) linear algebra. Downstream LNSE assembly, energy norms, stability eigenproblems, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis all consume this mesh contract.
 
 **Scope**
 
@@ -201,7 +201,7 @@ Integration weights accumulate 1-D SBP norm factors along each line (diagonal-no
 
 ### 5.4 Filters and dissipation at create time
 
-- `build_mesh_filters(X, Y, used_ind, alpha_filter)` attaches direct and adjoint filters.
+- `build_mesh_filters(X, Y, used_ind, alpha_filter)` attaches direct and [adjoint](https://grokipedia.com/page/Adjoint) filters.
 - If `numerics_operator_dissipation` is provided with `enabled=True`, `build_sbp_dissipation_matrices` fills `Q_diss_x` / `Q_diss_y` (1-D operators on the reference ξ / η lines). Defaults for the MSN \(A_{2p}\) profile live in `DISSIPATION_DEFAULTS` (`transition_fraction`, `endpoint_exponent`, `interior_value`).
 
 ### 5.5 Boundary index sets
@@ -324,9 +324,9 @@ Pipeline:
 1. `filter_O10_diffMat(n, alpha)` builds 1-D tridiagonal implicit \(M\) and explicit 10th-order \(F\) with MATLAB boundary closures.
 2. `_build_2d_filter_pair` groups used points into constant-coordinate lines, applies 1-D filters on segments longer than 10 points.
 3. Separable apply: \(F_x\) then \(F_z\) (never the dense product, sparsity and cost).
-4. Implicit solves via `_build_filter_solver`: identity fast path when \(M=I\); otherwise one SciPy SuperLU factor per direction.
+4. Implicit solves via `_build_filter_solver`: identity fast path when \(M=I\); otherwise one SciPy [SuperLU](https://portal.nersc.gov/project/sparse/superlu/) factor per direction.
 
-**Performance note (in-code measurement).** Filters intentionally avoid PETSc/MUMPS. On a 300×300 resolvent case, identity MUMPS filter solves previously dominated ~62% of one \(H^H H\) apply; sequential SuperLU / identity copies removed that overhead.
+**Performance note (in-code measurement).** Filters intentionally avoid PETSc/[MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). On a 300×300 resolvent case, identity MUMPS filter solves previously dominated ~62% of one \(H^H H\) apply; sequential SuperLU / identity copies removed that overhead.
 
 Adjoint path: transpose solves and Hermitian transpose of \(F\) factors so energy-weighted adjoint/resolvent paths remain consistent.
 
@@ -403,7 +403,7 @@ Invalid FD orders fail early in config schema validation before expensive HPC st
 
 ## 13. Design Principles and Implementation Notes
 
-1. **MATLAB parity.** Indexing, half-cell axis shift, filter conventions, deformation branches, and pole closures track LinStab2D so spectra and gains remain comparable.
+1. **MATLAB parity.** Indexing, half-cell axis shift, filter conventions, deformation branches, and pole closures track LinStab2D so spectra and [gains](../core-concepts.md) remain comparable.
 
 2. **SBP stability.** Diagonal-norm SBP + optional MSN dissipation provide a discrete energy estimate compatible with well-posed LNSE boundary treatments.
 
@@ -465,4 +465,4 @@ Natural extensions: validated higher-order SBP tables via `sbp_generator`, decou
 
 ## 16. Summary
 
-**Mesh Discretization** provides LinStabPy's entire spatial discrete infrastructure: structured geometry, SBP differentiation and norms (including axisymmetric poles), MSN artificial dissipation, adjoint-consistent filters, deformation metrics, and masking. The `Mesh` object unifies these pieces; frozen views expose clean contracts to LNSE assembly, energy norms, stability, and resolvent workflows. Implementation fidelity to LinStab2D, careful sparse-algebra performance choices, and strict FD-order validation make the module the reliable foundation for large-scale compressible LNSE eigenvalue and resolvent studies on HPC.
+**Mesh Discretization** provides LinStabPy's entire spatial discrete infrastructure: structured geometry, SBP differentiation and norms (including axisymmetric poles), MSN artificial dissipation, adjoint-consistent filters, deformation metrics, and masking. The `Mesh` object unifies these pieces; frozen views expose clean contracts to LNSE assembly, energy norms, stability, and resolvent workflows. Implementation fidelity to LinStab2D, careful sparse-algebra performance choices, and strict FD-order validation make the module the reliable foundation for large-scale [compressible](https://grokipedia.com/page/Compressible_flow) LNSE [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and resolvent studies on HPC.

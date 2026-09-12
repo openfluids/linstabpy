@@ -1,13 +1,13 @@
 # Case Orchestration, Technical Implementation Documentation
 
 !!! info "What this package owns, in one paragraph"
-    The driver in `driver/run.py` defines what a case means: init MPI and PETSc in the right order, merge and validate config, load fields, build mesh, assemble $L_0$, factorize, solve, postcheck, and write the `npz` payload with metrics and provenance. Library users can bypass it and call domain functions directly, but the stage order here is the reference. Heavy work starts only on solve paths. Plain imports stay light.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    The driver in `driver/run.py` defines what a case means: init [MPI](https://grokipedia.com/page/Message_Passing_Interface) and [PETSc](https://en.wikipedia.org/wiki/PETSc) in the right order, merge and validate config, load fields, build mesh, assemble $L_0$, factorize, solve, postcheck, and write the `npz` payload with metrics and provenance. Library users can bypass it and call domain functions directly, but the stage order here is the reference. Heavy work starts only on solve paths. Plain imports stay light.
+    New to PETSc or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Case Orchestration** is the core business domain that owns end-to-end LNSE case execution in LinStabPy. It is the single operational hub that turns a YAML case policy and CFD mean-flow dumps into stability spectra, resolvent gains, metrics, and provenance artifacts on MPI-enabled HPC.
+**Case Orchestration** is the core business domain that owns end-to-end LNSE case execution in LinStabPy. It is the single operational hub that turns a YAML case policy and [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into stability spectra, [resolvent](https://grokipedia.com/page/Resolvent_formalism) [gains](../core-concepts.md), metrics, and provenance artifacts on MPI-enabled HPC.
 
 The domain does **not** implement physics discretization or eigen/resolvent numerics itself. It:
 
@@ -257,9 +257,9 @@ Frozen dataclasses (`_AssemblyStageResult`, `_ResolventStageResult`, `_Stability
 1. **Config resolution**, load YAML, provenance, typed `Config`, analysis flags (`run_stability`, `run_resolvent`), dissipation effective epsilons per stage, sponge policy, alpha filter, solver backend provenance.
 2. **Banner + preflight** (rank 0), `format_banner` of **effective** values; `config_advisories`.
 3. **Baseflow**, `load_case_fields`, Sutherland viscosity; freestream advisories (`rho = u = T = 1`).
-4. **Mesh**, structured mesh, SBP operators, filters, optional dissipation attachment.
-5. **Assembly**, `build_lnse_system_result` for stability epsilon; optional second assembly when resolvent epsilon differs; BC analysis (Dirichlet/Neumann/overlap index sets).
-6. **Chu weights**, `W_diag`, `invW_diag` for weighted eigen/resolvent.
+4. **Mesh**, structured mesh, [SBP](https://grokipedia.com/page/Summation_by_parts) operators, filters, optional dissipation attachment.
+5. **Assembly**, `build_lnse_system_result` for stability epsilon; optional second assembly when resolvent epsilon differs; BC analysis ([Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition)/[Neumann](https://grokipedia.com/page/Neumann_boundary_condition)/overlap index sets).
+6. **[Chu](../core-concepts.md) weights**, `W_diag`, `invW_diag` for weighted eigen/resolvent.
 7. **Resolvent (optional)**, `_forcing_response_mats` (same region masking as `resolvent_map`), then `resolvent_analysis` with residuals.
 8. **Stability (optional)**, temporal path `eig(i*L0)` (MATLAB parity) or diagnostic `use_raw_eigs`; optional Dirichlet DOF reduction; postcheck residuals and BC leakage.
 9. **Collective RSS**, `MPI.COMM_WORLD.allreduce(..., SUM)` **on every rank** before rank-0 save (avoids deadlock).
@@ -268,7 +268,7 @@ Frozen dataclasses (`_AssemblyStageResult`, `_ResolventStageResult`, `_Stability
 
 #### 5.3.4 Operator and numerics policies owned by the driver
 
-- **Alpha filter** is an operator-level property. Earlier code silently forced `"none"` on EVP-only runs; that produced pixel-scale sawtooth eigenvectors. The driver now honors the configured value for every stage.
+- **Alpha filter** is an operator-level property. Earlier code silently forced `"none"` on EVP-only runs; that produced pixel-scale sawtooth [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors). The driver now honors the configured value for every stage.
 - **Dissipation** uses nested `numerics.operator_dissipation` with per-stage `apply_to_stability` / `apply_to_resolvent`. Effective epsilons:
   - `eps_stab = epsilon if enabled and apply_to_stability else 0`
   - `eps_resolv = epsilon if enabled and apply_to_resolvent else 0`
@@ -393,7 +393,7 @@ Orchestration is the **entry step** in the primary business flows:
 
 - Temporal Eigenvalue Stability Analysis  
 - Resolvent Gain Analysis  
-- Beta–Frequency Resolvent Gain Map  
+- Beta–Frequency Resolvent [Gain Map](../core-concepts.md)  
 - Baseflow Ingest and Operator Prep  
 
 Spatial eigenproblems are available primarily through the library/stability APIs; the shared case driver focuses on temporal stability + resolvent (+ map helpers).
@@ -422,7 +422,7 @@ Spatial eigenproblems are available primarily through the library/stability APIs
 
 Groups in `metrics_schema.SCHEMA`:
 
-- **provenance**, git SHA, config MD5, hostname, stack versions, MPI/BLAS tags  
+- **provenance**, git SHA, config MD5, hostname, stack versions, MPI/[BLAS](https://en.wikipedia.org/wiki/BLAS) tags  
 - **problem**, case, FD order, strides, nx/ny/ndof/nnz, beta, targets, factor backend  
 - **cost**, wall times (total/assemble/factor/solve), peak RSS/GPU mem, ranks, PETSc options  
 - **quality**, optional residuals, acceptance counts, gains, reject codes  

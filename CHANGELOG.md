@@ -10,7 +10,7 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 ### Added
 
 - `wiki/` architecture pages and `.github/workflows/pages.yml`. MkDocs
-  builds the site. Litho fills the C4 pages from the source tree.
+  builds the site. Pages are hand-written and hand-maintained.
 
 ### Fixed
 

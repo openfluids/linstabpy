@@ -1,13 +1,13 @@
 # Resolvent Analysis, Technical Implementation Documentation
 
 !!! info "Math you need for this page"
-    $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with filters $F$ inside the $B$ and $C$ masks. Gains solve $W^{-1} H^H W H v = \sigma^2 v$ for `chu` forcing norm or $H^H W H v = \sigma^2 v$ for `l2`, with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ and response $u = Hv/\sigma$. Forward residual $\rho_{\mathrm{fwd}}$ is near roundoff by construction. Adjoint residual $\rho_{\mathrm{adj}}$ is the quality signal and should track the SLEPc tolerance. A factor belongs to one $(\omega, \gamma)$ pair.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with filters $F$ inside the $B$ and $C$ masks. [Gains](../core-concepts.md) solve $W^{-1} H^H W H v = \sigma^2 v$ for `chu` forcing norm or $H^H W H v = \sigma^2 v$ for `l2`, with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ and response $u = Hv/\sigma$. Forward residual $\rho_{\mathrm{fwd}}$ is near roundoff by construction. [Adjoint](https://grokipedia.com/page/Adjoint) residual $\rho_{\mathrm{adj}}$ is the quality signal and should track the [SLEPc](https://en.wikipedia.org/wiki/SLEPc) tolerance. A factor belongs to one $(\omega, \gamma)$ pair.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or SLEPc vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Resolvent Analysis** is a core scientific domain in LinStabPy. It constructs the frequency-domain resolvent operator of the linearized Navier–Stokes (LNSE) system, extracts optimal forcing/response pairs and energy gains, and validates singular triplets with residual checks. The domain supports amplifier and receptivity studies for compressible viscous flows and is the computational kernel used by single-frequency cases and by large \(\beta\)–\(\omega\) map campaigns.
+**[Resolvent](https://grokipedia.com/page/Resolvent_formalism) Analysis** is a core scientific domain in LinStabPy. It constructs the frequency-domain resolvent operator of the linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) system, extracts optimal forcing/response pairs and energy gains, and validates singular triplets with residual checks. The domain supports amplifier and receptivity studies for [compressible](https://grokipedia.com/page/Compressible_flow) viscous flows and is the computational kernel used by single-frequency cases and by large \(\beta\)–\(\omega\) map campaigns.
 
 The mathematical object is
 
@@ -15,7 +15,7 @@ The mathematical object is
 H = C\,F\,(L_0 - (\gamma + i\omega)I)^{-1}\,F\,B,
 \]
 
-where \(L_0\) is the BC-enforced LNSE operator, \(\omega\) is the angular frequency, \(\gamma\) is an optional real discount parameter, \(B\) and \(C\) are input/output maps, and \(F\) denotes optional spatial filters placed **inside** the masks (MATLAB-aligned composition).
+where \(L_0\) is the BC-enforced LNSE operator, \(\omega\) is the angular frequency, \(\gamma\) is an optional real [discount](../core-concepts.md) parameter, \(B\) and \(C\) are input/output maps, and \(F\) denotes optional spatial filters placed **inside** the masks (MATLAB-aligned composition).
 
 Gains are obtained from a weighted normal eigenproblem on a PETSc `MatShell`:
 
@@ -23,10 +23,10 @@ Gains are obtained from a weighted normal eigenproblem on a PETSc `MatShell`:
 H^\dagger W H\,v = \sigma^2 v
 \quad\text{(or}\quad
 W^{-1} H^\dagger W H\,v = \sigma^2 v
-\text{ for Chu-normalized forcing)},
+\text{ for [Chu](../core-concepts.md)-normalized forcing)},
 \]
 
-with singular values recovered as \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\) and response modes as \(u = H(v)/\sigma\).
+with [singular values](https://grokipedia.com/page/Singular_value_decomposition) recovered as \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\) and [response modes](../core-concepts.md) as \(u = H(v)/\sigma\).
 
 ### Package location
 
@@ -41,10 +41,10 @@ src/linstabpy/resolvent/
 
 ### Role in the system
 
-Resolvent Analysis sits downstream of baseflow ingest, mesh/SBP discretization, and LNSE operator assembly. It depends on the shared factorization layer (`linalg.factorize`) for factorize-once, solve-many shifted solves, and is invoked by:
+Resolvent Analysis sits downstream of baseflow ingest, mesh/[SBP](https://grokipedia.com/page/Summation_by_parts) discretization, and LNSE operator assembly. It depends on the shared factorization layer (`linalg.factorize`) for factorize-once, solve-many shifted solves, and is invoked by:
 
 - Case orchestration (`driver/run.py`) for single-frequency resolvent stages  
-- Solver routing (`solvers/router/`) for \(\beta\)–frequency gain maps  
+- Solver routing (`solvers/router/`) for \(\beta\)–frequency [gain maps](../core-concepts.md)  
 - Library consumers via the lazy public API (`resolvent_analysis`)
 
 ---
@@ -123,7 +123,7 @@ L_\sigma = L_0 - (\gamma + i\omega)\,I.
 \]
 
 - Default \(\gamma = 0\): classical resolvent \(L_0 - i\omega I\).  
-- \(\gamma > 0\): discounted resolvent that damps poles and keeps the shifted solve well-posed near eigenvalues on the imaginary axis.
+- \(\gamma > 0\): discounted resolvent that damps poles and keeps the shifted solve well-posed near [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) on the imaginary axis.
 
 Implementation: `linstabpy.linalg.shifted.shifted_operator`, preserving SciPy CSC or PETSc `Mat` backend.
 
@@ -170,7 +170,7 @@ With consistent norms (both numerator and denominator in the same \(W\)- or \(L^
 
 - \(\rho_\mathrm{fwd}\) is near machine precision by construction (\(u\) is defined from \(Hv\)).  
 - \(\rho_\mathrm{adj}\) is the primary quality signal and should track SLEPc tolerance (\(\sim 10^{-12}\)) for correct discrete solves.  
-- Using a 2-norm numerator with a \(W\)-norm denominator previously amplified MPI floating-point jitter under Chu weights spanning many orders of magnitude; the implementation keeps norms consistent on both sides.
+- Using a 2-norm numerator with a \(W\)-norm denominator previously amplified [MPI](https://grokipedia.com/page/Message_Passing_Interface) floating-point jitter under Chu weights spanning many orders of magnitude; the implementation keeps norms consistent on both sides.
 
 ---
 
@@ -198,9 +198,9 @@ resolvent_analysis(
 1. **Validate inputs**, square SciPy/PETSc \(L_0\); finite \(\omega\), \(\gamma\); `n_modes >= 1`; `W_diag` length equals `ndof`.  
 2. **Resolve config**, `Config.load(solver_cfg)` when `cfg` is omitted; `require_complex` for production PETSc.  
 3. **Form \(L_\sigma\)**, `shifted_operator(L0, omega, gamma=gamma)`.  
-4. **Factorize**, `factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", ...)`. Default path is direct (KSPPREONLY + PCLU + MUMPS); backend may follow typed config / env. The shifted PETSc copy is destroyed after factorize copies internally.  
+4. **Factorize**, `factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", ...)`. Default path is direct (KSPPREONLY + PCLU + [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))); backend may follow typed config / env. The shifted PETSc copy is destroyed after factorize copies internally.  
 5. **Build `ResolventOperator`**, wraps factorization, \(B\), \(C\), filters.  
-6. **Gain EPS**, `compute_leading_gains(...)` on the weighted normal shell.  
+6. **Gain [EPS](../solver-glossary.md)**, `compute_leading_gains(...)` on the weighted normal shell.  
 7. **Optional residuals**, reuse the **same** factorization via `op.apply` / `op.apply_adjoint` (no second factor when `residuals=True`).  
 8. **Destroy factorization**, always in a `finally` block.  
 9. **Return**, historical three-tuple by default; optional residual arrays and/or `info` with `resolvent_discount_gamma`, `factor_s`, `svd_s`, `residual_s`.
@@ -234,7 +234,7 @@ class ResolventOperator:
 Helpers:
 
 - `_apply_optional_matrix` / `_apply_optional_adjoint_matrix`, SciPy `@` / `.conj().T @`, or PETSc `mult` / `multHermitian` with temporary vectors.  
-- `_make_production_probe_family`, when \(B\) is present, attaches unit-norm probes of the form \(F(Bv)\) to the factorization's `probe_family` for adjoint self-tests (relevant for backends such as single-precision cuDSS).
+- `_make_production_probe_family`, when \(B\) is present, attaches unit-norm probes of the form \(F(Bv)\) to the factorization's `probe_family` for adjoint self-tests (relevant for backends such as single-precision [cuDSS](https://docs.nvidia.com/cuda/cudss/)).
 
 `None` for \(B\) or \(C\) means identity. Filters default to identity callables.
 
@@ -362,9 +362,9 @@ flowchart TD
 
 The router (`solvers/router/resolvent_map.py` and walk engines) is **not** inside `resolvent/`, but it repeatedly calls the resolvent driver:
 
-1. Assemble one LNSE operator per spanwise wavenumber \(\beta\).  
+1. Assemble one LNSE operator per spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) \(\beta\).  
 2. Mark frequency bands (stable / smooth / near-pole).  
-3. Factor measured anchors; reuse factors as right preconditioners along the line.  
+3. Factor measured anchors; reuse factors as right [preconditioners](https://grokipedia.com/page/Preconditioner) along the line.  
 4. Residual gate forces refactor when accuracy degrades.  
 5. At each scheduled \(\omega\), invoke leading-gain resolvent analysis.  
 6. Record map gains, cost samples, and certification metadata.
@@ -497,8 +497,8 @@ Documented explicitly in the driver: a factorization cannot travel across differ
 
 Cost is dominated by:
 
-1. Sparse direct factorization of \(L_\sigma\) (once per frequency in the single-point path).  
-2. Many \(H\)/\(H^H\) applies inside Krylov–Schur (each apply = two filters + one solve or transpose solve + \(B\)/\(C\)).  
+1. [Sparse](https://grokipedia.com/page/Sparse_matrix) direct factorization of \(L_\sigma\) (once per frequency in the single-point path).  
+2. Many \(H\)/\(H^H\) applies inside [Krylov–Schur](../solver-glossary.md) (each apply = two filters + one solve or transpose solve + \(B\)/\(C\)).  
 
 Optional `return_info` exposes exclusive stage timers `factor_s`, `svd_s`, `residual_s` for routing and provenance.
 
@@ -512,14 +512,14 @@ Within the staged LinStabPy pipeline:
 2. **Resolvent stage** calls `resolvent_analysis` (or router map → many analyses).  
 3. Payload emission packages gains, forcing/response modes, residuals, metrics, and provenance.
 
-The domain does **not** own CFD generation, visualization, or unstructured 3D discretization. It consumes mesh-aligned LNSE operators and returns frequency-domain amplifier structure for transition, receptivity, and control-oriented studies.
+The domain does **not** own [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) generation, visualization, or unstructured 3D discretization. It consumes mesh-aligned LNSE operators and returns frequency-domain amplifier structure for [transition](http://www.scholarpedia.org/article/Transition_to_turbulence), receptivity, and control-oriented studies.
 
 ---
 
 ## 11. References (as cited in code)
 
 - McKeon, B. J., & Sharma, A. S. (2010). A critical-layer framework for turbulent pipe flow. *J. Fluid Mech.*, 658, 336–382.  
-- Frantz, R. A. S., Loiseau, J.-Ch., & Robinet, J.-Ch. (2023). Krylov methods for large-scale dynamical systems: application in fluid dynamics. *Appl. Mech. Rev.*, 75(3), 030802.
+- Frantz, R. A. S., Loiseau, J.-Ch., & Robinet, J.-Ch. (2023). [Krylov](https://grokipedia.com/page/Krylov_subspace) methods for large-scale dynamical systems: application in fluid dynamics. *Appl. Mech. Rev.*, 75(3), 030802.
 
 ---
 

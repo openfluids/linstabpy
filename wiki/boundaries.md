@@ -1,18 +1,18 @@
 # Boundary interfaces
 
-This page is the reference for how you talk to LinStabPy from outside: CLI commands, YAML cases, Python imports, file inputs, and output files. Math conventions match the rest of the docs: $\omega = \mathrm{eig}(i L_0)$, unstable iff $\mathrm{Im}(\omega) > 0$, resolvent $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
+This page is the reference for how you talk to LinStabPy from outside: CLI commands, YAML cases, Python imports, file inputs, and output files. Math conventions match the rest of the docs: $\omega = \mathrm{eig}(i L_0)$, unstable iff $\mathrm{Im}(\omega) > 0$, [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
 
 ## Command line interface
 
 ### linstabpy (driver CLI)
 
-**Description**: Command-line entry for the shared case driver. It takes no case arguments. It reads the case path and output path from environment variables, checks the result cache by config hash and git SHA on rank 0, and either reuses cached results or runs the full driver (preflight, operator assembly, PETSc and SLEPc solves, IO, provenance).
+**Description**: Command-line entry for the shared case driver. It takes no case arguments. It reads the case path and output path from environment variables, checks the result cache by config hash and git SHA on rank 0, and either reuses cached results or runs the full driver (preflight, operator assembly, [PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc) solves, IO, provenance).
 
 **Source file**: `src/linstabpy/driver/cli.py`
 
 **Flags**:
 
-- `--version`: optional. Print the installed package version and exit without initializing PETSc or MPI.
+- `--version`: optional. Print the installed package version and exit without initializing PETSc or [MPI](https://grokipedia.com/page/Message_Passing_Interface).
 
 **Environment** (the real CLI surface):
 
@@ -43,7 +43,7 @@ python -m linstabpy.driver.cli
 
 ### YAML case configuration interface
 
-**Description**: External configuration boundary for scientific cases. Users interact primarily by editing YAML case files that define baseflow paths, physics, numerics (including finite-difference orders), boundary conditions, eigen/resolvent parameters, and solver policy. Files are ingested with a SafeLoader that accepts scientific floats, then structurally validated (TOP_LEVEL_ALLOWED keys such as paths/physics/numerics and related blocks).
+**Description**: External configuration boundary for scientific cases. Users interact primarily by editing YAML case files that define baseflow paths, physics, numerics (including [finite-difference](https://grokipedia.com/page/Finite_difference_method) orders), boundary conditions, eigen/resolvent parameters, and solver policy. Files are ingested with a SafeLoader that accepts scientific floats, then structurally validated (TOP_LEVEL_ALLOWED keys such as paths/physics/numerics and related blocks).
 
 **Source File**: `src/linstabpy/utils/yaml_io.py; src/linstabpy/config/schema.py; src/linstabpy/utils/_solver_cfg.py`
 
@@ -54,9 +54,10 @@ python -m linstabpy.driver.cli
 **Options**:
 
 - `paths`(mapping): optional - Top-level block for input/output paths (baseflow npy/npz dumps, mesh, artifacts).
-- `physics`(mapping): optional - Top-level physics parameters for the linearized compressible Navier-Stokes problem.
+- `physics`(mapping): optional - Top-level physics parameters for the linearized [compressible](https://grokipedia.com/page/Compressible_flow) [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) problem.
 - `numerics`(mapping): optional - Top-level numerics block including finite-difference order settings traversed by validation helpers.
-- `complex / int list fields`(complex | list[complex] | list[int]): optional - Loosely typed YAML scalars/lists parsed into Python complex and int lists (parse_complex, parse_complex_list, parse_int_list) for frequencies, wavenumbers, and similar solver inputs.
+- `bc`(mapping): optional - Boundary recipe block: ordered `recipe` rules plus `penalty` (Dirichlet diagonal pin and Neumann row scale; driver default `1e8`, library and router default `1e4`).
+- `complex / int list fields`(complex | list[complex] | list[int]): optional - Loosely typed YAML scalars/lists parsed into Python complex and int lists (parse_complex, parse_complex_list, parse_int_list) for frequencies, [wavenumbers](https://grokipedia.com/page/Wavenumber), and similar solver inputs.
 
 **Usage Examples**:
 
@@ -92,7 +93,7 @@ make tutorial.pdf
 
 ### Python library import (lazy public API)
 
-Embed LinStabPy in larger openfluids or research pipelines by importing the package. Public symbols resolve on first attribute access so a plain import stays lightweight and does not eagerly initialize PETSc/MPI. Suitable for stability, adjoint, structural sensitivity, and resolvent workflows after the caller supplies baseflow data and config.
+Embed LinStabPy in larger openfluids or research pipelines by importing the package. Public symbols resolve on first attribute access so a plain import stays lightweight and does not eagerly initialize PETSc/MPI. Suitable for stability, [adjoint](https://grokipedia.com/page/Adjoint), [structural sensitivity](core-concepts.md), and resolvent workflows after the caller supplies baseflow data and config.
 
 **Example Code**:
 
@@ -134,7 +135,7 @@ validate_config(cfg, source='case.yaml')
 
 ### PETSc / SLEPc / MUMPS / optional cuDSS backend
 
-External numerical stack integration. Core install uses NumPy/SciPy/PyYAML; extras enable HDF5, parallel PETSc/SLEPc (mpi4py, petsc4py, slepc4py), and optional GPU cuDSS. MUMPS ordering names are shared via mumps_options without importing PETSc at module load.
+External numerical stack integration. Core install uses NumPy/SciPy/PyYAML; extras enable HDF5, parallel PETSc/SLEPc (mpi4py, petsc4py, slepc4py), and optional GPU [cuDSS](https://docs.nvidia.com/cuda/cudss/). [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) ordering names are shared via mumps_options without importing PETSc at module load.
 
 **Example Code**:
 
@@ -154,7 +155,7 @@ External numerical stack integration. Core install uses NumPy/SciPy/PyYAML; extr
 
 ### CFD baseflow data stores (file I/O)
 
-Ingest on-disk mean-flow fields as npy directories or npz archives (density, velocity components, temperature, mesh, sponge) produced by external nonlinear CFD. LinStabPy does not generate baseflows; integration starts at load/preprocess boundaries under baseflow/.
+Ingest on-disk mean-flow fields as npy directories or npz archives (density, velocity components, temperature, mesh, sponge) produced by external nonlinear [CFD](https://grokipedia.com/page/Computational_fluid_dynamics). LinStabPy does not generate baseflows; integration starts at load/preprocess boundaries under baseflow/.
 
 **Example Code**:
 

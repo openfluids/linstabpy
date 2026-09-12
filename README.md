@@ -979,6 +979,7 @@ Recipe fields:
 | `type` | `dirichlet` or `neumann` for row-replacement BCs. Sponge damping is configured separately under `physics.sponge` or loaded from case input data. |
 | `borders` | Boundary letters. Common values are `l`, `r`, `t`, `b`, or combinations such as `lt`. |
 | `variables` | Variable block selector, such as `u`, `T`, `ruvw`, or `ruvwT`. |
+| `penalty` | Sits beside `recipe` under `bc:`, not inside a rule. Dirichlet: rows and columns are zeroed, then the diagonal is set to this value, pinning the DOF to zero (constrained eigenvalues land near `i * penalty`, far from physical targets). Neumann: the stencil row is scaled by this value. Driver default `1e8`; assembly, router, and Martini examples default `1e4`. Keep the default unless constrained-leakage diagnostics complain, then raise toward `1e6` before reaching higher. |
 | `exclude_corners` | For Neumann rules, remove corner points that would overlap with other boundary rules. |
 | `curvilinear_normals` | For Neumann rules, use per-face curvilinear normals instead of axis-aligned normals. |
 
