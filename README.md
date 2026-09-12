@@ -55,6 +55,8 @@ It currently supports:
 - **Boundary treatment:** Dirichlet rows, Neumann rows, sponge damping fields, and masking for structured grids with excluded points
 - **Energy norms:** Chu compressible energy norm with quadrature weighting
 
+> Conventions used in this repo. Temporal eigenvalues are `omega = eig(i * L0)` with `exp(-i omega t)` time dependence, so `Im(omega) > 0` is unstable. The resolvent is `H = C F (L0 - (gamma + i omega) I)^{-1} F B` with gains from the weighted normal problem. SBP orders are 2, 4, 6, 8 only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS. If you come from math and HPC, the new vocabulary is mostly fluids side: base flow, sponge, Chu norm, wavemaker. The solvers are standard shift-invert Krylov-Schur.
+
 The compressible formulation follows Martini and Schmidt (2024), and the
 operator-handling design draws on `resolvent4py` (Padovan et al., 2025). Where the
 original code was validated mainly against its own MATLAB output, LinStabPy adds a

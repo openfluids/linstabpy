@@ -2,7 +2,7 @@
 
 | File | Role |
 |---|---|
-| `resolvent.analysis` | `resolvent_analysis` — leading gain at one frequency |
+| `resolvent.analysis` | `resolvent_analysis`, leading gain at one frequency |
 | `resolvent.operator` | Resolvent linear operator |
 | `resolvent.gain` | Gain from forcing/response |
 | `resolvent.conservative_forcing` | Conservative-variable forcing option |

@@ -131,3 +131,4 @@ AGENTS.md
 
 # MkDocs HTML output. CI uploads this; do not commit it.
 site/
+.cache/
