@@ -1,0 +1,580 @@
+/* LinStabPy Documentation — Anthropic Engineering Design System */
+
+/* ==========================================================================
+   Typography: High-Precision Clean Technical Sans (Inter) + JetBrains Mono
+   ========================================================================== */
+
+:root {
+  --md-text-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --md-code-font: "JetBrains Mono", SFMono-Regular, Consolas, Menlo, monospace;
+}
+
+body, .md-typeset {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Crisp headings without dated or quirky serif styling */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-header__title {
+  font-family: var(--md-text-font) !important;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--cds-text-primary);
+}
+
+.md-typeset h1 {
+  font-size: 2.1rem;
+  line-height: 1.25;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.md-typeset h2 {
+  font-size: 1.35rem;
+  line-height: 1.3;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--cds-border-subtle);
+  padding-bottom: 0.4rem;
+}
+
+.md-typeset h3 {
+  font-size: 1.1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Elegant subtitle immediately following H1 */
+.md-typeset h1 + p {
+  font-size: 1.05rem;
+  color: var(--cds-text-secondary);
+  line-height: 1.6;
+  margin-top: 0;
+  margin-bottom: 1.75rem;
+  max-width: 65ch;
+}
+
+/* ==========================================================================
+   Color Palette: Warm Obsidian Charcoal & Terracotta Clay (Claude Dark Mode)
+   ========================================================================== */
+
+:root,
+[data-md-color-scheme="slate"] {
+  --cds-bg-base: #141413;
+  --cds-surface-1: #191918;
+  --cds-surface-2: #21201e;
+  --cds-surface-3: #2b2a27;
+  --cds-border: #33322e;
+  --cds-border-subtle: rgba(255, 255, 255, 0.08);
+  --cds-text-primary: #f4f4f2;
+  --cds-text-secondary: #a3a29b;
+  --cds-text-muted: #73726c;
+  --cds-clay: #d97757;
+  --cds-clay-hover: #e28a6f;
+  --cds-clay-subtle: rgba(217, 119, 87, 0.12);
+  --cds-clay-border: rgba(217, 119, 87, 0.28);
+
+  --md-default-bg-color: var(--cds-bg-base);
+  --md-default-bg-color--light: var(--cds-surface-1);
+  --md-default-bg-color--lighter: var(--cds-surface-2);
+  --md-default-bg-color--lightest: var(--cds-surface-3);
+
+  --md-default-fg-color: var(--cds-text-primary);
+  --md-default-fg-color--light: var(--cds-text-secondary);
+  --md-default-fg-color--lighter: var(--cds-text-muted);
+  --md-default-fg-color--lightest: var(--cds-border);
+
+  --md-primary-fg-color: var(--cds-bg-base);
+  --md-primary-bg-color: var(--cds-text-primary);
+  --md-accent-fg-color: var(--cds-clay);
+  --md-typeset-a-color: #60a5fa;
+
+  --md-code-bg-color: var(--cds-surface-1);
+  --md-code-fg-color: #f4f4f2;
+}
+
+/* Claude Light Mode (Warm Paper & Terracotta) */
+[data-md-color-scheme="default"] {
+  --cds-bg-base: #faf9f5;
+  --cds-surface-1: #f3f1ea;
+  --cds-surface-2: #eae7dd;
+  --cds-surface-3: #dedad0;
+  --cds-border: #e0dcd2;
+  --cds-border-subtle: rgba(0, 0, 0, 0.06);
+  --cds-text-primary: #1f1e1d;
+  --cds-text-secondary: #6e6d68;
+  --cds-text-muted: #8c8b84;
+  --cds-clay: #c15f3e;
+  --cds-clay-hover: #a34426;
+  --cds-clay-subtle: rgba(193, 95, 62, 0.08);
+  --cds-clay-border: rgba(193, 95, 62, 0.22);
+
+  --md-default-bg-color: var(--cds-bg-base);
+  --md-default-bg-color--light: var(--cds-surface-1);
+  --md-default-bg-color--lighter: var(--cds-surface-2);
+  --md-default-bg-color--lightest: var(--cds-surface-3);
+
+  --md-default-fg-color: var(--cds-text-primary);
+  --md-default-fg-color--light: var(--cds-text-secondary);
+  --md-default-fg-color--lighter: var(--cds-text-muted);
+  --md-default-fg-color--lightest: var(--cds-border);
+
+  --md-primary-fg-color: var(--cds-bg-base);
+  --md-primary-bg-color: var(--cds-text-primary);
+  --md-accent-fg-color: var(--cds-clay);
+  --md-typeset-a-color: #2563eb;
+
+  --md-code-bg-color: var(--cds-surface-1);
+  --md-code-fg-color: #1f1e1d;
+}
+
+/* ==========================================================================
+   Header & Navigation: Refined 56px Navbar with Fluid Logo
+   ========================================================================== */
+
+.md-header {
+  background-color: var(--cds-bg-base) !important;
+  border-bottom: 1px solid var(--cds-border-subtle);
+  box-shadow: none !important;
+}
+
+.md-header__title {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: var(--cds-text-primary) !important;
+  letter-spacing: -0.01em;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 24px;
+  width: 24px;
+}
+
+.md-tabs {
+  background-color: var(--cds-bg-base) !important;
+  border-bottom: 1px solid var(--cds-border-subtle);
+}
+
+.md-tabs__link {
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  padding: 0.35rem 0.8rem !important;
+  color: var(--cds-text-secondary) !important;
+  opacity: 1 !important;
+  transition: all 0.15s ease;
+}
+
+.md-tabs__link:hover {
+  background-color: var(--cds-surface-2);
+  color: var(--cds-text-primary) !important;
+}
+
+.md-tabs__item--active .md-tabs__link {
+  background-color: var(--cds-surface-3);
+  color: var(--cds-text-primary) !important;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Left Sidebar Navigation: Capsule Pills
+   ========================================================================== */
+
+.md-sidebar--primary {
+  border-right: 1px solid var(--cds-border-subtle);
+}
+
+.md-nav__item .md-nav__link {
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.md-nav__item .md-nav__link:hover {
+  background-color: var(--cds-surface-2);
+}
+
+.md-nav__item .md-nav__link--active {
+  background-color: var(--cds-surface-3) !important;
+  color: var(--cds-text-primary) !important;
+  font-weight: 600;
+}
+
+.md-nav__title {
+  font-size: 0.72rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cds-text-muted) !important;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Inline Code Tags & Code Blocks: Clean Anthropic Style
+   ========================================================================== */
+
+.md-typeset code {
+  background-color: var(--cds-clay-subtle) !important;
+  color: var(--cds-clay) !important;
+  border: 1px solid var(--cds-clay-border);
+  border-radius: 4px;
+  padding: 0.12em 0.38em;
+  font-size: 0.85em;
+  font-weight: 450;
+}
+
+.md-typeset pre > code {
+  background-color: transparent !important;
+  color: inherit !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.md-typeset pre {
+  background-color: var(--cds-surface-1) !important;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   Reference Tables: Clean Hairlines
+   ========================================================================== */
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: none;
+  font-size: 0.875rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--cds-surface-1);
+  color: var(--cds-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--cds-border-subtle);
+  padding: 0.6rem 0.9rem;
+}
+
+.md-typeset table:not([class]) td {
+  border-bottom: 1px solid var(--cds-border-subtle);
+  padding: 0.65rem 0.9rem;
+}
+
+.md-typeset table:not([class]) tr:hover {
+  background-color: var(--cds-surface-1);
+}
+
+/* ==========================================================================
+   Grid Cards: Understated Precision
+   ========================================================================== */
+
+.md-typeset .grid.cards > ul > li {
+  background-color: var(--cds-surface-1);
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 10px;
+  padding: 1.25rem;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-2px);
+  border-color: var(--cds-clay-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================================================
+   Admonitions & Callouts: Readable Technical Typography
+   ========================================================================== */
+
+.md-typeset .admonition,
+.md-typeset details {
+  font-size: 0.875rem !important;
+  line-height: 1.65;
+  border-radius: 8px;
+  border-width: 1px;
+  border-left-width: 4px;
+  margin: 1.5rem 0;
+  padding: 0 1.1rem 0.8rem;
+  box-shadow: none;
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  font-size: 0.9rem !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0.6rem 0.9rem 0.6rem 2.4rem !important;
+  margin: 0 -1.1rem 0.75rem !important;
+  border-top-left-radius: 7px;
+  border-top-right-radius: 7px;
+}
+
+.md-typeset .admonition-title:before,
+.md-typeset summary:before {
+  top: 0.65rem !important;
+  left: 0.85rem !important;
+  width: 1.15rem !important;
+  height: 1.15rem !important;
+}
+
+.md-typeset .admonition p,
+.md-typeset details p {
+  font-size: 0.875rem !important;
+  line-height: 1.65;
+  margin: 0.6rem 0;
+}
+
+.md-typeset .admonition ul,
+.md-typeset .admonition ol {
+  font-size: 0.875rem !important;
+  line-height: 1.65;
+  margin: 0.6rem 0;
+  padding-left: 1.25rem;
+}
+
+.md-typeset .admonition li {
+  margin: 0.35rem 0;
+}
+
+.md-typeset .admonition code,
+.md-typeset details code {
+  font-size: 0.825rem !important;
+  padding: 0.15em 0.4em;
+}
+
+/* Ensure math formulas in admonitions scale properly and are crisp */
+.md-typeset .admonition .arithmatex,
+.md-typeset details .arithmatex {
+  font-size: 1rem;
+}
+
+/* ==========================================================================
+   Header Search & Tool Buttons
+   ========================================================================== */
+
+.md-search__input {
+  background-color: var(--cds-surface-1) !important;
+  border: 1px solid var(--cds-border-subtle) !important;
+  border-radius: 8px !important;
+  color: var(--cds-text-primary) !important;
+  font-size: 0.85rem !important;
+  transition: all 0.2s ease;
+}
+
+.md-search__input:focus {
+  border-color: var(--cds-clay) !important;
+  box-shadow: 0 0 0 1px var(--cds-clay-border);
+}
+
+/* Dynamic responsive search bar that expands smoothly on focus */
+@media screen and (min-width: 60em) {
+  .md-search {
+    width: 14rem;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .md-search:focus-within {
+    width: 19rem;
+  }
+}
+
+/* ==========================================================================
+   Header Stepper: [ −  100%  + ] Segmented Pill Control
+   ========================================================================== */
+
+.cds-stepper {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--cds-surface-2);
+  border: 1px solid var(--cds-border);
+  border-radius: 9999px;
+  padding: 1px 3px;
+  margin-right: 8px;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+.cds-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--cds-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.cds-stepper-btn:hover:not(:disabled) {
+  background-color: var(--cds-surface-3);
+  color: var(--cds-text-primary);
+}
+
+.cds-stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cds-stepper-label {
+  background: transparent;
+  border: none;
+  padding: 0 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--md-code-font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cds-stepper-label:hover {
+  color: var(--cds-clay);
+}
+
+/* ==========================================================================
+   Math Equations: Clean Vector SVG Layout
+   ========================================================================== */
+
+div.arithmatex {
+  margin: 1.25rem 0;
+  padding: 0.5rem 0;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+div.arithmatex svg {
+  max-width: 100%;
+  color: var(--cds-text-primary);
+}
+
+span.arithmatex svg {
+  vertical-align: -0.2em;
+  color: var(--cds-text-primary);
+}
+
+/* ==========================================================================
+   Footer: Completely remove "Made with Material for MkDocs"
+   ========================================================================== */
+
+.md-footer,
+.md-footer-meta,
+.md-copyright {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Fluid Responsive Layout: Window-Filling Anthropic Canvas
+   ========================================================================== */
+
+/* Expand main container grid from cramped 61rem (976px) to modern fluid canvas */
+.md-grid {
+  max-width: min(96vw, 1840px) !important;
+  width: 96vw !important;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Header container: edge-to-edge balance with safe padding */
+.md-header__inner.md-grid {
+  max-width: min(96vw, 1840px) !important;
+  width: 96vw !important;
+  padding: 0 0.75rem;
+}
+
+/* On desktop viewports (>= 76.25em / 1220px) */
+@media screen and (min-width: 76.25em) {
+  /* Left navigation sidebar: generous width for scientific module trees */
+  .md-sidebar--primary {
+    width: 17rem !important;
+  }
+  .md-sidebar--primary .md-sidebar__inner {
+    width: 100% !important;
+    padding-right: 0.75rem !important;
+    padding-left: 0.25rem !important;
+  }
+
+  /* Right table-of-contents sidebar */
+  .md-sidebar--secondary {
+    width: 15.5rem !important;
+  }
+  .md-sidebar--secondary .md-sidebar__inner {
+    width: 100% !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.25rem !important;
+  }
+
+  /* Main content area: dynamically fills all remaining width */
+  .md-content {
+    flex-grow: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .md-content__inner {
+    margin: 0 2rem 2rem !important;
+    padding-top: 0.8rem !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Responsive Table & Code Block Expansion */
+.md-typeset__table {
+  display: block !important;
+  width: 100% !important;
+  overflow-x: auto;
+}
+
+html .md-typeset__table table {
+  display: table !important;
+  width: 100% !important;
+  min-width: 100%;
+}
+
+/* Dynamic Grid Cards: adapt intelligently from 1, 2, to 4 columns */
+.md-typeset .grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)) !important;
+  grid-gap: 1rem !important;
+  width: 100% !important;
+}
+
+/* Fluid prose: naturally fills content area with comfortable proportional line height */
+.md-typeset p,
+.md-typeset li {
+  line-height: 1.7;
+}
+
+/* Allow full width for cards, tables, code, and admonitions */
+.md-typeset .grid.cards p,
+.md-typeset .admonition p,
+.md-typeset td p,
+.md-typeset th p {
+  max-width: 100%;
+}
+
+/* Smooth resizing transitions */
+.md-sidebar,
+.md-content,
+.md-grid {
+  transition: width 0.15s ease, max-width 0.15s ease;
+}
+
+
+

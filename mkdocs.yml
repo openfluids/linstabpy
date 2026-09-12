@@ -7,8 +7,12 @@ docs_dir: wiki
 site_dir: site
 use_directory_urls: true
 strict: true
-# Litho adds files under 4.Deep-Exploration/. Those pages still build.
-# A dead nav entry still fails the Pages job.
+
+# Generator dump reports. Do not publish the 400 kB detail file.
+exclude_docs: |
+  __Litho_Summary_Detail__.md
+  __Litho_Summary_Brief__.md
+
 validation:
   omitted_files: ignore
   absolute_links: warn
@@ -16,28 +20,54 @@ validation:
 
 theme:
   name: material
+  logo: assets/images/logo.svg
   palette:
-    - scheme: default
-      primary: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
+    # Default: Slate (Dark Mode)
     - scheme: slate
-      primary: indigo
+      primary: slate
+      accent: cyan
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    # Light Mode
+    - scheme: default
+      primary: slate
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
     - navigation.sections
+    - navigation.expand
+    - navigation.indexes
     - navigation.top
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
     - search.highlight
+    - search.share
+    - search.suggest
     - toc.follow
+
+plugins:
+  - search
+  - privacy
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - toc:
       permalink: true
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences:
@@ -45,22 +75,52 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/font-size.js
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js
 
 nav:
   - Home: index.md
+  - Getting started: 0.Getting-Started.md
   - Overview: 1.Overview.md
   - Architecture: 2.Architecture.md
   - Workflow: 3.Workflow.md
   - Deep exploration:
-      - Index: 4.Deep-Exploration/modules.md
-      - Runtime driver: 4.Deep-Exploration/driver.md
-      - LNSE assembly: 4.Deep-Exploration/operators.md
-      - BC recipes: 4.Deep-Exploration/boundary-conditions.md
-      - Structured mesh: 4.Deep-Exploration/mesh.md
-      - Packed fields: 4.Deep-Exploration/baseflow.md
-      - YAML and Config: 4.Deep-Exploration/config.md
-      - Eigenvalues: 4.Deep-Exploration/stability.md
-      - Resolvent: 4.Deep-Exploration/resolvent.md
-      - Solvers: 4.Deep-Exploration/solvers.md
-      - Sparse factors: 4.Deep-Exploration/linalg.md
+      - 4.Deep-Exploration/modules.md
+      - Ownership:
+          - Runtime driver: 4.Deep-Exploration/driver.md
+          - LNSE assembly: 4.Deep-Exploration/operators.md
+          - BC recipes: 4.Deep-Exploration/boundary-conditions.md
+          - Structured mesh: 4.Deep-Exploration/mesh.md
+          - Packed fields: 4.Deep-Exploration/baseflow.md
+          - YAML and Config: 4.Deep-Exploration/config.md
+          - Eigenvalues: 4.Deep-Exploration/stability.md
+          - Resolvent: 4.Deep-Exploration/resolvent.md
+          - Solvers: 4.Deep-Exploration/solvers.md
+          - Sparse factors: 4.Deep-Exploration/linalg.md
+      - Package notes:
+          - Case pipeline: "4.Deep-Exploration/Case Orchestration.md"
+          - Configuration: "4.Deep-Exploration/Configuration Management.md"
+          - Baseflow: "4.Deep-Exploration/Baseflow Management.md"
+          - Mesh: "4.Deep-Exploration/Mesh Discretization.md"
+          - LNSE operator: "4.Deep-Exploration/LNSE Operator Assembly.md"
+          - Stability: "4.Deep-Exploration/Stability Analysis.md"
+          - Resolvent: "4.Deep-Exploration/Resolvent Analysis.md"
+          - Solver routing: "4.Deep-Exploration/Solver Routing and Sweep Optimization.md"
+          - Linear algebra: "4.Deep-Exploration/Linear Algebra Infrastructure.md"
+          - Utilities: "4.Deep-Exploration/Shared Scientific Utilities.md"
   - Boundaries: 5.Boundary-Interfaces.md
+  - Solver glossary: 6.PETSc-SLEPc-Glossary.md
