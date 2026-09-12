@@ -1,11 +1,11 @@
 # Architecture
 
-**LinStabPy** is a Python CLI and library for linear stability and resolvent analysis of compressible viscous flows. It ports LinStab2D style linearized Navier-Stokes (LNSE) workflows from MATLAB to an MPI enabled HPC stack on PETSc and SLEPc, with sparse direct factorization (MUMPS by default, optional cuDSS).
+**LinStabPy** is a Python CLI and library for linear stability and resolvent analysis of compressible viscous flows. It ports LinStab2D style linearized Navier-Stokes (LNSE) workflows from MATLAB to an MPI enabled HPC stack on [PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc), with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) by default, optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)).
 
 This document describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
 
 !!! info "Math and solver conventions for this page"
-    Temporal eigenvalues are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The resolvent is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. SBP orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last. These statements match the code and take precedence over any paraphrase below.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last. These statements match the code and take precedence over any paraphrase below.
 
 ---
 
@@ -13,7 +13,7 @@ This document describes the packages, how they connect, the main processes, and 
 
 ### 1.1 Architecture Design Philosophy
 
-LinStabPy is designed as a **staged scientific pipeline**, not a service mesh or multi-tenant application. The system starts from CFD mean-flow dumps and YAML case policy, and ends at spectra, modes, gains, metrics, and provenance payloads.
+LinStabPy is designed as a **staged scientific pipeline**, not a service mesh or multi-tenant application. The system starts from [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps and YAML case policy, and ends at spectra, modes, [gains](core-concepts.md), metrics, and provenance payloads.
 
 Core design tenets:
 
@@ -36,11 +36,11 @@ Orchestration → Domain Analysis → Discretization / Operators → Linear Alge
 ### 1.2 Core architecture patterns
 
 1. **Pipeline and staged orchestration.** `driver/run.py` sequences the scientific stages in a fixed order.
-2. **Shared kernel with multiple products.** One BC enforced LNSE operator family feeds temporal eigen, adjoint and sensitivity, spatial eigen, single frequency resolvent, and $\beta$ and $\omega$ maps.
-3. **Strategy with backend registry.** Factor backends (MUMPS, LU, cuDSS) are selected and probed under policy and RAM constraints.
-4. **Facade with lazy public API.** `import linstabpy` exposes analysis entry points without initializing MPI or PETSc.
+2. **Shared kernel with multiple products.** One BC enforced LNSE operator family feeds temporal eigen, [adjoint](https://grokipedia.com/page/Adjoint) and sensitivity, spatial eigen, single frequency resolvent, and $\beta$ and $\omega$ maps.
+3. **Strategy with backend registry.** Factor backends (MUMPS, [LU](https://grokipedia.com/page/LU_decomposition), cuDSS) are selected and probed under policy and RAM constraints.
+4. **Facade with lazy public API.** `import linstabpy` exposes analysis entry points without initializing [MPI](https://grokipedia.com/page/Message_Passing_Interface) or PETSc.
 5. **Declarative configuration and BC recipes.** Case behavior comes from YAML and BC rules, not hardcoded geometry branches.
-6. **Cost aware routing.** Anchor factorization, preconditioner reuse, residual gates, break-even logic, and RAM autoselect turn single point resolvent into scalable campaigns.
+6. **Cost aware routing.** Anchor factorization, [preconditioner](https://grokipedia.com/page/Preconditioner) reuse, residual gates, break-even logic, and RAM autoselect turn single point resolvent into scalable campaigns.
 
 ### 1.3 Technology Stack Overview
 
@@ -114,11 +114,11 @@ flowchart TB
 LinStabPy lets researchers and engineers run **large-scale LNSE eigenvalue and resolvent studies on HPC without MATLAB**. It converts CFD mean-flow dumps into:
 
 - Temporal, spatial, and adjoint spectra  
-- Structural sensitivity (wavemaker) fields  
-- Resolvent gains and optimal forcing/response modes  
-- Cost-aware \(\beta\)–frequency gain maps  
+- [Structural sensitivity](core-concepts.md) ([wavemaker](core-concepts.md)) fields  
+- Resolvent gains and optimal forcing/[response modes](core-concepts.md)  
+- Cost-aware \(\beta\)–frequency [gain maps](core-concepts.md)  
 
-Primary scientific uses include transition prediction, receptivity studies, and flow-control design for compressible shear layers, boundary layers, and jets.
+Primary scientific uses include [transition](http://www.scholarpedia.org/article/Transition_to_turbulence) prediction, receptivity studies, and flow-control design for [compressible](https://grokipedia.com/page/Compressible_flow) shear layers, [boundary layers](https://grokipedia.com/page/Boundary_layer), and jets.
 
 ### 2.2 User Roles and Scenarios
 
@@ -133,9 +133,9 @@ Primary scientific uses include transition prediction, receptivity studies, and 
 **In scope**
 
 - Baseflow load and preprocess  
-- Structured mesh + SBP finite differences (orders 2–8) + filters  
+- Structured mesh + SBP [finite differences](https://grokipedia.com/page/Finite_difference_method) (orders 2–8) + filters  
 - LNSE coefficients and operator assembly  
-- Dirichlet/Neumann BC recipes  
+- [Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition)/[Neumann](https://grokipedia.com/page/Neumann_boundary_condition) BC recipes  
 - Temporal, spatial, adjoint eigen solves  
 - Resolvent operator, gain extraction, \(\beta\)/\(\omega\) maps  
 - Factorization layer (MUMPS/LU/cuDSS)  
@@ -594,7 +594,7 @@ flowchart TB
 
 #### 5.1.1 Temporal Eigenvalue Stability Analysis (primary product path)
 
-End-to-end hydrodynamic stability for compressible flows: load mean flow, assemble LNSE + BCs, factorize shifted systems, compute temporal (and optionally adjoint) eigenvalues/eigenvectors.
+End-to-end [hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) for compressible flows: load mean flow, assemble LNSE + BCs, factorize shifted systems, compute temporal (and optionally adjoint) eigenvalues/eigenvectors.
 
 ```mermaid
 flowchart TD
@@ -643,9 +643,9 @@ sequenceDiagram
 3. Baseflow ingest, npy/npz → `BaseFlow` + preprocess/transport  
 4. Mesh discretization, structured mesh, SBP (2–8), filters, runtime state  
 5. Coefficient generation, Cartesian or cylindrical compressible LNSE coeffs  
-6. Operator assembly and BCs, sparse L0 for \(q=[\rho,u,v,w,T]\); free DOFs  
-7. Shift-invert factorization, MUMPS/LU/cuDSS factorize-once  
-8. Eigenanalysis, SLEPc EPS; residuals; optional structural sensitivity  
+6. Operator assembly and BCs, [sparse](https://grokipedia.com/page/Sparse_matrix) L0 for \(q=[\rho,u,v,w,T]\); free DOFs  
+7. [Shift-invert](solver-glossary.md) factorization, MUMPS/LU/cuDSS factorize-once  
+8. Eigenanalysis, SLEPc [EPS](solver-glossary.md); residuals; optional structural sensitivity  
 9. Result emission, NPZ + metrics + provenance  
 
 #### 5.1.2 Resolvent Gain Analysis (single frequency)
@@ -799,7 +799,7 @@ Assembly is the mathematical heart of the system:
 
 - Coefficients encode compressible LNSE physics (Cartesian/cylindrical).  
 - SBP stencils supply discrete derivatives and norms with summation-by-parts stability properties.  
-- Left scaling by analytical `inv(B/1j)` produces the temporal operator L0 used by eigen and resolvent paths.  
+- Left scaling by analytical `inv(B/1j)` produces the [temporal operator](core-concepts.md) L0 used by eigen and resolvent paths.  
 - Sponge and artificial dissipation are operator-level stabilizations.  
 - BC recipes mutate rows/columns and publish free-DOF sets **last**, so solvers never see unconstrained boundary rows.
 

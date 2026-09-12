@@ -10,13 +10,13 @@
 ---
 
 !!! info "Conventions used everywhere in this repo"
-    The discrete perturbation state is $q' = [\rho', u', v', w', T']^T$ at each grid point. Assembly builds the sparse matrix $L_0$ with $\partial_t q' = L_0 q'$ in the interior, then applies sponge, dissipation, and boundary conditions in that fixed order.
+    The discrete perturbation state is $q' = [\rho', u', v', w', T']^T$ at each grid point. Assembly builds the [sparse](https://grokipedia.com/page/Sparse_matrix) matrix $L_0$ with $\partial_t q' = L_0 q'$ in the interior, then applies sponge, dissipation, and boundary conditions in that fixed order.
 
-    Temporal eigenvalues are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
 
-    The resolvent at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. Gains are weighted singular values. The default energy is the diagonal Chu norm described in Architecture.
+    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
 
-    SBP orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](6.PETSc-SLEPc-Glossary.md).
+    [SBP](https://grokipedia.com/page/Summation_by_parts) orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), driven by [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](solver-glossary.md).
 
 ---
 
@@ -24,16 +24,16 @@
 
 ### 1.1 Project name and description
 
-**LinStabPy** is a Python toolkit for **linear stability** and **resolvent analysis** of compressible flows. It started as a Python port of LinStab2D style MATLAB workflows and now runs distributed on HPC through MPI, PETSc, and SLEPc.
+**LinStabPy** is a Python toolkit for **linear stability** and **resolvent analysis** of [compressible](https://grokipedia.com/page/Compressible_flow) flows. It started as a Python port of LinStab2D style MATLAB workflows and now runs distributed on HPC through [MPI](https://grokipedia.com/page/Message_Passing_Interface), [PETSc](https://en.wikipedia.org/wiki/PETSc), and SLEPc.
 
-A run starts from two inputs you supply. One is the **base flow**, a steady compressible Navier-Stokes solution stored as arrays on a structured grid. The code linearizes about it and never computes it. The other is a short **YAML case file** with physics, numerics, and solver policy. From there the pipeline builds the **linearized Navier-Stokes (LNSE)** matrix $L_0$ with **summation-by-parts (SBP)** finite differences, enforces boundary conditions, and solves one or more of:
+A run starts from two inputs you supply. One is the **base flow**, a steady compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) solution stored as arrays on a structured grid. The code linearizes about it and never computes it. The other is a short **YAML case file** with physics, numerics, and solver policy. From there the pipeline builds the **linearized Navier-Stokes (LNSE)** matrix $L_0$ with **summation-by-parts (SBP)** [finite differences](https://grokipedia.com/page/Finite_difference_method), enforces boundary conditions, and solves one or more of:
 
 * **Temporal** eigenproblem, $\omega = \mathrm{eig}(iL_0)$ near a target
-* **Spatial** eigenproblem, generalized $Ax = \lambda Rx$ for streamwise wavenumber
-* **Adjoint** eigenproblem, $W^{-1} L_0^H W$ for receptivity and sensitivity
-* **Resolvent** problem, leading gains and forcing and response modes of $H$
+* **Spatial** eigenproblem, generalized $Ax = \lambda Rx$ for streamwise [wavenumber](https://grokipedia.com/page/Wavenumber)
+* **[Adjoint](https://grokipedia.com/page/Adjoint)** eigenproblem, $W^{-1} L_0^H W$ for receptivity and sensitivity
+* **Resolvent** problem, leading [gains](core-concepts.md) and forcing and [response modes](core-concepts.md) of $H$
 
-Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize once, solve many**. One sparse direct factorization of the shifted operator serves all Krylov iterations and all $H$ and $H^H$ applies at that shift. The default backend is **MUMPS**. An optional **cuDSS** path exists for GPU factors.
+Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize once, solve many**. One sparse direct factorization of the shifted operator serves all [Krylov](https://grokipedia.com/page/Krylov_subspace) iterations and all $H$ and $H^H$ applies at that shift. The default backend is **MUMPS**. An optional **[cuDSS](https://docs.nvidia.com/cuda/cudss/)** path exists for GPU factors.
 
 ### 1.2 What you get
 
@@ -45,16 +45,16 @@ Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize 
 | Resolvent gain maps over frequency $\omega$ and spanwise wavenumber $\beta$ | Quantified nonnormal amplification, even where all modes are stable |
 | YAML driven runs with schema checks and provenance | Config hash, git SHA, backend, and cost recorded with every result |
 
-In short, LinStabPy turns CFD mean flow dumps into stability spectra, resolvent gains, and sensitivity results for **transition** and **flow control** work.
+In short, LinStabPy turns [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean flow dumps into stability spectra, resolvent gains, and sensitivity results for **[transition](http://www.scholarpedia.org/article/Transition_to_turbulence)** and **flow control** work.
 
 ### 1.3 How it is built
 
 * **Language and delivery.** Python CLI plus importable library. Plain `import linstabpy` stays light and does not initialize PETSc or MPI. The driver initializes them when a solve stage starts.
 * **Discretization.** Structured grids. SBP differences at even orders $2$ to $8$. Cartesian and cylindrical (axisymmetric) coefficient paths. Optional Mattsson style filters and artificial dissipation.
-* **State and operators.** LNSE for $q' = [\rho', u', v', w', T']$. Sparse $L_0$ with sponge and Dirichlet and Neumann recipes applied last.
+* **State and operators.** LNSE for $q' = [\rho', u', v', w', T']$. Sparse $L_0$ with sponge and [Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) and [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) recipes applied last.
 * **Solvers.** SLEPc `EPS` for eigenproblems. Resolvent through a weighted normal `MatShell` with repeated shifted solves.
 * **Parallelism.** MPI distribution of matrices, vectors, and case orchestration through `petsc4py` and `slepc4py`. Complex scalars are required for production paths.
-* **Linear algebra core.** PETSc `KSP` and `PC`. Sparse direct LU through MUMPS by default. Optional GPU sparse direct through cuDSS as a PETSc preconditioner shell.
+* **Linear algebra core.** PETSc `KSP` and `PC`. Sparse direct [LU](https://grokipedia.com/page/LU_decomposition) through MUMPS by default. Optional GPU sparse direct through cuDSS as a PETSc [preconditioner](https://grokipedia.com/page/Preconditioner) shell.
 * **Local numerics and IO.** NumPy and SciPy for arrays and CSC and CSR assembly before PETSc conversion. Base flow from `npy` directories or `npz` archives. Cases from YAML.
 * **Architecture style.** Staged pipeline with a dedicated **solver router** for cost aware $\beta$ and frequency campaigns with anchors, factor reuse, and residual gates.
 
@@ -79,9 +79,9 @@ flowchart LR
 
 | Role | Description |
 |------|-------------|
-| **Fluid dynamics researchers** | People studying hydrodynamic stability, transition, and receptivity in compressible flow. |
-| **CFD and aerospace engineers** | People who already hold a mean flow and need its linear modes and amplifier behavior. |
-| **Scientific software developers** | People who embed LNSE stages in larger pipelines and need a clean API and contracts. |
+| :microscope: **Fluid dynamics researchers** | People studying hydrodynamic stability, transition, and receptivity in compressible flow. |
+| :small_airplane: **CFD and aerospace engineers** | People who already hold a mean flow and need its linear modes and amplifier behavior. |
+| :material-laptop: **Scientific software developers** | People who embed LNSE stages in larger pipelines and need a clean API and contracts. |
 
 If you are a master student, start in the researcher row. You need the base flow idea, the $\omega$ convention above, and one example. MPI and Krylov details can wait until your first map campaign feels slow.
 
@@ -101,8 +101,8 @@ If you are a master student, start in the researcher row. You need the base flow
 **Researchers need:**
 
 * Temporal and spatial spectra with a clear $\omega$ convention
-* Adjoint modes and structural sensitivity (wavemaker) fields
-* Gain maps over $\omega$ and $\beta$ with residuals attached
+* Adjoint modes and [structural sensitivity](core-concepts.md) ([wavemaker](core-concepts.md)) fields
+* [Gain maps](core-concepts.md) over $\omega$ and $\beta$ with residuals attached
 * YAML cases that rerun bit reproducibly on MPI clusters
 
 **Engineers need:**
@@ -410,7 +410,7 @@ At context level the software is one bubble. The strongest internal relations, w
 * Stability and Resolvent consume Operators for $L_0$ and Linear Algebra for factorized shifted solves
 * Routing calls Resolvent and Linear Algebra for map walks and anchor reuse
 
-Package detail lives in Architecture and Deep exploration.
+Package detail lives in Architecture and the Module guide.
 
 ---
 

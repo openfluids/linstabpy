@@ -1,8 +1,8 @@
 # Configuration Management, Technical Implementation Documentation
 
 !!! info "What this package owns, in one paragraph"
-    One merged policy drives every run: YAML case file, then environment overrides, then compiled defaults, then schema validation into typed `Config` objects. Eigen, resolvent, spatial, mesh, MPI, and router sections each have their own subsection. Unknown top level keys and invalid SBP orders fail fast before any factorization. If a run surprises you, print the merged config first.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    One merged policy drives every run: YAML case file, then environment overrides, then compiled defaults, then schema validation into typed `Config` objects. Eigen, [resolvent](https://grokipedia.com/page/Resolvent_formalism), spatial, mesh, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and router sections each have their own subsection. Unknown top level keys and invalid [SBP](https://grokipedia.com/page/Summation_by_parts) orders fail fast before any factorization. If a run surprises you, print the merged config first.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
@@ -20,7 +20,7 @@ The package lives under `src/linstabpy/config/` and provides:
 | **Cross-layer defaults** | Single source of truth for dissipation stage-apply flags |
 | **Public re-exports** | Stable import surface via `linstabpy.config` |
 
-Without this layer, typoed keys, invalid finite-difference orders, or stage-disagreed dissipation flags can silently change spectra and resolvent gains on large MPI runs. Configuration is therefore the **reproducibility gate** for temporal, spatial, adjoint, and resolvent workflows.
+Without this layer, typoed keys, invalid [finite-difference](https://grokipedia.com/page/Finite_difference_method) orders, or stage-disagreed dissipation flags can silently change spectra and resolvent [gains](../core-concepts.md) on large MPI runs. Configuration is therefore the **reproducibility gate** for temporal, spatial, [adjoint](https://grokipedia.com/page/Adjoint), and resolvent workflows.
 
 ---
 
@@ -163,7 +163,7 @@ An earlier split set:
 - `operator_dissipation.apply_to_stability = True`
 - `operator_dissipation.apply_to_resolvent = False`
 
-A case that "enabled dissipation" therefore got a **damped eigenvalue problem** and a **bare resolvent**. On meshes with metric cross-coupling, the bare resolvent can admit odd–even content that the damped EVP does not. On rectilinear meshes the gain difference is smaller but still measurable; use `driver.preflight.metric_cross_coupling` rather than assuming either extreme.
+A case that "enabled dissipation" therefore got a **damped [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) problem** and a **bare resolvent**. On meshes with metric cross-coupling, the bare resolvent can admit odd–even content that the damped EVP does not. On rectilinear meshes the gain difference is smaller but still measurable; use `driver.preflight.metric_cross_coupling` rather than assuming either extreme.
 
 ### 6.3 Current contract
 
@@ -262,7 +262,7 @@ All policy dataclasses are **`@dataclass(frozen=True)`**.
 
 #### `LinSolveCfg`
 
-Linear KSP/PC and sparse-direct factor policy used by general linear solves and as the resolvent linear block.
+Linear [KSP](../solver-glossary.md)/PC and [sparse](https://grokipedia.com/page/Sparse_matrix)-direct factor policy used by general linear solves and as the resolvent linear block.
 
 | Field | Typical default / notes |
 |-------|-------------------------|
@@ -303,7 +303,7 @@ Composite: `linear: LinSolveCfg` + `eps: ResolventEpsCfg`.
 
 #### `InexactCfg`
 
-Nested under eigen for inexact shift-invert style paths (`ksp_type`, tolerances, ASM/ILU defaults). YAML-only nested map (no env prefix in factory).
+Nested under eigen for inexact [shift-invert](../solver-glossary.md) style paths (`ksp_type`, tolerances, ASM/ILU defaults). YAML-only nested map (no env prefix in factory).
 
 #### `BackendProbeCfg`
 
@@ -311,10 +311,10 @@ Nested under eigen for inexact shift-invert style paths (`ksp_type`, tolerances,
 
 #### `EigenCfg`
 
-Temporal/adjoint EPS and shift-invert policy, including:
+Temporal/adjoint [EPS](../solver-glossary.md) and shift-invert policy, including:
 
 - `st_solver` (default `"mumps"`) and derived `st_factor_backend` via `_st_factor_backend`
-- Factor precision / MUMPS BLR / ordering
+- Factor precision / [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) BLR / ordering
 - Condition-number warnings (`cond_warn`, thresholds)
 - KSP/PC settings (eigen defaults differ slightly from linsolve, e.g. `ksp_type="gmres"`, `ksp_pc_side="left"`)
 - EPS tolerance, residual error type, monitors, `true_residual` (defaults **True** for `inexact`, `fgmres_lu`, `strumpack_fgmres`)
@@ -422,7 +422,7 @@ It lists:
 | `blasius_resolvent_high_penalty` | same module | Env overrides: stronger BC penalty, eigen ST solver |
 | `song_stability` | `examples.song.song` | NPZ artifact |
 
-Plus an `orthogonality_check` block for Chu-weighted mode checks on Song EVP archives (`direct_modes`, `W_diag`, tolerance `1e-12`).
+Plus an `orthogonality_check` block for [Chu](../core-concepts.md)-weighted mode checks on Song EVP archives (`direct_modes`, `W_diag`, tolerance `1e-12`).
 
 ---
 

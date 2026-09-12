@@ -1,13 +1,13 @@
 # Stability Analysis, Technical Implementation Documentation
 
 !!! info "Math you need for this page"
-    Temporal eigenvalues are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ is unstable. Adjoint modes come from $W^{-1} L_0^H W$ with the Chu weight $W$. The wavemaker is the pointwise product of direct and adjoint magnitudes. Spatial problems are generalized $Ax = \lambda R x$ with singular $R$ rows from BCs, solved by QZ at tiny sizes and shift-invert EPS otherwise. Acceptance checks residuals, boundary leakage, target distance, and conjugate completeness before any mode is trusted.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ is unstable. [Adjoint](https://grokipedia.com/page/Adjoint) modes come from $W^{-1} L_0^H W$ with the Chu weight $W$. The wavemaker is the pointwise product of direct and adjoint magnitudes. Spatial problems are generalized $Ax = \lambda R x$ with singular $R$ rows from BCs, solved by [QZ](https://en.wikipedia.org/wiki/QZ_algorithm) at tiny sizes and [shift-invert](../solver-glossary.md) EPS otherwise. Acceptance checks residuals, boundary leakage, target distance, and conjugate completeness before any mode is trusted.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Stability Analysis** is a core scientific domain in LinStabPy. It turns a BC-enforced linearized Navier–Stokes (LNSE) operator into temporal, spatial, and adjoint spectra, plus structural sensitivity (wavemaker) fields used for transition prediction, receptivity, and flow-control studies.
+**Stability Analysis** is a core scientific domain in LinStabPy. It turns a BC-enforced linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) operator into temporal, spatial, and adjoint spectra, plus [structural sensitivity](../core-concepts.md) ([wavemaker](../core-concepts.md)) fields used for [transition](http://www.scholarpedia.org/article/Transition_to_turbulence) prediction, receptivity, and flow-control studies.
 
 The domain is split across two cooperating packages:
 
@@ -16,12 +16,12 @@ The domain is split across two cooperating packages:
 | `linstabpy.stability` | Public eigenvalue services, acceptance gates, structural sensitivity |
 | `linstabpy.solvers` | SLEPc EPS backends (temporal/adjoint shift-invert, generalized spatial), shared EPS helpers, PETSc utility re-exports |
 
-Heavy PETSc/SLEPc imports are deferred. A plain `import linstabpy` or `import linstabpy.stability` does **not** initialize PETSc/MPI. Public names resolve on first use through PEP 562 `__getattr__` loaders.
+Heavy PETSc/SLEPc imports are deferred. A plain `import linstabpy` or `import linstabpy.stability` does **not** initialize PETSc/[MPI](https://grokipedia.com/page/Message_Passing_Interface). Public names resolve on first use through PEP 562 `__getattr__` loaders.
 
 **Primary scientific products**
 
 - Temporal eigenvalues \(\omega = \mathrm{eig}(i L_0)\) with \(\mathrm{Im}(\omega) > 0\) unstable under the \(\mathrm{e}^{-i\omega t}\) convention  
-- Adjoint eigenvalues of the Chu-weighted operator \(W^{-1} L_0^H W\)  
+- Adjoint eigenvalues of the [Chu](../core-concepts.md)-weighted operator \(W^{-1} L_0^H W\)  
 - Spatial eigenvalues \(\alpha\) of \((L_c + \omega L_w)\,v = \alpha\, R\, v\)  
 - Giannetti–Luchini wavemaker \(\zeta(x,y)\) from paired direct/adjoint modes  
 
@@ -123,7 +123,7 @@ Given the assembled LNSE state operator \(L_0\) (state \(q = [\rho, u, v, w, T]\
 \omega = \mathrm{eig}(i L_0)
 \]
 
-Implementation scales the operator by \(i\) (`_scaled_operator(operator, 1j)`) and solves a non-Hermitian EPS (NHEP) with shift-invert about a complex target \(\sigma\):
+Implementation scales the operator by \(i\) (`_scaled_operator(operator, 1j)`) and solves a non-Hermitian [EPS](../solver-glossary.md) (NHEP) with shift-invert about a complex target \(\sigma\):
 
 \[
 (A - \sigma I)^{-1} v = \mu v,\qquad
@@ -146,7 +146,7 @@ Chu-weighted adjoint operator:
 L^\dagger = W^{-1} L_0^H W
 \]
 
-Built in `_build_adjoint_operator` as sparse products of diagonal weight matrices with \(L_0^H\).
+Built in `_build_adjoint_operator` as [sparse](https://grokipedia.com/page/Sparse_matrix) products of diagonal weight matrices with \(L_0^H\).
 
 When `temporal=True`:
 
@@ -198,7 +198,7 @@ eigenvalues(
 | `solver_cfg` / `cfg` | Raw YAML solver dict and/or typed `Config` |
 | `return_info` | When true, also return solver diagnostics dict |
 
-**STRUMPACK fallback:** if factorization fails with `StrumpackFactorizationFailed` (static pivoting ZERO_PIVOT), the temporal path rebuilds a clean MUMPS-direct config via `_mumps_direct_solver_cfg` and retries once, recording `factor_backend_fallback*` keys in `info`.
+**[STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/) fallback:** if factorization fails with `StrumpackFactorizationFailed` (static pivoting ZERO_PIVOT), the temporal path rebuilds a clean [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))-direct config via `_mumps_direct_solver_cfg` and retries once, recording `factor_backend_fallback*` keys in `info`.
 
 ### 5.2 `adjoint_eigenvalues`
 
@@ -250,15 +250,15 @@ Adjoint modes must already be physical weighted-adjoint modes from `adjoint_eige
 ### 6.1 Core shift-invert path (`_solve_near_target`)
 
 1. Validate complex PETSc scalar mode (`require_complex`).  
-2. Optional ill-conditioning warning on the shifted operator.  
+2. Optional ill-[conditioning](https://en.wikipedia.org/wiki/Condition_number) warning on the shifted operator.  
 3. **Dense fallback** when `ndof ≤ 2` or `n_modes ≥ ndof - 1` (`numpy.linalg.eig` or SciPy QZ for generalized).  
 4. Convert SciPy CSC → PETSc `Mat` (optional root-scatter for multi-rank iterative ST).  
 5. Create SLEPc `EPS`:
-   - Type: Krylov–Schur  
+   - Type: [Krylov–Schur](../solver-glossary.md)  
    - Problem: NHEP (temporal/adjoint) or GNHEP (spatial)  
    - Which: `TARGET_MAGNITUDE`  
    - ST: `SINVERT` with **explicit** `st.setShift(target)`  
-6. Configure ST KSP/PC via `_configure_st_for_eigenvalue`.  
+6. Configure ST [KSP](../solver-glossary.md)/PC via `_configure_st_for_eigenvalue`.  
 7. Optional FieldSplit IS setup for five-block state (`ndof % 5 == 0`): fluid \(\{\rho,u,v,T\}\) vs \(w\).  
 8. `setFromOptions` on KSP/ST/EPS; solve; extract pairs; destroy PETSc objects.  
 9. Sort by distance to target with deterministic tie-break (`_nearest_order` / `_sort_nearest`).  
@@ -327,7 +327,7 @@ For real baseflows, \(L\) is real, so \((\omega, v)\) and \((\overline{\omega}, 
 d = \min\bigl(|\omega - \sigma|,\; |\omega - \overline{\sigma}|\bigr)
 \]
 
-Disable only for complex operators (Floquet shifts, complex baseflow tracking) where conjugate partners are not physical.
+Disable only for complex operators ([Floquet](https://grokipedia.com/page/Floquet_theory) shifts, complex baseflow tracking) where conjugate partners are not physical.
 
 ### 7.2 `evaluate_stability_acceptance`
 
@@ -388,9 +388,9 @@ over importing `petsc4py`/`slepc4py` at module load.
 **Backend posture (conservative):**
 
 - **MUMPS**, default reference path  
-- **STRUMPACK**, experimental; documented mainly for FGMRES+LU diagnostics  
-- **SuperLU_DIST**, rejected on tested CUDA builds  
-- **cuDSS**, not wired into the eigen PETSc factor interface in this domain  
+- **STRUMPACK**, experimental; documented mainly for [FGMRES](https://grokipedia.com/page/Generalized_minimal_residual_method)+[LU](https://grokipedia.com/page/LU_decomposition) diagnostics  
+- **[SuperLU_DIST](https://portal.nersc.gov/project/sparse/superlu/)**, rejected on tested [CUDA](https://en.wikipedia.org/wiki/CUDA) builds  
+- **[cuDSS](https://docs.nvidia.com/cuda/cudss/)**, not wired into the eigen PETSc factor interface in this domain  
 
 ---
 
@@ -450,4 +450,4 @@ over importing `petsc4py`/`slepc4py` at module load.
 
 ## 13. Summary
 
-The **Stability Analysis** domain is LinStabPy's primary spectral product layer. `stability._eigenvalues` validates inputs and exposes temporal, adjoint, and spatial solves; `solvers.eigenvalue` / `spatial_eig` drive SLEPc shift-invert (and generalized) EPS with configurable MUMPS-centric factorization; `acceptance` enforces residual and target-distance quality with conjugate-pair awareness for real baseflows; and `sensitivity.wavemaker` turns paired direct/adjoint modes into structural sensitivity fields. Together they convert BC-ready LNSE operators into reproducible hydrodynamic stability results for research and aerospace analysis on MPI clusters.
+The **Stability Analysis** domain is LinStabPy's primary spectral product layer. `stability._eigenvalues` validates inputs and exposes temporal, adjoint, and spatial solves; `solvers.eigenvalue` / `spatial_eig` drive SLEPc shift-invert (and generalized) EPS with configurable MUMPS-centric factorization; `acceptance` enforces residual and target-distance quality with conjugate-pair awareness for real baseflows; and `sensitivity.wavemaker` turns paired direct/adjoint modes into structural sensitivity fields. Together they convert BC-ready LNSE operators into reproducible [hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) results for research and aerospace analysis on MPI clusters.

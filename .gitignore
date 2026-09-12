@@ -126,8 +126,6 @@ AGENTS.md
 .claude/
 .grok/
 
-# Litho (deepwiki-rs) cache. Regenerable. Do not commit API material.
-.litho/
 
 # MkDocs HTML output. CI uploads this; do not commit it.
 site/

@@ -7,12 +7,17 @@
 :root {
   --md-text-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --md-code-font: "JetBrains Mono", SFMono-Regular, Consolas, Menlo, monospace;
+  --cds-content-scale: 1;
 }
 
 body, .md-typeset {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.md-typeset {
+  font-size: calc(0.8rem * var(--cds-content-scale, 1));
 }
 
 /* Crisp headings without dated or quirky serif styling */
@@ -208,11 +213,51 @@ body, .md-typeset {
 }
 
 .md-nav__title {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
   font-size: 0.72rem !important;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--cds-text-muted) !important;
+  color: var(--cds-text-secondary) !important;
   font-weight: 700;
+  padding-right: 0.3rem !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  box-sizing: border-box !important;
+  transition: none !important;
+}
+
+.cds-sidebar-inner-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--cds-text-muted);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.7;
+  transition: all 0.15s ease;
+}
+
+.cds-sidebar-inner-toggle:hover {
+  opacity: 1;
+  background-color: var(--cds-surface-2);
+  color: var(--cds-text-primary);
+}
+
+/* Accessible Distinguishable Links in Body Copy (WCAG 2.1 AAA) */
+.md-typeset p a,
+.md-typeset li a:not(.md-nav__link),
+.md-typeset td a {
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
 }
 
 /* ==========================================================================
@@ -381,10 +426,10 @@ body, .md-typeset {
 @media screen and (min-width: 60em) {
   .md-search {
     width: 14rem;
-    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .md-search:focus-within {
     width: 19rem;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
@@ -400,7 +445,7 @@ body, .md-typeset {
   border-radius: 9999px;
   padding: 1px 3px;
   margin-right: 8px;
-  height: 28px;
+  height: 30px;
   box-sizing: border-box;
 }
 
@@ -408,8 +453,10 @@ body, .md-typeset {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   background: transparent;
   border: none;
   border-radius: 50%;
@@ -432,13 +479,15 @@ body, .md-typeset {
 .cds-stepper-label {
   background: transparent;
   border: none;
-  padding: 0 7px;
+  padding: 0 8px;
+  height: 26px;
+  min-height: 26px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: var(--md-code-font);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--cds-text-primary);
   border-radius: 4px;
@@ -451,11 +500,14 @@ body, .md-typeset {
 
 /* ==========================================================================
    Math Equations: Clean Vector SVG Layout
-   ========================================================================== */
-
+/* Block display equations (\[ ... \], $$ ... $$) - Balanced & Readable */
 div.arithmatex {
-  margin: 1.25rem 0;
+  font-size: 1.15rem !important;
+  line-height: 1.7;
+  margin: 1.5rem 0;
   padding: 0.5rem 0;
+  min-height: 2.4rem;
+  box-sizing: border-box;
   text-align: center;
   overflow-x: auto;
   overflow-y: hidden;
@@ -463,12 +515,30 @@ div.arithmatex {
 
 div.arithmatex svg {
   max-width: 100%;
+  height: auto;
   color: var(--cds-text-primary);
+}
+
+/* Inline equations (\( ... \), $ ... $) */
+span.arithmatex {
+  font-size: 1.05em !important;
 }
 
 span.arithmatex svg {
   vertical-align: -0.2em;
   color: var(--cds-text-primary);
+}
+
+/* In admonitions & callouts */
+.md-typeset .admonition div.arithmatex,
+.md-typeset details div.arithmatex {
+  font-size: 1.1rem !important;
+  margin: 1rem 0;
+}
+
+.md-typeset .admonition span.arithmatex,
+.md-typeset details span.arithmatex {
+  font-size: 1.02em !important;
 }
 
 /* ==========================================================================
@@ -500,8 +570,58 @@ span.arithmatex svg {
   padding: 0 0.75rem;
 }
 
-/* On desktop viewports (>= 76.25em / 1220px) */
-@media screen and (min-width: 76.25em) {
+/* ==========================================================================
+   Panel Toggles: Collapsible Navigation and TOC Sidebars
+   ========================================================================== */
+
+.cds-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--cds-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  margin: 0 4px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.cds-panel-toggle:hover {
+  background-color: var(--cds-surface-2);
+  color: var(--cds-text-primary);
+  border-color: var(--cds-border-subtle);
+}
+
+.cds-panel-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Highlighted state when a sidebar is collapsed */
+.cds-panel-toggle.is-collapsed {
+  color: var(--cds-clay);
+  background-color: var(--cds-clay-subtle);
+  border-color: var(--cds-clay-border);
+}
+
+.cds-panel-toggle svg {
+  stroke-width: 2;
+  transition: stroke 0.15s ease, transform 0.2s ease;
+}
+
+.cds-panel-toggle.is-collapsed svg {
+  stroke: var(--cds-clay);
+}
+
+/* Tablet and desktop viewports (>= 60em / 960px): Navigation sidebar collapse */
+@media screen and (min-width: 60em) {
   /* Left navigation sidebar: generous width for scientific module trees */
   .md-sidebar--primary {
     width: 17rem !important;
@@ -512,6 +632,42 @@ span.arithmatex svg {
     padding-left: 0.25rem !important;
   }
 
+  /* Left sidebar collapsed state: zero width & flex shrink to zero */
+  [data-sidebar-primary="collapsed"] .md-sidebar--primary {
+    flex: 0 0 0px !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-right: none !important;
+    visibility: hidden !important;
+    overflow: hidden !important;
+  }
+
+  [data-sidebar-primary="collapsed"] .md-sidebar--primary .md-sidebar__scrollwrap {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+  }
+
+  /* Main content area: dynamically fills all remaining width */
+  .md-content {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .md-content__inner {
+    margin: 0 2rem 2rem !important;
+    padding-top: 0.8rem !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Desktop viewports (>= 76.25em / 1220px): Table of Contents sidebar */
+@media screen and (min-width: 76.25em) {
   /* Right table-of-contents sidebar */
   .md-sidebar--secondary {
     width: 15.5rem !important;
@@ -522,17 +678,33 @@ span.arithmatex svg {
     padding-right: 0.25rem !important;
   }
 
-  /* Main content area: dynamically fills all remaining width */
-  .md-content {
-    flex-grow: 1 !important;
+  /* Right sidebar collapsed state: zero width & flex shrink to zero */
+  [data-sidebar-secondary="collapsed"] .md-sidebar--secondary {
+    flex: 0 0 0px !important;
+    width: 0 !important;
     min-width: 0 !important;
+    max-width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-left: none !important;
+    visibility: hidden !important;
+    overflow: hidden !important;
   }
 
-  .md-content__inner {
-    margin: 0 2rem 2rem !important;
-    padding-top: 0.8rem !important;
-    max-width: 100% !important;
+  [data-sidebar-secondary="collapsed"] .md-sidebar--secondary .md-sidebar__scrollwrap {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
   }
+}
+
+/* Smooth toggle transitions ONLY when user interacts (prevents initial page load CLS) */
+body.sidebar-transitioning .md-sidebar--primary,
+body.sidebar-transitioning .md-sidebar--secondary,
+body.sidebar-transitioning .md-content {
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), flex 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease !important;
 }
 
 /* Responsive Table & Code Block Expansion */
@@ -569,12 +741,349 @@ html .md-typeset__table table {
   max-width: 100%;
 }
 
-/* Smooth resizing transitions */
-.md-sidebar,
-.md-content,
-.md-grid {
-  transition: width 0.15s ease, max-width 0.15s ease;
+
+/* ==========================================================================
+   Interactive Mermaid Schematics: Pan, Zoom, Lightbox
+   ========================================================================== */
+
+.mermaid-card {
+  position: relative;
+  margin: 1.75rem 0;
+  background: var(--cds-surface, #14161d);
+  border: 1px solid var(--cds-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+[data-md-color-scheme="default"] .mermaid-card {
+  background: #fbfbfb;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
 
+.mermaid-card:hover {
+  border-color: rgba(217, 119, 87, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
 
+/* Floating Toolbar */
+.mermaid-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: rgba(20, 24, 33, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  opacity: 0.8;
+  transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+  user-select: none;
+}
+
+[data-md-color-scheme="default"] .mermaid-toolbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.mermaid-card:hover .mermaid-toolbar {
+  opacity: 1;
+}
+
+.mermaid-card-btn-group {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-md-color-scheme="default"] .mermaid-card-btn-group {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mermaid-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--cds-text-secondary, #94a3b8);
+  padding: 4px 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.mermaid-tb-btn:hover {
+  color: var(--cds-clay, #d97757);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-md-color-scheme="default"] .mermaid-tb-btn {
+  color: #4b5563;
+}
+
+[data-md-color-scheme="default"] .mermaid-tb-btn:hover {
+  color: var(--cds-clay, #d97757);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.btn-card-zoom-val {
+  font-family: var(--md-code-font-family, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  min-width: 32px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.btn-card-fit {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+}
+
+.btn-card-fullscreen {
+  color: var(--cds-clay, #d97757);
+  padding: 4px 6px;
+}
+
+.btn-card-fullscreen:hover {
+  background: rgba(217, 119, 87, 0.15) !important;
+}
+
+/* Scroll Container */
+.mermaid-scroll-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1.25rem 1.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cds-border, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+.mermaid-scroll-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.mermaid-scroll-wrap::-webkit-scrollbar-thumb {
+  background: var(--cds-border, rgba(255, 255, 255, 0.15));
+  border-radius: 3px;
+}
+
+.mermaid-scroll-wrap.is-grabbing {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.mermaid-card.is-zoomed .mermaid-scroll-wrap {
+  cursor: grab;
+}
+
+/* Base .mermaid element reset */
+.mermaid-card:not(.is-zoomed) .mermaid {
+  width: 100% !important;
+}
+
+.mermaid-card.is-zoomed .mermaid {
+  width: max-content !important;
+}
+
+.mermaid {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 100%;
+}
+
+/* ==========================================================================
+   Mermaid Fullscreen Lightbox Modal
+   ========================================================================== */
+
+.mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  background: rgba(11, 14, 20, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.mermaid-modal.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+html.mermaid-modal-active {
+  overflow: hidden !important;
+}
+
+.mermaid-modal-header {
+  height: 52px;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 22, 30, 0.75);
+  user-select: none;
+  z-index: 20;
+}
+
+.mermaid-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mermaid-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f6fc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 420px;
+}
+
+.mermaid-modal-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cds-clay, #d97757);
+  background: rgba(217, 119, 87, 0.12);
+  border: 1px solid rgba(217, 119, 87, 0.25);
+  border-radius: 12px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.mermaid-modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mermaid-modal-btn-group {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mermaid-modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #c9d1d9;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.mermaid-modal-btn-group .mermaid-modal-btn {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 5px 8px;
+}
+
+.mermaid-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.mermaid-modal-btn.btn-zoom-val {
+  font-family: var(--md-code-font-family, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  min-width: 46px;
+  text-align: center;
+}
+
+.mermaid-modal-hint {
+  font-size: 11.5px;
+  color: #8b949e;
+  margin: 0 8px;
+}
+
+@media (max-width: 900px) {
+  .mermaid-modal-hint {
+    display: none;
+  }
+}
+
+.mermaid-modal-btn.btn-close {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f0f6fc;
+  padding: 5px 8px;
+}
+
+.mermaid-modal-btn.btn-close:hover {
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: #ff7b72;
+}
+
+/* Modal Viewport & Stage */
+.mermaid-modal-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.mermaid-modal-viewport.is-dragging {
+  cursor: grabbing !important;
+}
+
+.mermaid-modal-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.mermaid-modal-stage svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

@@ -1,20 +1,20 @@
 # Solver Routing and Sweep Optimization
 
 !!! info "Math you need for this page"
-    A $(\beta, \omega)$ map pays for a few exact factorizations at anchor frequencies, then reuses each anchor as a right preconditioner for nearby $\omega$ until a residual gate forces refactor. One $L_0$ per spanwise wavenumber $\beta$. Bands are labeled stable, smooth, or near pole to pick walk strategy. Cost samples (factor time, memory, compression) feed anchor placement and backend choice. Failed points become recorded reason codes, not aborted campaigns.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    A $(\beta, \omega)$ map pays for a few exact factorizations at anchor frequencies, then reuses each anchor as a right [preconditioner](https://grokipedia.com/page/Preconditioner) for nearby $\omega$ until a residual gate forces refactor. One $L_0$ per spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$. Bands are labeled stable, smooth, or near pole to pick walk strategy. Cost samples (factor time, memory, compression) feed anchor placement and backend choice. Failed points become recorded reason codes, not aborted campaigns.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**Solver Routing and Sweep Optimization** is the cost-aware orchestration layer that turns single-point resolvent analysis into large parametric \(\beta\)–\(\omega\) gain-map campaigns on HPC. It lives under `src/linstabpy/solvers/router/` and is a first-class domain in LinStabPy: researchers and engineers can walk dense frequency lines without paying a full sparse factorization at every frequency.
+**Solver Routing and Sweep Optimization** is the cost-aware orchestration layer that turns single-point [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis into large parametric \(\beta\)–\(\omega\) [gain](../core-concepts.md)-map campaigns on HPC. It lives under `src/linstabpy/solvers/router/` and is a first-class domain in LinStabPy: researchers and engineers can walk dense frequency lines without paying a full [sparse](https://grokipedia.com/page/Sparse_matrix) factorization at every frequency.
 
 The module's design goal is **factorize-once, reuse-many** under residual and wall-time gates:
 
 1. Assemble one BC-enforced LNSE operator \(L_0(\beta)\) per spanwise wavenumber.
 2. Mark frequency bands from temporal EVP pole distances.
-3. Place measured sparse-direct **anchors** (typically MUMPS/LU).
-4. Walk subsequent frequencies with the nearest anchor as a right preconditioner (FGMRES), optionally with fixed-subspace recycling.
+3. Place measured sparse-direct **anchors** (typically [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))/[LU](https://grokipedia.com/page/LU_decomposition)).
+4. Walk subsequent frequencies with the nearest anchor as a right preconditioner ([FGMRES](https://grokipedia.com/page/Generalized_minimal_residual_method)), optionally with fixed-subspace recycling.
 5. Residual-gate and cost-probe force refactor when accuracy or amortization fails.
 6. Certify inexact resolvent actions before RSVD, then persist incremental CSV/NPZ checkpoints.
 
@@ -72,7 +72,7 @@ flowchart TD
 **Upstream dependencies**
 
 - **LNSE Operator Assembly**, one \(L_0(\beta)\) (and energy weights, \(B\)/\(C\) maps) per \(\beta\).
-- **Linear Algebra**, `factorize`, `shifted_operator`, backend registry (MUMPS/LU/cuDSS).
+- **Linear Algebra**, `factorize`, `shifted_operator`, backend registry (MUMPS/LU/[cuDSS](https://docs.nvidia.com/cuda/cudss/)).
 - **Resolvent Analysis**, leading-gain extraction (SLEPc path) and \(H\)/\(H^H\) actions.
 - **Stability**, optional temporal EVP spectrum for band marking.
 - **Config / utilities**, router subsections, cost metrics, PETSc bridge, job deadlines.
@@ -153,7 +153,7 @@ sequenceDiagram
 
 ### 5.1 Resolvent Map Orchestration (`resolvent_map.py`)
 
-**Responsibility.** Turnkey \(\beta\)–frequency gain map: validate coordinates, resolve mesh/BC policy, assemble one operator per \(\beta\), schedule frequency-line walks, collect gains and cost metrics, and return a structured `RouterResult`.
+**Responsibility.** Turnkey \(\beta\)–frequency [gain map](../core-concepts.md): validate coordinates, resolve mesh/BC policy, assemble one operator per \(\beta\), schedule frequency-line walks, collect gains and cost metrics, and return a structured `RouterResult`.
 
 **`RouterResult` contract**
 
@@ -170,7 +170,7 @@ sequenceDiagram
 
 **Mesh resolution.** Requires `cfg['mesh']`, `base_flow.mesh`, or `mesh_config` / geometry keys sufficient to call `Mesh.create`.
 
-**Dissipation policy (critical gotcha).** Whether a map needs SBP sawtooth dissipation is a **mesh** property (metric cross-coupling \(\mathrm{Ji}_{12}/\mathrm{Ji}_{21}\)). On rectilinear tensor meshes, dissipation is often a pure cost with negligible gain change; on doubly curvilinear meshes, undamped operators can inject spurious near-singular resonances.
+**Dissipation policy (critical gotcha).** Whether a map needs [SBP](https://grokipedia.com/page/Summation_by_parts) sawtooth dissipation is a **mesh** property (metric cross-coupling \(\mathrm{Ji}_{12}/\mathrm{Ji}_{21}\)). On rectilinear tensor meshes, dissipation is often a pure cost with negligible gain change; on doubly curvilinear meshes, undamped operators can inject spurious near-singular resonances.
 
 Both halves must be set independently:
 
@@ -222,7 +222,7 @@ If fewer than two distinct finite frequencies exist, default radius is `0.0` (no
 **API**
 
 - `label_band(eigs, omegas, cfg=None) -> BandMarks`
-- `mark_unstable_band(...)`, higher-level helper that can obtain EVP eigenvalues from \(L_0(\beta)\) when needed
+- `mark_unstable_band(...)`, higher-level helper that can obtain EVP [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) from \(L_0(\beta)\) when needed
 
 ---
 
@@ -272,14 +272,14 @@ Config may live at top level or under `adaptive_anchors`. Explicit `None` values
 
 1. **Anchor phase** (`n_direct < n_anchor` or no live factor): full `factorize` of \(L_0 - i\omega I\); measure factor wall and apply counts; extract leading gain.
 2. **Reuse phase:** build a gated right-preconditioned GMRES solve against the live factor.
-3. **Probe:** forward + adjoint solves on `probe_right_hand_side` (last response, else seeded complex Gaussian, **never** a ones vector).
+3. **Probe:** forward + [adjoint](https://grokipedia.com/page/Adjoint) solves on `probe_right_hand_side` (last response, else seeded complex Gaussian, **never** a ones vector).
 4. **`walk_is_cheaper`:** reuse only if residual ≤ rtol, iters ≤ cap, and  
    \(\texttt{probe\_s} \times \max(n_{\mathrm{applies}}, 40) < 0.25 \times T_{\mathrm{fact}}\).
 5. On failure or cost miss: destroy live factor, refactor at current \(\omega\), continue.
 6. **`WalkDeferred`:** remaining job wall (`job_remaining_s` / `LINSTABPY_JOB_DEADLINE` or `SLURM_JOB_END_TIME`) is shorter than the last factor cost, safe stop for checkpoint/resume.
 7. **`WalkAborted`:** residual or wall budget miss during a gated solve.
 
-**`WalkPointResult`:** `gain`, `residual`, `source`, `iterations`, `factor_s`, `solve_s`, optional SVD residuals `rho_fwd` / `rho_adj` for certification parity.
+**`WalkPointResult`:** `gain`, `residual`, `source`, `iterations`, `factor_s`, `solve_s`, optional [SVD](https://grokipedia.com/page/Singular_value_decomposition) residuals `rho_fwd` / `rho_adj` for certification parity.
 
 Always call `LineWalker.close()` to destroy the live PETSc factor when a \(\beta\) line finishes.
 
@@ -287,7 +287,7 @@ Always call `LineWalker.close()` to destroy the live PETSc factor when a \(\beta
 
 ### 5.5 Stable Sweep (`stable_sweep.py`)
 
-**Responsibility.** Anchor-preconditioned frequency sweeps in the stable regime: nearest-anchor indexing, optional compressed anchors (STRUMPACK/BLR-style PETSc options), optional recycling, stage timing, and certification hooks.
+**Responsibility.** Anchor-preconditioned frequency sweeps in the stable regime: nearest-anchor indexing, optional compressed anchors ([STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/)/BLR-style PETSc options), optional recycling, stage timing, and certification hooks.
 
 **`SweepResult` fields**
 
@@ -451,7 +451,7 @@ CertificationReport
 
 **Reason codes (map):** `REASON_OK = 0`, `REASON_PENDING = -1`, `REASON_FAILED = 1`.
 
-**CP3 cost keys** collected into `RouterResult.cost_metrics` include wall totals for assemble/factor/solve, peak RSS/GPU memory, MPI ranks, PETSc options tag, hardware tag, and git SHA.
+**CP3 cost keys** collected into `RouterResult.cost_metrics` include wall totals for assemble/factor/solve, peak RSS/GPU memory, [MPI](https://grokipedia.com/page/Message_Passing_Interface) ranks, PETSc options tag, hardware tag, and git SHA.
 
 ---
 

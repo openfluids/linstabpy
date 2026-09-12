@@ -1,13 +1,13 @@
 # LNSE Operator Assembly, Technical Implementation Documentation
 
 !!! info "Math you need for this page"
-    Assembly builds $\partial_t q' = L_0 q'$ for $q' = [\rho', u', v', w', T']^T$ in a fixed order: raw coefficient blocks, `inv(B/1j)` scaling, sponge damping, artificial dissipation $L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}$, then BC row overwrite last. Temporal eigenvalues downstream are $\omega = \mathrm{eig}(i L_0)$. The Chu energy diagonal is $W = \mathrm{diag}(W_{\rho}, W_u, W_v, W_w, W_T)$ from quadrature weights, base $\rho$ and $T$, $\kappa$, and $Ma$, with an extra radial factor in axisymmetric mode. BCs publish free degree sets that solvers must respect.
-    New to PETSc or SLEPc vocabulary? The [solver glossary](../6.PETSc-SLEPc-Glossary.md) defines every object named on this page.
+    Assembly builds $\partial_t q' = L_0 q'$ for $q' = [\rho', u', v', w', T']^T$ in a fixed order: raw coefficient blocks, `inv(B/1j)` scaling, sponge damping, artificial dissipation $L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}$, then BC row overwrite last. Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) downstream are $\omega = \mathrm{eig}(i L_0)$. The [Chu](../core-concepts.md) energy diagonal is $W = \mathrm{diag}(W_{\rho}, W_u, W_v, W_w, W_T)$ from quadrature weights, base $\rho$ and $T$, $\kappa$, and $Ma$, with an extra radial factor in axisymmetric mode. BCs publish free degree sets that solvers must respect.
+    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
 
 
 ## 1. Overview
 
-**LNSE Operator Assembly** is the mathematical core of LinStabPy. It turns mesh-aligned mean-flow fields and summation-by-parts (SBP) finite-difference operators into large sparse linearized Navier–Stokes (LNSE) systems that downstream stability, resolvent, and routing stages consume.
+**LNSE Operator Assembly** is the mathematical core of LinStabPy. It turns mesh-aligned mean-flow fields and [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) (SBP) finite-difference operators into large sparse linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) systems that downstream stability, resolvent, and routing stages consume.
 
 The domain spans two packages that are physically separate in the tree but form one logical pipeline:
 
@@ -22,12 +22,12 @@ The domain spans two packages that are physically separate in the tree but form 
 q = [\rho',\, u',\, v',\, w',\, T']
 \]
 
-**Discrete temporal operator** \(L_0\) satisfies \(\partial_t q = L_0 q\). Eigenvalues of \(i L_0\) are code frequencies \(\omega_{\mathrm{code}} = -\omega_{\mathrm{OS}}\); unstable modes have \(\operatorname{Im}(\omega_{\mathrm{code}}) < 0\).
+**[Discrete temporal operator](../core-concepts.md)** \(L_0\) satisfies \(\partial_t q = L_0 q\). Eigenvalues of \(i L_0\) are code frequencies \(\omega_{\mathrm{code}} = -\omega_{\mathrm{OS}}\); unstable modes have \(\operatorname{Im}(\omega_{\mathrm{code}}) < 0\).
 
 **Supported flow models**
 
-- **`2D`**, Cartesian compressible boundary-layer / shear form with Fourier spanwise wavenumber `kx`
-- **`axy`**, Cylindrical axisymmetric form with azimuthal mode `m` and optional Floquet streamwise shift
+- **`2D`**, Cartesian [compressible](https://grokipedia.com/page/Compressible_flow) boundary-layer / shear form with Fourier spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) `kx`
+- **`axy`**, Cylindrical axisymmetric form with azimuthal mode `m` and optional [Floquet](https://grokipedia.com/page/Floquet_theory) streamwise shift
 
 **Backends**
 
@@ -236,7 +236,7 @@ Implementation highlights:
 
 **Cartesian (`2d`)**, \(B/i = \operatorname{diag}(1,\rho,\rho,\rho,\rho)\). Applied as pure CSR/PETSc row scaling by \(1/\rho\) on momentum/energy blocks.
 
-**Axisymmetric (`axy`)**, \(B/i\) is lower-triangular (conservative→primitive structure). Analytical \(5\times5\) inverse at each point is applied as a block sparse multiply (SciPy) or via SciPy transform then PETSc rebuild (sequential only). Distributed PETSc + `axy` raises a clear `RuntimeError`.
+**Axisymmetric (`axy`)**, \(B/i\) is lower-triangular (conservative→primitive structure). Analytical \(5\times5\) inverse at each point is applied as a block [sparse](https://grokipedia.com/page/Sparse_matrix) multiply (SciPy) or via SciPy transform then PETSc rebuild (sequential only). Distributed PETSc + `axy` raises a clear `RuntimeError`.
 
 ### 5.6 Sponge and dissipation
 
@@ -344,7 +344,7 @@ bc_recipe:
 - `BCRule.from_mapping`, normalize and validate one rule
 - `BCRecipe.from_config`, list/dict or existing recipe
 - `apply_to` / `apply_to_petsc`, temporal operators
-- `apply_to_spatial` / `apply_to_spatial_petsc`, doubled spatial matrices (Dirichlet-only)
+- `apply_to_spatial` / `apply_to_spatial_petsc`, doubled spatial matrices ([Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition)-only)
 - `analyze`, effective row owners without mutating a matrix
 
 ### 7.3 Dirichlet (`dirichlet.py`)
@@ -374,7 +374,7 @@ Useful fields for free-DOF construction and diagnostics:
 
 - `dirichlet_indices` / `neumann_indices`
 - `effective_dirichlet_indices` / `effective_neumann_indices` (after sequential ownership)
-- `column_zeroed_dirichlet_indices` (all Dirichlet rules that ran, even if a later Neumann overwrote the row)
+- `column_zeroed_dirichlet_indices` (all Dirichlet rules that ran, even if a later [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) overwrote the row)
 - `overlap_indices`, `total_bc_indices`, per-rule reports
 
 ### 7.6 Lazy import policy
@@ -450,7 +450,7 @@ W_{ii} = \frac12
 \odot w_{\mathrm{int}}.
 \]
 
-Returns `W_diag` and `invW_diag` of length `5*ngp`. For `model="axy"`, integration weights are multiplied by radial coordinate \(r\) (clamped away from zero). Used by resolvent weighted gains and modal energy post-processing, not by raw \(L_0\) assembly itself.
+Returns `W_diag` and `invW_diag` of length `5*ngp`. For `model="axy"`, integration weights are multiplied by radial coordinate \(r\) (clamped away from zero). Used by [resolvent](https://grokipedia.com/page/Resolvent_formalism) weighted [gains](../core-concepts.md) and modal energy post-processing, not by raw \(L_0\) assembly itself.
 
 ---
 
@@ -461,7 +461,7 @@ Optional instrumentation without changing operator APIs:
 - Context-var session around assembly stages
 - Stage wall time and peak RSS deltas
 - Derivative matvec counts/bytes, coefficient tensor sizes, nnz pre/post BC
-- JSON output paths with `{rank}` / `{size}` placeholders for MPI
+- JSON output paths with `{rank}` / `{size}` placeholders for [MPI](https://grokipedia.com/page/Message_Passing_Interface)
 - CSR derivative cache helpers shared by block builders
 
 Enabled through solver/config assembly-metrics knobs; collectors finish with structured payloads for cost analysis and regression tracking.
@@ -597,7 +597,7 @@ W_diag, invW_diag = compute_chu_norm(
 
 ## 15. Summary
 
-LNSE Operator Assembly is the bridge from CFD mean flow and SBP discretization to the sparse linear operators that define LinStabPy's scientific products. It:
+LNSE Operator Assembly is the bridge from [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean flow and SBP discretization to the sparse linear operators that define LinStabPy's scientific products. It:
 
 - Generates **Cartesian and cylindrical** compressible LNSE coefficient tensors in a stable physical ordering  
 - Assembles **\(5N_{gp}\times5N_{gp}\)** temporal operators with a **fixed, documented** transform order  
@@ -606,4 +606,4 @@ LNSE Operator Assembly is the bridge from CFD mean flow and SBP discretization t
 - Supplies **Chu energy norms** and **assembly metrics** for resolvent and HPC cost control  
 - Offers **SciPy reference** and **PETSc direct/fallback** backends under explicit capability gates  
 
-All major analysis workflows, temporal/adjoint eigenproblems, resolvent gains, β–frequency maps, and spatial stability, depend on this domain producing a correct, BC-consistent \(L_0\) (or spatial equivalent) before any factorization or SLEPc solve.
+All major analysis workflows, temporal/[adjoint](https://grokipedia.com/page/Adjoint) eigenproblems, resolvent gains, β–frequency maps, and spatial stability, depend on this domain producing a correct, BC-consistent \(L_0\) (or spatial equivalent) before any factorization or SLEPc solve.

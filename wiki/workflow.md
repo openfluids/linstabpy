@@ -1,21 +1,21 @@
 # Core workflows
 
 !!! info "Math conventions for this page"
-    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable iff $\mathrm{Im}(\omega) > 0$. Resolvent $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. SBP orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through MUMPS. Assembly order is fixed with BC rows last.
+    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable iff $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
 
 ## 1. Workflow overview
 
 ### 1.1 System positioning
 
-LinStabPy is a Python CLI/library toolkit for **linear stability and resolvent analysis of compressible flows**. It ports LinStab2D-style LNSE workflows to MPI-enabled HPC. Operationally it is a **staged scientific pipeline**:
+LinStabPy is a Python CLI/library toolkit for **linear stability and resolvent analysis of [compressible](https://grokipedia.com/page/Compressible_flow) flows**. It ports LinStab2D-style LNSE workflows to [MPI](https://grokipedia.com/page/Message_Passing_Interface)-enabled HPC. Operationally it is a **staged scientific pipeline**:
 
 **config → baseflow → mesh/SBP → coefficients → L0 + BCs → factorize → eigen/resolvent → payload**
 
-The goal is to turn mean flow dumps into stability modes, resolvent gains, and sensitivity results for transition prediction, receptivity, and flow-control design, without MATLAB, on reproducible YAML-driven MPI runs.
+The goal is to turn mean flow dumps into stability modes, resolvent [gains](core-concepts.md), and sensitivity results for [transition](http://www.scholarpedia.org/article/Transition_to_turbulence) prediction, receptivity, and flow-control design, without MATLAB, on reproducible YAML-driven MPI runs.
 
-**In scope:** baseflow ingest/preprocess, structured SBP meshes, LNSE assembly and BC recipes, temporal/spatial/adjoint eigenproblems, resolvent gains and β–ω maps, sparse factorization (MUMPS/LU/optional cuDSS), cost-aware solver routing, CLI orchestration, provenance.
+**In scope:** baseflow ingest/preprocess, structured SBP meshes, LNSE assembly and BC recipes, temporal/spatial/[adjoint](https://grokipedia.com/page/Adjoint) eigenproblems, resolvent gains and β–ω maps, [sparse](https://grokipedia.com/page/Sparse_matrix) factorization (MUMPS/[LU](https://grokipedia.com/page/LU_decomposition)/optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)), cost-aware solver routing, CLI orchestration, provenance.
 
-**Out of scope:** nonlinear CFD that produces the mean flow, GUIs/visualization products, unstructured or full 3D volume frameworks, multiphysics outside LNSE, cloud multi-tenancy.
+**Out of scope:** nonlinear [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) that produces the mean flow, GUIs/visualization products, unstructured or full 3D volume frameworks, multiphysics outside LNSE, cloud multi-tenancy.
 
 ### 1.2 System Main Workflows
 
@@ -32,7 +32,7 @@ The goal is to turn mean flow dumps into stability modes, resolvent gains, and s
 
 There are two complementary execution surfaces:
 
-1. **CLI / case driver path** (`src/linstabpy/driver/run.py`), heavy runtime hub: PETSc/MPI init, staged logging/heartbeats, config resolution, distributed vectors, end-to-end orchestration, payload emission.
+1. **CLI / case driver path** (`src/linstabpy/driver/run.py`), heavy runtime hub: [PETSc](https://en.wikipedia.org/wiki/PETSc)/MPI init, staged logging/heartbeats, config resolution, distributed vectors, end-to-end orchestration, payload emission.
 2. **Library API path** (`import linstabpy`), lightweight: **does not** start PETSc/MPI on import; public symbols load lazily (`temporal_eigenvalues`, `resolvent_analysis`, `resolvent_map`, `build_lnse_system`, `BaseFlow`, etc.).
 
 Both paths converge on the same operator core and factorization spine.
@@ -78,7 +78,7 @@ flowchart TD
 
 - **Single orchestration hub:** `driver/run.py` sequences stages; domains do not call each other ad hoc across the full case.
 - **One operator family, many products:** temporal, adjoint, spatial, resolvent, and maps all consume BC-enforced LNSE operators (spatial reuses temporal prep helpers).
-- **Factorize-once, solve-many:** shared performance spine for shift-invert eigen and resolvent \(H\) actions.
+- **Factorize-once, solve-many:** shared performance spine for [shift-invert](solver-glossary.md) eigen and resolvent \(H\) actions.
 - **Config as reproducibility gate:** invalid structure/FD orders fail before expensive factors.
 - **MPI coordination:** distributed Mat/Vec via PETSc; rank-0 owns human-readable logs and many I/O decisions.
 - **Router feedback loop:** measured factor time/memory/compression samples inform reuse, backend choice, and certification on map campaigns.
@@ -140,7 +140,7 @@ flowchart TD
 
 ### 2.2 Temporal Eigenvalue Stability Analysis (Primary Product Path)
 
-**Business value:** Hydrodynamic stability spectra and eigenvectors for transition and control studies; reference orchestration pattern for other modes.
+**Business value:** [Hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) spectra and [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) for transition and control studies; reference orchestration pattern for other modes.
 
 **Entry:** `src/linstabpy/driver/run.py` or `temporal_eigenvalues` / stability APIs.
 
@@ -201,7 +201,7 @@ flowchart TD
    - Interfaces: solve, transpose solve, block solve, refactorize, destroy.
 
 5. **Eigenanalysis**  
-   - SLEPc EPS via `stability/_eigenvalues.py` and `solvers/eigenvalue.py`.  
+   - [SLEPc](https://en.wikipedia.org/wiki/SLEPc) [EPS](solver-glossary.md) via `stability/_eigenvalues.py` and `solvers/eigenvalue.py`.  
    - Temporal and adjoint paths; residual reordering; safe PETSc info access.  
    - Acceptance helpers: target-distance postcheck, conjugate-pair completeness, stability acceptance (`stability/acceptance.py`).
 
@@ -237,7 +237,7 @@ Orchestration **service-calls** Stability and **module-depends** on Operator Ass
 H = C\,(L_0 - i\omega I)^{-1}\,B
 \]
 
-Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often Chu norm), implemented as PETSc **MatShell** + SLEPc.
+Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often [Chu](core-concepts.md) norm), implemented as PETSc **[MatShell](solver-glossary.md)** + SLEPc.
 
 #### Flow
 
@@ -282,13 +282,13 @@ flowchart TD
 | Weighted normal | `invW * Hᴴ * W * H(v)` MatShell | `resolvent/gain.py` |
 | Analysis driver | Optimal pairs, gains, residual norms; MATLAB-aligned path | `resolvent/analysis.py` |
 
-**I/O:** Inputs extend temporal prep with frequency list/weights and forcing/response maps; outputs are gains, forcing/response mode shapes, residual certificates, solver metrics.
+**I/O:** Inputs extend temporal prep with frequency list/weights and forcing/response maps; outputs are gains, forcing/[response mode](core-concepts.md) shapes, residual certificates, solver metrics.
 
 ---
 
 ### 2.4 Beta–Frequency Resolvent Gain Map (Cost-Critical Campaign)
 
-**Business value:** Production-scale parametric studies of leading resolvent gain over spanwise wavenumber β and frequency ω, with **cost-aware** factorization reuse.
+**Business value:** Production-scale parametric studies of leading resolvent gain over spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) β and frequency ω, with **cost-aware** factorization reuse.
 
 **Entry:** `src/linstabpy/solvers/router/resolvent_map.py` (public `resolvent_map`).
 
@@ -337,7 +337,7 @@ flowchart TD
 2. **Band marking**, labels such as NEAR_POLE, SMOOTH, STABLE (`band_marking.py`) guide walk strategy.
 3. **Line walk (`map_walk.LineWalker`)**  
    - First frequencies on a line pay a **real factor** and measure cost.  
-   - Later points apply \(K(\omega)^{-1}\) using that factor as a **right preconditioner**.  
+   - Later points apply \(K(\omega)^{-1}\) using that factor as a **right [preconditioner](https://grokipedia.com/page/Preconditioner)**.  
    - **Residual gate** forces a new factor when accuracy degrades; walks may abort or defer (`WalkDeferred`).
 4. **Stable-regime sweeps (`stable_sweep.py`)**, anchor-preconditioned sweeps across nearby frequencies; records factor time, memory, compression for routing feedback.
 5. **Backend policy**, `linalg/backends.py` normalizes/probes MUMPS/LU/cuDSS; RAM autoselect and break-even logic influence choices.
@@ -439,7 +439,7 @@ flowchart TD
 ```
 
 - Adjoint path: `adjoint_eigenvalues` (lazy export from `stability._eigenvalues`).
-- Structural sensitivity: `wavemaker` in `stability/sensitivity.py` combining direct/adjoint information for control and receptivity insight.
+- [Structural sensitivity](core-concepts.md): `wavemaker` in `stability/sensitivity.py` combining direct/adjoint information for control and receptivity insight.
 - Factorization supports transpose solves needed by adjoint-related linear actions.
 
 ---
@@ -611,7 +611,7 @@ flowchart TD
 - **Prefer fail-fast on reproducibility gates** (config, missing backends) over running expensive wrong physics.
 - **Prefer refactor over silent inaccurate gains** on map residual gates.
 - **Iterative linear solvers are not an automatic downgrade** from direct factors; they require explicit solver policy (avoids hidden accuracy changes).
-- **Adjoint self-test / heal paths** exist in the factorization layer for iterative KSP edge cases (bounded iterations), keeping adjoint consistency checks local to the LA layer.
+- **Adjoint self-test / heal paths** exist in the factorization layer for iterative [KSP](solver-glossary.md) edge cases (bounded iterations), keeping adjoint consistency checks local to the LA layer.
 - **Resource cleanup:** factorization `destroy`, PETSc object lifecycle, and stage-scoped timing even on failure paths where implemented.
 
 ### 4.3 Fault Tolerance Strategy Design
@@ -634,8 +634,8 @@ flowchart TD
   3. Stable-sweep / band-specific strategy  
   4. Backend change under RAM policy (e.g. memory-bound iterative, **opt-in**)  
   5. Defer/abort frequency or β line with recorded reason  
-- **Partial success:** Gain maps can record completed (β, ω) cells with FAILED/PENDING markers rather than discarding the entire campaign when a single line breaks.
-- **Operator guidance:** On STRUMPACK/MUMPS failure, verify backend build, matrix conditioning/BC setup, and memory; do not "retry harder" without config change.
+- **Partial success:** [Gain maps](core-concepts.md) can record completed (β, ω) cells with FAILED/PENDING markers rather than discarding the entire campaign when a single line breaks.
+- **Operator guidance:** On [STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/)/MUMPS failure, verify backend build, matrix [conditioning](https://en.wikipedia.org/wiki/Condition_number)/BC setup, and memory; do not "retry harder" without config change.
 
 ---
 
@@ -652,7 +652,7 @@ flowchart TD
 1. Prepare coefficients from BaseFlow (Cartesian vs cylindrical; axis conventions vs MATLAB port).
 2. Attach FD/SBP differentiation and metrics.
 3. Apply sponge and optional operator dissipation (\(L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}\) when enabled).
-4. Enforce BC recipes (Dirichlet zero rows/cols + pin; Neumann as applicable).
+4. Enforce BC recipes ([Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) zero rows/cols + pin; [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) as applicable).
 5. Finalize backend: SciPy CSC and/or PETSc Mat with **fixed transformation order**.
 
 **Business rule:** Physics linearization is entirely driven by mesh-aligned mean flow; wrong preprocess (shock/sponge/viscosity) propagates directly into spectra and gains.
