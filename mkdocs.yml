@@ -1,0 +1,66 @@
+site_name: LinStabPy
+site_url: https://openfluids.github.io/linstabpy/
+site_description: Sparse linear stability and resolvent analysis of compressible viscous flows
+repo_url: https://github.com/openfluids/linstabpy
+repo_name: openfluids/linstabpy
+docs_dir: wiki
+site_dir: site
+use_directory_urls: true
+strict: true
+# Litho adds files under 4.Deep-Exploration/. Those pages still build.
+# A dead nav entry still fails the Pages job.
+validation:
+  omitted_files: ignore
+  absolute_links: warn
+  unrecognized_links: warn
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Overview: 1.Overview.md
+  - Architecture: 2.Architecture.md
+  - Workflow: 3.Workflow.md
+  - Deep exploration:
+      - Index: 4.Deep-Exploration/modules.md
+      - Runtime driver: 4.Deep-Exploration/driver.md
+      - LNSE assembly: 4.Deep-Exploration/operators.md
+      - BC recipes: 4.Deep-Exploration/boundary-conditions.md
+      - Structured mesh: 4.Deep-Exploration/mesh.md
+      - Packed fields: 4.Deep-Exploration/baseflow.md
+      - YAML and Config: 4.Deep-Exploration/config.md
+      - Eigenvalues: 4.Deep-Exploration/stability.md
+      - Resolvent: 4.Deep-Exploration/resolvent.md
+      - Solvers: 4.Deep-Exploration/solvers.md
+      - Sparse factors: 4.Deep-Exploration/linalg.md
+  - Boundaries: 5.Boundary-Interfaces.md
