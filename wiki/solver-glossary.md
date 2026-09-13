@@ -4,7 +4,7 @@ Every solver term used in this wiki, defined from zero and linked to the officia
 
 **The two libraries.** [PETSc](https://petsc.org/release/manual/ksp/) (Portable, Extensible Toolkit for Scientific Computation) owns distributed vectors and matrices plus linear solvers. [SLEPc](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/) (Scalable Library for Eigenvalue Problem Computations) sits on top of PETSc and owns eigensolvers. LinStabPy drives both through their Python bindings, [petsc4py](https://petsc4py.readthedocs.io/en/stable/) and [slepc4py](https://slepc4py.readthedocs.io/en/stable/), over [mpi4py](https://mpi4py.readthedocs.io/) for [MPI](https://grokipedia.com/page/Message_Passing_Interface). The install guide explains how to build this stack. This page explains what the objects mean. Physics and math vocabulary (growth rate, gain, Chu norm, wavemaker) lives in the [core concepts](core-concepts.md) companion.
 
-Repo conventions used below: $\omega = \mathrm{eig}(i L_0)$, unstable iff $\mathrm{Im}(\omega) > 0$; [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
+Repo conventions used below: $\omega = \mathrm{eig}(i L_0)$, unstable exactly when $\mathrm{Im}(\omega) > 0$; [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
 
 ---
 
@@ -111,11 +111,13 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **Problem types ([`EPSSetProblemType`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/)).** This repo uses two. `NHEP`: standard ($B = I$) non-Hermitian problem, used for temporal stability ($\omega = \mathrm{eig}(iL_0)$) and for the weighted normal resolvent problem. `GNHEP`: generalized non-Hermitian $Ax = \lambda Bx$, used for spatial stability where the $B$ matrix carries boundary rows and algebraic constraints (and is often singular, which matters below). Hermitian types exist and are not used here because LNSE operators are [nonnormal](https://en.wikipedia.org/wiki/Defective_matrix).
 
-**[`EPSKRYLOVSCHUR`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSKRYLOVSCHUR/)** is the restarted Krylov-Schur eigensolver, our method on every path. Think restarted [Arnoldi](https://grokipedia.com/page/Arnoldi_iteration) with a cleaner restart: build a Krylov subspace, project the problem, keep the wanted Ritz information in a Krylov-Schur decomposition, expand again. It finds exterior eigenvalues of the operator it sees, which is exactly why shift-invert (next object) precedes it for interior targets.
+**[`EPSKRYLOVSCHUR`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSKRYLOVSCHUR/)** is the restarted Krylov-Schur eigensolver, our method on every path. Think restarted [Arnoldi](https://grokipedia.com/page/Arnoldi_iteration) with a cleaner restart: build a Krylov subspace, project the problem, keep the wanted Ritz information in a Krylov-Schur decomposition, expand again. After $m$ Arnoldi steps the factorization reads $AV = VH + \beta v_{m+1} e_m^T$ with $V$ orthonormal and $H$ upper Hessenberg. Each eigenpair $(\lambda_i, y_i)$ of the small $H$ lifts to a **Ritz pair** $(\lambda_i, Vy_i)$ of $A$, with residual exactly $|\beta|\,|e_m^T y_i|$, so convergence is tested with no extra matvecs. Krylov-Schur (Stewart, 2001) keeps $H$ in Schur form instead, which makes restarting clean: truncate to the wanted Schur vectors and expand again, bounding memory at subspace size rather than iteration count. Like all Krylov eigensolvers it finds exterior eigenvalues of the operator it sees, which is exactly why shift-invert (next object) precedes it for interior targets. Full development in Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, sections on Krylov subspaces and large-scale eigensolvers.
 
 **[`EPSSetDimensions`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetDimensions/)** sets `nev` (eigenpairs wanted) and `ncv` (Krylov subspace size, the accuracy and cost knob). `ncv` must exceed `nev`, and larger `ncv` helps crowded or nonnormal neighborhoods where small subspaces stall. Repo defaults: temporal uses $\max(2\cdot\mathrm{nev}+3, 30)$ clipped to matrix size; spatial uses $\min(\max(4\cdot\mathrm{nev}, 30), \mathrm{ndof}-1)$; resolvent uses $\min(\max(2\cdot\mathrm{nev}+3, 20), \mathrm{ndof}-1)$. A user-passed `ncv` must be larger than `nev` or setup raises.
 
 **[`EPSSetWhichEigenpairs`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetWhichEigenpairs/)** picks *which* eigenvalues to want. Temporal and spatial paths use `TARGET_MAGNITUDE`: closest to the shift target in magnitude, combined with shift-invert. The resolvent path uses `LARGEST_MAGNITUDE`: the normal operator's largest eigenvalues are the squared leading gains by construction, so no shift is needed there.
+
+**Krylov convergence practice.** Two results from the review govern expectations. First, isolated eigenvalues converge geometrically fast while branches crawl: the error bound scales with $\kappa(V)\,(\rho/|\mu_i - c|)^k$ for an eigenvalue $\mu_i$ outside a disk of radius $\rho$, and dense branches are the worst case on both factors (poor isolation times large eigenvector conditioning from nonnormality). Crowded or branch-heavy targets are exactly where raising `ncv` pays. Second, Arnoldi favors eigenvectors with large components in the starting vector, so genuinely random starts are the default unless prior knowledge says otherwise; a start nearly orthogonal to the wanted mode stalls. Time-stepper codes add heuristics this repo does not need (matrix-forming factors replace sampling periods), but the diagnosis transfers: slow convergence near a branch means widen the subspace or move the shift, not just tighten the tolerance. See Frantz, Loiseau and Robinet (2023), observations on eigenvalue convergence.
 
 **[`EPSSetTolerances`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetTolerances/)** sets the eigenpair tolerance and restart limit. Three finer points the code exposes: the *convergence test* (`abs`, `rel`, or `norm`) decides how the residual is measured during the solve; the *reported residual* need not equal the tested one; and `true_residual=true` forces the expensive untransformed residual on shift-invert runs, because the cheap transformed estimate can look converged while the true pair is poor. Temporal and resolvent tolerances come from YAML (`eps_tol`, `eps_max_it`); spatial currently uses fixed `tol=1e-10`, `max_it=max(500, 10\cdot\mathrm{ndof})`. Monitor output (`-eps_monitor`) prints per-restart convergence and is the first thing to ask for when a spectrum looks wrong.
 
@@ -124,6 +126,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 ---
 
 ## 7. The exact chains this repo runs
+
+One scoping note: this repo is matrix-forming (assembled $L_0$ plus direct factors), not matrix-free time-stepping, so the review's Newton-Krylov, monodromy, and sampling-period machinery does not apply here. What transfers fully is the Krylov eigensolver core below: Arnoldi factorization, Ritz convergence, and shift-invert.
 
 | Analysis | Operator seen by EPS | EPS setup | ST and linear backend |
 |---|---|---|---|
@@ -151,17 +155,49 @@ Two boundaries worth memorizing. A direct factor belongs to exactly one shift $(
 
 ---
 
-## 9. Reading list
+## 9. Choosing a configuration
+
+Start here when the knobs in section 8 feel like too many degrees of freedom. Every number below is measured on the Savarino resolvent case (450k unknowns, 23.4M nonzeros, dual Xeon Silver 4210R) unless stated otherwise.
+
+```mermaid
+flowchart TD
+    Q1{"Does a direct factor fit in memory?"}
+    Q1 -->|Yes| D1["Direct: KSPPREONLY + PCLU + MUMPS"]
+    Q1 -->|No| I1["Iterative, explicit opt-in: fgmres_lu or strumpack_fgmres with true_residual on"]
+    D1 --> Q2{"One point or a map?"}
+    Q2 -->|One point| P1["Single factorize, single EPS. Done."]
+    Q2 -->|Map over frequencies| Q3{"Lines or farm?"}
+    Q3 -->|Few points, many nodes| F1["Farm: independent jobs per point (83.6 min for 200 points, 5 concurrent)"]
+    Q3 -->|Dense lines| L1["Line driver: assemble once, anchor factors, in-place numeric refactorization (59.7 min for the same 200)"]
+    D1 --> Q4{"Which mesh?"}
+    Q4 -->|Rectilinear, leak at round-off| E0["epsilon = 0. Check insensitivity under refinement."]
+    Q4 -->|Bent, leak order one| E1["Dissipation on. Tune epsilon on this mesh until the gain or eigenvalue stops moving."]
+```
+
+Why the defaults are the defaults, with the measurements behind them:
+
+| Decision | Evidence |
+|---|---|
+| Direct first | One point costs 60 s factorize from scratch (54 s numeric refactor reusing symbolic analysis), 0.44 s per forward solve, 0.43 s per adjoint solve, 5.8 s for the gain eigensolve. The factor is four fifths of a point; everything else is noise next to it. |
+| Small Krylov spaces | Cutting `ncv` from 20 to 5 cut solves per point from 40 to 10 and moved the gain by less than $10^{-10}$. Subspace size sets cost, not precision, past the threshold. |
+| Trust but verify reuse | Farm and line modes agree on all 200 map gains to $4.7\times 10^{-10}$ relative (median $7.9\times 10^{-11}$). Worst residuals over the map: $8.0\times 10^{-8}$ forward, $9.8\times 10^{-9}$ adjoint. Reuse without residuals is hope; with residuals it is a method. |
+| Dissipation by measurement | Leak below $10^{-11}$ (Song, Savarino meshes): $\varepsilon = 0$ is the declared choice, moving gains by at most 1.4% when raised to 0.1. Leak order one (bent meshes): dissipation required. Full procedure in the [FAQ](faq.md). |
+| Ranks last | 4 to 16 ranks bought 22% less time for twice the memory (18.6 to 40.6 GiB) on one point. Scale out across cases before scaling up ranks. |
+
+All figures: the linstabpy paper, computational performance section, with per-point CSVs under `examples/savarino/`.
+
+## 10. Reading list
 
 In the order I would read them:
 
-1. The [PETSc KSP manual chapter](https://petsc.org/release/manual/ksp/). Linear solves, `KSP` with `PC`, direct versus iterative, the options database. Covers sections 2 to 4 of this page with examples.
-2. [`KSPPREONLY`](https://petsc.org/release/manualpages/KSP/KSPPREONLY/) and [`PCLU`](https://petsc.org/release/manualpages/PC/PCLU/). Short pages. Together they are our default solve.
-3. [`MATSOLVERMUMPS`](https://petsc.org/release/manualpages/Mat/MATSOLVERMUMPS/) and the [MUMPS homepage](https://mumps-solver.org/). What the default factor backend does and its controls.
-4. [`MatCreateShell`](https://petsc.org/release/manualpages/Mat/MatCreateShell/). Matrix-free operators in PETSc vocabulary.
-5. [`EPSSetProblemType`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/), [`EPSKRYLOVSCHUR`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSKRYLOVSCHUR/), [`STSINVERT`](https://slepc.upv.es/documentation/current/docs/manualpages/ST/STSINVERT/). The three pages behind every eigensolve here.
-6. [petsc4py](https://petsc4py.readthedocs.io/en/stable/) and [slepc4py](https://slepc4py.readthedocs.io/en/stable/) docs. Python-side API used throughout `src/`.
-7. [SciPy sparse matrices](https://docs.scipy.org/doc/scipy/reference/sparse.html). CSC and CSR formats behind the assembly side of the dual path.
-7. Schmid and Henningson, *Stability and [Transition](http://www.scholarpedia.org/article/Transition_to_turbulence) in Shear Flows* (Springer, 2001). The fluids-side companion: what the eigenvalues and gains mean physically once the solvers return them.
+1. Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems: application in fluid dynamics*, *Appl. Mech. Rev.* 75(3), 030802. The review behind sections 3, 5, and 6 of this page: Arnoldi factorization, Ritz convergence, non-modal bounds, and Krylov practice in fluids.
+2. The [PETSc KSP manual chapter](https://petsc.org/release/manual/ksp/). Linear solves, `KSP` with `PC`, direct versus iterative, the options database. Covers sections 2 to 4 of this page with examples.
+3. [`KSPPREONLY`](https://petsc.org/release/manualpages/KSP/KSPPREONLY/) and [`PCLU`](https://petsc.org/release/manualpages/PC/PCLU/). Short pages. Together they are our default solve.
+4. [`MATSOLVERMUMPS`](https://petsc.org/release/manualpages/Mat/MATSOLVERMUMPS/) and the [MUMPS homepage](https://mumps-solver.org/). What the default factor backend does and its controls.
+5. [`MatCreateShell`](https://petsc.org/release/manualpages/Mat/MatCreateShell/). Matrix-free operators in PETSc vocabulary.
+6. [`EPSSetProblemType`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/), [`EPSKRYLOVSCHUR`](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSKRYLOVSCHUR/), [`STSINVERT`](https://slepc.upv.es/documentation/current/docs/manualpages/ST/STSINVERT/). The three pages behind every eigensolve here.
+7. [petsc4py](https://petsc4py.readthedocs.io/en/stable/) and [slepc4py](https://slepc4py.readthedocs.io/en/stable/) docs. Python-side API used throughout `src/`.
+8. [SciPy sparse matrices](https://docs.scipy.org/doc/scipy/reference/sparse.html). CSC and CSR formats behind the assembly side of the dual path.
+9. Schmid and Henningson, *Stability and [Transition](http://www.scholarpedia.org/article/Transition_to_turbulence) in Shear Flows* (Springer, 2001). The fluids-side companion: what the eigenvalues and gains mean physically once the solvers return them.
 
 If a solver term appears elsewhere in this wiki without a link, that is a bug in that page. Link it here.

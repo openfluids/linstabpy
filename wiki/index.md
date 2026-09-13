@@ -163,7 +163,7 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 
 | Section | Core Focus | Target Audience |
 |---|---|---|
-| [**Getting started**](getting-started.md) | Install, first runs, examples, your first case | Start here. Do this today |
+| [**Getting started**](getting-started/index.md) | Install, first runs, examples, your first case | Start here. Do this today |
 | [**Overview**](overview.md) | What LinStabPy computes and where it stops | First read, scope, vocabulary |
 | [**Architecture**](architecture.md) | Component relationships & C4 models | Contributors, system developers |
 | [**Workflow**](workflow.md) | Steps of a run in order | Running and orchestrating cases |
@@ -171,3 +171,15 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 | [**Boundaries**](boundaries.md) | YAML schema, CLI flags, env vars, NPZ contract | Reference when building cases |
 | [**Solver glossary**](solver-glossary.md) | Every KSP, PC, EPS, ST, and MatShell term defined and linked | Open beside any solver page |
 | [**Core concepts**](core-concepts.md) | Base flow, growth rate, gain, Chu norm, wavemaker, sponge, and friends | Open beside any science page |
+
+---
+
+## Cite linstabpy
+
+If this software contributed to published work, please cite the linstabpy paper together with the LinStab2D methodology paper:
+
+> Hamada, G. Y. R. and Frantz, R. A. S. linstabpy: open-source compressible stability and resolvent analysis. *Theor. Comput. Fluid Dyn.* (in preparation, 2026).
+
+> Martini, E. and Schmidt, O. T. (2024). LinStab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665–685. doi:10.1007/s00162-024-00706-0.
+
+The full bibliography lives on the [references](references.md) page, and `CITATION.cff` carries the machine-readable entry (DOI and version land with the first tagged Zenodo release).
