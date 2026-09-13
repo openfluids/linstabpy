@@ -21,7 +21,6 @@ The domain does **not** implement physics discretization or eigen/resolvent nume
 | Attribute | Value |
 |-----------|--------|
 | **Domain type** | Core Business Domain |
-| **Importance** | 9.7 / 10 |
 | **Primary package** | `src/linstabpy/driver/` |
 | **Public package surface** | `src/linstabpy/__init__.py` |
 | **Runtime hub** | `driver/run.py` (`run()`) |

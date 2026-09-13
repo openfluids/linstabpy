@@ -40,38 +40,41 @@ where the state vector of primitive perturbation variables is:
 Linearizing the compressible Navier–Stokes equations around \( \bar{\mathbf{q}} \) yields the semi-discrete linear dynamical system:
 
 \[
-\mathbf{M} \frac{\partial \mathbf{q}'}{\partial t} = \mathcal{L}_0(\beta) \mathbf{q}' + \mathbf{f}'
+\frac{\partial \mathbf{q}'}{\partial t} = \mathcal{L}_0(\beta) \mathbf{q}' + \mathbf{B} \mathbf{f}'
 \]
 
-where \( \mathcal{L}_0 \) incorporates [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) (SBP) [finite differences](https://grokipedia.com/page/Finite_difference_method) (orders 2, 4, 6, 8), coordinate metrics, characteristic [sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), and boundary conditions.
+where \( \mathcal{L}_0 \) incorporates [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) (SBP) [finite differences](https://grokipedia.com/page/Finite_difference_method) (orders 2, 4, 6, 8), coordinate metrics, characteristic [sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), artificial dissipation, and boundary conditions (with mass/descriptor inversion applied during assembly).
 
-### 3. Modal Stability: Generalized Eigenvalue Problem
+### 3. Modal Stability: Temporal Eigenvalue Problem
 
-Under harmonic time dependence, the homogeneous system reduces to:
+Under harmonic time dependence \( \mathbf{q}'(t) = \hat{\mathbf{q}} \exp(-i\omega t) \), the unforced homogeneous system reduces to:
 
 \[
-\mathcal{A}(\beta) \hat{\mathbf{q}} = \omega \mathcal{B} \hat{\mathbf{q}}
+i \mathcal{L}_0(\beta) \hat{\mathbf{q}} = \omega \hat{\mathbf{q}}
 \]
 
 * **Angular frequency**: \( \operatorname{Re}(\omega) \)
 * **[Temporal growth rate](core-concepts.md)**: \( \operatorname{Im}(\omega) > 0 \) denotes exponential instability (\( \propto \exp(\operatorname{Im}(\omega) t) \))
 * Solved via [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` using [Krylov–Schur](solver-glossary.md) with spectral [shift-invert](solver-glossary.md) transformation.
+* For spatial stability at real \( \omega \), the system rearranges into the generalized pencil \( (L_c + \omega L_w) \hat{\mathbf{q}} = \alpha R \hat{\mathbf{q}} \) for complex streamwise wavenumber \( \alpha \).
 
 ### 4. Input–Output Resolvent Analysis
 
-Under external harmonic forcing \( \hat{\mathbf{f}} \), the resolvent operator \( \mathcal{R}(\beta, \omega) \) maps inputs to linear responses:
+Under external harmonic forcing \( \mathbf{f}'(t) = \mathbf{B} \hat{\mathbf{f}} \exp(-i\omega t) \), the resolvent operator \( \mathcal{H}(\beta, \omega) \) maps inputs to linear responses \( \hat{\mathbf{q}} = \mathcal{H}(\beta, \omega) \hat{\mathbf{f}} \):
 
 \[
-\hat{\mathbf{q}} = \mathcal{R}(\beta, \omega) \hat{\mathbf{f}}, \qquad \mathcal{R}(\beta, \omega) = \mathbf{C} \left( -i\omega \mathbf{B} - \mathbf{A}(\beta) \right)^{-1} \mathbf{B}_f
+\mathcal{H}(\beta, \omega) = \mathbf{C} \mathbf{F} \left( \mathcal{L}_0(\beta) - (\gamma + i\omega) \mathbf{I} \right)^{-1} \mathbf{F} \mathbf{B}
 \]
+
+where \( \mathbf{B} \) and \( \mathbf{C} \) are input and output restriction masks, \( \mathbf{F} \) is an optional spatial filter placed inside the masks, and \( \gamma \ge 0 \) is an optional real discount.
 
 The optimal energy [gain](core-concepts.md) \( \sigma_1^2 \) is defined as the supremum over all forcing shapes under the [Chu](core-concepts.md) compressible energy norm:
 
 \[
-\sigma_1^2(\beta, \omega) = \max_{\hat{\mathbf{f}} \neq 0} \frac{\langle \hat{\mathbf{q}}, \mathbf{W}_q \hat{\mathbf{q}} \rangle}{\langle \hat{\mathbf{f}}, \mathbf{W}_f \hat{\mathbf{f}} \rangle} = \left\| \mathbf{W}_q^{1/2} \mathcal{R}(\beta, \omega) \mathbf{W}_f^{-1/2} \right\|_2^2
+\sigma_1^2(\beta, \omega) = \max_{\hat{\mathbf{f}} \neq 0} \frac{\| \mathcal{H} \hat{\mathbf{f}} \|_E^2}{\| \hat{\mathbf{f}} \|_F^2} = \max_{\hat{\mathbf{f}} \neq 0} \frac{\langle \hat{\mathbf{q}}, \mathbf{W}_q \hat{\mathbf{q}} \rangle}{\langle \hat{\mathbf{f}}, \mathbf{W}_f \hat{\mathbf{f}} \rangle}
 \]
 
-Large gains with \( \operatorname{Im}(\omega) < 0 \) quantify [non-normal](https://en.wikipedia.org/wiki/Defective_matrix) convective amplification, receptivity to environmental disturbances, and flow-control sensitivity.
+Computed as \( \sigma = \sqrt{\operatorname{Re}(\lambda)} \) from the weighted normal eigenproblem on a PETSc `MatShell`. Large gains when all modes are stable (\( \operatorname{Im}(\omega) < 0 \)) quantify [non-normal](https://en.wikipedia.org/wiki/Defective_matrix) convective amplification, receptivity to environmental disturbances, and flow-control sensitivity.
 
 ---
 

@@ -12,6 +12,7 @@ build/
 !examples/martini/LinStab2DResults/*.npz
 *.png
 !docs/assets/*.png
+!wiki/**/*.png
 # Shipped reference fields for the public cases (other examples).
 !examples/song/reference/**/*.npz
 !examples/savarino/reference/**/*.npz
