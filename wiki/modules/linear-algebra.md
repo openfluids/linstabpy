@@ -1,4 +1,4 @@
-# Linear Algebra Infrastructure
+# Linear algebra infrastructure
 
 !!! info "Math you need for this page"
     One factorization serves many solves. The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). [SLEPc](https://en.wikipedia.org/wiki/SLEPc) calls it repeatedly inside shift-invert Krylov-Schur and inside every $H$ and $H^H$ apply. A direct factor belongs to exactly one shift $(\omega, \gamma)$. Reuse across shifts happens only in the router as [preconditioning](https://grokipedia.com/page/Preconditioner) under a residual gate, never as an exact solve. Iterative paths are explicit opt-in, never silent fallback.

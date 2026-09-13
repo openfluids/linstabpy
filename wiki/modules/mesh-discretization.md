@@ -1,4 +1,4 @@
-# Mesh Discretization, Technical Implementation Documentation
+# Mesh discretization
 
 !!! info "Math you need for this page"
     Structured 2D grids with [SBP](https://grokipedia.com/page/Summation_by_parts) [finite differences](https://grokipedia.com/page/Finite_difference_method) at even orders $2$, $4$, $6$, $8$ only, each with validated boundary closures and diagonal norm $H$. Filters are implicit 10th order Mattsson style with `alpha_filter` strength control. Artificial dissipation is the Mattsson, Svard, and Nordstrom operator $Q_{\mathrm{diss}}$ scaled by $\varepsilon$ and applied as $L_0 - \varepsilon Q$. Deformation chain rules the derivatives and scales quadrature by $|\det J|$. Fortran order flattening keeps indices aligned with the MATLAB reference.
@@ -231,7 +231,7 @@ Returns hardcoded reference tables for orders **2, 4, 6, 8**:
 | `a_i1`, `a_i2` | Interior first- / second-derivative stencils |
 | `a_b1`, `a_b2` | Boundary closure blocks shape `(r, m)` |
 
-Unsupported even orders fall through to `generate_sbp_stencils` (validated norms exist only for 2–8; higher orders raise).
+Unsupported even orders fall through to `generate_sbp_stencils` (validated norms exist only for 2, 4, 6, 8; higher orders raise).
 
 ### 6.3 `min_points(order)`
 

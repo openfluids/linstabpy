@@ -1,4 +1,4 @@
-# LNSE Operator Assembly, Technical Implementation Documentation
+# LNSE operator assembly
 
 !!! info "Math you need for this page"
     Assembly builds $\partial_t q' = L_0 q'$ for $q' = [\rho', u', v', w', T']^T$ in a fixed order: raw coefficient blocks, `inv(B/1j)` scaling, sponge damping, artificial dissipation $L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}$, then BC row overwrite last. Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) downstream are $\omega = \mathrm{eig}(i L_0)$. The [Chu](../core-concepts.md) energy diagonal is $W = \mathrm{diag}(W_{\rho}, W_u, W_v, W_w, W_T)$ from quadrature weights, base $\rho$ and $T$, $\kappa$, and $Ma$, with an extra radial factor in axisymmetric mode. BCs publish free degree sets that solvers must respect.

@@ -1,4 +1,4 @@
-# Shared Scientific Utilities, Technical Implementation Documentation
+# Shared scientific utilities
 
 !!! info "What this package owns, in one paragraph"
     Crosscutting helpers with no physics of their own: [PETSc](https://en.wikipedia.org/wiki/PETSc) init order and SciPy to PETSc conversion in `petsc_core`, YAML IO, cost and provenance recording, [Floquet](https://grokipedia.com/page/Floquet_theory) helpers, and the versioned metrics schema. If two domains need the same conversion or the same provenance key, it lives here so the spelling stays identical. These modules never own case flow.

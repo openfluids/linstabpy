@@ -1,4 +1,4 @@
-# Solver Routing and Sweep Optimization
+# Solver routing and sweep optimization
 
 !!! info "Math you need for this page"
     A $(\beta, \omega)$ map pays for a few exact factorizations at anchor frequencies, then reuses each anchor as a right [preconditioner](https://grokipedia.com/page/Preconditioner) for nearby $\omega$ until a residual gate forces refactor. One $L_0$ per spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$. Bands are labeled stable, smooth, or near pole to pick walk strategy. Cost samples (factor time, memory, compression) feed anchor placement and backend choice. Failed points become recorded reason codes, not aborted campaigns.

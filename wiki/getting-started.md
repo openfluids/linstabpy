@@ -266,6 +266,24 @@ Missing reference bundles skip cleanly here (silent in CI) and validate when pre
 
 ---
 
+### What things cost
+
+No maintained per-example runtime table exists yet, but two measured anchors calibrate expectations. Both come from the Savarino case on one c9 node (dual Xeon Silver 4210R, 20 cores, MKL), August 2026, recorded in `examples/savarino/*.csv` with commit, ranks, and Slurm job per row.
+
+Single resolvent point, Mack point, 450,000 unknowns, 23.4M nonzeros, MUMPS (strong scaling, jobs run serially):
+
+| Ranks | Wall (s) | Peak RSS (GiB) | Gain |
+|---|---|---|---|
+| 4 | 190.5 | 18.6 | 179.1173862845 |
+| 8 | 154.6 | 25.4 | 179.1173862854 |
+| 16 | 148.2 | 40.6 | 179.1173862846 |
+
+Read it as: gains identical to 10 digits, ranks 4 to 16 buy 22 percent less time for twice the memory. Factorization dominates; more ranks are not automatically faster.
+
+Full 200-point gain map, same hardware, 5 jobs concurrent on 20 cores: 83.6 minutes as independent per-point jobs, 59.7 minutes through the line driver with anchor reuse. The router earns its keep on dense grids.
+
+Measure your own runs the same way: `benchmark.sh` writes wall times and logs under `benchmark_runs/<run-id>/`, and every result NPZ carries `cost_wall_*` keys plus provenance. When reporting a slow machine, send those plus the `--diagnose` output.
+
 ## 9. The tutorial PDF
 
 `docs/tutorial/tutorial.pdf` walks the Martini examples figure by figure. Section 5 explains how to read the baseflow, spectrum, and mosaic figures. The PDF is not tracked in git, so build it:
@@ -382,7 +400,7 @@ Honest gaps, so you can plan around them:
 * **No GPU install path.** `cudss` (through `nvmath-python`, wrapped around [FGMRES](https://grokipedia.com/page/Generalized_minimal_residual_method)) is the validated GPU route and matches MUMPS to 1e-12 on tested cases, but there is no one-command GPU environment. `install.sh --stack gpu-strumpack --dry-run` only prints a plan. CPU with MUMPS stays the default you should build on.
 * **No Windows support.** POSIX shell and Unix MPI are assumed throughout.
 * **Reference `.mat` files are external.** The four Martini base flows live in a LinStab2D clone you fetch yourself. Nothing in this repo vendors them, for provenance and size reasons.
-* **No per-example runtime table.** Wall times depend on grid, ranks, and backend, and no maintained table exists yet. The Savarino CSVs carry measured campaign wall times for one HPC node if you need a calibration point.
+* **No per-example runtime table yet.** Wall times depend on grid, ranks, and backend. Section 8 has Savarino reference anchors (single point scaling plus a 200-point map) and the measurement protocol; Martini per-example timings are still unmeasured contributions welcome.
 * **Tutorial PDF needs a TeX toolchain.** `pdflatex` must be installed to build it. There is no hosted HTML version of the tutorial.
 * **Spatial and map entry points are library-first.** Temporal EVP and single-frequency resolvent have the smoothest CLI story. Spatial solves and $\beta$ and $\omega$ maps are best driven through module entry points and the `resolvent_map` API today.
 * **Error messages assume context.** Backend probing fails loudly (good), but some PETSc-level errors still surface raw. Paste them with the benchmark artifacts when asking for help.
