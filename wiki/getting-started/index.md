@@ -1,6 +1,6 @@
 # Getting started
 
-A full path from zero to your first spectrum and your first [gain](../core-concepts.md): install the stack, run the examples in the right order, read the outputs, then start your own case. I assume you are comfortable with linear algebra, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and a Unix shell, and new to this codebase.
+From a fresh machine to your first spectrum and your first [gain](../core-concepts.md): install the stack, run the examples in the right order, read the outputs, then start your own case. Assumes linear algebra, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and a Unix shell; no prior experience with this codebase needed.
 
 Time budget: install takes 30 to 90 minutes ([PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc) compile from source). Example 0 runs in under a minute. The [Blasius](https://grokipedia.com/page/Blasius_boundary_layer) example takes a few minutes on a workstation.
 
@@ -14,11 +14,10 @@ The order that works:
 
 Math conventions used on this page: temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ means growth. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. You need these two lines to read any spectrum or gain plot below.
 
----
 
-## 1. What you need before you start
+## What you need before you start
 
-**Operating system.** Linux is the reference path. macOS works with one [BLAS](https://en.wikipedia.org/wiki/BLAS) caveat (section 5). Windows is not supported. The installer expects a POSIX shell with `bash`.
+**Operating system.** Linux is the reference path. macOS works with one [BLAS](https://en.wikipedia.org/wiki/BLAS) caveat (see [macOS and clusters in brief](#macos-and-clusters-in-brief)). Windows is not supported. The installer expects a POSIX shell with `bash`.
 
 **Compilers and tools.** C, C++, and Fortran compilers, plus `make`, `cmake`, `curl`, and `pkg-config`. One MPI stack with development headers (`mpicc`, `mpicxx`, `mpifort`, `mpiexec`). Optional: HDF5 development files, only if you want the MATLAB v7.3 parity tooling.
 
@@ -26,9 +25,8 @@ Math conventions used on this page: temporal [eigenvalues](https://grokipedia.co
 
 **Disk and time.** The build directory (`.venv`) holds a full PETSc and SLEPc. Expect several GB and a long compile on first install. Later installs reuse the pattern and go faster.
 
----
 
-## 2. Install path A: the reference script
+## Install path A: the reference script
 
 `install.sh` is the supported workstation build: default Python 3.13, PETSc 3.24 with [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), complex scalars, editable install of this repo into `.venv`. Run four commands in this order.
 
@@ -74,9 +72,8 @@ Knobs you may need (all in the README with full detail):
 
 Run everything through `.venv/bin/python` directly (scripts should do this so logs show the interpreter). For interactive shells, `source .venv/bin/activate` is convenient.
 
----
 
-## 3. Install path B: conda
+## Install path B: conda
 
 Pick conda if you already manage environments that way and want to skip the PETSc compile. conda-forge supplies Python with a complex-scalar PETSc, SLEPc, and `mpi4py` stack. pip then installs only this package, editable, with `--no-deps` so it never pulls a second NumPy or compiles PETSc.
 
@@ -96,11 +93,10 @@ Constraints to know:
 * Python is `>=3.10,<3.14` here. Python 3.14 stays an `install.sh` freshness test; conda-forge `petsc4py` may not resolve it.
 * Never add `petsc4py`, `slepc4py`, or `mpi4py` to the pip list. Those sdists compile PETSc from source and fight the conda MPI stack.
 * `environment.yml` is not a second reference build. If conda-forge PETSc differs in minor version from the `install.sh` build, record both versions with your results.
-* There is no `environment-gpu.yml`, deliberately. GPU PETSc is not a supported conda path. See section 13 for the honest GPU status.
+* There is no `environment-gpu.yml`, deliberately. GPU PETSc is not a supported conda path. See [What is still missing](#what-is-still-missing) for the current GPU status.
 
----
 
-## 4. The CLI as it really is
+## The CLI as it really is
 
 This section corrects a mistake that lived in older docs. The `linstabpy` command takes **no case arguments**. It reads everything from environment variables and caches results by config hash. From `src/linstabpy/driver/cli.py`, the only flag is `--version`.
 
@@ -133,9 +129,8 @@ Caching behavior: on rank 0 the driver loads the existing output NPZ if present 
 
 Most examples in `examples/` do **not** go through this CLI. They run as Python modules with their own YAML files (next sections). The driver CLI is for packed-field cases and campaign use.
 
----
 
-## 5. macOS and clusters in brief
+## macOS and clusters in brief
 
 **macOS.** Same four commands as Linux. One extra step first when possible:
 
@@ -165,9 +160,8 @@ export NUMEXPR_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1
 
 Without this, each rank spawns a full BLAS thread pool and [sparse](https://grokipedia.com/page/Sparse_matrix) direct solves get slower, not faster. More ranks are not automatically faster for factorization either. Compare rank counts on your machine.
 
----
 
-## 6. First run: example 0, no data needed
+## First run: example 0, no data needed
 
 Example 0 validates curvilinear derivatives. It is pure NumPy, runs single-process, and needs no reference files. Run it first. If it fails, the problem is your Python environment, not MPI or data.
 
@@ -183,9 +177,8 @@ Re-plot any time without recomputing:
 .venv/bin/python -m examples.martini.example_0_plots
 ```
 
----
 
-## 7. Second run: Blasius resolvent
+## Second run: Blasius resolvent
 
 Example 1 is the real first science run: resolvent gains with optimal forcing and [response modes](../core-concepts.md) for a [compressible](https://grokipedia.com/page/Compressible_flow) Blasius [boundary layer](https://grokipedia.com/page/Boundary_layer) ($Re = 6.0\times 10^5$, $Ma = 0.3$, SBP order 4, grid $300 \times 100$). It needs one external file, the MATLAB base flow `BL_BF.mat`, which this repo does not bundle.
 
@@ -221,11 +214,10 @@ How to read the mosaic: the forcing panel is the input shape $v$, the response p
 
 *What a healthy answer looks like: smooth, cleanly separated forcing and response structures. Compare your run against this before tuning anything.*
 
-The case definition lives in `examples/martini/example_1_blasius.yaml`: physics, grid, sponge, frequency, mode count, BC recipe, solver policy, each with a comment. YAML keeps the explanation next to the knob, which is why the repo uses it instead of long flag lists. Section 10 walks a trimmed version.
+The case definition lives in `examples/martini/example_1_blasius.yaml`: physics, grid, sponge, frequency, mode count, BC recipe, solver policy, each with a comment. YAML keeps the explanation next to the knob, which is why the repo uses it instead of long flag lists. [Your first own case](#your-first-own-case) walks a trimmed version.
 
----
 
-## 8. The example family map
+## The example family map
 
 Six Martini examples form the core family. Run one, run all, then compare against MATLAB:
 
@@ -270,9 +262,8 @@ Parity checks compare Python results against MATLAB reference exports:
 .venv/bin/python examples/martini/compare_martini_examples.py
 ```
 
-Missing reference bundles skip cleanly here (silent in CI) and validate when present locally. The pytest parity marker behaves more strictly; see section 11.
+Missing reference bundles skip cleanly here (silent in CI) and validate when present locally. The pytest parity marker behaves more strictly; see [Verify with tests and benchmarks](#verify-with-tests-and-benchmarks).
 
----
 
 ### What things cost
 
@@ -292,7 +283,7 @@ Full 200-point gain map, same hardware, 5 jobs concurrent on 20 cores: 83.6 minu
 
 Measure your own runs the same way: `benchmark.sh` writes wall times and logs under `benchmark_runs/<run-id>/`, and every result NPZ carries `cost_wall_*` keys plus provenance. When reporting a slow machine, send those plus the `--diagnose` output.
 
-## 9. The tutorial PDF
+## The tutorial PDF
 
 `docs/tutorial/tutorial.pdf` walks the Martini examples figure by figure. Section 5 explains how to read the baseflow, spectrum, and mosaic figures. The PDF is not tracked in git, so build it:
 
@@ -300,11 +291,10 @@ Measure your own runs the same way: `benchmark.sh` writes wall times and logs un
 cd docs/tutorial && make tutorial.pdf   # needs pdflatex
 ```
 
-`make clean` removes build artifacts. If you lack a TeX distribution, the example PNGs plus section 7 of this guide cover the same ground without the prose.
+`make clean` removes build artifacts. If you lack a TeX distribution, the example PNGs plus [Second run: Blasius resolvent](#second-run-blasius-resolvent) cover the same ground without the prose.
 
----
 
-## 10. Your first own case
+## Your first own case
 
 You have two ways to run custom work. Example modules for MATLAB-parity style studies with generated meshes. Packed-field cases through the driver for your own base flows. This section sketches the packed-field route, which is the one new research takes.
 
@@ -343,7 +333,7 @@ Three details that bite newcomers:
 2. **Boundary recipes are data.** Each rule names a type (`dirichlet` or `neumann`), border letters (`l`, `r`, `t`, `b`, combined like `lt`), and variable blocks (`u`, `T`, `ruvw`, `ruvwT`). [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) rules usually want `exclude_corners: true` and, on deformed meshes, `curvilinear_normals: true`. Assembly applies BC rows last and publishes the free degree sets downstream solvers must use. The `penalty` beside the recipe pins Dirichlet DOFs (diagonal value after row and column zeroing) and scales Neumann rows; keep the default unless leakage diagnostics complain. Full mechanics in [core concepts](../core-concepts.md).
 3. **The dissipation epsilon has two halves.** Building the dissipation operator and setting its strength are separate flags, and setting only one is a silent no-op. The Workflow page documents the exact pair. On rectilinear meshes you usually want it off; on meshes curved in both directions you usually want it on.
 
-Run the case through the driver (section 4 for the env vars), then inspect the archive:
+Run the case through the driver ([The CLI as it really is](#the-cli-as-it-really-is) for the env vars), then inspect the archive:
 
 ```python
 import numpy as np
@@ -357,9 +347,8 @@ Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, i
 
 Before trusting any spectrum, check the basics the README lists in full: requested `nev` versus converged `nconv`, subspace size `ncv`, [EPS](../solver-glossary.md) tolerance and convergence test, postcheck residuals, boundary leakage, and target distances. Converged Ritz pairs with bad full-operator residuals happen on interior non-Hermitian problems, and the postcheck is what catches them.
 
----
 
-## 11. Verify with tests and benchmarks
+## Verify with tests and benchmarks
 
 The test suite has three lanes:
 
@@ -381,9 +370,8 @@ Large generated outputs, raw MATLAB exports, and machine-local benchmark product
 
 `benchmark.sh` artifacts live under `benchmark_runs/<run-id>/` with a summary CSV and logs. Send those plus full `--diagnose` and install output when reporting a broken machine.
 
----
 
-## 12. Troubleshooting quick map
+## Troubleshooting quick map
 
 | Symptom | Likely cause | First check |
 |---|---|---|
@@ -399,30 +387,28 @@ Large generated outputs, raw MATLAB exports, and machine-local benchmark product
 
 The README troubleshooting section carries the full commands for each row.
 
----
 
-## 13. What is still missing
+## What is still missing
 
 Honest gaps, so you can plan around them:
 
 * **No GPU install path.** `cudss` (through `nvmath-python`, wrapped around [FGMRES](https://grokipedia.com/page/Generalized_minimal_residual_method)) is the validated GPU route and matches MUMPS to 1e-12 on tested cases, but there is no one-command GPU environment. `install.sh --stack gpu-strumpack --dry-run` only prints a plan. CPU with MUMPS stays the default you should build on.
 * **No Windows support.** POSIX shell and Unix MPI are assumed throughout.
 * **Reference `.mat` files are external.** The four Martini base flows live in a LinStab2D clone you fetch yourself. Nothing in this repo vendors them, for provenance and size reasons.
-* **No per-example runtime table yet.** Wall times depend on grid, ranks, and backend. Section 8 has Savarino reference anchors (single point scaling plus a 200-point map) and the measurement protocol; Martini per-example timings are still unmeasured contributions welcome.
+* **No per-example runtime table yet.** Wall times depend on grid, ranks, and backend. [The example family map](#the-example-family-map) has Savarino reference anchors (single point scaling plus a 200-point map) and the measurement protocol; Martini per-example timings are still unmeasured contributions welcome.
 * **Tutorial PDF needs a TeX toolchain.** `pdflatex` must be installed to build it. There is no hosted HTML version of the tutorial.
 * **Spatial and map entry points are library-first.** Temporal EVP and single-frequency resolvent have the smoothest CLI story. Spatial solves and $\beta$ and $\omega$ maps are best driven through module entry points and the `resolvent_map` API today.
 * **Error messages assume context.** Backend probing fails loudly (good), but some PETSc-level errors still surface raw. Paste them with the benchmark artifacts when asking for help.
 
----
 
-## 14. Where to go next
+## Where to go next
 
-* Run the family: section 8 commands, then the parity comparison.
+* Run the family: [example family map](#the-example-family-map) commands, then the parity comparison.
 * Read the [Overview](../overview.md) for scope and vocabulary.
 * Read the [Workflow](../workflow.md) before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
 * Open one [module guide](../modules/index.md) package note when you need math or code detail. Start with LNSE Operator Assembly or Resolvent Analysis.
 * Keep the [Boundaries](../boundaries.md) page open while building cases. It lists every env var, flag, and output key.
 * Open the [solver glossary](../solver-glossary.md) beside any solver output.
-* Citing results: see [Cite linstabpy](../index.md#cite-linstabpy) and the [references](../references.md) page. It defines `KSP`, `PC`, `EPS`, `ST`, and `MatShell` from zero with links to the official docs.
+* Citing results: see [Cite linstabpy](../index.md#cite-linstabpy) and the [references](../references.md) page. The glossary defines `KSP`, `PC`, `EPS`, `ST`, and `MatShell`, with links to the official docs.
 
 If something on this page failed for you, that is a documentation bug worth reporting. Say which section, paste the command and the error, and attach the `--diagnose` output.

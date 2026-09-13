@@ -1,14 +1,13 @@
 # PETSc and SLEPc glossary
 
-Every solver term used in this wiki, defined from zero and linked to the official docs. I assume you know linear algebra ([Krylov](https://grokipedia.com/page/Krylov_subspace) subspaces, [LU](https://grokipedia.com/page/LU_decomposition), [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors)) and have never touched these two libraries. Readers who already use PETSc can skip to section 7, which lists the exact solver chains this repo runs.
+Definitions of every solver term used in this wiki, linked to the official docs. Assumes linear algebra ([Krylov](https://grokipedia.com/page/Krylov_subspace) subspaces, [LU](https://grokipedia.com/page/LU_decomposition), [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors)) No prior PETSc or SLEPc experience needed. Readers who already use PETSc can skip to [The exact chains this repo runs](#the-exact-chains-this-repo-runs).
 
 **The two libraries.** [PETSc](https://petsc.org/release/manual/ksp/) (Portable, Extensible Toolkit for Scientific Computation) owns distributed vectors and matrices plus linear solvers. [SLEPc](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/) (Scalable Library for Eigenvalue Problem Computations) sits on top of PETSc and owns eigensolvers. LinStabPy drives both through their Python bindings, [petsc4py](https://petsc4py.readthedocs.io/en/stable/) and [slepc4py](https://slepc4py.readthedocs.io/en/stable/), over [mpi4py](https://mpi4py.readthedocs.io/) for [MPI](https://grokipedia.com/page/Message_Passing_Interface). The install guide explains how to build this stack. This page explains what the objects mean. Physics and math vocabulary (growth rate, gain, Chu norm, wavemaker) lives in the [core concepts](core-concepts.md) companion.
 
 Repo conventions used below: $\omega = \mathrm{eig}(i L_0)$, unstable exactly when $\mathrm{Im}(\omega) > 0$; [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
 
----
 
-## 1. The five-minute mental model
+## Mental model
 
 Four object pairs cover nearly everything:
 
@@ -21,9 +20,8 @@ Four object pairs cover nearly everything:
 
 A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted operator, a `KSP` with `PC` factors it once, an `EPS` with `ST` runs shift-invert Krylov-Schur calling that factor on every iteration, and the resolvent path adds a shell matrix whose multiply applies $H$ through the same factor.
 
----
 
-## 2. PETSc basics
+## PETSc basics
 
 **PETSc** is a C library (with Python bindings) for vectors, matrices, and solvers on distributed memory. Start with the [KSP manual chapter](https://petsc.org/release/manual/ksp/). It covers linear solves end to end and is the best single document behind this page.
 
@@ -59,9 +57,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **Options database.** PETSc and SLEPc read command-line style options at runtime (`-ksp_type`, `-eps_monitor`, and hundreds more). Any example can receive them after `--` through the runner, for example `-- -eps_monitor` to watch eigensolver convergence. YAML and env policy in this repo set the important ones explicitly, but the options database is always available as an override and debugging channel.
 
----
 
-## 3. KSP: linear solvers and the PREONLY direct path
+## KSP: linear solvers and the PREONLY direct path
 
 **[`KSP`](https://petsc.org/release/manual/ksp/)** (Krylov Subspace Solver) is PETSc's linear solver object: given $Ax = b$, it produces $x$. The key design point is the split: `KSP` chooses the *iteration* (or none), [`PC`](https://petsc.org/release/manual/ksp/) chooses the *[preconditioner](https://grokipedia.com/page/Preconditioner)*. You can pair [GMRES](https://grokipedia.com/page/Generalized_minimal_residual_method) with LU, or no iteration with LU, without touching calling code. SLEPc shift-invert and our resolvent applies both consume `KSP` objects through this interface.
 
@@ -73,9 +70,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`KSPSetTolerances`](https://petsc.org/release/manualpages/KSP/KSPSetTolerances/)** sets relative tolerance, absolute tolerance, divergence tolerance, and maximum iterations for the Krylov iteration. On the default `KSPPREONLY` path these knobs do nothing, because there is no iteration. Accuracy there comes from the factorization quality and from EPS-side settings instead. The `ksp_rtol`, `ksp_atol`, and `ksp_max_it` knobs matter only on iterative paths, which is a common source of confusion worth stating twice.
 
----
 
-## 4. PC: preconditioners, LU, and MUMPS
+## PC: preconditioners, LU, and MUMPS
 
 **`PC`** (preconditioner) is the other half of the `KSP` split. A preconditioner approximates $A^{-1}$ cheaply so the outer iteration converges fast, or in our default case *is* $A^{-1}$ computed exactly by factorization.
 
@@ -91,9 +87,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **Transpose solves.** Adjoint work and $H^H$ applies need $A^H x = b$, not $Ax = b$. The factorization object exposes `solve_transpose` alongside `solve`, reusing the same LU factors. No second factorization is needed for the adjoint half of resolvent or stability analysis.
 
----
 
-## 5. MatShell: matrices you never assemble
+## MatShell: matrices you never assemble
 
 **[`MatCreateShell`](https://petsc.org/release/manualpages/Mat/MatCreateShell/)** creates a PETSc `Mat` with no stored entries. You register callback functions (at minimum the multiply `y = Ax`, optionally transpose and others) and PETSc treats the result as a matrix: it can sit inside `KSP`, `EPS`, and `ST` exactly like an assembled `AIJ` matrix. "Shell" contrasts with "assembled." The multiply runs your code, typically a few operator applies and triangular solves.
 
@@ -101,9 +96,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **Ownership detail.** On multi-rank communicators the multiply callback writes only its rank's local row range into the result vector. Getting this wrong silently corrupts outer iterations, which is why the shell code is explicit about ranges.
 
----
 
-## 6. SLEPc: EPS eigensolvers and ST spectral transformations
+## SLEPc: EPS eigensolvers and ST spectral transformations
 
 **SLEPc** extends PETSc to eigenvalue problems. It operates on PETSc `Mat` and `Vec` objects, so everything in sections 2 to 5 carries over. Its Python binding is [slepc4py](https://slepc4py.readthedocs.io/en/stable/).
 
@@ -123,9 +117,8 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`ST`](https://slepc.upv.es/documentation/current/docs/manualpages/ST/STSetShift/) and [`STSINVERT`](https://slepc.upv.es/documentation/current/docs/manualpages/ST/STSINVERT/)** (spectral transformation, shift-invert). Krylov methods find exterior eigenvalues, but stability targets sit in the spectrum interior. Shift-invert replaces the operator with $(A - \sigma B)^{-1} B$, whose *largest* eigenvalues are exactly the $\lambda$ closest to the shift $\sigma$, with eigenvectors unchanged. Each `ST` apply is one linear solve with the shifted matrix, which is why the `KSPPREONLY` + `PCLU` + MUMPS factor from sections 3 and 4 sits underneath every shift-invert eigensolve. [`STSetShift`](https://slepc.upv.es/documentation/current/docs/manualpages/ST/STSetShift/) sets $\sigma$. This repo sets the shift explicitly on `ST` rather than relying only on `EPS.setTarget`, so the generalized shift center is never implicit. Temporal targets live in $\omega$ space ($\sigma$ near the wanted $\omega$); the solver internally handles the $iL_0$ scaling.
 
----
 
-## 7. The exact chains this repo runs
+## The exact chains this repo runs
 
 One scoping note: this repo is matrix-forming (assembled $L_0$ plus direct factors), not matrix-free time-stepping, so the review's Newton-Krylov, monodromy, and sampling-period machinery does not apply here. What transfers fully is the Krylov eigensolver core below: Arnoldi factorization, Ritz convergence, and shift-invert.
 
@@ -140,9 +133,8 @@ One scoping note: this repo is matrix-forming (assembled $L_0$ plus direct facto
 
 Two boundaries worth memorizing. A direct factor belongs to exactly one shift $(\omega, \gamma)$. Reuse across shifts happens only as router preconditioning under a residual gate, never as an exact solve. And iterative linear solvers are never automatic downgrade from direct factors. They require explicit solver policy so accuracy changes stay visible.
 
----
 
-## 8. Knobs: YAML, env, and options database
+## Knobs: YAML, env, and options database
 
 | Knob | Where | Effect |
 |---|---|---|
@@ -153,11 +145,10 @@ Two boundaries worth memorizing. A direct factor belongs to exactly one shift $(
 | `-eps_monitor`, `-ksp_monitor`, `-eps_view`, … | Options database (after `--`) | Runtime inspection without editing files. `-eps_monitor` is the single most useful flag when a spectrum misbehaves. |
 | `ksp_rtol`, `ksp_atol`, `ksp_max_it`, `pc_type` | YAML, iterative paths only | Meaningful only when a real Krylov iteration runs. Inert on `KSPPREONLY`. |
 
----
 
-## 9. Choosing a configuration
+## Choosing a configuration
 
-Start here when the knobs in section 8 feel like too many degrees of freedom. Every number below is measured on the Savarino resolvent case (450k unknowns, 23.4M nonzeros, dual Xeon Silver 4210R) unless stated otherwise.
+Start here when the knobs in [Knobs](#knobs-yaml-env-and-options-database) feel like too many degrees of freedom. Every number below is measured on the Savarino resolvent case (450k unknowns, 23.4M nonzeros, dual Xeon Silver 4210R) unless stated otherwise.
 
 ```mermaid
 flowchart TD
@@ -186,7 +177,7 @@ Why the defaults are the defaults, with the measurements behind them:
 
 All figures: the linstabpy paper, computational performance section, with per-point CSVs under `examples/savarino/`.
 
-## 10. Reading list
+## Reading list
 
 In the order I would read them:
 

@@ -1,11 +1,11 @@
 # Solver routing and sweep optimization
 
-!!! info "Math you need for this page"
-    A $(\beta, \omega)$ map pays for a few exact factorizations at anchor frequencies, then reuses each anchor as a right [preconditioner](https://grokipedia.com/page/Preconditioner) for nearby $\omega$ until a residual gate forces refactor. One $L_0$ per spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$. Bands are labeled stable, smooth, or near pole to pick walk strategy. Cost samples (factor time, memory, compression) feed anchor placement and backend choice. Failed points become recorded reason codes, not aborted campaigns.
-    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+A $(\beta, \omega)$ map pays for a few exact factorizations at anchor frequencies, then reuses each anchor as a right [preconditioner](https://grokipedia.com/page/Preconditioner) for nearby $\omega$ until a residual gate forces refactor. One $L_0$ per spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$. Bands are labeled stable, smooth, or near pole to pick walk strategy. Cost samples (factor time, memory, compression) feed anchor placement and backend choice. Failed points become recorded reason codes, not aborted campaigns.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
 **Solver Routing and Sweep Optimization** is the cost-aware orchestration layer that turns single-point [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis into large parametric \(\beta\)–\(\omega\) [gain](../core-concepts.md)-map campaigns on HPC. It lives under `src/linstabpy/solvers/router/` and is a first-class domain in LinStabPy: researchers and engineers can walk dense frequency lines without paying a full [sparse](https://grokipedia.com/page/Sparse_matrix) factorization at every frequency.
 
@@ -20,9 +20,8 @@ The module's design goal is **factorize-once, reuse-many** under residual and wa
 
 Public entry points are re-exported from `linstabpy.solvers.router` (and the package-level `resolvent_map` lazy export). Importing the router package does **not** initialize PETSc; PETSc is pulled lazily inside sweep engines.
 
----
 
-## 2. Package Layout and Public Surface
+## Package Layout and Public Surface
 
 | File | Role |
 |------|------|
@@ -54,9 +53,8 @@ Public entry points are re-exported from `linstabpy.solvers.router` (and the pac
 - `break_even_decision`, `ram_autoselect`
 - `certified_rsvd`, `randomized_resolvent_svd`, and individual `check_*` helpers
 
----
 
-## 3. Role in the LinStabPy Pipeline
+## Role in the LinStabPy Pipeline
 
 ```mermaid
 flowchart TD
@@ -83,9 +81,8 @@ flowchart TD
 - Resume-from-CSV map campaigns
 - Cost and certification sidecars for provenance
 
----
 
-## 4. End-to-End Control Flow
+## End-to-End Control Flow
 
 ```mermaid
 flowchart TD
@@ -147,11 +144,10 @@ sequenceDiagram
   ResolventMap-->>Caller: RouterResult
 ```
 
----
 
-## 5. Component Design
+## Component Design
 
-### 5.1 Resolvent Map Orchestration (`resolvent_map.py`)
+### Resolvent Map Orchestration (`resolvent_map.py`)
 
 **Responsibility.** Turnkey \(\beta\)–frequency [gain map](../core-concepts.md): validate coordinates, resolve mesh/BC policy, assemble one operator per \(\beta\), schedule frequency-line walks, collect gains and cost metrics, and return a structured `RouterResult`.
 
@@ -185,9 +181,8 @@ The router reads strength from **top-level** `dissipation_epsilon`, **not** `ope
 - Per-point failures are recorded and retryable on resume; the sweep continues.
 - Leading gains still come from the certified/direct resolvent engine (SLEPc path), even when linear solves use anchor-preconditioned FGMRES.
 
----
 
-### 5.2 Band Marking (`band_marking.py`)
+### Band Marking (`band_marking.py`)
 
 **Responsibility.** Label requested real forcing frequencies by distance to a supplied temporal EVP spectrum **without** performing shifted linear or resolvent solves.
 
@@ -224,9 +219,8 @@ If fewer than two distinct finite frequencies exist, default radius is `0.0` (no
 - `label_band(eigs, omegas, cfg=None) -> BandMarks`
 - `mark_unstable_band(...)`, higher-level helper that can obtain EVP [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) from \(L_0(\beta)\) when needed
 
----
 
-### 5.3 Adaptive Anchors (`anchors.py`)
+### Adaptive Anchors (`anchors.py`)
 
 **Responsibility.** Deterministic adaptive anchor placement **before** a stable sweep, with full trigger provenance.
 
@@ -252,9 +246,8 @@ Config may live at top level or under `adaptive_anchors`. Explicit `None` values
 
 **`AnchorTriggerRecord`** stores \(\omega\), sample \(\omega\), trigger tuple, insertion flag, EVP distance/radius, FGMRES stats, and nearest-anchor geometry before insertion. The `.trigger` property joins multiple triggers with `+` for backward compatibility.
 
----
 
-### 5.4 Line Walk Engine (`map_walk.py`)
+### Line Walk Engine (`map_walk.py`)
 
 **Responsibility.** Walk one frequency line per \(\beta\) with a **single live factor**, residual/cost gates, and job-deadline awareness.
 
@@ -283,9 +276,8 @@ Config may live at top level or under `adaptive_anchors`. Explicit `None` values
 
 Always call `LineWalker.close()` to destroy the live PETSc factor when a \(\beta\) line finishes.
 
----
 
-### 5.5 Stable Sweep (`stable_sweep.py`)
+### Stable Sweep (`stable_sweep.py`)
 
 **Responsibility.** Anchor-preconditioned frequency sweeps in the stable regime: nearest-anchor indexing, optional compressed anchors ([STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/)/BLR-style PETSc options), optional recycling, stage timing, and certification hooks.
 
@@ -312,9 +304,8 @@ Always call `LineWalker.close()` to destroy the live PETSc factor when a \(\beta
 - Matvecs support SciPy sparse and PETSc `Mat` (including Hermitian transpose for adjoints).
 - Nearest-anchor selection indexes the precomputed factor list for each \(\omega\).
 
----
 
-### 5.6 Fixed-Subspace Recycling (`recycling.py`)
+### Fixed-Subspace Recycling (`recycling.py`)
 
 **Responsibility.** Algebraic core for **fixed** recycle subspaces used with right-preconditioned GMRES. The subspace is prepared **outside** each RSVD/certification pass and **never adapted inside a solve**, preserving the linear map assumed by certification.
 
@@ -326,9 +317,8 @@ Always call `LineWalker.close()` to destroy the live PETSc factor when a \(\beta
 
 Empty bases are `n × 0` complex arrays via `empty_recycle_basis`.
 
----
 
-### 5.7 Break-Even Routing (`break_even.py`)
+### Break-Even Routing (`break_even.py`)
 
 **Responsibility.** Measured cost model choosing `"direct"` vs `"fgmres-sweep"` for a planned frequency count. Designed as an **additive pre-routing** decision (tests inject `break_even_probe`); it does not silently rewrite production paths without an explicit caller.
 
@@ -348,9 +338,8 @@ If \(N_{\mathrm{iters}} T_{\mathrm{apply}} \ge T_{\mathrm{fact}}\), crossover is
 
 **`RoutingDecision`:** `path`, `crossover_nf`, measured times, iterations, `k_anchors`, `n_frequencies`, human-readable `note`.
 
----
 
-### 5.8 RAM Autoselect (`ram_autoselect.py`)
+### RAM Autoselect (`ram_autoselect.py`)
 
 **Responsibility.** Choose resource-only knobs so a factorization/sweep fits memory. **Never** mutates physics choices (grid, FD order, modes, \(\beta\)/\(\omega\) ranges).
 
@@ -380,9 +369,8 @@ Each call runs an empirical sparse-LU analysis probe on the pattern; measured fi
 
 Available RAM: cfg injection (`available_ram_bytes`, …) → `/proc` mem available → platform fallbacks. Tests inject `symbolic_probe` for determinism.
 
----
 
-### 5.9 Certification (`certification.py`)
+### Certification (`certification.py`)
 
 **Responsibility.** Certify algebraic assumptions of **inexact** resolvent actions before they are safe for RSVD. Independent of the sweep router; each check is unit-testable.
 
@@ -399,11 +387,10 @@ Available RAM: cfg injection (`available_ram_bytes`, …) → `/proc` mem availa
 
 **`CertificationReport`:** map of `CheckResult`, `derived_solve_tol`, `seeds`; `.passed` is true iff all checks pass. Reports serialize via `.as_dict()` for metrics/payloads.
 
-Fixed recycle subspaces (Section 5.6) exist specifically so these linearity/adjoint checks remain valid.
+Fixed recycle subspaces (see [Fixed-Subspace Recycling](#fixed-subspace-recycling-recyclingpy) above) exist specifically so these linearity/adjoint checks remain valid.
 
----
 
-### 5.10 Map Record and Job Budget (`map_record.py`)
+### Map Record and Job Budget (`map_record.py`)
 
 **Responsibility.** Crash-safe incremental persistence and wall-clock budgeting for long map jobs.
 
@@ -416,9 +403,8 @@ Fixed recycle subspaces (Section 5.6) exist specifically so these linearity/adjo
 | `job_remaining_s` | From `LINSTABPY_JOB_DEADLINE` or `SLURM_JOB_END_TIME` (ms or s) |
 | `time_left_for_factor` | True if no deadline or remaining wall \(>\) needed factor time |
 
----
 
-## 6. Data Contracts Summary
+## Data Contracts Summary
 
 ```text
 BandMarks
@@ -453,9 +439,8 @@ CertificationReport
 
 **CP3 cost keys** collected into `RouterResult.cost_metrics` include wall totals for assemble/factor/solve, peak RSS/GPU memory, [MPI](https://grokipedia.com/page/Message_Passing_Interface) ranks, PETSc options tag, hardware tag, and git SHA.
 
----
 
-## 7. Configuration Reference (Router-Centric)
+## Configuration Reference (Router-Centric)
 
 Typical YAML nesting (all of the following are accepted where noted):
 
@@ -522,11 +507,10 @@ Environment:
 - `LINSTABPY_STAGE_HEARTBEAT_SECONDS` / `LINSTAB2D_STAGE_HEARTBEAT_SECONDS`
 - `LINSTABPY_JOB_DEADLINE` or `SLURM_JOB_END_TIME` (seconds or milliseconds since epoch)
 
----
 
-## 8. Integration Patterns
+## Integration Patterns
 
-### 8.1 Library call (conceptual)
+### Library call (conceptual)
 
 ```python
 from linstabpy.solvers.router import resolvent_map
@@ -543,20 +527,19 @@ result = resolvent_map(
 
 Callers supply config, mesh (or mesh_config), BC masks/recipes, and optional heartbeat-friendly logging. Engines return `WalkPointResult`, `SweepResult`, and `RouterResult` structures for payload packaging.
 
-### 8.2 Driver campaign
+### Driver campaign
 
 `driver/run.py` launches the map stage after config validation; assembly uses the same LNSE + BC path as single-point resolvent; the router owns \(\beta\) loops, band marks, walks, and recording. Payload emission stores map arrays, cost samples, and certification metadata.
 
-### 8.3 Resume semantics
+### Resume semantics
 
 1. On start, `finished_pairs(csv)` loads completed \((\beta, f)\).
 2. `remaining(frequencies, done, beta=...)` schedules only unfinished points.
 3. `append_row` + `atomic_savez` keep partial progress durable under preemption.
 4. `WalkDeferred` cooperates with SLURM end time so the last incomplete factor is not started unsafely.
 
----
 
-## 9. Performance and Correctness Principles
+## Performance and Correctness Principles
 
 1. **One \(L_0\) per \(\beta\)**, spanwise wavenumber changes the operator; frequency walks reuse it.
 2. **Pay factorization at anchors; amortize with FGMRES**, residual and cost probes decide reuse vs refactor.
@@ -566,9 +549,8 @@ Callers supply config, mesh (or mesh_config), BC masks/recipes, and optional hea
 6. **Import lightness**, lazy PETSc keeps `import linstabpy` and band-marking-only imports free of MPI/PETSc init.
 7. **Dissipation is dual-key**, mesh operators and top-level epsilon must both be set for the router path.
 
----
 
-## 10. Extension and Maintenance Notes
+## Extension and Maintenance Notes
 
 | Concern | Guidance |
 |---------|----------|
@@ -579,8 +561,7 @@ Callers supply config, mesh (or mesh_config), BC masks/recipes, and optional hea
 | Config drift | Unify dissipation keys long-term; keep aliases with clear docs until then |
 | Monolith size | `resolvent_map.py` and `stable_sweep.py` are large; new features should land in focused modules and re-export from the facade |
 
----
 
-## 11. Summary
+## Summary
 
 **Solver Routing and Sweep Optimization** is LinStabPy's production path for large resolvent gain maps. It combines EVP-aware band marking, adaptive anchor placement, residual-gated line walks, stable-regime FGMRES with optional recycling and compressed factors, measured break-even and RAM policies, algebraic certification, and crash-safe map recording. Together these components implement a disciplined **cost-aware, factor-reuse** strategy on top of the shared LNSE assembly and PETSc/MUMPS factorization core, enabling dense \(\beta\)–\(\omega\) studies that would be prohibitive if every frequency paid a full sparse direct factorization.

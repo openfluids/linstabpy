@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{#-
+  llms.txt v2 discovery: every page advertises the agent index that covers it.
+  Per-page Markdown alternates are not generated yet, so only `describedby`
+  is emitted (see tools/generate_llms_full.py for the full corpus).
+-#}
+{% block extrahead %}
+  {{ super() }}
+  <link rel="describedby" href="{{ 'llms.txt' | url }}" />
+{% endblock %}

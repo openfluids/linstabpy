@@ -1,0 +1,29 @@
+# LinStabPy
+
+> Sparse linear stability and resolvent analysis of compressible viscous flows. Python toolkit (CLI + library) that builds the linearized compressible Navier-Stokes operator on 2D structured base flows and solves eigenvalue and resolvent problems through PETSc/SLEPc with MUMPS sparse-direct factorization.
+
+LinStabPy answers two questions about a steady flow field you supply: stability (does a small disturbance grow on its own, at what frequency, with what shape?) and resolvent (at a given frequency, which harmonic forcing produces the largest response?). Base flows are loaded from files, never computed here. Cases are defined in YAML; results land in contract-stable `.npz` archives.
+
+How to use this file: find the task below, follow the link, and read that page. Links point at human-readable HTML pages; each page's Markdown source lives in the repo under `wiki/`.
+
+Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- config and output travel by `LINSTABPY_CASE_CONFIG` and `LINSTABPY_CASE_OUTPUT_NPZ` env vars, and unknown CLI words are silently ignored (`parse_known_args`), so a guessed flag "succeeds" while running the wrong case. Install is the hard part (one MPI stack, complex-scalar PETSc/SLEPc + MUMPS via `install.sh --diagnose` -> `install.sh` -> `install.sh --check`); nothing that solves will work until `--check` passes. On macOS always use `.venv/bin/python`, never `uv run`. Fixed conventions repo-wide: temporal eigenvalues `omega = eig(i*L0)` with `exp(-i*omega*t)` time dependence, unstable exactly when `Im(omega) > 0`; SBP orders are 2, 4, 6, 8 only; default shifted solve is `KSPPREONLY` + `PCLU` through MUMPS.
+
+## Start here
+
+- [Getting started](https://linstabpy.vercel.app/getting-started/): Install, first runs (example 0 needs no data), the example family, your first own case. Read this before running anything.
+- [Boundary interfaces](https://linstabpy.vercel.app/boundaries/): The machine surface: env-var CLI, YAML case schema, Python lazy imports, file inputs, NPZ outputs. Required reading for agents driving runs.
+- [Core concepts](https://linstabpy.vercel.app/core-concepts/): Exact definitions of base flow, growth rate, gain, Chu norm, wavemaker, sponge. Open beside any science page.
+- [FAQ](https://linstabpy.vercel.app/faq/): Which analysis do I need, shift-branch confusion, dissipation on/off, sawtooth wiggles, cache-valid surprise.
+
+## Reference
+
+- [Overview](https://linstabpy.vercel.app/overview/): What LinStabPy computes, scope boundaries, system context, technical architecture.
+- [Architecture](https://linstabpy.vercel.app/architecture/): Packages, how they connect, main processes. Follows `docs/architecture.md` ownership map.
+- [Workflow](https://linstabpy.vercel.app/workflow/): Steps of a run in order: config to baseflow to mesh to L0 + BCs to factorize to eigen/resolvent to payload.
+- [Module guide](https://linstabpy.vercel.app/modules/): Per-package quick reference plus deep package notes (driver, operators, mesh, solvers, router, linalg).
+- [Solver glossary](https://linstabpy.vercel.app/solver-glossary/): Every KSP, PC, EPS, ST, and MatShell term defined from zero with official PETSc/SLEPc links.
+
+## Optional
+
+- [References](https://linstabpy.vercel.app/references/): Papers and manuals behind the wiki, grouped by what they justify.
+- [Repository README](https://github.com/openfluids/linstabpy#readme): Install matrix, MPI rules, example runner, troubleshooting. Same content as Getting started, repo-side.

@@ -1,11 +1,11 @@
 # LNSE operator assembly
 
-!!! info "Math you need for this page"
-    Assembly builds $\partial_t q' = L_0 q'$ for $q' = [\rho', u', v', w', T']^T$ in a fixed order: raw coefficient blocks, `inv(B/1j)` scaling, sponge damping, artificial dissipation $L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}$, then BC row overwrite last. Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) downstream are $\omega = \mathrm{eig}(i L_0)$. The [Chu](../core-concepts.md) energy diagonal is $W = \mathrm{diag}(W_{\rho}, W_u, W_v, W_w, W_T)$ from quadrature weights, base $\rho$ and $T$, $\kappa$, and $Ma$, with an extra radial factor in axisymmetric mode. BCs publish free degree sets that solvers must respect.
-    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+Assembly builds $\partial_t q' = L_0 q'$ for $q' = [\rho', u', v', w', T']^T$ in a fixed order: raw coefficient blocks, `inv(B/1j)` scaling, sponge damping, artificial dissipation $L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}$, then BC row overwrite last. Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) downstream are $\omega = \mathrm{eig}(i L_0)$. The [Chu](../core-concepts.md) energy diagonal is $W = \mathrm{diag}(W_{\rho}, W_u, W_v, W_w, W_T)$ from quadrature weights, base $\rho$ and $T$, $\kappa$, and $Ma$, with an extra radial factor in axisymmetric mode. BCs publish free degree sets that solvers must respect.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
 **LNSE Operator Assembly** is the mathematical core of LinStabPy. It turns mesh-aligned mean-flow fields and [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) (SBP) finite-difference operators into large sparse linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) systems that downstream stability, resolvent, and routing stages consume.
 
@@ -35,11 +35,10 @@ q = [\rho',\, u',\, v',\, w',\, T']
 - Direct PETSc AIJ (validated for selected 2D/axy combinations)
 - SciPy → PETSc conversion fallback when direct PETSc cannot host a requested numerical term
 
----
 
-## 2. Module Map and Public API
+## Module Map and Public API
 
-### 2.1 Source layout
+### Source layout
 
 ```
 src/linstabpy/operators/
@@ -57,7 +56,7 @@ src/linstabpy/boundary_conditions/
 └── neumann.py           # Normal-derivative boundary rows
 ```
 
-### 2.2 Public entry points
+### Public entry points
 
 From `linstabpy.operators`:
 
@@ -75,11 +74,10 @@ From `linstabpy.operators`:
 
 Boundary-condition symbols resolve lazily from `linstabpy.boundary_conditions` (`BCRecipe`, `apply_bc_recipe`, `apply_dirichlet`, `apply_neumann`, spatial variants, analysis helpers).
 
----
 
-## 3. Mathematical Formulation
+## Mathematical Formulation
 
-### 3.1 Continuous linearized system
+### Continuous linearized system
 
 Coefficient generation produces pointwise \(5\times5\) tensors such that
 
@@ -94,7 +92,7 @@ A_0 + A_x D_x + A_y D_y
 
 Each of \(A_0, A_x, A_y, A_{xx}, A_{yy}, A_{xy}, B\) has shape `(5, 5, ngp)`. Entry `[i, j, :]` multiplies the \(j\)-th perturbation variable in the \(i\)-th equation at every active grid point.
 
-### 3.2 Discrete temporal operator
+### Discrete temporal operator
 
 Assembly builds the raw block operator from coefficients and FD stencils, then left-scales by the analytical inverse of \(B/i\):
 
@@ -104,7 +102,7 @@ L_0 = \operatorname{inv}(B/i)\, L_{\mathrm{raw}}.
 
 Optional sponge damping and artificial dissipation are added to this \(L_0\). Boundary-condition recipes overwrite boundary rows **last**.
 
-### 3.3 Coordinate conventions
+### Coordinate conventions
 
 Callers always use the **physical** frame:
 
@@ -131,15 +129,14 @@ Internal source-block names map to physical tensors as:
 | `Arz` | `Axy` |
 | `B` | `B` |
 
----
 
-## 4. Physical Coefficients (`coefficients.py`)
+## Physical Coefficients (`coefficients.py`)
 
-### 4.1 `LNSECoefficients`
+### `LNSECoefficients`
 
 Frozen-layout dataclass holding seven complex arrays of shape `(5, 5, ngp)`.
 
-### 4.2 Cartesian path, `compute_cartesian_coefficients`
+### Cartesian path, `compute_cartesian_coefficients`
 
 Ports `getCoeffsLaminar_Cartesian.m` plus the variable-order transforms from `GetLinProblem.m`.
 
@@ -157,19 +154,18 @@ Ports `getCoeffsLaminar_Cartesian.m` plus the variable-order transforms from `Ge
 2. Evaluate the full set of compressible LNSE coefficient formulas (175 entries).
 3. Pack results into physical variable order via `_PhysicalCoefficientBuilder` / `_pack_coefficients_in_physical_order`, applying permutation indices and sign conventions (including the MATLAB `-LHS` flip).
 
-### 4.3 Cylindrical path, `compute_cylindrical_coefficients`
+### Cylindrical path, `compute_cylindrical_coefficients`
 
 Axisymmetric compressible coefficients for model `axy`, driven by radial/axial derivatives and azimuthal mode `m`. Velocity components are remapped in preparation (`U_c ← V`, `V_c ← W`, `W_c ← U` in physical mesh axes) before coefficient evaluation.
 
-### 4.4 Builder pattern
+### Builder pattern
 
 `_PhysicalCoefficientBuilder.set(source_name, row, col, value)` writes each formula result directly into the final physical tensors, avoiding large intermediate `locals()` packs while preserving MATLAB formula order and validation of expected keys.
 
----
 
-## 5. Temporal Operator Assembly (`assembly.py`)
+## Temporal Operator Assembly (`assembly.py`)
 
-### 5.1 Canonical pipeline order (non-interchangeable)
+### Canonical pipeline order (non-interchangeable)
 
 Documented in the module header and enforced by both SciPy and PETSc backends:
 
@@ -189,7 +185,7 @@ flowchart TD
 - Sponge and dissipation are \(L_0\)-level corrections; they must not be applied to \(L_{\mathrm{raw}}\) before \(\operatorname{inv}(B/i)\).
 - BC rows must be written **after** every operator contribution. Applying BCs earlier lets sponge/dissipation overwrite them; applying \(\operatorname{inv}(B)\) after BCs corrupts enforced rows.
 
-### 5.2 Coefficient preparation, `_prepare_coefficients`
+### Coefficient preparation, `_prepare_coefficients`
 
 Shared by temporal and spatial assembly:
 
@@ -203,7 +199,7 @@ Shared by temporal and spatial assembly:
 
 Returns a prep dict: `coeffs`, FD matrices, primitives, `kappa`, `Ma`, `mesh`, `ngp`, `model`.
 
-### 5.3 Floquet shift, `_apply_floquet_shift`
+### Floquet shift, `_apply_floquet_shift`
 
 Used when `floquet_exp ≠ 0` (primarily cylindrical). Modes via `LINSTABPY_FLOQUET_SHIFT` or explicit argument:
 
@@ -212,7 +208,7 @@ Used when `floquet_exp ≠ 0` (primarily cylindrical). Modes via `LINSTABPY_FLOQ
 | **`continuum`** (default) | \(D_Z \mathrel{+}= i\alpha I\), \(D_{2RZ} \mathrel{+}= i\alpha D_R\), \(D_{2Z}\) uses **unshifted** \(D_Z\) |
 | **`matlab_parity`** | LinStab2D discrete algebra: \(D_{2RZ} \mathrel{+}= i\alpha I\), \(D_{2Z}\) uses **shifted** \(D_Z\) |
 
-### 5.4 Raw block assembly
+### Raw block assembly
 
 For each variable pair \((i,j)\), the `ngp × ngp` block is
 
@@ -232,13 +228,13 @@ Implementation highlights:
 - SciPy path: `_assemble_block_operator_csr` → global CSR via `hstack`/`vstack`.
 - PETSc path: `_assemble_block_operator_petsc` inserts rows into AIJ (local or distributed under validated configs).
 
-### 5.5 \(\operatorname{inv}(B/i)\) scaling
+### \(\operatorname{inv}(B/i)\) scaling
 
 **Cartesian (`2d`)**, \(B/i = \operatorname{diag}(1,\rho,\rho,\rho,\rho)\). Applied as pure CSR/PETSc row scaling by \(1/\rho\) on momentum/energy blocks.
 
 **Axisymmetric (`axy`)**, \(B/i\) is lower-triangular (conservative→primitive structure). Analytical \(5\times5\) inverse at each point is applied as a block [sparse](https://grokipedia.com/page/Sparse_matrix) multiply (SciPy) or via SciPy transform then PETSc rebuild (sequential only). Distributed PETSc + `axy` raises a clear `RuntimeError`.
 
-### 5.6 Sponge and dissipation
+### Sponge and dissipation
 
 - **Sponge:** if `mesh.sponge` is set, subtract \(\operatorname{diag}(\mathrm{tile}(\mathrm{sponge}, 5))\) from \(L_0\).
 - **Artificial dissipation:** when `dissipation_epsilon > 0` and mesh `Q_diss_x` / `Q_diss_y` exist,
@@ -249,7 +245,7 @@ L_0 \leftarrow L_0 - \varepsilon\, \operatorname{blkdiag}(Q_{\mathrm{diss}}^{2D}
 
 Direct PETSc `build_lnse_operator_petsc` currently **rejects** nonzero `dissipation_epsilon` (`NotImplementedError`); the system builder falls back to SciPy (or SciPy→PETSc) so the term is not silently dropped.
 
-### 5.7 Index structure, `_build_index_structure`
+### Index structure, `_build_index_structure`
 
 Produces the DOF map used by BCs and solvers, including:
 
@@ -259,11 +255,10 @@ Produces the DOF map used by BCs and solvers, including:
 
 Global size is \(5 N_{gp}\).
 
----
 
-## 6. System Builder and Backend Selection
+## System Builder and Backend Selection
 
-### 6.1 Request / result types
+### Request / result types
 
 ```text
 _LNSEAssemblyRequest
@@ -280,7 +275,7 @@ LNSESystem
   resolvent_operator_data  # reserved extension slot
 ```
 
-### 6.2 API layers
+### API layers
 
 | Function | BC | Return |
 |----------|----|--------|
@@ -290,7 +285,7 @@ LNSESystem
 
 New runtime code should prefer `build_lnse_system_result` so backend decisions and BC ownership remain attached to the operator.
 
-### 6.3 Backend decision
+### Backend decision
 
 `_LNSEBackendDecision` records:
 
@@ -306,7 +301,7 @@ New runtime code should prefer `build_lnse_system_result` so backend decisions a
 - Dissipation forces non-direct path
 - Complex-scalar PETSc required (`require_complex`)
 
-### 6.4 Shared backend orchestration
+### Shared backend orchestration
 
 `_assemble_from_prepared_with_backend` runs Floquet → raw blocks → inv(B) → sponge → finalize through:
 
@@ -315,15 +310,14 @@ New runtime code should prefer `build_lnse_system_result` so backend decisions a
 
 Representation-specific details (CSR vs AIJ, diagonal sponge updates, compaction) stay inside the backend objects; physics order stays shared.
 
----
 
-## 7. Boundary Condition Recipes
+## Boundary Condition Recipes
 
-### 7.1 Design
+### Design
 
 YAML-friendly declarative rules applied **sequentially**. Later rules own overlapping rows. That order is part of the numerical contract (no separate precedence field).
 
-**Border characters:** `l` left, `r` right, `b` bottom, `t` top, `m` mask/inner  
+**Border characters:** `l` left, `r` right, `b` bottom, `t` top, `m` mask/inner
 **Variable characters:** `r` ρ, `u`, `v`, `w`, `T`
 
 Example recipe:
@@ -339,7 +333,7 @@ bc_recipe:
     exclude_corners: true
 ```
 
-### 7.2 `BCRule` / `BCRecipe`
+### `BCRule` / `BCRecipe`
 
 - `BCRule.from_mapping`, normalize and validate one rule
 - `BCRecipe.from_config`, list/dict or existing recipe
@@ -347,7 +341,7 @@ bc_recipe:
 - `apply_to_spatial` / `apply_to_spatial_petsc`, doubled spatial matrices ([Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition)-only)
 - `analyze`, effective row owners without mutating a matrix
 
-### 7.3 Dirichlet (`dirichlet.py`)
+### Dirichlet (`dirichlet.py`)
 
 Ports `BC_Dirichlet.m`:
 
@@ -358,7 +352,7 @@ Ports `BC_Dirichlet.m`:
 
 Also provides spatial helpers that apply Dirichlet on the doubled EVP after \(L_c + \omega L_w\) is formed, and optional restriction matrices / free-DOF utilities.
 
-### 7.4 Neumann (`neumann.py`)
+### Neumann (`neumann.py`)
 
 Ports `BC_Neumann.m`:
 
@@ -368,7 +362,7 @@ Ports `BC_Neumann.m`:
 - `exclude_corners` drops shared corner points from a border.
 - Ambiguous multi-border corner DOFs raise `ValueError` instead of silently picking one normal.
 
-### 7.5 Analysis output (`analyze_bc_recipe`)
+### Analysis output (`analyze_bc_recipe`)
 
 Useful fields for free-DOF construction and diagnostics:
 
@@ -377,17 +371,16 @@ Useful fields for free-DOF construction and diagnostics:
 - `column_zeroed_dirichlet_indices` (all Dirichlet rules that ran, even if a later [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) overwrote the row)
 - `overlap_indices`, `total_bc_indices`, per-rule reports
 
-### 7.6 Lazy import policy
+### Lazy import policy
 
 `boundary_conditions/__init__.py` uses PEP 562 `__getattr__` so pure-math entry points do not force `petsc4py` load. PETSc variants import petsc4py inside their modules.
 
----
 
-## 8. Spatial Operator Assembly (`spatial.py`)
+## Spatial Operator Assembly (`spatial.py`)
 
 Ports LinStab2D `GetSpatialLinProblem.m`.
 
-### 8.1 Finite-difference in streamwise wavenumber
+### Finite-difference in streamwise wavenumber
 
 At fixed Floquet exponent, assemble three temporal operators in the Fourier argument `kx`:
 
@@ -401,7 +394,7 @@ R_2 &= \frac{L(k_x+\delta)-R_0-R_1\delta}{\delta^2}.
 
 Default `kx=0`, `delta=1` matches MATLAB's `{0,+1,-1}` stencil. Floquet is **not** the FD direction.
 
-### 8.2 Doubled pencil
+### Doubled pencil
 
 With \(q' = [q;\, \alpha q]\):
 
@@ -422,19 +415,18 @@ so
 (L_c + \omega L_w)\, q' = \alpha\, R\, q'.
 \]
 
-### 8.3 Dirichlet on spatial systems
+### Dirichlet on spatial systems
 
 `spatial_lhs_with_dirichlet` forms \(L = L_c + \omega L_w\) **first**, then applies Dirichlet to both \(L\) and \(R\). Applying BCs only to \(L_c\) would leave \(L_w\) contaminating second-half boundary rows (MATLAB-aligned fix).
 
 Spatial recipes currently require Dirichlet-only analysis (`_require_spatial_dirichlet_recipe`).
 
-### 8.4 PETSc spatial path
+### PETSc spatial path
 
 `build_spatial_operator_petsc` reuses `_prepare_coefficients` and `_assemble_from_prepared_petsc`, builds \(R_1/R_2\) with `Mat.axpy`, assembles block matrices via CSR row insertion, and destroys intermediate Mats. Targets the validated local/sequential direct-PETSc path.
 
----
 
-## 9. Energy Norm (`energy_norm.py`)
+## Energy Norm (`energy_norm.py`)
 
 `compute_chu_norm` implements Chu's compressible energy weights (from `GetCompEnergyNorm.m`):
 
@@ -452,9 +444,8 @@ W_{ii} = \frac12
 
 Returns `W_diag` and `invW_diag` of length `5*ngp`. For `model="axy"`, integration weights are multiplied by radial coordinate \(r\) (clamped away from zero). Used by [resolvent](https://grokipedia.com/page/Resolvent_formalism) weighted [gains](../core-concepts.md) and modal energy post-processing, not by raw \(L_0\) assembly itself.
 
----
 
-## 10. Assembly Metrics (`metrics.py`)
+## Assembly Metrics (`metrics.py`)
 
 Optional instrumentation without changing operator APIs:
 
@@ -466,9 +457,8 @@ Optional instrumentation without changing operator APIs:
 
 Enabled through solver/config assembly-metrics knobs; collectors finish with structured payloads for cost analysis and regression tracking.
 
----
 
-## 11. Interactions with Adjacent Domains
+## Interactions with Adjacent Domains
 
 ```mermaid
 flowchart LR
@@ -491,9 +481,8 @@ flowchart LR
 
 Boundary conditions are a separate package for import hygiene and MATLAB module parity, but functionally belong to this domain: free-DOF sets are part of the assembled system contract.
 
----
 
-## 12. Runtime Sequence
+## Runtime Sequence
 
 ```mermaid
 sequenceDiagram
@@ -524,9 +513,8 @@ sequenceDiagram
   end
 ```
 
----
 
-## 13. Implementation Notes and Constraints
+## Implementation Notes and Constraints
 
 1. **Pre-BC vs full system**, Low-level `build_lnse_operator*` never apply BCs so SciPy, PETSc, and conversion paths share one post-operator ordering.
 2. **Dissipation dual config risk (project-wide)**, Assembly takes an explicit `dissipation_epsilon`. Router campaigns may read top-level keys while other paths use nested `operator_dissipation`; mismatched enable/strength can silently no-op dissipation. Callers must pass a consistent strength into assembly.
@@ -537,11 +525,10 @@ sequenceDiagram
 7. **Performance**, Coefficient prep materializes many derivative vectors (instrumented); CSR caches and direct block fill reduce assembly cost; PETSc compaction can run after sequential direct assembly.
 8. **Spatial BC rule**, Always combine \(L_c + \omega L_w\) before Dirichlet; spatial recipes are Dirichlet-centric today.
 
----
 
-## 14. Practical Usage Patterns
+## Practical Usage Patterns
 
-### 14.1 Library: full temporal system (preferred)
+### Library: full temporal system (preferred)
 
 ```python
 from linstabpy.operators import build_lnse_system_result
@@ -561,7 +548,7 @@ idx = system.idx
 bc = system.bc_indices
 ```
 
-### 14.2 Pre-BC operator for custom BC application
+### Pre-BC operator for custom BC application
 
 ```python
 from linstabpy.operators import build_lnse_operator
@@ -571,7 +558,7 @@ L0, idx = build_lnse_operator(mesh, baseflow, kx=0.0, model="2D")
 L0, bc_indices = apply_bc_recipe(L0, mesh, idx, recipe, penalty=1e4)
 ```
 
-### 14.3 Spatial EVP blocks
+### Spatial EVP blocks
 
 ```python
 from linstabpy.operators import build_spatial_operator, spatial_lhs_with_dirichlet
@@ -583,7 +570,7 @@ L, R, bc = spatial_lhs_with_dirichlet(
 )
 ```
 
-### 14.4 Energy weights for resolvent
+### Energy weights for resolvent
 
 ```python
 from linstabpy.operators import compute_chu_norm
@@ -593,17 +580,16 @@ W_diag, invW_diag = compute_chu_norm(
 )
 ```
 
----
 
-## 15. Summary
+## Summary
 
 LNSE Operator Assembly is the bridge from [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean flow and SBP discretization to the sparse linear operators that define LinStabPy's scientific products. It:
 
-- Generates **Cartesian and cylindrical** compressible LNSE coefficient tensors in a stable physical ordering  
-- Assembles **\(5N_{gp}\times5N_{gp}\)** temporal operators with a **fixed, documented** transform order  
-- Enforces **declarative Dirichlet/Neumann** recipes and free-DOF metadata  
-- Extends the same preparation path to **spatial EVP** block pencils  
-- Supplies **Chu energy norms** and **assembly metrics** for resolvent and HPC cost control  
+- Generates **Cartesian and cylindrical** compressible LNSE coefficient tensors in a stable physical ordering
+- Assembles **\(5N_{gp}\times5N_{gp}\)** temporal operators with a **fixed, documented** transform order
+- Enforces **declarative Dirichlet/Neumann** recipes and free-DOF metadata
+- Extends the same preparation path to **spatial EVP** block pencils
+- Supplies **Chu energy norms** and **assembly metrics** for resolvent and HPC cost control
 - Offers **SciPy reference** and **PETSc direct/fallback** backends under explicit capability gates  
 
 All major analysis workflows, temporal/[adjoint](https://grokipedia.com/page/Adjoint) eigenproblems, resolvent gains, β–frequency maps, and spatial stability, depend on this domain producing a correct, BC-consistent \(L_0\) (or spatial equivalent) before any factorization or SLEPc solve.
