@@ -1,13 +1,13 @@
 # Configuration management
 
-!!! info "What this package owns, in one paragraph"
-    One merged policy drives every run: YAML case file, then environment overrides, then compiled defaults, then schema validation into typed `Config` objects. Eigen, [resolvent](https://grokipedia.com/page/Resolvent_formalism), spatial, mesh, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and router sections each have their own subsection. Unknown top level keys and invalid [SBP](https://grokipedia.com/page/Summation_by_parts) orders fail fast before any factorization. If a run surprises you, print the merged config first.
-    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+One merged policy drives every run: YAML case file, then environment overrides, then compiled defaults, then schema validation into typed `Config` objects. Eigen, [resolvent](https://grokipedia.com/page/Resolvent_formalism), spatial, mesh, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and router sections each have their own subsection. Unknown top level keys and invalid [SBP](https://grokipedia.com/page/Summation_by_parts) orders fail fast before any factorization. If a run surprises you, print the merged config first.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
-**Configuration Management** is the supporting domain that turns YAML case files, environment overrides, and centralized defaults into a **reproducible solver policy** before any expensive HPC work begins. In LinStabPy it sits early in the staged pipeline:
+**Configuration management** turns YAML case files, environment overrides, and centralized defaults into a **reproducible solver policy** before any expensive HPC work begins. It sits early in the staged pipeline:
 
 **config → baseflow → mesh/SBP → LNSE assembly → factorize → eigen/resolvent → payload**
 
@@ -22,9 +22,8 @@ The package lives under `src/linstabpy/config/` and provides:
 
 Without this layer, typoed keys, invalid [finite-difference](https://grokipedia.com/page/Finite_difference_method) orders, or stage-disagreed dissipation flags can silently change spectra and resolvent [gains](../core-concepts.md) on large MPI runs. Configuration is therefore the **reproducibility gate** for temporal, spatial, [adjoint](https://grokipedia.com/page/Adjoint), and resolvent workflows.
 
----
 
-## 2. Package Layout
+## Package Layout
 
 ```
 src/linstabpy/config/
@@ -43,9 +42,8 @@ src/linstabpy/config/
 | `typed.py` | YAML/env/default resolution into frozen `Config` and nested policy objects |
 | `validation_cases.yaml` | Catalog of example modules and NPZ artifacts for packaging/validation |
 
----
 
-## 3. Design Goals and Principles
+## Design Goals and Principles
 
 1. **Config as single policy source**, Case YAML, environment variables, and code defaults resolve into one effective policy before mesh or operator work.
 2. **Typed access without behavior change**, `typed.py` mirrors historical `utils._solver_cfg` resolution so call sites can migrate gradually.
@@ -53,11 +51,10 @@ src/linstabpy/config/
 4. **Cross-layer agreement**, Defaults that multiple stages must share (especially dissipation apply flags) live in one place.
 5. **HPC-safe fail-fast**, Invalid policy raises before PETSc factorization or β–ω map campaigns.
 
----
 
-## 4. Resolution Flow
+## Resolution Flow
 
-### 4.1 Logical pipeline
+### Logical pipeline
 
 ```mermaid
 flowchart TD
@@ -78,7 +75,7 @@ flowchart TD
   Init --> Val
 ```
 
-### 4.2 Typical consumer sequence
+### Typical consumer sequence
 
 ```mermaid
 sequenceDiagram
@@ -102,12 +99,12 @@ sequenceDiagram
   end
 ```
 
-### 4.3 Precedence rules (typed resolvers)
+### Precedence rules (typed resolvers)
 
 Field-level helpers in `typed.py` generally follow:
 
-1. **YAML subsection key present** → use YAML value  
-2. Else **environment variable** → use env  
+1. **YAML subsection key present** → use YAML value
+2. Else **environment variable** → use env
 3. Else **code default** (often from `linstabpy.linalg.backends`)
 
 Important exceptions (env-first, matching backend policy):
@@ -124,9 +121,8 @@ Boolean truthy set for string/env parsing: `{"1", "true", "yes", "on"}`.
 
 Optional integers treat `""`, `"none"`, `"null"`, `"default"`, `"petsc"` as **unset** (`None`).
 
----
 
-## 5. Public API
+## Public API
 
 Import through the package façade:
 
@@ -148,15 +144,14 @@ from linstabpy.config import (
 
 `__all__` in `config/__init__.py` is the supported surface. Prefer this over deep imports so migration of internal helpers stays localized.
 
----
 
-## 6. Centralized Defaults (`defaults.py`)
+## Centralized Defaults (`defaults.py`)
 
-### 6.1 Purpose
+### Purpose
 
 `defaults.py` exists so **more than one layer agrees** on configuration defaults. It is not a numerics file: dissipation *shape* parameters remain in `mesh.sbp.DISSIPATION_DEFAULTS`.
 
-### 6.2 Historical mismatch
+### Historical mismatch
 
 An earlier split set:
 
@@ -165,7 +160,7 @@ An earlier split set:
 
 A case that "enabled dissipation" therefore got a **damped [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) problem** and a **bare resolvent**. On meshes with metric cross-coupling, the bare resolvent can admit odd–even content that the damped EVP does not. On rectilinear meshes the gain difference is smaller but still measurable; use `driver.preflight.metric_cross_coupling` rather than assuming either extreme.
 
-### 6.3 Current contract
+### Current contract
 
 ```python
 DISSIPATION_APPLY_DEFAULTS: dict[str, bool] = {
@@ -176,11 +171,10 @@ DISSIPATION_APPLY_DEFAULTS: dict[str, bool] = {
 
 **Semantics:** enabling dissipation means enabling it for both stages unless the case explicitly opts out. Preflight reports effective values so silent stage disagreement does not recur.
 
----
 
-## 7. Schema Validation (`schema.py`)
+## Schema Validation (`schema.py`)
 
-### 7.1 Role
+### Role of schema validation
 
 `validate_config(cfg, *, source=None)` performs **lenient structural checks** on a **fully merged** case dictionary. It does not require optional fields; it rejects known hazards:
 
@@ -190,7 +184,7 @@ DISSIPATION_APPLY_DEFAULTS: dict[str, bool] = {
 
 Failures raise `ConfigValidationError` (subclass of `ValueError`), optionally prefixed with `source` for diagnostics.
 
-### 7.2 Allowed top-level keys
+### Allowed top-level keys
 
 `TOP_LEVEL_ALLOWED` covers nested driver blocks and flat Martini/Song-style keys still used by standalone examples:
 
@@ -208,13 +202,13 @@ Failures raise `ConfigValidationError` (subclass of `ValueError`), optionally pr
 Unknown top-level keys produce messages such as:  
 `unknown top-level key '...' (possible typo)`.
 
-### 7.3 Finite-difference order
+### Finite-difference order
 
 - Allowed orders: **`{2, 4, 6, 8}`**
 - `_iter_fd_order_values` recursively walks dicts and lists and yields every key named `fd_order`
 - Non-integers, booleans, or values outside the set are violations
 
-### 7.4 Flat type spot-checks
+### Flat type spot-checks
 
 When present at the **top level**, keys are checked against:
 
@@ -227,17 +221,16 @@ When present at the **top level**, keys are checked against:
 
 Examples: `n_modes`, `nx`, `ny` → int; `Re`, `Ma`, `omega`, `mumps_blr_tol` → numeric; `run_stability`, `mumps_blr` → bool; `model`, `factor_precision`, `schema_version`, `$include` → str.
 
-### 7.5 What schema does *not* do
+### What schema does *not* do
 
 - Deep validation of nested `solver.*` trees (typed loaders handle resolution)
 - Semantic physics checks (preflight advisories cover many of those)
 - Loading YAML from disk (callers / `Config.load` / `utils.yaml_io` do that)
 
----
 
-## 8. Typed Config Model (`typed.py`)
+## Typed Config Model (`typed.py`)
 
-### 8.1 Role
+### Role of the typed model
 
 `typed.py` is the **typed configuration seam** for solver policy. It:
 
@@ -247,7 +240,7 @@ Examples: `n_modes`, `nx`, `ny` → int; `Re`, `Ma`, `omega`, `mumps_blr_tol` �
 - Pulls backend defaults from `linstabpy.linalg.backends`
 - Mirrors legacy resolution so behavior stays aligned during migration
 
-### 8.2 Subsection extraction helpers
+### Subsection extraction helpers
 
 | Helper | Behavior |
 |--------|----------|
@@ -256,7 +249,7 @@ Examples: `n_modes`, `nx`, `ny` → int; `Re`, `Ma`, `omega`, `mumps_blr_tol` �
 | `_spatial_subsection(solver)` | `solver.spatial` falling back to `solver.eigen` |
 | `_resolvent_eps_subsection(solver)` | Resolvent subsection's nested `eigen`, else the resolvent map itself |
 
-### 8.3 Dataclass catalog
+### Dataclass catalog
 
 All policy dataclasses are **`@dataclass(frozen=True)`**.
 
@@ -371,7 +364,7 @@ Config
 └── mpi: MpiCfg
 ```
 
-### 8.4 `Config.load`
+### `Config.load`
 
 ```python
 Config.load(yaml_path_or_dict, env=os.environ) -> Config
@@ -385,14 +378,14 @@ Config.load(yaml_path_or_dict, env=os.environ) -> Config
 
 Resolution steps inside `load`:
 
-1. Extract `solver` mapping  
-2. Build linsolve / resolvent / eigen / spatial subsections  
-3. Read optional **solver-level** `factor_backend` as lowest-priority fallback (`solver_default`)  
-4. Construct nested frozen configs  
+1. Extract `solver` mapping
+2. Build linsolve / resolvent / eigen / spatial subsections
+3. Read optional **solver-level** `factor_backend` as lowest-priority fallback (`solver_default`)
+4. Construct nested frozen configs
 
 **Why solver-level `factor_backend` matters:** historically every resolver received only a *sub*-config, so a top-of-`solver` `factor_backend` was ignored (e.g. intended GPU path ran entirely on CPU). It is now a **lowest-priority** fallback under per-stage keys and environment, without changing already-resolving configurations.
 
-### 8.5 Shift-invert factor backend selection (`_st_factor_backend`)
+### Shift-invert factor backend selection (`_st_factor_backend`)
 
 Given `st_solver`:
 
@@ -407,9 +400,8 @@ Given `st_solver`:
 
 This prevents band-marking EVPs from being stranded on CPU MUMPS while resolvent runs on another backend when the user intended a shared direct preference.
 
----
 
-## 9. Validation Cases Registry (`validation_cases.yaml`)
+## Validation Cases Registry (`validation_cases.yaml`)
 
 This file is a **packaging/registry** artifact, **not** a solver case and **not** consumed by `driver.run`.
 
@@ -424,15 +416,14 @@ It lists:
 
 Plus an `orthogonality_check` block for [Chu](../core-concepts.md)-weighted mode checks on Song EVP archives (`direct_modes`, `W_diag`, tolerance `1e-12`).
 
----
 
-## 10. Integration with the Rest of the System
+## Integration with the Rest of the System
 
-### 10.1 Case orchestration
+### Case orchestration
 
 `driver/run.py` (and CLI) merge case YAML with environment and defaults, validate, and obtain typed policy before baseflow/mesh/assembly. Config hash / provenance for cache and metrics depend on this resolved policy.
 
-### 10.2 Downstream consumers of typed subsections
+### Downstream consumers of typed subsections
 
 | Consumer domain | Config slices of interest |
 |-----------------|---------------------------|
@@ -443,14 +434,14 @@ Plus an `orthogonality_check` block for [Chu](../core-concepts.md)-weighted mode
 | Router maps | Schema-validated map/router sections; dissipation apply defaults |
 | MPI/PETSc init | `MpiCfg` |
 
-### 10.3 Relationship to shared utilities
+### Relationship to shared utilities
 
 - YAML load path uses `linstabpy.utils.yaml_io.load_config`
 - Backend normalization and defaults come from `linstabpy.linalg.backends`
 - Direct vs iterative solver type sets come from `linstabpy.utils._solver_cfg`
 - Long-term direction: consolidate dual resolution paths (`typed.py` vs legacy `_solver_cfg` mirrors) behind the typed seam
 
-### 10.4 Dissipation configuration caution
+### Dissipation configuration caution
 
 Architecture research notes a **dual path** risk outside pure typed loaders:
 
@@ -459,11 +450,10 @@ Architecture research notes a **dual path** risk outside pure typed loaders:
 
 Both **enable** flags and **strength** must be set consistently or dissipation can become a silent no-op. Stage apply flags should follow `DISSIPATION_APPLY_DEFAULTS` unless explicitly overridden. Prefer one nested source of truth going forward; keep aliases only with clear deprecation.
 
----
 
-## 11. Practical Usage Patterns
+## Practical Usage Patterns
 
-### 11.1 Library-style load
+### Library-style load
 
 ```python
 from linstabpy.config import Config, validate_config
@@ -478,21 +468,21 @@ rtol = policy.resolvent.linear.ksp_rtol
 asm = policy.mesh.assembly_backend
 ```
 
-### 11.2 Path load with process environment
+### Path load with process environment
 
 ```python
 policy = Config.load("cases/blasius.yaml")  # uses os.environ
 ```
 
-### 11.3 Fail-fast validation in prep workflows
+### Fail-fast validation in prep workflows
 
 Baseflow ingest and operator prep workflows call schema validation first so illegal `fd_order` or unknown keys never reach SBP generation or L0 assembly.
 
-### 11.4 Spatial fallback
+### Spatial fallback
 
 If `solver.spatial` is absent, spatial policy falls back to `solver.eigen`, matching the spatial stability workflow documented for streamwise eigenproblems.
 
-### 11.5 Environment overrides (illustrative)
+### Environment overrides (illustrative)
 
 Common env knobs resolved by typed factories include:
 
@@ -506,9 +496,8 @@ Common env knobs resolved by typed factories include:
 
 (Exact key lists follow the `from_mapping` implementations in `typed.py`.)
 
----
 
-## 12. Error Model
+## Error Model
 
 | Error | When |
 |-------|------|
@@ -518,27 +507,25 @@ Common env knobs resolved by typed factories include:
 
 Validation messages are joined with `"; "` and may be prefixed with `source` (e.g. file path) for multi-case orchestration.
 
----
 
-## 13. Implementation Notes and Migration Status
+## Implementation Notes and Migration Status
 
-1. **Frozen dataclasses** make policy snapshots safe to share across stages and ranks without accidental mutation.  
-2. **Typed seam is transitional**, it mirrors `utils._solver_cfg` without forcing all call sites to migrate at once.  
-3. **Schema is intentionally shallow** on nested solver trees; depth is handled by typed loaders and runtime preflight.  
-4. **`validation_cases.yaml` is not runtime input**, do not pass it to `driver.run` as a case file.  
-5. **Solver-level `factor_backend`** is documented in code as a past silent no-op; treat per-stage keys and env as higher priority.  
+1. **Frozen dataclasses** make policy snapshots safe to share across stages and ranks without accidental mutation.
+2. **Typed seam is transitional**, it mirrors `utils._solver_cfg` without forcing all call sites to migrate at once.
+3. **Schema is intentionally shallow** on nested solver trees; depth is handled by typed loaders and runtime preflight.
+4. **`validation_cases.yaml` is not runtime input**, do not pass it to `driver.run` as a case file.
+5. **Solver-level `factor_backend`** is documented in code as a past silent no-op; treat per-stage keys and env as higher priority.
 6. **Auto factor routing** stores DOF threshold on `EigenCfg`; concrete backend choice happens later when `ndof` is known (`resolve_auto_factor_backend` in the eigenvalue path).
 
----
 
-## 14. Summary
+## Summary
 
-Configuration Management in LinStabPy is a focused supporting domain that:
+Configuration management in LinStabPy:
 
-1. **Merges** YAML cases, environment overrides, and agreed defaults  
-2. **Validates** merged dictionaries for typos, FD orders, and basic types  
-3. **Materializes** frozen typed policy (`Config` and subsections) for linear solves, resolvent, eigen, spatial, mesh assembly, and MPI/PETSc init  
-4. **Anchors** cross-stage dissipation apply behavior in `DISSIPATION_APPLY_DEFAULTS`  
+1. **Merges** YAML cases, environment overrides, and agreed defaults
+2. **Validates** merged dictionaries for typos, FD orders, and basic types
+3. **Materializes** frozen typed policy (`Config` and subsections) for linear solves, resolvent, eigen, spatial, mesh assembly, and MPI/PETSc init
+4. **Anchors** cross-stage dissipation apply behavior in `DISSIPATION_APPLY_DEFAULTS`
 5. **Gates** expensive stability and resolvent work so HPC campaigns remain reproducible and fail fast on structural mistakes  
 
 Primary code paths: `src/linstabpy/config/{__init__,defaults,schema,typed}.py` and the non-runtime registry `validation_cases.yaml`. Consumers should import from `linstabpy.config`, call `validate_config` on the merged case dict, and obtain solver policy via `Config.load` or the subsection `from_mapping` factories before entering mesh, operator, or solver stages.

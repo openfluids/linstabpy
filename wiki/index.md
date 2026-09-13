@@ -11,11 +11,10 @@ Intuition first. You bring a steady flow field computed elsewhere. LinStabPy ans
 
 The discrete state is the primitive perturbation vector \( \mathbf{q}' \) at each grid point, giving 5 unknowns per point before boundary elimination (\( \rho', u', v', w', T' \)). The code assembles the [sparse](https://grokipedia.com/page/Sparse_matrix) matrix \( \mathcal{L}_0 \) such that \( \partial_t \mathbf{q}' = \mathcal{L}_0 \mathbf{q}' \) in the undisturbed interior, then applies sponge, dissipation, and boundary recipes in a fixed order. Everything downstream consumes that one operator family.
 
----
 
 ## Governing Equations & Mathematical Formulation
 
-### 1. Perturbation Decomposition
+### Perturbation Decomposition
 
 A two-dimensional steady [compressible](https://grokipedia.com/page/Compressible_flow) base flow \( \bar{\mathbf{q}}(x,y) \) is perturbed by small three-dimensional unsteady fluctuations:
 
@@ -35,7 +34,7 @@ where the state vector of primitive perturbation variables is:
 \hat{\mathbf{q}} = \begin{bmatrix} \hat{\rho} & \hat{u} & \hat{v} & \hat{w} & \hat{T} \end{bmatrix}^T
 \]
 
-### 2. Linearized Dynamical System (LNSE)
+### Linearized Dynamical System (LNSE)
 
 Linearizing the compressible Navier–Stokes equations around \( \bar{\mathbf{q}} \) yields the semi-discrete linear dynamical system:
 
@@ -45,7 +44,7 @@ Linearizing the compressible Navier–Stokes equations around \( \bar{\mathbf{q}
 
 where \( \mathcal{L}_0 \) incorporates [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) (SBP) [finite differences](https://grokipedia.com/page/Finite_difference_method) (orders 2, 4, 6, 8), coordinate metrics, characteristic [sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), artificial dissipation, and boundary conditions (with mass/descriptor inversion applied during assembly).
 
-### 3. Modal Stability: Temporal Eigenvalue Problem
+### Modal Stability: Temporal Eigenvalue Problem
 
 Under harmonic time dependence \( \mathbf{q}'(t) = \hat{\mathbf{q}} \exp(-i\omega t) \), the unforced homogeneous system reduces to:
 
@@ -58,7 +57,7 @@ i \mathcal{L}_0(\beta) \hat{\mathbf{q}} = \omega \hat{\mathbf{q}}
 * Solved via [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` using [Krylov–Schur](solver-glossary.md) with spectral [shift-invert](solver-glossary.md) transformation.
 * For spatial stability at real \( \omega \), the system rearranges into the generalized pencil \( (L_c + \omega L_w) \hat{\mathbf{q}} = \alpha R \hat{\mathbf{q}} \) for complex streamwise wavenumber \( \alpha \).
 
-### 4. Input–Output Resolvent Analysis
+### Input–Output Resolvent Analysis
 
 Under external harmonic forcing \( \mathbf{f}'(t) = \mathbf{B} \hat{\mathbf{f}} \exp(-i\omega t) \), the resolvent operator \( \mathcal{H}(\beta, \omega) \) maps inputs to linear responses \( \hat{\mathbf{q}} = \mathcal{H}(\beta, \omega) \hat{\mathbf{f}} \):
 
@@ -78,15 +77,15 @@ Computed as \( \sigma = \sqrt{\operatorname{Re}(\lambda)} \) from the weighted n
 
 ---
 
-!!! tip "How to read these docs as a mathematician or engineer"
-    We keep solver language exact and explain the fluids side clearly:
+!!! tip "Reading guide"
+    This wiki keeps solver language exact and explains the fluids side alongside:
 
     * **Base flow**: A steady solution of the compressible Navier–Stokes equations, loaded from `.npz` files. We linearize about it; the code never computes it.
     * **Temporal stability**: [Eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) \( \omega = \operatorname{eig}(i \mathcal{L}_0) \). Growth in time is \( \operatorname{Im}(\omega) > 0 \). The shift-invert target you pass in YAML lives in \( \omega \) space.
     * **Spatial stability**: Same physics, swapped role of axes. Frequency is prescribed real, streamwise wavenumber is the eigenvalue.
     * **Resolvent**: For fixed \( (\beta, \omega) \), the gain is the leading weighted [singular value](https://grokipedia.com/page/Singular_value_decomposition) of \( \mathcal{R} \). High gain with all \( \operatorname{Im}(\omega) < 0 \) indicates transient or convective amplification.
     * **Chu norm**: The compressible energy inner product. Diagonal in our discretization, built from quadrature weights, base density and temperature, \( \gamma \), and [Mach number](https://grokipedia.com/page/Mach_number).
-    * **Solver objects**: `KSP`, `PC`, `EPS`, `ST`, and `MatShell` are defined from zero in the [solver glossary](solver-glossary.md), with links to the official [PETSc](https://en.wikipedia.org/wiki/PETSc) and SLEPc docs.
+    * **Solver objects**: `KSP`, `PC`, `EPS`, `ST`, and `MatShell` are defined in the [solver glossary](solver-glossary.md), with links to the official [PETSc](https://en.wikipedia.org/wiki/PETSc) and SLEPc docs.
 
 ---
 
@@ -126,7 +125,6 @@ Computed as \( \sigma = \sqrt{\operatorname{Re}(\lambda)} \) from the weighted n
 
 </div>
 
----
 
 ## Quick Example
 
@@ -160,13 +158,12 @@ modes = data["modes"]          # Eigenvectors [n_points, 5, n_modes]
 print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(omega)):.4e}")
 ```
 
----
 
 ## Documentation Directory
 
 | Section | Core Focus | Target Audience |
 |---|---|---|
-| [**Getting started**](getting-started/index.md) | Install, first runs, examples, your first case | Start here. Do this today |
+| [**Getting started**](getting-started/index.md) | Install, first runs, examples, your first case | Start here |
 | [**Overview**](overview.md) | What LinStabPy computes and where it stops | First read, scope, vocabulary |
 | [**Architecture**](architecture.md) | Component relationships & C4 models | Contributors, system developers |
 | [**Workflow**](workflow.md) | Steps of a run in order | Running and orchestrating cases |
@@ -175,7 +172,6 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 | [**Solver glossary**](solver-glossary.md) | Every KSP, PC, EPS, ST, and MatShell term defined and linked | Open beside any solver page |
 | [**Core concepts**](core-concepts.md) | Base flow, growth rate, gain, Chu norm, wavemaker, sponge, and friends | Open beside any science page |
 
----
 
 ## Cite linstabpy
 

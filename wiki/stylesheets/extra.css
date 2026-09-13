@@ -314,6 +314,17 @@ body, .md-typeset {
 .md-typeset table:not([class]) td {
   border-bottom: 1px solid var(--cds-border-subtle);
   padding: 0.65rem 0.9rem;
+  vertical-align: top;
+}
+
+/* Keep code tokens whole: wrap between tokens at spaces, never mid-token.
+   Long identifiers (LINSTABPY_*, dotted paths) used to split across lines. */
+.md-typeset table:not([class]) td code {
+  white-space: nowrap;
+}
+
+.md-typeset table:not([class]) th {
+  white-space: nowrap;
 }
 
 .md-typeset table:not([class]) tr:hover {
@@ -398,11 +409,7 @@ body, .md-typeset {
   padding: 0.15em 0.4em;
 }
 
-/* Ensure math formulas in admonitions scale properly and are crisp */
-.md-typeset .admonition .arithmatex,
-.md-typeset details .arithmatex {
-  font-size: 1rem;
-}
+/* Math in admonitions: handled by the dedicated Math Equations section below. */
 
 /* ==========================================================================
    Header Search & Tool Buttons
@@ -499,46 +506,73 @@ body, .md-typeset {
 }
 
 /* ==========================================================================
-   Math Equations: Clean Vector SVG Layout
-/* Block display equations (\[ ... \], $$ ... $$) - Balanced & Readable */
-div.arithmatex {
-  font-size: 1.15rem !important;
-  line-height: 1.7;
-  margin: 1.5rem 0;
-  padding: 0.5rem 0;
-  min-height: 2.4rem;
-  box-sizing: border-box;
+   Math Equations: KaTeX, compact and proportional to body text
+   Body is 0.8rem; KaTeX defaults (1.21em glyphs + 1em display margins)
+   blow up both size and rhythm, so neutralize them here. em units inherit
+   the font-stepper scale (--cds-content-scale) via .md-typeset.
+   NOTE: katex.min.css loads AFTER this file (see mkdocs.yml extra_css),
+   so inner overrides are triple-scoped to win on specificity.
+   ========================================================================== */
+
+/* Block display equations (\[ ... \], $$ ... $$) */
+.md-typeset div.arithmatex {
+  font-size: 1.12em;
+  line-height: 1.4;
+  margin: 0.55em 0;
+  padding: 0;
   text-align: center;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
-div.arithmatex svg {
-  max-width: 100%;
-  height: auto;
-  color: var(--cds-text-primary);
+/* Neutralize KaTeX's oversized inner defaults */
+.md-typeset div.arithmatex .katex-display {
+  margin: 0.2em 0;
+  padding: 0;
 }
 
-/* Inline equations (\( ... \), $ ... $) */
-span.arithmatex {
-  font-size: 1.05em !important;
+.md-typeset div.arithmatex .katex {
+  font-size: 1em;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
-span.arithmatex svg {
-  vertical-align: -0.2em;
-  color: var(--cds-text-primary);
+/* Inline equations (\( ... \), $ ... $): match body, don't swell the line box */
+.md-typeset span.arithmatex {
+  font-size: 1em;
+  line-height: 1;
 }
 
-/* In admonitions & callouts */
+.md-typeset span.arithmatex .katex {
+  font-size: 1em;
+  line-height: 1.2;
+  padding: 0 0.04em;
+  vertical-align: baseline;
+}
+
+/* Tighten the "…:" → equation → "where…" rhythm and equation stacks */
+.md-typeset p:has(+ div.arithmatex) {
+  margin-bottom: 0.4em;
+}
+
+.md-typeset div.arithmatex + p {
+  margin-top: 0.4em;
+}
+
+.md-typeset div.arithmatex + div.arithmatex {
+  margin-top: -0.1em;
+}
+
+/* In admonitions & callouts: same compact treatment */
 .md-typeset .admonition div.arithmatex,
 .md-typeset details div.arithmatex {
-  font-size: 1.1rem !important;
-  margin: 1rem 0;
+  font-size: 1.08em;
+  margin: 0.45em 0;
 }
 
 .md-typeset .admonition span.arithmatex,
 .md-typeset details span.arithmatex {
-  font-size: 1.02em !important;
+  font-size: 1em;
 }
 
 /* ==========================================================================

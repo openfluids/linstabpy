@@ -1,13 +1,13 @@
 # Mesh discretization
 
-!!! info "Math you need for this page"
-    Structured 2D grids with [SBP](https://grokipedia.com/page/Summation_by_parts) [finite differences](https://grokipedia.com/page/Finite_difference_method) at even orders $2$, $4$, $6$, $8$ only, each with validated boundary closures and diagonal norm $H$. Filters are implicit 10th order Mattsson style with `alpha_filter` strength control. Artificial dissipation is the Mattsson, Svard, and Nordstrom operator $Q_{\mathrm{diss}}$ scaled by $\varepsilon$ and applied as $L_0 - \varepsilon Q$. Deformation chain rules the derivatives and scales quadrature by $|\det J|$. Fortran order flattening keeps indices aligned with the MATLAB reference.
-    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+Structured 2D grids with [SBP](https://grokipedia.com/page/Summation_by_parts) [finite differences](https://grokipedia.com/page/Finite_difference_method) at even orders $2$, $4$, $6$, $8$ only, each with validated boundary closures and diagonal norm $H$. Filters are implicit 10th order Mattsson style with `alpha_filter` strength control. Artificial dissipation is the Mattsson, Svard, and Nordstrom operator $Q_{\mathrm{diss}}$ scaled by $\varepsilon$ and applied as $L_0 - \varepsilon Q$. Deformation chain rules the derivatives and scales quadrature by $|\det J|$. Fortran order flattening keeps indices aligned with the MATLAB reference.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
-The **Mesh Discretization** domain (`src/linstabpy/mesh/`) is the structured-mesh foundation of LinStabPy. It supplies geometry, summation-by-parts (SBP) finite-difference operators, integration weights, optional artificial dissipation, spatial filters, mesh deformation, pole-line handling, and masking for linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) spatial discretization on structured 2-D grids.
+The **mesh discretization** package (`src/linstabpy/mesh/`) is the structured-mesh foundation of LinStabPy. It supplies geometry, summation-by-parts (SBP) finite-difference operators, integration weights, optional artificial dissipation, spatial filters, mesh deformation, pole-line handling, and masking for linearized [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations) (LNSE) spatial discretization on structured 2-D grids.
 
 The implementation ports LinStab2D MATLAB workflows (`CreateMesh.m`, `AddDW2mesh.m`, `DeformMesh.m`, `GetFilter.m` / `CreateFilter.m`, `Dmats_SBP.m`) into Python dataclasses and SciPy [sparse](https://grokipedia.com/page/Sparse_matrix) linear algebra. Downstream LNSE assembly, energy norms, stability eigenproblems, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis all consume this mesh contract.
 
@@ -20,9 +20,8 @@ The implementation ports LinStab2D MATLAB workflows (`CreateMesh.m`, `AddDW2mesh
 | Axisymmetric pole treatments (Mohseni–Colonius) | Nonlinear CFD mesh generation |
 | Implicit 10th-order filters, MSN artificial dissipation | PETSc-distributed mesh partitioning |
 
----
 
-## 2. Package Layout and Public API
+## Package Layout and Public API
 
 ```
 src/linstabpy/mesh/
@@ -34,7 +33,7 @@ src/linstabpy/mesh/
 └── filters.py           # MeshFilters and 10th-order filter builders
 ```
 
-### 2.1 Public exports (`linstabpy.mesh`)
+### Public exports (`linstabpy.mesh`)
 
 | Symbol | Role |
 |--------|------|
@@ -48,9 +47,8 @@ src/linstabpy/mesh/
 
 **Lazy loading.** `Mesh*` and filter symbols are imported via PEP 562 `__getattr__` so lightweight imports (help, version, stencil-only use) avoid pulling the full mesh stack until needed. Eager exports cover SBP builders and `fdweights`.
 
----
 
-## 3. Architecture and Data Flow
+## Architecture and Data Flow
 
 ```mermaid
 flowchart TD
@@ -95,11 +93,10 @@ sequenceDiagram
 
 `config → baseflow → mesh/SBP/filters → coefficients → L0 + BCs → factorize → eigen/resolvent`.
 
----
 
-## 4. Core Data Model
+## Core Data Model
 
-### 4.1 `Mesh` (mutable runtime carrier)
+### `Mesh` (mutable runtime carrier)
 
 Do not construct `Mesh` with the dataclass constructor in application code. Use `Mesh.create(...)`.
 
@@ -133,7 +130,7 @@ Do not construct `Mesh` with the dataclass constructor in application code. Use 
 | `alpha_filter`, `filters` | Filter strength and `MeshFilters` pair |
 | `J11`–`J22` | Computational→physical Jacobian on used points |
 
-### 4.2 Frozen views
+### Frozen views
 
 Callers should declare which contract slice they need:
 
@@ -145,15 +142,14 @@ Callers should declare which contract slice they need:
 
 Views are frozen dataclasses; the underlying `Mesh` remains the mutable carrier for construction and deformation.
 
-### 4.3 Indexing convention
+### Indexing convention
 
 All flattened arrays and sparse operators use **column-major (Fortran) order**, matching MATLAB LinStab2D. Boundary indices in `idx` refer to this flattened layout. Baseflow fields are expected on the same `(ny, nx)` grid.
 
----
 
-## 5. Mesh Construction (`Mesh.create`)
+## Mesh Construction (`Mesh.create`)
 
-### 5.1 Signature and validation
+### Signature and validation
 
 ```text
 Mesh.create(
@@ -171,20 +167,20 @@ Validation (`_validate_create_inputs`):
 - `nx`, `ny`, `fd_order` must be integers.
 - `nx` and `ny` must be at least `min_points(fd_order)` (closure width of the SBP boundary block).
 
-### 5.2 Grid generation
+### Grid generation
 
-1. **x-direction**  
-   - Non-periodic: `linspace(x_min, x_max, nx)`.  
+1. **x-direction**
+   - Non-periodic: `linspace(x_min, x_max, nx)`.
    - Periodic: open right endpoint (`linspace(..., nx+1)[:-1]`) so periodic neighbors are not duplicated; requires `nx >= 3`.
 
-2. **y-direction**  
-   - Standard: `linspace(y_min, y_max, ny)`.  
+2. **y-direction**
+   - Standard: `linspace(y_min, y_max, ny)`.
    - With `y_symmetry` and `y_min ≈ 0`: MATLAB-compatible half-cell shift  
      `dy = y_max / (ny - 0.5)`, then grid from `y_min + dy/2` to `y_max` (avoids placing a node exactly on the axis).
 
 3. `meshgrid` → `X`, `Y` with shape `(ny, nx)`; initially `used_ind = arange(nx*ny)`.
 
-### 5.3 Operator attachment
+### Operator attachment
 
 `_build_operators` builds global sparse operators:
 
@@ -199,20 +195,19 @@ For each direction:
 
 Integration weights accumulate 1-D SBP norm factors along each line (diagonal-norm quadrature). Mixed derivatives are formed as products of first-derivative operators.
 
-### 5.4 Filters and dissipation at create time
+### Filters and dissipation at create time
 
 - `build_mesh_filters(X, Y, used_ind, alpha_filter)` attaches direct and [adjoint](https://grokipedia.com/page/Adjoint) filters.
 - If `numerics_operator_dissipation` is provided with `enabled=True`, `build_sbp_dissipation_matrices` fills `Q_diss_x` / `Q_diss_y` (1-D operators on the reference ξ / η lines). Defaults for the MSN \(A_{2p}\) profile live in `DISSIPATION_DEFAULTS` (`transition_fraction`, `endpoint_exponent`, `interior_value`).
 
-### 5.5 Boundary index sets
+### Boundary index sets
 
 `_build_indices` computes `bi`, `ti`, `li`, `ri` on the used grid, respecting periodicity, symmetry, and optional masks so internal walls (e.g. cavities) remain consistent after deformation.
 
----
 
-## 6. SBP Operators
+## SBP Operators
 
-### 6.1 Theory and references
+### Theory and references
 
 Diagonal-norm SBP operators of interior order \(2p\) use boundary closures of order \(p\). The first-derivative operator satisfies the discrete integration-by-parts identity
 
@@ -222,7 +217,7 @@ Q + Q^T = B, \quad Q = H D_1, \quad B = \mathrm{diag}(-1,0,\ldots,0,1),
 
 with diagonal norm \(H\). Stencils follow Strand (1994) and Mattsson & Nordström (2004). Axisymmetric pole closures follow Mohseni & Colonius.
 
-### 6.2 `sbp_stencils(order)`
+### `sbp_stencils(order)`
 
 Returns hardcoded reference tables for orders **2, 4, 6, 8**:
 
@@ -233,11 +228,11 @@ Returns hardcoded reference tables for orders **2, 4, 6, 8**:
 
 Unsupported even orders fall through to `generate_sbp_stencils` (validated norms exist only for 2, 4, 6, 8; higher orders raise).
 
-### 6.3 `min_points(order)`
+### `min_points(order)`
 
 Minimum number of points equals the boundary closure width \(m = a_{b1}.\mathrm{shape}[1]\). Mesh creation enforces this on both `nx` and `ny`.
 
-### 6.4 `build_sbp_matrix(n, dz, order)`
+### `build_sbp_matrix(n, dz, order)`
 
 Constructs 1-D CSR pair `(D1, D2)`:
 
@@ -247,7 +242,7 @@ Constructs 1-D CSR pair `(D1, D2)`:
 
 Results are **LRU-cached** (`functools.lru_cache`) for repeated line lengths and orders.
 
-### 6.5 Pole matrices (`build_sbp_pole_matrices`)
+### Pole matrices (`build_sbp_pole_matrices`)
 
 For axisymmetric meshes, returns:
 
@@ -263,7 +258,7 @@ symmetric (`s`) and antisymmetric (`a`) first- and second-derivative operators. 
 
 These feed `Dy_symm` / `Dy_asymm` (and second-derivative / mixed counterparts) on the mesh.
 
-### 6.6 Artificial dissipation (`build_sbp_dissipation_matrices`)
+### Artificial dissipation (`build_sbp_dissipation_matrices`)
 
 Mattsson–Svärd–Nordström (MSN) dissipation for interior orders **4, 6, 8**:
 
@@ -275,15 +270,14 @@ with \(p = \mathrm{order}/2\), diagonal \(H\) from SBP norms, \(D_p\) a divided 
 
 **Phase-1 constraint:** `order_diss` must equal `order_interior` (decoupled dissipation order is deferred). Callers apply regularization as \(L_{\mathrm{reg}} = L - \varepsilon Q_{\mathrm{diss}}\). The factor \(h^{2p+1}\) is required for dimensional consistency with the full-norm formulation.
 
----
 
-## 7. Automatic Stencil Generation
+## Automatic Stencil Generation
 
-### 7.1 `fdweights` (Fornberg 1988)
+### `fdweights` (Fornberg 1988)
 
 `fdweights(xi, x, m)` returns finite-difference weights of derivative order \(m\) at evaluation point `xi` for arbitrary nodes `x`. Implementation uses a cached recursive Fornberg algorithm (`functools.cache` on the recursive weight function).
 
-### 7.2 `sbp_generator`
+### `sbp_generator`
 
 | Function | Role |
 |----------|------|
@@ -296,15 +290,14 @@ with \(p = \mathrm{order}/2\), diagonal \(H\) from SBP norms, \(D_p\) a divided 
 
 This path is the algorithmic source of truth for regenerating tables and for any future validated higher-order closures.
 
----
 
-## 8. Mesh Filters
+## Mesh Filters
 
-### 8.1 Purpose
+### Purpose
 
 Implicit **10th-order** spatial filters stabilize discrete operators and resolvent applies. Ported from MATLAB `GetFilter.m` / `CreateFilter.m`. Filters are **operator-level** mesh state (not stage-dependent): create-time filters are retained across `deform` (MATLAB `DeformMesh` updates derivatives/weights only).
 
-### 8.2 `MeshFilters`
+### `MeshFilters`
 
 ```text
 MeshFilters(
@@ -313,10 +306,10 @@ MeshFilters(
 )
 ```
 
-### 8.3 Construction (`build_mesh_filters`)
+### Construction (`build_mesh_filters`)
 
 - **`alpha_filter == "none"` (or `""`):** identity pass-through (no filtering).
-- **Numeric `alpha_filter`:** builds line-separable 2-D operators.  
+- **Numeric `alpha_filter`:** builds line-separable 2-D operators.
   **Important MATLAB convention:** numeric `0.0` is **not** "off"; it is maximum-strength filtering with \(M = I\). Only the string `"none"` disables filters.
 
 Pipeline:
@@ -330,9 +323,8 @@ Pipeline:
 
 Adjoint path: transpose solves and Hermitian transpose of \(F\) factors so energy-weighted adjoint/resolvent paths remain consistent.
 
----
 
-## 9. Deformation
+## Deformation
 
 `Mesh.deform(Y_new=None, X_new=None)` returns a **new** `Mesh` with updated physical coordinates and chain-ruled operators (MATLAB `DeformMesh.m`).
 
@@ -353,9 +345,8 @@ Details:
 
 Helpers `_axm_diag` and `_transform_second_derivatives` implement sparse diagonal scaling and second-derivative metric transforms.
 
----
 
-## 10. Masking
+## Masking
 
 `Mesh.mask(...)` (and related helpers) restrict the active domain:
 
@@ -367,9 +358,8 @@ Helpers `_axm_diag` and `_transform_second_derivatives` implement sparse diagona
 
 Gap detection (`_line_breaks`) splits FD lines at holes so cavity walls and multi-block-like masks remain well-defined.
 
----
 
-## 11. Integration with Downstream Domains
+## Integration with Downstream Domains
 
 | Consumer | Mesh contract used |
 |----------|--------------------|
@@ -383,9 +373,8 @@ Gap detection (`_line_breaks`) splits FD lines at holes so cavity walls and mult
 
 Mesh discretization does not initialize PETSc. Sparse operators remain SciPy CSR until the linear-algebra / assembly layer converts them for distributed solves.
 
----
 
-## 12. Configuration Touchpoints
+## Configuration Touchpoints
 
 Typical YAML / typed config fields that affect this domain:
 
@@ -399,9 +388,8 @@ Typical YAML / typed config fields that affect this domain:
 
 Invalid FD orders fail early in config schema validation before expensive HPC stages.
 
----
 
-## 13. Design Principles and Implementation Notes
+## Design Principles and Implementation Notes
 
 1. **MATLAB parity.** Indexing, half-cell axis shift, filter conventions, deformation branches, and pole closures track LinStab2D so spectra and [gains](../core-concepts.md) remain comparable.
 
@@ -409,19 +397,18 @@ Invalid FD orders fail early in config schema validation before expensive HPC st
 
 3. **Separation of concerns.** Geometry, derivative basis, and runtime extras (filters, sponge, Jacobians) are view-separated but stored on one carrier for orchestration simplicity.
 
-4. **Performance.**  
-   - Kronecker fast path for full rectangles.  
-   - Cached 1-D SBP builds.  
-   - Local SuperLU / identity filter solves (no PETSc on the filter path).  
+4. **Performance.**
+   - Kronecker fast path for full rectangles.
+   - Cached 1-D SBP builds.
+   - Local SuperLU / identity filter solves (no PETSc on the filter path).
    - Separable filter application without forming \(F_x F_z\) explicitly.
 
 5. **Immutability of results.** `deform` and `mask` return new `Mesh` instances; callers can retain the computational mesh if needed.
 
 6. **Single source of dissipation defaults.** `DISSIPATION_DEFAULTS` in `sbp.py` must be referenced by mesh and driver layers rather than re-declared literals.
 
----
 
-## 14. Practical Usage Sketch
+## Practical Usage Sketch
 
 ```python
 from linstabpy.mesh import Mesh
@@ -447,9 +434,8 @@ geo = mesh.geometry    # X, Y, idx, used_ind
 
 Library consumers assembling LNSE systems should take `mesh.operators` (and metrics from `runtime_state` when deformed) rather than rebuilding FD stencils ad hoc.
 
----
 
-## 15. Limitations and Extension Points
+## Limitations and Extension Points
 
 | Topic | Status |
 |-------|--------|
@@ -461,8 +447,7 @@ Library consumers assembling LNSE systems should take `mesh.operators` (and metr
 
 Natural extensions: validated higher-order SBP tables via `sbp_generator`, decoupled dissipation orders, and richer multi-block masking, without changing the public `Mesh` / view contract consumed by operator assembly.
 
----
 
-## 16. Summary
+## Summary
 
 **Mesh Discretization** provides LinStabPy's entire spatial discrete infrastructure: structured geometry, SBP differentiation and norms (including axisymmetric poles), MSN artificial dissipation, adjoint-consistent filters, deformation metrics, and masking. The `Mesh` object unifies these pieces; frozen views expose clean contracts to LNSE assembly, energy norms, stability, and resolvent workflows. Implementation fidelity to LinStab2D, careful sparse-algebra performance choices, and strict FD-order validation make the module the reliable foundation for large-scale [compressible](https://grokipedia.com/page/Compressible_flow) LNSE [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and resolvent studies on HPC.

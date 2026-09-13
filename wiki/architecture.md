@@ -2,16 +2,15 @@
 
 **LinStabPy** is a Python CLI and library for linear stability and resolvent analysis of compressible viscous flows. It ports LinStab2D style linearized Navier-Stokes (LNSE) workflows from MATLAB to an MPI enabled HPC stack on [PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc), with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) by default, optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)).
 
-This document describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
+This page describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
 
-!!! info "Math and solver conventions for this page"
-    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last. These statements match the code and take precedence over any paraphrase below.
+!!! info "Conventions"
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
 
----
 
-## 1. Architecture overview
+## Architecture overview
 
-### 1.1 Architecture design philosophy
+### Architecture design philosophy
 
 LinStabPy is designed as a **staged scientific pipeline**, not a service mesh or multi-tenant application. The system starts from [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps and YAML case policy, and ends at spectra, modes, [gains](core-concepts.md), metrics, and provenance payloads.
 
@@ -33,7 +32,7 @@ The architectural style is a **modular layered scientific toolkit**:
 Orchestration → Domain Analysis → Discretization / Operators → Linear Algebra → Utilities
 ```
 
-### 1.2 Core architecture patterns
+### Core architecture patterns
 
 1. **Pipeline and staged orchestration.** `driver/run.py` sequences the scientific stages in a fixed order.
 2. **Shared kernel with multiple products.** One BC enforced LNSE operator family feeds temporal eigen, [adjoint](https://grokipedia.com/page/Adjoint) and sensitivity, spatial eigen, single frequency resolvent, and $\beta$ and $\omega$ maps.
@@ -42,7 +41,7 @@ Orchestration → Domain Analysis → Discretization / Operators → Linear Alge
 5. **Declarative configuration and BC recipes.** Case behavior comes from YAML and BC rules, not hardcoded geometry branches.
 6. **Cost aware routing.** Anchor factorization, [preconditioner](https://grokipedia.com/page/Preconditioner) reuse, residual gates, break-even logic, and RAM autoselect turn single point resolvent into scalable campaigns.
 
-### 1.3 Technology stack overview
+### Technology stack overview
 
 | Layer | Choice |
 |-------|--------|
@@ -58,7 +57,7 @@ Orchestration → Domain Analysis → Discretization / Operators → Linear Alge
 
 **Environment note:** `environment.yml` targets conda-forge **complex-scalar** PETSc/SLEPc. GPU PETSc is not a supported conda path; cuDSS is an optional, non-conda path. Plain `import linstabpy` does **not** initialize PETSc or MPI.
 
-### 1.4 High-level deployable mental model
+### High-level deployable mental model
 
 ```mermaid
 flowchart TB
@@ -105,9 +104,8 @@ flowchart TB
   P6b --> B2
 ```
 
----
 
-## 2. System context
+## System context
 
 Roles, scope, and external pieces are defined once in [overview](overview.md). The architecture-relevant cut is how the two entry points reach the runtime:
 
@@ -159,13 +157,12 @@ flowchart LR
 
 The CLI needs the full stack: MPI with PETSc and SLEPc plus MUMPS underneath, SciPy for local assembly, YAML and base-flow files in, NPZ results with metrics and provenance out. The library needs only NumPy and SciPy until a solve starts; PETSc enters lazily with the first distributed matrix or factorize call. Optional cuDSS factors ride as a PETSc preconditioner shell wherever the backend policy selects them. Solver vocabulary on this page is defined in the [solver glossary](solver-glossary.md).
 
----
 
-## 3. Container view
+## Container view
 
 Packages here are cohesive Python modules with a runtime and data contract. They run in one MPI process group as a single Python application.
 
-### 3.1 Domain module division
+### Domain module division
 
 | Domain | Type | Code paths | Role |
 |--------|------|------------|------|
@@ -180,7 +177,7 @@ Packages here are cohesive Python modules with a runtime and data contract. They
 | **Linear Algebra** | Infrastructure | `linalg/`, `mumps_options.py` | Factor backends, shifted ops, cuDSS |
 | **Shared Utilities** | Infrastructure | `utils/`, `metrics_schema.py` | PETSc bridge, YAML, cost, provenance, Floquet |
 
-### 3.2 Domain module architecture
+### Domain module architecture
 
 ```mermaid
 flowchart TB
@@ -264,7 +261,7 @@ flowchart TB
   EIG --> FAC
 ```
 
-### 3.3 Storage design
+### Storage design
 
 LinStabPy is **file-oriented**, not database-backed.
 
@@ -279,7 +276,7 @@ LinStabPy is **file-oriented**, not database-backed.
 
 There is no persistent application database. Reproducibility is achieved through config hashing, schema versioning, and immutable result contracts rather than transactional storage.
 
-### 3.4 Inter-domain module communication
+### Inter-domain module communication
 
 Communication is **in-process Python calls** (service calls, composition, and data hand-off of arrays/matrices), not network RPC.
 
@@ -325,17 +322,16 @@ flowchart LR
 
 **Strength highlights**
 
-- Orchestration ↔ Stability/Resolvent: primary service calls  
-- Assembly ↔ Mesh / Baseflow: composition and data (~strongest physics coupling)  
-- Stability / Resolvent / Router ↔ Factorization: shared factorize-once spine  
+- Orchestration ↔ Stability/Resolvent: primary service calls
+- Assembly ↔ Mesh / Baseflow: composition and data (~strongest physics coupling)
+- Stability / Resolvent / Router ↔ Factorization: shared factorize-once spine
 
 **Boundary-conditions note:** The `boundary_conditions/` package is physically separate but **logically part of LNSE Operator Assembly**; BC application is the last non-interchangeable step of operator finalization.
 
----
 
-## 4. Component view
+## Component view
 
-### 4.1 Project structure
+### Project structure
 
 ```text
 src/linstabpy/
@@ -357,18 +353,18 @@ src/linstabpy/
 
 **Public library surface** (lazy exports from `linstabpy.__init__`):
 
-- `build_lnse_system`, `build_lnse_operator`  
-- `compute_chu_norm`  
-- `temporal_eigenvalues`, `adjoint_eigenvalues`  
-- `wavemaker`  
-- `resolvent_analysis`, `resolvent_map`  
-- `BaseFlow`  
+- `build_lnse_system`, `build_lnse_operator`
+- `compute_chu_norm`
+- `temporal_eigenvalues`, `adjoint_eigenvalues`
+- `wavemaker`
+- `resolvent_analysis`, `resolvent_map`
+- `BaseFlow`
 
 **CLI entry:** `linstabpy.driver.cli.main` → lazy import of `driver.run` (so `--version` / `--help` avoid PETSc).
 
-### 4.2 Core functional components
+### Core functional components
 
-#### 4.2.1 Case orchestration (`driver`)
+#### Case orchestration (`driver`)
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -379,11 +375,11 @@ src/linstabpy/
 
 Notable runtime behaviors:
 
-- Stage wall-time and RSS delta logging; optional stage heartbeats  
-- Env knobs: `LINSTABPY_CASE_CONFIG`, `LINSTABPY_CASE_OUTPUT_NPZ`, `LINSTABPY_FORCE_RECOMPUTE`, …  
-- Alpha-filter treated as an **operator-level** property (not stage-dependent)  
+- Stage wall-time and RSS delta logging; optional stage heartbeats
+- Env knobs: `LINSTABPY_CASE_CONFIG`, `LINSTABPY_CASE_OUTPUT_NPZ`, `LINSTABPY_FORCE_RECOMPUTE`, …
+- Alpha-filter treated as an **operator-level** property (not stage-dependent)
 
-#### 4.2.2 Configuration (`config`)
+#### Configuration (`config`)
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -393,7 +389,7 @@ Notable runtime behaviors:
 
 **Resolution order:** YAML case → environment → defaults.
 
-#### 4.2.3 Baseflow (`baseflow`)
+#### Baseflow (`baseflow`)
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -401,7 +397,7 @@ Notable runtime behaviors:
 | `grid_fields` | npy directory / npz load |
 | preprocess / sponge / shock_cleanup / viscosity | Readiness for linearization |
 
-#### 4.2.4 Mesh (`mesh`)
+#### Mesh (`mesh`)
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -411,14 +407,14 @@ Notable runtime behaviors:
 
 PETSc-dependent mesh objects are lazy-imported.
 
-#### 4.2.5 LNSE operator assembly (`operators` + `boundary_conditions`)
+#### LNSE operator assembly (`operators` + `boundary_conditions`)
 
 **Canonical PETSc assembly order** (documented in `assembly.py`; **non-interchangeable**):
 
-1. Assemble raw block operator from coefficients + FD stencils  
-2. Apply analytical `inv(B/1j)` left scaling → L0  
-3. Add sponge damping  
-4. Add artificial dissipation  
+1. Assemble raw block operator from coefficients + FD stencils
+2. Apply analytical `inv(B/1j)` left scaling → L0
+3. Add sponge damping
+4. Add artificial dissipation
 5. **Last:** apply BC recipe (Dirichlet/Neumann); free-DOF sets  
 
 State vector: **`q = [ρ, u, v, w, T]`**.  
@@ -431,7 +427,7 @@ Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` 
 | Spatial Operator Assembly | Spatial block operators reusing temporal helpers |
 | Boundary Condition Recipes | Declarative Dirichlet/Neumann rules and free-DOF masks |
 
-#### 4.2.6 Stability (`stability` + `solvers`)
+#### Stability (`stability` + `solvers`)
 
 | Sub-module | Role |
 |------------|------|
@@ -439,17 +435,17 @@ Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` 
 | Eigen Solver Backends | SLEPc EPS shift-invert; residual reorder; conjugate-pair completeness |
 | Structural Sensitivity | `wavemaker` from direct + adjoint modes |
 
-#### 4.2.7 Resolvent (`resolvent`)
+#### Resolvent (`resolvent`)
 
 \[
 H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 \]
 
-- Factorize shifted operator once; reuse for forward/adjoint applies  
-- Weighted normal operator shell for SLEPc; gains \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)  
-- Optional conservative momentum forcing maps  
+- Factorize shifted operator once; reuse for forward/adjoint applies
+- Weighted normal operator shell for SLEPc; gains \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
+- Optional conservative momentum forcing maps
 
-#### 4.2.8 Solver router (`solvers/router`)
+#### Solver router (`solvers/router`)
 
 | Piece | Role |
 |-------|------|
@@ -463,7 +459,7 @@ H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 
 **Config nuance:** Router dissipation strength is read from top-level `dissipation_epsilon`, while non-router paths may use nested `operator_dissipation.epsilon`. Both enable flags and strength must be set or dissipation is a **silent no-op**.
 
-### 4.3 Technical support components
+### Technical support components
 
 #### Linear algebra (`linalg`)
 
@@ -485,7 +481,7 @@ H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 | Floquet helpers | Supporting periodic-flow utilities |
 | `metrics_schema` | Versioned metrics JSON groups |
 
-### 4.4 Component responsibility division (summary)
+### Component responsibility division (summary)
 
 ```mermaid
 flowchart TB
@@ -527,20 +523,19 @@ flowchart TB
   RS --> UT
 ```
 
-### 4.5 Component interaction relationships
+### Component interaction relationships
 
-- **Library consumers** may call assembly and analysis APIs directly, bypassing full CLI orchestration, but still depend on the same operator and factorization contracts.  
-- **Router** is the only domain that systematically **re-assembles per \(\beta\)** and **walks many \(\omega\)** with measured cost feedback.  
-- **Stability and Resolvent** never own mesh generation; they consume finalized operators and energy weights.  
+- **Library consumers** may call assembly and analysis APIs directly, bypassing full CLI orchestration, but still depend on the same operator and factorization contracts.
+- **Router** is the only domain that systematically **re-assembles per \(\beta\)** and **walks many \(\omega\)** with measured cost feedback.
+- **Stability and Resolvent** never own mesh generation; they consume finalized operators and energy weights.
 - **Utilities** never own case flow; they underpin conversion, init, and telemetry.
 
----
 
-## 5. Key processes
+## Key processes
 
-### 5.1 Core functional processes
+### Core functional processes
 
-#### 5.1.1 Temporal eigenvalue stability analysis (primary product path)
+#### Temporal eigenvalue stability analysis (primary product path)
 
 End-to-end [hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) for compressible flows: load mean flow, assemble LNSE + BCs, factorize shifted systems, compute temporal (and optionally adjoint) eigenvalues/eigenvectors.
 
@@ -586,17 +581,17 @@ sequenceDiagram
 
 **Key steps**
 
-1. Runtime initialization, PETSc/MPI, logging, distributed orchestration  
-2. Configuration resolution, YAML/env/defaults; eigen/mesh/MPI policy  
-3. Baseflow ingest, npy/npz → `BaseFlow` + preprocess/transport  
-4. Mesh discretization, structured mesh, SBP (2, 4, 6, 8), filters, runtime state  
-5. Coefficient generation, Cartesian or cylindrical compressible LNSE coeffs  
-6. Operator assembly and BCs, [sparse](https://grokipedia.com/page/Sparse_matrix) L0 for \(q=[\rho,u,v,w,T]\); free DOFs  
-7. [Shift-invert](solver-glossary.md) factorization, MUMPS/LU/cuDSS factorize-once  
-8. Eigenanalysis, SLEPc [EPS](solver-glossary.md); residuals; optional structural sensitivity  
-9. Result emission, NPZ + metrics + provenance  
+1. Runtime initialization, PETSc/MPI, logging, distributed orchestration
+2. Configuration resolution, YAML/env/defaults; eigen/mesh/MPI policy
+3. Baseflow ingest, npy/npz → `BaseFlow` + preprocess/transport
+4. Mesh discretization, structured mesh, SBP (2, 4, 6, 8), filters, runtime state
+5. Coefficient generation, Cartesian or cylindrical compressible LNSE coeffs
+6. Operator assembly and BCs, [sparse](https://grokipedia.com/page/Sparse_matrix) L0 for \(q=[\rho,u,v,w,T]\); free DOFs
+7. [Shift-invert](solver-glossary.md) factorization, MUMPS/LU/cuDSS factorize-once
+8. Eigenanalysis, SLEPc [EPS](solver-glossary.md); residuals; optional structural sensitivity
+9. Result emission, NPZ + metrics + provenance
 
-#### 5.1.2 Resolvent gain analysis (single frequency)
+#### Resolvent gain analysis (single frequency)
 
 Shares prep through L0, then specializes in \((L_0 - i\omega I)\) factors and weighted gain extraction.
 
@@ -616,7 +611,7 @@ flowchart TD
   PackageOut --> End["Resolvent Complete"]
 ```
 
-#### 5.1.3 Beta–frequency resolvent gain map (cost-critical production path)
+#### Beta–frequency resolvent gain map (cost-critical production path)
 
 ```mermaid
 flowchart TD
@@ -639,7 +634,7 @@ flowchart TD
   RecordMap --> End["Map Complete"]
 ```
 
-#### 5.1.4 Spatial stability eigenproblem
+#### Spatial stability eigenproblem
 
 Config `solver.spatial` (fallback `solver.eigen`) → spatial block operators → generalized SLEPc EPS.
 
@@ -655,7 +650,7 @@ flowchart TD
   ReturnModes --> End["Spatial Eigen Complete"]
 ```
 
-#### 5.1.5 Baseflow ingest and operator prep (shared foundation)
+#### Baseflow ingest and operator prep (shared foundation)
 
 ```mermaid
 flowchart TD
@@ -669,7 +664,7 @@ flowchart TD
   FinalizeL0 --> End["Operator Ready"]
 ```
 
-#### 5.1.6 Adjoint and structural sensitivity (supporting path)
+#### Adjoint and structural sensitivity (supporting path)
 
 ```mermaid
 flowchart TD
@@ -680,7 +675,7 @@ flowchart TD
   EmitSens --> End["Sensitivity Complete"]
 ```
 
-### 5.2 Technical processing workflows
+### Technical processing workflows
 
 | Concern | Mechanism |
 |---------|-----------|
@@ -692,7 +687,7 @@ flowchart TD
 | Map routing | Band mark → anchors → PC reuse → residual gate → optional stable sweep |
 | Backend choice | Probe + RAM autoselect among MUMPS/LU/cuDSS |
 
-### 5.3 Data flow paths
+### Data flow paths
 
 ```text
 YAML + npy/npz
@@ -717,7 +712,7 @@ YAML + npy/npz
 | Runtime NPZ | Fixed keys in `driver.payload` |
 | Metrics JSON | provenance, problem, cost, quality groups |
 
-### 5.4 Exception handling and quality gates
+### Exception handling and quality gates
 
 | Gate | Behavior |
 |------|----------|
@@ -731,11 +726,10 @@ YAML + npy/npz
 
 There is no distributed saga or compensating transaction model: failures abort the stage with logged metrics where available; partial map results may still be recorded depending on campaign progress.
 
----
 
-## 6. Technical implementation
+## Technical implementation
 
-### 6.1 Core module implementation
+### Core module implementation
 
 #### Orchestration hub
 
@@ -745,28 +739,28 @@ There is no distributed saga or compensating transaction model: failures abort t
 
 Assembly is the mathematical heart of the system:
 
-- Coefficients encode compressible LNSE physics (Cartesian/cylindrical).  
-- SBP stencils supply discrete derivatives and norms with summation-by-parts stability properties.  
-- Left scaling by analytical `inv(B/1j)` produces the [temporal operator](core-concepts.md) L0 used by eigen and resolvent paths.  
-- Sponge and artificial dissipation are operator-level stabilizations.  
+- Coefficients encode compressible LNSE physics (Cartesian/cylindrical).
+- SBP stencils supply discrete derivatives and norms with summation-by-parts stability properties.
+- Left scaling by analytical `inv(B/1j)` produces the [temporal operator](core-concepts.md) L0 used by eigen and resolvent paths.
+- Sponge and artificial dissipation are operator-level stabilizations.
 - BC recipes mutate rows/columns and publish free-DOF sets **last**, so solvers never see unconstrained boundary rows.
 
 #### Factorization layer
 
 `Factorization` is the performance spine:
 
-- Default: **KSPPREONLY + PCLU + MUMPS**  
-- API: solve, transpose solve, block solve, refactorize, destroy  
-- Optional cuDSS as a PETSc PC shell for GPU-capable deployments  
-- Shifted systems built once per \((\beta,\omega)\) (or eigen shift) and reused across SLEPc iterations and resolvent matvecs  
+- Default: **KSPPREONLY + PCLU + MUMPS**
+- API: solve, transpose solve, block solve, refactorize, destroy
+- Optional cuDSS as a PETSc PC shell for GPU-capable deployments
+- Shifted systems built once per \((\beta,\omega)\) (or eigen shift) and reused across SLEPc iterations and resolvent matvecs
 
 #### Analysis products
 
-- **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint  
-- **Resolvent:** \(H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)  
-- **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse  
+- **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint
+- **Resolvent:** \(H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
+- **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse
 
-### 6.2 Key algorithm design
+### Key algorithm design
 
 | Algorithm area | Design choice | Rationale |
 |----------------|---------------|-----------|
@@ -778,7 +772,7 @@ Assembly is the mathematical heart of the system:
 | Backend policy | RAM autoselect + MUMPS BLR options | Fit large free-DOF systems into node memory |
 | Energy inner product | Chu norm diagonals | Physically meaningful compressible disturbance energy |
 
-### 6.3 Data structure design
+### Data structure design
 
 | Structure | Representation | Notes |
 |-----------|----------------|-------|
@@ -792,25 +786,25 @@ Assembly is the mathematical heart of the system:
 
 State dimension scales as **5 degrees of freedom per grid point** (density, three velocities, temperature), reduced by Dirichlet eliminations.
 
-### 6.4 Performance optimization strategies
+### Performance optimization strategies
 
-1. **Factorize-once, solve-many**, Dominant cost is sparse direct factorization; eigen iterations and resolvent applies reuse factors.  
-2. **Anchor + PC reuse on maps**, Pay full factor cost at anchors; nearby frequencies reuse as right preconditioners until residual gate trips.  
-3. **Break-even / recycling logic**, Router estimates when refactor is cheaper than struggling iterative reuse.  
-4. **RAM autoselect**, Choose MUMPS/LU/cuDSS under memory policy; MUMPS BLR compression where available.  
-5. **Lazy imports**, Keep CLI help and library import off the PETSc critical path.  
-6. **Stage metrics**, Wall time and RSS deltas identify which stage dominates (assembly vs factor vs EPS).  
-7. **Optional parallelism across \(\beta\)**, Conceptual extension: parallelize independent \(\beta\) lines when memory allows; keep per-line \(\omega\) walks sequential for factor reuse.  
+1. **Factorize-once, solve-many**, Dominant cost is sparse direct factorization; eigen iterations and resolvent applies reuse factors.
+2. **Anchor + PC reuse on maps**, Pay full factor cost at anchors; nearby frequencies reuse as right preconditioners until residual gate trips.
+3. **Break-even / recycling logic**, Router estimates when refactor is cheaper than struggling iterative reuse.
+4. **RAM autoselect**, Choose MUMPS/LU/cuDSS under memory policy; MUMPS BLR compression where available.
+5. **Lazy imports**, Keep CLI help and library import off the PETSc critical path.
+6. **Stage metrics**, Wall time and RSS deltas identify which stage dominates (assembly vs factor vs EPS).
+7. **Optional parallelism across \(\beta\)**, Conceptual extension: parallelize independent \(\beta\) lines when memory allows; keep per-line \(\omega\) walks sequential for factor reuse.
 8. **SciPy local path**, Useful for small debugging assemblies without full MPI cost.
 
 **Primary bottlenecks**
 
-- Sparse direct factor memory and time (grows superlinearly with free DOFs)  
-- Per-\(\beta\) reassembly on large maps  
-- Monolithic `run.py` and large assembly/coefficient modules (developer throughput, not FLOPs)  
+- Sparse direct factor memory and time (grows superlinearly with free DOFs)
+- Per-\(\beta\) reassembly on large maps
+- Monolithic `run.py` and large assembly/coefficient modules (developer throughput, not FLOPs)
 - Dual dissipation config paths (silent no-op risk → wasted or wrong HPC runs)
 
-### 6.5 Scalability design
+### Scalability design
 
 | Axis | Strategy |
 |------|----------|
@@ -821,7 +815,7 @@ State dimension scales as **5 degrees of freedom per grid point** (density, thre
 | **Embedding** | Library API for pipeline integration; CLI for batch cases |
 | **Extension points** | New BC recipes; new factor backends via registry; new router band strategies; spatial/temporal coefficient models |
 
-### 6.6 Security design
+### Security design
 
 LinStabPy is a **trusted scientific HPC toolkit**, not a multi-tenant service. Security posture is appropriate to that model:
 
@@ -836,11 +830,10 @@ LinStabPy is a **trusted scientific HPC toolkit**, not a multi-tenant service. S
 
 Hardening guidance for operators: run inside standard HPC job isolation; treat case directories as trusted; do not expose the CLI as an unauthenticated network service.
 
----
 
-## 7. Deployment architecture
+## Deployment architecture
 
-### 7.1 Runtime environment requirements
+### Runtime environment requirements
 
 | Requirement | Detail |
 |-------------|--------|
@@ -854,11 +847,11 @@ Hardening guidance for operators: run inside standard HPC job isolation; treat c
 
 **Init constraints**
 
-- Initialize `mpi4py` before PETSc  
-- Prefer thread level MULTIPLE when backends require it  
-- Do not expect `import linstabpy` alone to set up the parallel runtime  
+- Initialize `mpi4py` before PETSc
+- Prefer thread level MULTIPLE when backends require it
+- Do not expect `import linstabpy` alone to set up the parallel runtime
 
-### 7.2 Deployment topology structure
+### Deployment topology structure
 
 ```mermaid
 flowchart TB
@@ -905,14 +898,14 @@ flowchart TB
 
 **Library embedding topology:** parent Python process imports `linstabpy`, explicitly initializes PETSc/MPI when needed, and calls public analysis APIs; I/O may be owned by the parent pipeline.
 
-### 7.3 Scalability in deployment
+### Scalability in deployment
 
-- **Strong scaling:** PETSc distribution of sparse operators and vectors across ranks  
-- **Parameter scaling:** router \(\beta\) loops and frequency walks; future multi-\(\beta\) parallelism where memory permits  
-- **Vertical scaling:** larger-memory nodes for MUMPS factors; BLR compression; optional GPU factors  
+- **Strong scaling:** PETSc distribution of sparse operators and vectors across ranks
+- **Parameter scaling:** router \(\beta\) loops and frequency walks; future multi-\(\beta\) parallelism where memory permits
+- **Vertical scaling:** larger-memory nodes for MUMPS factors; BLR compression; optional GPU factors
 - **Throughput scaling:** many independent cases via scheduler array jobs (embarrassingly parallel across cases)
 
-### 7.4 Monitoring and operations
+### Monitoring and operations
 
 | Signal | Source | Use |
 |--------|--------|-----|
@@ -927,14 +920,14 @@ flowchart TB
 
 **Operations guidance**
 
-1. Validate YAML with schema before large allocations.  
-2. Start with single-frequency or single-shift cases before full \(\beta\)–\(\omega\) maps.  
-3. Watch factor memory first; adjust ranks, BLR, or backend via RAM policy.  
-4. Ensure dissipation enable + strength are set consistently (router top-level vs nested operator paths).  
-5. Archive NPZ + `metrics.json` together for provenance.  
+1. Validate YAML with schema before large allocations.
+2. Start with single-frequency or single-shift cases before full \(\beta\)–\(\omega\) maps.
+3. Watch factor memory first; adjust ranks, BLR, or backend via RAM policy.
+4. Ensure dissipation enable + strength are set consistently (router top-level vs nested operator paths).
+5. Archive NPZ + `metrics.json` together for provenance.
 6. Use config-hash caching and `LINSTABPY_FORCE_RECOMPUTE` deliberately in CI or parameter sweeps.
 
-### 7.5 Development guidance
+### Development guidance
 
 | Audience | Guidance |
 |----------|----------|
@@ -944,7 +937,7 @@ flowchart TB
 | **API consumers** | Prefer lazy public exports; initialize PETSc only on real solve paths |
 | **Maintainers** | Consider splitting `run.py` into stage modules behind one façade; unify dissipation config; publish short ADRs for assembly order, factor policy, and router gates |
 
-### 7.6 Architecture risks and recommendations
+### Architecture risks and recommendations
 
 | Item | Severity | Notes / recommendation |
 |------|----------|------------------------|
@@ -956,15 +949,14 @@ flowchart TB
 | Spatial path less CLI-central | Low | Document spatial and map entry points beside lazy public API |
 | GPU path optional / non-conda | Info | Keep CPU complex PETSc as supported default; document cuDSS clearly |
 
----
 
-## 8. Summary
+## Summary
 
 LinStabPy implements a **clean, domain-aligned LNSE analysis architecture**:
 
-- YAML-driven **Case Orchestration** feeds mesh-aligned **Baseflow** into **SBP Mesh** discretization.  
-- **LNSE Operator Assembly** (with declarative **BC recipes**) produces a single family of BC-enforced operators.  
-- A shared **Linear Algebra** factorization layer underpins **Stability**, **Resolvent**, and cost-aware **Router** campaigns on **PETSc/SLEPc**.  
+- YAML-driven **Case Orchestration** feeds mesh-aligned **Baseflow** into **SBP Mesh** discretization.
+- **LNSE Operator Assembly** (with declarative **BC recipes**) produces a single family of BC-enforced operators.
+- A shared **Linear Algebra** factorization layer underpins **Stability**, **Resolvent**, and cost-aware **Router** campaigns on **PETSc/SLEPc**.
 - Package boundaries match scientific responsibilities; external CFD generation, GUIs, and unstructured 3D frameworks remain firmly out of scope.
 
 The main architectural pressures are **orchestration monolith size**, **dual config paths for dissipation/solver policy**, and **missing formal ADRs**, not a mismatch between intended domains and the codebase layout.

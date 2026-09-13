@@ -131,3 +131,11 @@ AGENTS.md
 # MkDocs HTML output. CI uploads this; do not commit it.
 site/
 .cache/
+
+# Vercel local link state. Never commit.
+.vercel/
+.vercel
+.env*
+
+# Local deploy notes — never commit.
+VERCEL.md

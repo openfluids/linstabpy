@@ -1,13 +1,13 @@
 # Shared scientific utilities
 
-!!! info "What this package owns, in one paragraph"
-    Crosscutting helpers with no physics of their own: [PETSc](https://en.wikipedia.org/wiki/PETSc) init order and SciPy to PETSc conversion in `petsc_core`, YAML IO, cost and provenance recording, [Floquet](https://grokipedia.com/page/Floquet_theory) helpers, and the versioned metrics schema. If two domains need the same conversion or the same provenance key, it lives here so the spelling stays identical. These modules never own case flow.
-    New to PETSc or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+Crosscutting helpers with no physics of their own: [PETSc](https://en.wikipedia.org/wiki/PETSc) init order and SciPy to PETSc conversion in `petsc_core`, YAML IO, cost and provenance recording, [Floquet](https://grokipedia.com/page/Floquet_theory) helpers, and the versioned metrics schema. If two domains need the same conversion or the same provenance key, it lives here so the spelling stays identical. These modules never own case flow.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
-**Shared Scientific Utilities** is the cross-cutting infrastructure domain of LinStabPy. It sits beneath mesh discretization, LNSE operator assembly, linear algebra, stability, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis, and provides the common services those layers need without owning any scientific workflow of its own.
+**Shared scientific utilities** are the common helpers used by mesh discretization, LNSE operator assembly, linear algebra, stability, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis: shared services that implement no scientific workflow of their own.
 
 The domain covers two logical sub-modules:
 
@@ -40,9 +40,8 @@ src/linstabpy/
 - Unify YAML / environment / default precedence for solver policy across eigen, resolvent, and linear-solve paths.
 - Persist reproducible, privacy-safe cost and provenance sidecars next to run NPZ artifacts.
 
----
 
-## 2. Architectural Role
+## Architectural Role
 
 In the staged LinStabPy pipeline, utilities are **tool support**, not a business stage:
 
@@ -73,9 +72,8 @@ flowchart TD
 | Linear Algebra Infrastructure | Matrix/vector conversion and initialization under factorization backends |
 | Case Orchestration | YAML load, cost/provenance collection, metrics validation before payload write |
 
----
 
-## 3. Public Package Surface
+## Public Package Surface
 
 `linstabpy.utils.__init__` re-exports a small, PETSc-free public set:
 
@@ -91,11 +89,10 @@ from .yaml_io import (
 
 Everything else is imported by qualified path (for example `linstabpy.utils.petsc_core`, `linstabpy.utils.petsc_init`, `linstabpy.metrics_schema`). That keeps help/version and pure-NumPy post-processing paths light.
 
----
 
-## 4. PETSc Core Bridge
+## PETSc Core Bridge
 
-### 4.1 Initialization (`petsc_init.py`)
+### Initialization (`petsc_init.py`)
 
 PETSc and SLEPc must parse process argv **exactly once** so flags such as `-eps_monitor` and `-st_ksp_*` reach the options database, while the top-level package import stays PETSc-free.
 
@@ -128,7 +125,7 @@ Leftover application flags would otherwise produce "unused option" warnings or s
 
 Idempotency: if PETSc/SLEPc report "already initialized", the helper swallows that case and still marks the module flag done.
 
-### 4.2 Lazy PETSc access (`petsc_core.py`)
+### Lazy PETSc access (`petsc_core.py`)
 
 `import linstabpy.utils.petsc_core` does **not** initialize PETSc. External access to the name `PETSc` uses PEP 562 `__getattr__`, which calls `init_petsc_from_argv()` then imports `petsc4py.PETSc`.
 
@@ -143,7 +140,7 @@ Duck-typed helpers avoid loading PETSc when only SciPy objects are present:
 - `_is_petsc_matrix(operator)`, module/name check on `petsc4py` `Mat`
 - `_operator_shape` / `_matrix_nnz`, SciPy or PETSc without forcing an import for pure SciPy paths
 
-### 4.3 Complex-scalar policy and MUMPS defaults
+### Complex-scalar policy and MUMPS defaults
 
 ```text
 require_complex(solver_cfg=None)
@@ -163,7 +160,7 @@ ICNTL(7) ordering is **not** set here; it is controlled by `mumps_ordering` / `L
 
 One-shot configuration prevents later solver-module imports from rewriting options behind an already-created [KSP](../solver-glossary.md)/[EPS](../solver-glossary.md).
 
-### 4.4 Matrix layout policy
+### Matrix layout policy
 
 `petsc_matrix_mode` (YAML via `Config.mpi`, overridable by env such as `LINSTABPY_PETSC_MATRIX_MODE`) selects conversion layout:
 
@@ -173,7 +170,7 @@ One-shot configuration prevents later solver-module imports from rewriting optio
 | `distributed` / `mpi` / `parallel` | Ownership-aware MPI AIJ |
 | `auto` (default) | Distributed when `COMM_WORLD` size > 1; else local; if PETSc missing, local |
 
-### 4.5 SciPy → PETSc conversion
+### SciPy → PETSc conversion
 
 | Function | Purpose |
 |----------|---------|
@@ -186,7 +183,7 @@ One-shot configuration prevents later solver-module imports from rewriting optio
 
 Local path uses `dtype=complex` CSR and `createAIJ(..., csr=(indptr, indices, data), comm=COMM_SELF)`.
 
-### 4.6 PETSc → SciPy and ownership
+### PETSc → SciPy and ownership
 
 | Function | Purpose |
 |----------|---------|
@@ -194,7 +191,7 @@ Local path uses `dtype=complex` CSR and `createAIJ(..., csr=(indptr, indices, da
 | `ownership_range(matrix)` | Global owned row range `[rstart, rend)` |
 | `petsc_owned_rows(mat, copy=True)` | Local CSR (`indptr`, `indices`, `data`) plus `row_ids` and ownership; column indices in global numbering |
 
-### 4.7 Vectors
+### Vectors
 
 | Function | Purpose |
 |----------|---------|
@@ -202,7 +199,7 @@ Local path uses `dtype=complex` CSR and `createAIJ(..., csr=(indptr, indices, da
 | `vec_to_numpy(v)` | Uses read-only `array_r` (safe inside MatShell callbacks). Multi-rank: `Scatter.toAll` then return global 1-D copy |
 | `numpy_columns_to_petsc_vecs(template, modes)` | Dense full-state mode columns → ownership-compatible Vec list (optional column normalize); row count must match operator size |
 
-### 4.8 Parity and residual diagnostics
+### Parity and residual diagnostics
 
 Used by tests and assembly validation:
 
@@ -214,15 +211,14 @@ Used by tests and assembly validation:
 
 Reports include a boolean `pass` against `abs_tol + rel_tol * scale` style thresholds.
 
----
 
-## 5. Solver Configuration Helpers (`_solver_cfg.py`)
+## Solver Configuration Helpers (`_solver_cfg.py`)
 
 Solver modules share one precedence rule:
 
 > **YAML values win → environment variables → project defaults**
 
-### 5.1 Solver family constants
+### Solver family constants
 
 ```text
 DIRECT_SOLVER_TYPES          = {mumps, direct, lu}
@@ -233,7 +229,7 @@ INEXACT_EIGEN_SOLVER_TYPES    = {inexact}
 
 These frozensets are the policy boundary for backend name normalization across [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors), resolvent, and linear-solve paths.
 
-### 5.2 `SolverConfig`
+### `SolverConfig`
 
 Frozen dataclass implementing `Mapping[str, Any]` over the legacy `solver_cfg` dict:
 
@@ -246,7 +242,7 @@ Frozen dataclass implementing `Mapping[str, Any]` over the legacy `solver_cfg` d
 
 Resolvent reuses linear-solve policy by default but may override under `solver.resolvent`, preserving older YAML while allowing sweep-specific knobs.
 
-### 5.3 Typed readers
+### Typed readers
 
 | Helper | Role |
 |--------|------|
@@ -259,17 +255,16 @@ Resolvent reuses linear-solve policy by default but may override under `solver.r
 
 **Note:** Typed config in `config.typed` is the long-term seam; `_solver_cfg` remains the legacy mirror used heavily by solvers. Both must stay behavior-compatible during migration.
 
----
 
-## 6. YAML Case I/O (`yaml_io.py`)
+## YAML Case I/O (`yaml_io.py`)
 
-### 6.1 `load_config(path)`
+### `load_config(path)`
 
 - Accepts only `.yaml` / `.yml` suffixes.
 - Uses `_CaseLoader` (`yaml.SafeLoader` subclass) with an extra implicit resolver for **unsigned scientific floats** (`1e5`, `1.0e5`) that plain YAML 1.2 would not always treat as floats.
 - Top-level value must be a mapping; otherwise `ValueError`.
 
-### 6.2 Typed value parsers
+### Typed value parsers
 
 | Function | Accepts | Notes |
 |----------|---------|-------|
@@ -279,13 +274,12 @@ Resolvent reuses linear-solve policy by default but may override under `solver.r
 
 These parsers are part of the public `linstabpy.utils` surface for case authors and driver code.
 
----
 
-## 7. Cost Metrics (`cost_metrics.py`)
+## Cost Metrics (`cost_metrics.py`)
 
 Uniform runtime cost fields for saved result artifacts.
 
-### 7.1 Memory probes
+### Memory probes
 
 | API | Behavior |
 |-----|----------|
@@ -294,7 +288,7 @@ Uniform runtime cost fields for saved result artifacts.
 
 **Important semantics:** GPU field is a **single device-wide sample at artifact write**, not a true process peak. It can include other processes on the same card. Treat as order-of-magnitude occupancy.
 
-### 7.2 `collect_cost_metrics(stage_wall, *, git_sha, peak_rss_bytes)`
+### `collect_cost_metrics(stage_wall, *, git_sha, peak_rss_bytes)`
 
 Builds the cost subsection dict:
 
@@ -316,9 +310,8 @@ Builds the cost subsection dict:
 
 **Privacy:** Hardware tag defaults to `"unknown"`; machine identity is opt-in only.
 
----
 
-## 8. Provenance (`provenance.py`)
+## Provenance (`provenance.py`)
 
 `collect_provenance(config_path)` returns a **string-valued** dict whose key order is fixed by `_PROVENANCE_KEYS` (asserted at return):
 
@@ -342,13 +335,12 @@ Failed probes degrade to `"unavailable"` via `_probe_string` rather than abortin
 
 **Privacy policy:** Artifacts may be published (papers, Zenodo). Hostname and hardware tags stay generic unless the operator deliberately sets environment labels.
 
----
 
-## 9. Metrics Schema (`metrics_schema.py`)
+## Metrics Schema (`metrics_schema.py`)
 
 Rank 0 writes `<stem>.metrics.json` beside the run NPZ after `save_results`. The JSON is a **flat** dict. `SCHEMA` groups the same keys for error messages only.
 
-### 9.1 Groups
+### Groups
 
 | Group | Purpose | Required examples |
 |-------|---------|-------------------|
@@ -365,7 +357,7 @@ Units:
 
 Optional problem keys include `stride_ksi` / `stride_eta` for older JSON compatibility. Quality keys are optional so a resolvent run may omit eigenvalue residuals and a stability run may omit [gains](../core-concepts.md).
 
-### 9.2 `validate_metrics(d) -> list[str]`
+### `validate_metrics(d) -> list[str]`
 
 - Never fills defaults.
 - Reports **every** missing required key and every present key with wrong type.
@@ -373,9 +365,8 @@ Optional problem keys include `stride_ksi` / `stride_eta` for older JSON compati
 - `METRICS_SIDECAR_KEYS` is the frozenset of all known keys across groups.
 - `FieldSpec(types, required=True)` encodes accepted Python/NumPy type unions.
 
----
 
-## 10. Floquet Reconstruction (`floquet.py`)
+## Floquet Reconstruction (`floquet.py`)
 
 ```text
 reconstruct_floquet(X, V, used_ind, floquet_exp) -> ndarray
@@ -394,9 +385,8 @@ Rebuilds a Floquet mode in physical space:
 
 This is pure NumPy post-processing and is safe without PETSc.
 
----
 
-## 11. Runtime Sequence
+## Runtime Sequence
 
 Typical mesh/solver caller interaction:
 
@@ -431,9 +421,8 @@ sequenceDiagram
   Flq-->>App: physical-space modes
 ```
 
----
 
-## 12. Implementation Contracts and Pitfalls
+## Implementation Contracts and Pitfalls
 
 | Contract | Detail |
 |----------|--------|
@@ -448,9 +437,8 @@ sequenceDiagram
 | **Dual config seams** | Prefer `config.typed.Config` for new code; keep `_solver_cfg` behavior aligned |
 | **Env name legacy** | Some cost env vars still use `LINSTAB2D_*` prefixes (`GPUS`, `HARDWARE_TAG`) alongside `LINSTABPY_*` elsewhere |
 
----
 
-## 13. Extension Guidelines
+## Extension Guidelines
 
 1. **New solver policy knobs**, Add family constants and `_scfg_*` readers in `_solver_cfg` first so eigen/resolvent/linsolve stay consistent; mirror into `config.typed` when promoting to the typed seam.
 2. **New PETSc helpers**, Keep lazy `_get_petsc()` at the top of each function; avoid module-level PETSc imports.
@@ -458,9 +446,8 @@ sequenceDiagram
 4. **New provenance probes**, Append to `_PROVENANCE_KEYS` and `collect_provenance` together; keep values strings; fail soft to `"unavailable"`.
 5. **Do not** put business orchestration, LNSE physics, or factorization strategy in this package, those belong to driver, operators, and `linalg`.
 
----
 
-## 14. Summary
+## Summary
 
 Shared Scientific Utilities is the **infrastructure substrate** of LinStabPy:
 

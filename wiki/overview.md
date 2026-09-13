@@ -9,7 +9,7 @@
 
 ---
 
-!!! info "Conventions used everywhere in this repo"
+!!! info "Conventions"
     The discrete perturbation state is $q' = [\rho', u', v', w', T']^T$ at each grid point. Assembly builds the [sparse](https://grokipedia.com/page/Sparse_matrix) matrix $L_0$ with $\partial_t q' = L_0 q'$ in the interior, then applies sponge, dissipation, and boundary conditions in that fixed order.
 
     Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
@@ -18,11 +18,10 @@
 
     [SBP](https://grokipedia.com/page/Summation_by_parts) orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), driven by [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](solver-glossary.md).
 
----
 
-## 1. Project introduction
+## Project introduction
 
-### 1.1 Project name and description
+### Project name and description
 
 **LinStabPy** is a Python toolkit for **linear stability** and **resolvent analysis** of [compressible](https://grokipedia.com/page/Compressible_flow) flows. It started as a Python port of LinStab2D style MATLAB workflows and now runs distributed on HPC through [MPI](https://grokipedia.com/page/Message_Passing_Interface), [PETSc](https://en.wikipedia.org/wiki/PETSc), and SLEPc.
 
@@ -35,7 +34,7 @@ A run starts from two inputs you supply. One is the **base flow**, a steady comp
 
 Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize once, solve many**. One sparse direct factorization of the shifted operator serves all [Krylov](https://grokipedia.com/page/Krylov_subspace) iterations and all $H$ and $H^H$ applies at that shift. The default backend is **MUMPS**. An optional **[cuDSS](https://docs.nvidia.com/cuda/cudss/)** path exists for GPU factors.
 
-### 1.2 What you get
+### What you get
 
 | Capability | What it gives you |
 |------------|-------------------|
@@ -47,7 +46,7 @@ Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize 
 
 In short, LinStabPy turns [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean flow dumps into stability spectra, resolvent gains, and sensitivity results for **[transition](http://www.scholarpedia.org/article/Transition_to_turbulence)** and **flow control** work.
 
-### 1.3 How it is built
+### How it is built
 
 * **Language and delivery.** Python CLI plus importable library. Plain `import linstabpy` stays light and does not initialize PETSc or MPI. The driver initializes them when a solve stage starts.
 * **Discretization.** Structured grids. SBP differences at even orders $2$ to $8$. Cartesian and cylindrical (axisymmetric) coefficient paths. Optional Mattsson style filters and artificial dissipation.
@@ -58,11 +57,10 @@ In short, LinStabPy turns [CFD](https://grokipedia.com/page/Computational_fluid_
 * **Local numerics and IO.** NumPy and SciPy for arrays and CSC and CSR assembly before PETSc conversion. Base flow from `npy` directories or `npz` archives. Cases from YAML.
 * **Architecture style.** Staged pipeline with a dedicated **solver router** for cost aware $\beta$ and frequency campaigns with anchors, factor reuse, and residual gates.
 
----
 
-## 2. Who uses it
+## Who uses it
 
-### 2.1 Roles
+### Roles
 
 ```mermaid
 flowchart LR
@@ -85,7 +83,7 @@ flowchart LR
 
 If you are a master student, start in the researcher row. You need the base flow idea, the $\omega$ convention above, and one example. MPI and Krylov details can wait until your first map campaign feels slow.
 
-### 2.2 Usage scenarios
+### Usage scenarios
 
 | Scenario | Who | What happens |
 |----------|-----|--------------|
@@ -96,7 +94,7 @@ If you are a master student, start in the researcher row. You need the base flow
 | **Base flow ingest and operator prep** | Engineers, developers | `npy` or `npz` dumps pass through sponge, shock cleanup, and viscosity setup, then mesh and SBP, then BC ready $L_0$. |
 | **Library embedding** | Developers | Import analysis functions without PETSc init on import, use typed config, SciPy and PETSc bridges, metrics and provenance. |
 
-### 2.3 What each role needs
+### What each role needs
 
 **Researchers need:**
 
@@ -119,11 +117,10 @@ If you are a master student, start in the researcher row. You need the base flow
 * SciPy and PETSc conversion helpers in one place
 * Provenance and metrics with stable key names
 
----
 
-## 3. System boundaries
+## System boundaries
 
-### 3.1 Scope
+### Scope
 
 **In scope** starts from **loaded mean flow and mesh geometry** and ends at **results, metrics, and payloads**.
 
@@ -172,7 +169,7 @@ flowchart TB
   DR --> RT
 ```
 
-### 3.2 Included components
+### Included components
 
 | Component | Role |
 |-----------|------|
@@ -189,7 +186,7 @@ flowchart TB
 **Internal modules.**
 Case Orchestration, Configuration Management, Baseflow Management, Mesh Discretization, LNSE Operator Assembly (including boundary conditions), Stability Analysis, Resolvent Analysis, Solver Routing and Sweep Optimization, Linear Algebra Infrastructure, Shared Scientific Utilities.
 
-### 3.3 Excluded components
+### Excluded components
 
 | Excluded | Why |
 |----------|-----|
@@ -199,11 +196,10 @@ Case Orchestration, Configuration Management, Baseflow Management, Mesh Discreti
 | General non-LNSE multiphysics | Single purpose toolkit |
 | Cloud deployment, auth, and tenancy | HPC CLI and library, not a hosted service |
 
----
 
-## 4. External pieces
+## External pieces
 
-### 4.1 List
+### List
 
 | External piece | Type | What it does here |
 |----------------|------|-------------------|
@@ -216,7 +212,7 @@ Case Orchestration, Configuration Management, Baseflow Management, Mesh Discreti
 | **Base flow file stores** | File input | Mean fields as `npy` directories or `npz` archives |
 | **YAML case config** | File input | Case, mesh, eigen, resolvent, and solver policy |
 
-### 4.2 How they connect
+### How they connect
 
 ```mermaid
 flowchart LR
@@ -262,7 +258,7 @@ flowchart LR
 * **cuDSS, optional.** GPU direct factor where selected by resource policy.
 * **SLEPc.** Eigenvalue and gain eigenproblems on PETSc objects.
 
-### 4.3 Which dependencies matter most
+### Which dependencies matter most
 
 | Dependency | Criticality | Notes |
 |------------|-------------|-------|
@@ -276,11 +272,10 @@ flowchart LR
 
 LinStabPy **consumes** CFD artifacts and HPC libraries. Edges are library linkage and file IO, not service APIs.
 
----
 
-## 5. System context
+## System context
 
-### 5.1 Context diagram
+### Context diagram
 
 ```mermaid
 graph TB
@@ -314,7 +309,7 @@ graph TB
   SLEPcLib -->|"uses PETSc objects"| PETScLib
 ```
 
-### 5.2 Main flows
+### Main flows
 
 #### Flow A. Temporal eigenvalue analysis
 
@@ -348,7 +343,7 @@ graph TB
 2. Assemble spatial block pair from prepared coefficients and mesh.
 3. Configure direct shift-invert backend. Run generalized SLEPc solve for streamwise wavenumber and growth.
 
-### 5.3 Decisions visible at this level
+### Decisions visible at this level
 
 | Decision | What it means | Consequence |
 |----------|---------------|-------------|
@@ -361,11 +356,10 @@ graph TB
 | **Structured SBP only** | Exclude unstructured and full 3D frameworks | Narrow, deep scope |
 | **Lazy library import** | Public API without PETSc init on import | Embeddable without forcing MPI at import time |
 
----
 
-## 6. Technical architecture
+## Technical architecture
 
-### 6.1 Stack
+### Stack
 
 | Layer | Choice |
 |-------|----------------|
@@ -380,7 +374,7 @@ graph TB
 | **Data in** | `npy` directories, `npz` archives, YAML |
 | **Data out** | Result payloads with eigenvalues and vectors, gains, modes, metrics, provenance |
 
-### 6.2 Patterns
+### Patterns
 
 | Pattern | Where it shows up |
 |---------|-------------------|
@@ -392,7 +386,7 @@ graph TB
 | **Declarative BC recipes** | Dirichlet and Neumann rules sequenced onto operators with free degree sets |
 | **Lazy facade API** | Public surface defers heavy runtime init |
 
-### 6.3 Key design choices
+### Key design choices
 
 1. **Single policy source.** Merged, validated YAML with env and defaults drives mesh, eigen, resolvent, MPI, and router behavior.
 2. **Single operator family.** Stability, adjoint, sensitivity, and resolvent consume BC enforced assembled operators, not ad hoc matrices per product.
@@ -401,7 +395,7 @@ graph TB
 5. **Strict boundary.** Nonlinear CFD, visualization, unstructured 3D, general multiphysics, and cloud tenancy stay out of scope.
 6. **Dual use.** CLI and driver for full cases, importable library for embedding. Both share the same pipeline without forcing PETSc on import.
 
-### 6.4 What connects most strongly inside
+### What connects most strongly inside
 
 At context level the software is one bubble. The strongest internal relations, which explain why PETSc and SLEPc and MUMPS matter, are:
 
@@ -412,9 +406,8 @@ At context level the software is one bubble. The strongest internal relations, w
 
 Package detail lives in Architecture and the Module guide.
 
----
 
-## 7. Summary
+## Summary
 
 **LinStabPy** is an HPC Python **CLI and library** for **compressible LNSE stability and resolvent analysis** on **structured SBP grids**. It starts from **base flow files** and **YAML cases** and delivers **spectra, modes, gains, sensitivity, metrics, and provenance**. It excludes CFD generation, GUIs, and cloud service layers.
 

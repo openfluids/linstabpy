@@ -4,9 +4,8 @@ Short, exact definitions of the physics and math vocabulary used across this wik
 
 Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ per grid point; the assembled operator satisfies $\partial_t q' = L_0 q'$ in the interior; temporal eigenvalues are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence.
 
----
 
-## 1. Stability vocabulary
+## Stability vocabulary
 
 **Base flow.** A steady solution $\bar q(x, y)$ of the compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) equations, loaded from files and never computed here. Starting point of every analysis. Nondimensional, convective scaling: freestream density, velocity, and temperature equal 1. See [baseflow management](modules/baseflow-management.md).
 
@@ -26,9 +25,8 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Boundary layer.** The thin region near a solid wall where viscosity brings the flow from freestream speed to rest at the wall. Blasius flow, the base flow of example 1, is the flat-plate similarity solution of the [boundary-layer](https://grokipedia.com/page/Boundary_layer) equations. Background: [Scholarpedia: Boundary Layer Theory](http://www.scholarpedia.org/article/Boundary_Layer_Theory).
 
----
 
-## 2. Resolvent vocabulary
+## Resolvent vocabulary
 
 **Modal vs non-modal.** Modal stability asks about $t \to \infty$: do all eigenvalues sit on the stable side. Non-modal stability asks about finite time: how far can a perturbation wander before (possibly) decaying. For normal operators the answers agree; for non-normal ones they can differ wildly, and the finite-time answer is an optimization problem, not an eigenvalue. See Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, *Appl. Mech. Rev.* 75(3), 030802, modal and non-modal stability.
 
@@ -50,9 +48,8 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Receptivity.** The sensitivity of the flow to external disturbances: incoming noise, roughness, turbulence. Resolvent gains and [adjoint](https://grokipedia.com/page/Adjoint) modes quantify it. High gain at some $(\beta, \omega)$ means the environment can drive a large response there even when every eigenvalue is stable. Downstream of receptivity lies [transition to turbulence](http://www.scholarpedia.org/article/Transition_to_turbulence).
 
----
 
-## 3. Energy and adjoint vocabulary
+## Energy and adjoint vocabulary
 
 **Chu energy norm.** The compressible disturbance-energy inner product. Diagonal in our discretization: $W = \tfrac{1}{2}\,\mathrm{diag}(W_\rho, W_u, W_v, W_w, W_T)$ built from quadrature weights, base density and temperature, $\kappa$, and Mach number (times radius in axisymmetric mode). Defines "large" for gains, mode normalization, and adjoints. A zero diagonal entry is a hard error at shell construction, not a warning.
 
@@ -60,9 +57,8 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Structural sensitivity (wavemaker).** The pointwise product of direct and adjoint mode magnitudes (Giannetti-Luchini). Marks where a localized structural tweak moves the eigenvalue most: the wavemaker region. The control-oriented output of running direct plus adjoint analysis together.
 
----
 
-## 4. Numerics vocabulary
+## Numerics vocabulary
 
 **SBP operator.** A [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) [finite-difference](https://grokipedia.com/page/Finite_difference_method) matrix: discrete derivative plus diagonal norm satisfying a discrete analogue of integration by parts, which bounds the discrete energy. Even interior orders 2, 4, 6, 8 only, each with validated boundary closures. Order 4 is the usual start.
 
@@ -84,9 +80,8 @@ How to set it: keep the path default unless diagnostics complain. The driver and
 
 **Matrix dual path.** Operators assemble locally in SciPy CSC (from CSR blocks) and convert to PETSc AIJ for distributed solves, or assemble AIJ directly where supported. Layouts, backends, and the conversion bridge are defined in the [solver glossary](solver-glossary.md).
 
----
 
-## 5. Workflow vocabulary
+## Workflow vocabulary
 
 **Shift target ($\sigma$).** The complex $\omega$-space point the eigensolver searches around. Lives in the YAML solver block, set explicitly on the spectral transformation. Near a branch it isolates modes cleanly; on a crowded real axis it returns mixtures. Moving slightly off-axis is a numerical search choice, not a physics change. Solver mechanics live in the [solver glossary](solver-glossary.md).
 
@@ -94,7 +89,7 @@ How to set it: keep the path default unless diagnostics complain. The driver and
 
 **Provenance.** The reproducibility record attached to every result: config hash, git SHA, backend and precision, mesh and norm settings. Stored inside the NPZ beside the numbers so a figure always traces back to the run that produced it.
 
-## 6. Beyond linear scope
+## Beyond linear scope
 
 Linear analysis predicts onset. What happens after onset is nonlinear and outside this repo, but two landmarks orient the map.
 

@@ -1,13 +1,13 @@
 # Baseflow management
 
-!!! info "What this package owns, in one paragraph"
-    The base flow is the steady [compressible](https://grokipedia.com/page/Compressible_flow) solution you linearize about. This package loads it from `npy` or `npz` files, cleans it up ([sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), shock treatment, viscosity from Sutherland), and hands mesh aligned `(ny, nx)` arrays to assembly. Fields are nondimensional primitives with freestream density, velocity, and temperature equal to 1. If spectra look wrong, start here: a misaligned or uncleaned base flow propagates directly into every [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and [gain](../core-concepts.md).
-    New to [PETSc](https://en.wikipedia.org/wiki/PETSc) or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+The base flow is the steady [compressible](https://grokipedia.com/page/Compressible_flow) solution you linearize about. This package loads it from `npy` or `npz` files, cleans it up ([sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), shock treatment, viscosity from Sutherland), and hands mesh aligned `(ny, nx)` arrays to assembly. Fields are nondimensional primitives with freestream density, velocity, and temperature equal to 1. If spectra look wrong, start here: a misaligned or uncleaned base flow propagates directly into every [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and [gain](../core-concepts.md).
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
-**Baseflow Management** is a core business domain in LinStabPy. It turns on-disk [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into a mesh-aligned `BaseFlow` object that LNSE coefficient generation and operator assembly can consume.
+**Baseflow management** turns on-disk [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into a mesh-aligned `BaseFlow` object that LNSE coefficient generation and operator assembly can consume.
 
 The domain owns:
 
@@ -36,9 +36,8 @@ It does **not** generate nonlinear CFD baseflows. Scope starts at loaded mean-fl
 
 `BaseFlow` is also exposed on the top-level lazy public API (`import linstabpy` → `BaseFlow`) without initializing PETSc/[MPI](https://grokipedia.com/page/Message_Passing_Interface).
 
----
 
-## 2. Role in the System Pipeline
+## Role in the System Pipeline
 
 Baseflow Management is stage 3 of the staged scientific pipeline:
 
@@ -64,9 +63,8 @@ flowchart TD
   K --> L[BaseFlow ready for LNSE]
 ```
 
----
 
-## 3. Package Layout
+## Package Layout
 
 ```text
 src/linstabpy/baseflow/
@@ -85,11 +83,10 @@ src/linstabpy/baseflow/
 | **Grid Field I/O** | Rectilinear primitive load, stride/transpose, case assembly |
 | **Preprocess and Transport** | Shock cleanup, sponge helpers, viscosity fill |
 
----
 
-## 4. BaseFlow Data Model
+## BaseFlow Data Model
 
-### 4.1 Contract
+### Contract
 
 `BaseFlow` (`baseflow.py`) is a plain `@dataclass` over NumPy arrays. All flow fields use shape **`(ny, nx)`**, matching the computational mesh.
 
@@ -121,17 +118,16 @@ class BaseFlow:
     c2: float | None = None
 ```
 
-### 4.2 Design notes
+### Design notes
 
 - Fields are **mutated in place** by loaders and `sutherland_air`; the object is a runtime carrier, not an immutable value object.
 - Viscosity is intentionally deferred so cases can load geometry/primitives first, then fill transport once temperature and `T_0` are final.
 - State vector convention for LNSE is `q = [ρ, u, v, w, T]`, aligned with these primitive names.
 
----
 
-## 5. Grid Field I/O
+## Grid Field I/O
 
-### 5.1 Required field set
+### Required field set
 
 `grid_fields.FIELD_NAMES`:
 
@@ -141,7 +137,7 @@ class BaseFlow:
 
 Every field must be present and **exactly 2-D**. Values are coerced to `float` via `_as_field`.
 
-### 5.2 `read_grid_fields(source)`
+### `read_grid_fields(source)`
 
 Loads a dictionary of the eight fields from either:
 
@@ -150,7 +146,7 @@ Loads a dictionary of the eight fields from either:
 
 Non-`.npz` files and missing directories raise clear path errors.
 
-### 5.3 `load_case_fields(...)`
+### `load_case_fields(...)`
 
 Primary case entry. Builds coordinates, a `BaseFlow`, the sponge array, and a preprocess report.
 
@@ -185,11 +181,11 @@ Primary case entry. Builds coordinates, a `BaseFlow`, the sponge array, and a pr
 
 where `info` is the preprocess diagnostic dictionary.
 
-### 5.4 `load_grid_fields(...)`
+### `load_grid_fields(...)`
 
 Thin wrapper around `load_case_fields` that drops `info` and does not pass a preprocess config (preprocess remains disabled). Returns `(X, Y, baseflow, sponge)`.
 
-### 5.5 Indexing convention
+### Indexing convention
 
 After optional transpose, arrays are `(ny, nx)`:
 
@@ -198,11 +194,10 @@ After optional transpose, arrays are `(ny, nx)`:
 
 This matches structured-mesh conventions used by mesh/SBP construction.
 
----
 
-## 6. Preprocess Pipeline
+## Preprocess Pipeline
 
-### 6.1 Entry point
+### Entry point
 
 `apply_preprocess(X, Y, rho, u, v, w, T, sponge, preprocess_cfg)` applies optional operations and returns the same arrays plus an `info` report.
 
@@ -217,7 +212,7 @@ When enabled, stages run in this order:
 
 Coordinates `X` and `Y` are currently passed through unchanged (reserved for future geometry-aware steps).
 
-### 6.2 Boundary sponge (preprocess-local)
+### Boundary sponge (preprocess-local)
 
 `_generate_boundary_sponge` builds quadratic ramps on edges ordered **`[top, right, bottom, left]`**:
 
@@ -234,7 +229,7 @@ Modes relative to the existing sponge field:
 
 Config keys: `points` (ints), `amplitudes` (floats), both length-4 lists.
 
-### 6.3 Explicit binomial filter
+### Explicit binomial filter
 
 - Kernel: 5-point binomial `[1,4,6,4,1]/16` with edge padding
 - Directions: `"x"` → axis 1, `"y"` → axis 0
@@ -242,7 +237,7 @@ Config keys: `points` (ints), `amplitudes` (floats), both length-4 lists.
 - Optional wall-normal window via `eta_min_index` / `eta_max_index` (slice on first index)
 - Multiple passes; relative L2 change recorded per field in `info`
 
-### 6.4 Preprocess `info` contract
+### Preprocess `info` contract
 
 Typical keys:
 
@@ -251,13 +246,12 @@ Typical keys:
 - `sponge`: scale, boundary details, final `max`
 - `shock`: nested diagnostics when shock cleanup ran
 
----
 
-## 7. Shock Cleanup
+## Shock Cleanup
 
 Module: `shock_cleanup.py`. Fully **opt-in** so default Case 1 / Case 2 workflows stay untouched.
 
-### 7.1 Configuration merge
+### Configuration merge
 
 `_normalize_cfg` deep-merges user config onto defaults:
 
@@ -288,7 +282,7 @@ _DEFAULT_CFG = {
 }
 ```
 
-### 7.2 Shock sensors
+### Shock sensors
 
 Physical derivatives use computational gradients of `X,Y` and the field, with a safeguarded Jacobian.
 
@@ -303,7 +297,7 @@ Post-processing:
 - `buffer_cells`: binary dilation of the mask
 - `blend_sigma`: Gaussian blend → `preserve_weight` in `[0,1]` (buffered cells forced to 1)
 
-### 7.3 Masked filtering
+### Masked filtering
 
 `_apply_masked_filter` blends original and binomial-smoothed values:
 
@@ -313,11 +307,11 @@ filtered = preserve_weight * original + (1 - preserve_weight) * candidate
 
 Shock-adjacent cells are preserved; smooth regions are cleaned. Valid fields: `rho, u, v, w, T`.
 
-### 7.4 Shock-local sponge
+### Shock-local sponge
 
 Optional amplitude field supported on the buffered mask (optional Gaussian smooth), combined with the existing sponge via `add` or `max`.
 
-### 7.5 Guardrails
+### Guardrails
 
 If filter or shock-sponge is enabled while `sensor.enabled` is false, cleanup raises:
 
@@ -327,13 +321,12 @@ shock_cleanup.sensor.enabled must be true when filter or sponge cleanup is enabl
 
 `apply_optional_shock_cleanup` always returns copies when enabled paths run, plus diagnostics (`mask_fraction`, L2 changes, sponge max, etc.).
 
----
 
-## 8. Structured Sponge Generation
+## Structured Sponge Generation
 
 Module: `sponge.py`. Complements preprocess boundary ramps with full mesh-aware generators used when building or overriding sponge layers from YAML.
 
-### 8.1 Edge ordering
+### Edge ordering
 
 ```text
 EDGE_NAMES = ("top", "right", "bottom", "left")
@@ -343,7 +336,7 @@ Direction vectors (`pts_dir`, `amp_dir`, `width_dir`, `width_frac_dir`) always u
 
 > **Implementation note:** Comments in `sponge.py` document that for index-based generators (`constant` / `parabolic` / `localized`), top/bottom act on the **second** array axis and right/left on the **first**. Smooth generators use physical arc-length distance fields derived from `X` and `Y` instead of pure index strips.
 
-### 8.2 Presets (`SPONGE_PRESETS`)
+### Presets (`SPONGE_PRESETS`)
 
 | Preset | Type | Typical use |
 |--------|------|-------------|
@@ -351,7 +344,7 @@ Direction vectors (`pts_dir`, `amp_dir`, `width_dir`, `width_frac_dir`) always u
 | `localized_resolvent` | `localized` | Resolvent absorbing layers |
 | `smooth_soft` / `smooth_medium` / `smooth_quarter` / `smooth_half` / `smooth_unit` / `smooth_double` | `smooth_localized` | Fraction-width smooth ramps with increasing amplitude |
 
-### 8.3 `generate_sponge`
+### `generate_sponge`
 
 Supported `sponge_type` values:
 
@@ -367,7 +360,7 @@ Smooth types **require** `X` and `Y`. Widths may combine absolute `width_dir` wi
 
 Smooth profiles: `smoothstep`, `smootherstep` (default), `cosine`, `tanh` (uses `steepness`). Optional `power` exponent on the ramp.
 
-### 8.4 `sponge_from_config`
+### `sponge_from_config`
 
 ```text
 if not cfg or not enabled → zeros(shape)
@@ -376,15 +369,14 @@ else merge preset (if any) with explicit keys → generate_sponge
 
 Unknown presets raise `ValueError` listing allowed keys.
 
-### 8.5 `load_sponge_aux`
+### `load_sponge_aux`
 
 Optional MATLAB compatibility path: reads `sponge_aux` from an HDF5 `.mat` via `h5py` (optional dependency). Must be 2-D.
 
----
 
-## 9. Viscosity and Transport Coefficients
+## Viscosity and Transport Coefficients
 
-### 9.1 `sutherland_air(bf)`
+### `sutherland_air(bf)`
 
 Port of LinStab2D `sutherland_air.m`. Mutates `bf` in place using NumPy only (no PETSc).
 
@@ -416,13 +408,12 @@ Viscosity and first two temperature derivatives are computed dimensionally, then
 
 where \(\mu_0\) is Sutherland viscosity evaluated at reference \(T_0\).
 
-### 9.2 Downstream use
+### Downstream use
 
 LNSE coefficient generation needs `MU`, `dmudT`, and often `d2mudT2` for viscous linearization of compressible [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations). Call `sutherland_air` after preprocess and before coefficient assembly.
 
----
 
-## 10. Interaction Sequence
+## Interaction Sequence
 
 ```mermaid
 sequenceDiagram
@@ -450,18 +441,18 @@ sequenceDiagram
   BF-->>Consumer: mesh-aligned baseflow for LNSE
 ```
 
-### 10.1 Upstream consumers
+### Upstream consumers
 
 - **Case Orchestration** (`driver`): loads case fields after config validation; records preprocess info in metrics/provenance.
 - **Library API users**: construct `BaseFlow` manually or via loaders without PETSc init.
 
-### 10.2 Downstream consumers
+### Downstream consumers
 
 - **Mesh Discretization**: uses returned `X,Y` (and shape) for geometry/SBP.
 - **LNSE Operator Assembly**: reads primitives, viscosity, and sponge; assembly order applies sponge after `inv(B)` scaling and before dissipation/BCs.
 - **Stability / Resolvent / Router**: inherit prepared mean flow through assembled operators.
 
-### 10.3 Domain relations (strength)
+### Domain relations (strength)
 
 | Relation | Type | Strength |
 |----------|------|----------|
@@ -469,9 +460,8 @@ sequenceDiagram
 | LNSE Assembly → Baseflow | Data dependency | High (~9.5) |
 | Baseflow → Mesh | Data dependency (shape/geometry alignment) | Medium–High |
 
----
 
-## 11. Configuration Patterns
+## Configuration Patterns
 
 Illustrative YAML fragments (keys as consumed by the baseflow modules):
 
@@ -529,11 +519,10 @@ sponge:
 
 Loader options such as `stride_ksi`, `stride_eta`, `transpose_input`, and `zero_spanwise` are typically wired from mesh/case sections by the driver.
 
----
 
-## 12. Practical Usage
+## Practical Usage
 
-### 12.1 Standard case load
+### Standard case load
 
 ```python
 from linstabpy.baseflow import load_case_fields, sutherland_air
@@ -553,7 +542,7 @@ sutherland_air(bf)
 # bf.MU, bf.dmudT, bf.d2mudT2, bf.cv, bf.c1, bf.c2 now populated
 ```
 
-### 12.2 Manual BaseFlow + sponge preset
+### Manual BaseFlow + sponge preset
 
 ```python
 import numpy as np
@@ -571,13 +560,12 @@ sponge = sponge_from_config(
 sutherland_air(bf)
 ```
 
-### 12.3 Library embedding without PETSc
+### Library embedding without PETSc
 
 `from linstabpy.baseflow import BaseFlow, load_grid_fields, sutherland_air` does not initialize PETSc/MPI. This supports operator-prep debugging and embedding in larger pipelines before any eigen/resolvent solve.
 
----
 
-## 13. Validation, Errors, and Diagnostics
+## Validation, Errors, and Diagnostics
 
 | Check | Failure mode |
 |-------|----------------|
@@ -593,9 +581,8 @@ sutherland_air(bf)
 
 Diagnostics are first-class: preprocess and shock cleanup return structured `info` dictionaries suitable for metrics/provenance logging (mask fractions, relative L2 changes, sponge maxima, applied stage tags).
 
----
 
-## 14. Implementation Characteristics
+## Implementation Characteristics
 
 | Aspect | Detail |
 |--------|--------|
@@ -605,9 +592,8 @@ Diagnostics are first-class: preprocess and shock cleanup return structured `inf
 | MATLAB heritage | Viscosity law and field packing align with LinStab2D workflows |
 | Safety default | Shock cleanup and most preprocess stages default **off** |
 
----
 
-## 15. Extension Points
+## Extension Points
 
 1. **Additional viscosity laws**, parallel to `sutherland_air`, mutating the same optional fields.
 2. **New sponge profiles/presets**, extend `_smooth_profile` or `SPONGE_PRESETS`.
@@ -615,17 +601,16 @@ Diagnostics are first-class: preprocess and shock cleanup return structured `inf
 4. **Geometry-aware preprocess**, `X,Y` already thread through `apply_preprocess` for future deformation-aware cleanup.
 5. **Richer I/O**, `read_grid_fields` is the single choke point for new archive layouts.
 
----
 
-## 16. Summary
+## Summary
 
 Baseflow Management is the **mean-flow readiness layer** of LinStabPy. It enforces a strict `(ny,nx)` primitive contract, loads CFD dumps from `npy`/`npz`, optionally cleans shocks and builds absorbing layers, and fills Sutherland transport coefficients required by compressible LNSE linearization. The module is deliberately free of PETSc/SLEPc concerns so it can run as a lightweight library stage or as the shared foundation of every stability and resolvent workflow.
 
 **Key files for implementers:**
 
-- `baseflow.py`, state contract  
-- `grid_fields.py`, I/O and case assembly  
-- `preprocess.py`, orchestrated cleanup  
-- `shock_cleanup.py`, opt-in shock treatment  
-- `sponge.py`, absorbing-layer generation  
+- `baseflow.py`, state contract
+- `grid_fields.py`, I/O and case assembly
+- `preprocess.py`, orchestrated cleanup
+- `shock_cleanup.py`, opt-in shock treatment
+- `sponge.py`, absorbing-layer generation
 - `viscosity.py`, air transport fill

@@ -1,13 +1,13 @@
 # Case orchestration
 
-!!! info "What this package owns, in one paragraph"
-    The driver in `driver/run.py` defines what a case means: init [MPI](https://grokipedia.com/page/Message_Passing_Interface) and [PETSc](https://en.wikipedia.org/wiki/PETSc) in the right order, merge and validate config, load fields, build mesh, assemble $L_0$, factorize, solve, postcheck, and write the `npz` payload with metrics and provenance. Library users can bypass it and call domain functions directly, but the stage order here is the reference. Heavy work starts only on solve paths. Plain imports stay light.
-    New to PETSc or [SLEPc](https://en.wikipedia.org/wiki/SLEPc) vocabulary? The [solver glossary](../solver-glossary.md) defines every object named on this page.
+The driver in `driver/run.py` defines what a case means: init [MPI](https://grokipedia.com/page/Message_Passing_Interface) and [PETSc](https://en.wikipedia.org/wiki/PETSc) in the right order, merge and validate config, load fields, build mesh, assemble $L_0$, factorize, solve, postcheck, and write the `npz` payload with metrics and provenance. Library users can bypass it and call domain functions directly, but the stage order here is the reference. Heavy work starts only on solve paths. Plain imports stay light.
+
+Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
 
-## 1. Overview
+## Overview
 
-**Case Orchestration** is the core business domain that owns end-to-end LNSE case execution in LinStabPy. It is the single operational hub that turns a YAML case policy and [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into stability spectra, [resolvent](https://grokipedia.com/page/Resolvent_formalism) [gains](../core-concepts.md), metrics, and provenance artifacts on MPI-enabled HPC.
+**Case orchestration** is the end-to-end LNSE case pipeline. It turns a YAML case policy and [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps into stability spectra, [resolvent](https://grokipedia.com/page/Resolvent_formalism) [gains](../core-concepts.md), metrics, and provenance artifacts on MPI-enabled HPC.
 
 The domain does **not** implement physics discretization or eigen/resolvent numerics itself. It:
 
@@ -20,15 +20,13 @@ The domain does **not** implement physics discretization or eigen/resolvent nume
 
 | Attribute | Value |
 |-----------|--------|
-| **Domain type** | Core Business Domain |
 | **Primary package** | `src/linstabpy/driver/` |
 | **Public package surface** | `src/linstabpy/__init__.py` |
 | **Runtime hub** | `driver/run.py` (`run()`) |
 | **CLI entry** | `driver/cli.py` (`main`) |
 
----
 
-## 2. Module Structure
+## Module Structure
 
 ```
 src/linstabpy/
@@ -42,7 +40,7 @@ src/linstabpy/
     └── io.py                   # Rank-aware NPZ + metrics.json I/O
 ```
 
-### 2.1 Sub-modules
+### Sub-modules
 
 | Sub-module | Paths | Role |
 |------------|-------|------|
@@ -50,11 +48,10 @@ src/linstabpy/
 | **CLI and I/O Payload** | `cli.py`, `io.py`, `payload.py` | Argparse entry, cache invalidation, NPZ contract assembly, root-rank metrics sidecar |
 | **Package Public API** | `linstabpy/__init__.py` | Lazy export of library symbols without starting PETSc/MPI |
 
----
 
-## 3. Design Principles
+## Design Principles
 
-### 3.1 Lazy loading and deferred PETSc/MPI
+### Lazy loading and deferred PETSc/MPI
 
 A plain `import linstabpy` **must not** initialize PETSc or MPI. This keeps `--help` / `--version`, unit tests, and library embedding lightweight.
 
@@ -63,7 +60,7 @@ A plain `import linstabpy` **must not** initialize PETSc or MPI. This keeps `--h
 - `cli.main` imports `linstabpy.driver.run` **only after** handling `--version`.
 - `driver/run.py` calls `init_petsc_from_argv()` at module import time, then imports `mpi4py` / `petsc4py`. Importing `run` is therefore the intentional PETSc/MPI boundary.
 
-### 3.2 Staged scientific pipeline
+### Staged scientific pipeline
 
 The driver is a **staged pipeline**, not a service mesh:
 
@@ -73,11 +70,11 @@ config → baseflow → mesh/SBP → L0 + BCs → Chu norm → resolvent / stabi
 
 Each expensive stage records wall time and RSS delta, and long stages emit periodic heartbeats so multi-hour HPC jobs remain observable.
 
-### 3.3 Advisories never block
+### Advisories never block
 
 `preflight.py` catches semantic traps that schema validation cannot see (legal keys that jointly produce meaningless results). Advisories are logged and the run continues. Only pre-existing hard errors (schema, solver failures, invalid `reduce_dirichlet_set`, root-assembly + resolvent conflict) abort.
 
-### 3.4 Reproducibility contracts
+### Reproducibility contracts
 
 - Config SHA-256 hash (sorted-key JSON)
 - Git SHA in provenance and default output filenames
@@ -85,11 +82,10 @@ Each expensive stage records wall time and RSS delta, and long stages emit perio
 - Metrics schema groups: provenance, problem, cost, quality
 - CLI cache check: reuse NPZ when config hash and git SHA still match
 
----
 
-## 4. Runtime Flow
+## Runtime Flow
 
-### 4.1 End-to-end flowchart
+### End-to-end flowchart
 
 ```mermaid
 flowchart TD
@@ -114,7 +110,7 @@ flowchart TD
   Q --> R[Barrier and finish]
 ```
 
-### 4.2 Sequence (CLI → payload)
+### Sequence (CLI → payload)
 
 ```mermaid
 sequenceDiagram
@@ -145,11 +141,10 @@ sequenceDiagram
   end
 ```
 
----
 
-## 5. Component Implementation
+## Component Implementation
 
-### 5.1 Package Public API (`linstabpy/__init__.py`)
+### Package Public API (`linstabpy/__init__.py`)
 
 **Purpose:** Import-safe library surface for embedding LNSE workflows without a full case driver.
 
@@ -178,9 +173,8 @@ import linstabpy  # no PETSc/MPI
 omega, modes = linstabpy.temporal_eigenvalues(...)
 ```
 
----
 
-### 5.2 CLI (`driver/cli.py`)
+### CLI (`driver/cli.py`)
 
 **Entry:** `python -m linstabpy.driver.cli` or `main(argv)`.
 
@@ -202,9 +196,8 @@ Config path resolution for the cache check uses the same env cascade as the driv
 
 `LINSTABPY_CASE_CONFIG` → `LINSTABPY_CASE2_CONFIG` → `LINSTABPY_CASE1_CONFIG`.
 
----
 
-### 5.3 Runtime Pipeline Driver (`driver/run.py`)
+### Runtime Pipeline Driver (`driver/run.py`)
 
 `run.py` is the service hub (~1.8k lines). Importing it:
 
@@ -212,7 +205,7 @@ Config path resolution for the cache check uses the same env cascade as the driv
 2. Imports `mpi4py.MPI` and `petsc4py.PETSc`
 3. Pulls domain services (baseflow, mesh, assembly, stability, resolvent, router helpers)
 
-#### 5.3.1 Environment and path helpers
+#### Environment and path helpers
 
 | Helper | Responsibility |
 |--------|----------------|
@@ -236,7 +229,7 @@ Config path resolution for the cache check uses the same env cascade as the driv
 | `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | Heartbeat interval (float seconds) |
 | `LINSTABPY_CASE_ROOT_ASSEMBLY` | Root-only operator assembly for iterative eigen (stability-only) |
 
-#### 5.3.2 Stage functions (internal)
+#### Stage functions (internal)
 
 | Stage | Function | Downstream domains |
 |-------|----------|--------------------|
@@ -251,7 +244,7 @@ Config path resolution for the cache check uses the same env cascade as the driv
 
 Frozen dataclasses (`_AssemblyStageResult`, `_ResolventStageResult`, `_StabilityStageResult`, …) keep stage boundaries explicit and return shape-stable empty arrays when a stage is disabled.
 
-#### 5.3.3 `run()` pipeline body
+#### `run()` pipeline body
 
 1. **Config resolution**, load YAML, provenance, typed `Config`, analysis flags (`run_stability`, `run_resolvent`), dissipation effective epsilons per stage, sponge policy, alpha filter, solver backend provenance.
 2. **Banner + preflight** (rank 0), `format_banner` of **effective** values; `config_advisories`.
@@ -265,7 +258,7 @@ Frozen dataclasses (`_AssemblyStageResult`, `_ResolventStageResult`, `_Stability
 10. **Acceptance + summary**, residual gates, conjugate-pair completeness, `result_advisories`, `format_summary`.
 11. **Emit**, `build_runtime_payload` → `save_results` → barrier.
 
-#### 5.3.4 Operator and numerics policies owned by the driver
+#### Operator and numerics policies owned by the driver
 
 - **Alpha filter** is an operator-level property. Earlier code silently forced `"none"` on EVP-only runs; that produced pixel-scale sawtooth [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors). The driver now honors the configured value for every stage.
 - **Dissipation** uses nested `numerics.operator_dissipation` with per-stage `apply_to_stability` / `apply_to_resolvent`. Effective epsilons:
@@ -274,20 +267,19 @@ Frozen dataclasses (`_AssemblyStageResult`, `_ResolventStageResult`, `_Stability
 - **Root assembly** is allowed only with iterative eigen ST solvers and **must not** combine with resolvent under MPI (`RuntimeError` if both requested).
 - **Stability convention:** default MATLAB parity uses `omega = eig(i * L0)`; `analysis.use_raw_eigs` is diagnostic-only.
 
-#### 5.3.5 Distributed helpers
+#### Distributed helpers
 
 - `_build_distributed_vec_from_global_array`, ownership-aware PETSc Vec fill
 - `_restrict_operator_for_stability` / `_expand_reduced_modes`, free-DOF reduction for Dirichlet-constrained EVPs (SciPy CSC or PETSc submatrix)
 - `_postcheck_stability_modes`, residual split (interior vs BC), Dirichlet leak stats, target distance
 
----
 
-### 5.4 Preflight Advisories (`driver/preflight.py`)
+### Preflight Advisories (`driver/preflight.py`)
 
 **Design rules (from module docstring):**
 
-1. Advisories never block long jobs  
-2. Pure functions over plain data (no PETSc, no I/O)  
+1. Advisories never block long jobs
+2. Pure functions over plain data (no PETSc, no I/O)
 3. Every advisory carries a greppable `code` and a concrete `remedy`
 
 #### `Advisory` dataclass
@@ -314,9 +306,8 @@ render() -> str    # "[WARNING] CODE: message\n -> remedy"
 
 **Formatting helpers:** `format_advisories`, `format_banner` (effective configuration), `format_summary` (closing verdict block for the log).
 
----
 
-### 5.5 Payload Contract (`driver/payload.py`)
+### Payload Contract (`driver/payload.py`)
 
 `RUNTIME_NPZ_CONTRACT_KEYS` is the stable key list for runtime archives. Groups merged by `build_runtime_payload`:
 
@@ -331,9 +322,8 @@ render() -> str    # "[WARNING] CODE: message\n -> remedy"
 
 `save_results` later injects **cost** and full **provenance** keys from shared utilities.
 
----
 
-### 5.6 I/O (`driver/io.py`)
+### I/O (`driver/io.py`)
 
 | Function | Behavior |
 |----------|----------|
@@ -346,9 +336,8 @@ render() -> str    # "[WARNING] CODE: message\n -> remedy"
 
 Metrics validation uses `linstabpy.metrics_schema.METRICS_SIDECAR_KEYS` / `validate_metrics`. Schema errors are logged and attached as `schema_errors` rather than aborting the write.
 
----
 
-## 6. Domain Interactions
+## Domain Interactions
 
 ```mermaid
 flowchart LR
@@ -390,18 +379,17 @@ flowchart LR
 
 Orchestration is the **entry step** in the primary business flows:
 
-- Temporal Eigenvalue Stability Analysis  
-- Resolvent Gain Analysis  
-- Beta–Frequency Resolvent [Gain Map](../core-concepts.md)  
+- Temporal Eigenvalue Stability Analysis
+- Resolvent Gain Analysis
+- Beta–Frequency Resolvent [Gain Map](../core-concepts.md)
 - Baseflow Ingest and Operator Prep  
 
 Spatial eigenproblems are available primarily through the library/stability APIs; the shared case driver focuses on temporal stability + resolvent (+ map helpers).
 
----
 
-## 7. Data Contracts and Artifacts
+## Data Contracts and Artifacts
 
-### 7.1 Inputs
+### Inputs
 
 | Input | Source |
 |-------|--------|
@@ -409,7 +397,7 @@ Spatial eigenproblems are available primarily through the library/stability APIs
 | Mean flow | npy directory / npz (and optional MATLAB sponge aux) |
 | MPI/PETSc options | Process argv sanitized by `init_petsc_from_argv` |
 
-### 7.2 Outputs
+### Outputs
 
 | Artifact | Content |
 |----------|---------|
@@ -417,20 +405,19 @@ Spatial eigenproblems are available primarily through the library/stability APIs
 | `*.metrics.json` | Flat JSON sidecar: provenance, problem, cost, quality (schema-validated on rank 0) |
 | stdout logs | Prefixed stage lines, heartbeats, banner, preflight/post-run advisories |
 
-### 7.3 Metrics schema (sidecar)
+### Metrics schema (sidecar)
 
 Groups in `metrics_schema.SCHEMA`:
 
-- **provenance**, git SHA, config MD5, hostname, stack versions, MPI/[BLAS](https://en.wikipedia.org/wiki/BLAS) tags  
-- **problem**, case, FD order, strides, nx/ny/ndof/nnz, beta, targets, factor backend  
-- **cost**, wall times (total/assemble/factor/solve), peak RSS/GPU mem, ranks, PETSc options  
+- **provenance**, git SHA, config MD5, hostname, stack versions, MPI/[BLAS](https://en.wikipedia.org/wiki/BLAS) tags
+- **problem**, case, FD order, strides, nx/ny/ndof/nnz, beta, targets, factor backend
+- **cost**, wall times (total/assemble/factor/solve), peak RSS/GPU mem, ranks, PETSc options
 - **quality**, optional residuals, acceptance counts, gains, reject codes  
 
 Units: wall time in seconds; memory in bytes. No run date is written.
 
----
 
-## 8. Logging, Observability, and HPC Behavior
+## Logging, Observability, and HPC Behavior
 
 - **Rank-0 logging** only for human-readable progress (`[_log_prefix()] …`).
 - **Stage lines:**  
@@ -441,9 +428,8 @@ Units: wall time in seconds; memory in bytes. No run date is written.
 - **Final barrier** after save so ranks exit together.
 - **Cache** avoids recomputing identical config+code on cluster resubmits unless forced.
 
----
 
-## 9. Error Handling and Trust Model
+## Error Handling and Trust Model
 
 | Class | Mechanism |
 |-------|-----------|
@@ -455,9 +441,8 @@ Units: wall time in seconds; memory in bytes. No run date is written.
 
 The orchestration layer's product is not only numbers, but **auditable numbers**: effective dissipation, backend provenance, acceptance indices, and greppable advisory codes.
 
----
 
-## 10. Extension and Maintenance Notes
+## Extension and Maintenance Notes
 
 1. **Keep PETSc off the import path** for package and CLI help/version. Any new public symbol should go through `_LAZY_EXPORTS` or an explicit runtime import.
 2. **New analysis stages** should follow the existing pattern: frozen result dataclass, `_stage_*` function, heartbeat + `_log_stage`, empty defaults when disabled, payload group keys added to `RUNTIME_NPZ_CONTRACT_KEYS` and metrics schema as needed.
@@ -466,18 +451,17 @@ The orchestration layer's product is not only numbers, but **auditable numbers**
 5. **Do not reintroduce stage-dependent alpha-filter overrides**; the filter is part of the discrete operator identity.
 6. **Root-assembly + resolvent** remains unsupported; document any future dual-path carefully for MPI collectives and matrix ownership.
 
----
 
-## 11. Summary
+## Summary
 
 Case Orchestration is LinStabPy's **runtime control plane**: a cache-aware CLI, a PETSc/MPI-backed staged driver, non-blocking semantic preflight, and contract-stable payload I/O. It connects Configuration, Baseflow, Mesh, LNSE Assembly, Stability, Resolvent, Solver Routing, and Linear Algebra into reproducible HPC campaigns while preserving a **lazy, PETSc-free** library import surface for developers who embed individual analysis APIs.
 
 **Primary code anchors**
 
-- `src/linstabpy/__init__.py`, lazy public API  
-- `src/linstabpy/driver/cli.py`, cache-aware entry  
-- `src/linstabpy/driver/run.py`, `run()` staged pipeline  
-- `src/linstabpy/driver/preflight.py`, advisories and banners  
-- `src/linstabpy/driver/payload.py`, NPZ contract  
-- `src/linstabpy/driver/io.py`, NPZ + metrics sidecar  
+- `src/linstabpy/__init__.py`, lazy public API
+- `src/linstabpy/driver/cli.py`, cache-aware entry
+- `src/linstabpy/driver/run.py`, `run()` staged pipeline
+- `src/linstabpy/driver/preflight.py`, advisories and banners
+- `src/linstabpy/driver/payload.py`, NPZ contract
+- `src/linstabpy/driver/io.py`, NPZ + metrics sidecar
 - `src/linstabpy/metrics_schema.py`, metrics JSON schema

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://openfluids.github.io/linstabpy/sitemap.xml
+Sitemap: https://linstabpy.vercel.app/sitemap.xml
