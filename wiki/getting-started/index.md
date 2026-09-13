@@ -1,6 +1,6 @@
 # Getting started
 
-A full path from zero to your first spectrum and your first [gain](core-concepts.md): install the stack, run the examples in the right order, read the outputs, then start your own case. I assume you are comfortable with linear algebra, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and a Unix shell, and new to this codebase.
+A full path from zero to your first spectrum and your first [gain](../core-concepts.md): install the stack, run the examples in the right order, read the outputs, then start your own case. I assume you are comfortable with linear algebra, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and a Unix shell, and new to this codebase.
 
 Time budget: install takes 30 to 90 minutes ([PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc) compile from source). Example 0 runs in under a minute. The [Blasius](https://grokipedia.com/page/Blasius_boundary_layer) example takes a few minutes on a workstation.
 
@@ -187,7 +187,7 @@ Re-plot any time without recomputing:
 
 ## 7. Second run: Blasius resolvent
 
-Example 1 is the real first science run: resolvent gains with optimal forcing and [response modes](core-concepts.md) for a [compressible](https://grokipedia.com/page/Compressible_flow) Blasius [boundary layer](https://grokipedia.com/page/Boundary_layer) ($Re = 6.0\times 10^5$, $Ma = 0.3$, SBP order 4, grid $300 \times 100$). It needs one external file, the MATLAB base flow `BL_BF.mat`, which this repo does not bundle.
+Example 1 is the real first science run: resolvent gains with optimal forcing and [response modes](../core-concepts.md) for a [compressible](https://grokipedia.com/page/Compressible_flow) Blasius [boundary layer](https://grokipedia.com/page/Boundary_layer) ($Re = 6.0\times 10^5$, $Ma = 0.3$, SBP order 4, grid $300 \times 100$). It needs one external file, the MATLAB base flow `BL_BF.mat`, which this repo does not bundle.
 
 Fetch the reference data once:
 
@@ -207,11 +207,19 @@ Run the case, then the plots:
 
 What you get:
 
-* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in `docs/runtime_npz_contract.md`.
+* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](../core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in `docs/runtime_npz_contract.md`.
 * `example_1_blasius_baseflow.png`: the mean flow you linearized about. Always look at this before trusting modes.
 * `example_1_blasius_modes_forcing_response_{u,v}[_imag]_mosaic.png`: one mosaic per component. Each shows the optimal forcing (what to inject), the response (what grows), and their imaginary parts.
 
 How to read the mosaic: the forcing panel is the input shape $v$, the response panel is $u = Hv/\sigma$, and the gain $\sigma$ printed on the figure is their energy ratio in the Chu norm. A large gain with a clean, smooth mode pair is the expected picture. Noise or grid-scale wiggles point at resolution, filter, or boundary setup, not at the solver.
+
+![Blasius base flow: streamwise velocity with the boundary layer developing downstream](figures/example_1_blasius_baseflow.png)
+
+*The mean flow you linearize about. Always look at this before trusting modes.*
+
+![Blasius optimal forcing (left) and response (right) for the streamwise velocity component](figures/example_1_blasius_modes_forcing_response_u_mosaic.png)
+
+*What a healthy answer looks like: smooth, cleanly separated forcing and response structures. Compare your run against this before tuning anything.*
 
 The case definition lives in `examples/martini/example_1_blasius.yaml`: physics, grid, sponge, frequency, mode count, BC recipe, solver policy, each with a comment. YAML keeps the explanation next to the knob, which is why the repo uses it instead of long flag lists. Section 10 walks a trimmed version.
 
@@ -332,7 +340,7 @@ solver:
 Three details that bite newcomers:
 
 1. **Nondimensionalization is convective.** Density, velocity, and temperature equal 1 in the freestream. Pressure never appears explicitly; the nondimensional [ideal gas law](https://grokipedia.com/page/Ideal_gas_law) is $p^* = \rho^* T^* / (\kappa Ma^2)$. If your base flow comes from an acoustically scaled LES code, convert first. The README nondimensionalization section has the exact factors.
-2. **Boundary recipes are data.** Each rule names a type (`dirichlet` or `neumann`), border letters (`l`, `r`, `t`, `b`, combined like `lt`), and variable blocks (`u`, `T`, `ruvw`, `ruvwT`). [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) rules usually want `exclude_corners: true` and, on deformed meshes, `curvilinear_normals: true`. Assembly applies BC rows last and publishes the free degree sets downstream solvers must use. The `penalty` beside the recipe pins Dirichlet DOFs (diagonal value after row and column zeroing) and scales Neumann rows; keep the default unless leakage diagnostics complain. Full mechanics in [core concepts](core-concepts.md).
+2. **Boundary recipes are data.** Each rule names a type (`dirichlet` or `neumann`), border letters (`l`, `r`, `t`, `b`, combined like `lt`), and variable blocks (`u`, `T`, `ruvw`, `ruvwT`). [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) rules usually want `exclude_corners: true` and, on deformed meshes, `curvilinear_normals: true`. Assembly applies BC rows last and publishes the free degree sets downstream solvers must use. The `penalty` beside the recipe pins Dirichlet DOFs (diagonal value after row and column zeroing) and scales Neumann rows; keep the default unless leakage diagnostics complain. Full mechanics in [core concepts](../core-concepts.md).
 3. **The dissipation epsilon has two halves.** Building the dissipation operator and setting its strength are separate flags, and setting only one is a silent no-op. The Workflow page documents the exact pair. On rectilinear meshes you usually want it off; on meshes curved in both directions you usually want it on.
 
 Run the case through the driver (section 4 for the env vars), then inspect the archive:
@@ -347,7 +355,7 @@ print(d["provenance_config_hash"], d["provenance_linstabpy_git_sha"])
 
 Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, is what makes the run reproducible and is what the stability acceptance postchecks (`docs/runtime_npz_contract.md`) validate against.
 
-Before trusting any spectrum, check the basics the README lists in full: requested `nev` versus converged `nconv`, subspace size `ncv`, [EPS](solver-glossary.md) tolerance and convergence test, postcheck residuals, boundary leakage, and target distances. Converged Ritz pairs with bad full-operator residuals happen on interior non-Hermitian problems, and the postcheck is what catches them.
+Before trusting any spectrum, check the basics the README lists in full: requested `nev` versus converged `nconv`, subspace size `ncv`, [EPS](../solver-glossary.md) tolerance and convergence test, postcheck residuals, boundary leakage, and target distances. Converged Ritz pairs with bad full-operator residuals happen on interior non-Hermitian problems, and the postcheck is what catches them.
 
 ---
 
@@ -410,10 +418,11 @@ Honest gaps, so you can plan around them:
 ## 14. Where to go next
 
 * Run the family: section 8 commands, then the parity comparison.
-* Read the [Overview](overview.md) for scope and vocabulary.
-* Read the [Workflow](workflow.md) before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
-* Open one [module guide](modules/index.md) package note when you need math or code detail. Start with LNSE Operator Assembly or Resolvent Analysis.
-* Keep the [Boundaries](boundaries.md) page open while building cases. It lists every env var, flag, and output key.
-* Open the [solver glossary](solver-glossary.md) beside any solver output. It defines `KSP`, `PC`, `EPS`, `ST`, and `MatShell` from zero with links to the official docs.
+* Read the [Overview](../overview.md) for scope and vocabulary.
+* Read the [Workflow](../workflow.md) before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
+* Open one [module guide](../modules/index.md) package note when you need math or code detail. Start with LNSE Operator Assembly or Resolvent Analysis.
+* Keep the [Boundaries](../boundaries.md) page open while building cases. It lists every env var, flag, and output key.
+* Open the [solver glossary](../solver-glossary.md) beside any solver output.
+* Citing results: see [Cite linstabpy](../index.md#cite-linstabpy) and the [references](../references.md) page. It defines `KSP`, `PC`, `EPS`, `ST`, and `MatShell` from zero with links to the official docs.
 
 If something on this page failed for you, that is a documentation bug worth reporting. Say which section, paste the command and the error, and attach the `--diagnose` output.

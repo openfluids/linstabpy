@@ -1,6 +1,6 @@
 # Boundary interfaces
 
-This page is the reference for how you talk to LinStabPy from outside: CLI commands, YAML cases, Python imports, file inputs, and output files. Math conventions match the rest of the docs: $\omega = \mathrm{eig}(i L_0)$, unstable iff $\mathrm{Im}(\omega) > 0$, [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
+This page is the reference for how you talk to LinStabPy from outside: CLI commands, YAML cases, Python imports, file inputs, and output files. Math conventions match the rest of the docs: $\omega = \mathrm{eig}(i L_0)$, unstable exactly when $\mathrm{Im}(\omega) > 0$, [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
 
 ## Command line interface
 
