@@ -3,8 +3,8 @@
 
 Translates GetLinProblem.m.
 Assembles the 5*ngp × 5*ngp linear operator L0 such that dq/dt = L0 @ q.
-Then eig(i*L0) = omega_code = -omega_OS.
-Unstable modes have Im(omega_code) < 0.  State: q = [rho, u, v, w, T].
+Then eig(i*L0) = omega with exp(-i*omega*t) time dependence.
+Unstable modes have Im(omega) > 0.  State: q = [rho, u, v, w, T].
 
 PETSc assembly sequencing
 -------------------------

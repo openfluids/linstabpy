@@ -143,7 +143,7 @@ External numerical stack integration. Core install uses NumPy/SciPy/PyYAML; extr
 # Install core + parallel stack
 # pip install 'linstabpy[petsc]'  # or conda via environment.yml
 # Optional: pip install 'linstabpy[hdf5]' 'linstabpy[cudss]'
-# Runtime: mpiexec -n N python -m linstabpy.driver.cli case.yaml
+# Runtime: export LINSTABPY_CASE_CONFIG=case.yaml && mpiexec -n N linstabpy
 ```
 
 **Best Practices**:
@@ -171,8 +171,3 @@ Ingest on-disk mean-flow fields as npy directories or npz archives (density, vel
 - Provide structured-mesh-compatible fields expected by grid_fields/preprocess
 - Apply sponge and shock-cleanup options via config rather than ad-hoc scripts
 - Version baseflow dumps alongside YAML for provenance
-
-
----
-
-**Analysis Confidence**: 8.2/10

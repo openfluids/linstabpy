@@ -234,7 +234,7 @@ Orchestration **service-calls** Stability and **module-depends** on Operator Ass
 **Mathematical core:**
 
 \[
-H = C\,(L_0 - i\omega I)^{-1}\,B
+H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 \]
 
 Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often [Chu](core-concepts.md) norm), implemented as PETSc **[MatShell](solver-glossary.md)** + SLEPc.
@@ -674,7 +674,7 @@ flowchart TD
 
 **Intent:** Leading optimal gain and structures of \(H\).
 
-1. Factor \((L_0 - i\omega I)\).
+1. Factor \((L_0 - (\gamma + i\omega) I)\).
 2. Matvecs of \(H\) and \(H^{H}\) via B, solves, C (`ResolventOperator`).
 3. Build `WeightedNormalOperator` shell for \(W\)-inner-product gain problem.
 4. SLEPc on shell; validate residuals; return forcing/response pairs.

@@ -22,7 +22,7 @@ The domain spans two packages that are physically separate in the tree but form 
 q = [\rho',\, u',\, v',\, w',\, T']
 \]
 
-**[Discrete temporal operator](../core-concepts.md)** \(L_0\) satisfies \(\partial_t q = L_0 q\). Eigenvalues of \(i L_0\) are code frequencies \(\omega_{\mathrm{code}} = -\omega_{\mathrm{OS}}\); unstable modes have \(\operatorname{Im}(\omega_{\mathrm{code}}) < 0\).
+**[Discrete temporal operator](../core-concepts.md)** \(L_0\) satisfies \(\partial_t q = L_0 q\). Eigenvalues of \(i L_0\) are temporal frequencies \(\omega = \operatorname{eig}(i L_0)\); unstable modes have \(\operatorname{Im}(\omega) > 0\) under the \(\exp(-i\omega t)\) convention.
 
 **Supported flow models**
 

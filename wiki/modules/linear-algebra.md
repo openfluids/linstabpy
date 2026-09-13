@@ -52,7 +52,7 @@ src/linstabpy/mumps_options.py   # PETSc-free MUMPS ICNTL(7) ordering map
 Linear Algebra Infrastructure is an **infrastructure domain** consumed by:
 
 - **Stability Analysis**, [shift-invert](../solver-glossary.md) temporal, spatial, and adjoint [EPS](../solver-glossary.md)
-- **Resolvent Analysis**, repeated applies of \(H = C\,(L_0 - i\omega I)^{-1}\,B\)
+- **Resolvent Analysis**, repeated applies of \(H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B\)
 - **Solver Routing**, anchor factorization, preconditioner reuse, residual-gated refactor on \(\beta\)–\(\omega\) maps
 - **Case Orchestration**, backend policy from YAML/env and cost/provenance metrics
 

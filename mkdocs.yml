@@ -88,9 +88,9 @@ extra_javascript:
   - javascripts/mermaid-zoom.js
   - javascripts/font-size.js
   - javascripts/sidebar-toggle.js
-  - javascripts/katex.js
   - assets/katex/katex.min.js
   - assets/katex/contrib/auto-render.min.js
+  - javascripts/katex.js
 
 nav:
   - Home: index.md

@@ -442,7 +442,7 @@ Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` 
 #### 4.2.7 Resolvent (`resolvent`)
 
 \[
-H = C\,(L_0 - i\omega I)^{-1}\,B
+H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 \]
 
 - Factorize shifted operator once; reuse for forward/adjoint applies  
@@ -763,7 +763,7 @@ Assembly is the mathematical heart of the system:
 #### Analysis products
 
 - **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint  
-- **Resolvent:** \(H = C (L_0 - i\omega I)^{-1} B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)  
+- **Resolvent:** \(H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)  
 - **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse  
 
 ### 6.2 Key algorithm design
@@ -968,8 +968,6 @@ LinStabPy implements a **clean, domain-aligned LNSE analysis architecture**:
 - Package boundaries match scientific responsibilities; external CFD generation, GUIs, and unstructured 3D frameworks remain firmly out of scope.
 
 The main architectural pressures are **orchestration monolith size**, **dual config paths for dissipation/solver policy**, and **missing formal ADRs**, not a mismatch between intended domains and the codebase layout.
-
-**Confidence:** High for structure and interaction patterns (research materials corroborated by package APIs, module docs, and dependency wiring).
 
 ---
 
