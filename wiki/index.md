@@ -101,7 +101,7 @@ Large gains with \( \operatorname{Im}(\omega) < 0 \) quantify [non-normal](https
 
     ---
 
-    Grids, SBP difference stencils (orders 2–8), metric invariants, and energy-stable boundary condition recipes.
+    Grids, SBP difference stencils (orders 2, 4, 6, 8), metric invariants, and energy-stable boundary condition recipes.
 
     [:octicons-arrow-right-24: Explore Architecture](architecture.md)
 

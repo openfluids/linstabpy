@@ -13,7 +13,7 @@ derivative operators, filters, weights, and saved outputs remain equivalent.
 |---|---|
 | `mesh.py` | `Mesh.create`, index maps, masking |
 | `sbp.py` | Summation-by-parts operators in use |
-| `sbp_generator.py` | Operator generation for orders 2–8 |
+| `sbp_generator.py` | Operator generation for even orders 2, 4, 6, 8 |
 | `filters.py` | Mattsson alpha-filter |
 | `fdweights.py` | Finite-difference weights |
 

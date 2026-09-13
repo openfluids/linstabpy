@@ -1,4 +1,4 @@
-# Case Orchestration, Technical Implementation Documentation
+# Case orchestration
 
 !!! info "What this package owns, in one paragraph"
     The driver in `driver/run.py` defines what a case means: init [MPI](https://grokipedia.com/page/Message_Passing_Interface) and [PETSc](https://en.wikipedia.org/wiki/PETSc) in the right order, merge and validate config, load fields, build mesh, assemble $L_0$, factorize, solve, postcheck, and write the `npz` payload with metrics and provenance. Library users can bypass it and call domain functions directly, but the stage order here is the reference. Heavy work starts only on solve paths. Plain imports stay light.

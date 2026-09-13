@@ -1,4 +1,4 @@
-# Configuration Management, Technical Implementation Documentation
+# Configuration management
 
 !!! info "What this package owns, in one paragraph"
     One merged policy drives every run: YAML case file, then environment overrides, then compiled defaults, then schema validation into typed `Config` objects. Eigen, [resolvent](https://grokipedia.com/page/Resolvent_formalism), spatial, mesh, [MPI](https://grokipedia.com/page/Message_Passing_Interface), and router sections each have their own subsection. Unknown top level keys and invalid [SBP](https://grokipedia.com/page/Summation_by_parts) orders fail fast before any factorization. If a run surprises you, print the merged config first.

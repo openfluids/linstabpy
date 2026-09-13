@@ -1,4 +1,4 @@
-# Resolvent Analysis, Technical Implementation Documentation
+# Resolvent analysis
 
 !!! info "Math you need for this page"
     $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with filters $F$ inside the $B$ and $C$ masks. [Gains](../core-concepts.md) solve $W^{-1} H^H W H v = \sigma^2 v$ for `chu` forcing norm or $H^H W H v = \sigma^2 v$ for `l2`, with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ and response $u = Hv/\sigma$. Forward residual $\rho_{\mathrm{fwd}}$ is near roundoff by construction. [Adjoint](https://grokipedia.com/page/Adjoint) residual $\rho_{\mathrm{adj}}$ is the quality signal and should track the [SLEPc](https://en.wikipedia.org/wiki/SLEPc) tolerance. A factor belongs to one $(\omega, \gamma)$ pair.

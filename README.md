@@ -4,15 +4,15 @@
 [![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
-`linstabpy` performs sparse linear stability and resolvent analysis of
-compressible viscous flows. It builds the linearized compressible Navier–Stokes
-operators for two-dimensional structured base flows and solves the eigenvalue and
-resolvent problems through PETSc/SLEPc with sparse direct factorization (MUMPS).
+`linstabpy` performs [sparse](https://grokipedia.com/page/Sparse_matrix) linear stability and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis of
+[compressible](https://grokipedia.com/page/Compressible_flow) viscous flows. It builds the linearized compressible [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations)
+operators for two-dimensional structured base flows and solves the [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and
+resolvent problems through [PETSc](https://en.wikipedia.org/wiki/PETSc)/[SLEPc](https://en.wikipedia.org/wiki/SLEPc) with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))).
 
 It began as a Python port of the MATLAB `LinStab2D` code (Martini and Schmidt,
 2024) and has grown into a standalone framework: it adopts the operator
 abstractions of `resolvent4py` (Padovan et al., 2025), extends the discretization
-to fd2/fd4/fd6/fd8 summation-by-parts operators, and verifies the assembled
+to fd2/fd4/fd6/fd8 [summation-by-parts](https://grokipedia.com/page/Summation_by_parts) operators, and verifies the assembled
 operator against independent derivations rather than against MATLAB output alone.
 
 Memory was the original motivation. Stability and resolvent analysis of 2D base
@@ -48,14 +48,14 @@ is `LinStabPy`; the repository, distribution, and import package name is
 
 It currently supports:
 
-- **Resolvent analysis:** leading gain, forcing modes, and response modes
-- **Temporal stability:** direct and adjoint eigenvalue problems
-- **Spatial stability:** streamwise-wavenumber eigenvalue problems
+- **Resolvent analysis:** leading [gain](wiki/core-concepts.md), forcing modes, and response modes
+- **Temporal stability:** direct and [adjoint](https://grokipedia.com/page/Adjoint) eigenvalue problems
+- **Spatial stability:** streamwise-[wavenumber](https://grokipedia.com/page/Wavenumber) eigenvalue problems
 - **Coordinate systems:** Cartesian, cylindrical/axisymmetric, and curvilinear structured meshes
-- **Boundary treatment:** Dirichlet rows, Neumann rows, sponge damping fields, and masking for structured grids with excluded points
-- **Energy norms:** Chu compressible energy norm with quadrature weighting
+- **Boundary treatment:** [Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) rows, [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) rows, sponge damping fields, and masking for structured grids with excluded points
+- **Energy norms:** [Chu](wiki/core-concepts.md) compressible energy norm with quadrature weighting
 
-> Conventions used in this repo. Temporal eigenvalues are `omega = eig(i * L0)` with `exp(-i omega t)` time dependence, so `Im(omega) > 0` is unstable. The resolvent is `H = C F (L0 - (gamma + i omega) I)^{-1} F B` with gains from the weighted normal problem. SBP orders are 2, 4, 6, 8 only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS. If you come from math and HPC, the new vocabulary is mostly fluids side: base flow, sponge, Chu norm, wavemaker. The solvers are standard shift-invert Krylov-Schur.
+> Conventions used in this repo. Temporal eigenvalues are `omega = eig(i * L0)` with `exp(-i omega t)` time dependence, so `Im(omega) > 0` is unstable. The resolvent is `H = C F (L0 - (gamma + i omega) I)^{-1} F B` with gains from the weighted normal problem. SBP orders are 2, 4, 6, 8 only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS. If you come from math and HPC, the new vocabulary is mostly fluids side: base flow, sponge, Chu norm, [wavemaker](wiki/core-concepts.md). The solvers are standard [shift-invert](wiki/solver-glossary.md) [Krylov-Schur](wiki/solver-glossary.md).
 
 The compressible formulation follows Martini and Schmidt (2024), and the
 operator-handling design draws on `resolvent4py` (Padovan et al., 2025). Where the
@@ -80,7 +80,7 @@ or `environment.yml`. GPU is not an install path yet.
 
 ### Prerequisites
 
-Use the repository scripts first. They check compilers, MPI, Python bindings,
+Use the repository scripts first. They check compilers, [MPI](https://grokipedia.com/page/Message_Passing_Interface), Python bindings,
 PETSc/SLEPc, and the runtime stack that the examples will use.
 
 Required system tools:
@@ -218,7 +218,7 @@ when that library is in the PETSc build. It is not a GPU install. See
 ### macOS
 
 macOS uses the same `install.sh --diagnose` → `install.sh` → `install.sh --check` →
-`benchmark.sh` flow as Linux. The only difference is the BLAS/ScaLAPACK setup
+`benchmark.sh` flow as Linux. The only difference is the [BLAS](https://en.wikipedia.org/wiki/BLAS)/ScaLAPACK setup
 below.
 
 For the macOS PETSc/SLEPc path, install Homebrew OpenBLAS and ScaLAPACK before
@@ -229,9 +229,9 @@ brew install openblas scalapack
 ```
 
 The reason is a macOS runtime-library ordering issue in Python. PETSc's
-downloaded ScaLAPACK can resolve LAPACK symbols to Apple Accelerate when loaded
+downloaded ScaLAPACK can resolve [LAPACK](https://en.wikipedia.org/wiki/LAPACK) symbols to Apple Accelerate when loaded
 inside Python. The failing path observed in this repository was Python
-`slepc4py` `EPS_NHEP` with Krylov-Schur / Arnoldi, aborting inside Accelerate
+`slepc4py` `EPS_NHEP` with Krylov-Schur / [Arnoldi](https://grokipedia.com/page/Arnoldi_iteration), aborting inside Accelerate
 `ZLADIV`. Native C SLEPc NHEP worked, and Python HEP/LAPACK paths worked, which
 pointed to dynamic-library symbol interposition rather than the examples.
 
@@ -454,7 +454,7 @@ bash benchmark.sh
 This repository has no required submodules. Reference Martini base flows are
 handled separately in [Fetching reference base flows](#fetching-reference-base-flows).
 
-Run the smallest Blasius example:
+Run the smallest [Blasius](https://grokipedia.com/page/Blasius_boundary_layer) example:
 
 ```bash
 .venv/bin/python -m examples.martini.example_1_blasius
@@ -500,7 +500,7 @@ Two consequences are deliberate:
 
 - **A default run reports no skips it cannot justify.** These tests are
   *deselected*, not skipped, so they never pad the skip count. Every skip in a
-  default run is an absent optional backend (STRUMPACK, CUDA, `superlu_dist`) —
+  default run is an absent optional backend ([STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/), [CUDA](https://en.wikipedia.org/wiki/CUDA), `superlu_dist`) —
   a true statement about the machine you are on.
 - **Requesting them means they must run.** With `LINSTABPY_MATLAB_PARITY=1`, a
   missing reference is a **failure**, not a skip. A requested comparison that
@@ -541,7 +541,7 @@ needs explicit paths.
 
 ### Why YAML configs?
 
-Each example is a numerical case definition: Reynolds number, Mach number, grid
+Each example is a numerical case definition: [Reynolds number](https://grokipedia.com/page/Reynolds_number), [Mach number](https://grokipedia.com/page/Mach_number), grid
 size, boundary conditions, sponge settings, forcing masks, solver targets, and
 PETSc/MPI choices should stay visible and diffable, with an explanation sitting
 next to each value.
@@ -612,7 +612,7 @@ The current temporal stability path uses:
 - SLEPc `EPS`
 - `KRYLOVSCHUR` as the outer eigensolver
 - shift-invert spectral transformation, `ST=SINVERT`
-- direct LU factorization with MUMPS for shifted linear systems in the default production path
+- direct [LU](https://grokipedia.com/page/LU_decomposition) factorization with MUMPS for shifted linear systems in the default production path
 
 The temporal eigenproblem is formed on `i * L0`, so reported temporal eigenvalues
 are `omega = eig(i * L0)`.
@@ -638,7 +638,7 @@ residual estimates can be optimistic for the original problem.
 
 ### PETSc KSP tolerances
 
-`KSPSetTolerances()` controls a linear Krylov solve: relative tolerance, absolute
+`KSPSetTolerances()` controls a linear [Krylov](https://grokipedia.com/page/Krylov_subspace) solve: relative tolerance, absolute
 tolerance, divergence tolerance, and maximum iteration count. It is not an
 eigenpair tolerance.
 
@@ -650,7 +650,7 @@ KSPPREONLY + PCLU + MUMPS
 
 In that configuration, iterative `KSP` tolerances are not the main accuracy
 knobs. The dominant knobs are EPS settings, Krylov subspace size `ncv`, target
-placement, and the conditioning of the shifted operator.
+placement, and the [conditioning](https://en.wikipedia.org/wiki/Condition_number) of the shifted operator.
 
 When an iterative linear-solve path is selected, `ksp_rtol`, `ksp_atol`,
 `ksp_max_it`, `pc_type`, subdomain settings, and `ksp_error_if_not_converged`
@@ -817,7 +817,7 @@ loaders. Its physical interpretation depends on the case.
 | wall-normal coordinate | mesh `Y` | `y* = y / L_ref` | — |
 | time | operator eigenvalue `omega` | `t* = t * U_ref / L_ref` | — |
 
-Pressure is not stored explicitly. From the ideal gas law nondimensionalized with
+Pressure is not stored explicitly. From the [ideal gas law](https://grokipedia.com/page/Ideal_gas_law) nondimensionalized with
 `p_ref = rho_ref * U_ref**2`:
 
 ```
@@ -849,7 +849,7 @@ Enters the operator via `c2 = kappa * Ma**2` (pressure-velocity coupling) and
 `cv = 1 / (kappa * (kappa - 1) * Ma**2)` (energy equation). Both are derived in
 `viscosity.py:34-36` and used throughout `coefficients.py`.
 
-**Prandtl number**
+**[Prandtl number](https://grokipedia.com/page/Prandtl_number)**
 
 ```
 Pr = mu(T_0) * cp / k_ref,  cp = kappa * R / (kappa - 1)
@@ -858,7 +858,7 @@ Pr = mu(T_0) * cp / k_ref,  cp = kappa * R / (kappa - 1)
 Enters thermal diffusion as `1 / (Re * Pr)`; for example,
 `c_Arr_55 = -kappa * MU / Re / Pr` (temperature Laplacian in energy equation).
 
-**Heat capacity ratio**
+**[Heat capacity ratio](https://grokipedia.com/page/Heat_capacity_ratio)**
 
 ```
 kappa = cp / cv  (gamma)
@@ -1357,12 +1357,12 @@ toolkit for the solution of eigenvalue problems. *ACM Transactions on
 Mathematical Software*, 31(3), 351-362. doi:10.1145/1089014.1089019.
 
 Amestoy, P. R., Duff, I. S., Koster, J. & L'Excellent, J.-Y. (2001). A fully
-asynchronous multifrontal solver using distributed dynamic scheduling (MUMPS).
+asynchronous [multifrontal](https://en.wikipedia.org/wiki/Multifrontal_method) solver using distributed dynamic scheduling (MUMPS).
 *SIAM Journal on Matrix Analysis and Applications*, 23(1), 15-41.
 
 **Discretization and norms**
 
-Strand, B. (1994). Summation by parts for finite difference approximations for
+Strand, B. (1994). Summation by parts for [finite difference](https://grokipedia.com/page/Finite_difference_method) approximations for
 d/dx. *Journal of Computational Physics*, 110(1), 47-67.
 
 Mattsson, K. & Nordström, J. (2004). Summation by parts operators for finite
@@ -1372,7 +1372,7 @@ Physics*, 199(2), 503-540.
 Chu, B.-T. (1965). On the energy transfer to small disturbances in fluid flow
 (Part I). *Acta Mechanica*, 1(3), 215-234.
 
-Schmid, P. J. & Henningson, D. S. (2001). *Stability and Transition in Shear
+Schmid, P. J. & Henningson, D. S. (2001). *Stability and [Transition](http://www.scholarpedia.org/article/Transition_to_turbulence) in Shear
 Flows*. Springer.
 
 ## Contributing

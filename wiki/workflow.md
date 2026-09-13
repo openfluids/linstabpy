@@ -17,18 +17,18 @@ The goal is to turn mean flow dumps into stability modes, resolvent [gains](core
 
 **Out of scope:** nonlinear [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) that produces the mean flow, GUIs/visualization products, unstructured or full 3D volume frameworks, multiphysics outside LNSE, cloud multi-tenancy.
 
-### 1.2 System Main Workflows
+### 1.2 System main workflows
 
 | Workflow | Role | Importance | Primary entry |
 |---|---|---|---|
-| **Temporal Eigenvalue Stability Analysis** | Primary scientific product: spectra, modes, optional adjoint/sensitivity | Highest | `driver/run.py`, `stability._eigenvalues` |
-| **Resolvent Gain Analysis** | Optimal forcing/response and energy gains at target ω | Very high | `resolvent.analysis`, driver stages |
-| **Beta–Frequency Resolvent Gain Map** | Production parametric HPC campaign over (β, ω) | Very high (cost-critical) | `solvers/router/resolvent_map.py` |
+| **Temporal eigenvalue stability analysis** | Primary scientific product: spectra, modes, optional adjoint/sensitivity | Highest | `driver/run.py`, `stability._eigenvalues` |
+| **Resolvent gain analysis** | Optimal forcing/response and energy gains at target ω | Very high | `resolvent.analysis`, driver stages |
+| **Beta–frequency resolvent gain map** | Production parametric HPC campaign over (β, ω) | Very high (cost-critical) | `solvers/router/resolvent_map.py` |
 | **Spatial Stability Eigenproblem** | Streamwise wavenumber / spatial growth | High | `solvers/spatial_eig.py`, spatial assembly |
-| **Baseflow Ingest and Operator Prep** | Shared foundation for all analysis products | High (shared spine) | driver preflight/setup |
-| **Adjoint and Structural Sensitivity** | Control/receptivity extension of temporal path | Supporting | `stability` adjoint + `wavemaker` |
+| **Baseflow ingest and operator prep** | Shared foundation for all analysis products | High (shared spine) | driver preflight/setup |
+| **Adjoint and structural sensitivity** | Control/receptivity extension of temporal path | Supporting | `stability` adjoint + `wavemaker` |
 
-### 1.3 Core Execution Paths
+### 1.3 Core execution paths
 
 There are two complementary execution surfaces:
 
@@ -59,14 +59,14 @@ flowchart TD
     FactorCore --> PayloadOut
 ```
 
-### 1.4 Key Process Nodes
+### 1.4 Key process nodes
 
 | Node | Domain | Contract |
 |---|---|---|
 | Runtime init | Case Orchestration | PETSc/MPI, rank-0 logging, stage timers, heartbeats |
 | Config merge/validate | Configuration | YAML + env + defaults → typed policy; schema gate |
 | BaseFlow load/preprocess | Baseflow | npy/npz → mesh-aligned primitives + transport |
-| Mesh + SBP | Mesh | Geometry, orders 2–8 SBP, filters, masking, poles |
+| Mesh + SBP | Mesh | Geometry, even-order SBP (2, 4, 6, 8), filters, masking, poles |
 | Coefficients | LNSE Assembly | Cartesian/cylindrical LNSE coeffs from mean flow |
 | L0 + BC recipes | LNSE Assembly | Sparse operator for `q = [ρ, u, v, w, T]`; free-DOF sets |
 | Factorization | Linear Algebra | Default KSPPREONLY + PCLU + MUMPS; optional cuDSS/iterative |
@@ -74,7 +74,7 @@ flowchart TD
 | Router walk | Solver Routing | Anchors, PC reuse, residual gates, certification |
 | Payload | Case Orchestration | Spectra/modes/gains, cost metrics, provenance NPZ |
 
-### 1.5 Process Coordination Mechanisms
+### 1.5 Process coordination mechanisms
 
 - **Single orchestration hub:** `driver/run.py` sequences stages; domains do not call each other ad hoc across the full case.
 - **One operator family, many products:** temporal, adjoint, spatial, resolvent, and maps all consume BC-enforced LNSE operators (spatial reuses temporal prep helpers).
@@ -85,11 +85,11 @@ flowchart TD
 
 ---
 
-## 2. Main Workflows
+## 2. Main workflows
 
-### 2.1 Baseflow Ingest and Operator Prep (Shared Foundation)
+### 2.1 Baseflow ingest and operator prep (shared foundation)
 
-**Business value:** Converts on-disk CFD mean flow into a mathematically consistent, BC-ready discrete LNSE operator. Every analysis product depends on this path.
+**Why it matters:** Converts on-disk CFD mean flow into a mathematically consistent, BC-ready discrete LNSE operator. Every analysis product depends on this path.
 
 **Entry:** driver preflight/setup stages; library callers that build systems via `build_lnse_system` / related assembly APIs.
 
@@ -132,15 +132,15 @@ flowchart TD
 **Notes for implementers:**
 
 - BaseFlow fields are contractually **(ny, nx)** on the computational mesh.
-- SBP covers **orders 2–8**, including Mohseni–Colonius pole treatments for axisymmetric grids.
+- SBP covers even **orders 2, 4, 6, 8**, including Mohseni–Colonius pole treatments for axisymmetric grids.
 - Boundary conditions are a separate package but **functionally part of operator assembly**.
 - SciPy CSC is typical for local assembly; PETSc Mat is used for distributed solve paths (`utils/petsc_core.py` bridge).
 
 ---
 
-### 2.2 Temporal Eigenvalue Stability Analysis (Primary Product Path)
+### 2.2 Temporal eigenvalue stability analysis (primary product path)
 
-**Business value:** [Hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) spectra and [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) for transition and control studies; reference orchestration pattern for other modes.
+**Why it matters:** [Hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) spectra and [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) for transition and control studies; reference orchestration pattern for other modes.
 
 **Entry:** `src/linstabpy/driver/run.py` or `temporal_eigenvalues` / stability APIs.
 
@@ -227,9 +227,9 @@ Orchestration **service-calls** Stability and **module-depends** on Operator Ass
 
 ---
 
-### 2.3 Resolvent Gain Analysis
+### 2.3 Resolvent gain analysis
 
-**Business value:** Amplifier/receptivity analysis via optimal forcing and response at chosen frequencies.
+**Why it matters:** Amplifier/receptivity analysis via optimal forcing and response at chosen frequencies.
 
 **Mathematical core:**
 
@@ -286,9 +286,9 @@ flowchart TD
 
 ---
 
-### 2.4 Beta–Frequency Resolvent Gain Map (Cost-Critical Campaign)
+### 2.4 Beta–frequency resolvent gain map (cost-critical campaign)
 
-**Business value:** Production-scale parametric studies of leading resolvent gain over spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) β and frequency ω, with **cost-aware** factorization reuse.
+**Why it matters:** Production-scale parametric studies of leading resolvent gain over spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) β and frequency ω, with **cost-aware** factorization reuse.
 
 **Entry:** `src/linstabpy/solvers/router/resolvent_map.py` (public `resolvent_map`).
 
@@ -383,9 +383,9 @@ sequenceDiagram
 
 ---
 
-### 2.5 Spatial Stability Eigenproblem
+### 2.5 Spatial stability eigenproblem
 
-**Business value:** Spatial growth/decay and streamwise wavenumber analysis via generalized eigenproblems.
+**Why it matters:** Spatial growth/decay and streamwise wavenumber analysis via generalized eigenproblems.
 
 ```mermaid
 flowchart TD
@@ -418,7 +418,7 @@ flowchart TD
 
 ---
 
-### 2.6 Adjoint and Structural Sensitivity (Supporting Path)
+### 2.6 Adjoint and structural sensitivity (supporting path)
 
 Extends temporal eigenanalysis without a separate full case pipeline:
 
@@ -444,7 +444,7 @@ flowchart TD
 
 ---
 
-### 2.7 Cross-Workflow Dependency Summary
+### 2.7 Cross-workflow dependency summary
 
 ```mermaid
 flowchart LR
@@ -485,9 +485,9 @@ flowchart LR
 
 ---
 
-## 3. Flow Coordination and Control
+## 3. Flow coordination and control
 
-### 3.1 Multi-Module Coordination Mechanisms
+### 3.1 Multi-module coordination mechanisms
 
 | Mechanism | How it works |
 |---|---|
@@ -499,7 +499,7 @@ flowchart LR
 | **Router as campaign controller** | Map orchestration schedules β loops and frequency walks; LineWalker localizes reuse policy |
 | **Backend registry** | Central probe/normalize of factor backends before factorization commits resources |
 
-### 3.2 State Management and Synchronization
+### 3.2 State management and synchronization
 
 **Logical case state progression:**
 
@@ -531,7 +531,7 @@ stateDiagram-v2
 
 **Immutable/read-only defaults:** driver uses shared empty read-only NumPy arrays as hot-path defaults to avoid accidental mutation and allocation churn.
 
-### 3.3 Data Passing and Sharing
+### 3.3 Data passing and sharing
 
 | Data | Producer | Consumers | Form |
 |---|---|---|---|
@@ -547,7 +547,7 @@ stateDiagram-v2
 
 **Bridge policy:** SciPy ↔ PETSc conversion lives in `utils/petsc_core.py` to avoid circular imports between mesh and solver layers; complex-mode and distribution policy are encoded there.
 
-### 3.4 Execution Control and Scheduling
+### 3.4 Execution control and scheduling
 
 1. **Case-level scheduling**, driver selects eigen vs resolvent vs map stages from config; preflight advisories (config/baseflow/result) surface before/after heavy work.
 2. **Eigen control**, shift-invert targets, backend from `solver.eigen` / env overrides; iterative eigen solver types listed explicitly in cfg helpers.
@@ -562,9 +562,9 @@ stateDiagram-v2
 
 ---
 
-## 4. Exception Handling and Recovery
+## 4. Exception handling and recovery
 
-### 4.1 Error Detection and Handling
+### 4.1 Error detection and handling
 
 | Class | Detection | Typical response |
 |---|---|---|
@@ -578,7 +578,7 @@ stateDiagram-v2
 | **Map walk quality** | Residual gate fail | Refactor anchor; defer walk; mark reason codes (OK/PENDING/FAILED) |
 | **Env parse** | Bad heartbeat seconds etc. | `ValueError` with clear message |
 
-### 4.2 Exception Recovery Mechanisms
+### 4.2 Exception recovery mechanisms
 
 ```mermaid
 flowchart TD
@@ -614,7 +614,7 @@ flowchart TD
 - **Adjoint self-test / heal paths** exist in the factorization layer for iterative [KSP](solver-glossary.md) edge cases (bounded iterations), keeping adjoint consistency checks local to the LA layer.
 - **Resource cleanup:** factorization `destroy`, PETSc object lifecycle, and stage-scoped timing even on failure paths where implemented.
 
-### 4.3 Fault Tolerance Strategy Design
+### 4.3 Fault tolerance strategy design
 
 | Layer | Strategy |
 |---|---|
@@ -625,7 +625,7 @@ flowchart TD
 | **Operations** | Heartbeats + stage RSS deltas for HPC job monitoring; rank-0 log prefix for aggregation |
 | **Reproducibility** | Config hash in outputs; git SHA provenance; env-isolated output paths for concurrent timing runs |
 
-### 4.4 Failure Retry and Degradation
+### 4.4 Failure retry and degradation
 
 - **Retry:** Not a generic infinite retry loop. Map walks **locally** recover via refactor when residual gates fail. Explicit iterative policies may allow bounded KSP iterations.
 - **Degradation ladder (conceptual):**  
@@ -639,9 +639,9 @@ flowchart TD
 
 ---
 
-## 5. Key Process Implementation
+## 5. Key process implementation
 
-### 5.1 Core Algorithm Processes
+### 5.1 Core algorithm processes
 
 #### 5.1.1 LNSE temporal operator assembly
 
@@ -713,7 +713,7 @@ flowchart TD
     Done -->|Yes| WalkEnd
 ```
 
-### 5.2 Data Processing Pipelines
+### 5.2 Data processing pipelines
 
 #### Mean-flow to operator pipeline
 
@@ -743,7 +743,7 @@ Solver raw outputs
 
 Driver stage logging provides an ops-facing timeline parallel to scientific outputs.
 
-### 5.3 Business Rule Execution
+### 5.3 Business rule execution
 
 | Rule | Enforcement point |
 |---|---|
@@ -757,7 +757,7 @@ Driver stage logging provides an ops-facing timeline parallel to scientific outp
 | Rank-0 logging only for human progress | `_log` guards |
 | Gains/modes require residual accountability | analysis validation + acceptance modules |
 
-### 5.4 Technical Implementation Details
+### 5.4 Technical implementation details
 
 #### Runtime driver (`driver/run.py`)
 
@@ -799,7 +799,7 @@ Driver stage logging provides an ops-facing timeline parallel to scientific outp
 | NumPy/SciPy | I/O, CSC/CSR assembly, local kernels |
 | YAML + npy/npz | Sole primary I/O surface for cases and baseflow |
 
-### 5.5 Performance Optimization Processes
+### 5.5 Performance optimization processes
 
 | Strategy | Where applied | Effect |
 |---|---|---|
@@ -821,7 +821,7 @@ Driver stage logging provides an ops-facing timeline parallel to scientific outp
 4. Richer structural-sensitivity packaging on the standard payload path.  
 5. Feed multi-node cost samples more aggressively into anchor placement.
 
-### 5.6 Operability Guidance
+### 5.6 Operability guidance
 
 **Development**
 
@@ -848,6 +848,6 @@ Driver stage logging provides an ops-facing timeline parallel to scientific outp
 
 ---
 
-## Document Summary
+## Document summary
 
 LinStabPy core workflows form a **single staged LNSE pipeline** with multiple scientific products. **Baseflow ingest and operator prep** produce a BC-enforced \(L_0\); **temporal/spatial/adjoint eigenanalysis** and **resolvent analysis** share that operator and a **factorize-once** PETSc/MUMPS spine; **β–ω gain maps** add cost-aware routing with anchors, preconditioner reuse, and residual gates. Coordination is hub-and-spoke through the case driver and router, with configuration as the reproducibility gate and residual/acceptance checks as the scientific quality gate. Exception handling favors fail-fast validation, explicit accuracy policies, and campaign-local refactor/defer rather than silent degradation, supporting reliable MPI-scale stability and resolvent studies for research and aerospace engineering users.

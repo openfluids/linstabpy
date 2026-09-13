@@ -1,4 +1,4 @@
-# Stability Analysis, Technical Implementation Documentation
+# Stability analysis
 
 !!! info "Math you need for this page"
     Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ is unstable. [Adjoint](https://grokipedia.com/page/Adjoint) modes come from $W^{-1} L_0^H W$ with the Chu weight $W$. The wavemaker is the pointwise product of direct and adjoint magnitudes. Spatial problems are generalized $Ax = \lambda R x$ with singular $R$ rows from BCs, solved by [QZ](https://en.wikipedia.org/wiki/QZ_algorithm) at tiny sizes and [shift-invert](../solver-glossary.md) EPS otherwise. Acceptance checks residuals, boundary leakage, target distance, and conjugate completeness before any mode is trusted.

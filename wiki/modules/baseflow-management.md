@@ -1,4 +1,4 @@
-# Baseflow Management, Technical Implementation Documentation
+# Baseflow management
 
 !!! info "What this package owns, in one paragraph"
     The base flow is the steady [compressible](https://grokipedia.com/page/Compressible_flow) solution you linearize about. This package loads it from `npy` or `npz` files, cleans it up ([sponge layers](https://grokipedia.com/page/Perfectly_matched_layer), shock treatment, viscosity from Sutherland), and hands mesh aligned `(ny, nx)` arrays to assembly. Fields are nondimensional primitives with freestream density, velocity, and temperature equal to 1. If spectra look wrong, start here: a misaligned or uncleaned base flow propagates directly into every [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and [gain](../core-concepts.md).

@@ -7,7 +7,7 @@ code. A bug report, a confusing docstring, a README paragraph that turned out to
 be wrong, a question that took you an hour to answer yourself — all of those are
 worth opening an [issue](https://github.com/openfluids/linstabpy/issues) for.
 
-Install problems especially. The PETSc / SLEPc / MPI layering is the hardest
+Install problems especially. The [PETSc](https://en.wikipedia.org/wiki/PETSc) / [SLEPc](https://en.wikipedia.org/wiki/SLEPc) / [MPI](https://grokipedia.com/page/Message_Passing_Interface) layering is the hardest
 part of using linstabpy, and every report about it makes the next person's
 install easier. If you are unsure whether something is worth reporting, it
 probably is. Open the issue.
@@ -78,12 +78,12 @@ Only the ones that are actually enforced:
 
 - **Numerics need a falsifiable check, not just a passing test.** Observed
   convergence order under refinement, a conservation or symmetry residual, or a
-  known analytical limit — Blasius, Stokes, Poiseuille `Re_c = 5772.22`. A
+  known analytical limit — [Blasius](https://grokipedia.com/page/Blasius_boundary_layer), Stokes, Poiseuille `Re_c = 5772.22`. A
   regression test against current output will not catch a subtly wrong operator.
 - **Ported LinStab2D code keeps its provenance.** Anything derived from
   Martini & Schmidt (2024) says so in the docstring, naming the MATLAB routine
   it came from.
-- Summation-by-parts structure is not an implementation detail. A change that
+- [Summation-by-parts](https://grokipedia.com/page/Summation_by_parts) structure is not an implementation detail. A change that
   breaks the SBP property fails the dissipation guardrails, and that is the
   guardrail working.
 - No tracked file over 60 MiB; CI enforces it. Large fields belong in a release
