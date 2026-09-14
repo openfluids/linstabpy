@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Typed configuration seam for solver policy.
 
-Mirrors the ``utils._solver_cfg`` YAML/env/default resolution without
-migrating call sites yet.
+Live YAML/env/default resolution into frozen dataclasses; call sites read
+policy from here. Shared solver-type sets and small helpers still come from
+``utils._solver_cfg``.
 """
 
 from __future__ import annotations

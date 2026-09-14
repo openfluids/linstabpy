@@ -3,15 +3,9 @@
 ## CLI: env vars, no flags
 
 `linstabpy` has exactly one flag: `--version` (light: prints the version,
-never initializes PETSc or MPI). Everything else travels by environment:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `LINSTABPY_CASE_CONFIG` | `./configs/parity_config.yaml` | YAML case file. Legacy aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG` also work. |
-| `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Result archive. Per-run aliases exist too. One unique path per concurrent run. |
-| `LINSTABPY_CASE_LOG_PREFIX` | `linstabpy` | Log-line prefix and default output stem. |
-| `LINSTABPY_FORCE_RECOMPUTE` | unset | `1`/`true`/`yes`/`on` skips the cache check and recomputes. |
-| `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | `30` | Progress heartbeat for long stages. |
+never initializes PETSc or MPI). Everything else travels by environment —
+full generated table in `generated/cli-env.md`. One unique output path per
+concurrent run.
 
 ```bash
 export LINSTABPY_CASE_CONFIG=cases/my_case.yaml
@@ -20,8 +14,12 @@ mpiexec -n 8 linstabpy
 ```
 
 Trap: the CLI uses `parse_known_args`, so `linstabpy run case.yaml`
-does not error — it runs the env config and drops your words. If a run
-used the wrong case, check the env first.
+does not error — it warns on stderr, then runs the env config and drops
+your words. The exit code stays 0. If a run used the wrong case, check
+the env first. Single-dash PETSc options (`-ksp_monitor`, ...) pass
+through to the solver stack; there is no `--config` flag. Unknown
+`LINSTABPY_*` names in the environment likewise warn on stderr with a
+did-you-mean hint (registry: `src/linstabpy/config/env_registry.py`) and are ignored.
 
 Cache: rank 0 loads the existing output NPZ (if any) and compares its
 stored config hash + git SHA. Match prints `Cache valid` and skips the
@@ -32,7 +30,8 @@ compute. In sweeps, use one output path per run or export
 
 - Suffix must be `.yaml` or `.yml`; top-level value must be a mapping.
 - Top-level keys must be inside `TOP_LEVEL_ALLOWED` — full generated
-  list in `generated/yaml-keys.md`. Unknown keys fail `validate_config`.
+  list in `generated/yaml-keys.md`. Unknown keys fail `validate_config`
+  (with a did-you-mean hint when the typo is close).
 - Complex values as `[real, imag]` lists (also plain numbers or strings
   parseable by `complex()`); unsigned scientific floats like `1e5` are
   accepted.

@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
+import sys
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
 
 import numpy as np
 
+from linstabpy.config.env_registry import find_unknown_env_vars, warn_unknown_env_vars
 from linstabpy.utils.yaml_io import load_config
 
 
@@ -23,12 +25,114 @@ def _package_version() -> str:
         return "0.0.0+dev"
 
 
+# Canonical driver env-var contract. Single source of truth: argparse --help
+# renders it, tools/generate_wiki_boundaries.py inlines it into
+# wiki/boundaries.md, and skills/.../generate_skill_refs.py copies it into the
+# agent skill. Each entry: (primary name, aliases, default, purpose).
+CLI_ENV_VARS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
+    (
+        "LINSTABPY_CASE_CONFIG",
+        ("LINSTABPY_CASE2_CONFIG", "LINSTABPY_CASE1_CONFIG"),
+        "./configs/parity_config.yaml",
+        "YAML case file.",
+    ),
+    (
+        "LINSTABPY_CASE_OUTPUT_NPZ",
+        ("LINSTABPY_CASE2_OUTPUT_NPZ", "LINSTABPY_CASE1_OUTPUT_NPZ"),
+        "{prefix}_{config_md5}_{git_sha8}.npz in the working directory",
+        "Result archive path.",
+    ),
+    (
+        "LINSTABPY_CASE_LOG_PREFIX",
+        (),
+        "linstabpy",
+        "Log-line prefix and default output stem.",
+    ),
+    (
+        "LINSTABPY_FORCE_RECOMPUTE",
+        (),
+        "unset (cache check runs)",
+        "Set to 1, true, yes, or on to skip the cache check (CLI gate only; library runs always compute).",
+    ),
+    (
+        "LINSTABPY_STAGE_HEARTBEAT_SECONDS",
+        (),
+        "30",
+        "Progress heartbeat interval in float seconds.",
+    ),
+    (
+        "LINSTABPY_CASE_ROOT_ASSEMBLY",
+        ("LINSTABPY_CASE2_ROOT_ASSEMBLY", "LINSTABPY_CASE1_ROOT_ASSEMBLY"),
+        "unset (auto: on for iterative eigen ST solvers under MPI)",
+        "Root-only assembly for iterative eigen ST solvers; stability-only.",
+    ),
+)
+
+
+def _ignored_cli_words(unknown: Sequence[str]) -> list[str]:
+    """Return unknown argv tokens that no downstream consumer will read.
+
+    Mirrors :func:`linstabpy.utils.petsc_init._sanitize_petsc_argv`: single-dash
+    tokens (plus one following value) reach the PETSc option database, which
+    reads ``sys.argv`` directly at ``init_petsc_from_argv`` time. Everything
+    else — bare words and double-dash tokens, which the sanitizer drops — is
+    flagged. A bare ``--`` separator is skipped without warning.
+    """
+    words: list[str] = []
+    skip_next = False
+    for token in unknown:
+        if token == "--":
+            skip_next = False
+        elif token.startswith("--"):
+            skip_next = False
+            words.append(token)
+        elif token.startswith("-"):
+            skip_next = True
+        elif skip_next:
+            skip_next = False
+        else:
+            words.append(token)
+    return words
+
+
+def _warn_ignored_cli_words(words: Sequence[str]) -> None:
+    """Warn on stderr that bare-word CLI arguments were ignored."""
+    print(
+        f"warning: ignoring unknown arguments {list(words)}: "
+        + "linstabpy takes no case arguments; set LINSTABPY_CASE_CONFIG and "
+        + "LINSTABPY_CASE_OUTPUT_NPZ instead (see `linstabpy --help`).",
+        file=sys.stderr,
+    )
+
+
+def _env_epilog() -> str:
+    """Render the env-var contract for ``--help``."""
+    lines = [
+        "case configuration comes from environment variables (there is no --config flag):",
+    ]
+    for name, aliases, default, purpose in CLI_ENV_VARS:
+        alias_text = f" Aliases: {', '.join(aliases)}." if aliases else ""
+        lines.append(f"  {name}: {purpose}{alias_text} Default: {default}.")
+    lines.extend(
+        [
+            "",
+            "unknown bare-word and double-dash arguments are ignored with a",
+            "warning on stderr; single-dash options (e.g. -ksp_monitor) pass",
+            "through to the PETSc option database. Unknown LINSTABPY_*",
+            "environment variables likewise warn on stderr and are ignored.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="linstabpy",
         description="Run the shared LinStabPy case driver.",
+        epilog=_env_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--version",
         action="store_true",
         help="print the LinStabPy package version and exit",
@@ -39,8 +143,14 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     """Cache-aware entrypoint used when launched as ``python -m linstabpy.driver.cli``."""
     parser = _build_parser()
-    args, _unknown = parser.parse_known_args(argv)
+    args, unknown = parser.parse_known_args(argv)
+    ignored = _ignored_cli_words(unknown)
+    unknown_env = find_unknown_env_vars()
     if args.version:
+        if ignored:
+            _warn_ignored_cli_words(ignored)
+        if unknown_env:
+            warn_unknown_env_vars(unknown_env)
         print(_package_version())
         return
 
@@ -50,10 +160,14 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     comm = runtime.PETSc.COMM_WORLD
     rank = comm.getRank()
+    if ignored and rank == 0:
+        _warn_ignored_cli_words(ignored)
+    if unknown_env and rank == 0:
+        warn_unknown_env_vars(unknown_env)
     output_npz = runtime._output_npz_path()
     need_recompute = False
 
-    force_recompute = os.getenv("LINSTABPY_FORCE_RECOMPUTE", "").strip() in {
+    force_recompute = os.getenv("LINSTABPY_FORCE_RECOMPUTE", "").strip().lower() in {
         "1",
         "true",
         "yes",

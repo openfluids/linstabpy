@@ -7,6 +7,7 @@ on:
       - "wiki/**"
       - "mkdocs.yml"
       - "tools/generate_llms_full.py"
+      - "tools/generate_wiki_boundaries.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/pages.yml"
@@ -16,6 +17,7 @@ on:
       - "wiki/**"
       - "mkdocs.yml"
       - "tools/generate_llms_full.py"
+      - "tools/generate_wiki_boundaries.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/pages.yml"
@@ -41,6 +43,7 @@ jobs:
       # --only-group skips the numerical stack. MkDocs does not need it.
       # Do not call configure-pages here: that action fails until Pages is on.
       - run: uv sync --only-group wiki
+      - run: python3 tools/generate_wiki_boundaries.py
       - run: python3 tools/generate_llms_full.py
       - run: uv run --only-group wiki mkdocs build --strict
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0

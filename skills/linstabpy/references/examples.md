@@ -61,7 +61,9 @@ bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -ep
 
 Without `-n` the runner defaults to half the detected physical cores.
 Override the launcher with `LINSTABPY_MPIEXEC`, ranks with
-`LINSTABPY_MPI_RANKS`. PETSc options go after `--`.
+`LINSTABPY_MPI_RANKS`. PETSc options go after `--`. Interpreter:
+`LINSTABPY_PYTHON` wins over `LINSTABPY_PYTHON_BIN`, else
+`.venv/bin/python`.
 
 Parity against MATLAB references:
 `.venv/bin/python examples/martini/compare_martini_examples.py`

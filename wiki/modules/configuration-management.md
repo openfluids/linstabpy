@@ -30,24 +30,22 @@ src/linstabpy/config/
 ├── __init__.py              # Public API re-exports
 ├── defaults.py              # DISSIPATION_APPLY_DEFAULTS
 ├── schema.py                # ConfigValidationError, validate_config
-├── typed.py                 # Config and subsection dataclasses
-└── validation_cases.yaml    # Packaged example registry (not runtime solver input)
+└── typed.py                 # Config and subsection dataclasses
 ```
 
 | File | Responsibility |
 |------|----------------|
 | `__init__.py` | Re-exports defaults, schema symbols, and typed dataclasses in `__all__` |
 | `defaults.py` | Declares dissipation apply-to-stage defaults once for all layers |
-| `schema.py` | Allowed top-level keys, type spot-checks, FD-order walk, `ConfigValidationError` |
+| `schema.py` | Allowed top-level keys, type spot-checks, FD-order and Floquet-shift walks, `ConfigValidationError` |
 | `typed.py` | YAML/env/default resolution into frozen `Config` and nested policy objects |
-| `validation_cases.yaml` | Catalog of example modules and NPZ artifacts for packaging/validation |
 
 
 ## Design Goals and Principles
 
 1. **Config as single policy source**, Case YAML, environment variables, and code defaults resolve into one effective policy before mesh or operator work.
-2. **Typed access without behavior change**, `typed.py` mirrors historical `utils._solver_cfg` resolution so call sites can migrate gradually.
-3. **Lenient but structured validation**, Optional fields are not required; unknown top-level keys and illegal FD orders fail fast.
+2. **Typed access without behavior change**, `typed.py` is the live resolution path; call sites read policy from its frozen dataclasses.
+3. **Lenient but structured validation**, Optional fields are not required; unknown top-level keys, illegal FD orders, and unknown Floquet shift modes fail fast.
 4. **Cross-layer agreement**, Defaults that multiple stages must share (especially dissipation apply flags) live in one place.
 5. **HPC-safe fail-fast**, Invalid policy raises before PETSc factorization or β–ω map campaigns.
 
@@ -401,20 +399,12 @@ Given `st_solver`:
 This prevents band-marking EVPs from being stranded on CPU MUMPS while resolvent runs on another backend when the user intended a shared direct preference.
 
 
-## Validation Cases Registry (`validation_cases.yaml`)
+## Example registry
 
-This file is a **packaging/registry** artifact, **not** a solver case and **not** consumed by `driver.run`.
-
-It lists:
-
-| Case name | Module | Notes |
-|-----------|--------|------|
-| `curvilinear_validation` | `examples.martini.example_0_curvilinear_validation` | NPZ artifact path |
-| `blasius_resolvent` | `examples.martini.example_1_blasius` | NPZ artifact |
-| `blasius_resolvent_high_penalty` | same module | Env overrides: stronger BC penalty, eigen ST solver |
-| `song_stability` | `examples.song.song` | NPZ artifact |
-
-Plus an `orthogonality_check` block for [Chu](../core-concepts.md)-weighted mode checks on Song EVP archives (`direct_modes`, `W_diag`, tolerance `1e-12`).
+The live example list is `run_all_examples.sh` `EXAMPLE_SPECS` (module,
+plot module, and label per example), not a YAML catalog. There is no
+packaged registry file; document expected artifacts alongside the case
+(module + NPZ name) instead.
 
 
 ## Integration with the Rest of the System
@@ -439,7 +429,7 @@ Plus an `orthogonality_check` block for [Chu](../core-concepts.md)-weighted mode
 - YAML load path uses `linstabpy.utils.yaml_io.load_config`
 - Backend normalization and defaults come from `linstabpy.linalg.backends`
 - Direct vs iterative solver type sets come from `linstabpy.utils._solver_cfg`
-- Long-term direction: consolidate dual resolution paths (`typed.py` vs legacy `_solver_cfg` mirrors) behind the typed seam
+- Remaining `utils._solver_cfg` usage is shared type sets and small helpers (`cfg_get`, `as_bool`, `SolverConfig` for EPS helpers), not a parallel resolution path
 
 ### Dissipation configuration caution
 
@@ -501,7 +491,7 @@ Common env knobs resolved by typed factories include:
 
 | Error | When |
 |-------|------|
-| `ConfigValidationError` | Unknown top-level key, bad `fd_order`, flat type mismatch |
+| `ConfigValidationError` | Unknown top-level key, bad `fd_order`, bad `floquet_shift`, flat type mismatch |
 | `ValueError` from `MpiCfg.from_mapping` | Use of removed `mumps_icntl_7` / `LINSTABPY_PETSC_SET_MUMPS_ICNTL_7` |
 | Backend normalize errors | Invalid factor backend / precision / ordering strings (via `linalg.backends` helpers) |
 
@@ -511,9 +501,9 @@ Validation messages are joined with `"; "` and may be prefixed with `source` (e.
 ## Implementation Notes and Migration Status
 
 1. **Frozen dataclasses** make policy snapshots safe to share across stages and ranks without accidental mutation.
-2. **Typed seam is transitional**, it mirrors `utils._solver_cfg` without forcing all call sites to migrate at once.
+2. **Typed seam is the live path**; shared type sets and small helpers still come from `utils._solver_cfg`.
 3. **Schema is intentionally shallow** on nested solver trees; depth is handled by typed loaders and runtime preflight.
-4. **`validation_cases.yaml` is not runtime input**, do not pass it to `driver.run` as a case file.
+4. **Example registry lives in the runner**; `run_all_examples.sh` `EXAMPLE_SPECS` is the single source of truth for example modules and artifacts.
 5. **Solver-level `factor_backend`** is documented in code as a past silent no-op; treat per-stage keys and env as higher priority.
 6. **Auto factor routing** stores DOF threshold on `EigenCfg`; concrete backend choice happens later when `ndof` is known (`resolve_auto_factor_backend` in the eigenvalue path).
 
@@ -528,4 +518,4 @@ Configuration management in LinStabPy:
 4. **Anchors** cross-stage dissipation apply behavior in `DISSIPATION_APPLY_DEFAULTS`
 5. **Gates** expensive stability and resolvent work so HPC campaigns remain reproducible and fail fast on structural mistakes  
 
-Primary code paths: `src/linstabpy/config/{__init__,defaults,schema,typed}.py` and the non-runtime registry `validation_cases.yaml`. Consumers should import from `linstabpy.config`, call `validate_config` on the merged case dict, and obtain solver policy via `Config.load` or the subsection `from_mapping` factories before entering mesh, operator, or solver stages.
+Primary code paths: `src/linstabpy/config/{__init__,defaults,schema,typed}.py`. Consumers should import from `linstabpy.config`, call `validate_config` on the merged case dict, and obtain solver policy via `Config.load` or the subsection `from_mapping` factories before entering mesh, operator, or solver stages.
