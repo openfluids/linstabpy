@@ -1,0 +1,13 @@
+# Local-only: keep CLI deploys small. Vercel CLI does not consult .gitignore.
+.venv/
+site/
+__pycache__/
+*.pyc
+*.npz
+*.h5
+*.mat
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/

@@ -14,16 +14,19 @@ This page is the reference for how you talk to LinStabPy from outside: CLI comma
 
 - `--version`: optional. Print the installed package version and exit without initializing PETSc or [MPI](https://grokipedia.com/page/Message_Passing_Interface).
 
-**Environment** (the real CLI surface):
+**Environment** (the real CLI surface, generated from `CLI_ENV_VARS`):
 
-- `LINSTABPY_CASE_CONFIG`: YAML case file. Legacy aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG`. Default `./configs/parity_config.yaml`.
-- `LINSTABPY_CASE_OUTPUT_NPZ`: result archive path. Per-run aliases `LINSTABPY_CASE2_OUTPUT_NPZ`, `LINSTABPY_CASE1_OUTPUT_NPZ`. Default `{prefix}_{config_md5}_{git_sha8}.npz` in the working directory.
-- `LINSTABPY_CASE_LOG_PREFIX`: log prefix. Default `linstabpy`.
-- `LINSTABPY_FORCE_RECOMPUTE`: set to `1`, `true`, `yes`, or `on` to skip the cache check.
-- `LINSTABPY_STAGE_HEARTBEAT_SECONDS`: progress heartbeat interval. Default `30`.
+<!-- GENERATED:CLI-ENV-START -->
+- `LINSTABPY_CASE_CONFIG`: YAML case file. Aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG`. Default `./configs/parity_config.yaml`.
+- `LINSTABPY_CASE_OUTPUT_NPZ`: Result archive path. Aliases `LINSTABPY_CASE2_OUTPUT_NPZ`, `LINSTABPY_CASE1_OUTPUT_NPZ`. Default `{prefix}_{config_md5}_{git_sha8}.npz in the working directory`.
+- `LINSTABPY_CASE_LOG_PREFIX`: Log-line prefix and default output stem. Default `linstabpy`.
+- `LINSTABPY_FORCE_RECOMPUTE`: Set to 1, true, yes, or on to skip the cache check (CLI gate only; library runs always compute). Default `unset (cache check runs)`.
+- `LINSTABPY_STAGE_HEARTBEAT_SECONDS`: Progress heartbeat interval in float seconds. Default `30`.
+- `LINSTABPY_CASE_ROOT_ASSEMBLY`: Root-only assembly for iterative eigen ST solvers; stability-only. Aliases `LINSTABPY_CASE2_ROOT_ASSEMBLY`, `LINSTABPY_CASE1_ROOT_ASSEMBLY`. Default `unset (auto: on for iterative eigen ST solvers under MPI)`.
+<!-- GENERATED:CLI-ENV-END -->
 
-!!! warning "Unknown arguments are silently ignored"
-    The parser uses `parse_known_args`, so extra words on the command line do not error. They are dropped and the run uses the env config. There is no `run` subcommand and no `--config` flag. An older revision of this page documented both. They never existed.
+!!! warning "Unknown arguments warn, then are ignored"
+    The parser uses `parse_known_args`, so extra words on the command line do not error. Bare words and `--style` options print a `warning: ignoring unknown arguments [...]` line on stderr (rank 0 only) and the run continues with the env config; the exit code is unchanged. Single-dash PETSc options (`-ksp_monitor`, ...), plus one following value (`-ksp_rtol 1e-8`), still pass through to the solver stack. There is no `run` subcommand and no `--config` flag. An older revision of this page documented both. They never existed. Unknown `LINSTABPY_*` names in the environment get the same treatment: a stderr warning with a did-you-mean hint (registry: `src/linstabpy/config/env_registry.py`), then ignored.
 
 **Usage examples**:
 
@@ -58,6 +61,14 @@ python -m linstabpy.driver.cli
 - `numerics`(mapping): optional - Top-level numerics block including finite-difference order settings traversed by validation helpers.
 - `bc`(mapping): optional - Boundary recipe block: ordered `recipe` rules plus `penalty` (Dirichlet diagonal pin and Neumann row scale; driver default `1e8`, library and router default `1e4`).
 - `complex / int list fields`(complex | list[complex] | list[int]): optional - Loosely typed YAML scalars/lists parsed into Python complex and int lists (parse_complex, parse_complex_list, parse_int_list) for frequencies, [wavenumbers](https://grokipedia.com/page/Wavenumber), and similar solver inputs.
+
+<!-- GENERATED:YAML-KEYS-START -->
+**Top-level keys** (`TOP_LEVEL_ALLOWED`, generated — 73 keys):
+
+`L_cavity`, `Lx`, `Ly`, `Ma`, `Pr`, `Re`, `St`, `T_0`, `alpha_filter`, `alpha_temp`, `analysis`, `assembly_backend`, `baseflow_input`, `baseflow_preprocess`, `bc`, `bc_mask_layout`, `beta`, `cases`, `coarsen`, `conformal_scale`, `dedupe_tol`, `deform`, `dx`, `fd_order`, `floquet_shift`, `forcing_zero_vars`, `kappa`, `kx`, `m`, `mask_x_left`, `mask_x_right`, `model`, `n_modes`, `n_modes_resolvent`, `n_modes_stability`, `n_periods`, `ncv`, `numerics`, `nx`, `ny`, `omega`, `omega_shift_fallback`, `omega_target`, `paths`, `penalty`, `physics`, `preprocess`, `run_resolvent`, `run_spatial`, `run_stability`, `run_temporal`, `schema_version`, `solver`, `spatial_omega_imag_shift`, `sponge`, `stability_search_extra_modes`, `stride_eta`, `stride_ksi`, `temporal_quotas`, `temporal_targets`, `use_omega_shift_fallback`, `x_cavity_start`, `x_max_base`, `x_min_factor`, `x_periodicity`, `xrange`, `y_i`, `y_max`, `y_stretch_yi`, `y_symmetry`, `yrange`, `zero_dmudT`, `zero_dmudT_martini_parity`
+
+SBP `fd_order` values allowed: 2, 4, 6, 8.
+<!-- GENERATED:YAML-KEYS-END -->
 
 **Usage Examples**:
 
@@ -104,6 +115,22 @@ print(linstabpy.__version__)  # version without PETSc init
 # Configure via YAML dict or SolverConfig, then call driver/stability/resolvent APIs
 ```
 
+<!-- GENERATED:PYTHON-API-START -->
+**Public names** (`_LAZY_EXPORTS`, generated — 9 names):
+
+| Public name | Module | Attribute |
+|---|---|---|
+| `BaseFlow` | `linstabpy.baseflow` | `BaseFlow` |
+| `adjoint_eigenvalues` | `linstabpy.stability._eigenvalues` | `adjoint_eigenvalues` |
+| `build_lnse_operator` | `linstabpy.operators.assembly` | `build_lnse_operator` |
+| `build_lnse_system` | `linstabpy.operators.assembly` | `build_lnse_system` |
+| `compute_chu_norm` | `linstabpy.operators.energy_norm` | `compute_chu_norm` |
+| `resolvent_analysis` | `linstabpy.resolvent.analysis` | `resolvent_analysis` |
+| `resolvent_map` | `linstabpy.solvers.router.resolvent_map` | `resolvent_map` |
+| `temporal_eigenvalues` | `linstabpy.stability._eigenvalues` | `eigenvalues` |
+| `wavemaker` | `linstabpy.stability.sensitivity` | `wavemaker` |
+<!-- GENERATED:PYTHON-API-END -->
+
 **Best Practices**:
 
 - Rely on lazy __getattr__ so import-time side effects stay minimal
@@ -131,7 +158,7 @@ validate_config(cfg, source='case.yaml')
 - Keep dissipation apply flags aligned across stability and resolvent stages
 - Use schema validation before long MPI jobs to fail fast on unknown keys
 - Store baseflow and mesh paths relative to a reproducible case directory
-- Document expected artifacts similarly to config/validation_cases.yaml catalogs
+- Document expected artifacts alongside the case (module + NPZ name); the live example list is `run_all_examples.sh` `EXAMPLE_SPECS`
 
 ### PETSc / SLEPc / MUMPS / optional cuDSS backend
 

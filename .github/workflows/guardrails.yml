@@ -64,6 +64,9 @@ jobs:
         with:
           python-version-file: .python-version
 
+      - name: Check wiki boundaries are current
+        run: python3 tools/generate_wiki_boundaries.py --check
+
       - name: Check llms-full.txt is current
         run: python3 tools/generate_llms_full.py --check
 

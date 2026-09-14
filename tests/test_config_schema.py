@@ -149,3 +149,52 @@ def test_no_false_positives_on_shipped_configs() -> None:
 
     for path in config_paths:
         validate_config(load_config(path), source=str(path))
+
+
+def test_unknown_key_suggests_close_match() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({"omega_targt": 1.0})
+    assert "did you mean 'omega_target'?" in str(exc_info.value)
+
+
+def test_unknown_key_without_close_match_has_no_suggestion() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({"zzz_nope_qqq": 1.0})
+    msg = str(exc_info.value)
+    assert "unknown top-level key 'zzz_nope_qqq' (possible typo)" in msg
+    assert "did you mean" not in msg
+
+
+def test_unknown_non_string_key_does_not_crash_suggester() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({123: 1.0})
+    assert "unknown top-level key 123 (possible typo)" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "mode", ["matlab_parity", "continuum", "matlab", "physics", "matlab-parity"]
+)
+def test_floquet_shift_accepts_known_modes_nested(mode: str) -> None:
+    assert validate_config({"numerics": {"floquet_shift": mode}}) is None
+
+
+def test_floquet_shift_rejects_unknown_mode_nested() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({"numerics": {"floquet_shift": "random"}})
+    msg = str(exc_info.value)
+    assert "numerics.floquet_shift" in msg
+    assert "matlab_parity" in msg and "continuum" in msg
+
+
+def test_floquet_shift_rejects_non_string_nested() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({"numerics": {"floquet_shift": 123}})
+    assert "numerics.floquet_shift" in str(exc_info.value)
+    assert "expected str" in str(exc_info.value)
+
+
+def test_floquet_shift_top_level_still_validated() -> None:
+    with pytest.raises(ConfigValidationError) as exc_info:
+        validate_config({"floquet_shift": 123})
+    assert "floquet_shift" in str(exc_info.value)
+    assert validate_config({"floquet_shift": "continuum"}) is None

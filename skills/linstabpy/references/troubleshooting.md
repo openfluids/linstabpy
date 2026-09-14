@@ -6,7 +6,9 @@ Symptom: configure picks one MPI, runtime loads another; crashes or
 wrong-launcher errors. Fix: wipe and rebuild from a clean env — one MPI
 stack for launcher, mpi4py, PETSc, SLEPc, and mpiexec. Never paper over
 with `LD_LIBRARY_PATH`. Useful knobs: `LINSTABPY_MPI_STACK=intelmpi`,
-`LINSTABPY_PETSC_MPIEXEC=/path/to/mpiexec`,
+`LINSTABPY_PETSC_MPIEXEC=/path/to/mpiexec` (configure),
+`LINSTABPY_VERIFY_MPIEXEC=/path/to/mpiexec` (install checks),
+`LINSTABPY_MPIEXEC=/path/to/mpiexec` (example runner only),
 `LINSTABPY_MPI4PY_NO_BINARY=1` (build mpi4py from source),
 `LINSTABPY_AUTO_INSTALL_SYS_DEPS=1` (let install.sh use the package
 manager), `LINSTABPY_SKIP_SYS_DEPS=1` (provisioned cluster nodes).
@@ -26,10 +28,11 @@ Rank 0 compares the output NPZ's stored config hash + git SHA against
 current ones and skips the compute on match. Either point each run at
 its own output path or export `LINSTABPY_FORCE_RECOMPUTE=1`.
 
-## Ran the wrong case, no error
+## Ran the wrong case (exit 0, warning on stderr)
 
-`parse_known_args` silently drops unknown CLI words. There are no case
-flags — check `LINSTABPY_CASE_CONFIG` / `LINSTABPY_CASE_OUTPUT_NPZ`.
+`parse_known_args` warns (`warning: ignoring unknown arguments [...]`)
+then drops unknown bare words and `--flags`. There are no case flags — check
+`LINSTABPY_CASE_CONFIG` / `LINSTABPY_CASE_OUTPUT_NPZ`.
 
 ## Slow parallel runs
 

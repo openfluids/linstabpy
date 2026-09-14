@@ -154,11 +154,29 @@ def _npz_keys() -> str:
     return "".join(lines)
 
 
+def _cli_env() -> str:
+    cli = REPO / "src" / "linstabpy" / "driver" / "cli.py"
+    entries = _load_assign(cli, "CLI_ENV_VARS")
+    lines = [
+        HEADER,
+        "# Driver env vars (generated)\n",
+        "\nSource: `src/linstabpy/driver/cli.py` (`CLI_ENV_VARS`).\n",
+        "The CLI takes no case flags; these variables are its whole surface.\n",
+        "\n| Variable | Aliases | Default | Purpose |\n",
+        "|---|---|---|---|\n",
+    ]
+    for name, aliases, default, purpose in entries:
+        alias_text = ", ".join(f"`{a}`" for a in aliases) if aliases else "—"
+        lines.append(f"| `{name}` | {alias_text} | `{default}` | {purpose} |\n")
+    return "".join(lines)
+
+
 def build_all() -> dict[str, str]:
     return {
         "yaml-keys.md": _yaml_keys(),
         "python-api.md": _python_api(),
         "npz-keys.md": _npz_keys(),
+        "cli-env.md": _cli_env(),
     }
 
 

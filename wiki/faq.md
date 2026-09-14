@@ -24,7 +24,7 @@ Dirichlet rows are zeroed and the diagonal is set to `penalty`, pinning the DOF 
 
 ## Why does `linstabpy run case.yaml` run the wrong case?
 
-Because that command never existed. The CLI takes no case arguments — only `--version`. Case and output travel by `LINSTABPY_CASE_CONFIG` and `LINSTABPY_CASE_OUTPUT_NPZ`, and unknown words are silently ignored by design of the parser. See [getting started](getting-started/index.md#the-cli-as-it-really-is).
+Because that command never existed. The CLI takes no case arguments — only `--version`. Case and output travel by `LINSTABPY_CASE_CONFIG` and `LINSTABPY_CASE_OUTPUT_NPZ`, and unknown bare words print a stderr warning but are otherwise ignored by design of the parser. See [getting started](getting-started/index.md#the-cli-as-it-really-is).
 
 ## Why did my run print `Cache valid` and finish instantly?
 

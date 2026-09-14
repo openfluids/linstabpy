@@ -67,8 +67,11 @@ Knobs you may need (all in the README with full detail):
 | `LINSTABPY_SKIP_SYS_DEPS=1` | Skip system dependency checks on provisioned cluster nodes. |
 | `LINSTABPY_MPI_STACK=intelmpi` | You already loaded Intel MPI and want it used. |
 | `LINSTABPY_PETSC_MPIEXEC=/path/to/mpiexec` | PETSc configure hangs or picks the wrong launcher. |
+| `LINSTABPY_VERIFY_MPIEXEC=/path/to/mpiexec` | Install-time checks need a different launcher than configure. |
 | `LINSTABPY_MPI4PY_NO_BINARY=1` | Force `mpi4py` to build from source against your active MPI. |
 | `LINSTABPY_WITH_H5PY=1` | Also install `h5py` for MATLAB v7.3 file tooling. |
+
+Three launcher knobs, three jobs: `LINSTABPY_PETSC_MPIEXEC` picks the launcher PETSc/SLEPc configure probes, `LINSTABPY_VERIFY_MPIEXEC` picks the launcher install-time checks run under, and `LINSTABPY_MPIEXEC` picks the launcher `run_all_examples.sh` uses. Each defaults to the auto-detected working launcher; set them only when the probe picks the wrong MPI family. `benchmark.sh` re-exports its resolved launcher as `LINSTABPY_MPIEXEC` (and its interpreter as `LINSTABPY_PYTHON_BIN`) for its child runs.
 
 Run everything through `.venv/bin/python` directly (scripts should do this so logs show the interpreter). For interactive shells, `source .venv/bin/activate` is convenient.
 
@@ -111,7 +114,7 @@ python -m linstabpy.driver.cli   # same entrypoint as a module
 | `LINSTABPY_CASE_CONFIG` | `./configs/parity_config.yaml` | YAML case file. Legacy aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG` also work. |
 | `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Where the result archive lands. Per-run aliases exist too. Set a unique path per concurrent run. |
 | `LINSTABPY_CASE_LOG_PREFIX` | `linstabpy` | Prefix for log lines and the default output stem. |
-| `LINSTABPY_FORCE_RECOMPUTE` | unset | Set to `1`, `true`, `yes`, or `on` to skip the cache check and recompute. |
+| `LINSTABPY_FORCE_RECOMPUTE` | unset | Set to `1`, `true`, `yes`, or `on` (case-insensitive) to skip the cache check and recompute. CLI gate only; library `driver.run` callers always compute. |
 | `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | `30` | Progress heartbeat interval for long stages. |
 
 A typical MPI run:
@@ -122,8 +125,8 @@ export LINSTABPY_CASE_OUTPUT_NPZ=results/my_case.npz
 mpirun -n 4 linstabpy
 ```
 
-!!! warning "Unknown arguments are silently ignored"
-    The CLI uses `parse_known_args`, so `linstabpy run case.yaml` does not error. It runs with the env config and drops your words on the floor. If a run used the wrong case, this is the first thing to check.
+!!! warning "Unknown arguments warn, then are ignored"
+    The CLI uses `parse_known_args`, so `linstabpy run case.yaml` does not error. It prints a warning on stderr (rank 0 only) — for bare words and `--style` options alike — then runs with the env config and drops your words on the floor. If a run used the wrong case, this is the first thing to check. Single-dash PETSc options (plus one following value, e.g. `-ksp_rtol 1e-8`) still pass through to the solver stack.
 
 Caching behavior: on rank 0 the driver loads the existing output NPZ if present and compares its stored config hash and git SHA against the current ones. Match means it prints `Cache valid` and skips the compute. Mismatch or unreadable file means it recomputes. In parameter sweeps, either point each run at its own output path or export `LINSTABPY_FORCE_RECOMPUTE=1` deliberately.
 
@@ -245,7 +248,7 @@ bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
 bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
 ```
 
-Without `-n`, the runner defaults to half the detected physical cores. Override the launcher with `LINSTABPY_MPIEXEC` and the rank count with `LINSTABPY_MPI_RANKS` when the machine needs explicit paths.
+Without `-n`, the runner defaults to half the detected physical cores. Override the launcher with `LINSTABPY_MPIEXEC` and the rank count with `LINSTABPY_MPI_RANKS` when the machine needs explicit paths. Interpreter: `LINSTABPY_PYTHON` wins over `LINSTABPY_PYTHON_BIN`, else `.venv/bin/python`.
 
 Beyond Martini, three case families cover harder ground. Leave them for week two:
 
@@ -381,7 +384,7 @@ Large generated outputs, raw MATLAB exports, and machine-local benchmark product
 | Python NHEP solve aborts on macOS, C SLEPc works | Accelerate LAPACK interposition | `brew install openblas scalapack`, reinstall, use `.venv/bin/python` only. |
 | PETSc configure hangs | Wrong launcher probed | `LINSTABPY_PETSC_MPIEXEC=/path/to/working/mpiexec bash install.sh`. |
 | Example raises `FileNotFoundError` for `.mat` | Data dir unset | Clone LinStab2D, export `LINSTABPY_BASEFLOW_DATA_DIR`. |
-| `linstabpy` ran the wrong case | Args silently ignored | The CLI takes no case args. Set `LINSTABPY_CASE_CONFIG` and rerun. |
+| `linstabpy` ran the wrong case | Args ignored (stderr warning, exit 0) | The CLI takes no case args. Set `LINSTABPY_CASE_CONFIG` and rerun. |
 | Stale results reused | Cache hit | Check for the `Cache valid` line. Set unique output paths or `LINSTABPY_FORCE_RECOMPUTE=1`. |
 | Factor crash or OOM | Backend, ranks, or memory | Verify backend build, raise ranks, consider BLR options, check BC setup. |
 

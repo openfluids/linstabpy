@@ -201,6 +201,22 @@ def test_driver_cli_force_recompute_skips_cache(
     assert "LINSTABPY_FORCE_RECOMPUTE" in out.getvalue()
 
 
+@pytest.mark.parametrize("value", ["TRUE", "True", "YES", "On", " ON "])
+def test_driver_cli_force_recompute_is_case_insensitive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    npz = tmp_path / "out.npz"
+    _write_cache(npz, cfg_hash="a" * 16, git_sha="deadbeef")
+    runtime = _FakeRuntime(npz)
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.setenv("LINSTABPY_FORCE_RECOMPUTE", value)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        main([])
+    assert runtime.run_calls == 1
+    assert "LINSTABPY_FORCE_RECOMPUTE" in out.getvalue()
+
+
 def test_driver_cli_missing_cache_recomputes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -302,3 +318,188 @@ def test_driver_cli_corrupt_cache_recomputes(
         main([])
     assert runtime.run_calls == 1
     assert "Cache validation failed" in out.getvalue()
+
+
+def test_driver_cli_unknown_bare_words_warn_but_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["run", "case.yaml"])
+    assert runtime.run_calls == 1
+    assert "warning: ignoring unknown arguments ['run', 'case.yaml']" in err.getvalue()
+
+
+def test_driver_cli_petsc_options_do_not_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["-ksp_monitor", "-log_view"])
+    assert runtime.run_calls == 1
+    assert err.getvalue() == ""
+
+
+def test_driver_cli_unknown_words_warn_only_on_rank_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz", rank=1)
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["run", "case.yaml"])
+    assert err.getvalue() == ""
+
+
+def test_driver_cli_version_with_unknown_words_warns_on_stderr() -> None:
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["--version", "oops"])
+    assert out.getvalue().strip() == metadata.version("linstabpy")
+    assert "warning: ignoring unknown arguments ['oops']" in err.getvalue()
+
+
+def test_driver_cli_help_lists_env_contract() -> None:
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), pytest.raises(SystemExit) as excinfo:
+        main(["--help"])
+    assert excinfo.value.code == 0
+    text = out.getvalue()
+    assert "LINSTABPY_CASE_CONFIG" in text
+    assert "there is no --config flag" in text
+    assert "PETSc" in text and "option database" in text
+
+
+def test_driver_cli_double_dash_options_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["--config", "foo.yaml"])
+    assert runtime.run_calls == 1
+    assert "warning: ignoring unknown arguments ['--config', 'foo.yaml']" in err.getvalue()
+
+
+def test_driver_cli_petsc_option_value_is_not_flagged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["-ksp_rtol", "1e-8"])
+    assert runtime.run_calls == 1
+    assert err.getvalue() == ""
+
+
+def test_driver_cli_mixed_words_and_petsc_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["run", "-ksp_rtol", "1e-8"])
+    assert runtime.run_calls == 1
+    assert "warning: ignoring unknown arguments ['run']" in err.getvalue()
+
+
+def test_driver_cli_separator_skipped_but_bare_word_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["--", "oops"])
+    assert runtime.run_calls == 1
+    assert "warning: ignoring unknown arguments ['oops']" in err.getvalue()
+
+
+def _scrub_unknown_linstabpy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from linstabpy.config.env_registry import find_unknown_env_vars
+
+    for name in find_unknown_env_vars():
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_driver_cli_unknown_env_var_warns_with_suggestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    _scrub_unknown_linstabpy_env(monkeypatch)
+    monkeypatch.setenv("LINSTABPY_CASE_CONFG", "typo.yaml")
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main([])
+    assert runtime.run_calls == 1
+    assert "unknown LINSTABPY_CASE_CONFG" in err.getvalue()
+    assert "did you mean LINSTABPY_CASE_CONFIG?" in err.getvalue()
+
+
+def test_driver_cli_unknown_env_var_silent_on_other_ranks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz", rank=1)
+    _patch_runtime(monkeypatch, runtime)
+    _scrub_unknown_linstabpy_env(monkeypatch)
+    monkeypatch.setenv("LINSTABPY_CASE_CONFG", "typo.yaml")
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main([])
+    assert err.getvalue() == ""
+
+
+def test_driver_cli_known_env_vars_do_not_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    _scrub_unknown_linstabpy_env(monkeypatch)
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", "case.yaml")
+    monkeypatch.setenv("LINSTABPY_EIGEN_KSP_TYPE", "gmres")
+    monkeypatch.setenv("LINSTABPY_MPI_STACK", "openmpi")
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main([])
+    assert runtime.run_calls == 1
+    assert err.getvalue() == ""
+
+
+def test_driver_cli_version_warns_on_unknown_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _scrub_unknown_linstabpy_env(monkeypatch)
+    monkeypatch.setenv("LINSTABPY_CASE_CONFG", "typo.yaml")
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main(["--version"])
+    assert out.getvalue().strip() == metadata.version("linstabpy")
+    assert "unknown LINSTABPY_CASE_CONFG" in err.getvalue()
+
+
+def test_driver_cli_ineffective_env_var_warns_yaml_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = _FakeRuntime(tmp_path / "missing.npz")
+    _patch_runtime(monkeypatch, runtime)
+    _scrub_unknown_linstabpy_env(monkeypatch)
+    monkeypatch.setenv("LINSTABPY_EIGEN_NCV", "52")
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        main([])
+    assert runtime.run_calls == 1
+    assert "LINSTABPY_EIGEN_NCV" in err.getvalue()
+    assert "YAML-only" in err.getvalue()

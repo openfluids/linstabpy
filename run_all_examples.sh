@@ -65,8 +65,9 @@ Options:
   -h, --help            Show this help
 
 Environment:
-  LINSTABPY_PYTHON      Override the Python interpreter path
-  LINSTABPY_MPIEXEC     Override MPI launcher path/name
+  LINSTABPY_PYTHON      Override the Python interpreter path (wins over LINSTABPY_PYTHON_BIN)
+  LINSTABPY_PYTHON_BIN  Override the Python interpreter path (lower precedence; set by benchmark.sh)
+  LINSTABPY_MPIEXEC     Override MPI launcher path/name (runner only; install uses LINSTABPY_PETSC_MPIEXEC / LINSTABPY_VERIFY_MPIEXEC)
   LINSTABPY_MPI_RANKS   Default MPI rank count
 
 Extra PETSc/SLEPc arguments may be passed after -- when exactly one example
@@ -437,8 +438,8 @@ CLEAN=0
 SKIP_PARITY=0
 CONTINUE_ON_ERROR=0
 MPI_MODE=0
-MPIEXEC="${LINSTABPY_MPIEXEC:-${LINSTABPY_MPIEXEC:-}}"
-MPI_RANKS="${LINSTABPY_MPI_RANKS:-${LINSTABPY_MPI_RANKS:-}}"
+MPIEXEC="${LINSTABPY_MPIEXEC:-}"
+MPI_RANKS="${LINSTABPY_MPI_RANKS:-}"
 MPIEXEC_ENV=()
 EXTRA_ARGS=()
 SELECTED_MODULES=()

@@ -37,7 +37,8 @@ Full matrix in `references/troubleshooting.md`.
 ## The CLI contract (where agents fail)
 
 `linstabpy` takes NO case arguments. Only `--version` exists. Config and
-output travel by env vars; unknown words are silently ignored.
+output travel by env vars; unknown bare words and `--flags` warn on stderr, then are
+ignored (exit code unchanged).
 
 ```bash
 export LINSTABPY_CASE_CONFIG=cases/my_case.yaml
@@ -46,8 +47,9 @@ mpiexec -n 8 linstabpy            # full run; prints "Cache valid" + skips if ou
 linstabpy --version              # light: never initializes PETSc or MPI
 ```
 
-- Never invent flags: there is no `--config`. `parse_known_args` drops
-  unknown words, so a guessed flag "succeeds" while running the wrong case.
+- Never invent flags: there is no `--config`. `parse_known_args` warns
+  and drops unknown bare words and `--flags`, so a guessed command still runs the
+  wrong case.
 - One output path per concurrent run, or set
   `LINSTABPY_FORCE_RECOMPUTE=1` deliberately.
 - All env vars + YAML schema: `references/cli-and-yaml.md`.

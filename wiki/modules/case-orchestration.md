@@ -180,7 +180,7 @@ omega, modes = linstabpy.temporal_eigenvalues(...)
 
 **Behavior:**
 
-1. Build a minimal `argparse` parser (`--version` only; remaining argv is left for PETSc option database via `parse_known_args`).
+1. Build a minimal `argparse` parser (`--version` only; remaining argv goes through `parse_known_args`: single-dash tokens (plus one following value) are left for the PETSc option database; bare words and double-dash tokens warn on stderr (rank 0) and are ignored).
 2. On `--version`, print package version and return **without** importing `run`.
 3. Otherwise lazy-import `linstabpy.driver.run` (PETSc/MPI init side effect).
 4. On rank 0, decide whether to recompute:

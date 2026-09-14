@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from difflib import get_close_matches
 from typing import Any
 
 
@@ -98,6 +99,12 @@ TOP_LEVEL_ALLOWED = frozenset(
 
 _ALLOWED_FD_ORDERS = frozenset({2, 4, 6, 8})
 
+# Normalized `floquet_shift` keys accepted by
+# `operators.assembly._resolve_floquet_shift_mode` (lowercased, `-` -> `_`).
+_ALLOWED_FLOQUET_SHIFT_KEYS = frozenset(
+    {"matlab", "matlab_parity", "parity", "linstab2d", "continuum", "correct", "physics"}
+)
+
 _INT_FIELDS = frozenset(
     {
         "n_modes",
@@ -162,7 +169,6 @@ _BOOL_FIELDS = frozenset(
 _STRING_FIELDS = frozenset(
     {
         "model",
-        "floquet_shift",
         "bc_mask_layout",
         "assembly_backend",
         "output_root",
@@ -181,12 +187,27 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
 
     for key in cfg:
         if key not in TOP_LEVEL_ALLOWED:
-            violations.append(f"unknown top-level key {key!r} (possible typo)")
+            hint = ""
+            if isinstance(key, str):
+                match = get_close_matches(key, sorted(TOP_LEVEL_ALLOWED), n=1, cutoff=0.6)
+                if match:
+                    hint = f"; did you mean {match[0]!r}?"
+            violations.append(f"unknown top-level key {key!r} (possible typo{hint})")
 
     for path, value in _iter_fd_order_values(cfg):
         if isinstance(value, bool) or not isinstance(value, int) or value not in _ALLOWED_FD_ORDERS:
             allowed = ", ".join(str(order) for order in sorted(_ALLOWED_FD_ORDERS))
             violations.append(f"{path} = {value!r} (allowed: {allowed})")
+
+    for path, value in _iter_floquet_shift_values(cfg):
+        if not isinstance(value, str):
+            violations.append(
+                f"{path} = {value!r} (expected str, one of 'matlab_parity' or 'continuum')"
+            )
+        elif value.strip().lower().replace("-", "_") not in _ALLOWED_FLOQUET_SHIFT_KEYS:
+            violations.append(
+                f"{path} = {value!r} (unknown mode; expected 'matlab_parity' or 'continuum')"
+            )
 
     for key in sorted(_INT_FIELDS & cfg.keys()):
         value = cfg[key]
@@ -227,3 +248,15 @@ def _iter_fd_order_values(value: Any, path: str = "") -> Iterable[tuple[str, Any
     elif isinstance(value, list):
         for index, item in enumerate(value):
             yield from _iter_fd_order_values(item, f"{path}[{index}]")
+
+
+def _iter_floquet_shift_values(value: Any, path: str = "") -> Iterable[tuple[str, Any]]:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            item_path = f"{path}.{key}" if path else str(key)
+            if key == "floquet_shift":
+                yield item_path, item
+            yield from _iter_floquet_shift_values(item, item_path)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _iter_floquet_shift_values(item, f"{path}[{index}]")
