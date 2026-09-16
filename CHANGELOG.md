@@ -7,6 +7,36 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc10] - 2026-09-15
+
+### Changed
+
+- A line of frequencies on one card is faster. For a serial cuDSS
+  factorization, a refactorize now takes the CSR arrays of the new operator
+  once, checks the nonzero pattern against the first operator, writes the
+  values into the same PETSc matrix, and gives them to cuDSS. The adjoint
+  factor gets K^H from a permutation of those values that is computed once
+  per factorization, not from a sparse transpose at every frequency. On the
+  450,000-unknown Savarino operator, one A6000, the median line point went
+  from 32.1 s to 25.8 s over the eight frequencies after the first of the
+  beta = 40 line, with gains identical to ten digits. The path is the default; set
+  `LINSTABPY_FAST_REFACTOR=0` to use the general path. A different nonzero
+  pattern raises `ValueError`.
+- The run summary reports the peak memory of the largest rank next to the
+  sum over ranks.
+- `run_all_examples.sh` prints `SOFT_FAIL` with the case names when the
+  Martini parity comparison has soft failures. Before, it printed `PASS`.
+
+### Fixed
+
+- `examples/savarino/savarino_mapwalk.py` compared each line gain with
+  `output/savarino_map2_200pt.csv`, a farm computed before the filter-order
+  fix. The `farm_gain` and `rel_err` columns of a line record then showed
+  differences up to 4.4e-3 that are not in the line result. The default
+  reference is now `savarino_map3_200pt.csv`, the committed map of record,
+  in the script, in `savarino_mapwalk.sbatch.template`, which passed the old
+  file explicitly, and in the test and docstrings that named it.
+
 ### Added
 
 - `wiki/` architecture pages and `.github/workflows/pages.yml`. MkDocs
