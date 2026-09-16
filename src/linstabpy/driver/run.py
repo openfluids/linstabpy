@@ -1583,6 +1583,9 @@ def run() -> None:
     # deadlocks every multi-rank run. The aggregated scalar goes into the
     # rank-0-only save (see save_results / collect_cost_metrics).
     _peak_rss_total_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.SUM)
+    # The sum answers how much memory the job took on the node. The maximum
+    # answers how much one rank needs, which is what sizing a run asks for.
+    _peak_rss_max_bytes = MPI.COMM_WORLD.allreduce(int(_peak_rss_bytes()), op=MPI.MAX)
     if rank == 0:
         acceptance_result = _stage_evaluate_stability_acceptance(
             omega=omega,
@@ -1640,6 +1643,7 @@ def run() -> None:
                 ),
                 "epsilon -> resolvent (effective)": eps_resolv,
                 "peak RSS [bytes]": _peak_rss_total_bytes,
+                "peak RSS per rank, max [bytes]": _peak_rss_max_bytes,
             },
             _post,
         ).splitlines():

@@ -12,6 +12,7 @@ It is an explicit solver-policy choice rather than an automatic fallback.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -79,6 +80,42 @@ def _aij_pattern(mat: PETSc.Mat) -> tuple[np.ndarray, np.ndarray]:
             "refactorize requires CSR structure access to verify an identical nonzero pattern"
         ) from exc
     return np.asarray(indptr, dtype=np.int64).copy(), np.asarray(indices, dtype=np.int64).copy()
+
+
+def require_same_pattern(
+    pattern: tuple[np.ndarray, np.ndarray],
+    indptr: np.ndarray,
+    indices: np.ndarray,
+) -> None:
+    """Raise if the CSR structure differs from the factored pattern.
+
+    A reused factorization keeps the symbolic phase of the first operator.
+    A solve would then use the structure of that first operator.
+    A second operator with another nonzero pattern must therefore raise.
+    """
+    same = np.array_equal(pattern[0], np.asarray(indptr, dtype=np.int64)) and np.array_equal(
+        pattern[1], np.asarray(indices, dtype=np.int64)
+    )
+    if not same:
+        raise ValueError("refactorize requires an identical nonzero pattern")
+
+
+def hermitian_transpose_plan(
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    n: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the permutation and CSR structure of the conjugate transpose.
+
+    The structure of K^H depends only on the nonzero pattern of K.
+    The values of K^H are ``conj(values[perm])`` in the returned structure.
+    A refactorize with a fixed pattern can therefore skip the sparse transpose.
+    """
+    nnz = int(indptr[-1])
+    order = sp.csr_matrix((np.arange(nnz, dtype=np.int64), indices, indptr), shape=(n, n))
+    order_h = order.T.tocsr()
+    order_h.sort_indices()
+    return order_h.data.astype(np.int64), order_h.indptr, order_h.indices
 
 
 def _run_adjoint_self_test(
@@ -718,11 +755,77 @@ def factorize(
             X.destroy()
             B.destroy()
 
+    # The in-place path is the default for serial cuDSS. Set
+    # LINSTABPY_FAST_REFACTOR=0 to use the general path instead.
+    _fast_refactor = os.environ.get("LINSTABPY_FAST_REFACTOR", "1") != "0"
+
+    def _fast_refactorize(
+        new_operator: sp.spmatrix | PETSc.Mat,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Refactorize from one CSR extraction, serial cuDSS only.
+
+        The CSR triple comes out of the new operator once.
+        The nonzero pattern is compared against the cached pattern of ``A``.
+        The values then go into the same Mat in place, so PETSc keeps the
+        symbolic factorization and cuDSS keeps its analysis.
+        """
+        t0 = time.perf_counter()
+        if _is_petsc_matrix(new_operator):
+            indptr, indices, values = new_operator.getValuesCSR()
+        else:
+            csr = sp.csr_matrix(new_operator)
+            csr.sort_indices()
+            indptr, indices, values = csr.indptr, csr.indices, csr.data
+        pattern = holder.get("_pattern")
+        if pattern is None:
+            pattern = _aij_pattern(A)
+            holder["_pattern"] = pattern
+        require_same_pattern(pattern, indptr, indices)
+        A.setValuesCSR(
+            np.asarray(indptr, dtype=PETSc.IntType),
+            np.asarray(indices, dtype=PETSc.IntType),
+            np.asarray(values, dtype=PETSc.ScalarType),
+        )
+        A.assemblyBegin()
+        A.assemblyEnd()
+        cudss_solver.refactorize(sp.csr_matrix((values, indices, indptr), shape=(n, n)))
+        ksp.setOperators(A)
+        ksp.setUp()
+        metrics["refactor_count"] += 1
+        metrics["refactor_seconds"] += time.perf_counter() - t0
+        return indptr, indices, values
+
     def refactorize_operator(new_operator: sp.spmatrix | PETSc.Mat) -> None:
         nonlocal pristine_operator
         nrows_new, ncols_new = _operator_shape(new_operator)
         if (nrows_new, ncols_new) != (n, n):
             raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
+        if _fast_refactor and cudss_solver is not None and A.getComm().getSize() == 1:
+            indptr, indices, values = _fast_refactorize(new_operator)
+            pristine_operator = new_operator
+            factor_H = holder.get("factor_H")
+            if factor_H is not None:
+                plan = holder.get("_transpose_plan")
+                if plan is None:
+                    plan = hermitian_transpose_plan(indptr, indices, n)
+                    holder["_transpose_plan"] = plan
+                    logger.info("refactorize: in-place path for serial cuDSS (K and K^H)")
+                perm, indptr_h, indices_h = plan
+                k_h = sp.csr_matrix(
+                    (np.conj(np.asarray(values)[perm]), indices_h, indptr_h), shape=(n, n)
+                )
+                factor_H.refactorize(k_h)
+                metrics["adjoint_refactor_count"] += 1
+                healed_defect = _run_adjoint_self_test(
+                    solve, factor_H.solve, n, k=1, probe_family=_self_test_probe_family()
+                )
+                metrics["adjoint_healed_defect"] = healed_defect
+                if healed_defect > adjoint_tol:
+                    raise RuntimeError(
+                        f"Dual-factor adjoint after fast refactorize: identity defect {healed_defect:.3e} "
+                        f"> tolerance {adjoint_tol:.3e}"
+                    )
+            return
         owns_new_A = not _is_petsc_matrix(new_operator)
         new_A = new_operator if not owns_new_A else scipy_to_petsc(new_operator, solver_cfg)
         try:
