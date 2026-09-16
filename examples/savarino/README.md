@@ -22,7 +22,7 @@ examples/savarino/
     savarino_grid.csv
     savarino_forcing_mask_measured.csv
   output/
-    savarino_map2_200pt.csv # superseded 200-pt campaign (line driver's rel_err reference)
+    savarino_map2_200pt.csv # superseded 200-pt campaign, not quoted
     savarino_map317pt.csv   # committed 317-pt campaign run record
     baseflow/               # converted .npy (savarino_to_npy.py)
     compare/                # resolvent .npz (run_compare_points.py)
@@ -184,8 +184,9 @@ from the Zenodo mode archive.
    run of record (per-point jobs); `savarino_map3_lines_200pt.csv` is the
    same 200 points from the line driver (the 14 per-line
    `savarino_mapwalk.csv` files concatenated), agreeing to 4.7e-10.
-   `output/savarino_map2_200pt.csv` is the earlier campaign the line driver's
-   `farm_gain` / `rel_err` columns compare against; its gains predate the
+   `output/savarino_map2_200pt.csv` is the earlier campaign; the line driver's
+   `farm_gain` / `rel_err` columns compared against it before 1.0.0rc10 and
+   now compare against `savarino_map3_200pt.csv`. Its gains predate the
    filter-placement fix (`6b3ae2a`, <= 4.4e-3 relative) and its wall times
    were measured with reference BLAS, so neither is quoted.
    `output/savarino_map317pt.csv` is the 317-point dense-grid record.

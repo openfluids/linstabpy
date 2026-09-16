@@ -17,7 +17,7 @@ then convert with `python savarino_to_npy.py` → `output/baseflow/` (gitignored
 | `savarino_grid.csv` | (f, β) grid recovered from Zenodo mode listing. |
 | `savarino_forcing_mask_measured.csv` | Forcing-region bounds from published modes. |
 
-The 200-point gain-map run record lives at `../output/savarino_map2_200pt.csv`.
+The 200-point gain-map run record lives at `../savarino_map3_200pt.csv`.
 
 Figures go to `output/figures/` (not shipped here).
 

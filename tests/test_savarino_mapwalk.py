@@ -14,8 +14,8 @@ DRIVER = Path(__file__).resolve().parents[1] / "examples/savarino/savarino_mapwa
 def test_farm_beta40_comes_from_committed_csv() -> None:
     rows = [row for row in load_farm(FARM_CSV) if abs(row["beta"] - 40.0) < 1.0e-12]
     assert [row["f"] for row in rows] == [1.0, 1.4, 1.6, 1.8, 2.0, 2.1, 2.15, 2.2, 2.5]
-    assert abs(sum(row["wall_s"] for row in rows) - 8700.38) < 0.01
-    assert FARM_CSV.name == "savarino_map2_200pt.csv"
+    assert abs(sum(row["wall_s"] for row in rows) - 1017.78) < 0.01
+    assert FARM_CSV.name == "savarino_map3_200pt.csv"
 
 
 def test_farm_forcing_window_switches_at_f2() -> None:
