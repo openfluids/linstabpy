@@ -53,6 +53,7 @@ KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
         "LINSTABPY_MUMPS_BLR_TOL",
         "LINSTABPY_MUMPS_ORDERING",
         "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD",
+        "LINSTABPY_FAST_REFACTOR",
         # -- eigen solver family (config/typed.py EigenCfg) --
         "LINSTABPY_EIGEN_ST_SOLVER",
         "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",

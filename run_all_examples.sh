@@ -646,7 +646,14 @@ if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 && $MPI_MODE -eq 0 ]]; then
   echo "  Parity comparison (Python vs MATLAB)"
   echo "══════════════════════════════════════════════════════"
   if "$PYTHON" "$PARITY_SCRIPT" --fail-on-hard-fail; then
-    echo "Status: PASS"
+    # The parity script exits 0 on a SOFT_FAIL. Print the soft fails by name
+    # so that the summary does not show PASS for them.
+    SOFT_FAILS="$("$PYTHON" -c 'import json, sys; r = json.load(open(sys.argv[1])); print(" ".join(str(c.get("case_id", "?")) for c in r["cases"] if c["status"] != "PASS"))' "$REPO/examples/martini/martini_parity_latest.json")"
+    if [[ -z "$SOFT_FAILS" ]]; then
+      echo "Status: PASS"
+    else
+      echo "Status: SOFT_FAIL ($SOFT_FAILS)"
+    fi
   else
     rc=$?
     echo "Status: FAIL (exit $rc)" >&2

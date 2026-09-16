@@ -3,7 +3,7 @@
 
 The walker factors the first two frequencies of a beta line, then tries
 to walk the rest. Each job times one beta line against the committed farm
-walls in output/savarino_map2_200pt.csv.
+walls in savarino_map3_200pt.csv.
 
 The repository root comes from this file, so the job script has no
 absolute path in it.

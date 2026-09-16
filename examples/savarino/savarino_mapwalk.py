@@ -36,7 +36,7 @@ from linstabpy.solvers.router.map_walk import WalkDeferred  # noqa: E402
 from linstabpy.solvers.router.resolvent_map import _peak_rss_bytes  # noqa: E402
 
 STEM = "savarino_mapwalk"
-FARM_CSV = HERE / "output" / "savarino_map2_200pt.csv"
+FARM_CSV = HERE / "savarino_map3_200pt.csv"
 FIELDS = (
     "beta_Xsh",
     "f_Xsh_Uinf",
