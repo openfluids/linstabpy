@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Backend comparison tests for the experimental STRUMPACK ST path."""
 
-from typing import Any
-
 import numpy as np
 import pytest
 
@@ -24,13 +22,11 @@ TARGET = -0.1j
 N_MODES = 5
 NCV = 30
 POSTCHECK_REL_MAX = 1.0e-6
-# The level a correct STRUMPACK factorization reaches on this problem, with a
-# decade of room: measured 2.102e-10 sixteen times on one host thread.
+# The level a correct STRUMPACK factorization reaches on this problem, with
+# room to spare: 2.102e-10 sixteen times with OMP_NUM_THREADS=1, and 1.506e-12
+# eight times when the package sets the thread count itself and the BLAS keeps
+# ten threads (c9 jobs 4510 and 4526).
 PROBE_RESIDUAL_PIN = 1.0e-9
-# STRUMPACK is not thread safe, so a multithreaded run draws a bad
-# factorization now and then; see README, "STRUMPACK is not thread safe".
-# Four attempts put the chance of losing every draw at about one percent.
-ATTEMPTS = 4
 TARGET_DISTANCE_MAX = 0.11
 
 # Dense scipy.eig-validated to 1.65e-11 (independent closed form); see docs/strumpack_pop_dense_reference.json.
@@ -175,19 +171,18 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     The old pytest.raises failed with DID NOT RAISE.
     The backend got better; the expectation went stale.
 
-    The apply is not repeatable, so the test samples it. Measured on c9 over
-    sixteen fresh processes on identical input (job 4510): eleven runs gave
-    6.3e-13 to 8.7e-12, and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and
-    1.1e-1, which the probe rejected. That is about one bad solve in three.
-    The bad solve is a real defect of this build and is recorded in the
-    changelog; the probe catching it is the intended behaviour. Asserting a
-    single attempt succeeds asserts the draw, so the test retries and needs
-    one good solve out of ATTEMPTS. With the measured rate the chance of all
-    four being bad is about one percent.
+    The apply was not repeatable while STRUMPACK ran on several host threads.
+    Measured on c9 over sixteen fresh processes on identical input (job 4510):
+    eleven runs gave 6.3e-13 to 8.7e-12, and five gave 1.9e-5, 2.9e-5, 3.0e-5,
+    6.7e-2 and 1.1e-1, which the probe rejected. That is about one bad solve in
+    three. STRUMPACK is not thread safe, and the package now sets its OpenMP
+    thread count to one (``limit_strumpack_host_threads``), which made the same
+    measurement give 1.506e-12 eight times out of eight (job 4526). A single
+    solve is therefore enough here.
 
     Keep this check rather than delete it.
-    If a STRUMPACK or PETSc upgrade reintroduces a lossy bare LU apply,
-    every attempt fails the accuracy assertions below and the test fails.
+    If a STRUMPACK or PETSc upgrade reintroduces a lossy bare LU apply, the
+    accuracy assertions below fail and the test fails.
     The loss then does not pass unnoticed into a gain map.
     """
     if not factor_backend_available("strumpack"):
@@ -196,46 +191,19 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", "strumpack")
     L0, bc_indices = _build_blasius_temporal_problem()
 
-    attempts = ATTEMPTS
-    discarded: list[str] = []
-    omega = None
-    info: dict[str, Any] = {}
-    for _attempt in range(attempts):
-        try:
-            omega, _, info = temporal_eigenvalues(
-                L0,
-                N_MODES,
-                TARGET,
-                ncv=NCV,
-                solver_cfg={
-                    "eigen": {
-                        "st_solver": "mumps",
-                        "eps_tol": 1.0e-10,
-                        "eps_max_it": 7500,
-                    }
-                },
-                return_info=True,
-            )
-        except RuntimeError as exc:
-            # The probe refused this solve. That is the safety net working;
-            # the message must name the probe and the backend.
-            message = str(exc)
-            assert "factor backend 'strumpack' failed accuracy probe" in message, message
-            discarded.append(message)
-            omega = None
-            continue
-        # A solve can clear the 1e-8 probe gate and still be far above the
-        # 1e-12 level a correct factorization reaches. That is the same bad
-        # draw, so it goes back for another attempt rather than through the
-        # accuracy assertion below.
-        residual = float(info["backend_probe_residual_rel"])
-        if residual >= PROBE_RESIDUAL_PIN:
-            discarded.append(f"probe residual {residual:.3e}")
-            omega = None
-            continue
-        break
-    assert omega is not None, (
-        f"STRUMPACK gave no accurate solve in {attempts} attempts: {discarded}"
+    omega, _, info = temporal_eigenvalues(
+        L0,
+        N_MODES,
+        TARGET,
+        ncv=NCV,
+        solver_cfg={
+            "eigen": {
+                "st_solver": "mumps",
+                "eps_tol": 1.0e-10,
+                "eps_max_it": 7500,
+            }
+        },
+        return_info=True,
     )
 
     # The probe must actually run on STRUMPACK.
@@ -248,7 +216,7 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     # towards the old lossy behaviour trips this even if it still clears 1e-8.
     assert float(info["backend_probe_residual_rel"]) < PROBE_RESIDUAL_PIN, (
         f"STRUMPACK PREONLY probe residual {float(info['backend_probe_residual_rel']):.3e} "
-        "regressed; a good draw measures 2.102e-10 on this problem"
+        "regressed; a correct factorization measures 1.5e-12 to 2.1e-10 here"
     )
 
     # Clearing the probe is not enough on its own.

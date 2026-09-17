@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import logging
 import os
 from collections.abc import Mapping
 from enum import StrEnum
@@ -13,6 +15,8 @@ import numpy as np
 
 from linstabpy.mumps_options import MUMPS_ORDERING_TO_ICNTL_7
 from linstabpy.utils._solver_cfg import ITERATIVE_EIGEN_SOLVER_TYPES
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     # Type-only import so annotations resolve for type checkers; at runtime
@@ -196,6 +200,46 @@ def resolve_auto_factor_backend(
     return "mumps"
 
 
+# STRUMPACK is not thread safe. Its own TODO file says so, and c9 jobs 4525
+# and 4526 measured it on this build: with ten host threads, two solves in
+# eight gave a factorization wrong by 4.4e-9 and 6.9e-9 on a problem where the
+# correct answer is 2.2e-11. One host thread gave 2.209e-11 eight times out of
+# eight, to the last bit. STRUMPACK uses the libgomp OpenMP runtime, which
+# PETSc links, so one call to that runtime makes the backend repeatable. The
+# call has no effect on MUMPS or on the BLAS, which use a different runtime.
+_GOMP_LIBRARY = "libgomp.so.1"
+
+
+@cache
+def limit_strumpack_host_threads() -> bool:
+    """Set the OpenMP thread count to one, for the STRUMPACK factorization.
+
+    The function runs its effect one time for each process.
+
+    Returns
+    -------
+    bool
+        True if the thread count is one. False if this system has no libgomp,
+        which keeps STRUMPACK at the thread count of the environment.
+    """
+    try:
+        gomp = ctypes.CDLL(_GOMP_LIBRARY)
+    except OSError as exc:
+        logger.warning(
+            "STRUMPACK needs one host thread to give a repeatable factorization, "
+            "but %s does not load here (%s). Set OMP_NUM_THREADS=1 before the run.",
+            _GOMP_LIBRARY,
+            exc,
+        )
+        return False
+    set_num_threads = gomp.omp_set_num_threads
+    set_num_threads.argtypes = [ctypes.c_int]
+    set_num_threads.restype = None
+    set_num_threads(1)
+    logger.info("STRUMPACK: host OpenMP threads set to 1; the library is not thread safe.")
+    return True
+
+
 def apply_factor_backend(
     pc: PETSc.PC,
     backend: str | None,
@@ -291,6 +335,8 @@ def apply_factor_backend(
             "Use factor_precision='double' (the default). Tracked by the "
             "mixed-precision bead; see docs/COMPUTE_BACKENDS.md."
         )
+    if backend == "strumpack":
+        limit_strumpack_host_threads()
     ensure_factor_backend_available(backend)
     PETSc = _get_petsc()
     opts = PETSc.Options()
@@ -441,6 +487,8 @@ def factor_backend_available(backend: str) -> bool:
         from .cudss_factor import cudss_available
 
         return cudss_available()
+    if backend == "strumpack":
+        limit_strumpack_host_threads()
     PETSc = _get_petsc()
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
@@ -580,6 +628,7 @@ __all__ = [
     "available",
     "ensure",
     "ensure_factor_backend_available",
+    "limit_strumpack_host_threads",
     "backend_probe_is_preconditioner_role",
     "factor_backend_available",
     "resolve_auto_factor_backend",
