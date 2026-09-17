@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     # un-initialized until the lazy ``__getattr__`` below is hit.
     from petsc4py import PETSc  # noqa: F401
 
-    from linstabpy.config.typed import MpiCfg
+    from linstabpy.config.typed import Config, MpiCfg
 
 _petsc_configured = False
 
@@ -36,6 +36,26 @@ def mumps_icntl_petsc_options(mpi: "MpiCfg") -> dict[str, str]:
     if mpi.mumps_icntl_24 is not None:
         opts["mat_mumps_icntl_24"] = str(mpi.mumps_icntl_24)
     return opts
+
+
+def uses_mumps_factorization(cfg: "Config") -> bool:
+    """Tell if any solve stage of this configuration can use MUMPS.
+
+    PETSc keeps one option database for the whole process. The MUMPS ICNTL
+    entries stay unused when every stage runs on a different backend, and
+    PETSc then prints "There are options you set that were not used" at the
+    end of the run. The warning is only noise, but it hides real option
+    mistakes, so the entries go in only when MUMPS can run.
+
+    The answer is deliberately permissive. An unset backend or the token
+    ``auto`` can still resolve to MUMPS at solve time, so both count as MUMPS.
+    """
+    backends = (
+        cfg.linsolve.factor_backend,
+        cfg.resolvent.linear.factor_backend,
+        cfg.eigen.st_factor_backend,
+    )
+    return any(backend is None or backend in {"auto", "mumps"} for backend in backends)
 
 
 # Lazy PETSc accessor: ``import linstabpy.utils.petsc_core`` stays PETSc-free.
@@ -139,8 +159,9 @@ def require_complex(solver_cfg: dict | None = None) -> None:
 
         cfg = Config.load(solver_cfg if solver_cfg is not None else {})
         opts = PETSc.Options()
-        for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
-            opts.setValue(key, value)
+        if uses_mumps_factorization(cfg):
+            for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
+                opts.setValue(key, value)
         _petsc_configured = True
 
 

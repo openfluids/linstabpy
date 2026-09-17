@@ -290,8 +290,8 @@ def plot_map(
 
     levels = np.linspace(0.0, vmax, 10)
     cf = ax.contourf(gx, gy, gz, levels=levels, colors=REF_COLORS)
-    for coll in cf.collections:
-        coll.set_edgecolor("face")
+    # Matplotlib 3.10 removed ContourSet.collections. The set is the artist now.
+    cf.set_edgecolor("face")
 
     ax.set_xlim(-4.0, 1.0)
     ax.set_ylim(0.0, 200.0)

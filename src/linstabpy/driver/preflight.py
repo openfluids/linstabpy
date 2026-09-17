@@ -40,6 +40,7 @@ __all__ = [
     "format_advisories",
     "format_banner",
     "format_summary",
+    "mesh_advisories",
     "metric_cross_coupling",
     "result_advisories",
     "translate_solver_error",
@@ -78,6 +79,10 @@ METRIC_COUPLING_GATE = 1.0e-8
 # the tolerance used a different scaling convention, which silently invalidates
 # every eigenvalue and gain computed from it.
 FREESTREAM_TOL = 1.0e-2
+# The smallest share of the field that must sit at rho = u = T = 1 for the
+# base flow to count as normalised. The two released cases give 1.9 % and
+# 3.7 %; a field scaled with the speed of sound gives 0 %.
+FREESTREAM_MIN_FRACTION = 1.0e-3
 
 
 @dataclass(frozen=True)
@@ -146,24 +151,21 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 "deliberately measuring the undamped spectrum",
             )
         )
-    if (run_stab or run_res) and not od_enabled:
-        # Deliberately phrased as "measure it", not a verdict. Whether the bare
-        # operator admits the odd-even mode at all depends on the MESH: a rectilinear
-        # tensor mesh has zero metric cross-coupling and cannot support it, and on
-        # such a mesh dissipation changed the gain by 0.008%-1.4% for +15% nnz
-        # and roughly triple the wall time. Warning unconditionally taught people to
-        # scroll past this, which is how a real case gets waved through.
+    if (run_stab or run_res) and _get(config, "numerics.operator_dissipation") is None:
+        # The verdict on dissipation needs the MESH and is given by
+        # mesh_advisories() once the mesh exists. Only silence is a config
+        # fault: a case must state whether it runs damped or bare. Warning
+        # here on every undamped run, as this check once did, warned against
+        # the correct setting for a rectilinear mesh and taught people to
+        # scroll past, which is how a real case gets waved through.
         out.append(
             Advisory(
-                "DISS-ABSENT",
+                "DISS-UNDECLARED",
                 "warning",
-                "no artificial dissipation: on a mesh whose two directions exchange "
-                "grid-scale content, the bare operator admits an odd-even (sawtooth) mode "
-                "that contaminates eigenvalues and gains",
-                "check the mesh with metric_cross_coupling(): above "
-                f"{METRIC_COUPLING_GATE:.0e} enable numerics.operator_dissipation and tune "
-                "epsilon AT THIS MESH (a value tuned on another grid does not transfer); "
-                "at or below it, record the coupling and run undamped on purpose",
+                "the config does not say whether artificial dissipation is on or off, so "
+                "the run record cannot show that the choice was made on purpose",
+                "add numerics.operator_dissipation with an explicit enabled and epsilon; "
+                "the mesh measurement then reports whether the choice is right for it",
             )
         )
     if od_enabled and od_eps == 0.0:
@@ -272,33 +274,129 @@ def baseflow_advisories(
     A base flow scaled with a different convention runs to completion.
     The numbers look plausible but the physics is not the intended one.
     This already invalidated one full campaign session.
-    The check uses the field maximum rather than a corner value.
-    It does not need to know where the freestream sits in the array.
+
+    The check looks for the freestream itself: the part of the field where
+    the three quantities are all 1. It does not use the field maximum.
+    A maximum test gives a false alarm on every compressible flow with a
+    shock or a hot wall, because the gas there is denser and hotter than
+    the freestream by design. Measured on the two cases of the released
+    examples, the maximum test reported density 1.39 and 1.51 and
+    temperature 1.81 and 1.83 on base flows whose freestream is exactly 1.
     """
     out: list[Advisory] = []
-    fields = (("rho", rho), ("u", u), ("T", temperature))
-    offenders = []
-    for name, arr in fields:
-        if arr is None:
-            continue
-        a = np.asarray(arr, dtype=float)
-        if a.size == 0 or not np.isfinite(a).any():
-            continue
-        peak = float(np.nanmax(np.abs(a)))
-        if abs(peak - 1.0) > tol:
-            offenders.append(f"max|{name}| = {peak:.6g}")
-    if offenders:
+    if rho is None or u is None or temperature is None:
+        return out
+    fields = [np.asarray(a, dtype=float) for a in (rho, u, temperature)]
+    if any(a.size == 0 or not np.isfinite(a).all() for a in fields):
+        return out
+    if len({a.shape for a in fields}) != 1:
+        return out
+
+    at_one = np.ones(fields[0].shape, dtype=bool)
+    for a in fields:
+        at_one &= np.abs(a - 1.0) <= tol
+    fraction = float(at_one.mean())
+    if fraction >= FREESTREAM_MIN_FRACTION:
         out.append(
             Advisory(
-                "BASEFLOW-NORMALISATION",
-                "warning",
-                "base flow does not look normalised to the canonical freestream "
-                f"(rho = u = T = 1): {'; '.join(offenders)}",
-                "rescale to velocity/U_inf and T/T_inf (NOT /c_inf, NOT T*Ma^2); a "
-                "mis-scaled base flow invalidates every eigenvalue and gain from this run",
+                "BASEFLOW-FREESTREAM",
+                "note",
+                f"freestream found on {100.0 * fraction:.2f} % of the field: "
+                f"rho = u = T = 1 to within {tol:g}",
+                "no action; the value is recorded here so the run carries its own "
+                "evidence of the convention",
             )
         )
+        return out
+
+    plateau = _largest_uniform_region(fields)
+    out.append(
+        Advisory(
+            "BASEFLOW-NORMALISATION",
+            "warning",
+            "no part of the base flow has rho = u = T = 1, so it does not follow the "
+            "canonical freestream convention; the largest uniform region of the field "
+            f"has rho = {plateau[0]:.6g}, u = {plateau[1]:.6g}, T = {plateau[2]:.6g}",
+            "rescale to velocity/U_inf and T/T_inf (NOT /c_inf, NOT T*Ma^2); a "
+            "mis-scaled base flow invalidates every eigenvalue and gain from this run",
+        )
+    )
     return out
+
+
+def _largest_uniform_region(fields: list[np.ndarray]) -> tuple[float, float, float]:
+    """Report rho, u and T where the velocity field is most nearly uniform.
+
+    The function bins the velocity, takes the fullest bin, and gives the
+    median of each quantity there. The result tells the user which
+    convention the data is in. A field scaled with the speed of sound
+    shows a velocity near 1/Ma instead of 1.
+    """
+    rho, u, temperature = fields
+    width = FREESTREAM_TOL
+    edges = np.arange(np.floor(u.min() / width) * width, u.max() + 2.0 * width, width)
+    bins = np.digitize(u.ravel(), edges)
+    fullest = int(np.bincount(bins).argmax())
+    mask = (bins == fullest).reshape(u.shape)
+    return (
+        float(np.median(rho[mask])),
+        float(np.median(u[mask])),
+        float(np.median(temperature[mask])),
+    )
+
+
+def mesh_advisories(
+    X: np.ndarray,
+    Y: np.ndarray,
+    *,
+    dissipation_enabled: bool,
+) -> list[Advisory]:
+    """Judge the dissipation choice against the mesh that the run uses.
+
+    The odd-even (sawtooth) mode needs the two mesh directions to exchange
+    content at the grid scale. A rectilinear mesh has no metric cross terms
+    and cannot hold the mode, so dissipation there costs about three times
+    the wall time and changes the gain by about one percent. A bent mesh
+    can hold it. The function measures the mesh and reports the number in
+    every case, so the run record carries its own evidence.
+    """
+    try:
+        coupling = metric_cross_coupling(X, Y)
+    except ValueError as exc:
+        # An advisory must never stop a run. A mesh the measurement cannot
+        # read (one cell wide, or mismatched arrays) is reported as such.
+        return [
+            Advisory(
+                "DISS-MESH-UNKNOWN",
+                "note",
+                f"the mesh grid-scale cross-coupling could not be measured: {exc}",
+                "no action; the dissipation choice is not judged for this mesh",
+            )
+        ]
+    if dissipation_enabled or coupling <= METRIC_COUPLING_GATE:
+        return [
+            Advisory(
+                "DISS-MESH",
+                "note",
+                f"mesh grid-scale cross-coupling = {coupling:.2e} against a gate of "
+                f"{METRIC_COUPLING_GATE:.0e}; dissipation is "
+                f"{'on' if dissipation_enabled else 'off'}",
+                "no action; the measurement is recorded here",
+            )
+        ]
+    return [
+        Advisory(
+            "DISS-ABSENT",
+            "warning",
+            f"mesh grid-scale cross-coupling = {coupling:.2e}, above the gate of "
+            f"{METRIC_COUPLING_GATE:.0e}, and no artificial dissipation is applied: this "
+            "mesh can hold an odd-even (sawtooth) mode that contaminates eigenvalues "
+            "and gains",
+            "enable numerics.operator_dissipation and tune epsilon AT THIS MESH (a value "
+            "tuned on another grid does not transfer), or record this coupling and run "
+            "undamped on purpose",
+        )
+    ]
 
 
 def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:

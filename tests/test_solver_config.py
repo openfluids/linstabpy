@@ -232,6 +232,51 @@ def test_mumps_icntl_petsc_options_env_override(monkeypatch: pytest.MonkeyPatch)
     assert _mumps_opts({})["mat_mumps_icntl_14"] == "321"
 
 
+def _uses_mumps(raw: dict) -> bool:
+    return petsc_core.uses_mumps_factorization(Config.load(raw, env={}))
+
+
+def test_uses_mumps_factorization_is_true_by_default() -> None:
+    # Every stage defaults to MUMPS, so the ICNTL entries must go in.
+    assert _uses_mumps({}) is True
+
+
+def test_uses_mumps_factorization_is_false_on_a_pure_gpu_run() -> None:
+    # No stage can reach MUMPS. PETSc would report the ICNTL entries as unused.
+    raw = {
+        "solver": {
+            "linsolve": {"factor_backend": "cudss"},
+            "resolvent": {"factor_backend": "cudss"},
+            "eigen": {"factor_backend": "cudss"},
+        }
+    }
+    assert _uses_mumps(raw) is False
+
+
+def test_uses_mumps_factorization_is_true_when_one_stage_keeps_mumps() -> None:
+    # The eigenvalue stage stays on the CPU. The entries are still needed.
+    raw = {
+        "solver": {
+            "linsolve": {"factor_backend": "cudss"},
+            "resolvent": {"factor_backend": "cudss"},
+            "eigen": {"factor_backend": "mumps"},
+        }
+    }
+    assert _uses_mumps(raw) is True
+
+
+def test_uses_mumps_factorization_is_true_for_auto() -> None:
+    # "auto" resolves at solve time and can still select MUMPS.
+    raw = {
+        "solver": {
+            "linsolve": {"factor_backend": "auto"},
+            "resolvent": {"factor_backend": "auto"},
+            "eigen": {"factor_backend": "auto"},
+        }
+    }
+    assert _uses_mumps(raw) is True
+
+
 def test_typed_config_load_defaults_and_yaml_path(tmp_path) -> None:
     empty = Config.load(None, env={})
     assert empty.linsolve.type == "mumps"
