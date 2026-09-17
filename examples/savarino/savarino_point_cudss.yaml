@@ -56,9 +56,11 @@ analysis:
     imag: 0.0
 solver:
   petsc_matrix_mode: distributed
-  factor_backend: mumps      # lowest-priority default; the resolvent block below overrides it
+  factor_backend: cudss      # lowest-priority default for stages that take it;
+                             # nothing in this run factors on the CPU, so naming MUMPS
+                             # here left unused MUMPS options in the PETSc database
   eigen:
-    st_solver: mumps         # unused: skip_band_marking
+    st_solver: mumps         # unused: skip_band_marking; the backend follows solver.factor_backend
     eps_tol: 1.0e-6
     ncv: 160
     conv_test: rel

@@ -37,6 +37,21 @@ MODES = zenodo_modes_dir()
 BASE = zenodo_baseflow_dat()
 
 
+def _require_zenodo_inputs() -> None:
+    """Stop with an instruction when the Zenodo record is not in the tree.
+
+    The base flow and the published modes carry a licence that does not
+    let us redistribute them, so a fresh clone does not have them.
+    """
+    missing = [str(p) for p in (BASE, MODES) if not p.exists()]
+    if missing:
+        raise SystemExit(
+            "missing " + ", ".join(missing) + "\nFetch the Zenodo record first:\n"
+            "  python fetch_zenodo.py baseflow\n"
+            "  python fetch_zenodo.py modes --f 2 --beta 45"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -45,6 +60,8 @@ def main() -> int:
         help="Output .npz from the single-point (f,beta)=(2,45) run",
     )
     args = ap.parse_args()
+
+    _require_zenodo_inputs()
 
     d = np.load(args.point_npz, allow_pickle=True)
     W = d["W_diag"]

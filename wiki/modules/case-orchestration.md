@@ -296,8 +296,9 @@ render() -> str    # "[WARNING] CODE: message\n -> remedy"
 
 | API | When | Examples |
 |-----|------|----------|
-| `config_advisories(config)` | Before assembly | `DISS-RESOLVENT-OFF`, `DISS-STABILITY-OFF`, `DISS-ABSENT`, `DISS-EPS-ZERO`, `STRIDE-NOT-FINAL`, `BACKEND-SHADOWED`, `BAND-MARKING-BACKEND` |
-| `baseflow_advisories(rho, u, T)` | After load | Freestream scale vs `FREESTREAM_TOL` (1e-2) |
+| `config_advisories(config)` | Before assembly | `DISS-RESOLVENT-OFF`, `DISS-STABILITY-OFF`, `DISS-UNDECLARED`, `DISS-EPS-ZERO`, `STRIDE-NOT-FINAL`, `BACKEND-SHADOWED`, `BAND-MARKING-BACKEND` |
+| `baseflow_advisories(rho, u, T)` | After load | `BASEFLOW-FREESTREAM` (note, with the share of the field at rho = u = T = 1 within `FREESTREAM_TOL` = 1e-2), `BASEFLOW-NORMALISATION`, `BASEFLOW-NONFINITE`, `BASEFLOW-SHAPE` |
+| `mesh_advisories(X, Y, dissipation_enabled=...)` | After load, mesh known | `DISS-MESH` (note, with the measured coupling), `DISS-ABSENT` when the coupling is above `METRIC_COUPLING_GATE` and no dissipation is applied |
 | `metric_cross_coupling(X, Y)` | Mesh geometry | Ratio of cross-direction spacing; gate `METRIC_COUPLING_GATE = 1e-8` separates rectilinear (~1e-17) from curvilinear (~0.26) meshes |
 | `result_advisories(gains, residuals, …)` | After solve | `GAIN-OFF-SCALE` (>1e5), `RESIDUAL-HIGH` |
 | `translate_solver_error(context)` | On factor failure | Maps MUMPS `INFOG(1)` codes (-9, -8, -13, -10) to workspace/OOM/singularity remedies |

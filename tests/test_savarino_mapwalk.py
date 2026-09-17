@@ -12,9 +12,29 @@ DRIVER = Path(__file__).resolve().parents[1] / "examples/savarino/savarino_mapwa
 
 
 def test_farm_beta40_comes_from_committed_csv() -> None:
+    """Pin the file by its gains, which a rerun must reproduce.
+
+    The gains are a property of the operator and agree across backends and
+    execution modes to about 1e-10, so they identify the file and survive a
+    recomputation. An earlier version pinned the sum of the wall times, which
+    is a property of the machine on the day and changed with every campaign.
+    """
     rows = [row for row in load_farm(FARM_CSV) if abs(row["beta"] - 40.0) < 1.0e-12]
     assert [row["f"] for row in rows] == [1.0, 1.4, 1.6, 1.8, 2.0, 2.1, 2.15, 2.2, 2.5]
-    assert abs(sum(row["wall_s"] for row in rows) - 1017.78) < 0.01
+    expected_gains = [
+        92.8918,
+        156.685,
+        176.266,
+        184.929,
+        175.243,
+        159.180,
+        155.069,
+        153.896,
+        119.913,
+    ]
+    for row, expected in zip(rows, expected_gains, strict=True):
+        assert abs(row["gain"] - expected) <= 5.0e-4 * expected
+    assert all(row["wall_s"] > 0.0 for row in rows)
     assert FARM_CSV.name == "savarino_map3_200pt.csv"
 
 
@@ -194,3 +214,16 @@ def test_gen_mapwalk_campaign_gpu_arm_takes_its_config_cores_and_device(
     assert "flock -n 9" in text and "export PETSC_OPTIONS='-use_gpu_aware_mpi 0'" in text
     assert f'"{tmp_path / "gpu_lines"}/nvsmi.${{SLURM_JOB_ID:-local}}.log"' in text
     assert "mpiexec -n 1 " in text
+
+
+def test_line_record_never_writes_the_real_host_name() -> None:
+    """The row is committed and travels with the paper.
+
+    The package policy is opt-in through LINSTABPY_HOSTNAME with the default
+    "unknown". An earlier version of the walker called socket.gethostname()
+    and put a private host name in three shipped run records.
+    """
+    src = DRIVER.read_text(encoding="utf-8")
+    assert "gethostname" not in src
+    assert "LINSTABPY_HOSTNAME" in src
+
