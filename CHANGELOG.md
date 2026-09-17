@@ -71,10 +71,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   OpenMP thread; the fault survives it. Upstream's own TODO says the library
   "is not completely thread safe at the moment".
 
-  Work around it by factoring on one host thread. The accuracy probe rejects
-  every bad solve, and the eigenvalue and resolvent paths refine with FGMRES
-  and check the residual afterwards, so a bad factorization cannot reach a
-  published number.
+  Work around it by factoring on one host thread. The accuracy probe rejects a
+  solve whose residual clears its gate of 1e-8, which covers the large
+  failures but not a draw between 1e-10 and the gate; the eigenvalue and
+  resolvent paths then refine with FGMRES and check the residual of the answer
+  itself, which is what keeps a bad factorization out of a published number.
 
 
 ## [1.0.0rc10] - 2026-09-15
