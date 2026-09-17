@@ -52,17 +52,25 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Known issues
 
-- **The STRUMPACK LU returns a wrong solve about one run in three on this
-  build.** Measured at the shift-invert probe of the Blasius temporal
-  problem, sixteen fresh processes on byte-identical input (c9, one A6000,
-  PETSc 3.24.2): eleven runs gave a relative residual of 6.3e-13 to 8.7e-12
-  and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and 1.1e-1. Nothing in the
-  input varies: the probe right-hand side is seeded and the mesh is fixed.
-  The accuracy probe rejects every bad solve, which is what it exists for,
-  and the eigenvalue and resolvent paths refine with FGMRES and check the
-  residual afterwards, so a bad factorization cannot reach a published
-  number. The cause is not established. Prefer MUMPS or cuDSS for
-  production work on this build until it is.
+- **The STRUMPACK LU returns a wrong solve when it uses several host threads
+  and the GPU together.** Reproducer: the shift-invert probe of the Blasius
+  temporal problem (750 unknowns, sigma = -0.1j, seeded right-hand side),
+  sixteen fresh processes per arm on c9 with one A6000 and PETSc 3.24.2.
+
+      one host thread, GPU on     1.506e-12 sixteen times, bit-identical
+      ten host threads, GPU on    4.7e-13 to 3.5e-5, five rejected
+      ten host threads, GPU off   1.9e-13 to 2.0e-11, none rejected
+
+  LAPACK dense LU on the same system gives 9.35e-13, so 1e-12 is the level a
+  correct solve reaches. Neither threading alone nor the GPU alone breaks it;
+  the two together do, which points at a race in the offload path rather than
+  at rounding. Ten threads on the CPU vary in the last digits, as expected of
+  threaded reductions, and stay harmless.
+
+  Work around it with one host thread, or with `-mat_strumpack_gpu 0`. The
+  accuracy probe rejects every bad solve, and the eigenvalue and resolvent
+  paths refine with FGMRES and check the residual afterwards, so a bad
+  factorization cannot reach a published number.
 
 
 ## [1.0.0rc10] - 2026-09-15
