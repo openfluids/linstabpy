@@ -52,25 +52,29 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Known issues
 
-- **The STRUMPACK LU returns a wrong solve when it uses several host threads
-  and the GPU together.** Reproducer: the shift-invert probe of the Blasius
-  temporal problem (750 unknowns, sigma = -0.1j, seeded right-hand side),
-  sixteen fresh processes per arm on c9 with one A6000 and PETSc 3.24.2.
+- **The STRUMPACK LU returns a wrong solve when it runs multithreaded.** The
+  GPU is not needed for it and a newer STRUMPACK does not fix it. Reproducer:
+  factor `K = L0 - sigma*I` for the Blasius temporal problem (750 unknowns,
+  sigma = -0.1j) and measure the probe residual on a seeded right-hand side;
+  sixteen fresh processes per arm, one A6000, one script across two builds.
 
-      one host thread, GPU on     1.506e-12 sixteen times, bit-identical
-      ten host threads, GPU on    4.7e-13 to 3.5e-5, five rejected
-      ten host threads, GPU off   1.9e-13 to 2.0e-11, none rejected
+                              PETSc 3.24.2            PETSc 3.25.5
+                              STRUMPACK v8.0.0        STRUMPACK master
+      one thread, GPU on      2.102e-10 x16           2.102e-10 x16
+      ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad
+      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad
 
-  LAPACK dense LU on the same system gives 9.35e-13, so 1e-12 is the level a
-  correct solve reaches. Neither threading alone nor the GPU alone breaks it;
-  the two together do, which points at a race in the offload path rather than
-  at rounding. Ten threads on the CPU vary in the last digits, as expected of
-  threaded reductions, and stay harmless.
+  One thread gives the same value sixteen times, and the same value on both
+  builds. Ten threads scatter on both builds whether the card is used or not.
+  PETSc 3.25.5 pins STRUMPACK master of May 2026, eighteen months and 24
+  commits after the v8.0.0 tag, including one that sets the CUDA device per
+  OpenMP thread; the fault survives it. Upstream's own TODO says the library
+  "is not completely thread safe at the moment".
 
-  Work around it with one host thread, or with `-mat_strumpack_gpu 0`. The
-  accuracy probe rejects every bad solve, and the eigenvalue and resolvent
-  paths refine with FGMRES and check the residual afterwards, so a bad
-  factorization cannot reach a published number.
+  Work around it by factoring on one host thread. The accuracy probe rejects
+  every bad solve, and the eigenvalue and resolvent paths refine with FGMRES
+  and check the residual afterwards, so a bad factorization cannot reach a
+  published number.
 
 
 ## [1.0.0rc10] - 2026-09-15
