@@ -698,8 +698,10 @@ What we measured (September 2026, one workstation, one NVIDIA A6000): factor
 `K = L0 - sigma*I` for the Blasius temporal example, 750 unknowns, with the
 shift close to the spectrum, then solve it for a fixed right-hand side and
 record the relative residual `||Kx-b||/||b||`. Sixteen separate processes per
-setting, identical input every time. LAPACK's dense LU gives 9.4e-13 on the
-same system, so a correct solve reaches that level.
+setting, identical input every time. For scale, LAPACK's dense LU on the same
+system gives 9.4e-13, and STRUMPACK on one thread gives 2.102e-10; a sparse
+solver with its own ordering is not expected to match a dense one, and both
+are far below the failures below.
 
 |                     | PETSc 3.24.2, STRUMPACK 8.0.0 | PETSc 3.25.5, STRUMPACK master |
 |---|---|---|
@@ -717,11 +719,14 @@ This is a property of the library, not of LinStabPy: the residual is measured
 against the same matrix the solver was given, so a wrong matrix would cancel
 out. We have not found the faulty code inside STRUMPACK.
 
-A bad factorization does not reach a result. The backend accuracy probe
-(`eigen.backend_probe`) solves one system after the factorization and stops
-the run when the residual is too large, and the eigenvalue and resolvent paths
-refine with FGMRES and check the residual of the answer. The `mumps` and
-`cudss` backends do not show this behaviour.
+Two checks stand between a bad factorization and a result. The backend
+accuracy probe (`eigen.backend_probe`) solves one system after the
+factorization and stops the run when the relative residual exceeds its gate,
+1e-8 by default; that catches the large failures above but not a draw that
+lands between 1e-10 and the gate. The eigenvalue and resolvent paths then
+refine with FGMRES and check the residual of the answer itself, which is what
+guards the result. The `mumps` and `cudss` backends do not show this
+behaviour.
 
 ### Resolvent region masks
 
