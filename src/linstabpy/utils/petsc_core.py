@@ -146,6 +146,12 @@ def require_complex(solver_cfg: dict | None = None) -> None:
     The call sets only the project MUMPS defaults, and only once.
     Importing multiple solver modules then does not rewrite options
     behind an already-created KSP/EPS object.
+
+    The entries go in the first time a configuration can use MUMPS, not the
+    first time this function runs. A process that never factors on MUMPS
+    then leaves the database clean, while a process that reaches MUMPS later
+    still gets the defaults. Keying on the first call instead would make the
+    database depend on the order of the calls.
     """
     PETSc = _get_petsc()
     if not np.issubdtype(PETSc.ScalarType, np.complexfloating):
@@ -158,11 +164,11 @@ def require_complex(solver_cfg: dict | None = None) -> None:
         from linstabpy.config import Config
 
         cfg = Config.load(solver_cfg if solver_cfg is not None else {})
-        opts = PETSc.Options()
         if uses_mumps_factorization(cfg):
+            opts = PETSc.Options()
             for key, value in mumps_icntl_petsc_options(cfg.mpi).items():
                 opts.setValue(key, value)
-        _petsc_configured = True
+            _petsc_configured = True
 
 
 def scipy_to_petsc(mat: sp.spmatrix, solver_cfg: dict | None = None) -> PETSc.Mat:
