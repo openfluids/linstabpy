@@ -7,6 +7,64 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0rc11] - 2026-09-17
+
+### Fixed
+
+- The dissipation advisory warned on every run without artificial
+  dissipation, whatever the mesh. On a rectilinear mesh the bare operator
+  cannot hold an odd-even (sawtooth) mode, so the warning fired against the
+  correct setting for both released cases. The verdict now comes from
+  `mesh_advisories()`, which measures the mesh that the run uses and reports
+  the number in every case: the released Savarino and Song meshes measure
+  4.8e-15 and 2.1e-12 against a gate of 1e-8 and get a note, and a bent mesh
+  without dissipation still gets the warning. A config that does not state
+  its dissipation choice at all is reported by `config_advisories()` as
+  `DISS-UNDECLARED`.
+- The base-flow check compared the largest value in the field with 1, so
+  every compressible flow with a shock or a hot wall looked mis-scaled. It
+  reported density 1.39 and 1.51 and temperature 1.81 and 1.83 for the two
+  released base flows, whose freestream is exactly 1. The check now looks
+  for the freestream itself, the part of the field where density, velocity
+  and temperature are all 1, and records the share of the field it covers
+  (1.9 % and 3.7 %). A field scaled with the speed of sound has no such
+  region and is still reported, now with the values of the largest uniform
+  region so the actual convention is visible.
+- The MUMPS ICNTL entries went into the PETSc option database at startup on
+  every run. A run with no MUMPS stage left them unused and PETSc ended with
+  "There are options you set that were not used". They now go in only when a
+  stage can use MUMPS, and the two cuDSS example configs name the card for
+  every stage instead of naming MUMPS for stages they never run.
+- `examples/savarino/savarino_mapwalk.py` wrote the real host name into the
+  `machine` column of every line record, which put a private host name in
+  three shipped run records. It follows the package policy now: the label is
+  `unknown` unless `LINSTABPY_HOSTNAME` is set.
+- `examples/savarino/verify_norm_convention.py` ended with a traceback when
+  the Zenodo base flow and modes were not in the tree, which is the state of
+  a fresh clone because their licence does not allow redistribution. It
+  prints the two fetch commands and stops, like `run_compare_points.py`.
+
+### Changed
+
+- The test that pins the committed beta = 40 farm record checks its gains,
+  which a rerun reproduces, instead of the sum of its wall times, which is a
+  property of the machine on the day.
+
+### Known issues
+
+- **The STRUMPACK LU returns a wrong solve about one run in three on this
+  build.** Measured at the shift-invert probe of the Blasius temporal
+  problem, sixteen fresh processes on byte-identical input (c9, one A6000,
+  PETSc 3.24.2): eleven runs gave a relative residual of 6.3e-13 to 8.7e-12
+  and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and 1.1e-1. Nothing in the
+  input varies: the probe right-hand side is seeded and the mesh is fixed.
+  The accuracy probe rejects every bad solve, which is what it exists for,
+  and the eigenvalue and resolvent paths refine with FGMRES and check the
+  residual afterwards, so a bad factorization cannot reach a published
+  number. The cause is not established. Prefer MUMPS or cuDSS for
+  production work on this build until it is.
+
+
 ## [1.0.0rc10] - 2026-09-15
 
 ### Changed

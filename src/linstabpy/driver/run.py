@@ -34,6 +34,7 @@ from linstabpy.driver.preflight import (
     format_advisories,
     format_banner,
     format_summary,
+    mesh_advisories,
     result_advisories,
 )
 from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
@@ -1449,12 +1450,19 @@ def run() -> None:
 
     # Freestream normalisation gate. The canonical convention is rho = u = T = 1 in the
     # freestream; a base flow scaled any other way runs to completion and returns numbers
-    # that mean nothing. Checked here, immediately after load, so it costs one array max()
-    # and reports before any operator is built.
+    # that mean nothing. Checked here, immediately after load, so it costs one pass over
+    # the three fields and reports before any operator is built.
     if rank == 0:
         for line in format_advisories(
             baseflow_advisories(baseflow.RHO, baseflow.U, baseflow.T),
             title="base-flow normalisation",
+        ).splitlines():
+            _log(line)
+        # The dissipation verdict needs the physical mesh, so it comes here and
+        # not with the config advisories above.
+        for line in format_advisories(
+            mesh_advisories(X, Y, dissipation_enabled=od_enabled),
+            title="mesh and dissipation",
         ).splitlines():
             _log(line)
 

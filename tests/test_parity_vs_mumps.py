@@ -75,6 +75,13 @@ TARGET = -0.1j
 N_MODES = 5
 NCV = 30
 POSTCHECK_REL_MAX = 1.0e-6
+# The probe measures a linear-solve residual, not an eigenpair residual, so it
+# needs its own gate. Measured on c9, eight fresh processes per backend at this
+# problem and shift: STRUMPACK 6.9e-13 to 3.5e-12, SuperLU_DIST 2.9e-7 to
+# 1.2e-6. Any gate between them separates the two every time. Sharing
+# POSTCHECK_REL_MAX put the gate at 1e-6, inside the SuperLU_DIST spread, so
+# the rejection test passed or failed according to which sample it drew.
+PROBE_RESIDUAL_REL_MAX = 1.0e-8
 TARGET_DISTANCE_MAX = 0.11
 EIGENVALUE_MATCH_MAX = POSTCHECK_REL_MAX
 
@@ -111,7 +118,10 @@ def _solver_options(backend: str, *, factor_precision: str = "double") -> dict[s
         "factor_precision": factor_precision,
         "eps_tol": 1.0e-10,
         "eps_max_it": 7500,
-        "backend_probe": {"enabled": backend != "mumps", "residual_rel_max": POSTCHECK_REL_MAX},
+        "backend_probe": {
+            "enabled": backend != "mumps",
+            "residual_rel_max": PROBE_RESIDUAL_REL_MAX,
+        },
     }
 
 
@@ -402,11 +412,16 @@ def test_superlu_dist_is_rejected_by_the_backend_probe_at_a_hard_shift(
     Measured on c9 at this problem and shift (TARGET = -0.1j).
     That target sits close to the spectrum and so makes
     ``K = L0 - sigma*I`` ill-conditioned.
-    Job 535 numbers.
+    Eight fresh processes per backend, job 4509.
 
         mumps         probe skipped (trusted default).
-        strumpack     ||Kx-b||/||b|| = 1.979e-12.
-        superlu_dist  ||Kx-b||/||b|| = 1.852e-06   <- six decades worse.
+        strumpack     ||Kx-b||/||b|| = 6.9e-13 to 3.5e-12.
+        superlu_dist  ||Kx-b||/||b|| = 2.9e-07 to 1.2e-06   <- five decades worse.
+
+    The single 1.852e-06 of the earlier record (job 535) is one draw from the
+    SuperLU_DIST spread, not a repeatable value. The gate therefore sits at
+    ``PROBE_RESIDUAL_REL_MAX`` = 1e-8, between the two backends, where the
+    rejection is the same on every run.
 
     SuperLU_DIST also returned eigenvalues that do not match there.
     Imaginary parts differ from the MUMPS and STRUMPACK answers in the
