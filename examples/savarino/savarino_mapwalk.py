@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import csv
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -270,7 +269,11 @@ def main() -> int:
     csv_path = out_dir / f"{STEM}.csv"
     log_path = out_dir / f"{STEM}.log"
     sha = _git_sha()
-    machine = socket.gethostname().split(".")[0]
+    # Never the real host name by default: these rows are committed and
+    # travel with the paper. Set LINSTABPY_HOSTNAME to record a label on
+    # purpose, and prefer a generic one. Same policy as
+    # linstabpy.utils.provenance._hostname().
+    machine = os.environ.get("LINSTABPY_HOSTNAME", "unknown").strip() or "unknown"
     slurm_job = os.environ.get("SLURM_JOB_ID", "")
     blas = collect_provenance(None)["blas"]
     pin_domain = _pin_domain(os.environ)

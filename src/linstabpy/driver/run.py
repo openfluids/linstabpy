@@ -34,6 +34,7 @@ from linstabpy.driver.preflight import (
     format_advisories,
     format_banner,
     format_summary,
+    mesh_advisories,
     result_advisories,
 )
 from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
@@ -1455,6 +1456,13 @@ def run() -> None:
         for line in format_advisories(
             baseflow_advisories(baseflow.RHO, baseflow.U, baseflow.T),
             title="base-flow normalisation",
+        ).splitlines():
+            _log(line)
+        # The dissipation verdict needs the physical mesh, so it comes here and
+        # not with the config advisories above.
+        for line in format_advisories(
+            mesh_advisories(X, Y, dissipation_enabled=od_enabled),
+            title="mesh and dissipation",
         ).splitlines():
             _log(line)
 

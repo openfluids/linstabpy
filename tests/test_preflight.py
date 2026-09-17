@@ -32,6 +32,7 @@ from linstabpy.driver.preflight import (
     format_advisories,
     format_banner,
     format_summary,
+    mesh_advisories,
     metric_cross_coupling,
     result_advisories,
     translate_solver_error,
@@ -114,9 +115,44 @@ def test_preflight_uses_the_same_defaults_as_the_driver():
 # --------------------------------------------------------------------------------------
 
 
-def test_missing_dissipation_is_flagged():
-    cfg = _cfg(numerics__operator_dissipation={"enabled": False})
-    assert "DISS-ABSENT" in codes(config_advisories(cfg))
+def test_an_undeclared_dissipation_block_is_flagged():
+    cfg = _cfg()
+    cfg["numerics"].pop("operator_dissipation", None)
+    assert "DISS-UNDECLARED" in codes(config_advisories(cfg))
+
+
+def test_a_declared_choice_is_not_flagged_by_the_config_check():
+    # The verdict belongs to mesh_advisories, which measures the mesh.
+    cfg = _cfg(numerics__operator_dissipation={"enabled": False, "epsilon": 0.0})
+    assert "DISS-UNDECLARED" not in codes(config_advisories(cfg))
+    assert "DISS-ABSENT" not in codes(config_advisories(cfg))
+
+
+def _rectilinear_mesh() -> tuple[np.ndarray, np.ndarray]:
+    x = np.linspace(0.0, 1.0, 24)
+    y = np.linspace(0.0, 0.5, 18)
+    return np.meshgrid(x, y, indexing="ij")
+
+
+def test_a_rectilinear_mesh_without_dissipation_gives_a_note_not_a_warning():
+    """This is the Savarino and Song setting: coupling 7e-18 and 4e-17."""
+    X, Y = _rectilinear_mesh()
+    produced = mesh_advisories(X, Y, dissipation_enabled=False)
+    assert [a for a in produced if a.severity == "warning"] == []
+    assert "DISS-MESH" in codes(produced)
+
+
+def test_a_bent_mesh_without_dissipation_is_flagged():
+    X, Y = _rectilinear_mesh()
+    Y = Y + 0.1 * np.sin(2.0 * np.pi * X)
+    assert "DISS-ABSENT" in codes(mesh_advisories(X, Y, dissipation_enabled=False))
+
+
+def test_a_bent_mesh_with_dissipation_is_not_flagged():
+    X, Y = _rectilinear_mesh()
+    Y = Y + 0.1 * np.sin(2.0 * np.pi * X)
+    produced = mesh_advisories(X, Y, dissipation_enabled=True)
+    assert [a for a in produced if a.severity == "warning"] == []
 
 
 def test_enabled_with_zero_epsilon_is_flagged():
@@ -243,9 +279,30 @@ def test_band_marking_backend_not_flagged_when_covered(solver, extra, reason):
 # --------------------------------------------------------------------------------------
 
 
-def test_canonical_baseflow_is_silent():
+def test_canonical_baseflow_raises_no_warning_and_records_the_freestream():
     ones = np.ones((4, 5))
-    assert baseflow_advisories(ones, ones, ones) == []
+    produced = baseflow_advisories(ones, ones, ones)
+    assert [a for a in produced if a.severity == "warning"] == []
+    assert "BASEFLOW-FREESTREAM" in codes(produced)
+
+
+def test_shock_peaks_do_not_trigger_the_normalisation_warning():
+    """A compressible field is denser and hotter than 1 behind a shock.
+
+    The released Savarino and Song base flows peak at density 1.39 and 1.51
+    and temperature 1.81 and 1.83 while their freestream is exactly 1. A
+    check on the field maximum called both of them mis-scaled.
+    """
+    shape = (20, 20)
+    rho = np.ones(shape)
+    u = np.ones(shape)
+    temperature = np.ones(shape)
+    # A quarter of the field is post-shock: denser, hotter and slower.
+    rho[:, :5] = 1.4
+    temperature[:, :5] = 1.8
+    u[:, :5] = 0.7
+    produced = baseflow_advisories(rho, u, temperature)
+    assert [a for a in produced if a.severity == "warning"] == []
 
 
 def test_mis_scaled_baseflow_is_flagged():
@@ -398,7 +455,9 @@ def test_every_advisory_carries_a_remedy():
         )
     )
     produced += config_advisories(_cfg(numerics__operator_dissipation__apply_to_resolvent=False))
-    produced += baseflow_advisories(np.ones((2, 2)), np.ones((2, 2)) * 3.0, None)
+    produced += baseflow_advisories(
+        np.ones((2, 2)), np.ones((2, 2)) * 3.0, np.ones((2, 2))
+    )
     produced += result_advisories(gains=[1e7], residuals=[1e-2])
     extra = translate_solver_error({"mumps_infog1": -9})
     if extra is not None:
@@ -470,7 +529,9 @@ def test_the_production_template_does_not_ship_a_trap():
         pytest.skip("no production_case_template ships in this tree")
     for path in templates:
         found = codes(config_advisories(load_config(str(path))))
-        assert "DISS-ABSENT" not in found, f"{path.name} still ships without dissipation"
+        assert "DISS-UNDECLARED" not in found, (
+            f"{path.name} does not state its dissipation choice"
+        )
 
 
 # --------------------------------------------------------------------------------------
