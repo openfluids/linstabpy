@@ -50,6 +50,21 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   which a rerun reproduces, instead of the sum of its wall times, which is a
   property of the machine on the day.
 
+### Known issues
+
+- Two backend-probe tests give different answers from run to run on the same
+  machine and the same input:
+  `test_strumpack_preonly_now_passes_backend_probe` and
+  `test_superlu_dist_is_rejected_by_the_backend_probe_at_a_hard_shift`.
+  Measured over five runs each on one A6000, they failed 3 and 3 times on
+  1.0.0rc10 and 4 and 4 times on this version, so the behaviour is not new.
+  The residual of the bare STRUMPACK apply moves between about 1e-12 and
+  5e-7 across runs. Both tests assert one measured residual, and neither the
+  eigenvalue nor the resolvent path uses a bare apply: they refine with
+  FGMRES and check the residual, which is why campaign results do not move.
+  The cause is not yet established; a randomized compression step inside
+  STRUMPACK that is not seeded is the first suspect.
+
 
 ## [1.0.0rc10] - 2026-09-15
 
