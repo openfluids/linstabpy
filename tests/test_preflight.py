@@ -311,6 +311,21 @@ def test_mis_scaled_baseflow_is_flagged():
     assert "BASEFLOW-NORMALISATION" in codes(baseflow_advisories(ones, ones, ones * 4.6))
 
 
+def test_a_baseflow_with_a_hole_in_it_is_reported():
+    """Silence would drop the check exactly when the data is worst."""
+    ones = np.ones((4, 5))
+    holed = ones.copy()
+    holed[2, 3] = np.nan
+    produced = baseflow_advisories(ones, holed, ones)
+    assert "BASEFLOW-NONFINITE" in codes(produced)
+    assert [a.severity for a in produced] == ["warning"]
+
+
+def test_baseflow_fields_of_different_shapes_are_reported():
+    produced = baseflow_advisories(np.ones((4, 5)), np.ones((4, 6)), np.ones((4, 5)))
+    assert "BASEFLOW-SHAPE" in codes(produced)
+
+
 def test_baseflow_tolerates_missing_and_degenerate_fields():
     assert baseflow_advisories(None, None, None) == []
     assert baseflow_advisories(np.array([]), None, None) == []

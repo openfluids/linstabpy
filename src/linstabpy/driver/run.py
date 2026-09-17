@@ -1450,8 +1450,8 @@ def run() -> None:
 
     # Freestream normalisation gate. The canonical convention is rho = u = T = 1 in the
     # freestream; a base flow scaled any other way runs to completion and returns numbers
-    # that mean nothing. Checked here, immediately after load, so it costs one array max()
-    # and reports before any operator is built.
+    # that mean nothing. Checked here, immediately after load, so it costs one pass over
+    # the three fields and reports before any operator is built.
     if rank == 0:
         for line in format_advisories(
             baseflow_advisories(baseflow.RHO, baseflow.U, baseflow.T),
