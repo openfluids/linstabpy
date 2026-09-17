@@ -287,9 +287,34 @@ def baseflow_advisories(
     if rho is None or u is None or temperature is None:
         return out
     fields = [np.asarray(a, dtype=float) for a in (rho, u, temperature)]
-    if any(a.size == 0 or not np.isfinite(a).all() for a in fields):
+    if any(a.size == 0 for a in fields):
+        return out
+    names = ("rho", "u", "T")
+    broken = [n for n, a in zip(names, fields, strict=True) if not np.isfinite(a).all()]
+    if broken:
+        # Silence here would drop the convention check exactly when the data
+        # is worst. A non-finite value is itself the finding.
+        out.append(
+            Advisory(
+                "BASEFLOW-NONFINITE",
+                "warning",
+                f"the base flow holds NaN or Inf in {', '.join(broken)}, so the "
+                "freestream convention cannot be checked",
+                "find where the field was written or interpolated; every eigenvalue "
+                "and gain from a base flow with a hole in it is meaningless",
+            )
+        )
         return out
     if len({a.shape for a in fields}) != 1:
+        out.append(
+            Advisory(
+                "BASEFLOW-SHAPE",
+                "warning",
+                "the base-flow fields do not have the same shape: "
+                + ", ".join(f"{n} {a.shape}" for n, a in zip(names, fields, strict=True)),
+                "load the three fields from the same case snapshot",
+            )
+        )
         return out
 
     at_one = np.ones(fields[0].shape, dtype=bool)
