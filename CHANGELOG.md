@@ -52,18 +52,17 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Known issues
 
-- Two backend-probe tests give different answers from run to run on the same
-  machine and the same input:
-  `test_strumpack_preonly_now_passes_backend_probe` and
-  `test_superlu_dist_is_rejected_by_the_backend_probe_at_a_hard_shift`.
-  Measured over five runs each on one A6000, they failed 3 and 3 times on
-  1.0.0rc10 and 4 and 4 times on this version, so the behaviour is not new.
-  The residual of the bare STRUMPACK apply moves between about 1e-12 and
-  5e-7 across runs. Both tests assert one measured residual, and neither the
-  eigenvalue nor the resolvent path uses a bare apply: they refine with
-  FGMRES and check the residual, which is why campaign results do not move.
-  The cause is not yet established; a randomized compression step inside
-  STRUMPACK that is not seeded is the first suspect.
+- **The STRUMPACK LU returns a wrong solve about one run in three on this
+  build.** Measured at the shift-invert probe of the Blasius temporal
+  problem, sixteen fresh processes on byte-identical input (c9, one A6000,
+  PETSc 3.24.2): eleven runs gave a relative residual of 6.3e-13 to 8.7e-12
+  and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and 1.1e-1. Nothing in the
+  input varies: the probe right-hand side is seeded and the mesh is fixed.
+  The accuracy probe rejects every bad solve, which is what it exists for,
+  and the eigenvalue and resolvent paths refine with FGMRES and check the
+  residual afterwards, so a bad factorization cannot reach a published
+  number. The cause is not established. Prefer MUMPS or cuDSS for
+  production work on this build until it is.
 
 
 ## [1.0.0rc10] - 2026-09-15

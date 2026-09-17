@@ -166,9 +166,19 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     The old pytest.raises failed with DID NOT RAISE.
     The backend got better; the expectation went stale.
 
+    The apply is not repeatable, so the test samples it. Measured on c9 over
+    sixteen fresh processes on identical input (job 4510): eleven runs gave
+    6.3e-13 to 8.7e-12, and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and
+    1.1e-1, which the probe rejected. That is about one bad solve in three.
+    The bad solve is a real defect of this build and is recorded in the
+    changelog; the probe catching it is the intended behaviour. Asserting a
+    single attempt succeeds asserts the draw, so the test retries and needs
+    one good solve out of ATTEMPTS. With the measured rate the chance of all
+    four being bad is about one percent.
+
     Keep this check rather than delete it.
     If a STRUMPACK or PETSc upgrade reintroduces a lossy bare LU apply,
-    the accuracy assertions below fail.
+    every attempt fails the accuracy assertions below and the test fails.
     The loss then does not pass unnoticed into a gain map.
     """
     if not factor_backend_available("strumpack"):
@@ -177,19 +187,37 @@ def test_strumpack_preonly_now_passes_backend_probe(monkeypatch) -> None:
     monkeypatch.setenv("LINSTABPY_FACTOR_BACKEND", "strumpack")
     L0, bc_indices = _build_blasius_temporal_problem()
 
-    omega, _, info = temporal_eigenvalues(
-        L0,
-        N_MODES,
-        TARGET,
-        ncv=NCV,
-        solver_cfg={
-            "eigen": {
-                "st_solver": "mumps",
-                "eps_tol": 1.0e-10,
-                "eps_max_it": 7500,
-            }
-        },
-        return_info=True,
+    attempts = 4
+    rejected: list[str] = []
+    omega = None
+    info: dict[str, object] = {}
+    for _attempt in range(attempts):
+        try:
+            omega, _, info = temporal_eigenvalues(
+                L0,
+                N_MODES,
+                TARGET,
+                ncv=NCV,
+                solver_cfg={
+                    "eigen": {
+                        "st_solver": "mumps",
+                        "eps_tol": 1.0e-10,
+                        "eps_max_it": 7500,
+                    }
+                },
+                return_info=True,
+            )
+        except RuntimeError as exc:
+            # The probe refused this solve. That is the safety net working;
+            # the message must name the probe and the backend.
+            message = str(exc)
+            assert "factor backend 'strumpack' failed accuracy probe" in message, message
+            rejected.append(message)
+            continue
+        break
+    assert omega is not None, (
+        f"STRUMPACK gave no accurate solve in {attempts} attempts; "
+        f"the probe rejected every one: {rejected}"
     )
 
     # The probe must actually run on STRUMPACK.
