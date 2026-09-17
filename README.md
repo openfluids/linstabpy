@@ -691,8 +691,12 @@ current GPU go/no-go notes.
 
 #### STRUMPACK is not thread safe
 
-Set `OMP_NUM_THREADS=1` when STRUMPACK factorizes, or use another backend.
-Multithreaded, it returns a wrong solve now and then, without any error.
+LinStabPy sets the OpenMP thread count to one before it uses STRUMPACK,
+because the library returns a wrong solve now and then on several threads,
+without any error. The line in the log is `STRUMPACK: host OpenMP threads set
+to 1`. MUMPS, cuDSS and the BLAS keep their threads, which use a different
+OpenMP runtime. On a system with no `libgomp` the package cannot set the
+count; it warns, and there you must set `OMP_NUM_THREADS=1` yourself.
 
 What we measured (September 2026, one workstation, one NVIDIA A6000): factor
 `K = L0 - sigma*I` for the Blasius temporal example, 750 unknowns, with the
@@ -719,14 +723,26 @@ This is a property of the library, not of LinStabPy: the residual is measured
 against the same matrix the solver was given, so a wrong matrix would cancel
 out. We have not found the faulty code inside STRUMPACK.
 
-Two checks stand between a bad factorization and a result. The backend
-accuracy probe (`eigen.backend_probe`) solves one system after the
-factorization and stops the run when the relative residual exceeds its gate,
-1e-8 by default; that catches the large failures above but not a draw that
-lands between 1e-10 and the gate. The eigenvalue and resolvent paths then
-refine with FGMRES and check the residual of the answer itself, which is what
-guards the result. The `mumps` and `cudss` backends do not show this
-behaviour.
+The error reaches the answer, not only the probe. Solving the same example
+for its five leading eigenvalues through FGMRES with a STRUMPACK
+preconditioner, eight fresh processes per setting: on ten host threads the
+largest error against the MUMPS reference ran from 1.1e-11 to 6.9e-9, with two
+runs of eight above 1e-9; on one thread it was 2.209e-11 eight times out of
+eight. MUMPS on the same ten threads stayed at 1e-11. The flexible outer
+iteration does not repair it, because the error enters through the shift-invert
+solves that the eigensolver reads.
+
+Two checks still stand behind the thread setting. The backend accuracy probe
+(`eigen.backend_probe`) solves one system after the factorization and stops the
+run when the relative residual exceeds its gate, 1e-8 by default; that catches
+the large failures above but not a draw that lands between 1e-10 and the gate.
+The eigenvalue and resolvent paths then refine with FGMRES and check the
+residual of the answer itself. The `mumps` and `cudss` backends do not show
+this behaviour.
+
+One host thread costs wall time. On the small example above a whole run took
+4.10 s against 3.64 s, three runs each. The cost on a production-size operator
+is not measured.
 
 ### Resolvent region masks
 

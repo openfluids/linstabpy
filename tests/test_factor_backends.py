@@ -1482,3 +1482,41 @@ def test_auto_factor_backend_end_to_end_small_operator_matches_mumps() -> None:
     assert info_auto["backend_probe_factor_backend"] == "mumps"
     # The eigenvalue must be numerically identical to the plain mumps run.
     np.testing.assert_allclose(omega_auto, omega_mumps, rtol=1.0e-10, atol=1.0e-12)
+
+
+def test_the_strumpack_thread_limit_reaches_the_openmp_runtime() -> None:
+    """One call must put the OpenMP runtime at one thread.
+
+    STRUMPACK is not thread safe. With ten host threads two solves in eight
+    gave a factorization wrong by 4.4e-9 and 6.9e-9, against 2.209e-11 eight
+    times out of eight on one thread (c9 jobs 4525 and 4526). The package
+    therefore sets the thread count itself.
+
+    The check runs in a new process because the thread count stays set for the
+    life of a process, and because the environment must show a different
+    value to prove that the call, and not the environment, did the work.
+    """
+    import ctypes
+    import os
+    import subprocess
+
+    try:
+        ctypes.CDLL(backends._GOMP_LIBRARY)
+    except OSError:
+        pytest.skip(f"SKIPPED: this system has no {backends._GOMP_LIBRARY}")
+
+    program = (
+        "import ctypes;"
+        "from linstabpy.linalg.backends import limit_strumpack_host_threads as f;"
+        "print(ctypes.CDLL('" + backends._GOMP_LIBRARY + "').omp_get_max_threads(), f(),"
+        "ctypes.CDLL('" + backends._GOMP_LIBRARY + "').omp_get_max_threads())"
+    )
+    env = dict(os.environ, OMP_NUM_THREADS="4")
+    out = subprocess.run(
+        [sys.executable, "-c", program], env=env, capture_output=True, text=True, check=True
+    )
+    before, limited, after = out.stdout.split()
+
+    assert before == "4", out.stdout
+    assert limited == "True", out.stdout
+    assert after == "1", out.stdout

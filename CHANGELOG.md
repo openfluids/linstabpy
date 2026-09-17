@@ -43,6 +43,13 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   the Zenodo base flow and modes were not in the tree, which is the state of
   a fresh clone because their licence does not allow redistribution. It
   prints the two fetch commands and stops, like `run_compare_points.py`.
+- `limit_strumpack_host_threads()` sets the OpenMP thread count to one
+  before the first STRUMPACK factorization, because the library is not thread
+  safe. It runs one time for each process, writes one line in the log, and
+  warns instead of failing where `libgomp` does not load. MUMPS, cuDSS and the
+  BLAS are untouched, so only the STRUMPACK host work becomes serial: 4.10 s
+  against 3.64 s on the small test problem, unmeasured on a production
+  operator.
 
 ### Changed
 
@@ -71,11 +78,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   OpenMP thread; the fault survives it. Upstream's own TODO says the library
   "is not completely thread safe at the moment".
 
-  Work around it by factoring on one host thread. The accuracy probe rejects a
-  solve whose residual clears its gate of 1e-8, which covers the large
-  failures but not a draw between 1e-10 and the gate; the eigenvalue and
-  resolvent paths then refine with FGMRES and check the residual of the answer
-  itself, which is what keeps a bad factorization out of a published number.
+  The error reaches the answer. Through FGMRES with a STRUMPACK
+  preconditioner, the five leading eigenvalues of the same example missed the
+  MUMPS reference by 1.1e-11 to 6.9e-9 on ten threads, two runs of eight above
+  1e-9, against 2.209e-11 eight times out of eight on one thread. MUMPS on ten
+  threads stayed at 1e-11.
+
+  LinStabPy now sets the STRUMPACK OpenMP thread count to one itself; see
+  Fixed. The accuracy probe stays behind it, and so does the FGMRES residual
+  check on the answer, which is what keeps a bad factorization out of a
+  published number.
 
 
 ## [1.0.0rc10] - 2026-09-15
