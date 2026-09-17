@@ -682,12 +682,46 @@ instead of silently falling back to MUMPS or PETSc native LU.
 | Backend | Status | Notes |
 |---|---|---|
 | `mumps` | Validated default | CPU sparse-direct backend used by the current test suite. |
-| `strumpack` | Experimental | Not built by default; GPU claims are unvalidated for LinStabPy matrices. |
+| `strumpack` | Experimental, **run it on one host thread** | Not built by default; GPU claims are unvalidated for LinStabPy matrices. Multithreaded it returns a wrong solve now and then: see the note below. |
 | `superlu_dist` | Experimental | Not built by default; PETSc requires a SuperLU_DIST build with GPU offload support for GPU use. |
 | `cudss` | Validated GPU backend | Not a PETSc factor type: the cuDSS LU (through `nvmath-python`, `pip install "linstabpy[cudss]"`) preconditions the right-preconditioned FGMRES path. One rank, one GPU; the adjoint uses a second factorization of the conjugate transpose. Solutions match MUMPS to 1e-12; see `docs/COMPUTE_BACKENDS.md`. |
 
 See `docs/COMPUTE_BACKENDS.md` for the backend audit, version floors, and the
 current GPU go/no-go notes.
+
+#### STRUMPACK is not thread safe
+
+Set `OMP_NUM_THREADS=1` when STRUMPACK factorizes, or use another backend.
+Multithreaded, it returns a wrong solve now and then, without any error.
+
+What we measured (September 2026, one workstation, one NVIDIA A6000): factor
+`K = L0 - sigma*I` for the Blasius temporal example, 750 unknowns, with the
+shift close to the spectrum, then solve it for a fixed right-hand side and
+record the relative residual `||Kx-b||/||b||`. Sixteen separate processes per
+setting, identical input every time. LAPACK's dense LU gives 9.4e-13 on the
+same system, so a correct solve reaches that level.
+
+|                     | PETSc 3.24.2, STRUMPACK 8.0.0 | PETSc 3.25.5, STRUMPACK master |
+|---|---|---|
+| one thread, GPU on  | 2.102e-10 sixteen times       | 2.102e-10 sixteen times |
+| ten threads, GPU on | 8e-11 to 2.5e-3, 2 of 16 bad  | 8e-11 to 7.0e-7, 1 of 16 bad |
+| ten threads, GPU off| 1e-11 to 1.1e-5, 1 of 16 bad  | 9e-12 to 1.0e+01, 2 of 16 bad |
+
+On one thread the answer is the same to the last bit, sixteen times, on both
+builds. On ten threads it scatters, with the card and without it. The newer
+STRUMPACK is master of May 2026, twenty-four commits after the 8.0.0 tag, and
+it behaves the same way. STRUMPACK's own `TODO` file states that the library
+"is not completely thread safe at the moment".
+
+This is a property of the library, not of LinStabPy: the residual is measured
+against the same matrix the solver was given, so a wrong matrix would cancel
+out. We have not found the faulty code inside STRUMPACK.
+
+A bad factorization does not reach a result. The backend accuracy probe
+(`eigen.backend_probe`) solves one system after the factorization and stops
+the run when the residual is too large, and the eigenvalue and resolvent paths
+refine with FGMRES and check the residual of the answer. The `mumps` and
+`cudss` backends do not show this behaviour.
 
 ### Resolvent region masks
 
