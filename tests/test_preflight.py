@@ -470,9 +470,7 @@ def test_every_advisory_carries_a_remedy():
         )
     )
     produced += config_advisories(_cfg(numerics__operator_dissipation__apply_to_resolvent=False))
-    produced += baseflow_advisories(
-        np.ones((2, 2)), np.ones((2, 2)) * 3.0, np.ones((2, 2))
-    )
+    produced += baseflow_advisories(np.ones((2, 2)), np.ones((2, 2)) * 3.0, np.ones((2, 2)))
     produced += result_advisories(gains=[1e7], residuals=[1e-2])
     extra = translate_solver_error({"mumps_infog1": -9})
     if extra is not None:
@@ -544,9 +542,7 @@ def test_the_production_template_does_not_ship_a_trap():
         pytest.skip("no production_case_template ships in this tree")
     for path in templates:
         found = codes(config_advisories(load_config(str(path))))
-        assert "DISS-UNDECLARED" not in found, (
-            f"{path.name} does not state its dissipation choice"
-        )
+        assert "DISS-UNDECLARED" not in found, f"{path.name} does not state its dissipation choice"
 
 
 # --------------------------------------------------------------------------------------

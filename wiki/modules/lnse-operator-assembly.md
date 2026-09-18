@@ -536,7 +536,7 @@ from linstabpy.operators import build_lnse_system_result
 system = build_lnse_system_result(
     mesh,
     baseflow,
-    kx=beta,              # spanwise / streamwise Fourier param as configured
+    kx=beta,  # spanwise / streamwise Fourier param as configured
     model="2D",
     dissipation_epsilon=eps,
     bc_recipe=bc_recipe,  # list[dict] or BCRecipe
@@ -565,8 +565,15 @@ from linstabpy.operators import build_spatial_operator, spatial_lhs_with_dirichl
 
 Lc, R, Lw, idx = build_spatial_operator(mesh, baseflow, model="2D", kx=0.0, delta=1.0)
 L, R, bc = spatial_lhs_with_dirichlet(
-    Lc, Lw, R, omega_spatial, idx, borders="lrbt", variables="ruvwT",
-    ngp=mesh.ngp, use_petsc=False,
+    Lc,
+    Lw,
+    R,
+    omega_spatial,
+    idx,
+    borders="lrbt",
+    variables="ruvwT",
+    ngp=mesh.ngp,
+    use_petsc=False,
 )
 ```
 
@@ -575,9 +582,7 @@ L, R, bc = spatial_lhs_with_dirichlet(
 ```python
 from linstabpy.operators import compute_chu_norm
 
-W_diag, invW_diag = compute_chu_norm(
-    W_int, RHO, T, kappa, Ma, ngp, model="2D"
-)
+W_diag, invW_diag = compute_chu_norm(W_int, RHO, T, kappa, Ma, ngp, model="2D")
 ```
 
 

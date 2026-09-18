@@ -428,8 +428,8 @@ mesh = Mesh.create(
 # Optional physical mapping (e.g. wall-normal clustering)
 mesh = mesh.deform(Y_new=Y_clustered)
 
-ops = mesh.operators   # Dx, Dy, W, ...
-geo = mesh.geometry    # X, Y, idx, used_ind
+ops = mesh.operators  # Dx, Dy, W, ...
+geo = mesh.geometry  # X, Y, idx, used_ind
 ```
 
 Library consumers assembling LNSE systems should take `mesh.operators` (and metrics from `runtime_state` when deformed) rather than rebuilding FD stencils ad hoc.

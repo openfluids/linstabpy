@@ -949,8 +949,7 @@ def factorize(
             # call restores production tolerances right after.
             rtol0, atol0, dtol0, max_it0 = ksp.getTolerances()
             capped = (
-                ksp.getType() != PETSc.KSP.Type.PREONLY
-                and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
+                ksp.getType() != PETSc.KSP.Type.PREONLY and int(max_it0) > ADJOINT_SELF_TEST_MAX_IT
             )
             if capped:
                 ksp.setTolerances(max_it=ADJOINT_SELF_TEST_MAX_IT)

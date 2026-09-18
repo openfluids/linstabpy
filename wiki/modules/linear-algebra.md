@@ -108,8 +108,8 @@ This keeps `import linstabpy` and light library use free of PETSc/[MPI](https://
 from linstabpy.linalg import Backend, factorize, shifted_operator, select, ensure
 
 # Optional: resolve and probe backend policy
-backend = select(solver_cfg)          # Backend | None
-ensure(backend)                       # raises if unavailable
+backend = select(solver_cfg)  # Backend | None
+ensure(backend)  # raises if unavailable
 
 # Build shifted system (SciPy CSC or PETSc Mat preserved)
 K = shifted_operator(L0, omega=omega, gamma=0.0)
@@ -119,8 +119,8 @@ F = factorize(K, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg)
 
 # Solve many
 x = F.solve(b)
-y = F.solve_adjoint(c)                # Hermitian adjoint path
-X = F.solve_block(B)                  # multi-RHS when direct path supports it
+y = F.solve_adjoint(c)  # Hermitian adjoint path
+X = F.solve_block(B)  # multi-RHS when direct path supports it
 
 # Same sparsity, new values (e.g. nearby frequency)
 F.refactorize(K_new)

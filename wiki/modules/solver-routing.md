@@ -519,7 +519,7 @@ result = resolvent_map(
     base_flow,
     beta=betas,
     f=frequencies,
-    cfg=case_dict,   # mapping, YAML path, or Config-compatible object
+    cfg=case_dict,  # mapping, YAML path, or Config-compatible object
 )
 # result.gain[i_beta, i_f], result.regime_label, result.reason_code
 # result.cost_metrics, result.failure_records

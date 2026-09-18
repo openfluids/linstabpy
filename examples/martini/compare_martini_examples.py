@@ -773,11 +773,10 @@ def _compare_streaky_bl_campaigns(
                 notes.append(f"{name}: stale NPZ, spatial_residuals absent; delete NPZ and rerun")
                 spatial_ok = False
             else:
-                spatial_ok = (
-                    report["spatial"]["spectrum_max_abs_error"]
-                    <= float(tol.get("spatial_spectrum_abs", np.inf))
-                    and report["spatial"]["spectrum_max_rel_error"]
-                    <= float(tol.get("spatial_spectrum_rel", np.inf))
+                spatial_ok = report["spatial"]["spectrum_max_abs_error"] <= float(
+                    tol.get("spatial_spectrum_abs", np.inf)
+                ) and report["spatial"]["spectrum_max_rel_error"] <= float(
+                    tol.get("spatial_spectrum_rel", np.inf)
                 )
         report["campaign_status"] = "PASS" if (temporal_ok and spatial_ok) else "SOFT_FAIL"
         all_pass = all_pass and temporal_ok and spatial_ok
