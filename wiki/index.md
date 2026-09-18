@@ -153,8 +153,8 @@ Results land in contract-stable `.npz` files. Load them with `numpy.load()`:
 import numpy as np
 
 data = np.load("results/case_temporal.npz")
-omega = data["omega"]          # Complex eigenvalues
-modes = data["modes"]          # Eigenvectors [n_points, 5, n_modes]
+omega = data["omega"]  # Complex eigenvalues
+modes = data["modes"]  # Eigenvectors [n_points, 5, n_modes]
 print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(omega)):.4e}")
 ```
 

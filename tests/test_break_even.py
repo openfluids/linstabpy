@@ -157,7 +157,9 @@ def test_break_even_at_exact_crossover_selects_sweep() -> None:
 def test_break_even_reads_anchor_count_and_rejects_non_positive_probe() -> None:
     pattern = _pattern()
     probe = _fake_probe(t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=2)
-    from_list = break_even_decision(pattern, 3, {"anchors": [0.0, 1.0, 2.0], "break_even_probe": probe})
+    from_list = break_even_decision(
+        pattern, 3, {"anchors": [0.0, 1.0, 2.0], "break_even_probe": probe}
+    )
     assert from_list.k_anchors == 3
     default_k = break_even_decision(pattern, 3, {"break_even_probe": probe})
     assert default_k.k_anchors == 1
@@ -166,11 +168,23 @@ def test_break_even_reads_anchor_count_and_rejects_non_positive_probe() -> None:
     assert allowed.iterations == 0
     with pytest.raises(ValueError, match="T_fact"):
         break_even_decision(
-            pattern, 2, {"break_even_probe": _fake_probe(t_fact_seconds=0.0, t_apply_seconds=1.0, iterations=1)}
+            pattern,
+            2,
+            {
+                "break_even_probe": _fake_probe(
+                    t_fact_seconds=0.0, t_apply_seconds=1.0, iterations=1
+                )
+            },
         )
     with pytest.raises(ValueError, match="T_apply"):
         break_even_decision(
-            pattern, 2, {"break_even_probe": _fake_probe(t_fact_seconds=1.0, t_apply_seconds=0.0, iterations=1)}
+            pattern,
+            2,
+            {
+                "break_even_probe": _fake_probe(
+                    t_fact_seconds=1.0, t_apply_seconds=0.0, iterations=1
+                )
+            },
         )
 
 
@@ -179,14 +193,24 @@ def test_timing_probe_defaults_iterations_and_rejects_zero_frequency_count() -> 
     probe = _timing_probe(pattern, {})
     assert probe.iterations == 1
     assert probe.t_fact_seconds > 0.0
-    cfg = {"k_anchors": 1, "break_even_probe": _fake_probe(t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=1)}
+    cfg = {
+        "k_anchors": 1,
+        "break_even_probe": _fake_probe(t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=1),
+    }
     with pytest.raises(ValueError, match="n_frequencies"):
         break_even_decision(pattern, 0, cfg)
     with pytest.raises(ValueError, match="k_anchors"):
-        break_even_decision(pattern, 2, {"k_anchors": 0, "break_even_probe": cfg["break_even_probe"]})
+        break_even_decision(
+            pattern, 2, {"k_anchors": 0, "break_even_probe": cfg["break_even_probe"]}
+        )
     with pytest.raises(ValueError, match="iterations"):
         break_even_decision(
             pattern,
             2,
-            {"k_anchors": 1, "break_even_probe": _fake_probe(t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=-1)},
+            {
+                "k_anchors": 1,
+                "break_even_probe": _fake_probe(
+                    t_fact_seconds=10.0, t_apply_seconds=1.0, iterations=-1
+                ),
+            },
         )

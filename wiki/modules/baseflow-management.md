@@ -549,8 +549,7 @@ import numpy as np
 from linstabpy.baseflow import BaseFlow, sponge_from_config, sutherland_air
 
 ny, nx = Y.shape
-bf = BaseFlow(Re=..., Ma=..., Pr=..., kappa=..., T_0=...,
-              RHO=rho, U=u, V=v, W=w, T=T)
+bf = BaseFlow(Re=..., Ma=..., Pr=..., kappa=..., T_0=..., RHO=rho, U=u, V=v, W=w, T=T)
 sponge = sponge_from_config(
     (ny, nx),
     {"enabled": True, "preset": "smooth_unit"},

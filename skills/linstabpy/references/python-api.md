@@ -28,7 +28,7 @@ print(config.meta.case_name, config.solver.mode)
 # Solver call: PETSc/MPI initialize here, on first use.
 import linstabpy
 
-system = linstabpy.build_lnse_system(...)   # assembled operator + BC info
+system = linstabpy.build_lnse_system(...)  # assembled operator + BC info
 ```
 
 Rules: never `from linstabpy.stability._eigenvalues import ...` in new

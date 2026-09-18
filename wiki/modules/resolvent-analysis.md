@@ -104,6 +104,7 @@ Import pattern (no PETSc initialization on package import alone):
 
 ```python
 from linstabpy.resolvent import resolvent_analysis, ResolventOperator
+
 # or
 from linstabpy import resolvent_analysis
 ```

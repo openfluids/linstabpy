@@ -166,9 +166,7 @@ def test_load_case_fields_transposes_packed_axes(tmp_path: Path) -> None:
 def test_load_grid_fields_zeros_spanwise_velocity(tmp_path: Path) -> None:
     _write_npy_dir(tmp_path)
     np.save(tmp_path / "w.npy", np.full((4, 6), 3.0))
-    _, _, bf_kept, _ = load_grid_fields(
-        tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33
-    )
+    _, _, bf_kept, _ = load_grid_fields(tmp_path, Re=1.0e5, Ma=2.15, Pr=0.72, kappa=1.4, T_0=153.33)
     np.testing.assert_allclose(bf_kept.W, 3.0)
     np.testing.assert_allclose(bf_kept.U, 2.15)
     _, _, bf, _ = load_grid_fields(

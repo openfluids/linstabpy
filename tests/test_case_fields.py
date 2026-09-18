@@ -402,8 +402,12 @@ def test_apply_preprocess_drops_duplicate_filter_directions(tmp_path: Path) -> N
             "directions": ["x", "X", "x"],
         },
     }
-    out_once = apply_preprocess(X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), base)
-    out_dup = apply_preprocess(X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), dup)
+    out_once = apply_preprocess(
+        X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), base
+    )
+    out_dup = apply_preprocess(
+        X, Y, rho.copy(), u.copy(), v.copy(), w.copy(), T.copy(), sponge.copy(), dup
+    )
     np.testing.assert_allclose(out_once[3], out_dup[3])
     assert out_dup[-1]["filter"]["directions"] == ["x"]
     assert out_once[3][3, 4] == pytest.approx(6.0 / 16.0)

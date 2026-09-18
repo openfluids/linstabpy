@@ -226,4 +226,3 @@ def test_line_record_never_writes_the_real_host_name() -> None:
     src = DRIVER.read_text(encoding="utf-8")
     assert "gethostname" not in src
     assert "LINSTABPY_HOSTNAME" in src
-

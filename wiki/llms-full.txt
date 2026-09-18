@@ -381,9 +381,10 @@ Run the case through the driver ([The CLI as it really is](#the-cli-as-it-really
 
 ```python
 import numpy as np
+
 d = np.load("results/my_case.npz")
-print(d["omega"])          # temporal eigenvalues near your target
-print(d["gains"])          # resolvent gains, if a resolvent stage ran
+print(d["omega"])  # temporal eigenvalues near your target
+print(d["gains"])  # resolvent gains, if a resolvent stage ran
 print(d["provenance_config_hash"], d["provenance_linstabpy_git_sha"])
 ```
 
