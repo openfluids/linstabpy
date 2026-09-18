@@ -99,11 +99,11 @@ def main() -> int:
 
     # This is a command-line tool; the printed lines are its product.
     if not np.allclose(w_ref, w_other):
-        print("note: the runs carry different Chu weights; the reference weight is used")  # ruff: ignore[print]
-    print(f"gain      {gain_ref:.10f}  vs  {gain_other:.10f}")  # ruff: ignore[print]
-    print(f"Chu-weighted mode correlation = {align:.16f}  (1 - {1.0 - align:.3e})")  # ruff: ignore[print]
+        print("note: the runs carry different Chu weights; the reference weight is used")
+    print(f"gain      {gain_ref:.10f}  vs  {gain_other:.10f}")
+    print(f"Chu-weighted mode correlation = {align:.16f}  (1 - {1.0 - align:.3e})")
     if conjugated:
-        print("(the second mode was conjugated: opposite temporal Fourier convention)")  # ruff: ignore[print]
+        print("(the second mode was conjugated: opposite temporal Fourier convention)")
     return 0
 
 

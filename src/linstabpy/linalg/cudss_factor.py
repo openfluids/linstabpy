@@ -40,6 +40,7 @@ Environment overrides:
 from __future__ import annotations
 
 import functools
+import importlib.util
 import logging
 import os
 import time
@@ -63,7 +64,7 @@ _MISSING_NVMATH_MSG = (
 )
 
 
-def _import_nvmath() -> Any:  # ruff: ignore[any-type] -- external module without stubs
+def _import_nvmath() -> Any:  # external module without stubs
     """Import nvmath, or raise with the install command.
 
     Returns
@@ -77,7 +78,7 @@ def _import_nvmath() -> Any:  # ruff: ignore[any-type] -- external module withou
         When the nvmath wheels are not installed.
     """
     try:
-        import nvmath  # ruff: ignore[import-outside-top-level] # pyright: ignore[reportMissingImports]
+        import nvmath  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise RuntimeError(_MISSING_NVMATH_MSG) from exc
     return nvmath
@@ -103,7 +104,7 @@ def find_threading_layer() -> str | None:
             return None
         return text
     try:
-        import nvidia  # ruff: ignore[import-outside-top-level] # pyright: ignore[reportMissingImports]
+        import nvidia  # pyright: ignore[reportMissingImports]
     except ImportError:
         return None
     candidates: list[Path] = []
@@ -192,18 +193,17 @@ def _tiny_probe_solve(kmat: sp.csr_matrix, rhs: np.ndarray) -> np.ndarray:
 def cudss_available() -> bool:
     """Report whether a tiny complex cuDSS factorization works here.
 
-    The probe imports nvmath, factors a 2x2 complex matrix on the GPU and
-    checks the solution.  Any failure (no wheel, no driver, no device)
-    means the backend is not available; the reason is logged at DEBUG.
+    The probe checks that the nvmath wheel is present, factors a 2x2
+    complex matrix on the GPU and checks the solution.  Any failure (no
+    wheel, no driver, no device) means the backend is not available; the
+    reason is logged at DEBUG.
 
     Returns
     -------
     bool
         True when the full stack (wheels, driver, GPU) works.
     """
-    try:
-        import nvmath  # ruff: ignore[unused-import]  # ruff: ignore[import-outside-top-level] # pyright: ignore[reportMissingImports]
-    except ImportError:
+    if importlib.util.find_spec("nvmath") is None:
         return False
     kmat = sp.csr_matrix(np.array([[2.0 + 0.0j, 1.0 + 0.0j], [0.0 + 0.0j, 2.0 + 0.0j]]))
     rhs = np.array([1.0 + 0.0j, 1.0 + 0.0j])
@@ -404,7 +404,7 @@ class CudssSolver:
         return canonical.data.astype(np.complex64)
 
     @staticmethod
-    def _read_lu_nnz(info: Any) -> int | None:  # ruff: ignore[any-type] -- nvmath info, no stubs
+    def _read_lu_nnz(info: Any) -> int | None:  # nvmath info, no stubs
         """Read the L+U nonzero count from the factorization info.
 
         Returns

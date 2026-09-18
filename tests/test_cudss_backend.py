@@ -23,11 +23,11 @@ from linstabpy.linalg.cudss_factor import CudssSolver, cudss_available, equilibr
 
 # The private helpers are the units under test; importing them here is the point.
 from linstabpy.linalg.factorize import (
-    _run_adjoint_self_test,  # ruff: ignore[import-private-name]
+    _run_adjoint_self_test,
     factorize,
 )
 from linstabpy.resolvent.operator import (
-    _make_production_probe_family,  # ruff: ignore[import-private-name]
+    _make_production_probe_family,
 )
 
 _NVMATH_INSTALLED = importlib.util.find_spec("nvmath") is not None
@@ -79,7 +79,7 @@ def _cudss_solver_cfg(**overrides: object) -> dict[str, dict[str, object]]:
 @requires_petsc
 def test_apply_factor_backend_refuses_cudss() -> None:
     """The PETSc options seam must reject cudss with a pointer to the real route."""
-    from petsc4py import PETSc  # ruff: ignore[import-outside-top-level]
+    from petsc4py import PETSc
 
     A = PETSc.Mat().createAIJ(size=(1, 1), comm=PETSc.COMM_SELF)
     A.setValue(0, 0, 1.0 + 0.0j)
