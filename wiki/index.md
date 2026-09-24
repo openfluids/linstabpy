@@ -177,7 +177,7 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 
 If this software contributed to published work, please cite the linstabpy paper together with the LinStab2D methodology paper:
 
-> Hamada, G. Y. R. and Frantz, R. A. S. linstabpy: open-source compressible stability and resolvent analysis. *Theor. Comput. Fluid Dyn.* (in preparation, 2026).
+> Hamada, G. Y. R., Wolf, W. R., Junqueira-Junior, C., Robinet, J.-C. and Frantz, R. A. S. LinStabPy: an efficient Python framework for compressible stability and resolvent analysis. *Theor. Comput. Fluid Dyn.* (under revision, 2026).
 
 > Martini, E. and Schmidt, O. T. (2024). LinStab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665–685. doi:10.1007/s00162-024-00706-0.
 

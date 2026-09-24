@@ -4,7 +4,7 @@ The papers and manuals behind this wiki, grouped by what they justify. One line 
 
 ## The package and its lineage
 
-* Hamada, G. Y. R. and Frantz, R. A. S. linstabpy: open-source compressible stability and resolvent analysis. *Theor. Comput. Fluid Dyn.* (in preparation, 2026). The paper for this codebase. Prefer it when citing results.
+* Hamada, G. Y. R., Wolf, W. R., Junqueira-Junior, C., Robinet, J.-C. and Frantz, R. A. S. LinStabPy: an efficient Python framework for compressible stability and resolvent analysis. *Theor. Comput. Fluid Dyn.* (under revision, 2026). The paper for this codebase. Prefer it when citing results.
 * Martini, E. and Schmidt, O. T. (2024). LinStab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665–685. doi:10.1007/s00162-024-00706-0. The methodology ancestor: linearized equations, SBP discretization, metrics, boundary conditions, filtering. Cite alongside the linstabpy paper.
 * Padovan, A., Anantharaman, V., Rowley, C. W., Vollmer, B., Colonius, T. and Bodony, D. J. (2025). resolvent4py: a parallel Python package for analysis, model reduction and control of large-scale linear systems. *SoftwareX* 31, 102286. doi:10.1016/j.softx.2025.102286. Operator-handling design influence.
 

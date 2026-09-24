@@ -1448,9 +1448,10 @@ full text and `NOTICE` for attribution and the modification history.
 When using LinStabPy in published work, please cite the LinStabPy paper together
 with the LinStab2D methodology paper:
 
-> Hamada, G. Y. R. & Frantz, R. A. S. linstabpy: open-source compressible
+> Hamada, G. Y. R., Wolf, W. R., Junqueira-Junior, C., Robinet, J.-C. &
+> Frantz, R. A. S. LinStabPy: an efficient Python framework for compressible
 > stability and resolvent analysis. *Theoretical and Computational Fluid
-> Dynamics* (in preparation, 2026).
+> Dynamics* (under revision, 2026).
 
 > Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent analysis of
 > compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665-685
