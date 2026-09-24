@@ -22,6 +22,10 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - The STRUMPACK known issue of 1.0.0rc11 is measured again and restated
   below. It is not a rare fault of one build: it follows the thread count.
 
+- The documentation has one host, https://linstabpy.vercel.app/, the site
+  the paper cites. The GitHub Pages workflow is now `docs.yml`, which only
+  checks that the wiki builds with `mkdocs build --strict`.
+
 ### Removed
 
 - `LINSTABPY_FAST_REFACTOR`. Serial cuDSS now always refactorizes in place,
