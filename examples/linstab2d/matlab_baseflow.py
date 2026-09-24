@@ -34,7 +34,7 @@ def _load_baseflow_data(filename: str) -> dict[str, np.ndarray]:
                 f"Reference base-flow data not found at {_BASEFLOW_DATA_DIR}. "
                 "Set LINSTABPY_BASEFLOW_DATA_DIR to a local clone of "
                 "https://github.com/LinStab2D/LinStab2D, or place .mat files in "
-                "examples/martini/baseflows/."
+                "examples/linstab2d/baseflows/."
             ) from FileNotFoundError(
                 f"Could not find base-flow data directory: {_BASEFLOW_DATA_DIR}"
             )

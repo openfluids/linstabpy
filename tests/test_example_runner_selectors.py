@@ -55,7 +55,7 @@ def test_benchmark_example_0_module_is_valid_runner_selector():
 
 def test_benchmark_clears_npz_under_martini():
     text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
-    assert "examples/martini/" in text
+    assert "examples/linstab2d/" in text
 
 
 def test_runner_accepts_benchmark_default_module_on_mpi_path():

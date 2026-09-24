@@ -41,7 +41,7 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
-from examples.martini.matlab_baseflow import load_blasius
+from examples.linstab2d.matlab_baseflow import load_blasius
 from linstabpy.baseflow import sutherland_air
 from linstabpy.mesh import Mesh
 from linstabpy.operators.assembly import (

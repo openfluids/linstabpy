@@ -1,6 +1,6 @@
 # Martini MATLAB/Python parity registry.
 # Paths are repo-relative. The extractor writes one NPZ per MATLAB .mat stem
-# into examples/martini/, and the comparator consumes those
+# into examples/linstab2d/, and the comparator consumes those
 # bundles together with the Python example outputs listed here.
 schema_version: martini_cases_v1
 cases:
@@ -9,7 +9,7 @@ cases:
     comparison_kind: curvilinear_protocol
     comparison_scope: direct
     python_module: examples.example_0_curvilinear_validation
-    python_npz: examples/martini/example_0_curvilinear_validation.npz
+    python_npz: examples/linstab2d/example_0_curvilinear_validation.npz
     matlab_results_stem: example_0_TestCurvilinearDerivative_results
     tolerances:
       field_abs: 1.0e-10
@@ -21,7 +21,7 @@ cases:
     comparison_kind: resolvent
     comparison_scope: direct
     python_module: examples.example_1_blasius
-    python_npz: examples/martini/example_1_blasius.npz
+    python_npz: examples/linstab2d/example_1_blasius.npz
     matlab_results_stem: example_1_Blasius_results
     matlab_gains_key: results_Blasius/gains
     matlab_responses_key: results_Blasius/responses
@@ -42,7 +42,7 @@ cases:
     comparison_kind: resolvent
     comparison_scope: direct
     python_module: examples.example_2_jet
-    python_npz: examples/martini/example_2_jet.npz
+    python_npz: examples/linstab2d/example_2_jet.npz
     matlab_results_stem: example_2_Jet_results
     matlab_gains_key: results_Jet/gains
     matlab_responses_key: results_Jet/responses
@@ -66,16 +66,16 @@ cases:
     # bundle, and only the spatial campaign carries a spatial spectrum.
     campaigns:
       - name: temporal_Lx2pi_nP2
-        python_npz: examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz
+        python_npz: examples/linstab2d/example_3_paper_temporal_Lx2pi_nP2.npz
         matlab_temporal_stem: example_3_paper_temporal_Lx2pi_nP2_results_temporal
       - name: temporal_Lxpi_nfloq0
-        python_npz: examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz
+        python_npz: examples/linstab2d/example_3_paper_temporal_Lxpi_nfloq0.npz
         matlab_temporal_stem: example_3_paper_temporal_Lxpi_nfloq0_results_temporal
       - name: temporal_Lxpi_nfloq2
-        python_npz: examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz
+        python_npz: examples/linstab2d/example_3_paper_temporal_Lxpi_nfloq2.npz
         matlab_temporal_stem: example_3_paper_temporal_Lxpi_nfloq2_results_temporal
       - name: spatial_Lxpi_nP2
-        python_npz: examples/martini/example_3_paper_spatial_Lxpi_nP2.npz
+        python_npz: examples/linstab2d/example_3_paper_spatial_Lxpi_nP2.npz
         matlab_temporal_stem: example_3_paper_spatial_Lxpi_nP2_results_temporal
         matlab_spatial_stem: example_3_paper_spatial_Lxpi_nP2_results_spatial
     matlab_temporal_omega_key: results_StreakyBL_temporal/omega
@@ -110,7 +110,7 @@ cases:
     comparison_kind: cavity
     comparison_scope: direct
     python_module: examples.example_4_cavity
-    python_npz: examples/martini/example_4_cavity.npz
+    python_npz: examples/linstab2d/example_4_cavity.npz
     matlab_direct_stem: example_4_Cavity_results_direct
     matlab_adjoint_stem: example_4_Cavity_results_adjoint
     omega_target: "1.5+1.0j"
@@ -125,7 +125,7 @@ cases:
     comparison_kind: resolvent
     comparison_scope: direct
     python_module: examples.example_5_paraboloid
-    python_npz: examples/martini/example_5_paraboloid.npz
+    python_npz: examples/linstab2d/example_5_paraboloid.npz
     matlab_results_stem: example_5_Paraboloid_results
     matlab_gains_key: results_Paraboloid/gains
     matlab_responses_key: results_Paraboloid/responses

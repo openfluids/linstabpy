@@ -10,7 +10,7 @@
 # Example 0 (curvilinear validation) is pure NumPy — runs single-process.
 # Example 1 runs the real Blasius case so install-time profiling
 # stays practical even on slower nodes. Override to the full case with:
-#   LINSTABPY_BENCHMARK_EX1_MODULE=examples.martini.example_1_blasius
+#   LINSTABPY_BENCHMARK_EX1_MODULE=examples.linstab2d.example_1_blasius
 #   LINSTABPY_BENCHMARK_EX1_LABEL=example_1_blasius
 # ────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
@@ -92,7 +92,7 @@ printf "  Half cores:      %d\n" "${HALF_CORES}"
 printf "  Results dir:     %s\n" "${RESULTS_DIR}"
 echo ""
 
-EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.martini.example_1_blasius}"
+EX1_MODULE="${LINSTABPY_BENCHMARK_EX1_MODULE:-examples.linstab2d.example_1_blasius}"
 EX1_LABEL="${LINSTABPY_BENCHMARK_EX1_LABEL:-example_1_blasius}"
 printf "  Example 1 case:  %s (%s)\n\n" "${EX1_LABEL}" "${EX1_MODULE}"
 
@@ -168,7 +168,7 @@ JSONEOF
 # Usage: run_case <example_module> <label> <variant_name> <n_ranks>
 run_case() {
     local module="$1" label="$2" variant="$3" n_ranks="$4"
-    local npz_glob="${SCRIPT_DIR}/examples/martini/${label}*.npz"
+    local npz_glob="${SCRIPT_DIR}/examples/linstab2d/${label}*.npz"
     local log_file="${RESULTS_DIR}/${label}_${variant}.log"
     local time_file="${RESULTS_DIR}/${label}_${variant}.time"
 
@@ -226,7 +226,7 @@ run_case() {
 # ── Execute benchmark suite ─────────────────────────────────────────────────
 
 printf "${COL_INFO}--- Example 0: Curvilinear validation (single-process) ---${COL_RST}\n"
-run_case "examples.martini.example_0_curvilinear_validation" "example_0_curvilinear_validation" "single" 1
+run_case "examples.linstab2d.example_0_curvilinear_validation" "example_0_curvilinear_validation" "single" 1
 echo ""
 
 printf "${COL_INFO}--- Example 1: Blasius PETSc (MPI parallel) ---${COL_RST}\n"

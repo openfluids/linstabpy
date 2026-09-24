@@ -11,12 +11,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from examples.martini import (
+from examples.linstab2d import (
     compare_martini_examples,
     extract_martini_to_npz,
     generate_martini_matlab_exports,
 )
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     _compare_cavity_case,
     _compare_streaky_bl_case,
     _exit_code_from_counts,
@@ -31,24 +31,24 @@ from tests._paths import REPO_ROOT as repo
 
 def test_martini_manifest_paths_are_repo_relative() -> None:
     manifest = json.loads(
-        (repo / "examples/martini/martini_manifest.json").read_text(encoding="utf-8")
+        (repo / "examples/linstab2d/martini_manifest.json").read_text(encoding="utf-8")
     )
 
     assert manifest["input_dir"] == "martini_examples"
-    assert manifest["output_dir"] == "examples/martini/LinStab2DResults"
+    assert manifest["output_dir"] == "examples/linstab2d/LinStab2DResults"
     assert not manifest["input_dir"].startswith("/")
     assert not manifest["output_dir"].startswith("/")
-    assert all(entry["npz_file"].startswith("examples/martini/") for entry in manifest["files"])
+    assert all(entry["npz_file"].startswith("examples/linstab2d/") for entry in manifest["files"])
 
 
 def test_martini_npz_default_uses_validation_fixture_root() -> None:
     assert compare_martini_examples.ROOT == repo
-    assert compare_martini_examples.DEFAULT_CONFIG == repo / "examples/martini/martini_cases.yaml"
+    assert compare_martini_examples.DEFAULT_CONFIG == repo / "examples/linstab2d/martini_cases.yaml"
     assert compare_martini_examples.DEFAULT_NPZ_DIR == MARTINI_FIXTURE_ROOT
     assert extract_martini_to_npz.ROOT == repo
     assert extract_martini_to_npz.DEFAULT_OUTPUT_DIR == MARTINI_FIXTURE_ROOT
     assert (
-        extract_martini_to_npz.DEFAULT_MANIFEST == repo / "examples/martini/martini_manifest.json"
+        extract_martini_to_npz.DEFAULT_MANIFEST == repo / "examples/linstab2d/martini_manifest.json"
     )
 
 
@@ -103,7 +103,7 @@ def test_martini_fixture_status_does_not_create_directories(tmp_path) -> None:
 
 
 def test_martini_linstab2d_scripts_contain_parity_drivers() -> None:
-    scripts_dir = repo / "examples/martini/linstab2D_scripts"
+    scripts_dir = repo / "examples/linstab2d/linstab2D_scripts"
     expected = [
         "example_0_TestCurvilinearDerivative.m",
         "example_1_Blasius.m",
@@ -128,7 +128,7 @@ def test_martini_linstab2d_scripts_contain_parity_drivers() -> None:
 
 
 def test_martini_matlab_export_runner_invokes_shell_script(tmp_path, monkeypatch) -> None:
-    scripts_dir = repo / "examples/martini/linstab2D_scripts"
+    scripts_dir = repo / "examples/linstab2d/linstab2D_scripts"
     linstab2d = tmp_path / "LinStab2D"
     linstab2d.mkdir()
     (linstab2d / "aux_matlab").mkdir()
@@ -174,7 +174,7 @@ def test_martini_matlab_export_runner_invokes_shell_script(tmp_path, monkeypatch
 
 
 def test_split_martini_fixtures_partitions_modes(tmp_path) -> None:
-    from examples.martini.split_martini_fixtures import process_file, split_payload
+    from examples.linstab2d.split_martini_fixtures import process_file, split_payload
 
     payload = {
         "__meta_schema_version": np.asarray(["x"], dtype=str),
@@ -228,8 +228,8 @@ def test_split_martini_fixtures_partitions_modes(tmp_path) -> None:
 
 
 def test_slice_resolvent_uv_handles_double_bblasius_prefix(tmp_path) -> None:
-    from examples.martini.compare_martini_examples import _mode_matrix
-    from examples.martini.split_martini_fixtures import process_file, slice_resolvent_uv
+    from examples.linstab2d.compare_martini_examples import _mode_matrix
+    from examples.linstab2d.split_martini_fixtures import process_file, slice_resolvent_uv
 
     # The raw MATLAB export bundles are not distributed with the repository;
     # point LINSTABPY_MATLAB_FIXTURES_NPZ at a directory of raw fixture .npz
@@ -372,12 +372,12 @@ def test_example_0_reference_fields_match_exported_matlab_bundle() -> None:
     bundle_path = martini_fixture("example_0_TestCurvilinearDerivative_results.npz")
     if not bundle_path.exists():
         pytest.skip(f"Missing MATLAB parity bundle: {bundle_path}")
-    from examples.martini.example_0_curvilinear_validation import _compute_reference_fields
+    from examples.linstab2d.example_0_curvilinear_validation import _compute_reference_fields
 
     # load_matlab_bundle strips the ``results__`` wrapper the slim
     # LinStab2DResults/ fixtures carry; the field keys below are the logical ones.
     matlab = load_matlab_bundle(MARTINI_FIXTURE_ROOT, "example_0_TestCurvilinearDerivative_results")
-    cfg = load_config(repo / "examples/martini/example_0_curvilinear_validation.yaml")
+    cfg = load_config(repo / "examples/linstab2d/example_0_curvilinear_validation.yaml")
     fields = _compute_reference_fields(cfg)
 
     np.testing.assert_allclose(fields["x"], matlab["results_TestCurv__x"], atol=1e-12, rtol=1e-12)

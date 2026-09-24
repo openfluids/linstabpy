@@ -40,7 +40,7 @@ def compute(cfg: dict) -> None:
     """
     import scipy.sparse as sp
 
-    from examples.martini.matlab_baseflow import load_paraboloid
+    from examples.linstab2d.matlab_baseflow import load_paraboloid
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result

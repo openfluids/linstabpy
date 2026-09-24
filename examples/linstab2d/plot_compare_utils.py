@@ -8,17 +8,17 @@ from typing import Any
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     _best_complex_scale,
     _best_spectrum_pairs,
     _load_npz_dict,
     _mode_matrix,
     _npz_get,
 )
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     load_matlab_bundle as load_matlab_fixture_bundle,
 )
-from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
+from examples.linstab2d.matlab_hdf5 import compound_to_complex, sanitize_key
 
 
 def ensure_matplotlib():
@@ -431,7 +431,7 @@ def jet_sponge_zero_mask(
     from scipy.interpolate import RegularGridInterpolator
     from scipy.io import loadmat
 
-    from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR
+    from examples.linstab2d.matlab_baseflow import _BASEFLOW_DATA_DIR
 
     X = np.asarray(X, dtype=float)
     Y = np.asarray(Y, dtype=float)

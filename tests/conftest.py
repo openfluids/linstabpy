@@ -26,7 +26,7 @@ import numpy as np
 import pytest
 
 # Validation CLIs and importable audit modules live in tests/tools/ (not under
-# examples/martini/). See tests/tools/README.md for the relocation decision.
+# examples/linstab2d/). See tests/tools/README.md for the relocation decision.
 _HERE = Path(__file__).resolve()
 _TOOLS_DIR = _HERE.parent / "tools"
 if _TOOLS_DIR.is_dir():

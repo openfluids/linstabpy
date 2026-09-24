@@ -22,13 +22,13 @@ from typing import Any
 
 import numpy as np
 
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     LINSTAB2D_RESULTS_DIRNAME,
     _mode_matrix,
     _npz_get,
     load_matlab_bundle,
 )
-from examples.martini.plot_compare_utils import (
+from examples.linstab2d.plot_compare_utils import (
     apply_diagonal_c,
     compact_uvw_component_idx,
     ensure_matplotlib,
@@ -76,7 +76,7 @@ def ex5_observation_mask_diag(
     n_mode_dofs: int | None = None,
 ) -> np.ndarray:
     """Block-correct :math:`B=C` diagonal for Ex.~5 (zeros rho,T and Dirichlet DOFs)."""
-    from examples.martini.matlab_baseflow import load_paraboloid
+    from examples.linstab2d.matlab_baseflow import load_paraboloid
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result

@@ -82,7 +82,7 @@ def _resolvent_struct_prefix(payload: dict[str, np.ndarray]) -> str | None:
 
 
 def _mode_matrix(values: np.ndarray) -> np.ndarray:
-    from examples.martini.compare_martini_examples import _mode_matrix as mode_matrix
+    from examples.linstab2d.compare_martini_examples import _mode_matrix as mode_matrix
 
     return mode_matrix(values)
 
@@ -234,7 +234,7 @@ def _spatial_struct_prefix(payload: dict[str, np.ndarray]) -> str | None:
 
 
 def _complex_vector(values: np.ndarray) -> np.ndarray:
-    from examples.martini.plot_compare_utils import complex_vector
+    from examples.linstab2d.plot_compare_utils import complex_vector
 
     return complex_vector(values)
 
@@ -518,13 +518,13 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=ROOT / "examples" / "martini" / "LinStab2DResults",
+        default=ROOT / "examples" / "linstab2d" / "LinStab2DResults",
         help="Destination for split/copy fixtures.",
     )
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=ROOT / "examples" / "martini" / "martini_manifest.json",
+        default=ROOT / "examples" / "linstab2d" / "martini_manifest.json",
     )
     args = parser.parse_args()
 

@@ -42,7 +42,7 @@ ignore = [
 # function bodies; type annotations reference them at module level.
 "examples/**" = ["F821", "F841"]
 # Validation harness uses similar lazy-import + ad-hoc helper patterns.
-"examples/martini/**" = ["F821", "F841"]
+"examples/linstab2d/**" = ["F821", "F841"]
 # sbp_generator.py is a frozen validated-math file (Invariant A,
 # test_deny_list_math_frozen.py). Its pre-existing unused `a_i2` (F841) in the
 # order>8 branch must not be edited -- the freeze forbids touching the body -- so

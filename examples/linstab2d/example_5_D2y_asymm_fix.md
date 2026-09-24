@@ -58,7 +58,7 @@ resolvent gain mismatch ~**0.043%** vs LinStab2D fixtures.
 expected `D2y_{symm,asymm}` from explicit metric diagonals and fails on unfixed
 code (130 pole-row mismatches on a toy deform).
 
-Example 5 drivers and plots in `examples/martini/` **do not pin MATLAB derivative
+Example 5 drivers and plots in `examples/linstab2d/` **do not pin MATLAB derivative
 matrices**. They exercise the shipped mesh layer with this fix.
 
 ## Evidence trail
@@ -68,7 +68,7 @@ matrices**. They exercise the shipped mesh layer with this fix.
 | `github/PhD/plans/handoffs/martini_ex5_paraboloid_D2y_asymm/AGENT.md` | Full audit narrative, residual checks, overlay NPZ policy |
 | `cases/Martini2024/linstabpy/tests/ex5_paraboloid_audit/` | Scripts + JSON reports (P1 derivatives, P3 metric probe) |
 | `cases/Martini2024/comparison/matlab_fixtures_npz/example_5_Paraboloid_results.npz` | LinStab2D reference for plots / parity |
-| `examples/martini/LinStab2DResults/example_5_Paraboloid_results_*.npz` | Bundled reference fixtures for the examples repo |
+| `examples/linstab2d/LinStab2DResults/example_5_Paraboloid_results_*.npz` | Bundled reference fixtures for the examples repo |
 
 After applying the mesh fix, recompute `example_5_paraboloid.npz` before treating
 gain/mode overlays as authoritative (`rm example_5_paraboloid.npz && python example_5_paraboloid.py`).

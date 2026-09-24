@@ -33,17 +33,17 @@ else
   PYTHON="$DEFAULT_PYTHON"
 fi
 
-EXAMPLES_DIR="$REPO/examples/martini"
-PARITY_SCRIPT="$REPO/examples/martini/compare_martini_examples.py"
+EXAMPLES_DIR="$REPO/examples/linstab2d"
+PARITY_SCRIPT="$REPO/examples/linstab2d/compare_martini_examples.py"
 export PYTHONPATH="$REPO:$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
 
 EXAMPLE_SPECS=(
-  "0|example_0_curvilinear_validation|examples.martini.example_0_curvilinear_validation|examples.martini.example_0_plots|Example 0: curvilinear derivative validation"
-  "1|example_1_blasius|examples.martini.example_1_blasius|examples.martini.example_1_plots|Example 1: Blasius boundary layer resolvent"
-  "2|example_2_jet|examples.martini.example_2_jet|examples.martini.example_2_plots|Example 2: turbulent jet resolvent"
-  "3|example_3_streaky_bl|examples.martini.example_3_streaky_bl|examples.martini.example_3_plots|Example 3: streaky boundary layer (temporal + spatial)"
-  "4|example_4_cavity|examples.martini.example_4_cavity|examples.martini.example_4_plots|Example 4: cavity direct and adjoint eigenvalues"
-  "5|example_5_paraboloid|examples.martini.example_5_paraboloid|examples.martini.example_5_plots|Example 5: paraboloid resolvent"
+  "0|example_0_curvilinear_validation|examples.linstab2d.example_0_curvilinear_validation|examples.linstab2d.example_0_plots|Example 0: curvilinear derivative validation"
+  "1|example_1_blasius|examples.linstab2d.example_1_blasius|examples.linstab2d.example_1_plots|Example 1: Blasius boundary layer resolvent"
+  "2|example_2_jet|examples.linstab2d.example_2_jet|examples.linstab2d.example_2_plots|Example 2: turbulent jet resolvent"
+  "3|example_3_streaky_bl|examples.linstab2d.example_3_streaky_bl|examples.linstab2d.example_3_plots|Example 3: streaky boundary layer (temporal + spatial)"
+  "4|example_4_cavity|examples.linstab2d.example_4_cavity|examples.linstab2d.example_4_plots|Example 4: cavity direct and adjoint eigenvalues"
+  "5|example_5_paraboloid|examples.linstab2d.example_5_paraboloid|examples.linstab2d.example_5_plots|Example 5: paraboloid resolvent"
 )
 
 usage() {
@@ -55,7 +55,7 @@ Options:
   --clean               Delete cached example NPZ and PNG artifacts before running
   --example <selector>  Run only one example. Repeatable. Select by index,
                         stem, or module name (for example: 0, example_1_blasius,
-                        examples.martini.example_1_blasius)
+                        examples.linstab2d.example_1_blasius)
   -m, --module <name>    Alias for --example; accepts full module names
   --mpi                 Run selected examples through an MPI launcher
   -n, --ranks <count>   MPI rank count. Implies --mpi
@@ -648,7 +648,7 @@ if [[ $RUNNER_STATUS -eq 0 && $SKIP_PARITY -eq 0 && $MPI_MODE -eq 0 ]]; then
   if "$PYTHON" "$PARITY_SCRIPT" --fail-on-hard-fail; then
     # The parity script exits 0 on a SOFT_FAIL. Print the soft fails by name
     # so that the summary does not show PASS for them.
-    SOFT_FAILS="$("$PYTHON" -c 'import json, sys; r = json.load(open(sys.argv[1])); print(" ".join(str(c.get("case_id", "?")) for c in r["cases"] if c["status"] != "PASS"))' "$REPO/examples/martini/martini_parity_latest.json")"
+    SOFT_FAILS="$("$PYTHON" -c 'import json, sys; r = json.load(open(sys.argv[1])); print(" ".join(str(c.get("case_id", "?")) for c in r["cases"] if c["status"] != "PASS"))' "$REPO/examples/linstab2d/martini_parity_latest.json")"
     if [[ -z "$SOFT_FAILS" ]]; then
       echo "Status: PASS"
     else

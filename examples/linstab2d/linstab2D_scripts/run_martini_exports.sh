@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run Martini parity MATLAB drivers from examples/martini/linstab2D_scripts/.
+# Run Martini parity MATLAB drivers from examples/linstab2d/linstab2D_scripts/.
 #
 # Prerequisites:
 #   LINSTAB2D_ROOT  — LinStab2D checkout (a tree with aux_matlab/ and BaseFlows/)
@@ -10,7 +10,7 @@
 #
 # Usage:
 #   export LINSTAB2D_ROOT=/path/to/LinStab2D
-#   bash examples/martini/linstab2D_scripts/run_martini_exports.sh
+#   bash examples/linstab2d/linstab2D_scripts/run_martini_exports.sh
 #   bash .../run_martini_exports.sh --only example_1
 #   bash .../run_martini_exports.sh --from example_3
 

@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MARTINI = ROOT / "examples" / "martini"
+MARTINI = ROOT / "examples" / "linstab2d"
 
 COMPUTE_SCRIPTS = (
     "example_0_curvilinear_validation.py",
@@ -19,12 +19,12 @@ COMPUTE_SCRIPTS = (
     "example_5_paraboloid.py",
 )
 PLOT_MODULES = (
-    "examples.martini.example_0_plots",
-    "examples.martini.example_1_plots",
-    "examples.martini.example_2_plots",
-    "examples.martini.example_3_plots",
-    "examples.martini.example_4_plots",
-    "examples.martini.example_5_plots",
+    "examples.linstab2d.example_0_plots",
+    "examples.linstab2d.example_1_plots",
+    "examples.linstab2d.example_2_plots",
+    "examples.linstab2d.example_3_plots",
+    "examples.linstab2d.example_4_plots",
+    "examples.linstab2d.example_5_plots",
 )
 STALE_MODULE = re.compile(r"examples\.example_[0-9]|examples\.example_1_blasius_smoke")
 PUBLIC_PATH_FILES = (
@@ -36,7 +36,7 @@ PUBLIC_PATH_FILES = (
 
 
 def test_public_docs_use_martini_example_modules() -> None:
-    """Check README, runner, benchmark, and tutorial use examples.martini.*."""
+    """Check README, runner, benchmark, and tutorial use examples.linstab2d.*."""
     for path in PUBLIC_PATH_FILES:
         hits = STALE_MODULE.findall(path.read_text(encoding="utf-8"))
         assert hits == [], f"{path.relative_to(ROOT)}: {hits}"

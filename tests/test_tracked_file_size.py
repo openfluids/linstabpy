@@ -55,7 +55,7 @@ def test_tracked_tree_has_no_leftover_campaign_files() -> None:
     # not a campaign leftover; only the two JSONs stay banned.
     leftover = {
         "tests/fixtures/curvilinear_derivative_parity.json",
-        "examples/martini/physics_audit_campaign_vs_repo.json",
+        "examples/linstab2d/physics_audit_campaign_vs_repo.json",
     }
     assert leftover.isdisjoint(tracked)
 

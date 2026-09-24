@@ -17,7 +17,7 @@ import scipy.sparse as sp
 
 from examples._helpers import leading_mode_real_frequency
 from examples._plot_flow import plot_flow
-from examples.martini.example_3_streaky_bl import (
+from examples.linstab2d.example_3_streaky_bl import (
     _merge_temporal_target_batches,
     _resolve_baseflow_plot_field,
 )

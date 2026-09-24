@@ -21,8 +21,8 @@ USAGE.
 
 Single-case override (batch / debugging):
   LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \\
-  LINSTABPY_EXAMPLE_CONFIG=examples/martini/example_3_paper_spatial_Lxpi_nP2.yaml \\
-  python examples/martini/example_3_streaky_bl.py
+  LINSTABPY_EXAMPLE_CONFIG=examples/linstab2d/example_3_paper_spatial_Lxpi_nP2.yaml \\
+  python examples/linstab2d/example_3_streaky_bl.py
 """
 
 from __future__ import annotations
@@ -225,7 +225,7 @@ def _augment_cached_results(
     def ensure_problem() -> tuple[object, object]:
         nonlocal mesh, baseflow
         if mesh is None or baseflow is None:
-            from examples.martini.matlab_baseflow import load_streaky_bl
+            from examples.linstab2d.matlab_baseflow import load_streaky_bl
 
             ny, nx = np.asarray(results["X"]).shape
             mini_cfg["nx"] = nx
@@ -290,7 +290,7 @@ def _augment_cached_results(
 
 def compute(cfg: dict, npz_path: Path) -> None:
     """Run temporal and/or spatial eigensolutions for one paper campaign."""
-    from examples.martini.matlab_baseflow import load_streaky_bl
+    from examples.linstab2d.matlab_baseflow import load_streaky_bl
     from linstabpy.boundary_conditions.dirichlet import (
         apply_dirichlet,
         apply_dirichlet_petsc,

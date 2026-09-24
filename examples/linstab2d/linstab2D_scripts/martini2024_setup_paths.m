@@ -5,7 +5,7 @@ function martini2024_setup_paths()
 %   LINSTAB2D_ROOT  — upstream LinStab2D checkout (aux_matlab + readbaseflow .m)
 %
 % Creates BaseFlows -> ../baseflows symlink in this folder so load('BaseFlows/...')
-% resolves to examples/martini/baseflows/*.mat.
+% resolves to examples/linstab2d/baseflows/*.mat.
 
 scripts_root = fileparts(mfilename('fullpath'));
 addpath(scripts_root);
@@ -26,7 +26,7 @@ addpath(fullfile(linstab2d, 'BaseFlows'));
 bf_link = fullfile(scripts_root, 'BaseFlows');
 bf_data = fullfile(scripts_root, '..', 'baseflows');
 if ~exist(bf_data, 'dir')
-    error('martini2024: missing examples/martini/baseflows at %s', bf_data);
+    error('martini2024: missing examples/linstab2d/baseflows at %s', bf_data);
 end
 if ~exist(bf_link, 'dir')
     if ispc

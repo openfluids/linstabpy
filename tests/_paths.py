@@ -12,7 +12,7 @@ import pytest
 from examples.song.reference_paths import BASEFLOW_NPZ
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MARTINI_ROOT = REPO_ROOT / "examples" / "martini"
+MARTINI_ROOT = REPO_ROOT / "examples" / "linstab2d"
 SONG_ROOT = REPO_ROOT / "examples" / "song"
 SAVARINO_ROOT = REPO_ROOT / "examples" / "savarino"
 MARTINI_FIXTURE_ROOT = MARTINI_ROOT

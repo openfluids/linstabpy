@@ -10,14 +10,14 @@ From the repo root (requires MATLAB + `LINSTAB2D_ROOT`):
 
 ```bash
 export LINSTAB2D_ROOT=/path/to/LinStab2D
-bash examples/martini/regenerate_martini_fixtures.sh
+bash examples/linstab2d/regenerate_martini_fixtures.sh
 ```
 
 That runs: MATLAB export → extract (staging) → split into `LinStab2DResults/`.
 Then refresh Python outputs and compare:
 
 ```bash
-.venv/bin/python examples/martini/compare_martini_examples.py
+.venv/bin/python examples/linstab2d/compare_martini_examples.py
 bash run_all_examples.sh --fresh
 ```
 
@@ -90,7 +90,7 @@ Mode columns: **`N_CAVITY = 6`** (parity `n_compare=6`; plots use 3).
 
 - **MATLAB** with `eigs`
 - **`LINSTAB2D_ROOT`** — LinStab2D tree with `aux_matlab/` and `BaseFlows/*.m`
-- **`examples/martini/baseflows/`** — `.mat` data (symlinked as `BaseFlows/` at run time)
+- **`examples/linstab2d/baseflows/`** — `.mat` data (symlinked as `BaseFlows/` at run time)
 
 ## Trim policy summary
 

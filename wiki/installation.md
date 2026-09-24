@@ -45,7 +45,7 @@ bash benchmark.sh
 
 The reference MATLAB base flows (`M09jet.mat`, `BL_BF.mat`, `Step_BF.mat`,
 `Paraboloid_BF.mat`) used by the Martini example loaders ship in
-`examples/martini/baseflows/`. See
+`examples/linstab2d/baseflows/`. See
 [Reference base flows](https://github.com/openfluids/linstabpy#reference-base-flows)
 for the data of the other examples.
 
@@ -181,7 +181,7 @@ can bypass the patched `.venv` and try to rebuild `petsc4py`/`slepc4py` from
 source with the wrong runtime layout. Use `.venv/bin/python` directly:
 
 ```bash
-.venv/bin/python -m examples.martini.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_blasius
 ```
 
 ## Clusters and Intel MPI
@@ -301,7 +301,7 @@ A healthy Linux install should satisfy this sequence:
 ```bash
 bash install.sh --diagnose
 bash install.sh --check
-bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius
+bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius
 bash benchmark.sh
 ```
 
@@ -343,9 +343,9 @@ pressure, and reproducibility.
 Prefer the canonical example runner for MPI examples:
 
 ```bash
-bash run_all_examples.sh --mpi -m examples.martini.example_1_blasius
-bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
+bash run_all_examples.sh --mpi -m examples.linstab2d.example_1_blasius
+bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 If `-n/--ranks` is omitted in `--mpi` mode, the runner starts from half of the

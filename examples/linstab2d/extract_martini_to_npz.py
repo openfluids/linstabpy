@@ -15,13 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from examples.martini.matlab_hdf5 import extract_file
+from examples.linstab2d.matlab_hdf5 import extract_file
 from linstabpy.utils.yaml_io import load_config
 
 DEFAULT_INPUT_DIR = ROOT / "martini_examples"
-DEFAULT_OUTPUT_DIR = ROOT / "examples" / "martini"
-DEFAULT_MANIFEST = ROOT / "examples" / "martini" / "martini_manifest.json"
-DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.yaml"
+DEFAULT_OUTPUT_DIR = ROOT / "examples" / "linstab2d"
+DEFAULT_MANIFEST = ROOT / "examples" / "linstab2d" / "martini_manifest.json"
+DEFAULT_CONFIG = ROOT / "examples" / "linstab2d" / "martini_cases.yaml"
 
 
 def _now_utc() -> str:
