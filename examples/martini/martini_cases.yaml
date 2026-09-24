@@ -30,10 +30,8 @@ cases:
     tolerances:
       # Primary closure criterion: SVD residuals verify that Python triplets
       # (sigma, u, v) satisfy the discrete resolvent equations to near-machine
-      # precision, independently of the MATLAB reference.
-      # gain_rel=1e-5 is unachievable: UMFPACK (MATLAB) vs MUMPS/METIS (Python)
-      # use different fill-reducing orderings; the resulting gain mismatch
-      # (~0.54% for this case) is structural and does not indicate an error.
+      # precision, independently of the MATLAB reference. The gains also agree
+      # with MATLAB: 1.9e-11 relative on the release tree (job 3073).
       svd_residual_max: 1.0e-8
       gain_abs: 1.0e-6
       gain_rel: 1.0e-5
