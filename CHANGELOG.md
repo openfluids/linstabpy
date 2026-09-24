@@ -38,6 +38,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   epsilon), its run record `odd_even.csv`, and the figure script. It uses the
   SciPy operator path, so it runs without PETSc.
 
+- `python -m examples.song.prepare_baseflow --from-reference` writes the Song
+  solver input from the shipped `reference/baseflow/song_32deg.npz`, so the
+  Song case runs from a clone without Song's raw Plot3D files. The npz stores
+  velocity / c_inf; the command divides u, v and w by Ma, which gives the
+  velocity / U_inf input of the paper run to 1e-16.
+
 ### Removed
 
 - `LINSTABPY_FAST_REFACTOR`. Serial cuDSS now always refactorizes in place,

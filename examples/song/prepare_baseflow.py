@@ -21,7 +21,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from examples.song.reference_paths import INPUTS_BASEFLOW_DIR, INPUTS_RAW_DIR
+from examples.song.reference_paths import BASEFLOW_NPZ, INPUTS_BASEFLOW_DIR, INPUTS_RAW_DIR
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -269,6 +269,24 @@ def write_baseflow_npy(output_dir: Path, fields: dict[str, np.ndarray]) -> None:
     np.save(output_dir / "sponge.npy", np.zeros_like(fields["x"]))
 
 
+def read_reference_baseflow(path: Path = BASEFLOW_NPZ) -> dict[str, np.ndarray]:
+    """Read the shipped nodal base flow and scale it for the solver.
+
+    The npz stores velocity / c_inf, so its u_max is Ma = 2.15. The solver
+    reads velocity / U_inf, so u, v and w are divided by the stored Ma.
+    The other fields are already in solver scaling.
+    """
+    with np.load(path, allow_pickle=False) as packed:
+        mach = float(packed["Ma"])
+        fields = {
+            name: np.asarray(packed[name], dtype=float)
+            for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge")
+        }
+    for name in ("u", "v", "w"):
+        fields[name] = fields[name] / mach
+    return fields
+
+
 def plot_fields(output_dir: Path, fields: dict[str, np.ndarray]) -> None:
     x, y = fields["x"], fields["y"]
     for name in ("rho", "u", "v", "p", "T", "mu"):
@@ -299,6 +317,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Discard boundary streamwise rows after interpolation (default: both -> 599x301).",
     )
     parser.add_argument(
+        "--from-reference",
+        action="store_true",
+        help=f"Start from the shipped {BASEFLOW_NPZ.name} instead of the raw Plot3D export.",
+    )
+    parser.add_argument(
         "--no-plot",
         action="store_true",
         help="Skip contour PNGs of nodal fields (default: write plots).",
@@ -308,6 +331,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.from_reference:
+        fields = read_reference_baseflow()
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        for name, arr in fields.items():
+            np.save(args.output_dir / f"{name}.npy", arr)
+        print(f"Wrote baseflow from {BASEFLOW_NPZ.name} to {args.output_dir}")
+        return 0
     ref = SONG2023_REFERENCE
     c_inf = np.sqrt(ref["gamma"] * ref["p_inf"] / ref["rho_inf"])
     u_inf = ref["mach"] * c_inf

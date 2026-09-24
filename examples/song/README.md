@@ -31,17 +31,23 @@ See `reference/README.md` for conventions.
 Run from the repo root with the project venv active. **Nothing is executed below
 by default** — this is the intended order once inputs and MPI are available.
 
-### 1. Prepare baseflow from Song's FV export
+### 1. Prepare baseflow
 
-Copy Song's Plot3D files into `inputs/raw/`, then:
+From a clone, start from the shipped nodal base flow:
 
 ```bash
-.venv/bin/python -m examples.song.prepare_baseflow
+.venv/bin/python -m examples.song.prepare_baseflow --from-reference
 ```
 
-Reads `grid.grd` + `mean_flow.dat`, drops the first and last streamwise column
-(601 → 599), interpolates cell centres to vertices, non-dimensionalises, and
-writes `inputs/baseflow/*.npy` (including zero `sponge.npy`).
+This reads `reference/baseflow/song_32deg.npz`, divides u, v and w by Ma
+(the npz stores velocity / c_inf, the solver reads velocity / U_inf), and
+writes `inputs/baseflow/*.npy`. The result is the input of the paper run.
+
+If you have Song's Plot3D files, copy them into `inputs/raw/` and run the
+command without `--from-reference`. It reads `grid.grd` + `mean_flow.dat`,
+drops the first and last streamwise column (601 → 599), interpolates cell
+centres to vertices, non-dimensionalises, and writes the same
+`inputs/baseflow/*.npy` (including zero `sponge.npy`).
 
 ### 2. Plot mesh and mean flow
 
@@ -97,9 +103,10 @@ for this example).
 
 ## Convention
 
-The 32° baseflow is velocity / c_inf and temperature / T_inf:
-u_max = Ma = 2.15, T_min = 1. The nodal grid is 599 × 301. The raw Plot3D grid
-is 601 × 301.
+The shipped 32° baseflow `reference/baseflow/song_32deg.npz` is velocity / c_inf
+and temperature / T_inf: u_max = Ma = 2.15, T_min = 1. The solver input in
+`inputs/baseflow/` is velocity / U_inf (u_max = 1). The nodal grid is 599 × 301.
+The raw Plot3D grid is 601 × 301.
 
 ## Default run
 
