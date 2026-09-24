@@ -1243,15 +1243,16 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc7...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc11...HEAD
+[1.0.0rc11]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc10...v1.0.0rc11
+[1.0.0rc10]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc9...v1.0.0rc10
+[1.0.0rc9]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc8...v1.0.0rc9
+[1.0.0rc8]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc7...v1.0.0rc8
 [1.0.0rc7]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc6...v1.0.0rc7
 [1.0.0rc6]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc5...v1.0.0rc6
 [1.0.0rc5]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc4...v1.0.0rc5
 [1.0.0rc4]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc3...v1.0.0rc4
 [1.0.0rc3]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc2...v1.0.0rc3
 [1.0.0rc2]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc1...v1.0.0rc2
-[1.0.0rc1]: https://github.com/openfluids/linstabpy/releases/tag/v1.0.0rc1
-[0.0.5]: https://github.com/openfluids/linstabpy/compare/v0.0.4...v0.0.5
-[0.0.4]: https://github.com/openfluids/linstabpy/compare/v0.0.3...v0.0.4
-[0.0.3]: https://github.com/openfluids/linstabpy/compare/v0.0.1...v0.0.3
-[0.0.1]: https://github.com/openfluids/linstabpy/releases/tag/v0.0.1
+[1.0.0rc1]: https://github.com/openfluids/linstabpy/compare/v0.0.5...v1.0.0rc1
+[0.0.5]: https://github.com/openfluids/linstabpy/releases/tag/v0.0.5
