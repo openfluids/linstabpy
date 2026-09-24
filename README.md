@@ -435,9 +435,11 @@ export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
 ```
 
 If the env var is not set, the Martini examples raise a `FileNotFoundError` with
-the instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. All non-Martini examples
-(Song and Savarino) ship their own base flows under `examples/song/` and `examples/savarino/`
-and are unaffected.
+the instruction to set `LINSTABPY_BASEFLOW_DATA_DIR`. The Song example ships its
+32° base flow, reference eigenvalues and leading mode under `examples/song/reference/`
+(redistributed with the authors' permission); Song's raw finite-volume files are not
+shipped. The Savarino example ships no data from its Zenodo record:
+`examples/savarino/fetch_zenodo.py` downloads the base flow and modes when needed.
 
 ## Quick start
 
