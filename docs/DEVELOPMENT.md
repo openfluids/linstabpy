@@ -86,14 +86,10 @@ generator config to run.
 Preview locally with `uv run --group wiki mkdocs serve`. The gate is
 `uv run --group wiki mkdocs build --strict` with zero warnings.
 
-The published URL is `https://openfluids.github.io/linstabpy/` once Pages
-is on. While the repo is private, GitHub Free cannot serve Pages. GitHub
-Team can; the site is still public. After the repo is public, Free is
-enough.
-
-Turn Pages on in Settings → Pages → GitHub Actions, then set the
-repository variable `PAGES_ENABLED` to `true`. Until that variable is
-set, `.github/workflows/pages.yml` only builds.
+The site is published at `https://linstabpy.vercel.app/`, which the paper
+cites. Vercel builds it from `main` with `vercel.json`.
+`.github/workflows/docs.yml` runs the strict build on every pull request
+that touches the wiki, and publishes nothing.
 
 ## CHANGELOG discipline
 
