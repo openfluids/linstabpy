@@ -5,14 +5,6 @@ updates:
     schedule:
       interval: weekly
 
-  # This repo ships a Dockerfile; without this the base image never gets
-  # security updates, which is the part of the stack least likely to be
-  # noticed by hand.
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-
   # Re-enabled once [[tool.uv.dependency-metadata]] in pyproject.toml stopped
   # resolution from building petsc4py. Before that, every Python update run
   # died with "Could not find a functional BLAS" and no security PR could ever
