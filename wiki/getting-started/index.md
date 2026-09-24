@@ -389,7 +389,7 @@ Large generated outputs, raw MATLAB exports, and machine-local benchmark product
 | Stale results reused | Cache hit | Check for the `Cache valid` line. Set unique output paths or `LINSTABPY_FORCE_RECOMPUTE=1`. |
 | Factor crash or OOM | Backend, ranks, or memory | Verify backend build, raise ranks, consider BLR options, check BC setup. |
 
-The README troubleshooting section carries the full commands for each row.
+The [Troubleshooting](../troubleshooting.md) page carries the full commands for each row.
 
 
 ## What is still missing
