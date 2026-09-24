@@ -910,7 +910,7 @@ wheels = [
 
 [[package]]
 name = "linstabpy"
-version = "1.0.0rc9"
+version = "1.0.0rc11"
 source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
