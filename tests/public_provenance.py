@@ -18,8 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PATTERNS: tuple[tuple[str, str], ...] = (
     ("internal-review-process", r"\b(?:AI-assisted|generated review|generated draft)\b"),
     ("internal-process-language", r"\b(?:prompts?|agents?)\b"),
-    ("private-local-path", r"(?:$HOME|$HOME|/media/hamada)"),
-    ("private-user-or-host", r"\b(?:ghamada|pa-dyf-calc|nexus|supermicro|ensam\.eu)\b|postprochamada"),
+    ("private-local-path", r"(?:/home/rfrantz|/Users/rfrantz|/media/hamada)"),
+    (
+        "private-user-or-host",
+        r"\b(?:ghamada|pa-dyf-calc|nexus|supermicro|ensam\.eu)\b|postprochamada",
+    ),
 )
 
 EXCLUDED_PATHS = {

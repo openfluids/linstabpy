@@ -17,25 +17,25 @@ if str(REPO_ROOT) not in sys.path:
 
 MARTINI_DIR = Path(__file__).resolve().parent
 
-from examples.martini.example_0_curvilinear_validation import (
+from examples.linstab2d.example_0_curvilinear_validation import (
     OUTPUT_NPZ as EX0_NPZ,
 )
-from examples.martini.example_0_curvilinear_validation import (
+from examples.linstab2d.example_0_curvilinear_validation import (
     compute as compute_ex0,
 )
-from examples.martini.example_0_plots import plot_example0_figures
-from examples.martini.example_1_blasius import OUTPUT_NPZ as EX1_NPZ
-from examples.martini.example_1_blasius import compute as compute_ex1
-from examples.martini.example_1_plots import plot_example1_figures
-from examples.martini.example_2_jet import OUTPUT_NPZ as EX2_NPZ
-from examples.martini.example_2_jet import compute as compute_ex2
-from examples.martini.example_2_plots import plot_example2_figures
-from examples.martini.example_3_plots import plot_example3_figures
-from examples.martini.example_3_streaky_bl import PAPER_CASES, run_case
-from examples.martini.example_4_cavity import compute as compute_ex4
-from examples.martini.example_4_plots import plot_example4_figures
-from examples.martini.example_5_paraboloid import compute as compute_ex5
-from examples.martini.example_5_plots import plot_example5_figures
+from examples.linstab2d.example_0_plots import plot_example0_figures
+from examples.linstab2d.example_1_blasius import OUTPUT_NPZ as EX1_NPZ
+from examples.linstab2d.example_1_blasius import compute as compute_ex1
+from examples.linstab2d.example_1_plots import plot_example1_figures
+from examples.linstab2d.example_2_jet import OUTPUT_NPZ as EX2_NPZ
+from examples.linstab2d.example_2_jet import compute as compute_ex2
+from examples.linstab2d.example_2_plots import plot_example2_figures
+from examples.linstab2d.example_3_plots import plot_example3_figures
+from examples.linstab2d.example_3_streaky_bl import PAPER_CASES, run_case
+from examples.linstab2d.example_4_cavity import compute as compute_ex4
+from examples.linstab2d.example_4_plots import plot_example4_figures
+from examples.linstab2d.example_5_paraboloid import compute as compute_ex5
+from examples.linstab2d.example_5_plots import plot_example5_figures
 from linstabpy.utils.yaml_io import load_config
 
 

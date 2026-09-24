@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Martini MATLAB parity exports from examples/martini/linstab2D_scripts/."""
+"""Run Martini MATLAB parity exports from examples/linstab2d/linstab2D_scripts/."""
 
 from __future__ import annotations
 
@@ -15,13 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from examples.martini.extract_martini_to_npz import (  # noqa: E402
+from examples.linstab2d.extract_martini_to_npz import (  # noqa: E402
     DEFAULT_CONFIG,
     DEFAULT_INPUT_DIR,
     expected_export_stems,
 )
 
-DEFAULT_SCRIPTS_DIR = ROOT / "examples" / "martini" / "linstab2D_scripts"
+DEFAULT_SCRIPTS_DIR = ROOT / "examples" / "linstab2d" / "linstab2D_scripts"
 DEFAULT_RUNNER = DEFAULT_SCRIPTS_DIR / "run_martini_exports.sh"
 
 EXAMPLE_ONLY_MAP = {

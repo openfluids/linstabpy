@@ -58,7 +58,7 @@ linstabpy --version              # light: never initializes PETSc or MPI
 
 **1. Smoke test (no data, <1 min, run first).** Pure NumPy, proves the
 import chain: `.venv/bin/python -m
-examples.martini.example_0_curvilinear_validation`. If this fails, the
+examples.linstab2d.example_0_curvilinear_validation`. If this fails, the
 problem is the Python env, not MPI or data.
 
 **2. YAML case via CLI (packed-field research route).** Validate, then run:

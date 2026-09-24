@@ -75,4 +75,4 @@ remain equivalent for the relevant cases.
 
 Every packed case uses the same eight keys: `x`, `y`, `rho`, `u`, `v`, `w`,
 `T`, `sponge`. YAML names the file. The loader does not guess a Song filename.
-Martini `.mat` constructors live under `examples/martini/matlab_baseflow.py`.
+Martini `.mat` constructors live under `examples/linstab2d/matlab_baseflow.py`.

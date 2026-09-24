@@ -87,7 +87,7 @@ fails, see [Troubleshooting](https://linstabpy.vercel.app/troubleshooting/).
 The Martini example loaders (`example_1_blasius`, `example_2_jet`,
 `example_4_cavity`, `example_5_paraboloid`) read four `.mat` base flows from
 the upstream LinStab2D project (GPL-3.0): `M09jet.mat`, `BL_BF.mat`,
-`Step_BF.mat`, `Paraboloid_BF.mat`. They ship in `examples/martini/baseflows/`,
+`Step_BF.mat`, `Paraboloid_BF.mat`. They ship in `examples/linstab2d/baseflows/`,
 so the examples run from a fresh clone. To read them from a LinStab2D clone
 instead, set:
 
@@ -120,20 +120,20 @@ in [Reference base flows](#reference-base-flows).
 Run the smallest [Blasius](https://grokipedia.com/page/Blasius_boundary_layer) example:
 
 ```bash
-.venv/bin/python -m examples.martini.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_blasius
 ```
 
 Run a full example:
 
 ```bash
-.venv/bin/python -m examples.martini.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_blasius
 ```
 
 Do not use `uv run` on macOS for PETSc/SLEPc examples. Use the interpreter
 installed and patched by `install.sh`:
 
 ```bash
-.venv/bin/python -m examples.martini.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_blasius
 ```
 
 Collect the test suite:
@@ -171,7 +171,7 @@ Two consequences are deliberate:
 
 Supply the reference data through `LINSTABPY_BASEFLOW_DATA_DIR`, the
 `martini_examples/` export directory, `LINSTABPY_TEST_REFERENCE_SPECTRUM`, and the
-`examples/martini/` bundles. The failure message names the
+`examples/linstab2d/` bundles. The failure message names the
 exact paths it wanted.
 
 ### Canonical example runner
@@ -179,7 +179,7 @@ exact paths it wanted.
 Use `run_all_examples.sh` as the single example runner for serial acceptance,
 cache cleanup, parity checks, and MPI launches. The runner computes each selected
 Martini example, then runs the matching `example_*_plots` module. Direct
-`.venv/bin/python -m examples.martini.example_1_blasius` writes the NPZ only.
+`.venv/bin/python -m examples.linstab2d.example_1_blasius` writes the NPZ only.
 For a figure-by-figure walkthrough of the Martini examples, see
 `docs/tutorial/tutorial.pdf`, Section 5. That section also explains how to read
 the generated baseflow, spectrum, and mosaic figures, and records
@@ -189,11 +189,11 @@ the plotting improvements proposed for the next figure pass.
 |---|---|
 | List available examples | `bash run_all_examples.sh --list` |
 | Run all examples, plots, and Martini parity | `bash run_all_examples.sh` |
-| Re-plot one example from an existing NPZ | `.venv/bin/python -m examples.martini.example_1_plots` |
+| Re-plot one example from an existing NPZ | `.venv/bin/python -m examples.linstab2d.example_1_plots` |
 | Recompute selected examples from cached PNGs/NPZs | `bash run_all_examples.sh --fresh --example 1 --skip-parity` |
 | Remove selected generated NPZ/PNG outputs first | `bash run_all_examples.sh --clean --example 1 --skip-parity` |
-| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl` |
-| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor` |
+| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl` |
+| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor` |
 
 `--mpi` folds the old one-module MPI wrapper behavior into the same script: the
 runner probes a working MPI launcher, defaults to half of the detected physical
@@ -230,7 +230,7 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- driver/                    Shared run path, payload, and NPZ write
 |   `-- utils/                     YAML case loader, PETSc helpers
 |-- examples/                      Public cases, figure scripts, and tracked PNGs
-|   |-- martini/                   Six Martini examples and MATLAB field constructors
+|   |-- linstab2d/                 Six Martini examples and MATLAB field constructors
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
@@ -243,9 +243,9 @@ For a maintainer map of where numerical policy belongs, see
 ```
 
 Keep reusable code under `src/linstabpy/` and the public cases under
-`examples/martini`, `examples/song`, `examples/savarino`, and
+`examples/linstab2d`, `examples/song`, `examples/savarino`, and
 `examples/sawtooth`. Martini `.mat` constructors live in
-`examples/martini/matlab_baseflow.py`. Set `LINSTABPY_BASEFLOW_DATA_DIR` if
+`examples/linstab2d/matlab_baseflow.py`. Set `LINSTABPY_BASEFLOW_DATA_DIR` if
 those files sit outside the example directory.
 
 ### Data and file-size policy
@@ -262,7 +262,7 @@ The same guard runs in the GitHub guardrails workflow. Ignored local outputs
 above the report threshold are listed separately so they can be cleaned or
 archived without blocking normal source commits.
 
-Compact Martini fixtures belong under `examples/martini/`. Raw MATLAB exports such as
+Compact Martini fixtures belong under `examples/linstab2d/`. Raw MATLAB exports such as
 `operator_convention.mat` and `coefficients_raw.mat` are intentionally not
 tracked when they exceed the 60 MiB policy.
 
@@ -335,8 +335,8 @@ Selection precedence is:
 Examples:
 
 ```bash
-LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.martini.example_1_blasius
-LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.martini.example_1_blasius
+LINSTABPY_FACTOR_BACKEND=mumps .venv/bin/python -m examples.linstab2d.example_1_blasius
+LINSTABPY_FACTOR_BACKEND=strumpack .venv/bin/python -m examples.linstab2d.example_1_blasius
 ```
 
 Unavailable backends fail during PETSc LU setup with a direct error message
@@ -737,12 +737,12 @@ Reference MATLAB examples:
 
 Python counterparts:
 
-- `examples/martini/example_0_curvilinear_validation.py`
-- `examples/martini/example_1_blasius.py`
-- `examples/martini/example_2_jet.py`
-- `examples/martini/example_3_streaky_bl.py`
-- `examples/martini/example_4_cavity.py`
-- `examples/martini/example_5_paraboloid.py`
+- `examples/linstab2d/example_0_curvilinear_validation.py`
+- `examples/linstab2d/example_1_blasius.py`
+- `examples/linstab2d/example_2_jet.py`
+- `examples/linstab2d/example_3_streaky_bl.py`
+- `examples/linstab2d/example_4_cavity.py`
+- `examples/linstab2d/example_5_paraboloid.py`
 
 | MATLAB example | Python example | Status | Required artifacts |
 |---|---|---|---|
@@ -813,7 +813,7 @@ historical matrix default to `pending`.
 Example-level parity:
 
 ```bash
-.venv/bin/python examples/martini/compare_martini_examples.py
+.venv/bin/python examples/linstab2d/compare_martini_examples.py
 ```
 
 Some parity tests compare against MATLAB reference export bundles (raw `.mat`
@@ -920,7 +920,7 @@ Run tests with:
 Run MATLAB parity checks with:
 
 ```bash
-.venv/bin/python examples/martini/compare_martini_examples.py
+.venv/bin/python examples/linstab2d/compare_martini_examples.py
 ```
 
 Packaging:

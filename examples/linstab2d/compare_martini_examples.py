@@ -18,13 +18,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from examples.martini.matlab_hdf5 import compound_to_complex, sanitize_key
+from examples.linstab2d.matlab_hdf5 import compound_to_complex, sanitize_key
 from linstabpy.utils.yaml_io import load_config
 
-DEFAULT_CONFIG = ROOT / "examples" / "martini" / "martini_cases.yaml"
-DEFAULT_NPZ_DIR = ROOT / "examples" / "martini"
-DEFAULT_REPORT = ROOT / "examples" / "martini" / "martini_parity_latest.json"
-DEFAULT_TABLE = ROOT / "examples" / "martini" / "martini_parity_table.csv"
+DEFAULT_CONFIG = ROOT / "examples" / "linstab2d" / "martini_cases.yaml"
+DEFAULT_NPZ_DIR = ROOT / "examples" / "linstab2d"
+DEFAULT_REPORT = ROOT / "examples" / "linstab2d" / "martini_parity_latest.json"
+DEFAULT_TABLE = ROOT / "examples" / "linstab2d" / "martini_parity_table.csv"
 LINSTAB2D_RESULTS_DIRNAME = "LinStab2DResults"
 
 
@@ -160,7 +160,7 @@ def _prepare_resolvent_parity_payload(
     The comparator must mirror that or mode rel errors inflate by orders
     of magnitude.
     """
-    from examples.martini.plot_compare_utils import (
+    from examples.linstab2d.plot_compare_utils import (
         apply_diagonal_c,
         maybe_compact_python_resolvent_uv,
         maybe_compact_python_resolvent_uvw,
@@ -175,9 +175,9 @@ def _prepare_resolvent_parity_payload(
     forcings_py = python_npz["forcings"]
 
     if case_id == "example_5_paraboloid":
-        from examples.martini.example_5_plots import ex5_observation_mask_diag
+        from examples.linstab2d.example_5_plots import ex5_observation_mask_diag
 
-        cfg = load_config(ROOT / "examples/martini/example_5_paraboloid.yaml")
+        cfg = load_config(ROOT / "examples/linstab2d/example_5_paraboloid.yaml")
         forcings_py = apply_diagonal_c(forcings_py, ex5_observation_mask_diag(cfg))
 
     if u_j is not None and v_j is not None and w_j is not None:
@@ -194,16 +194,16 @@ def _prepare_resolvent_parity_payload(
         forcings_py = maybe_compact_python_resolvent_uv(forcings_py, forcings_mat, u_j=u_j, v_j=v_j)
 
     if case_id == "example_1_blasius":
-        from examples.martini.example_1_plots import ex1_observation_mask_diag
+        from examples.linstab2d.example_1_plots import ex1_observation_mask_diag
 
-        cfg = load_config(ROOT / "examples/martini/example_1_blasius.yaml")
+        cfg = load_config(ROOT / "examples/linstab2d/example_1_blasius.yaml")
         n_dof = _mode_matrix(responses_mat).shape[0]
         c_diag = ex1_observation_mask_diag(cfg, n_mode_dofs=n_dof)
         responses_mat = apply_diagonal_c(responses_mat, c_diag)
     elif case_id == "example_2_jet":
-        from examples.martini.plot_compare_utils import jet_bc_mask_diag, jet_sponge_zero_mask
+        from examples.linstab2d.plot_compare_utils import jet_bc_mask_diag, jet_sponge_zero_mask
 
-        cfg = load_config(ROOT / "examples/martini/example_2_jet.yaml")
+        cfg = load_config(ROOT / "examples/linstab2d/example_2_jet.yaml")
         X_py = np.asarray(python_npz["X"], dtype=float)
         Y_py = np.asarray(python_npz["Y"], dtype=float)
         used_py = (
@@ -217,9 +217,9 @@ def _prepare_resolvent_parity_payload(
         c_diag = jet_bc_mask_diag(sponge0, layout=layout, n_fields=n_fields)
         responses_mat = apply_diagonal_c(responses_mat, c_diag)
     elif case_id == "example_5_paraboloid":
-        from examples.martini.example_5_plots import ex5_observation_mask_diag
+        from examples.linstab2d.example_5_plots import ex5_observation_mask_diag
 
-        cfg = load_config(ROOT / "examples/martini/example_5_paraboloid.yaml")
+        cfg = load_config(ROOT / "examples/linstab2d/example_5_paraboloid.yaml")
         n_dof = _mode_matrix(responses_mat).shape[0]
         c_diag = ex5_observation_mask_diag(cfg, n_mode_dofs=n_dof)
         responses_mat = apply_diagonal_c(responses_mat, c_diag)
@@ -454,7 +454,7 @@ def _compare_cavity_case(
     omega_adj_py_matlab = -1j * _complex_vector(python_npz["omega_adj"])
     adjoint_modes_py = _mode_matrix(python_npz["adjoint_modes"])
 
-    from examples.martini.plot_compare_utils import compact_resolvent_modes_uvw
+    from examples.linstab2d.plot_compare_utils import compact_resolvent_modes_uvw
 
     omega_mat = _complex_vector(_npz_get(matlab_direct, "results_Cavity_direct/omega"))
     direct_modes_mat = _mode_matrix(_npz_get(matlab_direct, "results_Cavity_direct/V"))

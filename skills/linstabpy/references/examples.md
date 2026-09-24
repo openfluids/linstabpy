@@ -9,8 +9,8 @@ Pure NumPy, single process, no data, under a minute. Validates SBP
 derivatives on deformed meshes and proves the import chain.
 
 ```bash
-.venv/bin/python -m examples.martini.example_0_curvilinear_validation
-.venv/bin/python -m examples.martini.example_0_plots   # re-plot anytime
+.venv/bin/python -m examples.linstab2d.example_0_curvilinear_validation
+.venv/bin/python -m examples.linstab2d.example_0_plots   # re-plot anytime
 ```
 
 If this fails, the problem is the Python env, not MPI or data.
@@ -23,15 +23,15 @@ Compressible Blasius boundary layer, Re = 6.0e5, Ma = 0.3, SBP order 4,
 ```bash
 git clone https://github.com/LinStab2D/LinStab2D.git ~/linstab2d-reference
 export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
-.venv/bin/python -m examples.martini.example_1_blasius
-.venv/bin/python -m examples.martini.example_1_plots
+.venv/bin/python -m examples.linstab2d.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_plots
 ```
 
 Without the data dir the example raises `FileNotFoundError`. Outputs:
 `example_1_blasius.npz` (gains, modes, mesh, Chu weights, provenance),
 baseflow PNG (look at this before trusting modes), forcing/response
 mosaics per component. Case definition with commented knobs:
-`examples/martini/example_1_blasius.yaml`.
+`examples/linstab2d/example_1_blasius.yaml`.
 
 ## Family map
 
@@ -55,8 +55,8 @@ ships packed `song_32deg.npz`), `examples/sawtooth/` (ships packed
 bash run_all_examples.sh --list
 bash run_all_examples.sh --example 1 --skip-parity   # one example, no MATLAB check
 bash run_all_examples.sh                             # everything + parity + plots
-bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
+bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 Without `-n` the runner defaults to half the detected physical cores.
@@ -66,7 +66,7 @@ Override the launcher with `LINSTABPY_MPIEXEC`, ranks with
 `.venv/bin/python`.
 
 Parity against MATLAB references:
-`.venv/bin/python examples/martini/compare_martini_examples.py`
+`.venv/bin/python examples/linstab2d/compare_martini_examples.py`
 (missing bundles skip cleanly outside pytest).
 
 ## What things cost (measured anchors)

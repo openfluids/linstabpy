@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     LINSTAB2D_RESULTS_DIRNAME,
     _best_complex_scale,
     _best_spectrum_pairs,
@@ -22,7 +22,7 @@ from examples.martini.compare_martini_examples import (
     _npz_get,
     load_matlab_bundle,
 )
-from examples.martini.plot_compare_utils import (
+from examples.linstab2d.plot_compare_utils import (
     compact_resolvent_modes_uvw,
     complex_vector,
     ensure_matplotlib,

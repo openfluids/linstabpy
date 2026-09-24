@@ -20,4 +20,4 @@ Sponge generation (`constant`, `parabolic`, `localized`, `smooth_boundary`,
 `baseflow.viscosity`.
 
 Martini `.mat` constructors live under
-`examples/martini/matlab_baseflow.py`, not in this package path.
+`examples/linstab2d/matlab_baseflow.py`, not in this package path.

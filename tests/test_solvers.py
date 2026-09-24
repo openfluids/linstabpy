@@ -19,7 +19,7 @@ import scipy.sparse as sp
 from scipy.optimize import linear_sum_assignment
 
 import linstabpy.resolvent.analysis as resolvent_module
-from examples.martini.matlab_baseflow import load_blasius
+from examples.linstab2d.matlab_baseflow import load_blasius
 from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import (
     apply_bc_recipe,

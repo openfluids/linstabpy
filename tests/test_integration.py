@@ -13,7 +13,7 @@ pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
 pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
 import scipy.sparse as sp
 
-from examples.martini.matlab_baseflow import load_blasius
+from examples.linstab2d.matlab_baseflow import load_blasius
 from linstabpy.baseflow import BaseFlow, sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh

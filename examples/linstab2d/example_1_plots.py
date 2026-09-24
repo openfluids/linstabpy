@@ -20,13 +20,13 @@ from typing import Any
 
 import numpy as np
 
-from examples.martini.compare_martini_examples import (
+from examples.linstab2d.compare_martini_examples import (
     LINSTAB2D_RESULTS_DIRNAME,
     _mode_matrix,
     _npz_get,
     load_matlab_bundle,
 )
-from examples.martini.plot_compare_utils import (
+from examples.linstab2d.plot_compare_utils import (
     apply_diagonal_c,
     compact_uv_component_idx,
     ensure_matplotlib,
@@ -75,7 +75,7 @@ def load_matlab_ex1_fixture(example_dir: Path) -> dict[str, np.ndarray]:
 
 def _ex1_lnse_system(cfg: dict[str, Any]):
     """Build the Blasius LNSE system used for Ex.~1 observation masks."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result

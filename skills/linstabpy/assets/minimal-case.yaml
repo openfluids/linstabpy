@@ -2,7 +2,7 @@
 #
 # This file passes validate_config; it is a starting point, not a complete
 # research case (a real run also needs baseflow inputs and BC/solver detail
-# — copy the commented structure of examples/martini/example_1_blasius.yaml).
+# — copy the commented structure of examples/linstab2d/example_1_blasius.yaml).
 #
 # Validate before running:
 #   .venv/bin/python -c "from linstabpy.config.schema import validate_config;

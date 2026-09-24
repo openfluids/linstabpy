@@ -9,15 +9,15 @@
 #   LINSTAB2D_ROOT, MATLAB on PATH
 #
 # Usage (repo root):
-#   bash examples/martini/regenerate_martini_fixtures.sh
-#   bash examples/martini/regenerate_martini_fixtures.sh --only example_3 --force
+#   bash examples/linstab2d/regenerate_martini_fixtures.sh
+#   bash examples/linstab2d/regenerate_martini_fixtures.sh --only example_3 --force
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 STAGING="${REPO_ROOT}/martini_examples/_extract_staging"
-RESULTS="${REPO_ROOT}/examples/martini/LinStab2DResults"
+RESULTS="${REPO_ROOT}/examples/linstab2d/LinStab2DResults"
 
 PYTHON="${LINSTABPY_PYTHON:-python3}"
 if [[ -x "${REPO_ROOT}/.venv/bin/python" ]]; then
@@ -69,4 +69,4 @@ echo "=== Step 3/3: Split staging -> LinStab2DResults ==="
 echo "Done."
 echo "  staging:  ${STAGING}"
 echo "  fixtures: ${RESULTS}"
-echo "Optional: ${PYTHON} examples/martini/compare_martini_examples.py"
+echo "Optional: ${PYTHON} examples/linstab2d/compare_martini_examples.py"

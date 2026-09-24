@@ -8,7 +8,7 @@ Translates `example_0_TestCurvilinearDerivative.m` directly.
 - deform it to the parabolic physical domain.
 - evaluate `f = cos(x)` and `df = Dx @ f`.
 
-OUTPUTS (``examples/martini/``).
+OUTPUTS (``examples/linstab2d/``).
   - example_0_curvilinear_validation.npz.
   - example_0_curvilinear_validation.log.
 

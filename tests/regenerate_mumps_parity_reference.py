@@ -19,7 +19,7 @@ from typing import Any
 
 import numpy as np
 
-from examples.martini.matlab_baseflow import load_blasius
+from examples.linstab2d.matlab_baseflow import load_blasius
 from linstabpy.baseflow import sutherland_air
 from linstabpy.boundary_conditions import apply_dirichlet
 from linstabpy.mesh import Mesh

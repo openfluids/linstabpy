@@ -1625,7 +1625,7 @@ def _transform_second_derivatives(
     ``Dy_metric`` / ``D2y_metric`` differentiate the coordinate mapping for the
     ``dJ`` / ``Q`` metric terms. Geometry is parity-free, so symm/asymm family
     updates must still use the full eta operators there (MATLAB ``DeformMesh.m``
-    lines 150–161). See ``examples/martini/example_5_D2y_asymm_fix.md``.
+    lines 150–161). See ``examples/linstab2d/example_5_D2y_asymm_fix.md``.
     """
     Dy_m = Dy if Dy_metric is None else Dy_metric
     D2y_m = D2y if D2y_metric is None else D2y_metric

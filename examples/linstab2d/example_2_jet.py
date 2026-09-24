@@ -67,7 +67,7 @@ def _load_sponge(mesh, r_1D: np.ndarray, z_1D: np.ndarray) -> np.ndarray:
     from scipy.interpolate import RegularGridInterpolator
     from scipy.io import loadmat
 
-    from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR
+    from examples.linstab2d.matlab_baseflow import _BASEFLOW_DATA_DIR
 
     mat = loadmat(_BASEFLOW_DATA_DIR / "M09jet.mat")
     source_shape = (int(r_1D.size), int(z_1D.size))
@@ -104,7 +104,7 @@ def _bc_mask_layout(cfg: dict) -> str:
 
 
 def _build_bc_diag(sponge0: np.ndarray, layout: str) -> np.ndarray:
-    from examples.martini.plot_compare_utils import jet_bc_mask_diag
+    from examples.linstab2d.plot_compare_utils import jet_bc_mask_diag
 
     return jet_bc_mask_diag(sponge0, layout=layout)
 
@@ -114,7 +114,7 @@ def compute(cfg: dict):
     import scipy.sparse as sp
     from scipy.io import loadmat
 
-    from examples.martini.matlab_baseflow import _BASEFLOW_DATA_DIR, load_jet
+    from examples.linstab2d.matlab_baseflow import _BASEFLOW_DATA_DIR, load_jet
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result

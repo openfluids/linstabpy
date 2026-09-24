@@ -146,7 +146,7 @@ _FROZEN_SIGNATURES = {
     # LinStab2D bundle: x, y, f, df at 1e-16..1e-14). (3) Martini Ex. 5
     # paraboloid D2y_asymm vs LinStab2D, measured in G. Hamada's audit: rel.
     # Frobenius 4e-5 -> 2.6e-10, L0 gap 6e-6 -> parity
-    # (examples/martini/example_5_D2y_asymm_fix.md).
+    # (examples/linstab2d/example_5_D2y_asymm_fix.md).
     # (4) 18 closed-form and timing files green at the re-baseline (367 passed, 4
     # skipped); full suite 1432 passed. Regression guard:
     # test_mesh.py::test_deform_full_2d_family_metric_terms_use_full_operators.

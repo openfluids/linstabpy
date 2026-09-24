@@ -35,7 +35,7 @@ LOG_PATH = SCRIPT.with_suffix(".log")
 
 def compute(cfg: dict) -> None:
     """Run cavity direct/adjoint temporal eigenproblems."""
-    from examples.martini.matlab_baseflow import load_cavity
+    from examples.linstab2d.matlab_baseflow import load_cavity
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system_result

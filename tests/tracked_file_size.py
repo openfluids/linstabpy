@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 60 MiB is set by examples/martini/example_3_Streaky_BL_results_temporal_modes.npz
+# 60 MiB is set by examples/linstab2d/example_3_Streaky_BL_results_temporal_modes.npz
 # after the complex64 pack. GitHub rejects files at 100 MB.
 DEFAULT_TRACKED_LIMIT_MIB = 60.0
 DEFAULT_IGNORED_REPORT_LIMIT_MIB = 60.0

@@ -26,6 +26,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   the paper cites. The GitHub Pages workflow is now `docs.yml`, which only
   checks that the wiki builds with `mkdocs build --strict`.
 
+- `examples/martini/` is now `examples/linstab2d/`, the name the paper uses
+  for the six LinStab2D validation cases. Import paths change from
+  `examples.martini` to `examples.linstab2d`. The file contents are the same
+  apart from the path.
+
 ### Removed
 
 - `LINSTABPY_FAST_REFACTOR`. Serial cuDSS now always refactorizes in place,

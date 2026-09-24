@@ -9,7 +9,7 @@ build/
 !tests/fixtures/mumps_parity_reference.npz
 # Martini parity baseline — MATLAB slim fixtures only (see martini_fixtures_README.md).
 # linstabpy driver outputs (example_*.npz next to drivers) are regenerated locally.
-!examples/martini/LinStab2DResults/*.npz
+!examples/linstab2d/LinStab2DResults/*.npz
 *.png
 !docs/assets/*.png
 !wiki/**/*.png
@@ -25,7 +25,7 @@ examples/savarino/reference/savarino_response_*.npz
 examples/**/figures/**
 examples/**/output/**
 # Martini run logs / pid files (regenerable; scripts write under _run_logs/).
-examples/martini/_run_logs/
+examples/linstab2d/_run_logs/
 # Song validation figures (shipped with the example).
 !examples/song/figures/
 !examples/song/figures/**

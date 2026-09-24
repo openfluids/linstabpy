@@ -3,17 +3,17 @@
     {
       "kind": "copy",
       "n_keys": 3,
-      "npz_file": "examples/martini/LinStab2DResults/example_4_Cavity_results_adjoint.npz",
+      "npz_file": "examples/linstab2d/LinStab2DResults/example_4_Cavity_results_adjoint.npz",
       "stem": "example_4_Cavity_results_adjoint"
     },
     {
       "kind": "copy",
       "n_keys": 9,
-      "npz_file": "examples/martini/LinStab2DResults/example_4_Cavity_results_direct.npz",
+      "npz_file": "examples/linstab2d/LinStab2DResults/example_4_Cavity_results_direct.npz",
       "stem": "example_4_Cavity_results_direct"
     }
   ],
   "generated_at_utc": "2026-08-18T14:28:10.684268+00:00",
   "input_dir": "martini_examples",
-  "output_dir": "examples/martini/LinStab2DResults"
+  "output_dir": "examples/linstab2d/LinStab2DResults"
 }

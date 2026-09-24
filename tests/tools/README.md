@@ -2,14 +2,14 @@
 
 ## Decision (2026-08-17) — please review before merge
 
-These scripts lived under `examples/martini/` because parity work started there.
+These scripts lived under `examples/linstab2d/` because parity work started there.
 They are **not** Martini runnable examples (no Table S1 driver/plot pair).
 
 **Relocated to `tests/tools/`** so that:
 
 | Concern | Location |
 |---------|----------|
-| User-facing Martini examples | `examples/martini/example_*.py`, plotters, fixtures |
+| User-facing Martini examples | `examples/linstab2d/example_*.py`, plotters, fixtures |
 | Library audit / parity CLIs used by pytest | **`tests/tools/`** (this directory) |
 
 ### Files moved
@@ -50,7 +50,7 @@ the scripts.
 ### Owner checklist
 
 - [ ] Accept `tests/tools/` as the permanent home for validation CLIs
-- [ ] Confirm no external docs/CI still point at removed `examples/martini/` audit scripts
+- [ ] Confirm no external docs/CI still point at removed `examples/linstab2d/` audit scripts
 
 **Reviewer:** ___________________  
 **Date:** ___________________  

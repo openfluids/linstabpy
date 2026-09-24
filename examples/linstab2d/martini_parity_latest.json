@@ -6,7 +6,7 @@
       "comparison_scope": "direct",
       "label": "Example 0: curvilinear derivative test",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_0_TestCurvilinearDerivative_results.npz"
+        "examples/linstab2d/LinStab2DResults/example_0_TestCurvilinearDerivative_results.npz"
       ],
       "metrics": {
         "fields": {
@@ -38,7 +38,7 @@
         "python_protocol_pass": true
       },
       "note": "Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative.",
-      "python_npz": "examples/martini/example_0_curvilinear_validation.npz",
+      "python_npz": "examples/linstab2d/example_0_curvilinear_validation.npz",
       "status": "PASS"
     },
     {
@@ -47,7 +47,7 @@
       "comparison_scope": "direct",
       "label": "Example 1: Blasius resolvent",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_1_Blasius_results.npz"
+        "examples/linstab2d/LinStab2DResults/example_1_Blasius_results.npz"
       ],
       "metrics": {
         "gains": {
@@ -90,7 +90,7 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/martini/example_1_blasius.npz",
+      "python_npz": "examples/linstab2d/example_1_blasius.npz",
       "status": "PASS"
     },
     {
@@ -99,7 +99,7 @@
       "comparison_scope": "direct",
       "label": "Example 2: jet resolvent",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_2_Jet_results.npz"
+        "examples/linstab2d/LinStab2DResults/example_2_Jet_results.npz"
       ],
       "metrics": {
         "gains": {
@@ -142,7 +142,7 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/martini/example_2_jet.npz",
+      "python_npz": "examples/linstab2d/example_2_jet.npz",
       "status": "SOFT_FAIL"
     },
     {
@@ -151,11 +151,11 @@
       "comparison_scope": "temporal_and_spatial",
       "label": "Example 3: streaky boundary layer",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lx2pi_nP2_results_temporal.npz",
-        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq0_results_temporal.npz",
-        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq2_results_temporal.npz",
-        "examples/martini/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_temporal.npz",
-        "examples/martini/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_spatial.npz"
+        "examples/linstab2d/LinStab2DResults/example_3_paper_temporal_Lx2pi_nP2_results_temporal.npz",
+        "examples/linstab2d/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq0_results_temporal.npz",
+        "examples/linstab2d/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq2_results_temporal.npz",
+        "examples/linstab2d/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_temporal.npz",
+        "examples/linstab2d/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_spatial.npz"
       ],
       "metrics": {
         "campaigns": {
@@ -407,10 +407,10 @@
       },
       "note": "",
       "python_npz": [
-        "examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz",
-        "examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz",
-        "examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz",
-        "examples/martini/example_3_paper_spatial_Lxpi_nP2.npz"
+        "examples/linstab2d/example_3_paper_temporal_Lx2pi_nP2.npz",
+        "examples/linstab2d/example_3_paper_temporal_Lxpi_nfloq0.npz",
+        "examples/linstab2d/example_3_paper_temporal_Lxpi_nfloq2.npz",
+        "examples/linstab2d/example_3_paper_spatial_Lxpi_nP2.npz"
       ],
       "status": "PASS"
     },
@@ -420,8 +420,8 @@
       "comparison_scope": "direct",
       "label": "Example 4: cavity direct and adjoint spectra",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_4_Cavity_results_direct.npz",
-        "examples/martini/LinStab2DResults/example_4_Cavity_results_adjoint.npz"
+        "examples/linstab2d/LinStab2DResults/example_4_Cavity_results_direct.npz",
+        "examples/linstab2d/LinStab2DResults/example_4_Cavity_results_adjoint.npz"
       ],
       "metrics": {
         "adjoint": {
@@ -494,7 +494,7 @@
         }
       },
       "note": "",
-      "python_npz": "examples/martini/example_4_cavity.npz",
+      "python_npz": "examples/linstab2d/example_4_cavity.npz",
       "status": "SOFT_FAIL"
     },
     {
@@ -503,7 +503,7 @@
       "comparison_scope": "direct",
       "label": "Example 5: paraboloid resolvent",
       "matlab_npz": [
-        "examples/martini/LinStab2DResults/example_5_Paraboloid_results.npz"
+        "examples/linstab2d/LinStab2DResults/example_5_Paraboloid_results.npz"
       ],
       "metrics": {
         "gains": {
@@ -546,15 +546,15 @@
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/martini/example_5_paraboloid.npz",
+      "python_npz": "examples/linstab2d/example_5_paraboloid.npz",
       "status": "PASS"
     }
   ],
-  "config": "examples/martini/martini_cases.yaml",
+  "config": "examples/linstab2d/martini_cases.yaml",
   "counts": {
     "PASS": 4,
     "SOFT_FAIL": 2
   },
   "generated_at_utc": "2026-09-16T22:01:31.632585+00:00",
-  "npz_dir": "examples/martini"
+  "npz_dir": "examples/linstab2d"
 }

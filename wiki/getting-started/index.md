@@ -169,7 +169,7 @@ Without this, each rank spawns a full BLAS thread pool and [sparse](https://grok
 Example 0 validates curvilinear derivatives. It is pure NumPy, runs single-process, and needs no reference files. Run it first. If it fails, the problem is your Python environment, not MPI or data.
 
 ```bash
-.venv/bin/python -m examples.martini.example_0_curvilinear_validation
+.venv/bin/python -m examples.linstab2d.example_0_curvilinear_validation
 ```
 
 Outputs, next to the script: `example_0_curvilinear_validation.npz` (numbers), `.log` (run log), and PNGs including the curvilinear mesh figure and a field-derivative triptych. Open the triptych. It shows the test field and its discrete derivatives on the deformed mesh. This is also your first look at the [SBP](https://grokipedia.com/page/Summation_by_parts) operators in action: the derivatives stay clean at boundaries, which is the whole point of the validated closures.
@@ -177,7 +177,7 @@ Outputs, next to the script: `example_0_curvilinear_validation.npz` (numbers), `
 Re-plot any time without recomputing:
 
 ```bash
-.venv/bin/python -m examples.martini.example_0_plots
+.venv/bin/python -m examples.linstab2d.example_0_plots
 ```
 
 
@@ -197,8 +197,8 @@ Without that variable, the example raises `FileNotFoundError` telling you to set
 Run the case, then the plots:
 
 ```bash
-.venv/bin/python -m examples.martini.example_1_blasius
-.venv/bin/python -m examples.martini.example_1_plots
+.venv/bin/python -m examples.linstab2d.example_1_blasius
+.venv/bin/python -m examples.linstab2d.example_1_plots
 ```
 
 What you get:
@@ -217,7 +217,7 @@ How to read the mosaic: the forcing panel is the input shape $v$, the response p
 
 *What a healthy answer looks like: smooth, cleanly separated forcing and response structures. Compare your run against this before tuning anything.*
 
-The case definition lives in `examples/martini/example_1_blasius.yaml`: physics, grid, sponge, frequency, mode count, BC recipe, solver policy, each with a comment. YAML keeps the explanation next to the knob, which is why the repo uses it instead of long flag lists. [Your first own case](#your-first-own-case) walks a trimmed version.
+The case definition lives in `examples/linstab2d/example_1_blasius.yaml`: physics, grid, sponge, frequency, mode count, BC recipe, solver policy, each with a comment. YAML keeps the explanation next to the knob, which is why the repo uses it instead of long flag lists. [Your first own case](#your-first-own-case) walks a trimmed version.
 
 
 ## The example family map
@@ -244,8 +244,8 @@ Each example has a matching `example_N_plots.py` that renders figures from the N
 MPI form, with PETSc options passed after `--`:
 
 ```bash
-bash run_all_examples.sh --mpi -n 10 -m examples.martini.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.martini.example_1_blasius -- -eps_monitor
+bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 Without `-n`, the runner defaults to half the detected physical cores. Override the launcher with `LINSTABPY_MPIEXEC` and the rank count with `LINSTABPY_MPI_RANKS` when the machine needs explicit paths. Interpreter: `LINSTABPY_PYTHON` wins over `LINSTABPY_PYTHON_BIN`, else `.venv/bin/python`.
@@ -262,7 +262,7 @@ Beyond Martini, three case families cover harder ground. Leave them for week two
 Parity checks compare Python results against MATLAB reference exports:
 
 ```bash
-.venv/bin/python examples/martini/compare_martini_examples.py
+.venv/bin/python examples/linstab2d/compare_martini_examples.py
 ```
 
 Missing reference bundles skip cleanly here (silent in CI) and validate when present locally. The pytest parity marker behaves more strictly; see [Verify with tests and benchmarks](#verify-with-tests-and-benchmarks).
