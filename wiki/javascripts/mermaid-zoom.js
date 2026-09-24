@@ -1,6 +1,6 @@
 /**
  * Mermaid Diagram Pan, Zoom & Fullscreen Lightbox Controller
- * LinStabPy Documentation - Anthropic/Stripe-grade interactive schematics
+ * LinStabPy documentation: interactive diagrams
  */
 
 // 1. Early shadow root hook so we can inspect and control Mermaid diagrams

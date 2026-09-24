@@ -93,7 +93,6 @@ output/
 !examples/song/output/fd4_n30/song_2023.npz
 # Case 2 generated run artifacts can contain local absolute paths.
 .DS_Store
-.beads/
 gmn_*.json
 gmn_*.txt
 
@@ -130,15 +129,11 @@ mutants/
 coverage/gremlins/
 .gremlins_loop.md
 
-# graft — local graph, MCP server, and agent wiring. Regenerable (`graft build`).
+# Local code-index files. Regenerable.
 # Do not ship to the public repo.
 /graft/
 .mcp.json
 .ignore
-AGENTS.md
-.agents/
-.claude/
-.grok/
 
 
 # MkDocs HTML output. CI uploads this; do not commit it.

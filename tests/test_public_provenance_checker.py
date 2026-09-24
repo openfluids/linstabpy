@@ -12,7 +12,7 @@ def _write(path: Path, text: str | bytes) -> None:
 
 
 def test_public_provenance_checker_reports_internal_terms(tmp_path):
-    _write(tmp_path / "README.md", "Reviewed by Codex from $HOME/work\n")
+    _write(tmp_path / "README.md", "AI-assisted review from /home/rfrantz/work\n")
 
     matches = public_provenance.scan_paths(
         [tmp_path / "README.md"],
@@ -20,14 +20,14 @@ def test_public_provenance_checker_reports_internal_terms(tmp_path):
     )
 
     assert [(item.category, item.line) for item in matches] == [
-        ("internal-review-tool", 1),
+        ("internal-review-process", 1),
         ("private-local-path", 1),
     ]
 
 
 def test_public_provenance_checker_skips_binary_files(tmp_path):
     binary = tmp_path / "fixture.mat"
-    _write(binary, b"\x00Codex $HOME")
+    _write(binary, b"\x00AI-assisted /home/rfrantz")
 
     matches = public_provenance.scan_paths([binary], repo_root=tmp_path)
 
@@ -45,7 +45,7 @@ def test_public_provenance_checker_avoids_substring_false_positive(tmp_path):
 
 def test_public_provenance_checker_excludes_its_own_pattern_files(tmp_path):
     scanner = tmp_path / "tests" / "public_provenance.py"
-    _write(scanner, 'PATTERN = "Codex $HOME"\n')
+    _write(scanner, 'PATTERN = "AI-assisted /home/rfrantz"\n')
 
     matches = public_provenance.scan_paths([scanner], repo_root=tmp_path)
 

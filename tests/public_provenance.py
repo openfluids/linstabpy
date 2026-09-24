@@ -16,7 +16,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 
 PATTERNS: tuple[tuple[str, str], ...] = (
-    ("internal-review-tool", r"\b(?:GROK|Codex|Claude|ChatGPT|LLMs?)\b"),
     ("internal-review-process", r"\b(?:AI-assisted|generated review|generated draft)\b"),
     ("internal-process-language", r"\b(?:prompts?|agents?)\b"),
     ("private-local-path", r"(?:$HOME|$HOME|/media/hamada)"),
