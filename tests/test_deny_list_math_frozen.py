@@ -128,7 +128,7 @@ _FROZEN_SIGNATURES = {
     # missed the MATLAB reference.
     "coefficients": "592595e2b4de0821343b9baeb711e4eb9aa23aada8c47dc1dd78e0f3b8024d84",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
-    # mesh re-baselined 2026-06-12 (bead r3uu.3.2): Mesh.create gained an
+    # mesh re-baselined 2026-06-12: Mesh.create gained an
     # argument-validation preamble; zero math statements changed. Evidence: all 13
     # closed-form and timing files green (154 passed); user-approved.
     # mesh re-baselined 2026-08-19 (1.0.0rc6): a real math edit. In

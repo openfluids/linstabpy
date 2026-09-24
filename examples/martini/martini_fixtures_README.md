@@ -102,7 +102,7 @@ bash run_all_examples.sh --fresh
 ```
 
 Record the git SHA, preflight output, parity report path, and any unavailable
-case in the Phase 0 bead before treating the fixtures as a baseline.
+case in the run notes before treating the fixtures as a baseline.
 
 ## Commit Policy
 

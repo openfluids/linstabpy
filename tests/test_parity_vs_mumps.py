@@ -38,8 +38,7 @@ Pytest capture stays off so batch scripts can collect it from normal
 test output.
 
 GPU execution is intentionally deferred.
-The non-MUMPS self-check here uses the CPU HARD path requested by bead
-r3uu.1.6.
+The non-MUMPS self-check here uses the CPU HARD path.
 That path is SuperLU_DIST with PETSc ``-pc_precision single`` (complex64
 factor with FP64 refinement) when that PETSc build supports it.
 If SuperLU_DIST is absent, the skip reason is loud and explicit.

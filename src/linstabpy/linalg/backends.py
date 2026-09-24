@@ -332,8 +332,8 @@ def apply_factor_backend(
             "through the PETSc '-pc_precision' option, which PETSc "
             f"{'.'.join(str(v) for v in _get_petsc().Sys.getVersion())} ignores, "
             "so the factor would silently be computed in double precision. "
-            "Use factor_precision='double' (the default). Tracked by the "
-            "mixed-precision bead; see docs/COMPUTE_BACKENDS.md."
+            "Use factor_precision='double' (the default). See "
+            "docs/COMPUTE_BACKENDS.md."
         )
     if backend == "strumpack":
         limit_strumpack_host_threads()

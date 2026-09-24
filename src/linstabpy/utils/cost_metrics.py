@@ -126,7 +126,7 @@ def collect_cost_metrics(
     # caller in the collective region (every rank) BEFORE the rank-0-only save
     # block. The body must contain NO MPI collective: it runs inside the
     # rank-0-only save path, so an allreduce here would deadlock every multi-rank
-    # run. See feedback_mpi_collective_rank0 / bead 3.3.
+    # run.
     solve_times = [
         float(stage_wall[stage]) for stage in ("stability", "resolvent") if stage in stage_wall
     ]
