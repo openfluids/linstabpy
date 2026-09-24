@@ -2,7 +2,7 @@
 
 Asset: `readme-banner-v3.jpg` (1408x469, 3:1)
 
-Tool/model: xAI Grok CLI, built-in `image_gen` tool, plus local compositing.
+Made with an image generator for the background, plus local compositing.
 
 ## Subject prompt
 

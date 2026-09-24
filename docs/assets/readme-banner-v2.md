@@ -2,7 +2,7 @@
 
 Asset: `docs/assets/readme-banner-v2.jpg` (1408x469, 3:1, 138 KB)
 
-Tool/model: xAI Grok CLI, built-in `image_gen` tool, plus local compositing.
+Made with an image generator for the background, plus local compositing.
 
 Replaces `linstabpy-banner.png`. Adopts the shared language now used across the
 openfluids repositories — `dynachaos`, `fftkit`, `chaos-atlas`, `openmodalpy`,

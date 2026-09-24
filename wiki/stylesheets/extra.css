@@ -1,4 +1,4 @@
-/* LinStabPy Documentation — Anthropic Engineering Design System */
+/* LinStabPy documentation theme */
 
 /* ==========================================================================
    Typography: High-Precision Clean Technical Sans (Inter) + JetBrains Mono
@@ -65,7 +65,7 @@ body, .md-typeset {
 }
 
 /* ==========================================================================
-   Color Palette: Warm Obsidian Charcoal & Terracotta Clay (Claude Dark Mode)
+   Color Palette: Warm Obsidian Charcoal & Terracotta Clay (dark mode)
    ========================================================================== */
 
 :root,
@@ -103,7 +103,7 @@ body, .md-typeset {
   --md-code-fg-color: #f4f4f2;
 }
 
-/* Claude Light Mode (Warm Paper & Terracotta) */
+/* Light mode (Warm Paper & Terracotta) */
 [data-md-color-scheme="default"] {
   --cds-bg-base: #faf9f5;
   --cds-surface-1: #f3f1ea;
@@ -261,7 +261,7 @@ body, .md-typeset {
 }
 
 /* ==========================================================================
-   Inline Code Tags & Code Blocks: Clean Anthropic Style
+   Inline Code Tags & Code Blocks
    ========================================================================== */
 
 .md-typeset code {
@@ -586,7 +586,7 @@ body, .md-typeset {
 }
 
 /* ==========================================================================
-   Fluid Responsive Layout: Window-Filling Anthropic Canvas
+   Fluid Responsive Layout: Window-Filling Canvas
    ========================================================================== */
 
 /* Expand main container grid from cramped 61rem (976px) to modern fluid canvas */
