@@ -6,8 +6,7 @@
       "comparison_scope": "direct",
       "label": "Example 0: curvilinear derivative test",
       "matlab_npz": [
-        "examples/martini/example_0_TestCurvilinearDerivative_results.npz",
-        "examples/martini/example_0_TestCurvilinearDerivative_logs.npz"
+        "examples/martini/LinStab2DResults/example_0_TestCurvilinearDerivative_results.npz"
       ],
       "metrics": {
         "fields": {
@@ -17,11 +16,11 @@
           },
           "df_an": {
             "max_abs_error": 3.3306690738754696e-16,
-            "rel_l2": 2.0838263816177755e-16
+            "rel_l2": 2.0838263816177757e-16
           },
           "f": {
             "max_abs_error": 2.220446049250313e-16,
-            "rel_l2": 3.9948256220454016e-17
+            "rel_l2": 3.994825622045402e-17
           },
           "x": {
             "max_abs_error": 3.3306690738754696e-16,
@@ -34,13 +33,12 @@
         },
         "matlab_df_linf": 0.00040853754847297585,
         "matlab_df_rel_l2": 0.00017411655026756595,
-        "matlab_timing_total_seconds": NaN,
         "python_df_linf": 0.00040853754847652857,
         "python_df_rel_l2": 0.0001741165502679524,
         "python_protocol_pass": true
       },
       "note": "Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative.",
-      "python_npz": "examples/example_0_curvilinear_validation.npz",
+      "python_npz": "examples/martini/example_0_curvilinear_validation.npz",
       "status": "PASS"
     },
     {
@@ -49,50 +47,50 @@
       "comparison_scope": "direct",
       "label": "Example 1: Blasius resolvent",
       "matlab_npz": [
-        "examples/martini/example_1_Blasius_results.npz"
+        "examples/martini/LinStab2DResults/example_1_Blasius_results.npz"
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 0.07973081600273346,
-          "max_rel_error": 0.005439686078687183
+          "max_abs_error": 2.857056813354575e-10,
+          "max_rel_error": 1.949259408408647e-11
         },
         "modes": {
-          "max_forcing_rel_l2": 0.0030122269210847404,
-          "max_response_rel_l2": 0.0025282600026324746,
+          "max_forcing_rel_l2": 9.772620594849077e-11,
+          "max_response_rel_l2": 1.0548916311099759e-10,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.0030122269210847404,
+              "forcing_rel_l2": 1.8877152031734805e-11,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.001534155942458382,
-              "svd_residual_adj": 1.0091853478023267e-13,
-              "svd_residual_fwd": 9.737703823513444e-17
+              "response_rel_l2": 8.216632664771995e-11,
+              "svd_residual_adj": 1.1357679969505436e-13,
+              "svd_residual_fwd": 1.0151292378258915e-16
             },
             {
-              "forcing_rel_l2": 0.0019872819010881035,
+              "forcing_rel_l2": 9.541642119582409e-11,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.002284659028390159,
-              "svd_residual_adj": 1.9040387540698765e-13,
-              "svd_residual_fwd": 1.2442733174854756e-16
+              "response_rel_l2": 1.0548916311099759e-10,
+              "svd_residual_adj": 3.8718665937967963e-13,
+              "svd_residual_fwd": 5.074632963241611e-17
             },
             {
-              "forcing_rel_l2": 0.0024907054042659902,
+              "forcing_rel_l2": 9.772620594849077e-11,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.0025282600026324746,
-              "svd_residual_adj": 4.5315582957297954e-13,
-              "svd_residual_fwd": 5.2011902304934206e-17
+              "response_rel_l2": 9.2189553350042e-11,
+              "svd_residual_adj": 1.8677593933715144e-13,
+              "svd_residual_fwd": 8.903397943846344e-17
             }
           ]
         },
         "n_compare": 3,
-        "svd_residual_max_adj": 4.5315582957297954e-13,
-        "svd_residual_max_fwd": 1.2442733174854756e-16,
+        "svd_residual_max_adj": 3.8718665937967963e-13,
+        "svd_residual_max_fwd": 1.0151292378258915e-16,
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/example_1_blasius.npz",
+      "python_npz": "examples/martini/example_1_blasius.npz",
       "status": "PASS"
     },
     {
@@ -101,50 +99,50 @@
       "comparison_scope": "direct",
       "label": "Example 2: jet resolvent",
       "matlab_npz": [
-        "examples/martini/example_2_Jet_results.npz"
+        "examples/martini/LinStab2DResults/example_2_Jet_results.npz"
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 0.02899384133814209,
-          "max_rel_error": 0.000509206214379639
+          "max_abs_error": 6.960476639505941e-10,
+          "max_rel_error": 3.3010329812539465e-12
         },
         "modes": {
-          "max_forcing_rel_l2": 0.04802361153428408,
-          "max_response_rel_l2": 0.007303627177237962,
+          "max_forcing_rel_l2": 6.931020604323841e-12,
+          "max_response_rel_l2": 0.2121267950933605,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.011960220958930356,
+              "forcing_rel_l2": 6.729957391054903e-13,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.0012001583773341826,
-              "svd_residual_adj": 7.885311579985631e-14,
-              "svd_residual_fwd": 6.695658143639814e-17
+              "response_rel_l2": 0.04905235889010177,
+              "svd_residual_adj": 1.5795030093609135e-13,
+              "svd_residual_fwd": 1.0240169156792653e-16
             },
             {
-              "forcing_rel_l2": 0.045620159983838414,
+              "forcing_rel_l2": 4.2461800122423724e-12,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.005590472018809881,
-              "svd_residual_adj": 3.2954711405908877e-12,
-              "svd_residual_fwd": 9.213687622651292e-17
+              "response_rel_l2": 0.1585688559555803,
+              "svd_residual_adj": 2.0357026600971415e-12,
+              "svd_residual_fwd": 1.02063995288028e-16
             },
             {
-              "forcing_rel_l2": 0.04802361153428408,
+              "forcing_rel_l2": 6.931020604323841e-12,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.007303627177237962,
-              "svd_residual_adj": 1.9891290928069363e-12,
-              "svd_residual_fwd": 4.748960899060859e-17
+              "response_rel_l2": 0.2121267950933605,
+              "svd_residual_adj": 2.157622788107846e-12,
+              "svd_residual_fwd": 9.335705866876981e-17
             }
           ]
         },
         "n_compare": 3,
-        "svd_residual_max_adj": 3.2954711405908877e-12,
-        "svd_residual_max_fwd": 9.213687622651292e-17,
+        "svd_residual_max_adj": 2.157622788107846e-12,
+        "svd_residual_max_fwd": 1.0240169156792653e-16,
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/example_2_jet.npz",
+      "python_npz": "examples/martini/example_2_jet.npz",
       "status": "SOFT_FAIL"
     },
     {
@@ -153,186 +151,267 @@
       "comparison_scope": "temporal_and_spatial",
       "label": "Example 3: streaky boundary layer",
       "matlab_npz": [
-        "examples/martini/example_3_Streaky_BL_results_temporal.npz",
-        "examples/martini/example_3_Streaky_BL_results_spatial.npz",
-        "examples/martini/example_3_Streaky_BL_results_base.npz",
-        "examples/martini/example_3_Streaky_BL_logs.npz"
+        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lx2pi_nP2_results_temporal.npz",
+        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq0_results_temporal.npz",
+        "examples/martini/LinStab2DResults/example_3_paper_temporal_Lxpi_nfloq2_results_temporal.npz",
+        "examples/martini/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_temporal.npz",
+        "examples/martini/LinStab2DResults/example_3_paper_spatial_Lxpi_nP2_results_spatial.npz"
       ],
       "metrics": {
-        "spatial": {
-          "n_compare": 10,
-          "per_mode": [
-            {
-              "eigenvalue_abs_error": 0.14459040355115482,
-              "eigenvalue_rel_error": 0.23621493919314757,
-              "eigenvalue_residual": 5.213491863621291e-10,
-              "matlab_mode_index_1based": 25,
-              "python_mode_index_1based": 1
+        "campaigns": {
+          "spatial_Lxpi_nP2": {
+            "campaign_status": "PASS",
+            "spatial": {
+              "n_compare": 10,
+              "per_mode": [
+                {
+                  "eigenvalue_abs_error": 2.2890272236238675e-12,
+                  "eigenvalue_rel_error": 3.858598311445351e-12,
+                  "eigenvalue_residual": 3.0478643263390776e-09,
+                  "matlab_mode_index_1based": 3,
+                  "python_mode_index_1based": 48
+                },
+                {
+                  "eigenvalue_abs_error": 4.139934376711779e-12,
+                  "eigenvalue_rel_error": 6.926049607995388e-12,
+                  "eigenvalue_residual": 2.1154059469623436e-09,
+                  "matlab_mode_index_1based": 31,
+                  "python_mode_index_1based": 20
+                },
+                {
+                  "eigenvalue_abs_error": 4.286044177582766e-12,
+                  "eigenvalue_rel_error": 7.1276982526397755e-12,
+                  "eigenvalue_residual": 1.3326888049387976e-09,
+                  "matlab_mode_index_1based": 40,
+                  "python_mode_index_1based": 11
+                },
+                {
+                  "eigenvalue_abs_error": 9.229193078386329e-12,
+                  "eigenvalue_rel_error": 1.4682456308818835e-11,
+                  "eigenvalue_residual": 1.2997961863485824e-09,
+                  "matlab_mode_index_1based": 49,
+                  "python_mode_index_1based": 2
+                },
+                {
+                  "eigenvalue_abs_error": 1.2812267383097143e-11,
+                  "eigenvalue_rel_error": 2.0842151715958053e-11,
+                  "eigenvalue_residual": 1.6315107173827585e-09,
+                  "matlab_mode_index_1based": 47,
+                  "python_mode_index_1based": 4
+                },
+                {
+                  "eigenvalue_abs_error": 1.2835428514643815e-11,
+                  "eigenvalue_rel_error": 2.1612762708370986e-11,
+                  "eigenvalue_residual": 1.0712750466221181e-09,
+                  "matlab_mode_index_1based": 9,
+                  "python_mode_index_1based": 42
+                },
+                {
+                  "eigenvalue_abs_error": 1.921938619632403e-11,
+                  "eigenvalue_rel_error": 3.09741614896271e-11,
+                  "eigenvalue_residual": 1.9638331135056467e-09,
+                  "matlab_mode_index_1based": 42,
+                  "python_mode_index_1based": 9
+                },
+                {
+                  "eigenvalue_abs_error": 2.3415114967545432e-11,
+                  "eigenvalue_rel_error": 3.9094591929435883e-11,
+                  "eigenvalue_residual": 1.6086928178777518e-09,
+                  "matlab_mode_index_1based": 32,
+                  "python_mode_index_1based": 19
+                },
+                {
+                  "eigenvalue_abs_error": 2.6703228075668383e-11,
+                  "eigenvalue_rel_error": 4.257353226098037e-11,
+                  "eigenvalue_residual": 1.3596617964887901e-09,
+                  "matlab_mode_index_1based": 2,
+                  "python_mode_index_1based": 49
+                },
+                {
+                  "eigenvalue_abs_error": 2.986081135565687e-11,
+                  "eigenvalue_rel_error": 4.909125832680208e-11,
+                  "eigenvalue_residual": 6.702713653154146e-10,
+                  "matlab_mode_index_1based": 46,
+                  "python_mode_index_1based": 5
+                }
+              ],
+              "residual_max": 3.0478643263390776e-09,
+              "residual_note": "Primary closure criterion. MATLAB and Python extract different non-unique subsets of the dense companion-matrix spectrum; the residual verifies that the Python eigenpairs satisfy the discrete generalized eigenproblem.",
+              "selection_strategy": "global_best_match",
+              "spectrum_max_abs_error": 2.986081135565687e-11,
+              "spectrum_max_rel_error": 4.909125832680208e-11
             },
-            {
-              "eigenvalue_abs_error": 0.23060236897004702,
-              "eigenvalue_rel_error": 0.38579438751306466,
-              "eigenvalue_residual": 8.327710418033134e-10,
-              "matlab_mode_index_1based": 31,
-              "python_mode_index_1based": 2
-            },
-            {
-              "eigenvalue_abs_error": 0.4104612446068505,
-              "eigenvalue_rel_error": 0.6811494657283463,
-              "eigenvalue_residual": 3.80581687581882e-09,
-              "matlab_mode_index_1based": 27,
-              "python_mode_index_1based": 3
-            },
-            {
-              "eigenvalue_abs_error": 0.5053357145688444,
-              "eigenvalue_rel_error": 0.8380521731425893,
-              "eigenvalue_residual": 1.4517584077325603e-09,
-              "matlab_mode_index_1based": 18,
-              "python_mode_index_1based": 4
-            },
-            {
-              "eigenvalue_abs_error": 0.583031233101976,
-              "eigenvalue_rel_error": 0.9708781637036382,
-              "eigenvalue_residual": 5.232870797148924e-09,
-              "matlab_mode_index_1based": 15,
-              "python_mode_index_1based": 5
-            },
-            {
-              "eigenvalue_abs_error": 0.7130014828867414,
-              "eigenvalue_rel_error": 1.1971070510553625,
-              "eigenvalue_residual": 4.666534497850311e-09,
-              "matlab_mode_index_1based": 14,
-              "python_mode_index_1based": 7
-            },
-            {
-              "eigenvalue_abs_error": 0.7607702019550988,
-              "eigenvalue_rel_error": 1.2586619145189253,
-              "eigenvalue_residual": 9.651837850645205e-10,
-              "matlab_mode_index_1based": 38,
-              "python_mode_index_1based": 6
-            },
-            {
-              "eigenvalue_abs_error": 0.823569972442652,
-              "eigenvalue_rel_error": 1.383500980660085,
-              "eigenvalue_residual": 4.319313404320022e-09,
-              "matlab_mode_index_1based": 8,
-              "python_mode_index_1based": 9
-            },
-            {
-              "eigenvalue_abs_error": 0.848705444591528,
-              "eigenvalue_rel_error": 1.3633528422172825,
-              "eigenvalue_residual": 1.6050722833656911e-09,
-              "matlab_mode_index_1based": 36,
-              "python_mode_index_1based": 8
-            },
-            {
-              "eigenvalue_abs_error": 1.0798032661696646,
-              "eigenvalue_rel_error": 1.8137994597157912,
-              "eigenvalue_residual": 1.93195995619895e-09,
-              "matlab_mode_index_1based": 16,
-              "python_mode_index_1based": 11
+            "temporal": {
+              "mode_max_rel_l2": 0.9302235367780046,
+              "n_compare": 3,
+              "per_mode": [
+                {
+                  "eigenvalue_abs_error": 3.689232855880435e-14,
+                  "eigenvalue_rel_error": 5.907511413056084e-14,
+                  "eigenvalue_residual": 9.145307724678497e-12,
+                  "matlab_mode_index_1based": 3,
+                  "python_mode_index_1based": 4,
+                  "rel_l2": 0.9302235367780046
+                },
+                {
+                  "eigenvalue_abs_error": 5.486119641833417e-14,
+                  "eigenvalue_rel_error": 8.822739458498437e-14,
+                  "eigenvalue_residual": 7.539274960407194e-12,
+                  "matlab_mode_index_1based": 2,
+                  "python_mode_index_1based": 3,
+                  "rel_l2": 0.27249324179288187
+                },
+                {
+                  "eigenvalue_abs_error": 7.912580604265409e-14,
+                  "eigenvalue_rel_error": 1.3510621132753043e-13,
+                  "eigenvalue_residual": 1.6795186212290396e-12,
+                  "matlab_mode_index_1based": 1,
+                  "python_mode_index_1based": 1,
+                  "rel_l2": 0.7286949264778305
+                }
+              ],
+              "residual_max": 3.406755108526378e-09,
+              "residual_note": "Primary closure criterion. MATLAB reference residuals are ~1e-4 (opts.p=1500, far-field shift); Python MUMPS residuals reflect near-machine-precision convergence of the discrete operator.",
+              "selection_strategy": "global_best_match",
+              "spectrum_max_abs_error": 7.912580604265409e-14,
+              "spectrum_max_rel_error": 1.3510621132753043e-13
             }
-          ],
-          "residual_max": 5.232870797148924e-09,
-          "residual_note": "Primary closure criterion. MATLAB and Python extract different non-unique subsets of the dense companion-matrix spectrum; the residual verifies that the Python eigenpairs satisfy the discrete generalized eigenproblem.",
-          "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 1.0798032661696646,
-          "spectrum_max_rel_error": 1.8137994597157912
-        },
-        "temporal": {
-          "mode_max_rel_l2": 0.035482675709532764,
-          "n_compare": 10,
-          "per_mode": [
-            {
-              "eigenvalue_abs_error": 6.47901672222707e-05,
-              "eigenvalue_rel_error": 0.00010293154594989665,
-              "eigenvalue_residual": 1.8349107075002086e-11,
-              "matlab_mode_index_1based": 15,
-              "python_mode_index_1based": 9,
-              "rel_l2": 0.01674865062242143
+          },
+          "temporal_Lx2pi_nP2": {
+            "campaign_status": "PASS",
+            "spatial": {
+              "n_compare": 0,
+              "note": "spatial_alpha not yet computed"
             },
-            {
-              "eigenvalue_abs_error": 6.670628249105597e-05,
-              "eigenvalue_rel_error": 0.00010681357768024615,
-              "eigenvalue_residual": 9.115668287774201e-12,
-              "matlab_mode_index_1based": 7,
-              "python_mode_index_1based": 4,
-              "rel_l2": 0.035482675709532764
-            },
-            {
-              "eigenvalue_abs_error": 7.754410271024141e-05,
-              "eigenvalue_rel_error": 0.00012442779087283581,
-              "eigenvalue_residual": 1.220591235184568e-11,
-              "matlab_mode_index_1based": 17,
-              "python_mode_index_1based": 7,
-              "rel_l2": 0.01633512985485038
-            },
-            {
-              "eigenvalue_abs_error": 7.935237849627892e-05,
-              "eigenvalue_rel_error": 0.00012684194604263045,
-              "eigenvalue_residual": 1.2183410667183712e-11,
-              "matlab_mode_index_1based": 30,
-              "python_mode_index_1based": 8,
-              "rel_l2": 0.012826810522416418
-            },
-            {
-              "eigenvalue_abs_error": 0.00010380292197092469,
-              "eigenvalue_rel_error": 0.00016570304018479715,
-              "eigenvalue_residual": 1.085209348325794e-11,
-              "matlab_mode_index_1based": 27,
-              "python_mode_index_1based": 6,
-              "rel_l2": 0.003646065054599592
-            },
-            {
-              "eigenvalue_abs_error": 0.00010445239189419694,
-              "eigenvalue_rel_error": 0.00016671596407982257,
-              "eigenvalue_residual": 2.735274954164451e-13,
-              "matlab_mode_index_1based": 12,
-              "python_mode_index_1based": 3,
-              "rel_l2": 0.002074004131661345
-            },
-            {
-              "eigenvalue_abs_error": 0.0001047787628450982,
-              "eigenvalue_rel_error": 0.00016720862532329726,
-              "eigenvalue_residual": 2.1476892746115734e-12,
-              "matlab_mode_index_1based": 26,
-              "python_mode_index_1based": 5,
-              "rel_l2": 0.001427065407272274
-            },
-            {
-              "eigenvalue_abs_error": 0.00010627229493027688,
-              "eigenvalue_rel_error": 0.00016950583082371234,
-              "eigenvalue_residual": 1.1456319338837021e-11,
-              "matlab_mode_index_1based": 40,
-              "python_mode_index_1based": 10,
-              "rel_l2": 0.0014389897410747156
-            },
-            {
-              "eigenvalue_abs_error": 0.00025431713873906825,
-              "eigenvalue_rel_error": 0.00043195208237267735,
-              "eigenvalue_residual": 5.812335989974483e-13,
-              "matlab_mode_index_1based": 3,
-              "python_mode_index_1based": 2,
-              "rel_l2": 0.004250406789017978
-            },
-            {
-              "eigenvalue_abs_error": 0.0002761953117187002,
-              "eigenvalue_rel_error": 0.0004715982391778785,
-              "eigenvalue_residual": 2.3537586292799356e-13,
-              "matlab_mode_index_1based": 1,
-              "python_mode_index_1based": 1,
-              "rel_l2": 0.003616502479989639
+            "temporal": {
+              "mode_max_rel_l2": 0.6697538669812928,
+              "n_compare": 3,
+              "per_mode": [
+                {
+                  "eigenvalue_abs_error": 3.8367001121980484e-14,
+                  "eigenvalue_rel_error": 6.485983995307196e-14,
+                  "eigenvalue_residual": 1.1345816478610313e-11,
+                  "matlab_mode_index_1based": 3,
+                  "python_mode_index_1based": 3,
+                  "rel_l2": 0.569192976996024
+                },
+                {
+                  "eigenvalue_abs_error": 9.200855679075604e-14,
+                  "eigenvalue_rel_error": 1.5910790027631295e-13,
+                  "eigenvalue_residual": 6.110750709026972e-12,
+                  "matlab_mode_index_1based": 1,
+                  "python_mode_index_1based": 1,
+                  "rel_l2": 0.6697538669812928
+                },
+                {
+                  "eigenvalue_abs_error": 1.3104319370079317e-13,
+                  "eigenvalue_rel_error": 2.2682196518617363e-13,
+                  "eigenvalue_residual": 7.259897149680424e-12,
+                  "matlab_mode_index_1based": 2,
+                  "python_mode_index_1based": 2,
+                  "rel_l2": 0.6682729119842191
+                }
+              ],
+              "residual_max": 6.32274574621723e-11,
+              "residual_note": "Primary closure criterion. MATLAB reference residuals are ~1e-4 (opts.p=1500, far-field shift); Python MUMPS residuals reflect near-machine-precision convergence of the discrete operator.",
+              "selection_strategy": "global_best_match",
+              "spectrum_max_abs_error": 1.3104319370079317e-13,
+              "spectrum_max_rel_error": 2.2682196518617363e-13
             }
-          ],
-          "residual_max": 1.8349107075002086e-11,
-          "residual_note": "Primary closure criterion. MATLAB reference residuals are ~1e-4 (opts.p=1500, far-field shift); Python MUMPS residuals reflect near-machine-precision convergence of the discrete operator.",
-          "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 0.0002761953117187002,
-          "spectrum_max_rel_error": 0.0004715982391778785
+          },
+          "temporal_Lxpi_nfloq0": {
+            "campaign_status": "PASS",
+            "spatial": {
+              "n_compare": 0,
+              "note": "spatial_alpha not yet computed"
+            },
+            "temporal": {
+              "mode_max_rel_l2": 0.6410012010070958,
+              "n_compare": 3,
+              "per_mode": [
+                {
+                  "eigenvalue_abs_error": 4.0045053488472055e-14,
+                  "eigenvalue_rel_error": 6.729181592499768e-14,
+                  "eigenvalue_residual": 3.011685428992584e-12,
+                  "matlab_mode_index_1based": 2,
+                  "python_mode_index_1based": 2,
+                  "rel_l2": 0.5565836366173657
+                },
+                {
+                  "eigenvalue_abs_error": 7.870314562710922e-14,
+                  "eigenvalue_rel_error": 1.41379243123486e-13,
+                  "eigenvalue_residual": 1.1163620157742928e-11,
+                  "matlab_mode_index_1based": 1,
+                  "python_mode_index_1based": 1,
+                  "rel_l2": 0.6410012010070958
+                },
+                {
+                  "eigenvalue_abs_error": 1.4371244193598708e-13,
+                  "eigenvalue_rel_error": 2.3107069713563666e-13,
+                  "eigenvalue_residual": 5.675225625517094e-12,
+                  "matlab_mode_index_1based": 3,
+                  "python_mode_index_1based": 3,
+                  "rel_l2": 0.2002777221166319
+                }
+              ],
+              "residual_max": 4.967830773021446e-09,
+              "residual_note": "Primary closure criterion. MATLAB reference residuals are ~1e-4 (opts.p=1500, far-field shift); Python MUMPS residuals reflect near-machine-precision convergence of the discrete operator.",
+              "selection_strategy": "global_best_match",
+              "spectrum_max_abs_error": 1.4371244193598708e-13,
+              "spectrum_max_rel_error": 2.3107069713563666e-13
+            }
+          },
+          "temporal_Lxpi_nfloq2": {
+            "campaign_status": "PASS",
+            "spatial": {
+              "n_compare": 0,
+              "note": "spatial_alpha not yet computed"
+            },
+            "temporal": {
+              "mode_max_rel_l2": 0.9302235367780046,
+              "n_compare": 3,
+              "per_mode": [
+                {
+                  "eigenvalue_abs_error": 3.689232855880435e-14,
+                  "eigenvalue_rel_error": 5.907511413056084e-14,
+                  "eigenvalue_residual": 9.145307724678497e-12,
+                  "matlab_mode_index_1based": 3,
+                  "python_mode_index_1based": 4,
+                  "rel_l2": 0.9302235367780046
+                },
+                {
+                  "eigenvalue_abs_error": 5.486119641833417e-14,
+                  "eigenvalue_rel_error": 8.822739458498437e-14,
+                  "eigenvalue_residual": 7.539274960407194e-12,
+                  "matlab_mode_index_1based": 2,
+                  "python_mode_index_1based": 3,
+                  "rel_l2": 0.27249324179288187
+                },
+                {
+                  "eigenvalue_abs_error": 7.912580604265409e-14,
+                  "eigenvalue_rel_error": 1.3510621132753043e-13,
+                  "eigenvalue_residual": 1.6795186212290396e-12,
+                  "matlab_mode_index_1based": 1,
+                  "python_mode_index_1based": 1,
+                  "rel_l2": 0.7286949264778305
+                }
+              ],
+              "residual_max": 3.406755108526378e-09,
+              "residual_note": "Primary closure criterion. MATLAB reference residuals are ~1e-4 (opts.p=1500, far-field shift); Python MUMPS residuals reflect near-machine-precision convergence of the discrete operator.",
+              "selection_strategy": "global_best_match",
+              "spectrum_max_abs_error": 7.912580604265409e-14,
+              "spectrum_max_rel_error": 1.3510621132753043e-13
+            }
+          }
         }
       },
       "note": "",
-      "python_npz": "examples/example_3_streaky_bl.npz",
+      "python_npz": [
+        "examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz",
+        "examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz",
+        "examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz",
+        "examples/martini/example_3_paper_spatial_Lxpi_nP2.npz"
+      ],
       "status": "PASS"
     },
     {
@@ -341,130 +420,82 @@
       "comparison_scope": "direct",
       "label": "Example 4: cavity direct and adjoint spectra",
       "matlab_npz": [
-        "examples/martini/example_4_Cavity_results_direct.npz",
-        "examples/martini/example_4_Cavity_results_adjoint.npz"
+        "examples/martini/LinStab2DResults/example_4_Cavity_results_direct.npz",
+        "examples/martini/LinStab2DResults/example_4_Cavity_results_adjoint.npz"
       ],
       "metrics": {
         "adjoint": {
-          "eigenvalue_residual_max": 2.188876677837724e-08,
-          "mode_max_rel_l2": 0.00033026903950499254,
-          "n_compare": 6,
+          "eigenvalue_residual_max": 1.743595508098326e-08,
+          "mode_max_rel_l2": 0.9934955781977562,
+          "n_compare": 3,
           "per_mode": [
             {
-              "eigenvalue_abs_error": 4.737331800051502e-06,
-              "eigenvalue_rel_error": 1.0430458058059187e-05,
-              "eigenvalue_residual": 5.5267414399270466e-11,
-              "matlab_mode_index_1based": 28,
-              "python_mode_index_1based": 24,
-              "rel_l2": 0.00026797132058370795
-            },
-            {
-              "eigenvalue_abs_error": 4.7882960262563725e-06,
-              "eigenvalue_rel_error": 5.278803549593177e-06,
-              "eigenvalue_residual": 2.6032166817949254e-11,
-              "matlab_mode_index_1based": 14,
-              "python_mode_index_1based": 6,
-              "rel_l2": 0.0002335875449734824
-            },
-            {
-              "eigenvalue_abs_error": 5.154247393326339e-06,
-              "eigenvalue_rel_error": 2.270769244477462e-06,
-              "eigenvalue_residual": 8.958352020329787e-12,
-              "matlab_mode_index_1based": 20,
-              "python_mode_index_1based": 37,
-              "rel_l2": 0.0003190977718639248
-            },
-            {
-              "eigenvalue_abs_error": 5.3210934001242855e-06,
-              "eigenvalue_rel_error": 3.9151113418385655e-06,
-              "eigenvalue_residual": 1.3187810538716224e-11,
-              "matlab_mode_index_1based": 4,
-              "python_mode_index_1based": 2,
-              "rel_l2": 0.00022332134576635049
-            },
-            {
-              "eigenvalue_abs_error": 5.5272814376515165e-06,
-              "eigenvalue_rel_error": 3.0463633651931487e-06,
-              "eigenvalue_residual": 4.066133993273525e-12,
-              "matlab_mode_index_1based": 10,
-              "python_mode_index_1based": 15,
-              "rel_l2": 0.00033026903950499254
-            },
-            {
-              "eigenvalue_abs_error": 5.789076280007194e-06,
-              "eigenvalue_rel_error": 3.196427692832309e-06,
-              "eigenvalue_residual": 6.0592542701149505e-12,
+              "eigenvalue_abs_error": 1.1686382854261949e-14,
+              "eigenvalue_rel_error": 2.573058661638944e-14,
+              "eigenvalue_residual": 7.08275318128046e-11,
               "matlab_mode_index_1based": 3,
-              "python_mode_index_1based": 5,
-              "rel_l2": 0.0002212978424358928
+              "python_mode_index_1based": 24,
+              "rel_l2": 0.9934955781977562
+            },
+            {
+              "eigenvalue_abs_error": 7.330976188025344e-06,
+              "eigenvalue_rel_error": 2.6174210528222037e-06,
+              "eigenvalue_residual": 4.849587720836575e-12,
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 18,
+              "rel_l2": 0.9688657029766194
+            },
+            {
+              "eigenvalue_abs_error": 9.200904603078847e-06,
+              "eigenvalue_rel_error": 5.9891962004956066e-06,
+              "eigenvalue_residual": 4.857979289566105e-12,
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 1,
+              "rel_l2": 0.9750560542287307
             }
           ],
           "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 5.789076280007194e-06,
-          "spectrum_max_rel_error": 1.0430458058059187e-05
+          "spectrum_max_abs_error": 9.200904603078847e-06,
+          "spectrum_max_rel_error": 5.9891962004956066e-06
         },
         "direct": {
-          "eigenvalue_residual_max": 5.446779130767834e-09,
-          "mode_max_rel_l2": 0.0003346089718341418,
-          "n_compare": 6,
+          "eigenvalue_residual_max": 4.559363163722438e-09,
+          "mode_max_rel_l2": 0.99808247089686,
+          "n_compare": 3,
           "per_mode": [
             {
-              "eigenvalue_abs_error": 4.73733181243642e-06,
-              "eigenvalue_rel_error": 1.0430458085327636e-05,
-              "eigenvalue_residual": 4.36801637177326e-12,
-              "matlab_mode_index_1based": 28,
-              "python_mode_index_1based": 24,
-              "rel_l2": 0.00027519625048264056
-            },
-            {
-              "eigenvalue_abs_error": 4.7882960223917686e-06,
-              "eigenvalue_rel_error": 5.278803545332689e-06,
-              "eigenvalue_residual": 8.664580361060777e-13,
-              "matlab_mode_index_1based": 11,
-              "python_mode_index_1based": 6,
-              "rel_l2": 0.000226159381443786
-            },
-            {
-              "eigenvalue_abs_error": 5.154247385395998e-06,
-              "eigenvalue_rel_error": 2.270769240983654e-06,
-              "eigenvalue_residual": 3.1837719319133406e-13,
-              "matlab_mode_index_1based": 22,
-              "python_mode_index_1based": 37,
-              "rel_l2": 0.0003300518379457578
-            },
-            {
-              "eigenvalue_abs_error": 5.321093406102767e-06,
-              "eigenvalue_rel_error": 3.915111346237363e-06,
-              "eigenvalue_residual": 7.257104714196574e-13,
+              "eigenvalue_abs_error": 1.193270268599669e-14,
+              "eigenvalue_rel_error": 2.6272923269639642e-14,
+              "eigenvalue_residual": 1.6637926258301279e-12,
               "matlab_mode_index_1based": 3,
-              "python_mode_index_1based": 2,
-              "rel_l2": 0.00021671677013801466
+              "python_mode_index_1based": 24,
+              "rel_l2": 0.9976209420816645
             },
             {
-              "eigenvalue_abs_error": 5.527281432175182e-06,
-              "eigenvalue_rel_error": 3.046363362174856e-06,
-              "eigenvalue_residual": 8.957209424736619e-13,
-              "matlab_mode_index_1based": 12,
-              "python_mode_index_1based": 15,
-              "rel_l2": 0.0003346089718341418
+              "eigenvalue_abs_error": 7.33097625238226e-06,
+              "eigenvalue_rel_error": 2.6174210757998587e-06,
+              "eigenvalue_residual": 5.782225753383246e-13,
+              "matlab_mode_index_1based": 1,
+              "python_mode_index_1based": 18,
+              "rel_l2": 0.991355105951
             },
             {
-              "eigenvalue_abs_error": 5.789076273395884e-06,
-              "eigenvalue_rel_error": 3.196427689181898e-06,
-              "eigenvalue_residual": 6.878441429972586e-13,
-              "matlab_mode_index_1based": 4,
-              "python_mode_index_1based": 5,
-              "rel_l2": 0.00021705599157931206
+              "eigenvalue_abs_error": 9.200904571000175e-06,
+              "eigenvalue_rel_error": 5.989196179614266e-06,
+              "eigenvalue_residual": 1.0042387214362731e-12,
+              "matlab_mode_index_1based": 2,
+              "python_mode_index_1based": 1,
+              "rel_l2": 0.99808247089686
             }
           ],
           "selection_strategy": "global_best_match",
-          "spectrum_max_abs_error": 5.789076273395884e-06,
-          "spectrum_max_rel_error": 1.0430458085327636e-05
+          "spectrum_max_abs_error": 9.200904571000175e-06,
+          "spectrum_max_rel_error": 5.989196179614266e-06
         }
       },
       "note": "",
-      "python_npz": "examples/example_4_cavity.npz",
-      "status": "PASS"
+      "python_npz": "examples/martini/example_4_cavity.npz",
+      "status": "SOFT_FAIL"
     },
     {
       "case_id": "example_5_paraboloid",
@@ -472,58 +503,58 @@
       "comparison_scope": "direct",
       "label": "Example 5: paraboloid resolvent",
       "matlab_npz": [
-        "examples/martini/example_5_Paraboloid_results.npz"
+        "examples/martini/LinStab2DResults/example_5_Paraboloid_results.npz"
       ],
       "metrics": {
         "gains": {
-          "max_abs_error": 0.002665485627801445,
-          "max_rel_error": 0.00042779919146057876
+          "max_abs_error": 0.00010140670271319152,
+          "max_rel_error": 1.3841465176229056e-05
         },
         "modes": {
-          "max_forcing_rel_l2": 0.007516844244248071,
-          "max_response_rel_l2": 0.0066048827154286125,
+          "max_forcing_rel_l2": 0.00022500568408330478,
+          "max_response_rel_l2": 0.00033922694352086553,
           "per_mode": [
             {
-              "forcing_rel_l2": 0.003741085959085378,
+              "forcing_rel_l2": 0.00017184520204441685,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.0034200869409054652,
-              "svd_residual_adj": 3.2112282773875285e-12,
-              "svd_residual_fwd": 1.1325559681118517e-16
+              "response_rel_l2": 0.0002790434036588055,
+              "svd_residual_adj": 3.332843896800372e-12,
+              "svd_residual_fwd": 4.607846614599263e-17
             },
             {
-              "forcing_rel_l2": 0.006173783925144367,
+              "forcing_rel_l2": 0.00022500568408330478,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.005471937093744317,
-              "svd_residual_adj": 2.0156576576153585e-12,
-              "svd_residual_fwd": 1.1019457311640738e-16
+              "response_rel_l2": 0.0003340977297943201,
+              "svd_residual_adj": 2.0598322486260395e-12,
+              "svd_residual_fwd": 1.0835079304234934e-16
             },
             {
-              "forcing_rel_l2": 0.007516844244248071,
+              "forcing_rel_l2": 0.0002139511798816623,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.0066048827154286125,
-              "svd_residual_adj": 2.585606734840997e-10,
-              "svd_residual_fwd": 5.204031987618096e-17
+              "response_rel_l2": 0.00033922694352086553,
+              "svd_residual_adj": 2.655696763962725e-10,
+              "svd_residual_fwd": 7.861102852094846e-17
             }
           ]
         },
         "n_compare": 3,
-        "svd_residual_max_adj": 2.585606734840997e-10,
-        "svd_residual_max_fwd": 1.1325559681118517e-16,
+        "svd_residual_max_adj": 2.655696763962725e-10,
+        "svd_residual_max_fwd": 1.0835079304234934e-16,
         "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
-      "python_npz": "examples/example_5_paraboloid.npz",
+      "python_npz": "examples/martini/example_5_paraboloid.npz",
       "status": "PASS"
     }
   ],
-  "config": "examples/martini/martini_cases.jsonc",
+  "config": "examples/martini/martini_cases.yaml",
   "counts": {
-    "PASS": 5,
-    "SOFT_FAIL": 1
+    "PASS": 4,
+    "SOFT_FAIL": 2
   },
-  "generated_at_utc": "2026-06-11T06:15:12.936468+00:00",
+  "generated_at_utc": "2026-09-16T22:01:31.632585+00:00",
   "npz_dir": "examples/martini"
 }
