@@ -374,11 +374,9 @@ def compare_resolvent_case(
         result["svd_residual_max_fwd"] = float(np.max(svd_residuals_fwd[:n]))
         result["svd_residual_max_adj"] = float(np.max(svd_residuals_adj[:n]))
         result["svd_residual_note"] = (
-            "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS "
-            "use different fill-reducing orderings; gains differ by ~0.04–0.54% "
-            "structurally (gain_rel=1e-5 is unachievable). SVD residuals verify "
-            "that Python triplets satisfy the discrete resolvent equations to "
-            "near-machine precision independently of the MATLAB reference."
+            "Primary closure criterion. SVD residuals verify that Python "
+            "triplets satisfy the discrete resolvent equations to near-machine "
+            "precision independently of the MATLAB reference."
         )
 
     return result
