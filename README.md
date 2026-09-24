@@ -4,6 +4,8 @@
 [![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
+**Documentation:** https://linstabpy.vercel.app/
+
 `linstabpy` performs [sparse](https://grokipedia.com/page/Sparse_matrix) linear stability and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis of
 [compressible](https://grokipedia.com/page/Compressible_flow) viscous flows. It builds the linearized compressible [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations)
 operators for two-dimensional structured base flows and solves the [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and
