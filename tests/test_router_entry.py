@@ -158,7 +158,7 @@ def test_regime_c_toggle_defaults_off_and_enabled_raises(
     assert result.point_records[0]["engine"] == "regime-a"
     assert "missing_engine=rational_rom" in caplog.text
 
-    with pytest.raises(NotImplementedError, match="rational_rom.*S9"):
+    with pytest.raises(NotImplementedError, match="rational_rom is not implemented yet"):
         router_map.resolvent_map(
             object(), [0.1], [1.0], {"mesh": object(), "enable_regime_c": True}
         )

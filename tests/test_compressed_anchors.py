@@ -162,9 +162,9 @@ def _strumpack_adjoint_identity_defect(L0: sp.spmatrix, *, compressed: bool) -> 
 
 
 def test_compressed_anchor_strumpack_certifies_via_dual_factor_heal() -> None:
-    """UPDATED 2026-06-23 (bead r3uu.14.17 — dual-factor adjoint heal) — validated on c9.
+    """UPDATED 2026-06-23 (dual-factor adjoint heal) — validated on c9.
 
-    HISTORICAL FINDING (bead r3uu.14.9, measured on c9 2026-06-16).
+    HISTORICAL FINDING (measured on c9 2026-06-16).
     STRUMPACK's complex transpose-solve is a non-conjugate transpose.
     The bare adjoint identity defect was ~3.2e-2 (MUMPS ~3e-16).
     The compressed-anchor sweep correctly REFUSED rather than use an

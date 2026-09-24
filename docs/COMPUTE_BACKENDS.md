@@ -21,7 +21,7 @@ with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
 | Stack | Virtual environment | PETSc configure branch | Rule |
 |---|---|---|---|
 | default / CPU reference | `.venv` | complex scalar PETSc/SLEPc with MUMPS, METIS, and ParMETIS downloads | This remains the only reference build. Default behavior must not change unless a separate change explicitly updates the CPU build contract. |
-| `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until GPU-build recipe beads run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
+| `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until the GPU-build recipes are run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
 | `superlu_dist` (manual, not in `install.sh`) | `.venv-superlu_dist` | complex scalar PETSc/SLEPc with `--download-superlu_dist` plus METIS/ParMETIS graph-partitioning downloads | `install.sh` does not ship a `superlu_dist` build stack today. Build manually: run `./install.sh --stack superlu_dist --force` only after adding the stack branch to `install.sh`, or configure PETSc directly with `--download-superlu_dist --download-metis --download-parmetis`. The GPU variant adds `--with-cuda`. Keep this isolated to `.venv-superlu_dist`; `--force` must never target `.venv`. |
 
 This section documents the intended build separation only. It is not a claim

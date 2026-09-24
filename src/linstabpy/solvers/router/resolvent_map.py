@@ -792,16 +792,16 @@ def _regime_b_discount_gamma(cfg: Mapping[str, Any]) -> float:
         if not (gamma > 0.0):
             raise ValueError(f"regime_b_discount_gamma must be positive, got {gamma}")
         return gamma
-    # Default: use 0.25 (validated in CP1/r3uu.3.12 to handle 1e5 poles gracefully)
+    # Default: use 0.25 (validated to handle 1e5 poles gracefully)
     return 0.25
 
 
-def _intended_missing_engine(label: object) -> tuple[str, str, str] | None:
+def _intended_missing_engine(label: object) -> tuple[str, str] | None:
     label_text = str(label)
     if label_text == NEAR_POLE:
-        return "regime-b", "discounted_resolvent", "CP1"
+        return "regime-b", "discounted_resolvent"
     if label_text == SMOOTH:
-        return "regime-c", "rational_rom", "S9 / r3uu.14.9"
+        return "regime-c", "rational_rom"
     return None
 
 
@@ -818,7 +818,7 @@ def _check_missing_engine_gate(
     missing = _intended_missing_engine(label)
     if missing is None:
         return "regime-a", 0.0
-    regime, engine, bead = missing
+    regime, engine = missing
 
     # For regime-b (NEAR_POLE), attempt discounted resolvent
     if regime == "regime-b":
@@ -829,16 +829,14 @@ def _check_missing_engine_gate(
     enable_key = "enable_regime_c"
     if _cfg_bool(cfg, enable_key, False):
         raise NotImplementedError(
-            f"{regime} requested for label {label!r}, but {engine} is not implemented yet "
-            f"(missing bead {bead})"
+            f"{regime} requested for label {label!r}, but {engine} is not implemented yet"
         )
     if regime not in emitted_notes:
         LOGGER.info(
-            "resolvent_map fallback: intended_regime=%s missing_engine=%s missing_bead=%s "
+            "resolvent_map fallback: intended_regime=%s missing_engine=%s "
             "enabled=false action=regime-a-direct",
             regime,
             engine,
-            bead,
         )
         emitted_notes.add(regime)
     return "regime-a", 0.0

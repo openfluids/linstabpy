@@ -119,7 +119,7 @@ class TestFilterAdjointProperty:
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
         # Exact discrete-transpose identity: measured residual ~1e-14, so the
-        # check asserts ~1e-12 (frozen-numerics guard 1, bead ...2.3).
+        # check asserts ~1e-12 (frozen-numerics guard 1).
         assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_adjoint_property_multi_column(self, mesh_with_filter):
@@ -132,7 +132,7 @@ class TestFilterAdjointProperty:
 
         lhs = mesh.filters.filter_ct(u) @ v
         rhs = u @ mesh.filters.filter(v)
-        # Exact discrete-transpose identity; ~1e-12 closed-form tolerance (bead ...2.3).
+        # Exact discrete-transpose identity; ~1e-12 closed-form tolerance.
         assert_allclose(lhs, rhs, atol=1e-12)
 
     def test_high_frequency_damped(self, mesh_with_filter):

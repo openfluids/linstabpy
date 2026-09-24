@@ -1341,7 +1341,7 @@ def test_iterative_non_lu_pc_does_not_enter_factor_backend_seam(monkeypatch) -> 
 
 
 # ---------------------------------------------------------------------------
-# Auto-route backend tests (bead r3uu.1.42)
+# Auto-route backend tests
 # ---------------------------------------------------------------------------
 
 

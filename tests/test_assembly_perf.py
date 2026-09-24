@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """PERF1 assembly profiling record and equivalence guard.
 
-Representative profile case used for r3uu.14.2 measurements.
+Representative profile case used for the assembly measurements.
 Blasius 2-D operator, fd6 mesh, nx=100, ny=80 (ngp=8000, ndof=40000),
 kx=0.25.
 The mesh and baseflow are built once.

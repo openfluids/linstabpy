@@ -124,7 +124,7 @@ def _check_border(
 def _passes(rec: dict) -> bool:
     # Measured tangent/normal and constant responses are ~5e-15 on BOTH the
     # rectangular (gradient) and curved (Jacobian) branches, so the check asserts
-    # ~1e-12 (bead ...2.7's ~1e-15 property, with ~200x margin) rather than the
+    # ~1e-12 (the ~1e-15 property, with ~200x margin) rather than the
     # old 1e-9. A tangent-aligned or swapped-Jacobian mutation drives the ratio to
     # O(1), far above either threshold.
     return bool(
