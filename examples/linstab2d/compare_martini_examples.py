@@ -460,12 +460,13 @@ def _compare_cavity_case(
     direct_modes_mat = _mode_matrix(_npz_get(matlab_direct, "results_Cavity_direct/V"))
     # The MATLAB cavity idx vectors index its slim u+v+w matrix V, not the
     # full five-variable state, so compact the Python modes with their own idx.
-    u_j = python_npz["idx_u_j"]
-    v_j = python_npz["idx_v_j"]
-    w_j = python_npz["idx_w_j"]
     if direct_modes_mat.shape[0] != direct_modes_py.shape[0]:
         direct_modes_py = compact_resolvent_modes_uvw(
-            direct_modes_py, u_j, v_j, w_j, one_based_idx=False
+            direct_modes_py,
+            python_npz["idx_u_j"],
+            python_npz["idx_v_j"],
+            python_npz["idx_w_j"],
+            one_based_idx=False,
         )
     direct_saved = _saved_mode_indices_1based(
         matlab_direct, "results_Cavity_direct/saved_mode_indices"
@@ -479,7 +480,11 @@ def _compare_cavity_case(
     adjoint_modes_mat = _mode_matrix(_npz_get(matlab_adjoint, "results_Cavity_adjoint/VAdj"))
     if adjoint_modes_mat.shape[0] != adjoint_modes_py.shape[0]:
         adjoint_modes_py = compact_resolvent_modes_uvw(
-            adjoint_modes_py, u_j, v_j, w_j, one_based_idx=False
+            adjoint_modes_py,
+            python_npz["idx_u_j"],
+            python_npz["idx_v_j"],
+            python_npz["idx_w_j"],
+            one_based_idx=False,
         )
     adj_saved = _saved_mode_indices_1based(
         matlab_adjoint, "results_Cavity_adjoint/saved_mode_indices"

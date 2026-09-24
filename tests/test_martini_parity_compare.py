@@ -457,6 +457,50 @@ def test_compare_cavity_case_uses_global_best_spectrum_pairs() -> None:
     assert report["adjoint"]["mode_max_rel_l2"] < 1e-12
 
 
+def test_compare_cavity_case_compacts_python_modes_with_python_idx() -> None:
+    # MATLAB stores u, v, w only; its idx vectors index that slim matrix (u_j starts at 1).
+    # Python stores rho, u, v, w, T; its idx vectors are 0-based into the full state.
+    ngp = 6
+    rng = np.random.default_rng(0)
+    omega = np.array([0.4 - 0.1j, 0.9 + 0.2j], dtype=complex)
+    full = rng.standard_normal((5 * ngp, 2)) + 1j * rng.standard_normal((5 * ngp, 2))
+    idx_py = {name: np.arange(k * ngp, (k + 1) * ngp) for k, name in enumerate("ruvwT")}
+    slim = np.concatenate([full[idx_py[name]] for name in "uvw"], axis=0)
+    idx_mat = {name: np.arange(k * ngp, (k + 1) * ngp) + 1 for k, name in enumerate("uvw")}
+
+    python_npz = {
+        "omega": omega,
+        "omega_adj": 1j * np.conj(omega),
+        "direct_modes": full,
+        "adjoint_modes": full,
+        "idx_u_j": idx_py["u"],
+        "idx_v_j": idx_py["v"],
+        "idx_w_j": idx_py["w"],
+    }
+    matlab_direct = {
+        "results_Cavity_direct__omega": omega,
+        "results_Cavity_direct__V": slim,
+        "results_Cavity_direct__idx__u_j": idx_mat["u"],
+        "results_Cavity_direct__idx__v_j": idx_mat["v"],
+        "results_Cavity_direct__idx__w_j": idx_mat["w"],
+    }
+    matlab_adjoint = {
+        "results_Cavity_adjoint__omegaAdj": np.conj(omega),
+        "results_Cavity_adjoint__VAdj": slim,
+    }
+
+    report = _compare_cavity_case(
+        python_npz=python_npz,
+        matlab_direct=matlab_direct,
+        matlab_adjoint=matlab_adjoint,
+        n_compare=2,
+        omega_target=None,
+    )
+
+    assert report["direct"]["mode_max_rel_l2"] < 1e-12
+    assert report["adjoint"]["mode_max_rel_l2"] < 1e-12
+
+
 def test_compare_streaky_bl_case_matches_temporal_modes_and_spatial_spectrum() -> None:
     temporal_omega = np.array(
         [0.1 + 0.2j, 0.3 + 0.4j, 0.5 + 0.6j],
