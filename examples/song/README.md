@@ -10,7 +10,7 @@ examples/song/
   reference/              # shipped Song reference data (git)
   inputs/raw/             # place grid.grd + mean_flow.dat (not shipped)
   inputs/baseflow/        # nodal .npy from prepare_baseflow.py (gitignored)
-  output/fd4_n30/         # EVP NPZ from song.py (gitignored)
+  output/fd4_n30/         # EVP NPZ from song.py (a trimmed copy ships; see step 3)
   figures/                # validation plots (shipped)
   configs/run_fd4_n30.yaml
 ```
@@ -57,7 +57,13 @@ No SBP operator dissipation (`numerics.operator_dissipation.epsilon: 0`).
 mpiexec -n 4 python -m examples.song.song --config examples/song/configs/run_fd4_n30.yaml
 ```
 
-Writes `output/fd4_n30/song_2023.npz`.
+Writes `output/fd4_n30/song_2023.npz` (430 MB: thirty eigenvectors on the full mesh).
+
+The repository ships a trimmed copy of that file at the same path, 6.6 MB: the thirty
+eigenvalues, the grid, and the leading eigenvector in single precision, which is what
+steps 4 and 5 read. Steps 4 and 5 therefore work from a fresh clone. The run above
+overwrites it with the full file. The trimmed mode figure is the same as the full one to
+one grey level in a few pixels, and the printed eigenvalues are unchanged.
 
 ### 4. Match Song's 20 reference modes
 

@@ -25,7 +25,7 @@ examples/savarino/
     savarino_map2_200pt.csv # superseded 200-pt campaign, not quoted
     savarino_map317pt.csv   # committed 317-pt campaign run record
     baseflow/               # converted .npy (savarino_to_npy.py)
-    compare/                # resolvent .npz (run_compare_points.py)
+    compare/                # the two figure points, trimmed (run_compare_points.py rewrites them in full)
     figures/                # plots (compare_modes.py, plot_gain_map.py)
   savarino_map3_200pt.csv        # 200-pt map of record, per-point jobs
   savarino_map3_lines_200pt.csv  # the same 200 points from the line driver
@@ -58,6 +58,7 @@ examples/savarino/
 | `reference/savarino_grid.csv` | Published sample-point grid (metadata). |
 | `reference/savarino_forcing_mask_measured.csv` | Forcing-region bounds (metadata). |
 | `output/figures/` | Plots from `compare_modes.py` / `plot_gain_map.py`. |
+| `output/compare/` | The two points behind the mode figures, kept to what `compare_modes.py` reads: grid, Chu weight, leading response, index maps, gain. Single precision, 5.7 MB each instead of 22 MB; the figure is unchanged and the printed Chu correlation moves by 1e-10. `run_compare_points.py` overwrites them with the full bundles. |
 
 See `reference/README.md` for details.
 
@@ -129,10 +130,12 @@ from the Zenodo mode archive.
    This asserts the file's md5, parses the Tecplot ASCII grid, converts
    conservative to primitive variables, and checks the freestream plateau
    (rho = u = T = 1) before writing anything.
-2. **Run the two comparison points** (writes `output/compare/`):
+2. **Run the two comparison points** (rewrites `output/compare/`):
    ```
    python run_compare_points.py
    ```
+   The repository already carries both points in trimmed form, so step 4 works
+   from a fresh clone without this step.
    A single point by hand, from this directory:
    ```
    LINSTABPY_CASE1_CONFIG=configs/mack_f2_b45.yaml \
