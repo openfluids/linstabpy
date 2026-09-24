@@ -38,6 +38,9 @@ def _iter_scanned_files() -> list[Path]:
                 continue
             if "__pycache__" in path.parts or path == _REGISTRY_SELF:
                 continue
+            # Run logs are frozen records of past runs, not sources that run now.
+            if path.is_relative_to(REPO_ROOT / "examples" / "logs"):
+                continue
             files.append(path)
     return files
 

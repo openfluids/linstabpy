@@ -22,6 +22,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - The STRUMPACK known issue of 1.0.0rc11 is measured again and restated
   below. It is not a rare fault of one build: it follows the thread count.
 
+### Removed
+
+- `LINSTABPY_FAST_REFACTOR`. Serial cuDSS now always refactorizes in place,
+  which has been the default since 1.0.0rc10. A run that still sets the
+  variable gets the unknown-variable warning with the reason.
+
 ### Known issues
 
 - **The STRUMPACK LU returns a wrong solve when it runs multithreaded.** The

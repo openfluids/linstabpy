@@ -12,7 +12,6 @@ It is an explicit solver-policy choice rather than an automatic fallback.
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import time
 from collections.abc import Callable
@@ -755,9 +754,8 @@ def factorize(
             X.destroy()
             B.destroy()
 
-    # The in-place path is the default for serial cuDSS. Set
-    # LINSTABPY_FAST_REFACTOR=0 to use the general path instead.
-    _fast_refactor = os.environ.get("LINSTABPY_FAST_REFACTOR", "1") != "0"
+    # Serial cuDSS always refactorizes in place. Other backends and parallel
+    # runs take the general path below.
 
     def _fast_refactorize(
         new_operator: sp.spmatrix | PETSc.Mat,
@@ -800,7 +798,7 @@ def factorize(
         nrows_new, ncols_new = _operator_shape(new_operator)
         if (nrows_new, ncols_new) != (n, n):
             raise ValueError(f"operator must keep shape ({n}, {n}), got {(nrows_new, ncols_new)}")
-        if _fast_refactor and cudss_solver is not None and A.getComm().getSize() == 1:
+        if cudss_solver is not None and A.getComm().getSize() == 1:
             indptr, indices, values = _fast_refactorize(new_operator)
             pristine_operator = new_operator
             factor_H = holder.get("factor_H")

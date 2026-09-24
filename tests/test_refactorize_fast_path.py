@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Nonzero-pattern guard of the opt-in fast refactorize path.
+"""Nonzero-pattern guard of the in-place refactorize path.
 
-``LINSTABPY_FAST_REFACTOR=1`` sends a serial cuDSS factorization down a
-short route.
+A serial cuDSS factorization always refactorizes by a short route.
 That route extracts the CSR triple once, compares the index arrays, and
 then writes the values into the same Mat.
 It keeps the symbolic factorization of the first operator.
