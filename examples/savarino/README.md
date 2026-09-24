@@ -18,7 +18,7 @@ examples/savarino/
   configs/                  # point YAMLs, grids, campaign template
   reference/
     baseflow/               # Savarino Tecplot .dat (fetched, not tracked)
-    savarino_response_*.npz
+    savarino_response_*.npz # built by pack_reference_modes.py (not tracked)
     savarino_grid.csv
     savarino_forcing_mask_measured.csv
   output/
@@ -54,7 +54,7 @@ examples/savarino/
 | `benchmarks/` | Controlled single-stage backend measurements (factor times, FP32 behaviour, tolerance ladder) with their harness scripts — see `benchmarks/README.md`. |
 | `output/savarino_map2_200pt.csv` | Earlier 200-point campaign, superseded (see step 6). |
 | `reference/baseflow/` | Savarino Tecplot mean-flow `.dat` — downloaded by `fetch_zenodo.py baseflow`, not tracked. |
-| `reference/savarino_response_*.npz` | Savarino resolvent response (Mack + lift-up). |
+| `reference/savarino_response_*.npz` | Savarino resolvent response (Mack + lift-up), built locally from the Zenodo modes by `pack_reference_modes.py`; not tracked. |
 | `reference/savarino_grid.csv` | Published sample-point grid (metadata). |
 | `reference/savarino_forcing_mask_measured.csv` | Forcing-region bounds (metadata). |
 | `output/figures/` | Plots from `compare_modes.py` / `plot_gain_map.py`. |
@@ -115,8 +115,14 @@ redistribution license, so the repository ships no file from it. Download the
 python fetch_zenodo.py baseflow
 ```
 
-Use `fetch_zenodo.py modes` only when regenerating `savarino_response_*.npz`
-from the Zenodo mode archive.
+The mode comparison (step 4) also needs the two published response modes.
+Fetch them and pack them into `reference/savarino_response_*.npz`:
+
+```
+python fetch_zenodo.py modes --f 2 --beta 45
+python fetch_zenodo.py modes --f 0.0001 --beta 163
+python pack_reference_modes.py
+```
 
 ## Workflow
 
@@ -134,8 +140,8 @@ from the Zenodo mode archive.
    ```
    python run_compare_points.py
    ```
-   The repository already carries both points in trimmed form, so step 4 works
-   from a fresh clone without this step.
+   The repository already carries both points in trimmed form, so step 4
+   needs only the Zenodo modes (see Data), not this step.
    A single point by hand, from this directory:
    ```
    LINSTABPY_CASE1_CONFIG=configs/mack_f2_b45.yaml \

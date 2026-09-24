@@ -84,6 +84,14 @@ def _require_output_npz(outputs_dir: Path, name: str, stem: str) -> Path:
 
 
 def load_savarino_response(path: Path) -> dict[str, np.ndarray]:
+    if not path.exists():
+        raise SystemExit(
+            f"missing {path}\nIt is built from the Zenodo record, which is not shipped:\n"
+            "  python fetch_zenodo.py baseflow\n"
+            "  python fetch_zenodo.py modes --f 2 --beta 45\n"
+            "  python fetch_zenodo.py modes --f 0.0001 --beta 163\n"
+            "  python pack_reference_modes.py"
+        )
     data = np.load(path)
     return {v: data[v] for v in PRIM}
 
