@@ -53,7 +53,6 @@ KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
         "LINSTABPY_MUMPS_BLR_TOL",
         "LINSTABPY_MUMPS_ORDERING",
         "LINSTABPY_AUTO_ROUTE_DOF_THRESHOLD",
-        "LINSTABPY_FAST_REFACTOR",
         # -- eigen solver family (config/typed.py EigenCfg) --
         "LINSTABPY_EIGEN_ST_SOLVER",
         "LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE",
@@ -198,6 +197,8 @@ KNOWN_INEFFECTIVE_VARS: frozenset[str] = frozenset(
         "LINSTABPY_EIGEN",
         "LINSTABPY_RESOLVENT",
         "LINSTABPY_LINSOLVE",
+        # Removed in 1.0.0: serial cuDSS always refactorizes in place.
+        "LINSTABPY_FAST_REFACTOR",
     }
 )
 
@@ -209,6 +210,7 @@ _INEFFECTIVE_HINTS: dict[str, str] = {
     "LINSTABPY_EIGEN": "family prefix, not an env var; use LINSTABPY_EIGEN_*",
     "LINSTABPY_RESOLVENT": "family prefix, not an env var; use LINSTABPY_RESOLVENT_*",
     "LINSTABPY_LINSOLVE": "family prefix, not an env var; use LINSTABPY_LINSOLVE_*",
+    "LINSTABPY_FAST_REFACTOR": "removed in 1.0.0; serial cuDSS always refactorizes in place",
 }
 
 
