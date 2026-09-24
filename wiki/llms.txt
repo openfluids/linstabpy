@@ -26,4 +26,6 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 ## Optional
 
 - [References](https://linstabpy.vercel.app/references/): Papers and manuals behind the wiki, grouped by what they justify.
-- [Repository README](https://github.com/openfluids/linstabpy#readme): Install matrix, MPI rules, example runner, troubleshooting. Same content as Getting started, repo-side.
+- [Installation](https://linstabpy.vercel.app/installation/): Full install guide: install.sh, conda, macOS, clusters, Intel MPI, GPU stacks, MPI rules.
+- [Troubleshooting](https://linstabpy.vercel.app/troubleshooting/): Known install and runtime failures with their fixes, and what to send when a machine is still broken.
+- [Repository README](https://github.com/openfluids/linstabpy#readme): Short install, example runner, numerical setup, parity with LinStab2D.

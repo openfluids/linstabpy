@@ -40,6 +40,8 @@ PAGE_MAP = {
     "/modules/": "modules/index.md",
     "/solver-glossary/": "solver-glossary.md",
     "/references/": "references.md",
+    "/installation/": "installation.md",
+    "/troubleshooting/": "troubleshooting.md",
 }
 
 _LINK_RE = re.compile(r"^- \[([^\]]+)\]\(([^)]+)\)(?::\s*(.*))?$")
