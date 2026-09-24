@@ -31,6 +31,13 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   `examples.martini` to `examples.linstab2d`. The file contents are the same
   apart from the path.
 
+### Added
+
+- `examples/odd_even/`: the script that reproduces the odd-even decoupling
+  figure of the paper (wavy-wall mesh, 81 x 41 and 161 x 81, six values of
+  epsilon), its run record `odd_even.csv`, and the figure script. It uses the
+  SciPy operator path, so it runs without PETSc.
+
 ### Removed
 
 - `LINSTABPY_FAST_REFACTOR`. Serial cuDSS now always refactorizes in place,

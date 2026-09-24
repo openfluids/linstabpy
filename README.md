@@ -231,6 +231,7 @@ For a maintainer map of where numerical policy belongs, see
 |   `-- utils/                     YAML case loader, PETSc helpers
 |-- examples/                      Public cases, figure scripts, and tracked PNGs
 |   |-- linstab2d/                 Six Martini examples and MATLAB field constructors
+|   |-- odd_even/                  Odd-even decoupling on a wavy-wall mesh (paper figure)
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
