@@ -1,0 +1,15 @@
+savarino_mapwalk sha=207d6dd machine=workstation-B slurm_job=4484 ranks=8 betas=[40.0] blas=mkl ncv=5 n_anchor=99 pin_domain=1 resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true
+beta=40.0 n_left=9 already=0
+load_mesh 8.235 s assemble 8.630 s nx=300 ny=300 ndof=450000 beta=40.0
+rebuild_BC beta=40.0 f=1.0 P_x_max=1.7954167 window=0.485 s
+point beta=40.0 f=1.0 omega=6.28319 gain=92.891802 farm=92.8918 rel_err=1.985e-08 source=factor residual=0.000e+00 rho_fwd=1.422e-13 rho_adj=5.265e-10 iters=0 factor=44.696 solve=7.175 wall=52.363 farm_wall=125.710 n_apply=13
+point beta=40.0 f=1.4 omega=8.79646 gain=156.68536 farm=156.685 rel_err=2.301e-06 source=factor residual=0.000e+00 rho_fwd=1.039e-13 rho_adj=4.040e-12 iters=0 factor=36.062 solve=5.322 wall=41.384 farm_wall=142.990 n_apply=13
+point beta=40.0 f=1.6 omega=10.0531 gain=176.26592 farm=176.266 rel_err=4.480e-07 source=factor residual=0.000e+00 rho_fwd=7.372e-14 rho_adj=6.862e-13 iters=0 factor=37.353 solve=5.320 wall=42.673 farm_wall=149.930 n_apply=13
+point beta=40.0 f=1.8 omega=11.3097 gain=184.92861 farm=184.929 rel_err=2.102e-06 source=factor residual=0.000e+00 rho_fwd=7.234e-14 rho_adj=6.826e-13 iters=0 factor=36.367 solve=5.314 wall=41.681 farm_wall=142.220 n_apply=13
+rebuild_BC beta=40.0 f=2.0 P_x_max=1.9470833 window=0.615 s
+point beta=40.0 f=2.0 omega=12.5664 gain=175.24311 farm=175.243 rel_err=6.106e-07 source=factor residual=0.000e+00 rho_fwd=7.420e-14 rho_adj=1.109e-12 iters=0 factor=36.122 solve=5.307 wall=42.064 farm_wall=134.570 n_apply=13
+point beta=40.0 f=2.1 omega=13.1947 gain=159.17999 farm=159.18 rel_err=7.462e-08 source=factor residual=0.000e+00 rho_fwd=1.296e-13 rho_adj=1.697e-12 iters=0 factor=36.628 solve=5.318 wall=41.946 farm_wall=145.900 n_apply=13
+point beta=40.0 f=2.15 omega=13.5088 gain=155.06855 farm=155.069 rel_err=2.896e-06 source=factor residual=0.000e+00 rho_fwd=3.920e-10 rho_adj=1.624e-12 iters=0 factor=36.078 solve=5.356 wall=41.434 farm_wall=148.300 n_apply=13
+point beta=40.0 f=2.2 omega=13.823 gain=153.89614 farm=153.896 rel_err=9.171e-07 source=factor residual=0.000e+00 rho_fwd=2.690e-09 rho_adj=1.459e-12 iters=0 factor=36.910 solve=5.339 wall=42.249 farm_wall=142.850 n_apply=13
+point beta=40.0 f=2.5 omega=15.708 gain=119.91299 farm=119.913 rel_err=8.194e-08 source=factor residual=0.000e+00 rho_fwd=1.585e-13 rho_adj=5.805e-12 iters=0 factor=35.510 solve=5.339 wall=40.849 farm_wall=145.810 n_apply=13
+done sha=207d6dd

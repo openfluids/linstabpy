@@ -1,0 +1,20 @@
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       303462   workstation-B  {0-39}
+Dual-factor heal did not improve the adjoint (healed 1.372e-07 >= native 2.348e-08); keeping the native transpose, which is the better of the two. Both are far below the O(1e-1) defect that indicates a wrong (plain) transpose, so the adjoint is trusted.
+Cache miss for examples/martini/example_5_paraboloid.npz; recomputing local results.
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1          7.3264    9.9585e-17    7.4596e-10
+   2         6.23073    9.4500e-17    6.7827e-10
+   3          5.6685    6.1084e-17    1.1089e-09
+                 max    9.9585e-17    1.1089e-09
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  49.438 s
+wall=49.72 s maxrss=3588708 kB

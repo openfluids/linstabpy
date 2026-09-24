@@ -1,0 +1,632 @@
+SHA=06256e4e5c427be5579186e8aec964cacf450bfe v1.0.0rc9-15-g06256e4 host=workstation-B date=2026-09-14T13:04:30+02:00
+linstabpy from <repo>/src/linstabpy/__init__.py
+Repo root: <repo>
+Python:    <venv>/bin/python
+Examples:  6 selected
+
+System settings:
+  host:                    workstation-B
+  kernel:                  Linux 5.15.0-139-generic #149~20.04.1-Ubuntu SMP Wed Apr 16 08:29:56 UTC 2025 x86_64 GNU/Linux
+  timestamp:               2026-09-14T13:04:30+02:00
+  runner process model:    serial; one Python process per example
+  selected example jobs:   6
+  available CPUs (nproc):  1
+  total CPUs (nproc all):  40
+  CPU affinity:           pid 300198's current affinity list: 0-39
+CPU topology:
+  CPU(s):                  40
+  On-line CPU(s) list:     0-39
+  Thread(s) per core:      2
+  Core(s) per socket:      10
+  Socket(s):               2
+  NUMA node(s):            2
+  Model name:              Intel(R) Xeon(R) Silver 4210R CPU @ 2.40GHz
+Thread/process environment:
+  OMP_NUM_THREADS=1
+  OMP_DYNAMIC=<unset>
+  OMP_PROC_BIND=<unset>
+  OMP_PLACES=<unset>
+  MKL_NUM_THREADS=1
+  MKL_DYNAMIC=<unset>
+  OPENBLAS_NUM_THREADS=1
+  BLIS_NUM_THREADS=<unset>
+  NUMEXPR_NUM_THREADS=1
+  VECLIB_MAXIMUM_THREADS=<unset>
+  PETSC_DIR=<unset>
+  PETSC_ARCH=<unset>
+Python numeric runtime:
+  executable: <venv>/bin/python
+  version:    3.13.13
+  numpy: 2.5.2
+  scipy: 1.18.0
+  petsc4py: 3.24.2
+  slepc4py: 3.24.2
+  NumPy BLAS/LAPACK build:
+    blas: name=scipy-openblas, version=0.3.34.0.0, found=True
+      openblas configuration: OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64
+    lapack: name=scipy-openblas, version=0.3.34.0.0, found=True
+      openblas configuration: OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64
+  threadpoolctl: unavailable (ModuleNotFoundError)
+
+══════════════════════════════════════════════════════
+  Example 0: curvilinear derivative validation
+══════════════════════════════════════════════════════
+Saved fields: <repo>/examples/martini/example_0_curvilinear_validation.npz
+example_0_curvilinear_validation  0.364 s
+  Plots: examples.martini.example_0_plots
+Wrote <repo>/examples/martini/example_0_curvilinear_mesh.png
+Wrote <repo>/examples/martini/example_0_curvilinear_validation.png
+Wrote <repo>/examples/martini/example_0_field_df_triptych.png
+Status: PASS (00m05s)
+
+══════════════════════════════════════════════════════
+  Example 1: Blasius boundary layer resolvent
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       300250   workstation-B  {0-39}
+Cache miss for examples/martini/example_1_blasius.npz; recomputing local results.
+Blasius resolvent grid: nx=300, ny=100
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         14.6571    1.0151e-16    1.1358e-13
+   2         1.89912    5.0746e-17    3.8719e-13
+   3         1.34278    8.9034e-17    1.8678e-13
+                 max    1.0151e-16    3.8719e-13
+Blasius timing: build_lnse_operator=0.74s, resolvent_analysis=27.80s
+Resolvent gains: [14.65714004  1.89911838  1.34277958]
+Results saved to <repo>/examples/martini/example_1_blasius.npz
+example_1_blasius  32.294 s
+  Plots: examples.martini.example_1_plots
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       300269   workstation-B  {0-39}
+Wrote <repo>/examples/martini/example_1_blasius_baseflow.png
+Wrote <repo>/examples/martini/example_1_blasius_modes_forcing_response_u_mosaic.png
+Wrote <repo>/examples/martini/example_1_blasius_modes_forcing_response_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_1_blasius_modes_forcing_response_v_mosaic.png
+Wrote <repo>/examples/martini/example_1_blasius_modes_forcing_response_v_imag_mosaic.png
+Status: PASS (01m06s)
+
+══════════════════════════════════════════════════════
+  Example 2: turbulent jet resolvent
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       300280   workstation-B  {0-39}
+Cache miss for examples/martini/example_2_jet.npz; recomputing local results.
+Jet mesh grid points: nz=500, nr=100, coarsen=1
+Jet velocity scales: |U|_max=9.998e-01, |V|_max=2.374e-02, |W|_max=0.000e+00
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         413.722    1.0240e-16    1.5795e-13
+   2         61.8581    1.0206e-16    2.0357e-12
+   3         50.4914    9.3357e-17    2.1576e-12
+                 max    1.0240e-16    2.1576e-12
+Resolvent gains: [413.72170482  61.85814336  50.49144207]
+Stage 1C timing: build_lnse_operator=3.06s, resolvent_analysis=60.40s
+Results saved to <repo>/examples/martini/example_2_jet.npz
+example_2_jet  70.603 s
+  Plots: examples.martini.example_2_plots
+Wrote <repo>/examples/martini/example_2_jet_baseflow.png
+Wrote <repo>/examples/martini/example_2_jet_modes_forcing_response_u_mosaic.png
+Wrote <repo>/examples/martini/example_2_jet_modes_forcing_response_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_2_jet_modes_forcing_response_v_mosaic.png
+Wrote <repo>/examples/martini/example_2_jet_modes_forcing_response_v_imag_mosaic.png
+Status: PASS (01m31s)
+
+══════════════════════════════════════════════════════
+  Example 3: streaky boundary layer (temporal + spatial)
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       300313   workstation-B  {0-39}
+
+=== Example 3 campaign: example_3_paper_temporal_Lx2pi_nP2 ===
+Cache miss or stale cache for examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz; recomputing local results.
+Cache miss for examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz; recomputing local results.
+Streaky BL grid points: Nx=200, Ny=200
+Floquet FD shift: matlab_parity
+Temporal eigenvalue residuals ||iL0 q - w q|| / (|w| ||q||):
+  [0]  w=0.57819+0.00998j   res=6.111e-12
+  [1]  w=0.57765+0.00968j   res=7.260e-12
+  [2]  w=0.59154-0.00047j   res=1.135e-11
+  [3]  w=0.59081-0.00071j   res=4.943e-12
+  [4]  w=0.62199-0.00273j   res=5.576e-12
+  [5]  w=0.62170-0.00283j   res=4.096e-12
+  [6]  w=0.62443-0.00336j   res=3.469e-12
+  [7]  w=0.62423-0.00364j   res=5.469e-12
+  [8]  w=0.62659-0.00424j   res=5.794e-12
+  [9]  w=0.62080-0.00491j   res=6.790e-12
+  [10]  w=0.62042-0.00495j   res=5.221e-12
+  [11]  w=0.62630-0.00457j   res=5.326e-12
+  [12]  w=0.63197-0.00421j   res=5.380e-12
+  [13]  w=0.61983-0.00518j   res=5.469e-12
+  [14]  w=0.63213-0.00439j   res=8.232e-12
+  [15]  w=0.61952-0.00533j   res=4.801e-12
+  [16]  w=0.62973-0.00476j   res=5.547e-12
+  [17]  w=0.62966-0.00504j   res=8.202e-12
+  [18]  w=0.62293-0.00570j   res=4.300e-12
+  [19]  w=0.62028-0.00611j   res=7.438e-12
+  [20]  w=0.53686-0.00833j   res=1.159e-11
+  [21]  w=0.62025-0.00627j   res=9.173e-12
+  [22]  w=0.62300-0.00614j   res=4.280e-12
+  [23]  w=0.61596-0.00674j   res=9.898e-12
+  [24]  w=0.61594-0.00676j   res=5.720e-12
+  [25]  w=0.53519-0.00946j   res=9.827e-12
+  [26]  w=0.61742-0.00756j   res=2.324e-11
+  [27]  w=0.62667-0.00702j   res=1.394e-11
+  [28]  w=0.61740-0.00769j   res=4.036e-11
+  [29]  w=0.61243-0.00807j   res=9.202e-12
+  [30]  w=0.61242-0.00807j   res=8.681e-12
+  [31]  w=0.62653-0.00725j   res=1.390e-11
+  [32]  w=0.62641-0.00727j   res=5.545e-12
+  [33]  w=0.62565-0.00758j   res=1.793e-11
+  [34]  w=0.63455-0.00700j   res=9.431e-12
+  [35]  w=0.61845-0.00815j   res=6.323e-11
+  [36]  w=0.61861-0.00818j   res=2.901e-11
+  [37]  w=0.63466-0.00708j   res=5.516e-12
+  [38]  w=0.62070-0.00807j   res=1.387e-11
+  [39]  w=0.62079-0.00817j   res=4.468e-11
+  [40]  w=0.63331-0.00732j   res=1.110e-11
+  [41]  w=0.62640-0.00798j   res=2.630e-11
+  [42]  w=0.63356-0.00753j   res=1.037e-11
+  [43]  w=0.62543-0.00833j   res=3.427e-11
+  [44]  w=0.62145-0.00903j   res=3.472e-11
+  [45]  w=0.62339-0.00893j   res=9.896e-12
+  [46]  w=0.63103-0.00857j   res=1.001e-11
+  [47]  w=0.61748-0.00958j   res=1.866e-11
+  [48]  w=0.63075-0.00870j   res=4.236e-11
+  [49]  w=0.62170-0.00936j   res=4.146e-11
+Results saved to <repo>/examples/martini/example_3_paper_temporal_Lx2pi_nP2.npz
+
+=== Example 3 campaign: example_3_paper_temporal_Lxpi_nfloq0 ===
+Cache miss or stale cache for examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz; recomputing local results.
+Cache miss for examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz; recomputing local results.
+Streaky BL grid points: Nx=100, Ny=200
+Floquet FD shift: matlab_parity
+Temporal eigenvalue residuals ||iL0 q - w q|| / (|w| ||q||):
+  [0]  w=0.55662+0.00815j   res=1.116e-11
+  [1]  w=0.59509+0.00103j   res=3.012e-12
+  [2]  w=0.62193-0.00284j   res=5.675e-12
+  [3]  w=0.62410-0.00341j   res=9.077e-12
+  [4]  w=0.62646-0.00439j   res=2.871e-12
+  [5]  w=0.61940-0.00516j   res=6.799e-11
+  [6]  w=0.62135-0.00509j   res=1.914e-10
+  [7]  w=0.63187-0.00437j   res=9.371e-12
+  [8]  w=0.63020-0.00499j   res=2.573e-12
+  [9]  w=0.61998-0.00581j   res=3.578e-11
+  [10]  w=0.62228-0.00612j   res=1.759e-11
+  [11]  w=0.61560-0.00696j   res=7.218e-11
+  [12]  w=0.61734-0.00766j   res=4.103e-11
+  [13]  w=0.62107-0.00749j   res=1.724e-10
+  [14]  w=0.62655-0.00715j   res=4.556e-12
+  [15]  w=0.62646-0.00758j   res=4.981e-11
+  [16]  w=0.63457-0.00708j   res=7.616e-12
+  [17]  w=0.61268-0.00858j   res=2.584e-11
+  [18]  w=0.61861-0.00828j   res=1.311e-10
+  [19]  w=0.62554-0.00791j   res=5.923e-11
+  [20]  w=0.63295-0.00793j   res=7.110e-11
+  [21]  w=0.61729-0.00901j   res=1.865e-11
+  [22]  w=0.63313-0.00844j   res=9.826e-12
+  [23]  w=0.62212-0.00938j   res=3.299e-11
+  [24]  w=0.63216-0.00884j   res=7.946e-12
+  [25]  w=0.62341-0.00987j   res=5.028e-10
+  [26]  w=0.62687-0.00966j   res=1.658e-10
+  [27]  w=0.60828-0.01090j   res=3.390e-11
+  [28]  w=0.56565-0.01241j   res=1.228e-11
+  [29]  w=0.61514-0.01071j   res=3.576e-11
+  [30]  w=0.63672-0.00931j   res=2.199e-11
+  [31]  w=0.62651-0.01013j   res=1.598e-10
+  [32]  w=0.60146-0.01163j   res=1.403e-10
+  [33]  w=0.63750-0.00939j   res=1.321e-09
+  [34]  w=0.62681-0.01038j   res=1.546e-10
+  [35]  w=0.62182-0.01079j   res=1.649e-10
+  [36]  w=0.63300-0.01002j   res=9.917e-11
+  [37]  w=0.62611-0.01059j   res=2.236e-10
+  [38]  w=0.60718-0.01173j   res=3.644e-09
+  [39]  w=0.61833-0.01123j   res=2.870e-10
+  [40]  w=0.61793-0.01179j   res=4.968e-09
+  [41]  w=0.61474-0.01216j   res=3.205e-10
+  [42]  w=0.62494-0.01163j   res=6.512e-10
+  [43]  w=0.61831-0.01239j   res=3.036e-10
+  [44]  w=0.62620-0.01198j   res=1.265e-10
+  [45]  w=0.62273-0.01223j   res=2.506e-11
+  [46]  w=0.62822-0.01187j   res=6.752e-10
+  [47]  w=0.63726-0.01125j   res=3.787e-09
+  [48]  w=0.62724-0.01217j   res=7.182e-10
+  [49]  w=0.62390-0.01248j   res=6.304e-10
+Results saved to <repo>/examples/martini/example_3_paper_temporal_Lxpi_nfloq0.npz
+
+=== Example 3 campaign: example_3_paper_temporal_Lxpi_nfloq2 ===
+Cache miss or stale cache for examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz; recomputing local results.
+Cache miss for examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz; recomputing local results.
+Streaky BL grid points: Nx=100, Ny=200
+Floquet FD shift: matlab_parity
+Temporal eigenvalue residuals ||iL0 q - w q|| / (|w| ||q||):
+  [0]  w=0.58542+0.01671j   res=1.680e-12
+  [1]  w=0.58879-0.00438j   res=5.431e-12
+  [2]  w=0.62181-0.00281j   res=7.539e-12
+  [3]  w=0.62449-0.00359j   res=9.145e-12
+  [4]  w=0.62048-0.00478j   res=2.835e-11
+  [5]  w=0.62648-0.00450j   res=4.193e-12
+  [6]  w=0.63211-0.00432j   res=6.040e-12
+  [7]  w=0.61980-0.00534j   res=7.702e-12
+  [8]  w=0.62942-0.00498j   res=1.619e-12
+  [9]  w=0.62321-0.00591j   res=1.948e-12
+  [10]  w=0.61600-0.00660j   res=3.401e-12
+  [11]  w=0.62034-0.00644j   res=7.778e-12
+  [12]  w=0.61235-0.00794j   res=1.633e-11
+  [13]  w=0.61752-0.00765j   res=8.148e-12
+  [14]  w=0.52162-0.00955j   res=7.799e-12
+  [15]  w=0.62656-0.00727j   res=2.671e-12
+  [16]  w=0.62649-0.00767j   res=5.212e-12
+  [17]  w=0.63465-0.00710j   res=4.419e-12
+  [18]  w=0.61831-0.00824j   res=3.753e-12
+  [19]  w=0.62555-0.00800j   res=6.034e-12
+  [20]  w=0.63352-0.00744j   res=5.903e-12
+  [21]  w=0.62068-0.00862j   res=6.932e-12
+  [22]  w=0.60314-0.00988j   res=7.979e-12
+  [23]  w=0.62151-0.00893j   res=1.288e-11
+  [24]  w=0.62364-0.00925j   res=7.222e-12
+  [25]  w=0.63039-0.00881j   res=2.715e-12
+  [26]  w=0.61798-0.00991j   res=1.630e-11
+  [27]  w=0.60786-0.01062j   res=8.905e-12
+  [28]  w=0.61477-0.01035j   res=1.490e-12
+  [29]  w=0.63646-0.00897j   res=4.945e-12
+  [30]  w=0.62688-0.00981j   res=6.355e-10
+  [31]  w=0.63336-0.00943j   res=9.233e-12
+  [32]  w=0.62635-0.01019j   res=1.797e-10
+  [33]  w=0.62696-0.01032j   res=9.030e-10
+  [34]  w=0.61841-0.01090j   res=3.407e-09
+  [35]  w=0.63785-0.00964j   res=4.742e-10
+  [36]  w=0.60550-0.01196j   res=6.358e-10
+  [37]  w=0.62623-0.01074j   res=9.544e-10
+  [38]  w=0.61803-0.01139j   res=3.023e-09
+  [39]  w=0.63409-0.01039j   res=3.014e-09
+  [40]  w=0.62400-0.01117j   res=1.663e-09
+  [41]  w=0.62179-0.01177j   res=1.428e-09
+  [42]  w=0.61213-0.01262j   res=2.117e-09
+  [43]  w=0.63691-0.01105j   res=1.298e-09
+  [44]  w=0.62476-0.01195j   res=2.175e-09
+  [45]  w=0.62662-0.01193j   res=1.894e-09
+  [46]  w=0.62789-0.01201j   res=1.940e-09
+  [47]  w=0.61517-0.01290j   res=8.142e-10
+  [48]  w=0.61556-0.01295j   res=5.516e-10
+  [49]  w=0.62637-0.01232j   res=2.192e-09
+Results saved to <repo>/examples/martini/example_3_paper_temporal_Lxpi_nfloq2.npz
+
+=== Example 3 campaign: example_3_paper_spatial_Lxpi_nP2 ===
+Cache miss or stale cache for examples/martini/example_3_paper_spatial_Lxpi_nP2.npz; recomputing local results.
+Cache miss for examples/martini/example_3_paper_spatial_Lxpi_nP2.npz; recomputing local results.
+Streaky BL grid points: Nx=100, Ny=200
+Floquet FD shift: matlab_parity
+Temporal eigenvalue residuals ||iL0 q - w q|| / (|w| ||q||):
+  [0]  w=0.58542+0.01671j   res=1.680e-12
+  [1]  w=0.58879-0.00438j   res=5.431e-12
+  [2]  w=0.62181-0.00281j   res=7.539e-12
+  [3]  w=0.62449-0.00359j   res=9.145e-12
+  [4]  w=0.62048-0.00478j   res=2.835e-11
+  [5]  w=0.62648-0.00450j   res=4.193e-12
+  [6]  w=0.63211-0.00432j   res=6.040e-12
+  [7]  w=0.61980-0.00534j   res=7.702e-12
+  [8]  w=0.62942-0.00498j   res=1.619e-12
+  [9]  w=0.62321-0.00591j   res=1.948e-12
+  [10]  w=0.61600-0.00660j   res=3.401e-12
+  [11]  w=0.62034-0.00644j   res=7.778e-12
+  [12]  w=0.61235-0.00794j   res=1.633e-11
+  [13]  w=0.61752-0.00765j   res=8.148e-12
+  [14]  w=0.52162-0.00955j   res=7.799e-12
+  [15]  w=0.62656-0.00727j   res=2.671e-12
+  [16]  w=0.62649-0.00767j   res=5.212e-12
+  [17]  w=0.63465-0.00710j   res=4.419e-12
+  [18]  w=0.61831-0.00824j   res=3.753e-12
+  [19]  w=0.62555-0.00800j   res=6.034e-12
+  [20]  w=0.63352-0.00744j   res=5.903e-12
+  [21]  w=0.62068-0.00862j   res=6.932e-12
+  [22]  w=0.60314-0.00988j   res=7.979e-12
+  [23]  w=0.62151-0.00893j   res=1.288e-11
+  [24]  w=0.62364-0.00925j   res=7.222e-12
+  [25]  w=0.63039-0.00881j   res=2.715e-12
+  [26]  w=0.61798-0.00991j   res=1.630e-11
+  [27]  w=0.60786-0.01062j   res=8.905e-12
+  [28]  w=0.61477-0.01035j   res=1.490e-12
+  [29]  w=0.63646-0.00897j   res=4.945e-12
+  [30]  w=0.62688-0.00981j   res=6.355e-10
+  [31]  w=0.63336-0.00943j   res=9.233e-12
+  [32]  w=0.62635-0.01019j   res=1.797e-10
+  [33]  w=0.62696-0.01032j   res=9.030e-10
+  [34]  w=0.61841-0.01090j   res=3.407e-09
+  [35]  w=0.63785-0.00964j   res=4.742e-10
+  [36]  w=0.60550-0.01196j   res=6.358e-10
+  [37]  w=0.62623-0.01074j   res=9.544e-10
+  [38]  w=0.61803-0.01139j   res=3.023e-09
+  [39]  w=0.63409-0.01039j   res=3.014e-09
+  [40]  w=0.62400-0.01117j   res=1.663e-09
+  [41]  w=0.62179-0.01177j   res=1.428e-09
+  [42]  w=0.61213-0.01262j   res=2.117e-09
+  [43]  w=0.63691-0.01105j   res=1.298e-09
+  [44]  w=0.62476-0.01195j   res=2.175e-09
+  [45]  w=0.62662-0.01193j   res=1.894e-09
+  [46]  w=0.62789-0.01201j   res=1.940e-09
+  [47]  w=0.61517-0.01290j   res=8.142e-10
+  [48]  w=0.61556-0.01295j   res=5.516e-10
+  [49]  w=0.62637-0.01232j   res=2.192e-09
+Results saved to <repo>/examples/martini/example_3_paper_spatial_Lxpi_nP2.npz
+Spatial eigenvalue residuals ||A q - a B q|| / (|a| ||q||):
+  [0]  a=0.62466+0.00469j   res=1.887e-10
+  [1]  a=0.62833-0.01812j   res=1.300e-09
+  [2]  a=0.60975+0.01042j   res=8.559e-10
+  [3]  a=0.61447+0.01793j   res=1.632e-09
+  [4]  a=0.60815+0.01192j   res=6.703e-10
+Results saved to <repo>/examples/martini/example_3_paper_spatial_Lxpi_nP2.npz
+example_3_streaky_bl  17235.993 s
+  Plots: examples.martini.example_3_plots
+Wrote <repo>/examples/martini/example_3_streaky_bl_baseflow.png (W in [-0.000, 1.000])
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lx2pi.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_nfloq0.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_nfloq2.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_spatial_run.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_spatial_Lxpi.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lx2pi_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lx2pi_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq0_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq0_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq2_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq2_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_spatial_Lxpi_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_spatial_Lxpi_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_baseflow.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lx2pi.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_nfloq0.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_nfloq2.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_temporal_Lxpi_spatial_run.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_spectrum_spatial_Lxpi.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lx2pi_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lx2pi_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq0_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq0_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq2_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_temporal_Lxpi_nfloq2_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_spatial_Lxpi_w_mosaic.png
+Wrote <repo>/examples/martini/example_3_streaky_bl_modes_spatial_Lxpi_w_imag_mosaic.png
+Status: PASS (287m47s)
+
+══════════════════════════════════════════════════════
+  Example 4: cavity direct and adjoint eigenvalues
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       302457   workstation-B  {0-39}
+Cache miss for examples/martini/example_4_cavity.npz; recomputing local results.
+Direct eigenvalue residuals ||iL0 q - omega q|| / (|omega| ||q||):
+  [0]  omega=1.53141+0.12197j   res=1.004e-12
+  [1]  omega=1.35396-0.11826j   res=5.155e-13
+  [2]  omega=1.34324-0.15885j   res=7.564e-13
+  [3]  omega=1.37993-0.17004j   res=1.538e-12
+  [4]  omega=1.80287-0.17250j   res=5.447e-13
+  [5]  omega=0.90414-0.07300j   res=8.489e-13
+  [6]  omega=0.89539-0.09956j   res=5.429e-13
+  [7]  omega=0.92134-0.11378j   res=2.735e-12
+  [8]  omega=1.33606-0.24814j   res=3.965e-13
+  [9]  omega=1.79106-0.22994j   res=6.796e-13
+  [10]  omega=1.83341-0.23355j   res=4.503e-13
+  [11]  omega=0.88677-0.17636j   res=6.815e-13
+  [12]  omega=1.34793-0.33690j   res=1.612e-12
+  [13]  omega=1.32168-0.33666j   res=7.696e-13
+  [14]  omega=1.78438-0.32860j   res=3.395e-13
+  [15]  omega=0.87538-0.23993j   res=7.277e-13
+  [16]  omega=0.89640-0.25757j   res=7.646e-13
+  [17]  omega=2.77267+0.39617j   res=5.782e-13
+  [18]  omega=1.29987-0.41913j   res=1.532e-12
+  [19]  omega=2.25138-0.23558j   res=3.736e-13
+  [20]  omega=1.79327-0.42454j   res=2.031e-12
+  [21]  omega=0.85579-0.31999j   res=6.040e-13
+  [22]  omega=1.76828-0.44519j   res=1.940e-12
+  [23]  omega=0.45268-0.03690j   res=1.664e-12
+  [24]  omega=0.44766-0.05137j   res=3.320e-12
+  [25]  omega=0.46064-0.06538j   res=4.663e-12
+  [26]  omega=2.24045-0.31258j   res=8.230e-13
+  [27]  omega=2.28403-0.30483j   res=6.239e-13
+  [28]  omega=0.43763-0.11196j   res=1.312e-12
+  [29]  omega=1.74058-0.52439j   res=5.090e-13
+  [30]  omega=1.29696-0.53457j   res=2.198e-12
+  [31]  omega=0.43042-0.15146j   res=1.056e-12
+  [32]  omega=0.86434-0.44666j   res=3.053e-12
+  [33]  omega=0.83047-0.43307j   res=2.356e-12
+  [34]  omega=0.44057-0.17903j   res=3.323e-12
+  [35]  omega=1.27096-0.56927j   res=8.055e-13
+  [36]  omega=2.23106-0.41768j   res=5.975e-13
+  [37]  omega=1.02666-0.54944j   res=1.394e-12
+  [38]  omega=0.68119-0.39881j   res=1.897e-12
+  [39]  omega=0.78177-0.45884j   res=3.457e-13
+  [40]  omega=0.40746-0.21598j   res=3.390e-12
+  [41]  omega=1.24036-0.61461j   res=1.974e-12
+  [42]  omega=1.73242-0.64159j   res=1.867e-12
+  [43]  omega=0.72291-0.46873j   res=2.380e-12
+  [44]  omega=0.43578-0.27782j   res=9.021e-11
+  [45]  omega=2.23660-0.51585j   res=5.556e-13
+  [46]  omega=0.52055-0.37468j   res=4.559e-09
+  [47]  omega=0.39483-0.28443j   res=6.096e-11
+  [48]  omega=0.89718-0.58408j   res=5.758e-10
+  [49]  omega=1.16314-0.66731j   res=2.500e-12
+Adjoint eigenvalue residuals ||L0^H (Wq) - omega_adj (Wq)|| / (|omega_adj| ||Wq||):
+  [0]  omega_adj=0.12197+1.53141j   res=4.858e-12
+  [1]  omega_adj=-0.11826+1.35396j   res=2.503e-11
+  [2]  omega_adj=-0.15885+1.34324j   res=5.355e-12
+  [3]  omega_adj=-0.17004+1.37993j   res=9.028e-12
+  [4]  omega_adj=-0.17250+1.80287j   res=1.509e-11
+  [5]  omega_adj=-0.07300+0.90414j   res=2.850e-11
+  [6]  omega_adj=-0.09956+0.89539j   res=4.045e-12
+  [7]  omega_adj=-0.11378+0.92134j   res=1.175e-12
+  [8]  omega_adj=-0.24814+1.33606j   res=2.770e-11
+  [9]  omega_adj=-0.22994+1.79106j   res=2.268e-12
+  [10]  omega_adj=-0.23355+1.83341j   res=6.029e-12
+  [11]  omega_adj=-0.17636+0.88677j   res=3.970e-11
+  [12]  omega_adj=-0.33690+1.34793j   res=2.679e-12
+  [13]  omega_adj=-0.33666+1.32168j   res=8.208e-12
+  [14]  omega_adj=-0.32860+1.78438j   res=2.454e-11
+  [15]  omega_adj=-0.23993+0.87538j   res=1.278e-11
+  [16]  omega_adj=-0.25757+0.89640j   res=1.549e-11
+  [17]  omega_adj=0.39617+2.77267j   res=4.850e-12
+  [18]  omega_adj=-0.41913+1.29987j   res=2.574e-11
+  [19]  omega_adj=-0.23558+2.25138j   res=2.372e-11
+  [20]  omega_adj=-0.42454+1.79327j   res=2.505e-12
+  [21]  omega_adj=-0.31999+0.85579j   res=1.809e-11
+  [22]  omega_adj=-0.44519+1.76828j   res=4.740e-12
+  [23]  omega_adj=-0.03690+0.45268j   res=7.083e-11
+  [24]  omega_adj=-0.05137+0.44766j   res=1.496e-11
+  [25]  omega_adj=-0.06538+0.46064j   res=2.093e-11
+  [26]  omega_adj=-0.31258+2.24045j   res=3.179e-12
+  [27]  omega_adj=-0.30483+2.28403j   res=3.416e-13
+  [28]  omega_adj=-0.11196+0.43763j   res=6.430e-11
+  [29]  omega_adj=-0.52439+1.74058j   res=9.377e-12
+  [30]  omega_adj=-0.53457+1.29696j   res=2.357e-12
+  [31]  omega_adj=-0.15146+0.43042j   res=2.505e-12
+  [32]  omega_adj=-0.44666+0.86434j   res=4.489e-12
+  [33]  omega_adj=-0.43307+0.83047j   res=6.535e-12
+  [34]  omega_adj=-0.17903+0.44057j   res=1.675e-11
+  [35]  omega_adj=-0.56927+1.27096j   res=4.486e-12
+  [36]  omega_adj=-0.41768+2.23106j   res=2.097e-11
+  [37]  omega_adj=-0.54944+1.02666j   res=1.848e-12
+  [38]  omega_adj=-0.39881+0.68119j   res=4.618e-12
+  [39]  omega_adj=-0.45884+0.78177j   res=3.732e-11
+  [40]  omega_adj=-0.21598+0.40746j   res=4.712e-11
+  [41]  omega_adj=-0.61461+1.24036j   res=2.001e-11
+  [42]  omega_adj=-0.64159+1.73242j   res=5.498e-12
+  [43]  omega_adj=-0.46873+0.72291j   res=1.049e-11
+  [44]  omega_adj=-0.27782+0.43578j   res=5.370e-09
+  [45]  omega_adj=-0.51585+2.23660j   res=2.304e-12
+  [46]  omega_adj=-0.37468+0.52055j   res=1.744e-08
+  [47]  omega_adj=-0.28443+0.39483j   res=2.947e-09
+  [48]  omega_adj=-0.58408+0.89718j   res=4.419e-09
+  [49]  omega_adj=-0.66731+1.16314j   res=8.549e-11
+Results saved to <repo>/examples/martini/example_4_cavity.npz
+example_4_cavity  230.255 s
+  Plots: examples.martini.example_4_plots
+Wrote <repo>/examples/martini/example_4_cavity_baseflow.png (u in [-0.228, 1.014])
+Wrote <repo>/examples/martini/example_4_cavity_spectrum_direct.png
+Wrote <repo>/examples/martini/example_4_cavity_spectrum_adjoint.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_u_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_v_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_v_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_w_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_u_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_v_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_v_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_w_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_baseflow.png
+Wrote <repo>/examples/martini/example_4_cavity_spectrum_direct.png
+Wrote <repo>/examples/martini/example_4_cavity_spectrum_adjoint.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_u_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_v_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_v_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_w_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_direct_w_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_u_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_v_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_v_imag_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_w_mosaic.png
+Wrote <repo>/examples/martini/example_4_cavity_modes_adjoint_w_imag_mosaic.png
+Status: PASS (04m31s)
+
+══════════════════════════════════════════════════════
+  Example 5: paraboloid resolvent
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       302504   workstation-B  {0-39}
+Cache miss for examples/martini/example_5_paraboloid.npz; recomputing local results.
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1          7.3264    4.6078e-17    3.3328e-12
+   2         6.23073    1.0835e-16    2.0598e-12
+   3          5.6685    7.8611e-17    2.6557e-10
+                 max    1.0835e-16    2.6557e-10
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  17.548 s
+  Plots: examples.martini.example_5_plots
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       302514   workstation-B  {0-39}
+Wrote <repo>/examples/martini/example_5_paraboloid_baseflow.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_u_mosaic.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_u_imag_mosaic.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_v_mosaic.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_v_imag_mosaic.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_w_mosaic.png
+Wrote <repo>/examples/martini/example_5_paraboloid_modes_forcing_response_w_imag_mosaic.png
+Status: PASS (01m12s)
+
+══════════════════════════════════════════════════════
+  Parity comparison (Python vs MATLAB)
+══════════════════════════════════════════════════════
+MPI startup(): PMI server not found. Please set I_MPI_PMI_LIBRARY variable if it is not a singleton case.
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       302528   workstation-B  {0-39}
+Martini parity comparison: counts={'PASS': 4, 'SOFT_FAIL': 2} report=<repo>/examples/martini/martini_parity_latest.json table=<repo>/examples/martini/martini_parity_table.csv
+Status: PASS
+
+Summary:
+  Passed examples: 6/6
+  Failed examples: none
+
+Done.
+=== parity table
+case_id,label,comparison_scope,status,gain_max_abs,gain_max_rel,forcing_max_rel_l2,response_max_rel_l2,direct_spec_max_abs,direct_spec_max_rel,direct_mode_max_rel_l2,adjoint_spec_max_abs,adjoint_spec_max_rel,adjoint_mode_max_rel_l2,temporal_spec_max_abs,temporal_spec_max_rel,temporal_mode_max_rel_l2,spatial_spec_max_abs,spatial_spec_max_rel,matlab_df_linf,matlab_df_rel_l2,python_protocol_pass,note
+example_0_curvilinear_derivative,Example 0: curvilinear derivative test,direct,PASS,,,,,,,,,,,,,,,,0.00040853754847297585,0.00017411655026756595,True,"Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative."
+example_1_blasius,Example 1: Blasius resolvent,direct,PASS,2.857056813354575e-10,1.949259408408647e-11,9.772620594849077e-11,1.0548916311099759e-10,,,,,,,,,,,,,,,
+example_2_jet,Example 2: jet resolvent,direct,SOFT_FAIL,6.960476639505941e-10,3.3010329812539465e-12,6.931020604323841e-12,0.2121267950933605,,,,,,,,,,,,,,,
+example_3_streaky_bl,Example 3: streaky boundary layer,temporal_and_spatial,PASS,,,,,,,,,,,,,,,,,,,
+example_4_cavity,Example 4: cavity direct and adjoint spectra,direct,SOFT_FAIL,,,,,9.200904571000175e-06,5.989196179614266e-06,0.99808247089686,9.200904603078847e-06,5.9891962004956066e-06,0.9934955781977562,,,,,,,,,
+example_5_paraboloid,Example 5: paraboloid resolvent,direct,PASS,0.00010140670271319152,1.3841465176229056e-05,0.00022500568408330478,0.00033922694352086553,,,,,,,,,,,,,,,
+DONE 2026-09-14T18:00:56+02:00
