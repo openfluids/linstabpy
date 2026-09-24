@@ -7,6 +7,53 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Fixed
+
+- `limit_strumpack_host_threads()` sets the OpenMP thread count to one
+  before the first STRUMPACK factorization, because the library is not thread
+  safe. It runs one time for each process, writes one line in the log, and
+  warns instead of failing where `libgomp` does not load. MUMPS, cuDSS and the
+  BLAS are untouched, so only the STRUMPACK host work becomes serial: 4.10 s
+  against 3.64 s on the small test problem, unmeasured on a production
+  operator.
+
+### Changed
+
+- The STRUMPACK known issue of 1.0.0rc11 is measured again and restated
+  below. It is not a rare fault of one build: it follows the thread count.
+
+### Known issues
+
+- **The STRUMPACK LU returns a wrong solve when it runs multithreaded.** The
+  GPU is not needed for it and a newer STRUMPACK does not fix it. Reproducer:
+  factor `K = L0 - sigma*I` for the Blasius temporal problem (750 unknowns,
+  sigma = -0.1j) and measure the probe residual on a seeded right-hand side;
+  sixteen fresh processes per arm, one A6000, one script across two builds.
+
+                              PETSc 3.24.2            PETSc 3.25.5
+                              STRUMPACK v8.0.0        STRUMPACK master
+      one thread, GPU on      2.102e-10 x16           2.102e-10 x16
+      ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad
+      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad
+
+  One thread gives the same value sixteen times, and the same value on both
+  builds. Ten threads scatter on both builds whether the card is used or not.
+  PETSc 3.25.5 pins STRUMPACK master of May 2026, eighteen months and 24
+  commits after the v8.0.0 tag, including one that sets the CUDA device per
+  OpenMP thread; the fault survives it. Upstream's own TODO says the library
+  "is not completely thread safe at the moment".
+
+  The error reaches the answer. Through FGMRES with a STRUMPACK
+  preconditioner, the five leading eigenvalues of the same example missed the
+  MUMPS reference by 1.1e-11 to 6.9e-9 on ten threads, two runs of eight above
+  1e-9, against 2.209e-11 eight times out of eight on one thread. MUMPS on ten
+  threads stayed at 1e-11.
+
+  LinStabPy now sets the STRUMPACK OpenMP thread count to one itself; see
+  Fixed above. The accuracy probe stays behind it, and so does the FGMRES residual
+  check on the answer, which is what keeps a bad factorization out of a
+  published number.
+
 ## [1.0.0rc11] - 2026-09-17
 
 ### Fixed
@@ -43,13 +90,6 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   the Zenodo base flow and modes were not in the tree, which is the state of
   a fresh clone because their licence does not allow redistribution. It
   prints the two fetch commands and stops, like `run_compare_points.py`.
-- `limit_strumpack_host_threads()` sets the OpenMP thread count to one
-  before the first STRUMPACK factorization, because the library is not thread
-  safe. It runs one time for each process, writes one line in the log, and
-  warns instead of failing where `libgomp` does not load. MUMPS, cuDSS and the
-  BLAS are untouched, so only the STRUMPACK host work becomes serial: 4.10 s
-  against 3.64 s on the small test problem, unmeasured on a production
-  operator.
 
 ### Changed
 
@@ -59,35 +99,17 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Known issues
 
-- **The STRUMPACK LU returns a wrong solve when it runs multithreaded.** The
-  GPU is not needed for it and a newer STRUMPACK does not fix it. Reproducer:
-  factor `K = L0 - sigma*I` for the Blasius temporal problem (750 unknowns,
-  sigma = -0.1j) and measure the probe residual on a seeded right-hand side;
-  sixteen fresh processes per arm, one A6000, one script across two builds.
-
-                              PETSc 3.24.2            PETSc 3.25.5
-                              STRUMPACK v8.0.0        STRUMPACK master
-      one thread, GPU on      2.102e-10 x16           2.102e-10 x16
-      ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad
-      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad
-
-  One thread gives the same value sixteen times, and the same value on both
-  builds. Ten threads scatter on both builds whether the card is used or not.
-  PETSc 3.25.5 pins STRUMPACK master of May 2026, eighteen months and 24
-  commits after the v8.0.0 tag, including one that sets the CUDA device per
-  OpenMP thread; the fault survives it. Upstream's own TODO says the library
-  "is not completely thread safe at the moment".
-
-  The error reaches the answer. Through FGMRES with a STRUMPACK
-  preconditioner, the five leading eigenvalues of the same example missed the
-  MUMPS reference by 1.1e-11 to 6.9e-9 on ten threads, two runs of eight above
-  1e-9, against 2.209e-11 eight times out of eight on one thread. MUMPS on ten
-  threads stayed at 1e-11.
-
-  LinStabPy now sets the STRUMPACK OpenMP thread count to one itself; see
-  Fixed. The accuracy probe stays behind it, and so does the FGMRES residual
-  check on the answer, which is what keeps a bad factorization out of a
-  published number.
+- **The STRUMPACK LU returns a wrong solve about one run in three on this
+  build.** Measured at the shift-invert probe of the Blasius temporal
+  problem, sixteen fresh processes on byte-identical input (c9, one A6000,
+  PETSc 3.24.2): eleven runs gave a relative residual of 6.3e-13 to 8.7e-12
+  and five gave 1.9e-5, 2.9e-5, 3.0e-5, 6.7e-2 and 1.1e-1. Nothing in the
+  input varies: the probe right-hand side is seeded and the mesh is fixed.
+  The accuracy probe rejects every bad solve, which is what it exists for,
+  and the eigenvalue and resolvent paths refine with FGMRES and check the
+  residual afterwards, so a bad factorization cannot reach a published
+  number. The cause is not established. Prefer MUMPS or cuDSS for
+  production work on this build until it is.
 
 
 ## [1.0.0rc10] - 2026-09-15
