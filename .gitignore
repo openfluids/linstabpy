@@ -16,6 +16,8 @@ build/
 # Shipped reference fields for the public cases (other examples).
 !examples/song/reference/**/*.npz
 !examples/savarino/reference/**/*.npz
+# Repackaged from the Savarino Zenodo modes (no redistribution license): built locally.
+examples/savarino/reference/savarino_response_*.npz
 !examples/sawtooth/*.npz
 # Shipped example PNGs (curated only — not regenerated validation figures).
 !examples/**/*.png
