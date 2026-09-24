@@ -1,0 +1,2 @@
+beta_Xsh,f_Xsh_Uinf,gain,farm_gain,farm_wall_s,rel_err,walk_source,residual,rho_fwd,rho_adj,iterations,factor_s,solve_s,wall_s,window_s,P_x_max,n_factor,last_n_applies,ndof,peak_rss_bytes,epsilon,stride,ranks,backend,blas,ncv,n_anchor,pin_domain,git_sha,slurm_job,machine
+15.0,0.0001,32.77741955,32.7774,149.09,5.964538e-07,factor,0.0,1.3575e-09,1.4960e-12,0,72.8540,20.0999,93.4379,0.4759,1.7954167,1,19,450000,20425326592,0.0,1,4,mumps,mkl,5,99,1,207d6dd,3838,workstation-B

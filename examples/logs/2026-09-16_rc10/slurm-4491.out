@@ -1,0 +1,152 @@
+TAG=v1.0.0rc10 SHA=207d6dd1949dd41c7badd5b9c3ced8928fd8b44a host=workstation-B date=2026-09-16T19:05:19+02:00
+linstabpy from <repo>/src/linstabpy/__init__.py
+=== prepare_baseflow (shipped: velocity / U_inf) 2026-09-16T19:05:19+02:00
+Reference: M=2.15, rho_inf=0.0246 kg/m^3, p_inf=1082.0 Pa, T_inf=153.33 K, gamma=1.4, L=80.0 mm, U_inf=533.5174 m/s (from M and gamma,p,rho)
+Wrote baseflow to <repo>/examples/song/inputs/baseflow (shape 599 x 301)
+shape (599, 301) u [-0.1261, 1.0002] T [1.0000, 1.8300] rho [0.5806, 1.5140]
+freestream-1 gate OK
+=== song.py run_fd4_n30 (4 ranks) 2026-09-16T19:05:21+02:00
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       1697363  workstation-B  {0-39}
+[0] MPI startup(): 1       1697364  workstation-B  {0-39}
+[0] MPI startup(): 2       1697365  workstation-B  {0-39}
+[0] MPI startup(): 3       1697366  workstation-B  {0-39}
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] +    0.00s starting run (beta=19.200, St=0.000, omega_target=+0.000000e+00+0.000000e+00j, fd_order=4, stride=(1,1), stability=True, resolvent=False)
+[song_2023] +    0.00s runtime mode (mpi_ranks=4, petsc_matrix_mode=distributed, distributed_matrix=True)
+[song_2023] +    0.00s loading baseflow and sponge fields
+[song_2023] +    0.04s loaded baseflow on grid ny=301, nx=599
+[song_2023] +    0.04s baseflow preprocessing: disabled
+[song_2023] +    0.04s building and deforming mesh
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] +    1.44s mesh built with ngp=180299
+[song_2023] +    1.44s assembling LNSE operator and boundary conditions
+[song_2023] +  109.18s PETSc operator (type=mpiaij, ownership_ranges=[(0, 225374), (225374, 450748), (450748, 676122), (676122, 901495)])
+[song_2023] +  109.18s assembled operator shape=(901495, 901495), nnz=47823956
+[song_2023] +  109.18s building Chu energy norm
+[song_2023] +  109.20s Chu norm built with 901495 weights
+[song_2023] +  109.20s starting stability eigensolve for 30 modes at omega_target=0
+[song_2023] +  427.91s finished stability eigensolve; nearest eigenvalue to target is -2.802846e-16+5.617583e-02j
+[song_2023] +  427.91s saving output to <repo>/examples/song/configs/../output/fd4_n30/song_2023.npz
+[song_2023] run finished in 447.67s, output=<repo>/examples/song/configs/../output/fd4_n30/song_2023.npz
+[song_2023] step timings (s) and memory deltas (MiB):
+  - load_baseflow       : t[min/mean/max]=(0.039, 0.040, 0.040) s, Δmem[min/mean/max]=(21.50, 21.57, 21.75) MiB, share=0.0%
+  - build_mesh          : t[min/mean/max]=(1.359, 1.390, 1.401) s, Δmem[min/mean/max]=(605.85, 606.51, 606.88) MiB, share=0.3%
+  - assemble_operator_bc: t[min/mean/max]=(107.727, 107.739, 107.744) s, Δmem[min/mean/max]=(3377.15, 3454.00, 3557.32) MiB, share=24.1%
+  - chu_norm            : t[min/mean/max]=(0.010, 0.014, 0.016) s, Δmem[min/mean/max]=(0.00, 0.00, 0.00) MiB, share=0.0%
+  - stability           : t[min/mean/max]=(318.552, 318.662, 318.710) s, Δmem[min/mean/max]=(5666.90, 5885.92, 6216.95) MiB, share=71.2%
+  - save_output         : t[min/mean/max]=(19.761, 19.761, 19.761) s, Δmem[min/mean/max]=(0.00, 0.00, 0.00) MiB, share=4.4%
+[song_2023] peak memory summary: rank0=9792.12 MiB, max-rank=10518.29 MiB, sum-ranks=40336.65 MiB
+[song_2023] overall Δmem since start (rank 0): 9672.46 MiB
+[song_2023] stats written to <repo>/examples/song/configs/../output/fd4_n30/song_2023.log
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+=== report_matched20 2026-09-16T19:12:58+02:00
+Song 20 modes  LinStabPy 30 modes  Hungarian pairs 20  within |Δω|=0.01: 20/20  max|Δω|=0.006168  mean|Δω|=0.003288
+lead Song -0.000000+0.054171j  nearest LinStabPy -0.000000+0.056176j  |Δ|=0.002004
+npz <repo>/examples/song/output/fd4_n30/song_2023.npz
+  ref[ 0] -0.000000+0.054171j  py[ 0] -0.000000+0.056176j  |Δω|=0.002004
+  ref[ 1] -0.000000-0.109141j  py[ 1] -0.000000-0.108940j  |Δω|=0.0002017
+  ref[ 2] -0.325638-0.291982j  py[ 2] -0.326293-0.291527j  |Δω|=0.0007969
+  ref[ 3] 0.325638-0.291982j  py[ 3] 0.326293-0.291527j  |Δω|=0.0007969
+  ref[ 4] -0.595547-0.428743j  py[ 6] -0.599490-0.433202j  |Δω|=0.005952
+  ref[ 5] -0.637255-0.444137j  py[ 8] -0.639656-0.441693j  |Δω|=0.003426
+  ref[ 6] 0.000000-0.692876j  py[ 4] -0.000000-0.687690j  |Δω|=0.005186
+  ref[ 7] -0.000000-0.716732j  py[ 5] -0.000000-0.717411j  |Δω|=0.000679
+  ref[ 8] 0.595547-0.428743j  py[ 7] 0.599490-0.433202j  |Δω|=0.005952
+  ref[ 9] 0.637255-0.444137j  py[ 9] 0.639656-0.441693j  |Δω|=0.003426
+  ref[10] 0.855385-0.639178j  py[11] 0.856670-0.640146j  |Δω|=0.001609
+  ref[11] -0.855385-0.639178j  py[10] -0.856670-0.640146j  |Δω|=0.001609
+  ref[12] 1.142216-0.574855j  py[19] 1.140126-0.578474j  |Δω|=0.004179
+  ref[13] 0.401838-1.026569j  py[14] 0.407347-1.023794j  |Δω|=0.006168
+  ref[14] -1.142216-0.574855j  py[18] -1.140126-0.578474j  |Δω|=0.004179
+  ref[15] 0.000000-1.079775j  py[12] -0.000000-1.077865j  |Δω|=0.00191
+  ref[16] -0.401838-1.026569j  py[13] -0.407347-1.023794j  |Δω|=0.006168
+  ref[17] 0.365876-1.197656j  py[17] 0.369460-1.194696j  |Δω|=0.004648
+  ref[18] -1.076886-0.837301j  py[20] -1.078063-0.839182j  |Δω|=0.002219
+  ref[19] -0.365876-1.197656j  py[16] -0.369460-1.194696j  |Δω|=0.004648
+=== control: same field with velocity / c_inf (--mach 1.0) 2026-09-16T19:12:59+02:00
+Reference: M=2.15, rho_inf=0.0246 kg/m^3, p_inf=1082.0 Pa, T_inf=153.33 K, gamma=1.4, L=80.0 mm, U_inf=533.5174 m/s (from M and gamma,p,rho)
+Wrote baseflow to <repo>/examples/song/inputs_cinf/baseflow (shape 599 x 301)
+control u [-0.2711, 2.1505] T [1.0000, 1.8300]
+4:  fields: ../inputs_cinf/baseflow
+5:  output_npz: ../output/fd4_n30_cinf/song_2023.npz
+51:    fields: [rho, u, v, T]
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       1697738  workstation-B  {0-39}
+[0] MPI startup(): 1       1697739  workstation-B  {0-39}
+[0] MPI startup(): 2       1697740  workstation-B  {0-39}
+[0] MPI startup(): 3       1697741  workstation-B  {0-39}
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] +    0.00s starting run (beta=19.200, St=0.000, omega_target=+0.000000e+00+0.000000e+00j, fd_order=4, stride=(1,1), stability=True, resolvent=False)
+[song_2023] +    0.00s runtime mode (mpi_ranks=4, petsc_matrix_mode=distributed, distributed_matrix=True)
+[song_2023] +    0.00s loading baseflow and sponge fields
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] configuration frequency target: source=legacy St with omega_scale=2π, St=0, omega_target=+0.000000e+00+0.000000e+00j
+[song_2023] operator dissipation: disabled (epsilon=0)
+[song_2023] +    0.05s loaded baseflow on grid ny=301, nx=599
+[song_2023] +    0.05s baseflow preprocessing: disabled
+[song_2023] +    0.05s building and deforming mesh
+[song_2023] +    1.69s mesh built with ngp=180299
+[song_2023] +    1.69s assembling LNSE operator and boundary conditions
+[song_2023] +  114.67s PETSc operator (type=mpiaij, ownership_ranges=[(0, 225374), (225374, 450748), (450748, 676122), (676122, 901495)])
+[song_2023] +  114.67s assembled operator shape=(901495, 901495), nnz=47823926
+[song_2023] +  114.67s building Chu energy norm
+[song_2023] +  114.69s Chu norm built with 901495 weights
+[song_2023] +  114.69s starting stability eigensolve for 30 modes at omega_target=0
+[song_2023] +  458.02s finished stability eigensolve; nearest eigenvalue to target is -1.461596e-16-9.544973e-02j
+[song_2023] +  458.02s saving output to <repo>/examples/song/configs/../output/fd4_n30_cinf/song_2023.npz
+[song_2023] run finished in 478.00s, output=<repo>/examples/song/configs/../output/fd4_n30_cinf/song_2023.npz
+[song_2023] step timings (s) and memory deltas (MiB):
+  - load_baseflow       : t[min/mean/max]=(0.045, 0.046, 0.046) s, Δmem[min/mean/max]=(21.46, 21.56, 21.65) MiB, share=0.0%
+  - build_mesh          : t[min/mean/max]=(1.646, 1.649, 1.654) s, Δmem[min/mean/max]=(604.55, 606.15, 607.36) MiB, share=0.3%
+  - assemble_operator_bc: t[min/mean/max]=(112.968, 112.974, 112.978) s, Δmem[min/mean/max]=(3375.97, 3453.26, 3556.73) MiB, share=23.6%
+  - chu_norm            : t[min/mean/max]=(0.018, 0.018, 0.019) s, Δmem[min/mean/max]=(0.00, 0.00, 0.00) MiB, share=0.0%
+  - stability           : t[min/mean/max]=(342.961, 343.253, 343.368) s, Δmem[min/mean/max]=(5793.47, 6042.57, 6396.34) MiB, share=71.8%
+  - save_output         : t[min/mean/max]=(19.978, 19.978, 19.978) s, Δmem[min/mean/max]=(0.00, 0.00, 0.00) MiB, share=4.2%
+[song_2023] peak memory summary: rank0=9915.64 MiB, max-rank=10700.56 MiB, sum-ranks=40960.43 MiB
+[song_2023] overall Δmem since start (rank 0): 9797.75 MiB
+[song_2023] stats written to <repo>/examples/song/configs/../output/fd4_n30_cinf/song_2023.log
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song_baseflow.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+Figure saved to examples/song/song_support_direct_modes.png
+DONE 2026-09-16T19:21:08+02:00

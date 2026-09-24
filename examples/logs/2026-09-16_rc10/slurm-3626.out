@@ -1,0 +1,91 @@
+SHA=207d6dd1949dd41c7badd5b9c3ced8928fd8b44a  BETA=0.0  F=0.0001
+resolution=full-res 300x300 stride=1  epsilon=0  leak=rectilinear
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       887074   workstation-B  {0-39}
+[0] MPI startup(): 1       887075   workstation-B  {0-39}
+[0] MPI startup(): 2       887076   workstation-B  {0-39}
+[0] MPI startup(): 3       887077   workstation-B  {0-39}
+[linstabpy] starting compute
+[linstabpy] loaded config: <runs>/map200_cpu_farm/configs/sav_map_b0p0_f0p0001.yaml
+[linstabpy] config: case_dir=<repo>/examples/savarino/output/baseflow fd_order=4 n_modes=20 run_stability=False run_resolvent=True raw_eigs=False zero_mu_t_derivs=False alpha_filter=0.0 sponge_request=baseflow_file
+[linstabpy] solver setup: mpi_ranks=4 st_solver=mumps resolvent_solver=mumps root_assembly=False matrix_mode=distributed
+[linstabpy] ========================================================================
+[linstabpy] linstabpy run configuration (effective)
+[linstabpy] ------------------------------------------------------------------------
+[linstabpy]   case_dir             : <repo>/examples/savarino/output/baseflow
+[linstabpy]   mpi_ranks            : 4
+[linstabpy]   stride (ksi, eta)    : 1, 1
+[linstabpy]   fd_order             : 4
+[linstabpy]   beta                 : 0.0
+[linstabpy]   omega_target         : (0.0006283185307179586+0j)
+[linstabpy]   stages               : stability=False resolvent=True
+[linstabpy]   dissipation enabled  : False
+[linstabpy]   epsilon (requested)  : 0.0
+[linstabpy]   epsilon -> stability : 0.0
+[linstabpy]   epsilon -> resolvent : 0.0
+[linstabpy]   st_solver            : mumps
+[linstabpy]   factor_backend       : mumps
+[linstabpy]   git_sha              : 207d6dd1949dd41c7badd5b9c3ced8928fd8b44a
+[linstabpy] ========================================================================
+[linstabpy] preflight advisories: 1
+[linstabpy]   [WARNING] DISS-ABSENT: no artificial dissipation: on a mesh whose two directions exchange grid-scale content, the bare operator admits an odd-even (sawtooth) mode that contaminates eigenvalues and gains
+[linstabpy]            -> check the mesh with metric_cross_coupling(): above 1e-08 enable numerics.operator_dissipation and tune epsilon AT THIS MESH (a value tuned on another grid does not transfer); at or below it, record the coupling and run undamped on purpose
+[linstabpy] loaded case arrays: shape=(300, 300), points=90000, sponge_source=off, sponge_max=0, sponge_nnz=0
+[linstabpy] stage complete: stage=load_case elapsed=0.02s rss_peak_delta_bytes=11415552
+[linstabpy] base-flow normalisation: 1
+[linstabpy]   [WARNING] BASEFLOW-NORMALISATION: base flow does not look normalised to the canonical freestream (rho = u = T = 1): max|rho| = 1.38786; max|T| = 1.81051
+[linstabpy]            -> rescale to velocity/U_inf and T/T_inf (NOT /c_inf, NOT T*Ma^2); a mis-scaled base flow invalidates every eigenvalue and gain from this run
+[linstabpy] stage complete: stage=build_mesh elapsed=9.50s rss_peak_delta_bytes=409096192
+[linstabpy] assembling LNSE operator
+[linstabpy] operator assembled with BCs: shape=(450000, 450000), nnz=20112825
+[linstabpy] stage complete: stage=assemble_operator_bc elapsed=15.18s rss_peak_delta_bytes=1572155392
+[linstabpy] reusing stability LNSE operator for resolvent (eps_stab == eps_resolv == 0.0)
+[linstabpy] bc analysis: dirichlet_total=4191 effective_dirichlet=4181 effective_neumann=1799 cross_type_overlap=10
+[linstabpy] stage complete: stage=compute_chu_norm elapsed=0.01s rss_peak_delta_bytes=0
+[linstabpy] running resolvent: omega_target=0.00062831853+0j, modes=1
+[linstabpy] stage heartbeat: stage=resolvent elapsed=48.28s
+[linstabpy] stage heartbeat: stage=resolvent elapsed=78.40s
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         63.8906    6.4733e-09    5.0201e-12
+                 max    6.4733e-09    5.0201e-12
+   1         63.8906    6.4733e-09    5.0201e-12
+                 max    6.4733e-09    5.0201e-12
+   1         63.8906    6.4733e-09    5.0201e-12
+                 max    6.4733e-09    5.0201e-12
+   1         63.8906    6.4733e-09    5.0201e-12
+                 max    6.4733e-09    5.0201e-12
+[linstabpy] resolvent analysis finished
+[linstabpy] stage complete: stage=resolvent elapsed=90.11s rss_peak_delta_bytes=2089943040
+[linstabpy] resolvent postcheck: rho_fwd_max=6.473e-09 rho_adj_max=5.020e-12
+[linstabpy] ========================================================================
+[linstabpy] linstabpy run summary
+[linstabpy] ------------------------------------------------------------------------
+[linstabpy]   ndof                             : 450000
+[linstabpy]   leading gain                     : 63.8906
+[linstabpy]   eigenvalues returned             : 0
+[linstabpy]   resolvent residual (fwd, adj)    : 6.473e-09, 5.020e-12
+[linstabpy]   epsilon -> resolvent (effective) : 0.0
+[linstabpy]   peak RSS [bytes]                 : 15888748544
+[linstabpy]   peak RSS per rank, max [bytes]   : 4215672832
+[linstabpy] ------------------------------------------------------------------------
+[linstabpy]   post-run advisories: none
+[linstabpy] ========================================================================
+[linstabpy] results saved to <runs>/map200_cpu_farm/sav_map_b0p0_f0p0001/sav_map_b0p0_f0p0001.npz
+[linstabpy] compute finished in 116.35s
+DONE sav_map_b0p0_f0p0001

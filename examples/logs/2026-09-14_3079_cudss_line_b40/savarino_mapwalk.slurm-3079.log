@@ -1,0 +1,101 @@
+CUDA_VISIBLE_DEVICES=0
+host=workstation-B sha=06256e4
+resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true ranks=1
+engine=LineWalker stem=savarino_mapwalk beta=40.0 driver_args=[ --n-anchor 99 --ncv 5]
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       310436   workstation-B  {0-39}
+savarino_mapwalk sha=06256e4 machine=workstation-B slurm_job=3079 ranks=1 betas=[40.0] blas=mkl ncv=5 n_anchor=99 pin_domain=10 resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true
+beta=40.0 n_left=9 already=0
+load_mesh 7.878 s assemble 6.665 s nx=300 ny=300 ndof=450000 beta=40.0
+rebuild_BC beta=40.0 f=1.0 P_x_max=1.7954167 window=0.420 s
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         92.8918    1.8495e-11    5.9032e-10
+                 max    1.8495e-11    5.9032e-10
+point beta=40.0 f=1.0 omega=6.28319 gain=92.891802 farm=92.8823 rel_err=1.023e-04 source=factor residual=0.000e+00 rho_fwd=1.850e-11 rho_adj=5.903e-10 iters=0 factor=15.805 solve=22.906 wall=39.139 farm_wall=831.490 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.11 device_refactor_block=9.71 (cudss_numeric=8.98) ksp_setup=0.00 adjoint_H_total=13.83 (hermitian_transpose=0.88) self_test=1.23
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         156.685    1.1145e-11    7.1971e-12
+                 max    1.1145e-11    7.1971e-12
+point beta=40.0 f=1.4 omega=8.79646 gain=156.68536 farm=156.666 rel_err=1.236e-04 source=factor residual=0.000e+00 rho_fwd=1.114e-11 rho_adj=7.197e-12 iters=0 factor=28.005 solve=4.196 wall=32.201 farm_wall=1088.230 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.81 (cudss_numeric=9.07) ksp_setup=0.00 adjoint_H_total=13.88 (hermitian_transpose=0.87) self_test=1.16
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         176.266    6.5903e-12    6.9469e-13
+                 max    6.5903e-12    6.9469e-13
+point beta=40.0 f=1.6 omega=10.0531 gain=176.26592 farm=176.243 rel_err=1.301e-04 source=factor residual=0.000e+00 rho_fwd=6.590e-12 rho_adj=6.947e-13 iters=0 factor=28.116 solve=4.074 wall=32.190 farm_wall=989.830 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.85 (cudss_numeric=9.13) ksp_setup=0.00 adjoint_H_total=13.86 (hermitian_transpose=0.88) self_test=1.18
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         184.929    1.3228e-11    4.6598e-13
+                 max    1.3228e-11    4.6598e-13
+point beta=40.0 f=1.8 omega=11.3097 gain=184.92861 farm=184.904 rel_err=1.331e-04 source=factor residual=0.000e+00 rho_fwd=1.323e-11 rho_adj=4.660e-13 iters=0 factor=28.113 solve=3.938 wall=32.051 farm_wall=884.120 n_apply=13
+rebuild_BC beta=40.0 f=2.0 P_x_max=1.9470833 window=0.618 s
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.84 (cudss_numeric=9.11) ksp_setup=0.00 adjoint_H_total=13.82 (hermitian_transpose=0.88) self_test=1.13
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         175.243    5.4881e-12    6.0531e-13
+                 max    5.4881e-12    6.0531e-13
+point beta=40.0 f=2.0 omega=12.5664 gain=175.24311 farm=175.219 rel_err=1.376e-04 source=factor residual=0.000e+00 rho_fwd=5.488e-12 rho_adj=6.053e-13 iters=0 factor=28.016 solve=3.935 wall=32.591 farm_wall=895.640 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.84 (cudss_numeric=9.11) ksp_setup=0.00 adjoint_H_total=13.81 (hermitian_transpose=0.87) self_test=1.21
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1          159.18    1.1919e-11    1.0340e-12
+                 max    1.1919e-11    1.0340e-12
+point beta=40.0 f=2.1 omega=13.1947 gain=159.17999 farm=159.158 rel_err=1.382e-04 source=factor residual=0.000e+00 rho_fwd=1.192e-11 rho_adj=1.034e-12 iters=0 factor=28.008 solve=3.918 wall=31.926 farm_wall=879.190 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.84 (cudss_numeric=9.12) ksp_setup=0.00 adjoint_H_total=13.80 (hermitian_transpose=0.87) self_test=1.17
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         155.069    1.7870e-11    1.0899e-12
+                 max    1.7870e-11    1.0899e-12
+point beta=40.0 f=2.15 omega=13.5088 gain=155.06855 farm=155.048 rel_err=1.325e-04 source=factor residual=0.000e+00 rho_fwd=1.787e-11 rho_adj=1.090e-12 iters=0 factor=28.015 solve=4.003 wall=32.018 farm_wall=1069.830 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.86 (cudss_numeric=9.12) ksp_setup=0.00 adjoint_H_total=13.82 (hermitian_transpose=0.88) self_test=1.21
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         153.896    7.2873e-12    1.0117e-12
+                 max    7.2873e-12    1.0117e-12
+point beta=40.0 f=2.2 omega=13.823 gain=153.89614 farm=153.875 rel_err=1.374e-04 source=factor residual=0.000e+00 rho_fwd=7.287e-12 rho_adj=1.012e-12 iters=0 factor=28.117 solve=3.923 wall=32.041 farm_wall=970.420 n_apply=13
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+Resetting the LHS 'a' typically requires calling factorize() again. An exception is the use of iterative refinement during solve(), but it's the user's responsibility to check that the solution has converged.
+[refactor-breakdown] host_copy=0.09 device_refactor_block=9.85 (cudss_numeric=9.12) ksp_setup=0.00 adjoint_H_total=13.83 (hermitian_transpose=0.88) self_test=1.17
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         119.913    1.0365e-11    4.4528e-12
+                 max    1.0365e-11    4.4528e-12
+point beta=40.0 f=2.5 omega=15.708 gain=119.91299 farm=119.897 rel_err=1.334e-04 source=factor residual=0.000e+00 rho_fwd=1.036e-11 rho_adj=4.453e-12 iters=0 factor=27.938 solve=3.843 wall=31.782 farm_wall=1091.630 n_apply=13
+done sha=06256e4
+WARNING! There are options you set that were not used!
+WARNING! could be spelling mistake, etc!
+There are 2 unused database options. They are:
+Option left: name:-mat_mumps_icntl_14 value: 100 source: code
+Option left: name:-mat_mumps_icntl_24 value: 1 source: code
+DONE savarino_mapwalk_b40

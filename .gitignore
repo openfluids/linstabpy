@@ -152,3 +152,7 @@ site/
 
 # Local deploy notes — never commit.
 VERCEL.md
+
+# Run logs of the jobs behind the paper tables (examples/logs/README.md): shipped, never regenerated.
+!examples/logs/
+!examples/logs/**

@@ -1,0 +1,21 @@
+SHA=06256e4e5c427be5579186e8aec964cacf450bfe v1.0.0rc9-15-g06256e4 host=workstation-B date=2026-09-14T18:00:59+02:00
+linstabpy from <repo>/src/linstabpy/__init__.py
+=== ordering=default 2026-09-14T18:00:59+02:00
+example_5_paraboloid  0.001 s
+wall=0.21 s maxrss=32524 kB
+=== ordering=metis 2026-09-14T18:01:00+02:00
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  17.661 s
+wall=17.94 s maxrss=1293820 kB
+=== ordering=pord 2026-09-14T18:01:17+02:00
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  20.853 s
+wall=21.13 s maxrss=1423784 kB
+=== ordering=amd 2026-09-14T18:01:39+02:00
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  49.055 s
+wall=49.34 s maxrss=3588200 kB
+=== ordering=qamd 2026-09-14T18:02:28+02:00
+Results saved to <repo>/examples/martini/example_5_paraboloid.npz
+example_5_paraboloid  49.438 s
+wall=49.72 s maxrss=3588708 kB

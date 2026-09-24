@@ -1,0 +1,22 @@
+savarino_mapwalk sha=207d6dd machine=workstation-B slurm_job=3829 ranks=4 betas=[30.0] blas=mkl ncv=5 n_anchor=99 pin_domain=1 resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true
+beta=30.0 n_left=15 already=0
+load_mesh 10.286 s assemble 13.761 s nx=300 ny=300 ndof=450000 beta=30.0
+rebuild_BC beta=30.0 f=0.0 P_x_max=1.9470833 window=0.684 s
+point beta=30.0 f=0.0 omega=0 gain=22.714832 farm=22.7148 rel_err=1.410e-06 source=factor residual=0.000e+00 rho_fwd=1.310e-09 rho_adj=1.282e-09 iters=0 factor=78.075 solve=24.011 wall=102.779 farm_wall=142.920 n_apply=19
+rebuild_BC beta=30.0 f=0.0001 P_x_max=1.7954167 window=0.784 s
+point beta=30.0 f=0.0001 omega=0.000628319 gain=22.714434 farm=22.7144 rel_err=1.515e-06 source=factor residual=0.000e+00 rho_fwd=2.091e-09 rho_adj=1.224e-09 iters=0 factor=70.439 solve=17.677 wall=88.921 farm_wall=147.480 n_apply=19
+point beta=30.0 f=0.1 omega=0.628319 gain=21.88725 farm=21.8873 rel_err=2.272e-06 source=factor residual=0.000e+00 rho_fwd=2.359e-09 rho_adj=7.062e-09 iters=0 factor=73.650 solve=19.743 wall=93.393 farm_wall=137.410 n_apply=19
+point beta=30.0 f=0.5 omega=3.14159 gain=41.709266 farm=41.7093 rel_err=8.053e-07 source=factor residual=0.000e+00 rho_fwd=2.624e-09 rho_adj=1.220e-13 iters=0 factor=73.659 solve=17.615 wall=91.274 farm_wall=145.950 n_apply=19
+point beta=30.0 f=1.0 omega=6.28319 gain=107.61746 farm=107.617 rel_err=4.239e-06 source=factor residual=0.000e+00 rho_fwd=1.036e-09 rho_adj=6.776e-11 iters=0 factor=74.727 solve=10.805 wall=85.533 farm_wall=143.530 n_apply=13
+point beta=30.0 f=1.4 omega=8.79646 gain=133.50148 farm=133.501 rel_err=3.566e-06 source=factor residual=0.000e+00 rho_fwd=1.020e-09 rho_adj=3.129e-12 iters=0 factor=74.967 solve=10.093 wall=85.060 farm_wall=135.690 n_apply=13
+point beta=30.0 f=1.6 omega=10.0531 gain=127.84349 farm=127.843 rel_err=3.802e-06 source=factor residual=0.000e+00 rho_fwd=2.382e-09 rho_adj=3.515e-12 iters=0 factor=70.638 solve=8.616 wall=79.253 farm_wall=142.040 n_apply=13
+point beta=30.0 f=1.8 omega=11.3097 gain=117.5285 farm=117.529 rel_err=4.213e-06 source=factor residual=0.000e+00 rho_fwd=3.740e-09 rho_adj=1.312e-11 iters=0 factor=74.234 solve=9.511 wall=83.745 farm_wall=147.160 n_apply=13
+rebuild_BC beta=30.0 f=2.0 P_x_max=1.9470833 window=0.835 s
+point beta=30.0 f=2.0 omega=12.5664 gain=102.89905 farm=102.899 rel_err=5.292e-07 source=factor residual=0.000e+00 rho_fwd=1.767e-09 rho_adj=9.501e-11 iters=0 factor=74.625 solve=12.744 wall=88.219 farm_wall=140.780 n_apply=13
+point beta=30.0 f=2.1 omega=13.1947 gain=93.371177 farm=93.3712 rel_err=2.437e-07 source=factor residual=0.000e+00 rho_fwd=1.767e-09 rho_adj=1.584e-10 iters=0 factor=73.476 solve=11.651 wall=85.127 farm_wall=142.180 n_apply=13
+point beta=30.0 f=2.15 omega=13.5088 gain=91.130456 farm=91.1305 rel_err=4.863e-07 source=factor residual=0.000e+00 rho_fwd=1.261e-09 rho_adj=1.307e-10 iters=0 factor=72.415 solve=9.825 wall=82.240 farm_wall=143.040 n_apply=13
+point beta=30.0 f=2.2 omega=13.823 gain=86.860165 farm=86.8602 rel_err=3.974e-07 source=factor residual=0.000e+00 rho_fwd=9.449e-10 rho_adj=1.274e-10 iters=0 factor=74.883 solve=11.080 wall=85.963 farm_wall=148.840 n_apply=13
+point beta=30.0 f=2.5 omega=15.708 gain=64.049388 farm=64.0494 rel_err=1.847e-07 source=factor residual=0.000e+00 rho_fwd=1.243e-09 rho_adj=4.183e-10 iters=0 factor=75.413 solve=10.138 wall=85.552 farm_wall=137.880 n_apply=13
+point beta=30.0 f=5.0 omega=31.4159 gain=13.478753 farm=13.4788 rel_err=3.515e-06 source=factor residual=0.000e+00 rho_fwd=1.711e-09 rho_adj=2.111e-11 iters=0 factor=75.012 solve=17.796 wall=92.808 farm_wall=138.910 n_apply=19
+point beta=30.0 f=10.0 omega=62.8319 gain=1.9406453 farm=1.94065 rel_err=2.399e-06 source=factor residual=0.000e+00 rho_fwd=2.591e-10 rho_adj=5.228e-09 iters=0 factor=73.591 solve=39.799 wall=113.391 farm_wall=139.620 n_apply=55
+done sha=207d6dd

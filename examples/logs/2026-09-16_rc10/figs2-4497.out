@@ -1,0 +1,14 @@
+TAG=v1.0.0rc10 SHA=207d6dd1949dd41c7badd5b9c3ced8928fd8b44a host=workstation-B date=2026-09-16T21:21:15+02:00
+linstabpy from <repo>/src/linstabpy/__init__.py
+
+=== which norm of HIS forcing equals 1? (unit-norm hypothesis) ===
+  ||f_his||^2 conservative momentum, MASS-weighted = 9.960735e-01
+  ||f_his||^2 primitive,             MASS-weighted = 3.098804e+00
+  -> sigma^2 = E/F = 3.162130e+04 / 9.960735e-01 = 3.174595e+04
+  target (figure value x 1e4)                      ~ 3.2e4
+verify_norm rc=0
+wrote <repo>/examples/savarino/savarino_gain_map.png (n=317, vmax×1e4=3.41)
+  global peak f=1.8, beta=40
+plot rc=0
+-rw-r--r-- 1 user 1036000021 115515 Sep 16 21:21 savarino_gain_map.png
+DONE

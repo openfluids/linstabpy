@@ -1,0 +1,6 @@
+savarino_mapwalk sha=207d6dd machine=workstation-B slurm_job=3839 ranks=4 betas=[7.5] blas=mkl ncv=5 n_anchor=99 pin_domain=1 resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true
+beta=7.5 n_left=1 already=0
+load_mesh 9.269 s assemble 8.459 s nx=300 ny=300 ndof=450000 beta=7.5
+rebuild_BC beta=7.5 f=1.0 P_x_max=1.7954167 window=0.517 s
+point beta=7.5 f=1.0 omega=6.28319 gain=34.476225 farm=34.4762 rel_err=7.124e-07 source=factor residual=0.000e+00 rho_fwd=5.706e-14 rho_adj=3.890e-09 iters=0 factor=68.376 solve=14.627 wall=83.529 farm_wall=161.020 n_apply=13
+done sha=207d6dd

@@ -1,0 +1,121 @@
+=== cascade arm 0 (cpu_farm) 2026-09-14T23:32:25+02:00
+arm=cpu_farm sha=06256e4 out=$HOME/rc9runs/sub47/cpu_farm 2026-09-14T23:32:25+02:00
+author200: Savarino published 200-point map
+47 points over 2 beta lines; submit=True local=False
+sav_map_b40p0_f1: Submitted batch job 3086
+sav_map_b40p0_f1p4: Submitted batch job 3087
+sav_map_b40p0_f1p6: Submitted batch job 3088
+sav_map_b40p0_f1p8: Submitted batch job 3089
+sav_map_b40p0_f2: Submitted batch job 3090
+sav_map_b40p0_f2p1: Submitted batch job 3091
+sav_map_b40p0_f2p15: Submitted batch job 3092
+sav_map_b40p0_f2p2: Submitted batch job 3093
+sav_map_b40p0_f2p5: Submitted batch job 3094
+sav_map_b45p0_f0: Submitted batch job 3095
+sav_map_b45p0_f0p0001: Submitted batch job 3096
+sav_map_b45p0_f0p0005: Submitted batch job 3097
+sav_map_b45p0_f0p001: Submitted batch job 3098
+sav_map_b45p0_f0p005: Submitted batch job 3099
+sav_map_b45p0_f0p01: Submitted batch job 3100
+sav_map_b45p0_f0p05: Submitted batch job 3101
+sav_map_b45p0_f0p1: Submitted batch job 3102
+sav_map_b45p0_f0p2: Submitted batch job 3103
+sav_map_b45p0_f0p3: Submitted batch job 3104
+sav_map_b45p0_f0p4: Submitted batch job 3105
+sav_map_b45p0_f0p5: Submitted batch job 3106
+sav_map_b45p0_f0p6: Submitted batch job 3107
+sav_map_b45p0_f0p7: Submitted batch job 3108
+sav_map_b45p0_f0p8: Submitted batch job 3109
+sav_map_b45p0_f1: Submitted batch job 3110
+sav_map_b45p0_f1p2: Submitted batch job 3111
+sav_map_b45p0_f1p4: Submitted batch job 3112
+sav_map_b45p0_f1p6: Submitted batch job 3113
+sav_map_b45p0_f1p8: Submitted batch job 3114
+sav_map_b45p0_f2: Submitted batch job 3115
+sav_map_b45p0_f2p1: Submitted batch job 3116
+sav_map_b45p0_f2p15: Submitted batch job 3117
+sav_map_b45p0_f2p2: Submitted batch job 3118
+sav_map_b45p0_f2p3: Submitted batch job 3119
+sav_map_b45p0_f2p4: Submitted batch job 3120
+sav_map_b45p0_f2p5: Submitted batch job 3121
+sav_map_b45p0_f2p8: Submitted batch job 3122
+sav_map_b45p0_f3: Submitted batch job 3123
+sav_map_b45p0_f3p5: Submitted batch job 3124
+sav_map_b45p0_f4: Submitted batch job 3125
+sav_map_b45p0_f4p5: Submitted batch job 3126
+sav_map_b45p0_f5: Submitted batch job 3127
+sav_map_b45p0_f6: Submitted batch job 3128
+sav_map_b45p0_f7: Submitted batch job 3129
+sav_map_b45p0_f8: Submitted batch job 3130
+sav_map_b45p0_f9: Submitted batch job 3131
+sav_map_b45p0_f10: Submitted batch job 3132
+arm cpu_farm job ids: 3086:3087:3088:3089:3090:3091:3092:3093:3094:3095:3096:3097:3098:3099:3100:3101:3102:3103:3104:3105:3106:3107:3108:3109:3110:3111:3112:3113:3114:3115:3116:3117:3118:3119:3120:3121:3122:3123:3124:3125:3126:3127:3128:3129:3130:3131:3132
+Submitted batch job 3133
+DONE step 0
+=== cascade arm 1 (cpu_lines) 2026-09-14T23:57:00+02:00
+arm=cpu_lines sha=06256e4 out=$HOME/rc9runs/sub47/cpu_lines 2026-09-14T23:57:00+02:00
+savarino_mapwalk_b40: Submitted batch job 3134
+savarino_mapwalk_b45: Submitted batch job 3135
+arm cpu_lines job ids: 3134:3135
+Submitted batch job 3136
+DONE step 1
+=== cascade arm 2 (gpu_farm) 2026-09-15T00:47:37+02:00
+arm=gpu_farm sha=06256e4 out=$HOME/rc9runs/sub47/gpu_farm 2026-09-15T00:47:37+02:00
+author200: Savarino published 200-point map
+47 points over 2 beta lines; submit=True local=False
+sav_map_b40p0_f1: Submitted batch job 3137
+sav_map_b40p0_f1p4: Submitted batch job 3138
+sav_map_b40p0_f1p6: Submitted batch job 3139
+sav_map_b40p0_f1p8: Submitted batch job 3140
+sav_map_b40p0_f2: Submitted batch job 3141
+sav_map_b40p0_f2p1: Submitted batch job 3142
+sav_map_b40p0_f2p15: Submitted batch job 3143
+sav_map_b40p0_f2p2: Submitted batch job 3144
+sav_map_b40p0_f2p5: Submitted batch job 3145
+sav_map_b45p0_f0: Submitted batch job 3146
+sav_map_b45p0_f0p0001: Submitted batch job 3147
+sav_map_b45p0_f0p0005: Submitted batch job 3148
+sav_map_b45p0_f0p001: Submitted batch job 3149
+sav_map_b45p0_f0p005: Submitted batch job 3150
+sav_map_b45p0_f0p01: Submitted batch job 3151
+sav_map_b45p0_f0p05: Submitted batch job 3152
+sav_map_b45p0_f0p1: Submitted batch job 3153
+sav_map_b45p0_f0p2: Submitted batch job 3154
+sav_map_b45p0_f0p3: Submitted batch job 3155
+sav_map_b45p0_f0p4: Submitted batch job 3156
+sav_map_b45p0_f0p5: Submitted batch job 3157
+sav_map_b45p0_f0p6: Submitted batch job 3158
+sav_map_b45p0_f0p7: Submitted batch job 3159
+sav_map_b45p0_f0p8: Submitted batch job 3160
+sav_map_b45p0_f1: Submitted batch job 3161
+sav_map_b45p0_f1p2: Submitted batch job 3162
+sav_map_b45p0_f1p4: Submitted batch job 3163
+sav_map_b45p0_f1p6: Submitted batch job 3164
+sav_map_b45p0_f1p8: Submitted batch job 3165
+sav_map_b45p0_f2: Submitted batch job 3166
+sav_map_b45p0_f2p1: Submitted batch job 3167
+sav_map_b45p0_f2p15: Submitted batch job 3168
+sav_map_b45p0_f2p2: Submitted batch job 3169
+sav_map_b45p0_f2p3: Submitted batch job 3170
+sav_map_b45p0_f2p4: Submitted batch job 3171
+sav_map_b45p0_f2p5: Submitted batch job 3172
+sav_map_b45p0_f2p8: Submitted batch job 3173
+sav_map_b45p0_f3: Submitted batch job 3174
+sav_map_b45p0_f3p5: Submitted batch job 3175
+sav_map_b45p0_f4: Submitted batch job 3176
+sav_map_b45p0_f4p5: Submitted batch job 3177
+sav_map_b45p0_f5: Submitted batch job 3178
+sav_map_b45p0_f6: Submitted batch job 3179
+sav_map_b45p0_f7: Submitted batch job 3180
+sav_map_b45p0_f8: Submitted batch job 3181
+sav_map_b45p0_f9: Submitted batch job 3182
+sav_map_b45p0_f10: Submitted batch job 3183
+arm gpu_farm job ids: 3137:3138:3139:3140:3141:3142:3143:3144:3145:3146:3147:3148:3149:3150:3151:3152:3153:3154:3155:3156:3157:3158:3159:3160:3161:3162:3163:3164:3165:3166:3167:3168:3169:3170:3171:3172:3173:3174:3175:3176:3177:3178:3179:3180:3181:3182:3183
+Submitted batch job 3184
+DONE step 2
+=== cascade arm 3 (gpu_lines) 2026-09-15T01:12:19+02:00
+arm=gpu_lines sha=06256e4 out=$HOME/rc9runs/sub47/gpu_lines 2026-09-15T01:12:19+02:00
+savarino_mapwalk_b40: Submitted batch job 3185
+savarino_mapwalk_b45: Submitted batch job 3186
+arm gpu_lines job ids: 3185:3186
+DONE step 3

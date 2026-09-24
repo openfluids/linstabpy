@@ -1,0 +1,79 @@
+# Song (2023) θ = 32° — FD4, n = 30, β = 19.2 (PhD supp anchor).
+# Paths are relative to this file (``configs/``).
+paths:
+  fields: ../inputs_cinf/baseflow
+  output_npz: ../output/fd4_n30_cinf/song_2023.npz
+
+Re: 1.0e5
+Ma: 2.15
+Pr: 0.72
+kappa: 1.4
+T_0: 153.33
+
+beta: 19.2
+St: 0.0
+
+n_modes_stability: 30
+stability_search_extra_modes: 0
+n_modes_resolvent: 10
+run_stability: true
+run_resolvent: false
+
+fd_order: 4
+stride_ksi: 1
+stride_eta: 1
+penalty: 1.0e8
+alpha_filter: none
+
+numerics:
+  operator_dissipation:
+    enabled: false
+    epsilon: 0.0
+    apply_to_stability: false
+    apply_to_resolvent: false
+
+baseflow_input:
+  transpose_input: true
+  zero_spanwise: false
+
+baseflow_preprocess:
+  enabled: false
+  sponge:
+    scale: 1.0
+    boundary:
+      enabled: false
+      mode: add
+      points: [0, 0, 0, 0]
+      amplitudes: [0.0, 0.0, 0.0, 0.0]
+  filter:
+    enabled: false
+    passes: 1
+    fields: [rho, u, v, T]
+    directions: [x, y]
+    eta_min_index: 8
+    eta_max_index: null
+  shock:
+    enabled: false
+
+bc:
+  penalty: 1.0e8
+  recipe:
+    - {type: dirichlet, borders: lt, variables: ruvwT}
+    - {type: dirichlet, borders: b, variables: ruvw}
+    - {type: neumann, borders: b, variables: T}
+    - {type: neumann, borders: r, variables: ruvwT}
+
+assembly_backend: petsc
+
+solver:
+  petsc_matrix_mode: distributed
+  linsolve:
+    type: mumps
+  eigen:
+    st_solver: mumps
+    eps_tol: 1.0e-4
+    eps_max_it: 50000
+    ncv: 120
+    conv_test: rel
+    true_residual: false
+    residual_error_type: relative

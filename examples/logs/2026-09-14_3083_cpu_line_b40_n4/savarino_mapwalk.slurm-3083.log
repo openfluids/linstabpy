@@ -1,0 +1,241 @@
+host=workstation-B sha=06256e4
+resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true ranks=4
+engine=LineWalker stem=savarino_mapwalk beta=40.0 driver_args=[ --n-anchor 99 --ncv 5]
+[0] MPI startup(): Intel(R) MPI Library, Version 2021.18.0  Build 20260327 (id: 821f207)
+[0] MPI startup(): Copyright (C) 2003-2026 Intel Corporation.  All rights reserved.
+[0] MPI startup(): library kind: release
+[0] MPI startup(): Load tuning file: "/opt/intel/oneapi/mpi/2021.18/opt/mpi/etc/tuning_skx_shm-ofi.dat"
+[0] MPI startup(): ===== CPU pinning =====
+[0] MPI startup(): Rank    Pid      Node name                       Pin cpu
+[0] MPI startup(): 0       316297   workstation-B  {0-39}
+[0] MPI startup(): 1       316298   workstation-B  {0-39}
+[0] MPI startup(): 2       316299   workstation-B  {0-39}
+[0] MPI startup(): 3       316300   workstation-B  {0-39}
+savarino_mapwalk sha=06256e4 machine=workstation-B slurm_job=3083 ranks=4 betas=[40.0] blas=mkl ncv=5 n_anchor=99 pin_domain=1 resolution=full-res 300x300 stride=1 epsilon=0 skip_band_marking=true
+beta=40.0 n_left=9 already=0
+load_mesh 7.920 s assemble 7.163 s nx=300 ny=300 ndof=450000 beta=40.0
+rebuild_BC beta=40.0 f=1.0 P_x_max=1.7954167 window=0.436 s
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         92.8918    7.8019e-10    5.2097e-10
+                 max    7.8019e-10    5.2097e-10
+   1         92.8918    7.8019e-10    5.2097e-10
+                 max    7.8019e-10    5.2097e-10
+   1         92.8918    7.8019e-10    5.2097e-10
+                 max    7.8019e-10    5.2097e-10
+   1         92.8918    7.8019e-10    5.2097e-10
+                 max    7.8019e-10    5.2097e-10
+point beta=40.0 f=1.0 omega=6.28319 gain=92.891802 farm=92.8823 rel_err=1.023e-04 source=factor residual=0.000e+00 rho_fwd=7.802e-10 rho_adj=5.210e-10 iters=0 factor=54.715 solve=10.102 wall=65.261 farm_wall=831.490 n_apply=13
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         156.685    1.3821e-13    4.9251e-12
+                 max    1.3821e-13    4.9251e-12
+   1         156.685    1.3821e-13    4.9251e-12
+                 max    1.3821e-13    4.9251e-12
+   1         156.685    1.3821e-13    4.9251e-12
+                 max    1.3821e-13    4.9251e-12
+   1         156.685    1.3821e-13    4.9251e-12
+                 max    1.3821e-13    4.9251e-12
+point beta=40.0 f=1.4 omega=8.79646 gain=156.68536 farm=156.666 rel_err=1.236e-04 source=factor residual=0.000e+00 rho_fwd=1.382e-13 rho_adj=4.925e-12 iters=0 factor=48.949 solve=7.333 wall=56.282 farm_wall=1088.230 n_apply=13
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         176.266    8.6102e-10    6.9411e-13
+                 max    8.6102e-10    6.9411e-13
+   1         176.266    8.6102e-10    6.9411e-13
+                 max    8.6102e-10    6.9411e-13
+   1         176.266    8.6102e-10    6.9411e-13
+                 max    8.6102e-10    6.9411e-13
+   1         176.266    8.6102e-10    6.9411e-13
+                 max    8.6102e-10    6.9411e-13
+point beta=40.0 f=1.6 omega=10.0531 gain=176.26592 farm=176.243 rel_err=1.301e-04 source=factor residual=0.000e+00 rho_fwd=8.610e-10 rho_adj=6.941e-13 iters=0 factor=49.644 solve=7.347 wall=56.991 farm_wall=989.830 n_apply=13
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         184.929    1.0311e-13    4.3180e-13
+                 max    1.0311e-13    4.3180e-13
+   1         184.929    1.0311e-13    4.3180e-13
+   1         184.929    1.0311e-13    4.3180e-13
+                 max    1.0311e-13    4.3180e-13
+   1         184.929    1.0311e-13    4.3180e-13
+                 max    1.0311e-13    4.3180e-13
+                 max    1.0311e-13    4.3180e-13
+point beta=40.0 f=1.8 omega=11.3097 gain=184.92861 farm=184.904 rel_err=1.331e-04 source=factor residual=0.000e+00 rho_fwd=1.031e-13 rho_adj=4.318e-13 iters=0 factor=49.721 solve=7.340 wall=57.062 farm_wall=884.120 n_apply=13
+rebuild_BC beta=40.0 f=2.0 P_x_max=1.9470833 window=0.630 s
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         175.243    2.2542e-09    1.1230e-12
+                 max    2.2542e-09    1.1230e-12
+   1         175.243    2.2542e-09    1.1230e-12
+                 max    2.2542e-09    1.1230e-12
+   1         175.243    2.2542e-09    1.1230e-12
+                 max    2.2542e-09    1.1230e-12
+   1         175.243    2.2542e-09    1.1230e-12
+                 max    2.2542e-09    1.1230e-12
+point beta=40.0 f=2.0 omega=12.5664 gain=175.24311 farm=175.219 rel_err=1.376e-04 source=factor residual=0.000e+00 rho_fwd=2.254e-09 rho_adj=1.123e-12 iters=0 factor=49.733 solve=7.368 wall=57.751 farm_wall=895.640 n_apply=13
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1          159.18    1.0659e-13    3.4637e-12
+                 max    1.0659e-13    3.4637e-12
+   1          159.18    1.0659e-13    3.4637e-12
+                 max    1.0659e-13    3.4637e-12
+   1          159.18    1.0659e-13    3.4637e-12
+                 max    1.0659e-13    3.4637e-12
+   1          159.18    1.0659e-13    3.4637e-12
+                 max    1.0659e-13    3.4637e-12
+point beta=40.0 f=2.1 omega=13.1947 gain=159.17999 farm=159.158 rel_err=1.382e-04 source=factor residual=0.000e+00 rho_fwd=1.066e-13 rho_adj=3.464e-12 iters=0 factor=51.158 solve=7.349 wall=58.506 farm_wall=879.190 n_apply=13
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         155.069    9.2416e-14    5.0860e-12
+                 max    9.2416e-14    5.0860e-12
+   1         155.069    9.2416e-14    5.0860e-12
+                 max    9.2416e-14    5.0860e-12
+   1         155.069    9.2416e-14    5.0860e-12
+                 max    9.2416e-14    5.0860e-12
+   1         155.069    9.2416e-14    5.0860e-12
+                 max    9.2416e-14    5.0860e-12
+point beta=40.0 f=2.15 omega=13.5088 gain=155.06855 farm=155.048 rel_err=1.325e-04 source=factor residual=0.000e+00 rho_fwd=9.242e-14 rho_adj=5.086e-12 iters=0 factor=50.440 solve=7.347 wall=57.787 farm_wall=1069.830 n_apply=13
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.28 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         153.896    1.2865e-09    4.7085e-12
+                 max    1.2865e-09    4.7085e-12
+   1         153.896    1.2865e-09    4.7085e-12
+                 max    1.2865e-09    4.7085e-12
+   1         153.896    1.2865e-09    4.7085e-12
+                 max    1.2865e-09    4.7085e-12
+   1         153.896    1.2865e-09    4.7085e-12
+                 max    1.2865e-09    4.7085e-12
+point beta=40.0 f=2.2 omega=13.823 gain=153.89614 farm=153.875 rel_err=1.374e-04 source=factor residual=0.000e+00 rho_fwd=1.287e-09 rho_adj=4.709e-12 iters=0 factor=49.983 solve=7.344 wall=57.328 farm_wall=970.420 n_apply=13
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+[pattern-check] 0.29 s (n=450000)
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+SVD residuals  rho_fwd = ||H v - s u||_W/(s||v||_W)  rho_adj = ||invW H^H(Wu) - s v||_W/(s||v||_W)
+Mode           sigma       rho_fwd       rho_adj
+--------------------------------------------------
+   1         119.913    1.8206e-13    5.4357e-12
+                 max    1.8206e-13    5.4357e-12
+   1         119.913    1.8206e-13    5.4357e-12
+                 max    1.8206e-13    5.4357e-12
+   1         119.913    1.8206e-13    5.4357e-12
+                 max    1.8206e-13    5.4357e-12
+   1         119.913    1.8206e-13    5.4357e-12
+                 max    1.8206e-13    5.4357e-12
+point beta=40.0 f=2.5 omega=15.708 gain=119.91299 farm=119.897 rel_err=1.334e-04 source=factor residual=0.000e+00 rho_fwd=1.821e-13 rho_adj=5.436e-12 iters=0 factor=50.398 solve=7.388 wall=57.786 farm_wall=1091.630 n_apply=13
+done sha=06256e4
+DONE savarino_mapwalk_b40
