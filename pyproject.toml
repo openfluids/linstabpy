@@ -10,12 +10,15 @@ requires-python = ">=3.10"
 license = "GPL-3.0-only"
 readme = "README.md"
 authors = [
-    { name = "Ricardo Frantz" },
     { name = "Gabriel Hamada" },
+    { name = "William Wolf" },
+    { name = "Carlos Junqueira-Junior" },
+    { name = "Jean-Christophe Robinet" },
+    { name = "Ricardo Frantz" },
 ]
 keywords = ["stability", "resolvent", "compressible", "Navier-Stokes", "PETSc", "SLEPc"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -57,8 +60,10 @@ parity = ["h5py"]
 wiki = ["mkdocs-material>=9.6"]
 
 [project.urls]
+Homepage = "https://linstabpy.vercel.app/"
+Documentation = "https://linstabpy.vercel.app/"
 Repository = "https://github.com/openfluids/linstabpy"
-Documentation = "https://github.com/openfluids/linstabpy#readme"
+Changelog = "https://github.com/openfluids/linstabpy/blob/main/CHANGELOG.md"
 Issues = "https://github.com/openfluids/linstabpy/issues"
 
 [tool.setuptools.packages.find]

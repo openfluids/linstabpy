@@ -1,6 +1,8 @@
 linstabpy
 =========
-Copyright (C) 2024-2026 Ricardo Frantz, Gabriel Hamada, and contributors.
+Copyright (C) 2026 École Polytechnique Fédérale de Lausanne (EPFL),
+University of Campinas (UNICAMP), École Nationale Supérieure des Arts et
+Métiers (ENSAM), and contributors.
 
 This product is a Python port and derivative of LinStab2D
 (https://github.com/LinStab2D/LinStab2D), copyright E. Martini and
@@ -27,7 +29,7 @@ corresponding upstream MATLAB sources. Examples include:
   - src/linstabpy/boundary_conditions/dirichlet.py   (BC_Dirichlet.m)
   - src/linstabpy/boundary_conditions/neumann.py     (BC_Neumann.m)
 
-Modifications made by the linstabpy authors (2024-2026):
+Modifications made by the linstabpy authors (2026):
 
   - Translation from MATLAB to Python 3.
   - Integration with PETSc/SLEPc/MUMPS sparse solvers, replacing
@@ -35,15 +37,16 @@ Modifications made by the linstabpy authors (2024-2026):
   - Extension to fd2/fd4/fd6/fd8 SBP-MSN operators with optional
     operator dissipation.
   - JSONC-driven configuration system.
-  - Test infrastructure (535 tests across 52 files) and CI.
+  - Test infrastructure and CI.
 
-When using linstabpy in published work, please cite the linstabpy
-paper (Hamada & Frantz, in preparation) together with the LinStab2D
+When using linstabpy in published work, please cite the LinStabPy
+paper (Hamada et al., under revision) together with the LinStab2D
 methodology paper:
 
-  Hamada, G. Y. R. & Frantz, R. A. S. linstabpy: open-source
+  Hamada, G. Y. R., Wolf, W. R., Junqueira-Junior, C., Robinet, J.-C.
+  & Frantz, R. A. S. LinStabPy: an efficient Python framework for
   compressible stability and resolvent analysis. Theor. Comput. Fluid
-  Dyn. (in preparation, 2026).
+  Dyn. (under revision, 2026).
 
   Martini, E. & Schmidt, O. T. LinStab2D: stability and resolvent
   analysis of compressible viscous flows in MATLAB. Theor. Comput.

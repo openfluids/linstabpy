@@ -1,16 +1,22 @@
 cff-version: 1.2.0
 title: linstabpy
 message: >-
-  If you use linstabpy in published work, please cite the linstabpy
-  paper (Hamada & Frantz, in preparation) as the preferred citation,
+  If you use linstabpy in published work, please cite the LinStabPy
+  paper (Hamada et al., under revision) as the preferred citation,
   together with the LinStab2D methodology paper (Martini & Schmidt
   2024) listed under references.
 type: software
 authors:
-  - given-names: Ricardo
-    family-names: Frantz
-  - given-names: Gabriel
+  - given-names: Gabriel Y. R.
     family-names: Hamada
+  - given-names: William R.
+    family-names: Wolf
+  - given-names: Carlos
+    family-names: Junqueira-Junior
+  - given-names: Jean-Christophe
+    family-names: Robinet
+  - given-names: Ricardo A. S.
+    family-names: Frantz
 repository-code: 'https://github.com/openfluids/linstabpy'
 url: 'https://github.com/openfluids/linstabpy'
 license: GPL-3.0-only
@@ -24,16 +30,22 @@ license: GPL-3.0-only
 preferred-citation:
   type: article
   title: >-
-    linstabpy: open-source compressible stability and resolvent
-    analysis
+    LinStabPy: an efficient Python framework for compressible
+    stability and resolvent analysis
   authors:
     - given-names: Gabriel Y. R.
       family-names: Hamada
+    - given-names: William R.
+      family-names: Wolf
+    - given-names: Carlos
+      family-names: Junqueira-Junior
+    - given-names: Jean-Christophe
+      family-names: Robinet
     - given-names: Ricardo A. S.
       family-names: Frantz
   journal: Theoretical and Computational Fluid Dynamics
   year: 2026
-  notes: In preparation.
+  notes: Under revision.
 references:
   - type: article
     title: >-
