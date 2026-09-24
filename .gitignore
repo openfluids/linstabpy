@@ -29,12 +29,19 @@ examples/martini/_run_logs/
 !examples/song/figures/**
 # Savarino base flow: fetched from Zenodo (no redistribution license on the record).
 examples/savarino/reference/baseflow/*.dat
-# Savarino output: ship run-record CSVs + figure PNGs only (not baseflow .npy / compare .npz).
+# Savarino output: ship run-record CSVs, figure PNGs and the two trimmed compare bundles
+# (single precision, figure arrays only) — not the base flow .npy.
 !examples/savarino/output/
 !examples/savarino/output/savarino_map2_200pt.csv
 !examples/savarino/output/savarino_map317pt.csv
 !examples/savarino/output/figures/
 !examples/savarino/output/figures/**
+!examples/savarino/output/compare/
+!examples/savarino/output/compare/**
+# Song output: the trimmed eigenvalue-problem bundle behind the two validation figures.
+!examples/song/output/
+!examples/song/output/fd4_n30/
+!examples/song/output/fd4_n30/song_2023.npz
 examples/song/inputs/baseflow/**
 examples/song/inputs/raw/grid.grd
 examples/song/inputs/raw/mean_flow.dat
@@ -78,6 +85,12 @@ output/
 !examples/savarino/output/savarino_map317pt.csv
 !examples/savarino/output/figures/
 !examples/savarino/output/figures/**
+!examples/savarino/output/compare/
+!examples/savarino/output/compare/**
+# Song output: the trimmed eigenvalue-problem bundle behind the two validation figures.
+!examples/song/output/
+!examples/song/output/fd4_n30/
+!examples/song/output/fd4_n30/song_2023.npz
 # Case 2 generated run artifacts can contain local absolute paths.
 .DS_Store
 .beads/
