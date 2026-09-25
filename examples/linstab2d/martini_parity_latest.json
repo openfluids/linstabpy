@@ -87,7 +87,7 @@
         "n_compare": 3,
         "svd_residual_max_adj": 3.8718665937967963e-13,
         "svd_residual_max_fwd": 1.0151292378258915e-16,
-        "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
+        "svd_residual_note": "Primary closure criterion. SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
       "python_npz": "examples/linstab2d/example_1_blasius.npz",
@@ -139,7 +139,7 @@
         "n_compare": 3,
         "svd_residual_max_adj": 2.157622788107846e-12,
         "svd_residual_max_fwd": 1.0240169156792653e-16,
-        "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
+        "svd_residual_note": "Primary closure criterion. SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
       "python_npz": "examples/linstab2d/example_2_jet.npz",
@@ -426,7 +426,7 @@
       "metrics": {
         "adjoint": {
           "eigenvalue_residual_max": 1.743595508098326e-08,
-          "mode_max_rel_l2": 0.9934955781977562,
+          "mode_max_rel_l2": 0.0011094151332337887,
           "n_compare": 3,
           "per_mode": [
             {
@@ -435,7 +435,7 @@
               "eigenvalue_residual": 7.08275318128046e-11,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 24,
-              "rel_l2": 0.9934955781977562
+              "rel_l2": 1.638480079311609e-07
             },
             {
               "eigenvalue_abs_error": 7.330976188025344e-06,
@@ -443,7 +443,7 @@
               "eigenvalue_residual": 4.849587720836575e-12,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 18,
-              "rel_l2": 0.9688657029766194
+              "rel_l2": 0.0011094151332337887
             },
             {
               "eigenvalue_abs_error": 9.200904603078847e-06,
@@ -451,7 +451,7 @@
               "eigenvalue_residual": 4.857979289566105e-12,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 1,
-              "rel_l2": 0.9750560542287307
+              "rel_l2": 0.0010965527579245317
             }
           ],
           "selection_strategy": "global_best_match",
@@ -460,7 +460,7 @@
         },
         "direct": {
           "eigenvalue_residual_max": 4.559363163722438e-09,
-          "mode_max_rel_l2": 0.99808247089686,
+          "mode_max_rel_l2": 0.00025911652162935076,
           "n_compare": 3,
           "per_mode": [
             {
@@ -469,7 +469,7 @@
               "eigenvalue_residual": 1.6637926258301279e-12,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 24,
-              "rel_l2": 0.9976209420816645
+              "rel_l2": 5.845759229659519e-11
             },
             {
               "eigenvalue_abs_error": 7.33097625238226e-06,
@@ -477,7 +477,7 @@
               "eigenvalue_residual": 5.782225753383246e-13,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 18,
-              "rel_l2": 0.991355105951
+              "rel_l2": 0.00025911652162935076
             },
             {
               "eigenvalue_abs_error": 9.200904571000175e-06,
@@ -485,7 +485,7 @@
               "eigenvalue_residual": 1.0042387214362731e-12,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 1,
-              "rel_l2": 0.99808247089686
+              "rel_l2": 0.0002010079247467959
             }
           ],
           "selection_strategy": "global_best_match",
@@ -495,7 +495,7 @@
       },
       "note": "",
       "python_npz": "examples/linstab2d/example_4_cavity.npz",
-      "status": "SOFT_FAIL"
+      "status": "PASS"
     },
     {
       "case_id": "example_5_paraboloid",
@@ -543,7 +543,7 @@
         "n_compare": 3,
         "svd_residual_max_adj": 2.655696763962725e-10,
         "svd_residual_max_fwd": 1.0835079304234934e-16,
-        "svd_residual_note": "Primary closure criterion. MATLAB UMFPACK and Python MUMPS/METIS use different fill-reducing orderings; gains differ by ~0.04\u20130.54% structurally (gain_rel=1e-5 is unachievable). SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
+        "svd_residual_note": "Primary closure criterion. SVD residuals verify that Python triplets satisfy the discrete resolvent equations to near-machine precision independently of the MATLAB reference."
       },
       "note": "",
       "python_npz": "examples/linstab2d/example_5_paraboloid.npz",
@@ -552,9 +552,9 @@
   ],
   "config": "examples/linstab2d/martini_cases.yaml",
   "counts": {
-    "PASS": 4,
-    "SOFT_FAIL": 2
+    "PASS": 5,
+    "SOFT_FAIL": 1
   },
-  "generated_at_utc": "2026-09-16T22:01:31.632585+00:00",
+  "generated_at_utc": "2026-09-25T00:44:31.108192+00:00",
   "npz_dir": "examples/linstab2d"
 }
