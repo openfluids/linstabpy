@@ -45,9 +45,12 @@ analysis:
     imag: -1.112186
 solver:
   petsc_matrix_mode: distributed
+  # MUMPS null-pivot detection off: with it on, some runs stall on the mode
+  # near omega = -0.715i (Krylov-Schur restarts at a constant error).
+  mumps_icntl_24: null
   eigen:
     st_solver: mumps
-    eps_tol: 1.0e-4    # MUMPS on 4 ranks floors the residual near 4e-5..5.7e-5; 5e-5 stalled
+    eps_tol: 1.0e-4    # the shift-invert residual floors at 1e-5..8e-5 on this case
     ncv: 80
     conv_test: rel
     true_residual: true
