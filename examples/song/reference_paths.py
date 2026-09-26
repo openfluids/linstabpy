@@ -18,7 +18,11 @@ INPUTS_RAW_DIR = INPUTS_DIR / "raw"
 INPUTS_BASEFLOW_DIR = INPUTS_DIR / "baseflow"
 
 OUTPUT_DIR = SONG_EXAMPLE_DIR / "output"
-FD4_NPZ = OUTPUT_DIR / "fd4_n30" / "song_2023.npz"
+# The repository ships a trimmed copy of the run output. A local run writes the
+# full file next to it, and the report and plot scripts prefer that file.
+FD4_TRIMMED_NPZ = OUTPUT_DIR / "fd4_n30" / "song_2023.npz"
+FD4_FULL_NPZ = OUTPUT_DIR / "fd4_n30_full" / "song_2023.npz"
+FD4_NPZ = FD4_FULL_NPZ if FD4_FULL_NPZ.is_file() else FD4_TRIMMED_NPZ
 
 FIGURES_DIR = SONG_EXAMPLE_DIR / "figures"
 FIGURES_BASEFLOW_DIR = FIGURES_DIR / "baseflow"

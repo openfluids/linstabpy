@@ -2,7 +2,7 @@
 # Paths are relative to this file (``configs/``).
 paths:
   fields: ../inputs/baseflow
-  output_npz: ../output/fd4_n30/song_2023.npz
+  output_npz: ../output/fd4_n30_full/song_2023.npz  # not tracked; the trimmed copy in fd4_n30/ ships
 
 Re: 1.0e5
 Ma: 2.15

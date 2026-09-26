@@ -17,6 +17,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   against 3.64 s on the small test problem, unmeasured on a production
   operator.
 
+- The Song run wrote its 430 MB result over the shipped 6.6 MB trimmed file
+  `examples/song/output/fd4_n30/song_2023.npz`. The clone then showed a
+  modified tracked file, and the tracked-file-size test failed. The run now
+  writes to `output/fd4_n30_full/`, which git ignores. The report and plot
+  scripts read that file when it exists, and the shipped copy otherwise.
+
 ### Changed
 
 - The STRUMPACK known issue of 1.0.0rc11 is measured again and restated
