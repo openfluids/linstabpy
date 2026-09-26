@@ -201,7 +201,10 @@ def _prepare_resolvent_parity_payload(
         c_diag = ex1_observation_mask_diag(cfg, n_mode_dofs=n_dof)
         responses_mat = apply_diagonal_c(responses_mat, c_diag)
     elif case_id == "example_2_jet":
-        from examples.linstab2d.plot_compare_utils import jet_bc_mask_diag, jet_sponge_zero_mask
+        from examples.linstab2d.plot_compare_utils import (
+            jet_resolvent_response_c_diag,
+            jet_sponge_zero_mask,
+        )
 
         cfg = load_config(ROOT / "examples/linstab2d/example_2_jet.yaml")
         X_py = np.asarray(python_npz["X"], dtype=float)
@@ -210,11 +213,15 @@ def _prepare_resolvent_parity_payload(
             np.asarray(python_npz["used_ind"], dtype=int) if "used_ind" in python_npz else None
         )
         sponge0 = jet_sponge_zero_mask(X_py, Y_py, used_ind=used_py)
-        n_gp = int(sponge0.size)
-        rm = _mode_matrix(responses_mat)
-        n_fields = 2 if rm.shape[0] == 2 * n_gp else 5
-        layout = str(cfg.get("bc_mask_layout", "kron"))
-        c_diag = jet_bc_mask_diag(sponge0, layout=layout, n_fields=n_fields)
+        # The slim u+v fixture needs the rows u_j, v_j of the full kron(B, I_5)
+        # diagonal, not repeat(sponge0, 2).
+        c_diag = jet_resolvent_response_c_diag(
+            sponge0,
+            mode_dofs=_mode_matrix(responses_mat).shape[0],
+            u_j=u_j,
+            v_j=v_j,
+            layout=str(cfg.get("bc_mask_layout", "kron")),
+        )
         responses_mat = apply_diagonal_c(responses_mat, c_diag)
     elif case_id == "example_5_paraboloid":
         from examples.linstab2d.example_5_plots import ex5_observation_mask_diag

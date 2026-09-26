@@ -656,3 +656,23 @@ def test_compare_case_streaky_bl_missing_campaign_npz_is_hard_fail(tmp_path, mon
 
     assert result["status"] == "HARD_FAIL"
     assert "Missing Python artifact" in result["note"]
+
+
+def test_jet_response_mask_for_slim_uv_fixture_takes_full_kron_rows() -> None:
+    from examples.linstab2d.plot_compare_utils import jet_resolvent_response_c_diag
+
+    # Four grid points, the second one inside the sponge. MATLAB masks the
+    # block-ordered state with kron(B, I_5), so the full diagonal repeats each
+    # point value five times in a row; the slim fixture keeps rows u_j, v_j.
+    sponge0 = np.array([1.0, 0.0, 1.0, 1.0])
+    ngp = sponge0.size
+    u_j = np.arange(ngp, 2 * ngp) + 1
+    v_j = np.arange(2 * ngp, 3 * ngp) + 1
+    c_full = np.repeat(sponge0, 5)
+
+    c_slim = jet_resolvent_response_c_diag(
+        sponge0, mode_dofs=2 * ngp, u_j=u_j, v_j=v_j, layout="kron"
+    )
+
+    np.testing.assert_array_equal(c_slim, np.concatenate([c_full[u_j - 1], c_full[v_j - 1]]))
+    assert not np.array_equal(c_slim, np.repeat(sponge0, 2))

@@ -1,7 +1,7 @@
 case_id,label,comparison_scope,status,gain_max_abs,gain_max_rel,forcing_max_rel_l2,response_max_rel_l2,direct_spec_max_abs,direct_spec_max_rel,direct_mode_max_rel_l2,adjoint_spec_max_abs,adjoint_spec_max_rel,adjoint_mode_max_rel_l2,temporal_spec_max_abs,temporal_spec_max_rel,temporal_mode_max_rel_l2,spatial_spec_max_abs,spatial_spec_max_rel,matlab_df_linf,matlab_df_rel_l2,python_protocol_pass,note
 example_0_curvilinear_derivative,Example 0: curvilinear derivative test,direct,PASS,,,,,,,,,,,,,,,,0.00040853754847297585,0.00017411655026756595,True,"Direct field comparison against the exported MATLAB mesh, function, derivative, and analytical derivative."
 example_1_blasius,Example 1: Blasius resolvent,direct,PASS,2.857056813354575e-10,1.949259408408647e-11,9.772620594849077e-11,1.0548916311099759e-10,,,,,,,,,,,,,,,
-example_2_jet,Example 2: jet resolvent,direct,SOFT_FAIL,6.960476639505941e-10,3.3010329812539465e-12,6.931020604323841e-12,0.2121267950933605,,,,,,,,,,,,,,,
+example_2_jet,Example 2: jet resolvent,direct,PASS,6.960476639505941e-10,3.3010329812539465e-12,6.931020604323841e-12,1.026815244048331e-11,,,,,,,,,,,,,,,
 example_3_streaky_bl,Example 3: streaky boundary layer,temporal_and_spatial,PASS,,,,,,,,,,,,,,,,,,,
 example_4_cavity,Example 4: cavity direct and adjoint spectra,direct,PASS,,,,,9.200904571000175e-06,5.989196179614266e-06,0.00025911652162935076,9.200904603078847e-06,5.9891962004956066e-06,0.0011094151332337887,,,,,,,,,
 example_5_paraboloid,Example 5: paraboloid resolvent,direct,PASS,0.00010140670271319152,1.3841465176229056e-05,0.00022500568408330478,0.00033922694352086553,,,,,,,,,,,,,,,

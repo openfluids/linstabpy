@@ -108,13 +108,13 @@
         },
         "modes": {
           "max_forcing_rel_l2": 6.931020604323841e-12,
-          "max_response_rel_l2": 0.2121267950933605,
+          "max_response_rel_l2": 1.026815244048331e-11,
           "per_mode": [
             {
               "forcing_rel_l2": 6.729957391054903e-13,
               "matlab_mode_index_1based": 1,
               "python_mode_index_1based": 1,
-              "response_rel_l2": 0.04905235889010177,
+              "response_rel_l2": 7.756425154083455e-13,
               "svd_residual_adj": 1.5795030093609135e-13,
               "svd_residual_fwd": 1.0240169156792653e-16
             },
@@ -122,7 +122,7 @@
               "forcing_rel_l2": 4.2461800122423724e-12,
               "matlab_mode_index_1based": 2,
               "python_mode_index_1based": 2,
-              "response_rel_l2": 0.1585688559555803,
+              "response_rel_l2": 5.227894908192824e-12,
               "svd_residual_adj": 2.0357026600971415e-12,
               "svd_residual_fwd": 1.02063995288028e-16
             },
@@ -130,7 +130,7 @@
               "forcing_rel_l2": 6.931020604323841e-12,
               "matlab_mode_index_1based": 3,
               "python_mode_index_1based": 3,
-              "response_rel_l2": 0.2121267950933605,
+              "response_rel_l2": 1.026815244048331e-11,
               "svd_residual_adj": 2.157622788107846e-12,
               "svd_residual_fwd": 9.335705866876981e-17
             }
@@ -143,7 +143,7 @@
       },
       "note": "",
       "python_npz": "examples/linstab2d/example_2_jet.npz",
-      "status": "SOFT_FAIL"
+      "status": "PASS"
     },
     {
       "case_id": "example_3_streaky_bl",
@@ -552,9 +552,8 @@
   ],
   "config": "examples/linstab2d/martini_cases.yaml",
   "counts": {
-    "PASS": 5,
-    "SOFT_FAIL": 1
+    "PASS": 6
   },
-  "generated_at_utc": "2026-09-25T00:44:31.108192+00:00",
+  "generated_at_utc": "2026-09-26T12:03:48.261078+00:00",
   "npz_dir": "examples/linstab2d"
 }
