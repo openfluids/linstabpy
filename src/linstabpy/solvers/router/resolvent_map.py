@@ -23,21 +23,14 @@ At or below it, record the coupling and run undamped on purpose, as the
 shipped Savarino case declares (``enabled: false  # rectilinear mesh``).
 On a mesh that mixes, the undamped operator carries grid-scale modes that
 appear as spurious near-singular resonances in the map.
-To suppress them this path needs BOTH halves of the dissipation, set
-independently.
-
-* ``numerics.operator_dissipation = {"enabled": true, ...}`` -- builds the SBP
-  dissipation operators ``Q_diss_x/Q_diss_y`` onto the mesh.
-* top-level ``dissipation_epsilon`` (alias ``eps_resolv``) > 0 -- the strength
-  by which ``build_lnse_system`` subtracts ``Q_diss`` from ``L0``.
-
-GOTCHA: this router reads the strength from the *top-level*
-``dissipation_epsilon``, NOT from ``operator_dissipation.epsilon``.
-The non-router case2 assembly path reads the nested field.
-Enabling ``operator_dissipation`` alone is a silent no-op.
-Setting ``dissipation_epsilon`` without enabling
-``operator_dissipation`` is also a silent no-op.
-The operator then stays as assembled.
+To suppress them, set ``numerics.operator_dissipation`` as for every other
+path: ``enabled``, ``epsilon`` and ``apply_to_resolvent``. The block builds
+the SBP dissipation operators ``Q_diss_x/Q_diss_y`` on the mesh, and
+``config.defaults.stage_dissipation_epsilon`` turns it into the strength
+subtracted from ``L0``. The old top-level ``dissipation_epsilon`` and
+``eps_resolv`` keys are refused. A caller-supplied mesh without ``Q_diss``
+and a nonzero strength is refused too, because the assembly would skip the
+damping without a word.
 ``epsilon`` must clear the sawtooth poles yet stay below the
 physical-mode scale, and a value tuned on one mesh does not transfer.
 For the Song SWBLI fd4 stride-4 case on the curved-wall LES mesh the
@@ -60,6 +53,7 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.config.defaults import REMOVED_DISSIPATION_KEYS, stage_dissipation_epsilon
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
 from linstabpy.solvers.router.map_record import atomic_savez
 from linstabpy.solvers.router.map_walk import LineWalker, WalkDeferred
@@ -272,7 +266,9 @@ def _resolve_mesh(base_flow: Any, cfg: Mapping[str, Any]) -> Any:
                 name="x_periodicity",
             ),
             alpha_filter=mesh_cfg.get("alpha_filter", cfg.get("alpha_filter", "none")),
-            numerics_operator_dissipation=mesh_cfg.get("numerics_operator_dissipation"),
+            numerics_operator_dissipation=mesh_cfg.get(
+                "numerics_operator_dissipation", _operator_dissipation(cfg) or None
+            ),
         )
 
     raise ValueError(
@@ -287,6 +283,20 @@ def _solver_cfg(cfg: Mapping[str, Any]) -> Mapping[str, Any]:
     return cfg
 
 
+def _operator_dissipation(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the enabled ``numerics.operator_dissipation`` block, refusing the old keys."""
+    for key in REMOVED_DISSIPATION_KEYS:
+        if _cfg_value(cfg, key, None) is not None:
+            raise ValueError(
+                f"{key!r} is no longer read. Set the strength in "
+                "numerics.operator_dissipation (enabled, epsilon, apply_to_resolvent), "
+                "the block every other path reads."
+            )
+    numerics = _as_mapping(_cfg_value(cfg, "numerics", None))
+    od = numerics.get("operator_dissipation")
+    return dict(od) if isinstance(od, Mapping) and od.get("enabled", False) else {}
+
+
 def _assembly_kwargs(cfg: Mapping[str, Any]) -> dict[str, Any]:
     bc_recipe = _cfg_value(cfg, "bc_recipe", None)
     if bc_recipe is None:
@@ -299,9 +309,7 @@ def _assembly_kwargs(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "model": str(_cfg_value(cfg, "model", "2D")),
         "m": float(_cfg_value(cfg, "m", 0.0)),
         "floquet_exp": float(_cfg_value(cfg, "floquet_exp", 0.0)),
-        "dissipation_epsilon": float(
-            _cfg_value(cfg, "dissipation_epsilon", _cfg_value(cfg, "eps_resolv", 0.0))
-        ),
+        "dissipation_epsilon": stage_dissipation_epsilon(_operator_dissipation(cfg), "resolvent"),
         "bc_recipe": bc_recipe,
         "bc_penalty": float(_cfg_value(cfg, "bc_penalty", _cfg_value(cfg, "penalty", 1.0e4))),
         "backend": _cfg_value(cfg, "assembly_backend", None),
@@ -315,6 +323,12 @@ def _assemble_beta_operator(
     from linstabpy.operators.assembly import build_lnse_system
 
     kwargs = _assembly_kwargs(cfg)
+    if kwargs["dissipation_epsilon"] > 0.0 and getattr(mesh, "Q_diss_x", None) is None:
+        raise ValueError(
+            "numerics.operator_dissipation asks for epsilon "
+            f"{kwargs['dissipation_epsilon']:g}, but the mesh carries no Q_diss; build "
+            "the mesh with numerics_operator_dissipation, or the map runs undamped."
+        )
     start = time.perf_counter()
     L0, idx, bc_indices = build_lnse_system(mesh, base_flow, kx=float(beta), **kwargs)
     return _AssemblyResult(

@@ -346,7 +346,7 @@ Whether SBP sawtooth dissipation is needed depends on the **mesh**:
 
 - On **rectilinear** tensor meshes, metric cross-terms vanish; dissipation can be a costly no-op on gain accuracy.
 - On **curvilinear-in-both-directions** meshes, undamped operators can show spurious near-singular resonances.
-- Router expects **both**: `numerics.operator_dissipation.enabled` (build Q_diss on mesh) **and** top-level `dissipation_epsilon` (strength subtracted in `build_lnse_system`). Enabling only one is a **silent no-op**.
+- The router reads `numerics.operator_dissipation` like every other path: `enabled` builds Q_diss on the mesh and `epsilon` is the strength. The old top-level `dissipation_epsilon` is refused.
 
 #### Sequence: orchestration vs router vs linear algebra
 
@@ -741,7 +741,7 @@ Driver stage logging provides an ops-facing timeline parallel to scientific outp
 | State ordering is ρ,u,v,w,T | assembly and public API docs |
 | Direct sparse solve is default accuracy path | factorize policy; tests/examples |
 | Iterative LA only when explicitly chosen | solver-type allowlists |
-| Map dissipation needs dual enable | router docs + assembly strength read from top-level `dissipation_epsilon` |
+| Map dissipation reads one block | `config.defaults.stage_dissipation_epsilon`; top-level `dissipation_epsilon` is refused |
 | Spatial config may inherit eigen policy | spatial_eig fallback |
 | Library import must stay side-effect light | lazy `_LAZY_EXPORTS` in package `__init__` |
 | Rank-0 logging only for human progress | `_log` guards |

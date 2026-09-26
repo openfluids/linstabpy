@@ -32,6 +32,18 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   the paper cites. The GitHub Pages workflow is now `docs.yml`, which only
   checks that the wiki builds with `mkdocs build --strict`.
 
+- Dissipation has one config surface. `resolvent_map` now reads its strength
+  from `numerics.operator_dissipation` (`enabled`, `epsilon`,
+  `apply_to_resolvent`), as the driver does, through one function,
+  `config.defaults.stage_dissipation_epsilon`. It used to read a top-level
+  `dissipation_epsilon` (alias `eps_resolv`) and build the damping operator
+  from the block, so setting only one of the two ran the map undamped without
+  a warning. The top-level keys now stop the run with an error that names the
+  block. Migration: move the value to `numerics.operator_dissipation.epsilon`
+  and set `enabled: true`. A nonzero strength on a caller-supplied mesh
+  without `Q_diss` is refused for the same reason. The shipped Savarino
+  configs set `enabled: false`, so their numbers do not change.
+
 - `examples/martini/` is now `examples/linstab2d/`, the name the paper uses
   for the six LinStab2D validation cases. Import paths change from
   `examples.martini` to `examples.linstab2d`. The file contents are the same

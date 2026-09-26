@@ -30,7 +30,14 @@ Leave that math file alone.
 
 from __future__ import annotations
 
-__all__ = ["DISSIPATION_APPLY_DEFAULTS"]
+from collections.abc import Mapping
+from typing import Any, Literal
+
+__all__ = [
+    "DISSIPATION_APPLY_DEFAULTS",
+    "REMOVED_DISSIPATION_KEYS",
+    "stage_dissipation_epsilon",
+]
 
 # Which analysis stages inherit `operator_dissipation` when the config does not say.
 # Both are True: enabling dissipation should mean enabling it. A run that wants one stage
@@ -39,3 +46,38 @@ DISSIPATION_APPLY_DEFAULTS: dict[str, bool] = {
     "apply_to_stability": True,
     "apply_to_resolvent": True,
 }
+
+# Top-level spellings of the dissipation strength that the map router used to
+# read. The strength now comes only from ``numerics.operator_dissipation``.
+REMOVED_DISSIPATION_KEYS: tuple[str, ...] = ("dissipation_epsilon", "eps_resolv")
+
+
+def stage_dissipation_epsilon(
+    operator_dissipation: Mapping[str, Any] | None,
+    stage: Literal["stability", "resolvent"],
+) -> float:
+    """Return the dissipation strength that one analysis stage assembles with.
+
+    Every path that assembles an operator reads the strength here, from the
+    ``numerics.operator_dissipation`` block. The strength is ``epsilon`` when
+    the block is enabled and applies to the stage, else zero.
+
+    Parameters
+    ----------
+    operator_dissipation : Mapping or None
+        The ``numerics.operator_dissipation`` block. None means no block.
+    stage : {"stability", "resolvent"}
+        The analysis stage.
+
+    Returns
+    -------
+    float
+        The strength epsilon for the stage.
+    """
+    od = operator_dissipation if isinstance(operator_dissipation, Mapping) else {}
+    if not bool(od.get("enabled", False)):
+        return 0.0
+    key = f"apply_to_{stage}"
+    if not bool(od.get(key, DISSIPATION_APPLY_DEFAULTS[key])):
+        return 0.0
+    return float(od.get("epsilon", 0.0) or 0.0)

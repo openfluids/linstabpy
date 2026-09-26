@@ -457,7 +457,7 @@ H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 | `ram_autoselect` | Backend choice under memory policy |
 | `certification` | Consistency / RSVD certification hooks |
 
-**Config nuance:** Router dissipation strength is read from top-level `dissipation_epsilon`, while non-router paths may use nested `operator_dissipation.epsilon`. Both enable flags and strength must be set or dissipation is a **silent no-op**.
+**Config nuance:** Every path, the map router included, reads dissipation from `numerics.operator_dissipation` through `config.defaults.stage_dissipation_epsilon`. The old top-level `dissipation_epsilon` / `eps_resolv` keys are refused.
 
 ### Technical support components
 

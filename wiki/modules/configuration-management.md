@@ -433,12 +433,7 @@ packaged registry file; document expected artifacts alongside the case
 
 ### Dissipation configuration caution
 
-Architecture research notes a **dual path** risk outside pure typed loaders:
-
-- Router paths may read top-level `dissipation_epsilon`
-- Non-router assembly may use nested `operator_dissipation.epsilon`
-
-Both **enable** flags and **strength** must be set consistently or dissipation can become a silent no-op. Stage apply flags should follow `DISSIPATION_APPLY_DEFAULTS` unless explicitly overridden. Prefer one nested source of truth going forward; keep aliases only with clear deprecation.
+Dissipation has one source of truth: the `numerics.operator_dissipation` block. Every path that assembles an operator, the driver and the map router alike, gets its strength from `config.defaults.stage_dissipation_epsilon(block, stage)`. The strength is `epsilon` when `enabled` is true and `apply_to_<stage>` is true (default from `DISSIPATION_APPLY_DEFAULTS`), else zero. The old top-level `dissipation_epsilon` / `eps_resolv` keys are refused by `validate_config` and by the router, with a message that names the block.
 
 
 ## Practical Usage Patterns

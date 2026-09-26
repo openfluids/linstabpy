@@ -23,7 +23,7 @@ from petsc4py import PETSc
 from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
 from linstabpy.config import Config
-from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS
+from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS, stage_dissipation_epsilon
 from linstabpy.driver.payload import (
     RUNTIME_NPZ_CONTRACT_KEYS as RUNTIME_NPZ_CONTRACT_KEYS,  # noqa: F401
 )
@@ -1308,10 +1308,8 @@ def run() -> None:
     )
     od_interior_value = float(od_cfg.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
     # Effective epsilon per analysis stage
-    eps_stab = od_epsilon if (od_enabled and od_apply_to_stability) else 0.0
-    eps_resolv = (
-        od_epsilon if (od_enabled and od_apply_to_resolvent) else 0.0
-    )  # Phase 4: use when wiring resolvent
+    eps_stab = stage_dissipation_epsilon(od_cfg, "stability")
+    eps_resolv = stage_dissipation_epsilon(od_cfg, "resolvent")
     if od_enabled:
         _log(
             f"numerics.operator_dissipation effective: enabled=True, epsilon={od_epsilon}, order_diss={od_order_diss}, "

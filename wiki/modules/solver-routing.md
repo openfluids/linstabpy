@@ -168,12 +168,7 @@ sequenceDiagram
 
 **Dissipation policy (critical gotcha).** Whether a map needs [SBP](https://grokipedia.com/page/Summation_by_parts) sawtooth dissipation is a **mesh** property (metric cross-coupling \(\mathrm{Ji}_{12}/\mathrm{Ji}_{21}\)). On rectilinear tensor meshes, dissipation is often a pure cost with negligible gain change; on doubly curvilinear meshes, undamped operators can inject spurious near-singular resonances.
 
-Both halves must be set independently:
-
-1. `numerics.operator_dissipation = {enabled: true, ...}`, builds \(Q_{\mathrm{diss},x}/Q_{\mathrm{diss},y}\) on the mesh.
-2. Top-level `dissipation_epsilon` (alias `eps_resolv`) \(> 0\), strength subtracted from \(L_0\) in assembly.
-
-The router reads strength from **top-level** `dissipation_epsilon`, **not** `operator_dissipation.epsilon`. Enabling only one half is a **silent no-op**. Values are mesh-specific (e.g. Song SWBLI fd4 stride-4 curved-wall LES used \(\sim 0.10\); \(1.0\) can over-damp physical ridges by orders of magnitude). Measure coupling with `driver.preflight.metric_cross_coupling(X, Y)` (threshold \(\sim 10^{-8}\)).
+The router reads dissipation from the same `numerics.operator_dissipation` block as every other path: `enabled` builds \(Q_{\mathrm{diss},x}/Q_{\mathrm{diss},y}\) on the mesh, and `epsilon` (with `apply_to_resolvent`) is the strength subtracted from \(L_0\). The old top-level `dissipation_epsilon` / `eps_resolv` keys are refused with an error, and so is a nonzero strength on a caller-supplied mesh that carries no \(Q_{\mathrm{diss}}\). Values are mesh-specific (e.g. Song SWBLI fd4 stride-4 curved-wall LES used \(\sim 0.10\); \(1.0\) can over-damp physical ridges by orders of magnitude). Measure coupling with `driver.preflight.metric_cross_coupling(X, Y)` (threshold \(\sim 10^{-8}\)).
 
 **Operational behavior**
 
@@ -445,12 +440,11 @@ CertificationReport
 Typical YAML nesting (all of the following are accepted where noted):
 
 ```yaml
-# Strength for router assembly path (must pair with operator_dissipation.enabled)
-dissipation_epsilon: 0.10   # alias: eps_resolv
-
 numerics:
   operator_dissipation:
     enabled: true           # builds Q_diss on mesh
+    epsilon: 0.10           # strength subtracted from L0
+    apply_to_resolvent: true
 
 router:                     # or solver.router
   band_marking:

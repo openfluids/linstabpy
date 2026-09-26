@@ -7,6 +7,8 @@ from collections.abc import Iterable
 from difflib import get_close_matches
 from typing import Any
 
+from .defaults import REMOVED_DISSIPATION_KEYS
+
 
 class ConfigValidationError(ValueError):
     pass
@@ -186,7 +188,12 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
     violations: list[str] = []
 
     for key in cfg:
-        if key not in TOP_LEVEL_ALLOWED:
+        if key in REMOVED_DISSIPATION_KEYS:
+            violations.append(
+                f"top-level key {key!r} is no longer read; set the strength in "
+                "numerics.operator_dissipation (enabled, epsilon, apply_to_resolvent)"
+            )
+        elif key not in TOP_LEVEL_ALLOWED:
             hint = ""
             if isinstance(key, str):
                 match = get_close_matches(key, sorted(TOP_LEVEL_ALLOWED), n=1, cutoff=0.6)

@@ -38,6 +38,7 @@ sys.path.insert(0, str(REPO / "src"))
 from examples.savarino.gen_campaign import GRID, TWO_PI, tag, x_max  # noqa: E402
 from linstabpy.baseflow import load_case_fields, sutherland_air  # noqa: E402
 from linstabpy.config import Config  # noqa: E402
+from linstabpy.config.defaults import stage_dissipation_epsilon  # noqa: E402
 from linstabpy.mesh import Mesh  # noqa: E402
 from linstabpy.operators.assembly import build_lnse_system  # noqa: E402
 from linstabpy.operators.energy_norm import compute_chu_norm  # noqa: E402
@@ -207,7 +208,7 @@ def main() -> int:
         baseflow,
         kx=beta,
         model="2D",
-        dissipation_epsilon=0.0,
+        dissipation_epsilon=stage_dissipation_epsilon(od, "resolvent"),
         bc_recipe=cfg["bc"]["recipe"],
         bc_penalty=float(cfg["bc"]["penalty"]),
         solver_cfg=cfg.get("solver") or {},

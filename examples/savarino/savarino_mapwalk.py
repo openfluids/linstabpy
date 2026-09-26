@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "src"))
 
 from examples.savarino.gen_campaign import TWO_PI, X_MIN, Y_MAX, x_max  # noqa: E402
+from linstabpy.config.defaults import stage_dissipation_epsilon  # noqa: E402
 from linstabpy.solvers.router.map_record import (  # noqa: E402
     append_row,
     finished_pairs,
@@ -199,7 +200,7 @@ def _assemble(
         baseflow,
         kx=float(beta),
         model="2D",
-        dissipation_epsilon=0.0,
+        dissipation_epsilon=stage_dissipation_epsilon(od, "resolvent"),
         bc_recipe=cfg["bc"]["recipe"],
         bc_penalty=float(cfg["bc"]["penalty"]),
         solver_cfg=cfg.get("solver") or {},
