@@ -470,7 +470,7 @@ def test_validate_w_diag_success_returns_float_array() -> None:
 )
 def test_prescribed_map_end_to_end_passing_point(tmp_path: Path) -> None:
     """End-to-end resolvent: shrunk mesh, real base flow, prescribed forcing."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map
@@ -568,7 +568,7 @@ def test_prescribed_map_end_to_end_passing_point(tmp_path: Path) -> None:
 )
 def test_prescribed_map_mismatched_npz_fails(tmp_path: Path) -> None:
     """Mismatched table beta and npz beta causes failed record."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map

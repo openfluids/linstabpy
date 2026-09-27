@@ -124,7 +124,7 @@ def compute() -> None:
         message = "prescribed_demo is serial; run it without mpiexec"
         raise RuntimeError(message)
 
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map

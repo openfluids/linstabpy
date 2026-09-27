@@ -372,7 +372,7 @@ def test_prescribed_map_missing_forcing_config_raises() -> None:
 
 def test_prescribed_map_path_key_alias_records_failure(tmp_path: Path) -> None:
     """Row with 'path' key and mismatched npz beta records failed status."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map
@@ -452,7 +452,7 @@ def test_prescribed_map_path_key_alias_records_failure(tmp_path: Path) -> None:
 
 def test_prescribed_map_row_without_path_key_raises() -> None:
     """Row with neither forcing_path nor path key raises ValueError."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map
@@ -519,7 +519,7 @@ def test_prescribed_map_solve_failure_records_failed(
     """A solve exception yields a failed record that carries the exception text."""
     import importlib
 
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map
@@ -606,7 +606,7 @@ def test_prescribed_map_solve_failure_records_failed(
 
 def test_prescribed_map_config_gamma_mismatch_records_failure(tmp_path: Path) -> None:
     """Config gamma differing from npz gamma records a failed row."""
-    from examples.martini.matlab_baseflow import load_blasius
+    from examples.linstab2d.matlab_baseflow import load_blasius
     from linstabpy.baseflow import sutherland_air
     from linstabpy.mesh import Mesh
     from linstabpy.solvers.router.prescribed_map import prescribed_map

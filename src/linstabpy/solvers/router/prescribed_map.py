@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from linstabpy.config.defaults import stage_dissipation_epsilon
 from linstabpy.resolvent.prescribed import prescribed_forcing_response
 from linstabpy.resolvent.prescribed_io import load_prescribed_forcing
 from linstabpy.solvers.router.map_record import append_row
@@ -439,7 +440,9 @@ def _write_prescribed_csv(
         )
     ranks = 1  # Prescribed path is serial today; column exists for schema consistency.
     fd_order = int(cfg_map.get("fd_order", 4))
-    epsilon = float(cfg_map.get("dissipation_epsilon", 0.0))
+    numerics = cfg_map.get("numerics", {})
+    od = numerics.get("operator_dissipation") if isinstance(numerics, dict) else None
+    epsilon = stage_dissipation_epsilon(od, "resolvent")
 
     for record in point_records:
         row_values = [record.get(f) for f in _RECORD_FIELDS]

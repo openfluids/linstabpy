@@ -587,25 +587,19 @@ def test_banner_handles_empty_fields():
 # --------------------------------------------------------------------------------------
 
 
-def test_config_advisories_diss_key_mismatch_enabled_with_string_epsilon() -> None:
-    """A non-numeric dissipation_epsilon still yields DISS-KEY-MISMATCH."""
-    cfg = {
-        "prescribed_forcing": {"table": "t.csv"},
-        "numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}},
-        "dissipation_epsilon": "three",
-    }
-    adv = config_advisories(cfg)
-    found = next(a for a in adv if a.code == "DISS-KEY-MISMATCH")
-    assert found.severity == "warning"
+def test_config_advisories_prescribed_run_without_dissipation_block_is_undeclared() -> None:
+    """A prescribed-forcing run is a resolvent run, so it must declare dissipation."""
+    cfg = {"prescribed_forcing": {"table": "t.csv"}}
+    assert "DISS-UNDECLARED" in codes(config_advisories(cfg))
 
 
-def test_config_advisories_diss_key_mismatch_without_top_level_epsilon() -> None:
-    """Enabled dissipation without a top-level epsilon flags DISS-KEY-MISMATCH."""
+def test_config_advisories_prescribed_run_with_dissipation_block_is_declared() -> None:
+    """The numerics block is the one place that declares dissipation."""
     cfg = {
         "prescribed_forcing": {"table": "t.csv"},
         "numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}},
     }
-    assert "DISS-KEY-MISMATCH" in codes(config_advisories(cfg))
+    assert "DISS-UNDECLARED" not in codes(config_advisories(cfg))
 
 
 def test_config_advisories_prescribed_exclusivity_with_beta_range() -> None:
