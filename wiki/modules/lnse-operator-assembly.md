@@ -517,7 +517,7 @@ sequenceDiagram
 ## Implementation Notes and Constraints
 
 1. **Pre-BC vs full system**, Low-level `build_lnse_operator*` never apply BCs so SciPy, PETSc, and conversion paths share one post-operator ordering.
-2. **Dissipation dual config risk (project-wide)**, Assembly takes an explicit `dissipation_epsilon`. Router campaigns may read top-level keys while other paths use nested `operator_dissipation`; mismatched enable/strength can silently no-op dissipation. Callers must pass a consistent strength into assembly.
+2. **One dissipation source**, Assembly takes an explicit `dissipation_epsilon` argument. Every caller, the map router included, computes it from `numerics.operator_dissipation` through `config.defaults.stage_dissipation_epsilon`; the old top-level `dissipation_epsilon` / `eps_resolv` keys are refused.
 3. **Direct PETSc gaps**, No validated PETSc-side \(Q_{\mathrm{diss}}\) insertion; axy inv(B) is sequential-only; distributed direct assembly is model-limited.
 4. **Complex arithmetic**, Production PETSc builds must be complex-scalar.
 5. **Sparsity hygiene**, Dirichlet/Neumann paths zero data in place where possible and eliminate structural zeros after penalty insertion.
