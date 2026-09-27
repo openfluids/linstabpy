@@ -478,19 +478,23 @@ A 901k-DOF SWBLI operator with N_h would require stacking 25–27 copies, reachi
 
 ### Configuration
 
-Enable harmonic resolvent in YAML:
+The harmonic path is a Python API. The YAML case driver does not run it, and
+`validate_config` rejects `periodic_baseflow:` or `harmonic_resolvent:` keys in
+a case file. The call sequence is:
 
-```yaml
-periodic_baseflow:
-  path: periodic_qhat.npz
+```python
+from linstabpy.baseflow.periodic import load_periodic_baseflow
+from linstabpy.operators.harmonic_blocks import assemble_harmonic_blocks, write_resolvent4py_coo
+from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
 
-harmonic_resolvent:
-  enabled: true
-  N_h: 5
-  perts_freqs: [-1.0, 0.0, 1.0]
-  kappa: 0.001
-  n_modes: 10
+pbf = load_periodic_baseflow("periodic_qhat.npz", mesh_shape=(ny, nx))
+blocks = assemble_harmonic_blocks(mesh, pbf, N_h=5, N_t=32, kx=beta, bc_recipe=recipe)
+coo = write_resolvent4py_coo(blocks, "coo/")
+gains, info = harmonic_resolvent_gains(coo, n, perts_freqs=perts_freqs, n_modes=10, kappa=1e-3)
 ```
+
+`perts_freqs` holds the `2*N_p+1` perturbation frequencies, with `N_p = N_h + 3`.
+`examples/harmonic/padovan_ode/padovan_toy.py` runs the whole sequence end to end.
 
 The periodic base-flow loader validates the input `.npz` for canonical freestream normalization (ρ_∞ = u_∞ = T_∞ = 1) and rejects mismatched mesh shapes.
 
