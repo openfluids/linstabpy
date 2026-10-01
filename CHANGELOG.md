@@ -89,7 +89,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
       one thread, GPU on      2.102e-10 x16           2.102e-10 x16           2.102e-10 x16
       ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad    7e-11..8.7e-9, 0 bad,
                                                                               1 crash
-      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad   1e-11..1.1e-8, 1 bad
+      ten threads, GPU off    1e-11..1.1e-5, 1 bad,   9e-12..1.0e+01, 2 bad   1e-11..1.1e-8, 1 bad
+                              1 crash
 
   One thread gives the same value sixteen times, and the same value on all
   three builds. Ten threads scatter on all three builds whether the card is
