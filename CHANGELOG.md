@@ -80,20 +80,28 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   GPU is not needed for it and a newer STRUMPACK does not fix it. Reproducer:
   factor `K = L0 - sigma*I` for the Blasius temporal problem (750 unknowns,
   sigma = -0.1j) and measure the probe residual on a seeded right-hand side;
-  sixteen fresh processes per arm, one A6000, one script across two builds.
+  sixteen fresh processes per arm, one A6000, one script across three builds.
+  A run is bad when its residual is above 1e-8. The first two builds ran on
+  17 September, the third on 25 September.
 
-                              PETSc 3.24.2            PETSc 3.25.5
-                              STRUMPACK v8.0.0        STRUMPACK master
-      one thread, GPU on      2.102e-10 x16           2.102e-10 x16
-      ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad
-      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad
+                              PETSc 3.24.2            PETSc 3.25.5            PETSc 3.25.5
+                              STRUMPACK v8.0.0        STRUMPACK master        STRUMPACK 273d9068
+      one thread, GPU on      2.102e-10 x16           2.102e-10 x16           2.102e-10 x16
+      ten threads, GPU on     8e-11..2.5e-3, 2 bad    8e-11..7.0e-7, 1 bad    7e-11..8.7e-9, 0 bad,
+                                                                              1 crash
+      ten threads, GPU off    1e-11..1.1e-5, 1 bad    9e-12..1.0e+01, 2 bad   1e-11..1.1e-8, 1 bad
 
-  One thread gives the same value sixteen times, and the same value on both
-  builds. Ten threads scatter on both builds whether the card is used or not.
-  PETSc 3.25.5 pins STRUMPACK master of May 2026, eighteen months and 24
-  commits after the v8.0.0 tag, including one that sets the CUDA device per
-  OpenMP thread; the fault survives it. Upstream's own TODO says the library
-  "is not completely thread safe at the moment".
+  One thread gives the same value sixteen times, and the same value on all
+  three builds. Ten threads scatter on all three builds whether the card is
+  used or not. PETSc 3.25.5 pins STRUMPACK master of May 2026, eighteen months
+  and 24 commits after the v8.0.0 tag, including one that sets the CUDA device
+  per OpenMP thread; the fault survives it. The third build takes STRUMPACK
+  master at commit 273d9068 of 23 September 2026, the newest at the time of
+  the test; none of the commits since May names threads or OpenMP. The fault
+  survives it too, and one ten-thread process ended without a result. On
+  both PETSc 3.25.5 builds PETSc reports `-mat_strumpack_gpu 0` as unused, so
+  their GPU-off row may have used the card. Upstream's own TODO says the
+  library "is not completely thread safe at the moment".
 
   The error reaches the answer. Through FGMRES with a STRUMPACK
   preconditioner, the five leading eigenvalues of the same example missed the
