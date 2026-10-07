@@ -439,3 +439,51 @@ def test_load_periodic_baseflow_qhat0_imaginary() -> None:
         )
         with pytest.raises(ValueError, match="imaginary part"):
             load_periodic_baseflow(npz_path)
+
+
+def _write_periodic_npz(path: Path, qhat: np.ndarray, **extra: object) -> None:
+    """Write a periodic base-flow npz on a 3 x 2 grid."""
+    np.savez(
+        path,
+        Qhat=qhat,
+        T_period=1.0,
+        x=np.array([0.0, 1.0]),
+        y=np.array([0.0, 1.0, 2.0]),
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+        **extra,
+    )
+
+
+def test_load_periodic_baseflow_freestream_check_can_be_skipped(tmp_path: Path) -> None:
+    """freestream_rtol=None loads a flow whose last y row is not a free stream."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    qhat[0] = np.real(qhat[0])
+    qhat[0, 0, -1, :] = 0.5
+    _write_periodic_npz(tmp_path / "jet.npz", qhat)
+    pbf = load_periodic_baseflow(tmp_path / "jet.npz", freestream_rtol=None)
+    assert pbf.N_h == 1
+
+
+def test_load_periodic_baseflow_reversed_freestream_fails(tmp_path: Path) -> None:
+    """A free stream with u = -1 fails; the check uses the signed mean."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    qhat[0] = np.real(qhat[0])
+    qhat[0, 1, -1, :] = -1.0
+    _write_periodic_npz(tmp_path / "reversed.npz", qhat)
+    with pytest.raises(ValueError, match="Freestream u"):
+        load_periodic_baseflow(tmp_path / "reversed.npz")
+
+
+def test_load_periodic_baseflow_keeps_array_extra(tmp_path: Path) -> None:
+    """An array-valued optional key is kept, not passed to .item()."""
+    qhat = np.ones((2, 5, 3, 2), dtype=complex)
+    qhat[0] = np.real(qhat[0])
+    n_snapshots = np.array([10, 20])
+    _write_periodic_npz(tmp_path / "x.npz", qhat, n_snapshots=n_snapshots, n_cycles=4)
+    pbf = load_periodic_baseflow(tmp_path / "x.npz")
+    np.testing.assert_array_equal(pbf.extras["n_snapshots"], n_snapshots)
+    assert pbf.extras["n_cycles"] == 4

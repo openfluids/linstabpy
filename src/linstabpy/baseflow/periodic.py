@@ -165,7 +165,7 @@ def load_periodic_baseflow(
     path: str,
     *,
     mesh_shape: tuple[int, int] | None = None,
-    freestream_rtol: float = 0.05,
+    freestream_rtol: float | None = 0.05,
 ) -> PeriodicBaseFlow:
     """Load periodic base flow from npz file.
 
@@ -183,9 +183,11 @@ def load_periodic_baseflow(
         Path to npz file.
     mesh_shape : tuple(ny, nx), optional
         If given, check Qhat shape matches (N_h+1, 5, ny, nx).
-    freestream_rtol : float, optional
+    freestream_rtol : float or None, optional
         Relative tolerance for freestream check on top boundary.
-        Default 0.05 (5%).
+        Default 0.05 (5%). None skips the check, for a flow whose last
+        y row is not a free stream (a jet, a cavity under a wall, a
+        descending y grid).
 
     Returns
     -------
@@ -219,7 +221,8 @@ def load_periodic_baseflow(
         extras: dict[str, Any] = {}
         for key in ["commit", "source", "n_snapshots", "n_cycles"]:
             if key in data.files:
-                extras[key] = data[key].item() if hasattr(data[key], "item") else data[key]
+                value = data[key]
+                extras[key] = value.item() if np.size(value) == 1 else value
 
     # Shape check
     if qhat.ndim != 4:
@@ -239,16 +242,18 @@ def load_periodic_baseflow(
     # Freestream check: rho, u, T at top boundary (last y row) must be ~1.0
     # (canonical normalization: rho_inf = u_inf = T_inf = 1). A mis-scaled
     # base flow voided a whole session once; this check prevents recurrence.
+    # The signed mean is used, so a flow with u reversed fails the check.
     qhat0_real = np.real(qhat[0])
     rho_top = qhat0_real[0, -1, :]  # shape (nx,)
     u_top = qhat0_real[1, -1, :]
     t_top = qhat0_real[4, -1, :]
 
-    rho_mean = np.mean(np.abs(rho_top))
-    u_mean = np.mean(np.abs(u_top))
-    t_mean = np.mean(np.abs(t_top))
+    rho_mean = np.mean(rho_top)
+    u_mean = np.mean(u_top)
+    t_mean = np.mean(t_top)
 
-    for name, val in [("rho", rho_mean), ("u", u_mean), ("T", t_mean)]:
+    checks = [] if freestream_rtol is None else [("rho", rho_mean), ("u", u_mean), ("T", t_mean)]
+    for name, val in checks:
         if abs(val - 1.0) > freestream_rtol:
             raise ValueError(
                 f"Freestream {name} mean on top boundary = {val:.4f}, "
