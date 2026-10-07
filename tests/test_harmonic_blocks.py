@@ -538,3 +538,53 @@ def test_write_resolvent4py_vecs_resolvent4py_missing(
 
     with pytest.raises(ImportError, match="resolvent4py not found"):
         write_resolvent4py_vecs(vecs, str(tmp_path))
+
+
+def test_harmonic_blocks_dissipation_needs_q_diss(small_mesh_2d, steady_pbf) -> None:
+    """A positive epsilon on a mesh without Q_diss is refused, not skipped."""
+    assert small_mesh_2d.Q_diss_x is None
+    with pytest.raises(ValueError, match="Q_diss_x is None"):
+        assemble_harmonic_blocks(small_mesh_2d, steady_pbf, N_h=0, N_t=4, dissipation_epsilon=0.1)
+
+
+def test_harmonic_blocks_match_full_fft() -> None:
+    """The per-instant Fourier sum equals np.fft.fft of the stacked operators."""
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators.assembly import build_lnse_system
+
+    # 8 x 6 points keep the dense stack at 8 x 240 x 240.
+    small_mesh_2d = Mesh.create(xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=8, ny=6, fd_order=4)
+
+    ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
+    qhat = np.zeros((3, 5, ny, nx), dtype=complex)
+    qhat[0, 0], qhat[0, 1], qhat[0, 4] = 1.0, 1.0, 1.0
+    yy = small_mesh_2d.Y
+    qhat[1, 1] = 0.05 * (1.0 + 0.5j) * yy
+    qhat[2, 2] = 0.02j * yy**2
+    pbf = PeriodicBaseFlow(
+        Qhat=qhat,
+        T_period=2.0,
+        x=small_mesh_2d.X[0, :],
+        y=small_mesh_2d.Y[:, 0],
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.71,
+        kappa=1.4,
+        T_0=300.0,
+    )
+    N_h, N_t, kx = 2, 8, 0.7
+    blocks = assemble_harmonic_blocks(small_mesh_2d, pbf, N_h=N_h, N_t=N_t, kx=kx)
+
+    dense = np.stack(
+        [
+            build_lnse_system(small_mesh_2d, pbf.reconstruct(t), kx=kx)[0].toarray()
+            for t in pbf.sample_times(N_t)
+        ]
+    )
+    ref = np.fft.fft(dense, axis=0) / N_t
+    scale = np.max(np.abs(ref[0]))
+    for k in range(-N_h, N_h + 1):
+        err = np.max(np.abs(blocks.Ahat[k + N_h].toarray() - ref[k % N_t]))
+        assert err <= 1e-12 * scale, f"k={k}: max error {err:.2e} against fft"
+    tail = np.linalg.norm(ref[N_h + 1]) / np.linalg.norm(ref[0])
+    assert blocks.tail_ratio == pytest.approx(tail, rel=1e-10)

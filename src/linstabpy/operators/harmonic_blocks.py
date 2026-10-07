@@ -103,7 +103,8 @@ def assemble_harmonic_blocks(
     bc_penalty : float, optional
         Penalty parameter for BC enforcement. Default 1e4.
     dissipation_epsilon : float, optional
-        Artificial dissipation coefficient. Default 0.
+        Artificial dissipation coefficient. Default 0. A positive value
+        needs a mesh built with ``numerics_operator_dissipation`` enabled.
     solver_cfg : dict, optional
         Solver configuration dictionary.
 
@@ -123,6 +124,19 @@ def assemble_harmonic_blocks(
         raise ValueError(message)
     if N_t % 2 != 0:
         raise ValueError(f"N_t must be even, got {N_t}")
+
+    # build_lnse_system skips the dissipation term when the mesh has no
+    # Q_diss operators, so a positive epsilon would change nothing. The
+    # map router refuses the same case for the same reason.
+    if dissipation_epsilon > 0.0 and (
+        getattr(mesh, "Q_diss_x", None) is None or getattr(mesh, "Q_diss_y", None) is None
+    ):
+        message = (
+            f"dissipation_epsilon={dissipation_epsilon} needs a mesh built with "
+            "numerics_operator_dissipation enabled (mesh.Q_diss_x is None); the "
+            "term would be skipped"
+        )
+        raise ValueError(message)
 
     # Sample times over [0, T_period)
     times = pbf.sample_times(N_t)
@@ -148,15 +162,16 @@ def assemble_harmonic_blocks(
 
     n_dof = A_list[0].shape[0]
 
-    # Build union sparsity pattern from all instants
-    coo_list = [A.tocoo() for A in A_list]
-    rows_cat = np.concatenate([c.row for c in coo_list])
-    cols_cat = np.concatenate([c.col for c in coo_list])
-
+    # Union sparsity pattern of all instants. assembly() calls
+    # eliminate_zeros(), so the pattern depends on the base-flow values.
+    # Stored zeros count as entries, so the scatter below always finds a slot.
+    rows_cat = np.concatenate([np.repeat(np.arange(n_dof), np.diff(A.indptr)) for A in A_list])
+    cols_cat = np.concatenate([A.indices for A in A_list])
     union_csr = sp.csr_matrix(
         (np.ones_like(rows_cat, dtype=float), (rows_cat, cols_cat)),
         shape=(n_dof, n_dof),
     )
+    del rows_cat, cols_cat
     union_csr.sum_duplicates()
     union_csr.sort_indices()
 
@@ -165,30 +180,28 @@ def assemble_harmonic_blocks(
     union_indptr = union_csr.indptr
     nnz_union = union_csr.nnz
 
-    # Vectorized scatter per instant: precompute keys for union positions.
-    # After union_csr.sort_indices(), rows ascend globally and columns
-    # ascend within each row, so the key row*n_dof + col is globally
-    # ascending. This lets us use searchsorted to map A_n entries to
-    # union positions in one call per instant.
+    # After sort_indices(), rows ascend globally and columns ascend within
+    # each row, so the key row*n_dof + col is globally ascending and
+    # searchsorted maps each A_n entry to its union slot.
     union_rows = np.repeat(np.arange(n_dof), np.diff(union_indptr))
     union_keys = union_rows.astype(np.int64) * n_dof + union_indices
 
-    # Scatter each instant's data into union slots
-    stacked_data = np.zeros((N_t, nnz_union), dtype=complex)
+    # Harmonics to keep: k = -N_h..N_h, plus N_h+1 for the aliasing
+    # diagnostic when N_t resolves it. Accumulating the discrete Fourier
+    # sum one instant at a time holds (2*N_h+2) data arrays instead of the
+    # (N_t, nnz) array a full FFT needs. The normalization is the forward
+    # 1/N_t of np.fft.fft, so bin k is the coefficient of exp(+i*k*omega0*t).
+    with_tail = N_t > 2 * (N_h + 1)
+    k_values = list(range(-N_h, N_h + 1)) + ([N_h + 1] if with_tail else [])
+    k_array = np.asarray(k_values, dtype=float)
+    acc = np.zeros((len(k_values), nnz_union), dtype=complex)
 
     for inst, A_n in enumerate(A_list):
         out = np.zeros(nnz_union, dtype=complex)
-
-        # Convert to COO for this instant
         A_n_coo = A_n.tocoo()
-
-        # Vectorized key computation: row*n_dof + col (int64 to avoid overflow)
+        # int64 keys avoid overflow for n_dof above 46341.
         A_n_keys = A_n_coo.row.astype(np.int64) * n_dof + A_n_coo.col
-
-        # Find positions of A_n entries in union (all keys exist by construction)
         pos = np.searchsorted(union_keys, A_n_keys)
-
-        # Scatter into union positions
         out[pos] = A_n_coo.data
 
         # Validate reconstruction: check that sparse representation matches
@@ -206,23 +219,15 @@ def assemble_harmonic_blocks(
             )
             raise RuntimeError(message)
 
-        stacked_data[inst, :] = out
+        phase = np.exp(-2j * np.pi * k_array * inst / N_t) / N_t
+        acc += phase[:, None] * out[None, :]
+        # The instant is folded into every kept harmonic; release it.
+        A_list[inst] = None
 
-    # Full FFT over time (not rfft): forward 1/N_t normalization, keep all k
-    Ahat_full = (1.0 / N_t) * np.fft.fft(stacked_data, axis=0)
-
-    # Extract k = -N_h..N_h; negative k are in bins N_t+k (e.g., k=-1 -> bin N_t-1)
-    ahat_list = []
-    for k in range(-N_h, N_h + 1):
-        if k >= 0:
-            bin_idx = k
-        else:
-            bin_idx = N_t + k  # Negative frequency: bin N_t - |k|
-        ahat_k = sp.csr_matrix(
-            (Ahat_full[bin_idx, :], union_indices, union_indptr),
-            shape=(n_dof, n_dof),
-        )
-        ahat_list.append(ahat_k)
+    ahat_list = [
+        sp.csr_matrix((acc[j, :], union_indices, union_indptr), shape=(n_dof, n_dof))
+        for j in range(2 * N_h + 1)
+    ]
 
     # Compute conjugation asymmetry: max_k ||Ahat[-k] - conj(Ahat[k])|| / ||Ahat[k]||
     conjugation_asymmetry = None
@@ -242,9 +247,9 @@ def assemble_harmonic_blocks(
 
     # Compute tail ratio if N_t allows harmonic N_h+1
     tail_ratio = None
-    if N_t > 2 * (N_h + 1):
-        norm_tail = np.linalg.norm(Ahat_full[N_h + 1, :], ord=2)
-        norm_0 = np.linalg.norm(Ahat_full[0, :], ord=2)
+    if with_tail:
+        norm_tail = np.linalg.norm(acc[-1, :], ord=2)
+        norm_0 = np.linalg.norm(acc[N_h, :], ord=2)
         tail_ratio = norm_tail / norm_0 if norm_0 > 0 else np.nan
 
     return HarmonicBlocks(
@@ -289,7 +294,10 @@ def write_resolvent4py_coo(
     try:
         from petsc4py import PETSc
     except ImportError as e:
-        message = "petsc4py not found. Install with: pip install linstabpy[harmonic]"
+        message = (
+            "petsc4py not found. The [harmonic] extra does not install it; "
+            "build the complex PETSc/SLEPc stack with: bash install.sh"
+        )
         raise ImportError(message) from e
 
     try:
@@ -367,7 +375,10 @@ def write_resolvent4py_vecs(
     try:
         from petsc4py import PETSc
     except ImportError as e:
-        message = "petsc4py not found. Install with: pip install linstabpy[harmonic]"
+        message = (
+            "petsc4py not found. The [harmonic] extra does not install it; "
+            "build the complex PETSc/SLEPc stack with: bash install.sh"
+        )
         raise ImportError(message) from e
 
     try:
