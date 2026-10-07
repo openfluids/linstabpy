@@ -1026,5 +1026,5 @@ with the LinStab2D methodology paper:
 > compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665-685
 > (2024). doi:10.1007/s00162-024-00706-0
 
-See `CITATION.cff` for the machine-readable entry. The software DOI and release
-version will be added once the first tagged release is archived on Zenodo.
+See `CITATION.cff` for the machine-readable entry. Cite the public repository
+and the release tag you used.

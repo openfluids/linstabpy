@@ -20,13 +20,8 @@ authors:
 repository-code: 'https://github.com/openfluids/linstabpy'
 url: 'https://github.com/openfluids/linstabpy'
 license: GPL-3.0-only
-# TODO when the first tagged release lands on Zenodo, add the
-# following three keys with concrete values (placeholders below
-# are deliberately omitted because strict CFF validation rejects
-# non-ISO-8601 date-released or invalid DOI strings):
-#   doi: 10.5281/zenodo.XXXXXXX
-#   version: v0.1.0
-#   date-released: 2026-MM-DD
+# At the v1.0.0 tag, add `version: 1.0.0` and `date-released: YYYY-MM-DD`
+# (ISO 8601). There is no software DOI: the public repository is the archive.
 preferred-citation:
   type: article
   title: >-
