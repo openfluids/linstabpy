@@ -547,7 +547,7 @@ def test_prescribed_map_end_to_end_passing_point(tmp_path: Path) -> None:
             }
         ],
         "prescribed_output_csv": str(csv_path),
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
 
     result = prescribed_map(bf, cfg=cfg)
@@ -645,7 +645,7 @@ def test_prescribed_map_mismatched_npz_fails(tmp_path: Path) -> None:
             }
         ],
         "prescribed_output_csv": str(csv_path),
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
 
     result = prescribed_map(bf, cfg=cfg)
@@ -657,12 +657,8 @@ def test_prescribed_map_mismatched_npz_fails(tmp_path: Path) -> None:
     assert "table beta" in record["exception"]
 
 
-@pytest.mark.skipif(
-    importlib.util.find_spec("petsc4py") is None,
-    reason="SKIPPED: petsc4py absent; the solve runs on the compute node",
-)
 def test_prescribed_forcing_zero_forcing_raises() -> None:
-    """All-zero forcing cannot yield a gain; a ValueError is raised."""
+    """All-zero forcing fails before the factorization, so no PETSc is needed."""
     with pytest.raises(ValueError, match="zero.*norm.*cannot compute gain"):
         prescribed_forcing_response(
             _seeded_operator(6, seed=3),
@@ -716,3 +712,37 @@ def test_prescribed_forcing_petsc_mat_input_parity() -> None:
     L0_petsc.destroy()
 
     assert gain_scipy == pytest.approx(gain_petsc, rel=1e-12)
+
+
+def test_prescribed_forcing_negative_w_diag_raises() -> None:
+    """A negative weight would make the W-norm NaN; it is refused."""
+    w = np.ones(6)
+    w[2] = -1.0
+    with pytest.raises(ValueError, match="1 negative entries"):
+        prescribed_forcing_response(_seeded_operator(6, seed=3), 1.0, w, np.ones(6, dtype=complex))
+
+
+def test_load_prescribed_forcing_keeps_array_extra(tmp_path: Path) -> None:
+    """A ``mesh`` coordinate array in the file is kept as an array."""
+    path = tmp_path / "f.npz"
+    mesh_xy = np.linspace(0.0, 1.0, 4)
+    np.savez(path, f=np.ones(3, dtype=complex), beta=0.1, omega=0.5, mesh=mesh_xy, nx=4)
+    forcing = load_prescribed_forcing(path, expected_ndof=3)
+    np.testing.assert_array_equal(forcing.extras["mesh"], mesh_xy)
+    assert forcing.extras["nx"] == 4
+
+
+def test_load_prescribed_forcing_gamma_round_off_is_accepted(tmp_path: Path) -> None:
+    """A float64 round-off difference between file and config gamma passes."""
+    path = tmp_path / "f.npz"
+    np.savez(path, f=np.ones(3, dtype=complex), beta=0.1, omega=0.5, gamma=0.1 + 0.2 - 0.2)
+    forcing = load_prescribed_forcing(path, expected_ndof=3, config_gamma=0.1)
+    assert forcing.gamma == pytest.approx(0.1, rel=1e-15)
+
+
+def test_load_prescribed_forcing_float32_gamma_is_rejected(tmp_path: Path) -> None:
+    """A gamma stored as float32 differs by about 1e-9 and is reported."""
+    path = tmp_path / "f.npz"
+    np.savez(path, f=np.ones(3, dtype=complex), beta=0.1, omega=0.5, gamma=np.float32(0.1))
+    with pytest.raises(ValueError, match="gamma"):
+        load_prescribed_forcing(path, expected_ndof=3, config_gamma=0.1)

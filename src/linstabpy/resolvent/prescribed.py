@@ -18,7 +18,7 @@ solve path.
 linstabpy does not derive leftover Navier-Stokes terms here. It does not
 Fourier transform anything. It does not interpolate external data onto the
 mesh. f_hat is the caller's right-hand side. It comes from outside
-linstabpy (see docs/plan_1.1_prescribed_forcing.md).
+linstabpy (see "Prescribed forcing" in README.md).
 """
 
 from __future__ import annotations
@@ -151,7 +151,8 @@ def _validate_w_diag(w_diag: np.ndarray, ndof: int) -> np.ndarray:
     Raises
     ------
     ValueError
-        If ``w_diag`` is not a length-``ndof`` finite 1-D vector.
+        If ``w_diag`` is not a length-``ndof`` finite 1-D vector, or has a
+        negative entry.
     """
     w = np.asarray(w_diag, dtype=float)
     if w.ndim != 1 or w.shape[0] != ndof:
@@ -160,6 +161,10 @@ def _validate_w_diag(w_diag: np.ndarray, ndof: int) -> np.ndarray:
         raise ValueError(message)
     if not np.all(np.isfinite(w)):
         message = "W_diag contains NaN or Inf"
+        raise ValueError(message)
+    # A negative weight makes the W-norm the square root of a negative sum.
+    if np.any(w < 0.0):
+        message = f"W_diag has {int(np.sum(w < 0.0))} negative entries; weights must be >= 0"
         raise ValueError(message)
     return w
 
@@ -194,6 +199,27 @@ def _inner_solve_residual(
     return _l2_norm(residual)
 
 
+def _forcing_norm_value(f: np.ndarray, w: np.ndarray, forcing_norm: str) -> float:
+    """Return the gain denominator, the ``forcing_norm`` norm of ``f``.
+
+    Returns
+    -------
+    float
+        The Chu-weighted norm for ``"chu"``, the plain norm for ``"l2"``.
+
+    Raises
+    ------
+    ValueError
+        If that norm is zero, because the gain is then undefined.
+    """
+    denom = _w_norm(f, w) if forcing_norm == "chu" else _l2_norm(f)
+    if denom <= 0.0:
+        norm_label = "Chu-weighted" if forcing_norm == "chu" else "L2"
+        message = f"forcing has zero {norm_label} norm; cannot compute gain"
+        raise ValueError(message)
+    return denom
+
+
 def _solve_pipeline(
     L0: sp.spmatrix | PETSc.Mat,
     omega: float,
@@ -205,7 +231,7 @@ def _solve_pipeline(
     filter_ct_fn: Callable[[np.ndarray], np.ndarray] | None,
     solver_cfg: dict[str, object] | None,
     cfg: Config,
-) -> tuple[np.ndarray, float, dict[str, float]]:
+) -> tuple[np.ndarray, float, dict[str, float], str]:
     """Factorize, solve, and measure the inner-solve residual.
 
     One shifted-operator factorization backs both ``op.apply`` (the
@@ -218,8 +244,9 @@ def _solve_pipeline(
     Returns
     -------
     tuple
-        ``(q_hat, rho_fwd, timings)``, with ``timings`` holding
-        ``factor_s``, ``solve_s``, and ``residual_s``.
+        ``(q_hat, rho_fwd, timings, backend)``, with ``timings`` holding
+        ``factor_s``, ``solve_s``, and ``residual_s``, and ``backend`` the
+        name of the factorization backend that ran.
     """
     L_sigma = shifted_operator(L0, omega, gamma=gamma)
     t0 = time.perf_counter()
@@ -227,7 +254,8 @@ def _solve_pipeline(
         L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
     )
     factor_s = time.perf_counter() - t0
-    logger.info("  linear solver backend: %s", lu.backend)
+    backend = str(lu.backend)
+    logger.info("  linear solver backend: %s", backend)
 
     try:
         op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
@@ -245,7 +273,7 @@ def _solve_pipeline(
         lu.destroy()
 
     timings = {"factor_s": factor_s, "solve_s": solve_s, "residual_s": residual_s}
-    return q_hat, rho_fwd, timings
+    return q_hat, rho_fwd, timings, backend
 
 
 def prescribed_forcing_response(
@@ -297,45 +325,38 @@ def prescribed_forcing_response(
         ``||q_hat||_W`` over the ``forcing_norm``-selected norm of
         ``f_hat``.
     info : dict
-        Holds ``rho_fwd``, ``gain``, ``forcing_norm``, and ``gamma``.
-        Also holds the W-norms of ``q_hat`` and ``f_hat``, and the
-        ``factor_s`` / ``solve_s`` / ``residual_s`` stage timings.
+        Holds ``rho_fwd``, ``gain``, ``forcing_norm``, ``gamma`` and the
+        factorization ``backend``. Also holds the W-norms of ``q_hat`` and
+        ``f_hat``, and the ``factor_s`` / ``solve_s`` / ``residual_s``
+        stage timings.
     """
     ndof = _operator_ndof(L0)
     _validate_forcing_norm(forcing_norm)
     f = _validate_f_hat(f_hat, ndof)
     w = _validate_w_diag(W_diag, ndof)
+    # The gain denominator branches on forcing_norm exactly like
+    # WeightedNormalOperator in the resolvent_analysis SVD path: "chu"
+    # divides by the Chu-weighted norm of f_hat, "l2" by its plain norm.
+    # The response is Chu-weighted in both. With the same norm on both
+    # paths, the prescribed gain cannot exceed sigma_1. It is computed
+    # before the factorization so a zero forcing fails before any solve.
+    denom = _forcing_norm_value(f, w, forcing_norm)
     cfg = cfg if cfg is not None else Config.load(solver_cfg if solver_cfg is not None else {})
     logger.info("Prescribed-forcing resolvent: omega=%.6g gamma=%.6g ndof=%d", omega, gamma, ndof)
 
-    q_hat, rho_fwd, timings = _solve_pipeline(
+    q_hat, rho_fwd, timings, backend = _solve_pipeline(
         L0, omega, gamma, f, B_mat, C_mat, filter_fn, filter_ct_fn, solver_cfg, cfg
     )
 
-    # The gain denominator branches on forcing_norm exactly like
-    # WeightedNormalOperator in the resolvent_analysis SVD path.
-    # When forcing_norm is "chu", both the response and forcing are
-    # normalized by the Chu-weighted norm (invW.H^H.W.H construction).
-    # When forcing_norm is "l2", the response stays Chu-weighted but
-    # the forcing uses the plain 2-norm. Mixing these norms across
-    # the two paths would violate the sigma_1 <= gain <= sigma_1
-    # bounds that both methods enforce.
     q_w_norm = _w_norm(q_hat, w)
     f_w_norm = _w_norm(f, w)
-    denom = f_w_norm if forcing_norm == "chu" else _l2_norm(f)
-    # Zero denominator means the forcing has zero norm, so the gain
-    # cannot be computed. This is an error: the caller must provide
-    # a non-zero forcing vector.
-    if denom <= 0.0:
-        norm_label = "Chu-weighted" if forcing_norm == "chu" else "L2"
-        message = f"forcing has zero {norm_label} norm; cannot compute gain"
-        raise ValueError(message)
     gain = q_w_norm / denom
     info: dict[str, float | str] = {
         "rho_fwd": rho_fwd,
         "gain": gain,
         "forcing_norm": forcing_norm,
         "gamma": float(gamma),
+        "backend": backend,
         "q_hat_w_norm": q_w_norm,
         "f_hat_w_norm": f_w_norm,
         **timings,

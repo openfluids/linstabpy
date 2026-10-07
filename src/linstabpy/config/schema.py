@@ -99,10 +99,6 @@ TOP_LEVEL_ALLOWED = frozenset(
         "zero_dmudT_martini_parity",
         "matlab_parity_dmudt",
         "bc_mask_layout",
-        # Prescribed-forcing resolvent path (1.1): path to the npz forcing
-        # file, and whether to accept the (beta, omega) = (0, 0) bin.
-        "prescribed_forcing",
-        "prescribed_allow_zero_bin",
     }
 )
 
@@ -171,7 +167,6 @@ _BOOL_FIELDS = frozenset(
         "run_stability",
         "run_resolvent",
         "use_omega_shift_fallback",
-        "prescribed_allow_zero_bin",
     }
 )
 
@@ -261,20 +256,6 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
         value = cfg[key]
         if not isinstance(value, bool):
             violations.append(f"{key}: expected bool, got {type(value).__name__}")
-
-    # Prescribed-forcing: if present, must be a list of dicts.
-    if "prescribed_forcing" in cfg:
-        value = cfg["prescribed_forcing"]
-        if not isinstance(value, list):
-            violations.append(
-                f"prescribed_forcing: expected list of row dicts, got {type(value).__name__}"
-            )
-        else:
-            for row_idx, row in enumerate(value):
-                if not isinstance(row, dict):
-                    violations.append(
-                        f"prescribed_forcing[{row_idx}]: expected dict, got {type(row).__name__}"
-                    )
 
     for key in sorted(_STRING_FIELDS & cfg.keys()):
         value = cfg[key]

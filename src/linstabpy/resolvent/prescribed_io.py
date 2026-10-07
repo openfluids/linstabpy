@@ -2,8 +2,8 @@
 """Loader for the prescribed-forcing npz contract.
 
 One npz file holds one complex forcing vector at one ``(beta, omega)``
-point, produced entirely outside linstabpy (see
-``docs/plan_1.1_prescribed_forcing.md``). Required keys: ``f``, ``beta``,
+point, produced entirely outside linstabpy (see "Prescribed forcing" in
+``README.md``). Required keys: ``f``, ``beta``,
 ``omega``. Optional keys: ``gamma``, ``mesh``, ``nx``, ``ny``, ``commit``.
 
 Loading here checks the file's shape, not its physics. It never guesses the
@@ -52,9 +52,10 @@ def _npz_scalar(value: np.ndarray) -> object:
     Returns
     -------
     object
-        ``value.item()`` when possible, otherwise ``value`` unchanged.
+        ``value.item()`` for a one-element value, otherwise ``value``
+        unchanged (for example a ``mesh`` coordinate array).
     """
-    if hasattr(value, "item"):
+    if hasattr(value, "item") and np.size(value) == 1:
         return value.item()
     return value
 
@@ -164,11 +165,11 @@ def _reconcile_gamma(
     A mismatch between the two discount values is an error: the npz file
     encodes the physics of the external forcing (a deliberate choice at
     generation time), while config_gamma comes from the user's solver
-    setup. A silent disagreement would poison every row of a gain map with
-    a discount mismatch—the resolvent response would be solved for one
-    gamma but reported under another. The comparison is exact bitwise
-    equality, not approximate: the only valid outcome is that both carry
-    the same value or only one is present.
+    setup. A silent disagreement would solve the response for one gamma
+    and report it under another. The values agree when they differ by at
+    most 1e-12 relative (1e-15 absolute near zero). This accepts float64
+    round-off from the code that wrote the file. It rejects any other
+    difference, including a gamma stored as float32.
 
     Returns
     -------
@@ -180,7 +181,11 @@ def _reconcile_gamma(
     ValueError
         If both are present and unequal.
     """
-    if npz_gamma is not None and config_gamma is not None and npz_gamma != config_gamma:
+    if (
+        npz_gamma is not None
+        and config_gamma is not None
+        and abs(npz_gamma - config_gamma) > max(1.0e-12 * abs(config_gamma), 1.0e-15)
+    ):
         message = f"{path}: npz gamma={npz_gamma!r} does not match config gamma={config_gamma!r}"
         raise ValueError(message)
     return npz_gamma if npz_gamma is not None else config_gamma
