@@ -90,12 +90,12 @@ class Advisory:
     """One actionable finding. ``code`` is stable and greppable. ``remedy`` names the fix."""
 
     code: str
-    severity: str  # "warning" | "note" | "error"
+    severity: str  # "warning" | "note"
     message: str
     remedy: str
 
     def render(self) -> str:
-        tag = {"warning": "WARNING", "error": "ERROR"}.get(self.severity, "note")
+        tag = "WARNING" if self.severity == "warning" else "note"
         return f"  [{tag}] {self.code}: {self.message}\n           -> {self.remedy}"
 
 
@@ -263,29 +263,6 @@ def config_advisories(config: Mapping[str, Any] | None) -> list[Advisory]:
                 )
             )
 
-    # Prescribed-forcing exclusivity check (1.1 feature).
-    if config.get("prescribed_forcing"):
-        # The classical markers may sit at top level or under ``analysis``,
-        # which is where the driver reads run_resolvent from.
-        analysis = _get(config, "analysis", {})
-        analysis = analysis if isinstance(analysis, Mapping) else {}
-        classical_markers = [
-            ("beta_range", "classical beta_range"),
-            ("f_range", "classical f_range"),
-            ("run_resolvent", "classical run_resolvent"),
-        ]
-        for key, label in classical_markers:
-            if key in config or key in analysis:
-                out.append(
-                    Advisory(
-                        "PRESCRIBED-EXCLUSIVITY",
-                        "error",
-                        f"config has both prescribed_forcing and {label}; these answer "
-                        "different questions (known forcing vs optimal-forcing SVD)",
-                        f"remove prescribed_forcing to run the classical SVD map, or remove "
-                        f"{key} to run the prescribed path",
-                    )
-                )
     return out
 
 

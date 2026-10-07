@@ -13,47 +13,53 @@ import pytest
 from linstabpy.config.schema import ConfigValidationError
 from linstabpy.resolvent.prescribed_io import load_prescribed_forcing
 from linstabpy.solvers.router.prescribed_map import (
+    _parse_forcing_table,
     _require_row_matches_forcing,
     _validate_prescribed_exclusivity,
 )
 
 
 class TestPrescribedConfigSchema:
-    """Schema validation for prescribed_forcing config."""
+    """The prescribed map is a Python call; a case file cannot set its keys."""
 
-    def test_validate_config_prescribed_forcing_valid_list(self) -> None:
-        """A minimal config with prescribed_forcing as list of dicts passes."""
+    @pytest.mark.parametrize(
+        "key", ["prescribed_forcing", "prescribed_allow_zero_bin", "prescribed_output_csv"]
+    )
+    def test_validate_config_rejects_python_api_key(self, key: str) -> None:
+        """validate_config names prescribed_map instead of running without it."""
         from linstabpy.config.schema import validate_config
 
-        cfg = {
-            "prescribed_forcing": [
-                {"beta": 0.1, "omega": 0.5, "path": "dummy.npz"},
-            ]
-        }
-        assert validate_config(cfg) is None
-
-    def test_validate_config_prescribed_forcing_string_raises(self) -> None:
-        """prescribed_forcing as string (not list) raises ConfigValidationError."""
-        from linstabpy.config.schema import validate_config
-
-        cfg = {
-            "prescribed_forcing": "path/to/file.npz",
-        }
-        with pytest.raises(ConfigValidationError, match="prescribed_forcing.*expected list"):
+        cfg = {key: [{"beta": 0.1, "omega": 0.5, "path": "dummy.npz"}]}
+        with pytest.raises(ConfigValidationError, match="prescribed_map"):
             validate_config(cfg)
 
-    def test_validate_config_prescribed_forcing_non_dict_row_raises(self) -> None:
-        """prescribed_forcing list containing non-dict raises ConfigValidationError."""
-        from linstabpy.config.schema import validate_config
-
-        cfg = {
-            "prescribed_forcing": [
-                {"beta": 0.1, "omega": 0.5, "path": "dummy.npz"},
-                "not_a_dict",
+    def test_parse_forcing_table_returns_rows(self) -> None:
+        """A list of row mappings gives (beta, omega, path) tuples."""
+        rows = _parse_forcing_table(
+            [
+                {"beta": 0.1, "omega": 0.5, "path": "a.npz"},
+                {"beta": 0, "omega": 2, "forcing_path": "b.npz"},
             ]
-        }
-        with pytest.raises(ConfigValidationError, match="prescribed_forcing.*expected dict"):
-            validate_config(cfg)
+        )
+        assert rows == [(0.1, 0.5, "a.npz"), (0.0, 2.0, "b.npz")]
+
+    def test_parse_forcing_table_string_raises(self) -> None:
+        """A table given as a string, not a list, raises."""
+        with pytest.raises(ValueError, match="list of row mappings"):
+            _parse_forcing_table("path/to/file.npz")
+
+    def test_parse_forcing_table_non_mapping_row_raises(self) -> None:
+        """A row that is not a mapping raises with its index."""
+        with pytest.raises(ValueError, match="row 1: expected a mapping"):
+            _parse_forcing_table([{"beta": 0.1, "omega": 0.5, "path": "a.npz"}, "not_a_dict"])
+
+    @pytest.mark.parametrize(
+        "row", [{"omega": 0.5, "path": "a.npz"}, {"beta": "x", "omega": 0.5, "path": "a.npz"}]
+    )
+    def test_parse_forcing_table_bad_beta_raises(self, row: dict[str, object]) -> None:
+        """A missing or non-numeric beta raises before any assembly."""
+        with pytest.raises(ValueError, match="row 0: 'beta' must be a number"):
+            _parse_forcing_table([row])
 
 
 class TestPrescribedConfigExclusivity:
@@ -100,6 +106,25 @@ class TestPrescribedConfigExclusivity:
             "run_resolvent": True,
         }
         with pytest.raises(ConfigValidationError):
+            _validate_prescribed_exclusivity(cfg)
+
+    def test_prescribed_with_run_resolvent_false_ok(self) -> None:
+        """run_resolvent: false, common in case files, does not conflict."""
+        cfg = {
+            "prescribed_forcing": [{"beta": 0.1, "omega": 0.5, "path": "dummy.npz"}],
+            "analysis": {"run_resolvent": False},
+        }
+        _validate_prescribed_exclusivity(cfg)
+
+    def test_prescribed_with_router_beta_range_raises(self) -> None:
+        """A beta_range under router, where the classical map reads it, conflicts."""
+        cfg = {
+            "router": {
+                "prescribed_forcing": [{"beta": 0.1, "omega": 0.5, "path": "dummy.npz"}],
+                "beta_range": [0.0, 0.2],
+            },
+        }
+        with pytest.raises(ConfigValidationError, match="beta_range"):
             _validate_prescribed_exclusivity(cfg)
 
     def test_empty_prescribed_ok(self):
@@ -438,7 +463,7 @@ def test_prescribed_map_path_key_alias_records_failure(tmp_path: Path) -> None:
                 "path": str(npz_path),
             }
         ],
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
 
     result = prescribed_map(bf, cfg=cfg)
@@ -506,7 +531,7 @@ def test_prescribed_map_row_without_path_key_raises() -> None:
                 "omega": 60.0,
             }
         ],
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
 
     with pytest.raises(ValueError, match="missing 'forcing_path'"):
@@ -585,7 +610,7 @@ def test_prescribed_map_solve_failure_records_failed(
                 "forcing_path": str(npz_path),
             }
         ],
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
 
     def raiser(*args: object, **kwargs: object) -> NoReturn:
@@ -672,7 +697,7 @@ def test_prescribed_map_config_gamma_mismatch_records_failure(tmp_path: Path) ->
                 "forcing_path": str(npz_path),
             }
         ],
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
         "resolvent_discount_gamma": 0.0,
     }
 
@@ -683,3 +708,127 @@ def test_prescribed_map_config_gamma_mismatch_records_failure(tmp_path: Path) ->
     assert record["status"] == "failed"
     assert "exception" in record
     assert "gamma" in record["exception"]
+
+
+def _small_blasius_case(tmp_path: Path) -> tuple[object, dict[str, object], np.ndarray]:
+    """Return a 12 x 8 Blasius base flow, its prescribed-map config, and a forcing.
+
+    The config has no ``prescribed_forcing`` table; each test adds its own.
+    """
+    from examples.linstab2d.matlab_baseflow import load_blasius
+    from linstabpy.baseflow import sutherland_air
+    from linstabpy.mesh import Mesh
+
+    Re, Ma, Pr, kappa, T_0 = 6.0e5, 0.3, 0.7, 1.4, 273.15
+    nx, ny, dx, fd_order = 12, 8, 0.01, 4
+    cmesh = Mesh.create((5 * dx, 1.25 + dx), (-1.0, 1.0), nx, ny, fd_order, alpha_filter="none")
+    y_i, y_max = 0.01, 0.05
+    a = y_i * y_max / (y_max - 2 * y_i)
+    b = 1 + 2 * a / y_max
+    Y_phys = a * (1 + cmesh.Y) / (b - cmesh.Y)
+    mesh = cmesh.deform(Y_new=Y_phys)
+    bf = load_blasius(mesh.X, Y_phys, Re=Re, Ma=Ma, Pr=Pr, kappa=kappa, T_0=T_0)
+    sutherland_air(bf)
+
+    x_pts = np.asarray(mesh.X).ravel(order="F")[mesh.used_ind]
+    y_pts = np.asarray(mesh.Y).ravel(order="F")[mesh.used_ind]
+    weight = np.exp(-(((x_pts - 0.65) / 0.08) ** 2 + ((y_pts - 0.01) / 0.01) ** 2))
+    f_hat = np.tile(weight.astype(complex), 5)
+    cfg: dict[str, object] = {
+        "mesh": mesh,
+        "Re": Re,
+        "Ma": Ma,
+        "Pr": Pr,
+        "kappa": kappa,
+        "T_0": T_0,
+        "fd_order": fd_order,
+        "model": "2D",
+        "bc_recipe": [{"type": "dirichlet", "borders": "lrbt", "variables": "uvwT"}],
+        "bc_penalty": 1.0e4,
+    }
+    return bf, cfg, f_hat
+
+
+def test_prescribed_map_missing_file_fails_row_and_continues(tmp_path: Path) -> None:
+    """A missing forcing file fails its row; the next row still runs."""
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    bf, cfg, f_hat = _small_blasius_case(tmp_path)
+    # Row 1 carries a beta that differs from its file, so it fails at load
+    # time too, without a solve; that is enough to show the loop went on.
+    npz_path = tmp_path / "forcing.npz"
+    np.savez(npz_path, f=f_hat, beta=0.001, omega=60.0)
+    cfg["prescribed_forcing"] = [
+        {"beta": 0.0, "omega": 60.0, "path": str(tmp_path / "absent.npz")},
+        {"beta": 0.0, "omega": 60.0, "path": str(npz_path)},
+    ]
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert [r["status"] for r in result.point_records] == ["failed", "failed"]
+    assert result.point_records[0]["exception_class"] == "FileNotFoundError"
+    assert "table beta" in str(result.point_records[1]["exception"])
+
+
+def test_prescribed_map_csv_rerun_replaces_file(tmp_path: Path) -> None:
+    """Two runs to one CSV path leave one header and one set of rows."""
+    import csv
+
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    bf, cfg, _f_hat = _small_blasius_case(tmp_path)
+    csv_path = tmp_path / "gains.csv"
+    cfg["prescribed_forcing"] = [
+        {"beta": 0.0, "omega": 60.0, "path": str(tmp_path / "absent_a.npz")},
+        {"beta": 0.0, "omega": 61.0, "path": str(tmp_path / "absent_b.npz")},
+    ]
+    cfg["prescribed_output_csv"] = str(csv_path)
+
+    prescribed_map(bf, cfg=cfg)
+    prescribed_map(bf, cfg=cfg)
+
+    with csv_path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 2
+    assert rows[0]["exception_class"] == "FileNotFoundError"
+    assert rows[0]["status"] == "failed"
+
+
+def test_prescribed_map_top_level_forcing_norm_raises() -> None:
+    """A top-level forcing_norm, which no path reads, is refused."""
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    cfg = {
+        "prescribed_forcing": [{"beta": 0.0, "omega": 1.0, "path": "dummy.npz"}],
+        "forcing_norm": "l2",
+    }
+    with pytest.raises(ValueError, match=r"resolvent\.eigen\.forcing_norm"):
+        prescribed_map(object(), cfg=cfg)
+
+
+@pytest.mark.parametrize("norm", ["chu", "l2"])
+def test_prescribed_map_reads_forcing_norm_from_resolvent_eigen(tmp_path: Path, norm: str) -> None:
+    """The map takes its norm from resolvent.eigen.forcing_norm, as the SVD map does."""
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    bf, cfg, _f_hat = _small_blasius_case(tmp_path)
+    cfg["prescribed_forcing"] = [{"beta": 0.0, "omega": 60.0, "path": str(tmp_path / "x.npz")}]
+    cfg["resolvent"] = {"eigen": {"forcing_norm": norm}}
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert result.point_records[0]["forcing_norm"] == norm
+
+
+def test_prescribed_map_reads_table_under_router(tmp_path: Path) -> None:
+    """A table under ``router`` is found, as for the classical map's keys."""
+    from linstabpy.solvers.router.prescribed_map import prescribed_map
+
+    bf, cfg, _f_hat = _small_blasius_case(tmp_path)
+    cfg["router"] = {
+        "prescribed_forcing": [{"beta": 0.0, "omega": 60.0, "path": str(tmp_path / "x.npz")}]
+    }
+
+    result = prescribed_map(bf, cfg=cfg)
+
+    assert len(result.point_records) == 1

@@ -469,7 +469,15 @@ optimal forcing. The gain measures the energy amplification of your specific for
 Compute one half-plane; the other follows by conjugation.
 
 **Mean-flow bin rejection:** `(beta, omega) = (0, 0)` is rejected by default (mean-flow distortion 
-is a separate question). Set `prescribed_allow_zero_bin: true` in the config to override.
+is a separate question). Set `"prescribed_allow_zero_bin": True` in the `cfg` mapping to override.
+
+**Map over many points:** `linstabpy.solvers.router.prescribed_map(base_flow, cfg)` reads a
+`prescribed_forcing` list of `{"beta", "omega", "forcing_path"}` rows from `cfg`, solves one point
+per row, and appends one CSV row per point to `prescribed_output_csv` as it goes (a new run
+replaces the file). The forcing norm comes from `resolvent.eigen.forcing_norm`, the field the
+classical map reads, so both maps use the same norm. The map is a Python call only:
+`validate_config` rejects these keys in a YAML case file, and the `linstabpy` command does not
+run it.
 
 Examples: `examples/prescribed_forcing/prescribed_demo.py` manufactures a test forcing field and 
 runs a small prescribed map.

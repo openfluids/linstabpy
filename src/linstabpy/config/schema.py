@@ -180,6 +180,18 @@ _STRING_FIELDS = frozenset(
 )
 
 
+# Keys that only the Python call ``prescribed_map(base_flow, cfg)`` reads.
+# The linstabpy command does not run a prescribed-forcing map, so a case
+# file that sets one of them would run without it.
+PYTHON_API_ONLY_KEYS = frozenset(
+    {
+        "prescribed_forcing",
+        "prescribed_allow_zero_bin",
+        "prescribed_output_csv",
+    }
+)
+
+
 def validate_config(cfg: dict, *, source: str | None = None) -> None:
     """Validate known config hazards without requiring any optional fields."""
     violations: list[str] = []
@@ -189,6 +201,12 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
             violations.append(
                 f"top-level key {key!r} is no longer read; set the strength in "
                 "numerics.operator_dissipation (enabled, epsilon, apply_to_resolvent)"
+            )
+        elif key in PYTHON_API_ONLY_KEYS:
+            violations.append(
+                f"top-level key {key!r} is read only by the Python call "
+                "linstabpy.solvers.router.prescribed_map(base_flow, cfg); "
+                "the linstabpy command does not run a prescribed-forcing map"
             )
         elif key not in TOP_LEVEL_ALLOWED:
             hint = ""

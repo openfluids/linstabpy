@@ -63,13 +63,17 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   external forcing vector, rather than computing the optimal-forcing SVD. The
   module `linstabpy.resolvent.prescribed` provides `prescribed_forcing_response()`,
   which solves `(L0 - (gamma + i*omega) I)^-1 (B f_hat)` once per point with
-  identical assembly and BC masking as the classical resolvent path. The map
-  driver `linstabpy.solvers.router.prescribed_map()` reads a table of
-  `(beta, omega, npz_path)` rows from the config and outputs a CSV with gains,
-  residuals, and provenance. Config exclusivity gate ensures the prescribed and
-  SVD paths do not mix: both ask coherent questions, but answering both at once
-  is silent drift. See the README section "Prescribed forcing (version 1.1+)"
-  for the design, physics framing, and the npz forcing-file contract. Example: 
+  the same assembly and BC masking as the classical resolvent path. The map
+  driver `linstabpy.solvers.router.prescribed_map(base_flow, cfg)` reads a table
+  of `(beta, omega, npz_path)` rows from `cfg` and writes a CSV with gains,
+  residuals, the factorization backend and, for a failed row, the error. It
+  takes the forcing norm from `resolvent.eigen.forcing_norm`, as the classical
+  map does. It is a Python call only: `validate_config` rejects
+  `prescribed_forcing`, `prescribed_allow_zero_bin` and `prescribed_output_csv`
+  in a case file, because the `linstabpy` command does not run this map. A
+  config that also sets `beta_range`, `f_range` or a true `run_resolvent` is
+  refused. See the README section "Prescribed forcing (version 1.1+)" for the
+  npz forcing-file contract. Example:
   `examples/prescribed_forcing/prescribed_demo.py`.
 
 ### Fixed

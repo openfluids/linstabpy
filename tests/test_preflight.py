@@ -600,25 +600,3 @@ def test_config_advisories_prescribed_run_with_dissipation_block_is_declared() -
         "numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}},
     }
     assert "DISS-UNDECLARED" not in codes(config_advisories(cfg))
-
-
-def test_config_advisories_prescribed_exclusivity_with_beta_range() -> None:
-    """prescribed_forcing plus beta_range yields a PRESCRIBED-EXCLUSIVITY error."""
-    cfg = {
-        "prescribed_forcing": {"table": "t.csv"},
-        "beta_range": [0.0, 1.0],
-    }
-    adv = config_advisories(cfg)
-    found = next(a for a in adv if a.code == "PRESCRIBED-EXCLUSIVITY")
-    assert found.severity == "error"
-
-
-def test_config_advisories_prescribed_exclusivity_with_run_resolvent() -> None:
-    """prescribed_forcing plus run_resolvent yields a PRESCRIBED-EXCLUSIVITY error."""
-    cfg = {
-        "prescribed_forcing": {"table": "t.csv"},
-        "analysis": {"run_resolvent": True},
-    }
-    adv = config_advisories(cfg)
-    found = next(a for a in adv if a.code == "PRESCRIBED-EXCLUSIVITY")
-    assert found.severity == "error"

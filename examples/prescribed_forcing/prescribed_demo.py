@@ -217,12 +217,8 @@ def compute() -> None:
             },
         ],
         "prescribed_output_csv": str(OUTPUT_CSV),
-        "forcing_norm": "l2",
+        "resolvent": {"eigen": {"forcing_norm": "l2"}},
     }
-
-    # The CSV writer appends rows. Remove a previous file so a rerun
-    # cannot keep old rows next to the new one.
-    OUTPUT_CSV.unlink(missing_ok=True)
 
     logger.info("Running prescribed_map")
     t0 = time.perf_counter()
