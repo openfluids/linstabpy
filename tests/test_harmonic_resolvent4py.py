@@ -137,7 +137,7 @@ def test_harmonic_resolvent_coo_round_trip() -> None:
 def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
     """N_h=0 harmonic resolvent, classical resolvent, and dense SVD agree at conditioned point.
 
-    At kappa = gamma = 10 the measured cond(T) is 2.6e6. All three
+    At gamma = 10 the measured cond(T) is 2.6e6. All three
     approaches then agree to near machine accuracy.
     """
     import tempfile
@@ -187,7 +187,7 @@ def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
 
-        # Dense reference: build T_dense with kappa=gamma=10
+        # Dense reference: build T_dense with gamma=10
         A_dense = blocks.Ahat[0].toarray()
         n = A_dense.shape[0]
         T_dense = -(A_dense - 10.0 * np.eye(n)) + 1j * omega * np.eye(n)
@@ -217,7 +217,7 @@ def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
             n,
             perts_freqs=perts_freqs,
             n_modes=1,
-            kappa=10.0,
+            gamma=10.0,
             eps_reg=0.0,
         )
 
@@ -303,7 +303,7 @@ def test_harmonic_resolvent_steady_limit_conditioning_bound(small_mesh_2d) -> No
     with tempfile.TemporaryDirectory() as tmpdir:
         coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
 
-        # Classical resolvent_analysis with kappa and gamma at default (0)
+        # Classical resolvent_analysis with gamma at its default (0)
         from linstabpy.resolvent.analysis import resolvent_analysis
 
         L0 = blocks.Ahat[0].tocsc()
@@ -627,10 +627,10 @@ def test_harmonic_resolvent_slepc4py_missing(
 
 
 @_requires_stack
-def test_harmonic_resolvent_kappa_dense_reference() -> None:
-    """Test kappa (discount) factor against dense numpy reference.
+def test_harmonic_resolvent_gamma_dense_reference() -> None:
+    """Test the discount gamma against dense numpy reference.
 
-    Build a 6-DOF system, apply kappa=0.4 shift, compute the gain via
+    Build a 6-DOF system, apply the discount gamma=0.4, compute the gain via
     harmonic_resolvent_gains, and compare against an independent dense
     SVD reference. The system is smaller than n_rand=30, so the sketch
     clamps to full space and the comparison is tight (rel_err < 1e-8).
@@ -667,7 +667,7 @@ def test_harmonic_resolvent_kappa_dense_reference() -> None:
             6,
             perts_freqs=np.array([1.3]),
             n_modes=1,
-            kappa=0.4,
+            gamma=0.4,
         )
 
         # Dense reference: T = -(A - 0.4*I) + i*1.3*I + eps_reg*I.
@@ -683,3 +683,78 @@ def test_harmonic_resolvent_kappa_dense_reference() -> None:
         rel_err = abs(gains[0] - expected_gain) / (abs(expected_gain) + 1e-16)
         detail = f"solver {gains[0]:.6e}, dense {expected_gain:.6e}, rel_err {rel_err:.2e}"
         assert rel_err < 1e-8, f"Dense-reference mismatch: {detail}"
+
+
+def _dense_ladder(
+    blocks: list[np.ndarray], n_h: int, n_p: int, omega0: float, gamma: float, *, flip: bool
+) -> np.ndarray:
+    """Return -(T - gamma I) with T_jk = Ahat_{j-k} - i omega_j delta_jk.
+
+    ``flip=True`` places Ahat_{k-j} instead: the wrong orientation, used to
+    show that the test can tell the two apart.
+    """
+    n = blocks[0].shape[0]
+    size = (2 * n_p + 1) * n
+    T = np.zeros((size, size), dtype=complex)
+    for j in range(-n_p, n_p + 1):
+        for k in range(-n_p, n_p + 1):
+            d = (k - j) if flip else (j - k)
+            jb, kb = (j + n_p) * n, (k + n_p) * n
+            if abs(d) <= n_h:
+                T[jb : jb + n, kb : kb + n] = blocks[d + n_h]
+            if j == k:
+                T[jb : jb + n, kb : kb + n] -= (gamma + 1j * j * omega0) * np.eye(n)
+    return -T
+
+
+@_requires_stack
+def test_harmonic_resolvent_ladder_orientation_dense_reference() -> None:
+    """Complex two-sided blocks (as at kx != 0) and a discount match a dense ladder.
+
+    Ahat_{-k} is not conj(Ahat_k) here, so a ladder that placed Ahat_{k-j}
+    instead of Ahat_{j-k}, or dropped the discount on the padded blocks,
+    would give other singular values. The dense reference with the flipped
+    orientation is checked to differ, so the comparison can fail.
+    """
+    import tempfile
+
+    import scipy.sparse as sp
+
+    from linstabpy.operators.harmonic_blocks import HarmonicBlocks, write_resolvent4py_coo
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    rng = np.random.default_rng(7)
+    n, n_h, n_p, omega0, gamma = 3, 1, 2, 0.7, 0.3
+    blocks = [
+        0.4 * (rng.standard_normal((n, n)) + 1j * rng.standard_normal((n, n)))
+        for _ in range(2 * n_h + 1)
+    ]
+    blocks[n_h] = blocks[n_h] - 2.0 * np.eye(n)
+    hb = HarmonicBlocks(Ahat=[sp.csr_matrix(b) for b in blocks], N_h=n_h, N_t=4)
+
+    sigma_ref = np.linalg.svd(
+        np.linalg.inv(_dense_ladder(blocks, n_h, n_p, omega0, gamma, flip=False)),
+        compute_uv=False,
+    )
+    sigma_flip = np.linalg.svd(
+        np.linalg.inv(_dense_ladder(blocks, n_h, n_p, omega0, gamma, flip=True)),
+        compute_uv=False,
+    )
+    # The test must be able to fail: the wrong orientation gives other values.
+    assert abs(sigma_flip[0] - sigma_ref[0]) > 1e-3 * sigma_ref[0]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coo = write_resolvent4py_coo(hb, tmpdir)
+        np.random.seed(2024)
+        gains, _info = harmonic_resolvent_gains(
+            coo,
+            n,
+            perts_freqs=np.arange(-n_p, n_p + 1) * omega0,
+            n_modes=3,
+            gamma=gamma,
+            eps_reg=0.0,
+        )
+
+    # N_full = 15 < n_rand = 30, so the sketch spans the whole space.
+    rel_err = np.max(np.abs(gains[:3] - sigma_ref[:3]) / sigma_ref[:3])
+    assert rel_err < 1e-8, f"gains {gains[:3]} against dense {sigma_ref[:3]}"

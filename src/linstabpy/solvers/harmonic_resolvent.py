@@ -14,7 +14,7 @@ def harmonic_resolvent_gains(
     n_modes: int = 10,
     n_rand_cycles: int = 3,
     n_rand: int = 30,
-    kappa: float = 0.0,
+    gamma: float = 0.0,
     eps_reg: float = 1e-7,
     dq_fnames: list[str] | None = None,
 ) -> tuple[np.ndarray, dict]:
@@ -22,6 +22,11 @@ def harmonic_resolvent_gains(
 
     Assembles the block-Toeplitz operator T and computes singular values
     of T^{-1} (or the projected T^{-1} when the caller supplies dQ).
+
+    The gains are in the plain (unweighted) 2-norm on the stacked ladder
+    vector. The classical resolvent map reports Chu-norm gains by default,
+    so at N_h = 0 the two agree only when the classical run uses
+    ``W_diag = 1`` (identity weight). This path runs on one MPI rank.
 
     Parameters
     ----------
@@ -45,8 +50,10 @@ def harmonic_resolvent_gains(
     n_rand : int, optional
         Oversampling dimension for randomized SVD. Default 30.
         Clamped internally to min(n_rand, N_full).
-    kappa : float, optional
-        Discount parameter (shifts A -> A - kappa*I). Default 0.
+    gamma : float, optional
+        Discount (shifts A -> A - gamma*I), the same quantity as ``gamma``
+        in the classical ``L0 - (gamma + i*omega) I``. Any sign is applied.
+        Default 0.
     eps_reg : float, optional
         Regularization epsilon added to T diagonal before factoring.
         Default 1e-7 (matches resolvent4py toy). Set to 0.0 for
@@ -63,13 +70,15 @@ def harmonic_resolvent_gains(
         min(n_modes, n_rand, N_full): a randomized sketch cannot return
         more values than its own dimension.
     info : dict
-        Metadata: eps_reg, kappa, projected (bool), N_p, N_h, N_full, n,
+        Metadata: eps_reg, gamma, projected (bool), N_p, N_h, N_full, n,
         n_modes, n_rand (used).
 
     Raises
     ------
     ImportError
         If resolvent4py or petsc4py not available.
+    RuntimeError
+        If more than one MPI rank runs it.
     """
     try:
         from resolvent4py import (
@@ -93,8 +102,17 @@ def harmonic_resolvent_gains(
     try:
         from petsc4py import PETSc
     except ImportError as e:
-        message = "petsc4py not found. Install with: pip install linstabpy[harmonic]"
+        message = (
+            "petsc4py not found. The [harmonic] extra does not install it; "
+            "build the complex PETSc/SLEPc stack with: bash install.sh"
+        )
         raise ImportError(message) from e
+
+    # The local sizes below assume one rank; under mpiexec every rank would
+    # build the whole ladder on COMM_WORLD with wrong layouts.
+    if PETSc.COMM_WORLD.getSize() > 1:
+        message = "harmonic_resolvent_gains runs on one MPI rank; run it without mpiexec"
+        raise RuntimeError(message)
 
     # coo_fnames stores k=-N_h..N_h (two-sided, 2*N_h+1 blocks)
     N_h = (len(coo_fnames) - 1) // 2
@@ -114,8 +132,8 @@ def harmonic_resolvent_gains(
     full_sizes = ((Nl, N_full), (Nl, N_full))
 
     # Read harmonic balanced matrix (two-sided storage k=-N_h..N_h).
-    # At kx=0, Ahat[-k] = conj(Ahat[k]), but at kx!=0 they differ by ~6.6e-2
-    # because A(t; kx) is genuinely complex through i*kx derivatives. The
+    # At kx=0, Ahat[-k] = conj(Ahat[k]); at kx!=0 they differ, because
+    # A(t; kx) is complex through its i*kx derivatives. The
     # real_bflow=False flag tells the reader to expect both and read them
     # independently (files in order k=-N_h..N_h).
     A = read_harmonic_balanced_matrix(
@@ -125,11 +143,11 @@ def harmonic_resolvent_gains(
         full_sizes=full_sizes,
     )
 
-    # Discount shifts the operator: A -> A - kappa*I. This gives the k=0
-    # block a global shift of -(kappa + i*omega_j) at each frequency omega_j,
-    # matching L_sigma - (gamma + i*omega)*I in the classical resolvent frame.
-    if kappa > 0:
-        A.shift(-kappa)
+    # Discount shifts the operator: A -> A - gamma*I. This gives the k=0
+    # block a global shift of -(gamma + i*omega_j) at each frequency omega_j,
+    # matching L0 - (gamma + i*omega)*I in the classical resolvent frame.
+    if gamma != 0.0:
+        A.shift(-gamma)
 
     # Assemble generator T = A - i*omega*I. The resolvent4py 1.0.1 wheel
     # takes exactly two positional args (A, freqs); upstream git main added
@@ -232,7 +250,7 @@ def harmonic_resolvent_gains(
 
     info = {
         "eps_reg": eps_reg,
-        "kappa": kappa,
+        "gamma": gamma,
         "projected": projected,
         "N_p": N_p,
         "N_h": N_h,

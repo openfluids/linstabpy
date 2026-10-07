@@ -472,7 +472,7 @@ N_full = (2*N_p + 1) * n,  where n = base-flow DOF on one harmonic
 For example, a base-flow operator with n = 1000 DOF and N_h = 10 gives:
 - N_p = 13
 - N_full = 27 * 1000 = 27,000
-- Memory for the LU factor scales as O(N_full^2) with a large constant (dense triangular factors in a sparse-direct solve)
+- Memory for the LU factor grows faster than N_full, because of fill-in; how much faster depends on the ordering and the case, so measure it on a small ladder first
 
 A 901k-DOF SWBLI operator with N_h would require stacking 25–27 copies, reaching 22–24M DOF in the full operator. A single-node MUMPS factorization at that scale risks out-of-core spillage or failure. The tag gates (resolvent4py toy model with 3 DOF and steady-limit with ~200 DOF) are scaled to stay within single-node scope by design.
 
@@ -490,7 +490,7 @@ from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
 pbf = load_periodic_baseflow("periodic_qhat.npz", mesh_shape=(ny, nx))
 blocks = assemble_harmonic_blocks(mesh, pbf, N_h=5, N_t=32, kx=beta, bc_recipe=recipe)
 coo = write_resolvent4py_coo(blocks, "coo/")
-gains, info = harmonic_resolvent_gains(coo, n, perts_freqs=perts_freqs, n_modes=10, kappa=1e-3)
+gains, info = harmonic_resolvent_gains(coo, n, perts_freqs=perts_freqs, n_modes=10, gamma=1e-3)
 ```
 
 `perts_freqs` holds the `2*N_p+1` perturbation frequencies, with `N_p = N_h + 3`.
@@ -505,4 +505,8 @@ The periodic base-flow loader validates the input `.npz` for canonical freestrea
 2. Real SWBLI-scale cases are out of single-node reach at present. The 1.2.0 tag gate runs only the resolvent4py toy model (3 DOF) and a steady-limit validation on small meshes.
 
 3. Time-stepping alternatives (Farghadan RSVD-Δt) are not yet implemented; the assembled `T` matrix must fit in memory.
+
+4. The gains are in the plain 2-norm of the stacked ladder vector. The classical map reports Chu-norm gains by default; at N_h = 0 they agree only when the classical run uses an identity weight.
+
+5. `harmonic_resolvent_gains()` runs on one MPI rank and refuses more.
 

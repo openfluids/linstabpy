@@ -73,10 +73,10 @@ SoftwareX 2025). Instead of a steady base flow, the method linearizes about a
 measured or computed periodic orbit and extracts frequency responses across the
 Floquet–harmonic ladder.
 
-Install with `pip install "linstabpy[harmonic]"`. This brings `resolvent4py` (MIT
-license) and ensures `petsc4py >= 3.20` compatibility. The same complex PETSc/SLEPc
-and MUMPS stack that powers the reference resolvent path is sufficient; no separate
-build is needed.
+Install with `pip install "linstabpy[harmonic]"`. This brings only `resolvent4py` 1.0.1
+(MIT license); it does not install `petsc4py` or `slepc4py`. Build the complex
+PETSc/SLEPc/MUMPS stack with `bash install.sh` first; the reference resolvent stack is
+sufficient and no separate build is needed.
 
 **What is included in 1.2.0:**
 
@@ -89,8 +89,9 @@ build is needed.
 - Block-Toeplitz assembly via `resolvent4py`: constructs the stacked frequency-ladder
   operator T with optional phase-shift projectors to remove the
   frequency-offset null direction.
-- Steady-limit validation: single-harmonic (k=0) resolvent recovers the classical
-  resolvent_analysis to machine precision (1e-12).
+- Steady-limit validation: single-harmonic (k=0) resolvent agrees with the classical
+  resolvent_analysis (identity weight) to 2.3e-11 relative at a conditioned point
+  (test gate 1e-8).
 - Toy-problem validator: Padovan ODE (JFM 2020 §3) wrapper, examples/harmonic/padovan_ode/padovan_toy.py.
 
 **Known scope limits in 1.2.0:**
@@ -105,6 +106,10 @@ build is needed.
   demonstration meshes.
 - Time-stepping (Farghadan RSVD-Δt) is not yet implemented; the assembled
   block-Toeplitz matrix must fit in memory.
+- Gains are in the plain 2-norm of the stacked ladder vector, not the Chu norm the
+  classical map reports by default. At N_h = 0 the two agree only with an identity
+  weight (`W_diag = 1`) on the classical side.
+- `harmonic_resolvent_gains()` runs on one MPI rank.
 
 See `docs/COMPUTE_BACKENDS.md` § Harmonic Resolvent for technical details and
 memory constraints.

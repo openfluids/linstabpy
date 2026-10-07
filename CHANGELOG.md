@@ -200,17 +200,23 @@ Harmonic resolvent analysis via resolvent4py.
   `linstabpy.baseflow.periodic` validates canonical normalization and reads
   Fourier harmonics from `.npz`.
 - Harmonic operator blocks: `assemble_harmonic_blocks()` reconstructs the LNSE
-  system at each time instant, assembles the set of instantaneous Jacobians,
-  FFTs across the period, and extracts harmonics k=-N_h..N_h with automatic
-  union-pattern alignment to preserve sparsity structure.
+  system at each time instant, aligns the instantaneous Jacobians on one
+  union sparsity pattern, and sums the discrete Fourier series one instant at
+  a time for k=-N_h..N_h only, so it never holds an (N_t, nnz) array. A
+  positive `dissipation_epsilon` on a mesh without the dissipation operators
+  is refused instead of skipped.
 - COO exporter `write_resolvent4py_coo()` outputs Fourier blocks in resolvent4py
   binary format for the block-Toeplitz operator assembly pipeline.
 - Thin caller `harmonic_resolvent_gains()` delegates to resolvent4py's
   assembler, MUMPS LU factorization, and randomized SVD. Supports optional
-  phase-shift projectors to remove the frequency-offset null direction.
+  phase-shift projectors to remove the frequency-offset null direction. The
+  discount is called `gamma`, as in the classical resolvent, and any sign is
+  applied. It runs on one MPI rank and refuses more.
 - Steady-limit gate test (executes on a machine with resolvent4py and
   petsc4py): the k=0-only harmonic resolvent must recover the classical
-  resolvent_analysis leading gain to 1e-12, phase-aligned.
+  resolvent_analysis leading gain to 1e-8 (measured 2.3e-11). A second test
+  checks the ladder orientation and the discount against a dense ladder with
+  complex two-sided blocks, as at non-zero wavenumber.
 - Toy-problem wrapper and validator: examples/harmonic/padovan_ode/padovan_toy.py
   integrates the Padovan et al. JFM 2020 §3 three-state ODE to its periodic
   orbit, FFTs the state and linearization, and exports for resolvent4py
@@ -283,6 +289,11 @@ Harmonic resolvent analysis via resolvent4py.
   harmonics, and the direct factor's memory grows superlinearly in that
   size. Tag gates use toy models and small meshes.
 - Time-stepping (Farghadan RSVD-Δt) is not yet implemented.
+- The gains are in the plain 2-norm of the stacked ladder vector. The
+  classical map reports Chu-norm gains by default, so the two agree at
+  N_h = 0 only when the classical run uses an identity weight.
+- `load_periodic_baseflow()` checks rho = u = T = 1 on the last y row by
+  default; pass `freestream_rtol=None` for a flow without a free stream there.
 
 ## [1.0.0rc11] - 2026-09-17
 
