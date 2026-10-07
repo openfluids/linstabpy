@@ -251,7 +251,8 @@ def compute_cartesian_coefficients(
     RHO, T, MU, P : np.ndarray, shape ``(ngp,)``
         Density, temperature, viscosity, and pressure.
     kx : float
-        Streamwise Fourier wavenumber (physical x-direction).
+        Spanwise Fourier wavenumber beta (physical z-direction, normal to
+        the x-y mesh plane).
     Re, Ma, Pr, kappa : float
         Reynolds number, Mach number, Prandtl number, and heat-capacity
         ratio.
@@ -288,7 +289,8 @@ def compute_cartesian_coefficients(
     #                  z_c = x_phys  (streamwise)
     #
     # Velocities:  U_c = -W_phys,  V_c = V_phys,  W_c = U_phys
-    # Wavenumber:  kz_c = -kx_phys
+    # Wavenumber:  kz_c = -beta, the spanwise (z_phys) wavenumber passed
+    #              in as ``kx``; the sign follows x_c = -z_phys
     # Derivatives: r = y,  z = x  (in coefficient notation)
     # ------------------------------------------------------------------
     Uc = -W

@@ -218,8 +218,9 @@ def build_lnse_operator(
     baseflow : BaseFlow
         Base flow with velocity, thermodynamic, and viscosity fields.
     kx : float
-        Streamwise Fourier wavenumber (physical x-direction), used for
-        the Cartesian model only.
+        Spanwise Fourier wavenumber beta (physical z-direction, normal to
+        the x-y mesh plane), used for the Cartesian model only. Callers
+        pass ``beta`` here.
     model : str
         Model selector ``"2D"`` or ``"axy"``.
     m : float
