@@ -202,9 +202,7 @@ Harmonic resolvent analysis via resolvent4py.
 - Harmonic operator blocks: `assemble_harmonic_blocks()` reconstructs the LNSE
   system at each time instant, aligns the instantaneous Jacobians on one
   union sparsity pattern, and sums the discrete Fourier series one instant at
-  a time for k=-N_h..N_h only, so it never holds an (N_t, nnz) array. A
-  positive `dissipation_epsilon` on a mesh without the dissipation operators
-  is refused instead of skipped.
+  a time for k=-N_h..N_h only, so it never holds an (N_t, nnz) array.
 - COO exporter `write_resolvent4py_coo()` outputs Fourier blocks in resolvent4py
   binary format for the block-Toeplitz operator assembly pipeline.
 - Thin caller `harmonic_resolvent_gains()` delegates to resolvent4py's

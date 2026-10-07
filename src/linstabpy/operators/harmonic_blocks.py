@@ -95,7 +95,8 @@ def assemble_harmonic_blocks(
         (or check tail_ratio afterwards). Also must be > 2*N_h
         to avoid aliasing of ±N_h.
     kx : float, optional
-        Streamwise wavenumber, nondimensional (case units). Default 0.
+        Spanwise wavenumber beta (z direction, normal to the mesh plane),
+        nondimensional (case units). Default 0.
     model : str, optional
         Dynamical model ("2D", "3D", "axy"). Default "2D".
     bc_recipe : list[dict], optional
@@ -104,7 +105,8 @@ def assemble_harmonic_blocks(
         Penalty parameter for BC enforcement. Default 1e4.
     dissipation_epsilon : float, optional
         Artificial dissipation coefficient. Default 0. A positive value
-        needs a mesh built with ``numerics_operator_dissipation`` enabled.
+        needs a mesh built with ``numerics_operator_dissipation`` enabled;
+        ``build_lnse_system`` refuses it otherwise.
     solver_cfg : dict, optional
         Solver configuration dictionary.
 
@@ -124,19 +126,6 @@ def assemble_harmonic_blocks(
         raise ValueError(message)
     if N_t % 2 != 0:
         raise ValueError(f"N_t must be even, got {N_t}")
-
-    # build_lnse_system skips the dissipation term when the mesh has no
-    # Q_diss operators, so a positive epsilon would change nothing. The
-    # map router refuses the same case for the same reason.
-    if dissipation_epsilon > 0.0 and (
-        getattr(mesh, "Q_diss_x", None) is None or getattr(mesh, "Q_diss_y", None) is None
-    ):
-        message = (
-            f"dissipation_epsilon={dissipation_epsilon} needs a mesh built with "
-            "numerics_operator_dissipation enabled (mesh.Q_diss_x is None); the "
-            "term would be skipped"
-        )
-        raise ValueError(message)
 
     # Sample times over [0, T_period)
     times = pbf.sample_times(N_t)

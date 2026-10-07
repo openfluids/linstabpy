@@ -543,7 +543,7 @@ def test_write_resolvent4py_vecs_resolvent4py_missing(
 def test_harmonic_blocks_dissipation_needs_q_diss(small_mesh_2d, steady_pbf) -> None:
     """A positive epsilon on a mesh without Q_diss is refused, not skipped."""
     assert small_mesh_2d.Q_diss_x is None
-    with pytest.raises(ValueError, match="Q_diss_x is None"):
+    with pytest.raises(ValueError, match="carries no Q_diss"):
         assemble_harmonic_blocks(small_mesh_2d, steady_pbf, N_h=0, N_t=4, dissipation_epsilon=0.1)
 
 
