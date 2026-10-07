@@ -6,9 +6,9 @@ from __future__ import annotations
 import math
 import re
 from importlib import import_module
-from types import SimpleNamespace
 from typing import Literal
 
+import numpy as np
 import pytest
 
 from linstabpy.config.defaults import stage_dissipation_epsilon
@@ -57,7 +57,25 @@ def test_validate_config_names_the_block_for_the_old_key(key: str) -> None:
 
 
 def test_router_refuses_strength_on_a_mesh_without_q_diss() -> None:
+    """The assembly refuses the strength, so the map cannot run undamped."""
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.mesh import Mesh
+
     cfg = {"numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}}}
-    mesh = SimpleNamespace(Q_diss_x=None)
-    with pytest.raises(ValueError, match="no Q_diss"):
-        rm._assemble_beta_operator(mesh, None, 1.0, cfg)
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=8, ny=6, fd_order=4)
+    ones = np.ones(mesh.X.shape)
+    base_flow = BaseFlow(
+        Re=1000.0,
+        Ma=0.5,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=300.0,
+        RHO=ones,
+        U=ones,
+        V=0 * ones,
+        W=0 * ones,
+        T=ones,
+    )
+    sutherland_air(base_flow)
+    with pytest.raises(ValueError, match="carries no Q_diss"):
+        rm._assemble_beta_operator(mesh, base_flow, 1.0, cfg)

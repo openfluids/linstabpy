@@ -25,6 +25,14 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `build_lnse_operator` and `build_lnse_system` refuse a positive
+  `dissipation_epsilon` when the mesh has no dissipation matrices
+  (`Q_diss_x`, `Q_diss_y`). They used to return the undamped operator
+  without a message. A mesh gets the matrices from
+  `Mesh.create(..., numerics_operator_dissipation=...)`. An epsilon of zero
+  gives the same operator as before. The map router's own check for this
+  case is removed, because the assembly now makes it.
+
 - The STRUMPACK known issue of 1.0.0rc11 is measured again and restated
   below. It is not a rare fault of one build: it follows the thread count.
 

@@ -323,12 +323,6 @@ def _assemble_beta_operator(
     from linstabpy.operators.assembly import build_lnse_system
 
     kwargs = _assembly_kwargs(cfg)
-    if kwargs["dissipation_epsilon"] > 0.0 and getattr(mesh, "Q_diss_x", None) is None:
-        raise ValueError(
-            "numerics.operator_dissipation asks for epsilon "
-            f"{kwargs['dissipation_epsilon']:g}, but the mesh carries no Q_diss; build "
-            "the mesh with numerics_operator_dissipation, or the map runs undamped."
-        )
     start = time.perf_counter()
     L0, idx, bc_indices = build_lnse_system(mesh, base_flow, kx=float(beta), **kwargs)
     return _AssemblyResult(

@@ -227,9 +227,10 @@ def build_lnse_operator(
     floquet_exp : float
         Floquet exponent used only by the cylindrical model.
     dissipation_epsilon : float
-        Artificial dissipation strength. When positive and mesh dissipation
-        matrices exist, subtract epsilon times the 5-variable block
-        dissipation operator from the pre-BC LNSE operator.
+        Artificial dissipation strength. When positive, subtract epsilon
+        times the 5-variable block dissipation operator from the pre-BC
+        LNSE operator. The mesh must then carry ``Q_diss_x`` and
+        ``Q_diss_y`` (``Mesh.create(..., numerics_operator_dissipation=...)``).
 
     Returns
     -------
@@ -240,7 +241,19 @@ def build_lnse_operator(
         - 'bi', 'ti', 'li', 'ri': boundary grid point indices (0-based).
         - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable.
         - '{border}_{var}': DOF indices for each variable at each border.
+
+    Raises
+    ------
+    ValueError
+        If ``dissipation_epsilon`` is positive and the mesh has no
+        dissipation matrices, because the term could not be applied.
     """
+    if dissipation_epsilon > 0.0 and (mesh.Q_diss_x is None or mesh.Q_diss_y is None):
+        raise ValueError(
+            f"dissipation_epsilon={dissipation_epsilon:g} but the mesh carries no Q_diss; "
+            "build the mesh with numerics_operator_dissipation enabled, or the operator "
+            "would be assembled undamped."
+        )
     model_name = str(model).lower()
     with _assembly_metrics_session(
         solver_cfg=None,
@@ -256,7 +269,7 @@ def build_lnse_operator(
     ):
         prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
         L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
-        if dissipation_epsilon > 0.0 and mesh.Q_diss_x is not None and mesh.Q_diss_y is not None:
+        if dissipation_epsilon > 0.0:
             # Artificial dissipation is an L0-level correction. It belongs
             # after inv(B) and sponge, but before any BC recipe overwrites rows.
             ny, nx = mesh.X.shape

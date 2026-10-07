@@ -161,22 +161,15 @@ class TestDissipationPositiveCorrectness:
         diff = (L_baseline - L_on).tocsr()
         assert diff.nnz > 0, "epsilon=0.1 did not change the operator — Q_diss was not subtracted"
 
-    def test_epsilon_positive_no_dissipation_matrices_unchanged(self) -> None:
-        """If mesh has no Q_diss (flag off), epsilon > 0 must not change the operator."""
+    def test_epsilon_positive_without_dissipation_matrices_raises(self) -> None:
+        """If the mesh has no Q_diss (flag off), epsilon > 0 is refused, not skipped."""
         from linstabpy.operators import build_lnse_operator
 
         mesh_nodiss = _make_mesh(enabled=False)
         bf = _make_baseflow(mesh_nodiss)
 
-        L_baseline, _ = build_lnse_operator(mesh_nodiss, bf, dissipation_epsilon=0.0)
-        L_with_eps, _ = build_lnse_operator(mesh_nodiss, bf, dissipation_epsilon=0.1)
-
-        diff = (L_baseline - L_with_eps).tocsr()
-        max_diff = float(np.max(np.abs(diff.data))) if diff.nnz > 0 else 0.0
-        assert diff.nnz == 0 or max_diff < 1e-14, (
-            f"epsilon > 0 with no Q_diss unexpectedly changed the operator: "
-            f"max diff = {max_diff:.2e}"
-        )
+        with pytest.raises(ValueError, match="carries no Q_diss"):
+            build_lnse_operator(mesh_nodiss, bf, dissipation_epsilon=0.1)
 
 
 def test_petsc_backend_rejects_dissipation():
