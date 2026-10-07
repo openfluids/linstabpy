@@ -25,6 +25,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- The `linstabpy` command refuses a case that sets `beta` or `kx` at the
+  top level. It reads the spanwise wavenumber only from `numerics.beta`, so
+  such a case ran at beta = 0 without a message. The example scripts still
+  read the top-level keys from their own YAML files, and `validate_config`
+  still accepts them.
+
 - `build_lnse_operator` and `build_lnse_system` refuse a positive
   `dissipation_epsilon` when the mesh has no dissipation matrices
   (`Q_diss_x`, `Q_diss_y`). They used to return the undamped operator

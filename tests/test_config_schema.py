@@ -198,3 +198,19 @@ def test_floquet_shift_top_level_still_validated() -> None:
         validate_config({"floquet_shift": 123})
     assert "floquet_shift" in str(exc_info.value)
     assert validate_config({"floquet_shift": "continuum"}) is None
+
+
+@pytest.mark.parametrize("key", ["beta", "kx"])
+def test_cli_refuses_top_level_wavenumber(key: str) -> None:
+    """The command reads numerics.beta only, so a flat beta or kx is refused."""
+    from linstabpy.config.schema import check_cli_wavenumber_keys
+
+    validate_config({key: 19.2})  # the example scripts read the flat key
+    with pytest.raises(ConfigValidationError, match=r"numerics\.beta"):
+        check_cli_wavenumber_keys({key: 19.2}, source="case.yaml")
+
+
+def test_cli_accepts_numerics_beta() -> None:
+    from linstabpy.config.schema import check_cli_wavenumber_keys
+
+    assert check_cli_wavenumber_keys({"numerics": {"beta": 19.2}}) is None

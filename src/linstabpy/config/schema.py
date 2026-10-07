@@ -245,6 +245,33 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
         raise ConfigValidationError(prefix + "; ".join(violations))
 
 
+# Top-level wavenumber keys that only the example scripts read. The
+# linstabpy command reads the spanwise wavenumber from numerics.beta.
+_SCRIPT_ONLY_WAVENUMBER_KEYS = ("beta", "kx")
+
+
+def check_cli_wavenumber_keys(cfg: dict, *, source: str | None = None) -> None:
+    """Refuse top-level ``beta`` / ``kx`` in a case run by the linstabpy command.
+
+    ``validate_config`` accepts these keys because the example scripts read
+    them from their own YAML files. The command reads only
+    ``numerics.beta``, so a case with ``beta: 19.2`` at the top level
+    would run at beta = 0 without a message.
+
+    Raises
+    ------
+    ConfigValidationError
+        If ``cfg`` sets ``beta`` or ``kx`` at the top level.
+    """
+    flat = [key for key in _SCRIPT_ONLY_WAVENUMBER_KEYS if key in cfg]
+    if flat:
+        prefix = f"{source}: " if source else ""
+        raise ConfigValidationError(
+            f"{prefix}top-level {', '.join(repr(k) for k in flat)} is not read by the "
+            "linstabpy command; set the spanwise wavenumber as numerics.beta"
+        )
+
+
 def _iter_fd_order_values(value: Any, path: str = "") -> Iterable[tuple[str, Any]]:
     if isinstance(value, dict):
         for key, item in value.items():
