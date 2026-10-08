@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import atexit
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -42,6 +44,7 @@ def unpack_song_baseflow() -> Path:
     src = BASEFLOW_NPZ
     require_existing(src, "Song 32 deg base flow")
     root = Path(tempfile.mkdtemp(prefix="song32_"))
+    atexit.register(shutil.rmtree, root, ignore_errors=True)
     packed = np.load(src)
     for name in ("x", "y", "rho", "u", "v", "w", "T", "sponge"):
         np.save(root / f"{name}.npy", packed[name])
