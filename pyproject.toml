@@ -135,3 +135,6 @@ do_not_mutate_patterns = [
 # Strict agent gate for new Python files (ruff all-rules, basedpyright, STE).
 [tool.py-strict]
 scope = "new"
+
+[tool.uv]
+exclude-newer = "7 days"
