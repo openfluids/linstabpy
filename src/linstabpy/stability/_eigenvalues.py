@@ -772,9 +772,8 @@ def adjoint_eigenvalues(
     eigenvectors = _normalize_in_weighted_inner(eigenvectors, np.asarray(W_diag))
 
     if temporal:
-        # Convert back to temporal omega convention:
-        # omega_temporal = -i * conj(lambda_adj)
-        eigenvalues = -1j * np.conj(eigenvalues)
+        # Convert back: lambda_adj = i*conj(omega), so conj(omega) = -i*lambda_adj.
+        eigenvalues = -1j * eigenvalues
 
     return eigenvalues, eigenvectors
 
