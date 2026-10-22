@@ -154,6 +154,9 @@ def _run_adjoint_self_test(
 
         denominator = max(np.abs(lhs), np.abs(rhs), 1.0e-300)
         defect = np.abs(lhs - rhs) / denominator
+        if not np.isfinite(defect):
+            # max() drops NaN; a NaN solve must fail the tolerance check.
+            return float("inf")
         max_defect = max(max_defect, defect)
 
     return max_defect
@@ -205,6 +208,8 @@ def _run_oracle_residual(
             residual_abs = float(r.norm(PETSc.NormType.NORM_2))
             rhs_norm = float(b_vec.norm(PETSc.NormType.NORM_2))
             residual = residual_abs / max(rhs_norm, 1.0e-300)
+            if not np.isfinite(residual):
+                return float("inf")
             max_residual = max(max_residual, residual)
         finally:
             r.destroy()
@@ -234,6 +239,8 @@ class Factorization:
     # probes sit outside the validated envelope (single-precision cuDSS).
     probe_family: Callable[[np.random.RandomState], np.ndarray] | None = None
     _cudss: CudssSolver | None = None
+    # Closure state of factorize(); holds the dual K^H factor once the adjoint heal builds it.
+    _holder: dict[str, object] | None = None
 
     @property
     def solve_transpose(self) -> Callable[[np.ndarray], np.ndarray]:
@@ -271,6 +278,10 @@ class Factorization:
         if self._cudss is not None:
             self._cudss.free()
             self._cudss = None
+        if self._holder is not None:
+            factor_H = self._holder.pop("factor_H", None)
+            if factor_H is not None:
+                factor_H.destroy()
 
 
 class _CudssShellPC:
@@ -1004,6 +1015,9 @@ def factorize(
         factor_H = factorize(A_H, env_prefix=env_prefix, solver_cfg=solver_cfg, cfg=cfg)
         solve_H = factor_H.solve
         holder["factor_H"] = factor_H
+        # factorize() works on its own copy, as in the refactorize path.
+        if _is_petsc_matrix(A_H):
+            A_H.destroy()
 
         # TRUTH-GATE (catches a mismatched A^H such as a plain transpose): re-run the
         # adjoint identity <A^{-1} a, b> == <a, A_H^{-1} b> with the HEALED path.
@@ -1027,7 +1041,8 @@ def factorize(
             #    must still fail loudly rather than return silent garbage.
             factor_H.destroy()
             del holder["factor_H"]
-            if healed_defect >= defect:
+            # With no native transpose (cuDSS) or a failed one, defect is inf: never fall back.
+            if np.isfinite(defect) and healed_defect >= defect:
                 metrics["dual_factor_active"] = False
                 metrics["adjoint_heal_rejected"] = "no_improvement"
                 logger.warning(
@@ -1096,6 +1111,7 @@ def factorize(
         _refactorize=refactorize_operator,
         metrics=metrics,
         _cudss=cudss_solver,
+        _holder=holder,
     )
     holder["factor"] = factor
     return factor
