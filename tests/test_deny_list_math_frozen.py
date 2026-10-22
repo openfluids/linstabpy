@@ -164,7 +164,10 @@ _FROZEN_SIGNATURES = {
     # one-point hole or a segment shorter than 2r; on those, Dx x = 1, Dy y = 1,
     # D2 x^2 = 2 hold to <3e-12. Full suite green at the re-baseline.
     "mesh": "0440449ac24490cd33cec3637d23d58397db780ae645f68799621da833f6990a",
-    "sbp": "7e8aa7a4492ff9ae5afae9b369f24ead92b6ad69edb8ed662c7cdd5fb82db706",
+    # sbp re-hashed again 2026-10-22: build_sbp_pole_matrices and
+    # build_sbp_dissipation_matrices refuse n < min_points like build_sbp_matrix.
+    # Guard statements only; no operator value changes (full suite green).
+    "sbp": "777a896cd3fb5a214301f96de3a6e264ecd80b5dd72b235d686c77d1706a82a8",
     "sbp_generator": "42827492ac4806916ee246aa7046c706fc312c8521187c74fb280f73acd45beb",
 }
 

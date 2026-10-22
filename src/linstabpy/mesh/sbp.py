@@ -584,6 +584,8 @@ def build_sbp_pole_matrices(
     reference. It is only used for derivatives along the symmetry axis
     in axisymmetric meshes.
     """
+    if n < min_points(order):
+        raise ValueError(f"n={n} is below min_points({order})={min_points(order)}")
     # --- Build base SBP stencils with pole-closure variants ----------------
     D1, D2, D1_sym, D1_asymm, D2_sym, D2_asymm = _build_sbp_with_pole(n, dz, order)
 
@@ -912,6 +914,10 @@ def build_sbp_dissipation_matrices(
     """
     if order_interior not in (4, 6, 8):
         raise ValueError(f"order_interior must be 4, 6, or 8, got {order_interior}")
+    if n < min_points(order_interior):
+        raise ValueError(
+            f"n={n} is below min_points({order_interior})={min_points(order_interior)}"
+        )
 
     if order_diss is None:
         order_diss = order_interior

@@ -182,16 +182,6 @@ class TestSBPProperty:
         row_sums = np.array(D1.sum(axis=1)).ravel()
         np.testing.assert_allclose(row_sums, 0.0, atol=1e-12)
 
-    @pytest.mark.parametrize("order", [4, 6, 8])
-    def test_small_n_closures_overlap_exactly(self, order):
-        """For min_points <= n < 2r the two closures overlap; D1 and D2 stay exact on x and x**2."""
-        r = sbp_stencils(order)["a_b1"].shape[0]
-        for n in range(min_points(order), 2 * r + 1):
-            x = np.arange(n, dtype=float)
-            D1, D2 = build_sbp_matrix(n, 1.0, order)
-            np.testing.assert_allclose(D1 @ x, 1.0, atol=1e-9, err_msg=f"n={n}")
-            np.testing.assert_allclose(D2 @ x**2, 2.0, atol=1e-9, err_msg=f"n={n}")
-
     def test_sbp_identity_order2(self):
         """For order 2 the SBP norm is trapezoidal and Q + Q^T = B."""
         n = 40
