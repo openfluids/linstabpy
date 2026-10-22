@@ -216,7 +216,9 @@ def _evp_targets(omega_arr: np.ndarray, radius: float, n_modes: int, sign: float
     count = 3
     if radius > 0.0:
         count = max(count, int(np.ceil((hi - lo) / (n_modes * radius))) + 1)
-    points = np.unique(sign * np.linspace(lo, hi, min(count, _MAX_TARGETS)))
+    # An odd count keeps the centre of the range among the targets.
+    count = min(count, _MAX_TARGETS) | 1
+    points = np.unique(sign * np.linspace(lo, hi, count))
     # A small imaginary offset keeps a target that sits exactly on an eigenvalue
     # (a range end on a pole) from making the shifted matrix singular.
     return [complex(point, _TARGET_OFFSET * (1.0 + abs(point))) for point in points]

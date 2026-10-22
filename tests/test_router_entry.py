@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from contextlib import nullcontext
 from types import SimpleNamespace
 
@@ -347,6 +348,32 @@ def test_unreadable_store_is_moved_aside_not_overwritten(
     assert len(backups) == 1
     assert backups[0].read_bytes() == before
     assert output_npz.exists()
+
+
+def test_partly_readable_store_returns_no_stored_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "map.npz"
+    router_map.resolvent_map(
+        _flow(), [0.1], [1.0, 2.0], {"mesh": object(), "output_npz": output_npz}
+    )
+    with np.load(output_npz, allow_pickle=False) as data:
+        kept = {k: data[k] for k in data.files}
+        fingerprint = json.loads(str(data["fingerprint_json"]))
+        sign = str(data["resolvent_sign_convention"])
+    kept["reason_code"] = np.zeros(5, dtype=np.int16)  # wrong shape: fails after gain is read
+    np.savez(output_npz, **kept)
+
+    gain, labels, reason, discount, failures = router_map._load_store(
+        output_npz, np.array([0.1]), np.array([1.0, 2.0]), sign, fingerprint
+    )
+
+    assert np.isnan(gain).all()
+    assert (labels == "").all()
+    assert (discount == 0.0).all()
+    assert len(list(tmp_path.glob("map.npz.unreadable-*"))) == 1
 
 
 def test_resume_of_a_store_without_fingerprint_warns(

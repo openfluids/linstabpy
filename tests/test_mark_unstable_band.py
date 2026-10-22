@@ -182,3 +182,14 @@ def test_router_band_marking_reads_sign_from_explicit_solver_cfg(monkeypatch) ->
     assert seen["matlab_parity"] is True
     router_map._mark_unstable_band(None, [1.0, 2.0], {"solver": {}})
     assert seen["matlab_parity"] is False
+
+
+def test_band_marking_targets_include_the_range_centre() -> None:
+    """An even target count would leave out the centre of the range."""
+    from linstabpy.solvers.router.band_marking import _evp_targets
+
+    omegas = np.linspace(0.0, 30.0, 61)
+    # radius 1.25 gives 4 targets and 0.75 gives 6 before the count is made odd.
+    for radius in (0.0, 0.75, 1.25):
+        targets = _evp_targets(omegas, radius, 8, 1.0)
+        assert any(abs(t.real - 15.0) < 1e-12 for t in targets), (radius, targets)

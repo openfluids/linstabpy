@@ -1033,6 +1033,12 @@ def _load_store(
             if "failure_records_json" in data.files:
                 failures = _records_from_json_array(data["failure_records_json"])
     except (OSError, KeyError, ValueError) as exc:
+        # Start empty: the arrays above may hold part of the unreadable store.
+        gain = np.full((beta.size, f.size), np.nan, dtype=float)
+        discount = np.zeros((beta.size, f.size), dtype=float)
+        labels = np.full((beta.size, f.size), "", dtype="U32")
+        reason = np.full((beta.size, f.size), REASON_PENDING, dtype=np.int16)
+        failures = []
         # Keep the unreadable file: the next save would overwrite it.
         backup = path.with_name(f"{path.name}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
         path.replace(backup)
