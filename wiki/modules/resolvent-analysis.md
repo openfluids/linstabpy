@@ -66,7 +66,7 @@ Resolvent Analysis sits downstream of baseflow ingest, mesh/[SBP](https://grokip
 flowchart TD
   A[Caller: driver / router / library] --> B[linstabpy.resolvent lazy export]
   B --> C[analysis.resolvent_analysis]
-  C --> D[shifted_operator L0 - gamma+i omega I]
+  C --> D[shifted_operator gamma - i omega I - L0]
   D --> E[linalg.factorize]
   E --> F[ResolventOperator H / Hᴴ]
   F --> G[WeightedNormalOperator MatShell]
@@ -117,13 +117,15 @@ from linstabpy import resolvent_analysis
 Given BC-enforced \(L_0\) (state \(q=[\rho,u,v,w,T]\)):
 
 \[
-L_\sigma = L_0 - (\gamma + i\omega)\,I.
+L_\sigma = (\gamma - i\omega)\,I - L_0.
 \]
 
-- Default \(\gamma = 0\): classical resolvent \(L_0 - i\omega I\).
+- Default \(\gamma = 0\): classical resolvent \(-i\omega I - L_0\), the response to forcing \(e^{-i\omega t}\).
 - \(\gamma > 0\): discounted resolvent that damps poles and keeps the shifted solve well-posed near [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) on the imaginary axis.
 
 Implementation: `linstabpy.linalg.shifted.shifted_operator`, preserving SciPy CSC or PETSc `Mat` backend.
+
+`solver.resolvent_sign_convention: matlab_parity` selects the older LinStab2D matrix \(L_0 - (\gamma + i\omega)\,I = -H(-\omega)^{-1}\). The derivation, the effect on old results and the conversion rules are in [resolvent sign convention](../../docs/resolvent_sign_convention.md).
 
 ### Resolvent action (forward)
 
@@ -194,7 +196,7 @@ resolvent_analysis(
 
 1. **Validate inputs**, square SciPy/PETSc \(L_0\); finite \(\omega\), \(\gamma\); `n_modes >= 1`; `W_diag` length equals `ndof`.
 2. **Resolve config**, `Config.load(solver_cfg)` when `cfg` is omitted; `require_complex` for production PETSc.
-3. **Form \(L_\sigma\)**, `shifted_operator(L0, omega, gamma=gamma)`.
+3. **Form \(L_\sigma\)**, `shifted_operator(L0, omega, gamma=gamma, matlab_parity=cfg.resolvent.matlab_parity)`.
 4. **Factorize**, `factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", ...)`. Default path is direct (KSPPREONLY + PCLU + [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))); backend may follow typed config / env. The shifted PETSc copy is destroyed after factorize copies internally.
 5. **Build `ResolventOperator`**, wraps factorization, \(B\), \(C\), filters.
 6. **Gain [EPS](../solver-glossary.md)**, `compute_leading_gains(...)` on the weighted normal shell.

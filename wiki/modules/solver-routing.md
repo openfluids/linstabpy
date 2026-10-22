@@ -183,10 +183,10 @@ The router reads dissipation from the same `numerics.operator_dissipation` block
 
 **Pole geometry**
 
-- Resolvent forms \(L_\sigma = L_0 - i\omega I\).
+- Resolvent forms \(L_\sigma = (\gamma - i\omega) I - L_0\) (the LinStab2D sign \(L_0 - (\gamma + i\omega) I\) under `solver.resolvent_sign_convention: matlab_parity`).
 - Temporal EVP returns \(\omega_{\mathrm{eig}} = \mathrm{eig}(i L_0)\).
-- Associated resolvent pole: \(\omega_{\mathrm{pole}} = -\omega_{\mathrm{eig}}\).
-- Distance at request \(\omega_{\mathrm{req}}\): \(\min|\omega_{\mathrm{req}} + \omega_{\mathrm{eig}}|\).
+- Associated resolvent pole: \(\omega_{\mathrm{pole}} = +\omega_{\mathrm{eig}}\) (\(-\omega_{\mathrm{eig}}\) under `matlab_parity`).
+- Distance at request \(\omega_{\mathrm{req}}\): \(\min|\omega_{\mathrm{req}} - \omega_{\mathrm{eig}}|\) (\(+\) under `matlab_parity`).
 
 **Labels**
 
@@ -258,7 +258,7 @@ Config may live at top level or under `adaptive_anchors`. Explicit `None` values
 
 **`LineWalker` lifecycle**
 
-1. **Anchor phase** (`n_direct < n_anchor` or no live factor): full `factorize` of \(L_0 - i\omega I\); measure factor wall and apply counts; extract leading gain.
+1. **Anchor phase** (`n_direct < n_anchor` or no live factor): full `factorize` of \((\gamma - i\omega) I - L_0\); measure factor wall and apply counts; extract leading gain.
 2. **Reuse phase:** build a gated right-preconditioned GMRES solve against the live factor.
 3. **Probe:** forward + [adjoint](https://grokipedia.com/page/Adjoint) solves on `probe_right_hand_side` (last response, else seeded complex Gaussian, **never** a ones vector).
 4. **`walk_is_cheaper`:** reuse only if residual ≤ rtol, iters ≤ cap, and  

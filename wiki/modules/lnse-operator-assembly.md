@@ -476,7 +476,7 @@ flowchart LR
 | **Baseflow** | Data: \(\rho,u,v,w,T,\mu,\partial\mu/\partial T\), Re/Ma/Pr/κ |
 | **Mesh** | Composition: geometry, SBP stencils, sponge, dissipation, Jacobians, pole parity ops |
 | **Stability / Resolvent / Router** | Consumers of BC-enforced \(L_0\) (and spatial blocks / energy weights) |
-| **Linear algebra** | Factorization of shifted \(L_0 - i\omega I\) after assembly |
+| **Linear algebra** | Factorization of shifted \((\gamma - i\omega) I - L_0\) after assembly |
 | **Config / driver** | Supplies model, `kx`/`m`/Floquet, BC recipe, dissipation, backend policy |
 
 Boundary conditions are a separate package for import hygiene and MATLAB module parity, but functionally belong to this domain: free-DOF sets are part of the assembled system contract.

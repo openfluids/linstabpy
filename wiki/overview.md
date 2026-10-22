@@ -14,7 +14,7 @@
 
     Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
 
-    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
+    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
 
     [SBP](https://grokipedia.com/page/Summation_by_parts) orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), driven by [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](solver-glossary.md).
 
@@ -325,7 +325,7 @@ graph TB
 
 1. Resolve frequency, weights, $B$ and $C$ maps, and backend policy.
 2. Reuse the same base flow, mesh, and $L_0$ foundation as Flow A.
-3. Factorize $(L_0 - (\gamma + i\omega) I)$. Apply $H$ and $H^H$ through that factor.
+3. Factorize $((\gamma - i\omega) I - L_0)$. Apply $H$ and $H^H$ through that factor.
 4. Run SLEPc on the weighted normal shell. Extract gains with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$.
 5. Package gains, modes, residuals, and solver metrics.
 

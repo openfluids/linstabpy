@@ -5,7 +5,7 @@
 Source: `src/linstabpy/driver/payload.py` (`RUNTIME_NPZ_CONTRACT_KEYS`).
 Additive keys are fine; renames/removals need a migration note + test + reader updates (`docs/runtime_npz_contract.md`).
 
-Total keys: 85.
+Total keys: 86.
 
 ## Core spectrum / fields (no prefix) (22)
 
@@ -32,10 +32,11 @@ Total keys: 85.
 - `compute_mode`
 - `mpi_stack`
 
-## Resolvent provenance (2)
+## Resolvent provenance (3)
 
 - `resolvent_rho_fwd`
 - `resolvent_rho_adj`
+- `resolvent_sign_convention`
 
 ## Stability solver + acceptance (32)
 

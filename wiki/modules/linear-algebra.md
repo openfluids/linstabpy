@@ -367,21 +367,25 @@ def shifted_operator(
     operator: sp.spmatrix | PETSc.Mat,
     omega: complex,
     gamma: float = 0.0,
+    *,
+    matlab_parity: bool = False,
 ) -> sp.csc_matrix | PETSc.Mat
 ```
 
 Returns
 
 \[
-\text{operator} - (\gamma + i\omega)\,I
+(\gamma - i\omega)\,I - \text{operator}
 \]
+
+so that its inverse is the physical resolvent, sign included. With `matlab_parity=True` it returns the LinStab2D matrix \(\text{operator} - (\gamma + i\omega)\,I\) bit for bit; see [resolvent sign convention](../../docs/resolvent_sign_convention.md).
 
 while **preserving backend**:
 
 | Input | Implementation |
 |-------|----------------|
-| PETSc `Mat` | `copy()`, `shift(-(gamma + 1j*omega))`, `assemble()` |
-| SciPy sparse | CSC copy; diagonal updated with `setdiag` |
+| PETSc `Mat` | `copy()`, `scale(-1)`, `shift(gamma - 1j*omega)`, `assemble()` |
+| SciPy sparse | CSC copy, negated; diagonal updated with `setdiag` |
 
 Importing the module does not initialize PETSc; a live PETSc Mat path calls `init_slepc_from_argv()` for argv-parsing consistency.
 

@@ -7,6 +7,37 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- The resolvent uses the physical frequency sign: `H(omega) = [(gamma - i*omega) I - L0]^-1`,
+  the response to a forcing `exp(-i*omega*t)`. This is the time convention of the
+  stability solver. The code inverted `L0 - (gamma + i*omega) I` before, the
+  LinStab2D matrix, which is `-H(-omega)`. Exact time integration of
+  `dq/dt = L q + f exp(-i*omega*t)` agrees with the new form to 1e-15 and differs
+  from the old form by 120 % to 150 % (test operator: stable, non-normal, complex,
+  6 x 6). Effect on results you already have:
+  - Gains for a flow with `W = 0` (no spanwise or azimuthal base velocity), at any
+    `beta`, are unchanged.
+  - For `beta != 0` and `W != 0` (also Floquet and swirl cases) the gain map is
+    mirrored in `omega`: `gain_new(omega) = gain_old(-omega)`.
+  - Forcing and response modes change in every case. They are the complex
+    conjugates of the old modes, the response also changes sign relative to the
+    forcing, and for `beta != 0` the spanwise velocity component also changes sign.
+  - Waves in the old modes travelled upstream when animated with
+    `Re[q exp(-i*omega*t)]`. The new modes travel in the correct direction.
+
+  To reproduce an old result set `solver.resolvent_sign_convention: matlab_parity`
+  (`shifted_operator(..., matlab_parity=True)` in code). The key sits beside
+  `solver.resolvent`, not inside it. `validate_config` rejects other values.
+  The LinStab2D parity examples 1, 2 and 5 set it. Band marking puts the
+  resolvent pole at `+omega_eig` (it was `-omega_eig`) and centres its EVP target
+  on the band, not on its negative; `matlab_parity` restores the old placement.
+  Saved resolvent results and `resolvent_map` stores carry the key
+  `resolvent_sign_convention`. `resolvent_map` refuses to resume a store from the
+  other convention, and a store without the key counts as `matlab_parity`.
+  How to convert old maps and modes, with the derivation and the evidence, is in
+  `docs/resolvent_sign_convention.md`.
+
 ### Fixed
 
 - `limit_strumpack_host_threads()` sets the OpenMP thread count to one

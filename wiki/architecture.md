@@ -5,7 +5,7 @@
 This page describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
 
 !!! info "Conventions"
-    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
 
 
 ## Architecture overview
@@ -438,7 +438,7 @@ Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` 
 #### Resolvent (`resolvent`)
 
 \[
-H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
+H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
 \]
 
 - Factorize shifted operator once; reuse for forward/adjoint applies
@@ -467,7 +467,7 @@ H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 |-----------|----------------|
 | `factorize` / `Factorization` | solve, transpose solve, block solve, refactorize, destroy |
 | `backends` | Normalize/probe availability, precision, MUMPS BLR/ordering |
-| `shifted_operator` | Build \(L_0 - i\omega I\) and related shifts |
+| `shifted_operator` | Build \((\gamma - i\omega) I - L_0\) (or the LinStab2D \(L_0 - (\gamma + i\omega) I\) under `matlab_parity`) |
 | `cudss_factor` | Optional GPU factor as PETSc PC shell |
 
 **Default path:** KSPPREONLY + PCLU + MUMPS.
@@ -593,7 +593,7 @@ sequenceDiagram
 
 #### Resolvent gain analysis (single frequency)
 
-Shares prep through L0, then specializes in \((L_0 - i\omega I)\) factors and weighted gain extraction.
+Shares prep through L0, then specializes in \(((\gamma - i\omega) I - L_0)\) factors and weighted gain extraction.
 
 ```mermaid
 flowchart TD
@@ -681,7 +681,7 @@ flowchart TD
 |---------|-----------|
 | PETSc init ordering | `mpi4py` before PETSc; complex scalars mandatory for production |
 | Operator finalization | Fixed order: raw blocks → inv(B) scale → sponge → dissipation → BC last |
-| Shift construction | `linalg.shifted` builds \(L_0 - i\omega I\) (and related) once per target |
+| Shift construction | `linalg.shifted` builds \((\gamma - i\omega) I - L_0\) (and related) once per target |
 | Eigen drive | SLEPc EPS shift-invert using factorization as PC/solve backend |
 | Resolvent drive | MatShell weighted normal operator; repeated H / Hᴴ applies via factors |
 | Map routing | Band mark → anchors → PC reuse → residual gate → optional stable sweep |
@@ -757,7 +757,7 @@ Assembly is the mathematical heart of the system:
 #### Analysis products
 
 - **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint
-- **Resolvent:** \(H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
+- **Resolvent:** \(H = C F ((\gamma - i\omega) I - L_0)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
 - **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse
 
 ### Key algorithm design

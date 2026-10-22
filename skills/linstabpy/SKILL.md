@@ -96,6 +96,9 @@ provenance/cost groups: `references/npz-contract.md`.
    via MUMPS. 4. YAML: `.yaml`/`.yml` suffix, top-level mapping, complex
    as `[real, imag]`. 5. NPZ keys additive-only (renames need migration
    note + tests + readers).
+6. Resolvent `H = [(gamma - i*omega) I - L0]^-1` (physical sign);
+   `solver.resolvent_sign_convention: matlab_parity` restores the LinStab2D
+   sign (`docs/resolvent_sign_convention.md`).
 
 ## References (progressive disclosure)
 

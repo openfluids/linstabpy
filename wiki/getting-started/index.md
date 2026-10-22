@@ -12,7 +12,7 @@ The order that works:
 :material-numeric-4-circle: Run the rest of the family through the runner script.
 :material-numeric-5-circle: Write your own YAML case and run it through the driver or a module.
 
-Math conventions used on this page: temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ means growth. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. You need these two lines to read any spectrum or gain plot below.
+Math conventions used on this page: temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ means growth. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. You need these two lines to read any spectrum or gain plot below.
 
 
 ## What you need before you start

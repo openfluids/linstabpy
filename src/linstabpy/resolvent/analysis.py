@@ -4,7 +4,11 @@
 Computes the optimal forcing/response pairs and gains for the linearised
 Navier--Stokes operator at a given frequency.  The resolvent operator is
 
-    H = C @ inv(L0 - i*omega*I) @ B.
+    H = C @ inv((gamma - i*omega)*I - L0) @ B.
+
+The sign follows q ~ exp(-i*omega*t), as in the stability solver.
+``solver.resolvent_sign_convention: matlab_parity`` selects the LinStab2D
+matrix ``L0 - (gamma + i*omega)*I`` instead; see ``docs/resolvent_sign_convention.md``.
 
 The implementation follows MATLAB's reference route.
 It solves the eigenproblem for ``H^H W H`` in the weighted inner product.
@@ -122,7 +126,10 @@ def resolvent_analysis(
     Perform a resolvent analysis of the linear operator *L0* at angular
     frequency *omega*.  The resolvent operator is
 
-        H = C FILTER( inv(L0 - i omega I) FILTER( B v ) ).
+        H = C FILTER( inv((gamma - i omega) I - L0) FILTER( B v ) ).
+
+    The sign convention is ``solver.resolvent_sign_convention`` (see the module
+    docstring and ``docs/resolvent_sign_convention.md``).
 
     SLEPc EPS computes its gains and modes from the weighted Hermitian
     operator.
@@ -142,7 +149,7 @@ def resolvent_analysis(
     operator.
     The reuse boundary is exact-frequency/discount only.
     A different ``omega`` or ``gamma`` changes the numerical values in
-    ``L0 - (gamma + i*omega)*I``.
+    ``(gamma - i*omega)*I - L0``.
     A MUMPS factorization cannot travel across frequencies or discounts
     unless a later change introduces PETSc/MUMPS symbolic reuse and tests it.
 
@@ -172,9 +179,8 @@ def resolvent_analysis(
         returned payload.  The default False preserves the historical
         ``resolvent_analysis`` return tuple bit-for-bit.
     gamma : float, optional
-        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
-        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
-        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
+        Real discount parameter in ``(gamma - i omega) I - L0``.  The default
+        ``gamma=0`` is the unshifted classical resolvent, ``-i omega I - L0``.  Larger ``gamma`` values damp the
         resolvent and keep the shifted solve numerically well-posed at poles.
     return_info : bool, optional
         If True, append an info dictionary.
@@ -408,7 +414,7 @@ def compute_resolvent_svd_residuals(
 
     ``gamma`` has no default.
     This postcheck rebuilds the shifted operator
-    ``L0 - (gamma + i*omega) I``.
+    ``(gamma - i*omega) I - L0`` (``L0 - (gamma + i*omega) I`` under ``matlab_parity``).
     It MUST use the SAME ``gamma`` the analysis used.
     Otherwise the residual measures a different operator
     and a valid discounted-resolvent result fails the postcheck gate.
@@ -463,9 +469,8 @@ def compute_resolvent_svd_residuals(
     filter_fn, filter_ct_fn : Callable or None
         Same spatial filters passed to ``resolvent_analysis``.
     gamma : float, optional
-        Real discount parameter in ``L0 - (gamma + i omega) I``.  The default
-        ``gamma=0`` is the unshifted classical resolvent and keeps the frozen
-        ``L0 - i omega I`` arithmetic.  Larger ``gamma`` values damp the
+        Real discount parameter in ``(gamma - i omega) I - L0``.  The default
+        ``gamma=0`` is the unshifted classical resolvent, ``-i omega I - L0``.  Larger ``gamma`` values damp the
         resolvent and keep the shifted solve numerically well-posed at poles.
 
     Returns
