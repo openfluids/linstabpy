@@ -758,3 +758,45 @@ def test_harmonic_resolvent_ladder_orientation_dense_reference() -> None:
     # N_full = 15 < n_rand = 30, so the sketch spans the whole space.
     rel_err = np.max(np.abs(gains[:3] - sigma_ref[:3]) / sigma_ref[:3])
     assert rel_err < 1e-8, f"gains {gains[:3]} against dense {sigma_ref[:3]}"
+
+
+@_requires_stack
+def test_harmonic_time_convention_is_the_classical_one_mirrored() -> None:
+    """At N_h = 0 the harmonic gain at +omega is the classical gain at -omega.
+
+    The operator is diagonal with the dominant eigenvalue -0.2 + 3i, so the
+    classical gain peaks at omega = -3 (value 1/0.2 = 5). The harmonic path
+    uses exp(+i*omega*t) and peaks at omega = +3.
+    """
+    import tempfile
+
+    import scipy.sparse as sp
+
+    from linstabpy.operators.harmonic_blocks import HarmonicBlocks, write_resolvent4py_coo
+    from linstabpy.resolvent.analysis import resolvent_analysis
+    from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
+
+    diag = np.array([-0.2 + 3j, -5 - 8j, -6 + 9j, -7 - 4j], dtype=complex)
+    A = sp.diags(diag, format="csr", dtype=complex)
+    blocks = HarmonicBlocks(Ahat=[A], N_h=0, N_t=1)
+
+    def classical(omega: float) -> float:
+        gains, *_ = resolvent_analysis(
+            A.tocsc(), omega=omega, n_modes=1, W_diag=np.ones(4), solver_cfg={}
+        )
+        return float(gains[0])
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        coo_fnames = write_resolvent4py_coo(blocks, tmpdir)
+        harmonic = {
+            w: float(
+                harmonic_resolvent_gains(
+                    coo_fnames, 4, perts_freqs=np.array([w]), n_modes=1, n_rand=4, eps_reg=0.0
+                )[0][0]
+            )
+            for w in (3.0, -3.0)
+        }
+
+    assert harmonic[3.0] == pytest.approx(5.0, rel=1e-8)
+    assert harmonic[3.0] == pytest.approx(classical(-3.0), rel=1e-8)
+    assert harmonic[-3.0] == pytest.approx(classical(3.0), rel=1e-8)
