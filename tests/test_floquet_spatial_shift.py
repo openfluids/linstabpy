@@ -88,9 +88,16 @@ def test_spatial_finite_difference_is_in_kx(monkeypatch) -> None:
     real_prepare = _prepare_coefficients
     real_assemble = _assemble_from_prepared
 
-    def spy_prepare(mesh_arg, baseflow_arg, kx=0.0, model="2D", m=0):
+    def spy_prepare(mesh_arg, baseflow_arg, kx=0.0, model="2D", m=0, matlab_parity_dmudt=False):
         kx_used.append(float(kx))
-        return real_prepare(mesh_arg, baseflow_arg, kx=kx, model=model, m=m)
+        return real_prepare(
+            mesh_arg,
+            baseflow_arg,
+            kx=kx,
+            model=model,
+            m=m,
+            matlab_parity_dmudt=matlab_parity_dmudt,
+        )
 
     def spy_assemble(prep, floquet_exp=0.0, **kwargs):
         floquet_used.append(float(floquet_exp))

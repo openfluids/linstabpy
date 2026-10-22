@@ -31,6 +31,7 @@ def build_spatial_operator(
     kx: float = 0.0,
     m: float = 0,
     delta: float = 1.0,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple[sp.csc_matrix, sp.csc_matrix, sp.csc_matrix, dict]:
     """Build doubled linear operator blocks for the spatial EVP.
 
@@ -58,9 +59,15 @@ def build_spatial_operator(
 
     n = mesh.ngp * 5
 
-    prep0 = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
-    prepp = _prepare_coefficients(mesh, baseflow, kx=kx + delta, model=model, m=m)
-    prepm = _prepare_coefficients(mesh, baseflow, kx=kx - delta, model=model, m=m)
+    prep0 = _prepare_coefficients(
+        mesh, baseflow, kx=kx, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
+    prepp = _prepare_coefficients(
+        mesh, baseflow, kx=kx + delta, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
+    prepm = _prepare_coefficients(
+        mesh, baseflow, kx=kx - delta, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
 
     L0 = _assemble_from_prepared(prep0, floquet_exp=floquet_exp)
     Lp = _assemble_from_prepared(prepp, floquet_exp=floquet_exp)
@@ -129,6 +136,7 @@ def build_spatial_operator_petsc(
     m: float = 0,
     delta: float = 1.0,
     solver_cfg: dict | None = None,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple["PETSc.Mat", "PETSc.Mat", "PETSc.Mat", dict]:
     """Build doubled spatial-EVP matrices directly as PETSc AIJ matrices.
 
@@ -142,9 +150,15 @@ def build_spatial_operator_petsc(
     _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
 
     n = mesh.ngp * 5
-    prep0 = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
-    prepp = _prepare_coefficients(mesh, baseflow, kx=kx + delta, model=model, m=m)
-    prepm = _prepare_coefficients(mesh, baseflow, kx=kx - delta, model=model, m=m)
+    prep0 = _prepare_coefficients(
+        mesh, baseflow, kx=kx, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
+    prepp = _prepare_coefficients(
+        mesh, baseflow, kx=kx + delta, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
+    prepm = _prepare_coefficients(
+        mesh, baseflow, kx=kx - delta, model=model, m=m, matlab_parity_dmudt=matlab_parity_dmudt
+    )
 
     L0 = _assemble_from_prepared_petsc(prep0, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
     Lp = _assemble_from_prepared_petsc(prepp, floquet_exp=floquet_exp, solver_cfg=solver_cfg)

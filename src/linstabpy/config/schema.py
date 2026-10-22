@@ -91,10 +91,12 @@ TOP_LEVEL_ALLOWED = frozenset(
         # counterpart of numerics.floquet_shift in driver/run.py ("continuum" |
         # "matlab_parity"); zero_dmudT (Ex. 4) and zero_dmudT_martini_parity (Ex. 1)
         # zero dmu/dT after sutherland_air for LinStab2D 2-D parity; bc_mask_layout
-        # (Ex. 2) is the observation-mask layout ("kron" | "tile").
+        # (Ex. 2) is the observation-mask layout ("kron" | "tile"). matlab_parity_dmudt
+        # (axy model) omits the mu'(T) T' terms that LinStab2D omits.
         "floquet_shift",
         "zero_dmudT",
         "zero_dmudT_martini_parity",
+        "matlab_parity_dmudt",
         "bc_mask_layout",
     }
 )
@@ -156,6 +158,7 @@ _BOOL_FIELDS = frozenset(
     {
         "zero_dmudT",
         "zero_dmudT_martini_parity",
+        "matlab_parity_dmudt",
         "x_periodicity",
         "y_symmetry",
         "run_temporal",

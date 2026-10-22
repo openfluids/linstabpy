@@ -11,6 +11,7 @@ alpha_filter: 0.0          # implicit filter; 0 keeps the filter real
 y_symmetry: true           # axisymmetric half-plane
 x_periodicity: false       # open streamwise ends
 model: axy                 # axisymmetric LNSE
+matlab_parity_dmudt: true  # omit mu'(T) T' terms, as LinStab2D does (MATLAB reference parity)
 
 # Published MATLAB parity: kron(B(:), ones(5,1)) == np.repeat(sponge0, 5).
 # Use bc_mask_layout: tile only for the block-correct side track (not Fig.~8 parity).

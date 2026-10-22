@@ -561,8 +561,14 @@ def cartesian_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[
     return out
 
 
-def cylindrical_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dict[str, sp.Expr]:
+def cylindrical_lnse_coefficients_from_nse(
+    symbols: dict[str, sp.Symbol], *, matlab_parity_dmudt: bool = False
+) -> dict[str, sp.Expr]:
     """Derive all 175 cylindrical LNSE coefficients from conservative NSE.
+
+    The default is the full linearisation. ``matlab_parity_dmudt=True`` subtracts
+    the terms LinStab2D ``getCoeffsLaminar.m`` omits (see the two correction
+    helpers below).
 
     The derivation uses cylindrical component order
     ``[rho, u_r, u_theta, u_z, T]``.
@@ -571,12 +577,14 @@ def cylindrical_lnse_coefficients_from_nse(symbols: dict[str, sp.Symbol]) -> dic
     The returned dictionary is remapped to the public physical order
     ``[rho, u_z, u_r, u_theta, T]``.
     """
-    internal = _derive_internal_cylindrical_coefficients(symbols)
+    internal = _derive_internal_cylindrical_coefficients(
+        symbols, matlab_parity_dmudt=matlab_parity_dmudt
+    )
     return _map_internal_to_physical(internal)
 
 
 def _derive_internal_cylindrical_coefficients(
-    symbols: dict[str, sp.Symbol],
+    symbols: dict[str, sp.Symbol], *, matlab_parity_dmudt: bool = False
 ) -> dict[str, dict[tuple[int, int], sp.Expr]]:
     I = sp.I
     two_thirds = sp.Rational(2, 3)
@@ -709,15 +717,15 @@ def _derive_internal_cylindrical_coefficients(
                 else:
                     internal[block][(row, col)] = sp.expand(-coeff)
 
-    # Martini's coefficient convention keeps pure T' multipliers from base
-    # viscous flux divergences in the steady base equations rather than in the
-    # perturbation operator.  These compact subtractions come from the
-    # cylindrical unit-stress fluxes directly.
-    for row, correction in _momentum_temperature_base_stress_corrections(symbols).items():
-        internal["A0"][(row, 4)] = sp.expand(internal["A0"][(row, 4)] - correction)
-    internal["A0"][(4, 4)] = sp.expand(
-        internal["A0"][(4, 4)] - _energy_temperature_base_flux_correction(symbols)
-    )
+    # LinStab2D getCoeffsLaminar.m omits the mu'(T) T' base-stress terms in the
+    # momentum rows and the matching energy-row terms. The subtraction below
+    # reproduces that omission; it is applied only when matlab_parity_dmudt is set.
+    if matlab_parity_dmudt:
+        for row, correction in _momentum_temperature_base_stress_corrections(symbols).items():
+            internal["A0"][(row, 4)] = sp.expand(internal["A0"][(row, 4)] - correction)
+        internal["A0"][(4, 4)] = sp.expand(
+            internal["A0"][(4, 4)] - _energy_temperature_base_flux_correction(symbols)
+        )
 
     return internal
 
@@ -734,13 +742,11 @@ def _momentum_temperature_base_stress_corrections(
 
 
 def _energy_temperature_base_flux_correction(symbols: dict[str, sp.Symbol]) -> sp.Expr:
-    """Frozen-base-viscosity convention correction for the energy equation T' row.
+    """Energy-equation T' row terms that LinStab2D getCoeffsLaminar.m omits.
 
-    Applies the frozen-base-viscosity convention used in Martini's LNSE operator.
     Perturbation-viscosity x base-stress/heat-flux divergence terms (all
-    O(dmudT/Re)) stay out of the operator.
-    The two terms here capture the O(dmudT) contributions from the base
-    viscous-work divergence and the base temperature-gradient divergence.
+    O(dmudT/Re)): the base viscous-work divergence and the base
+    temperature-gradient divergence, each multiplied by dmudT.
 
     The '- W*dRHOdz/c2' term present in an earlier scratch version was a tuning
     artifact matching a since-fixed A0_55 sign error.

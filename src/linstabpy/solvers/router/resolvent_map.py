@@ -309,6 +309,7 @@ def _assembly_kwargs(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "model": str(_cfg_value(cfg, "model", "2D")),
         "m": float(_cfg_value(cfg, "m", 0.0)),
         "floquet_exp": float(_cfg_value(cfg, "floquet_exp", 0.0)),
+        "matlab_parity_dmudt": _cfg_bool(cfg, "matlab_parity_dmudt", False),
         "dissipation_epsilon": stage_dissipation_epsilon(_operator_dissipation(cfg), "resolvent"),
         "bc_recipe": bc_recipe,
         "bc_penalty": float(_cfg_value(cfg, "bc_penalty", _cfg_value(cfg, "penalty", 1.0e4))),

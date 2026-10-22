@@ -108,6 +108,7 @@ class _LNSEAssemblyRequest:
     bc_penalty: float = 1e4
     backend: str | None = None
     solver_cfg: dict | None = None
+    matlab_parity_dmudt: bool = False
 
     @property
     def model_name(self) -> str:
@@ -199,6 +200,7 @@ def build_lnse_operator(
     m: float = 0,
     floquet_exp: float = 0.0,
     dissipation_epsilon: float = 0.0,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple[sp.csc_matrix, dict]:
     """Build the LNSE operator L0 as a scipy sparse matrix.
 
@@ -227,6 +229,10 @@ def build_lnse_operator(
         Azimuthal Fourier mode for cylindrical model ``"axy"``.
     floquet_exp : float
         Floquet exponent used only by the cylindrical model.
+    matlab_parity_dmudt : bool
+        ``model='axy'`` only. ``True`` omits the ``mu'(T) T'`` base-stress and
+        energy-flux terms that LinStab2D omits; see
+        ``compute_cylindrical_coefficients``.
     dissipation_epsilon : float
         Artificial dissipation strength. When positive, subtract epsilon
         times the 5-variable block dissipation operator from the pre-BC
@@ -268,7 +274,14 @@ def build_lnse_operator(
         m=float(m),
         floquet_exp=float(floquet_exp),
     ):
-        prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+        prep = _prepare_coefficients(
+            mesh,
+            baseflow,
+            kx=kx,
+            model=model,
+            m=m,
+            matlab_parity_dmudt=matlab_parity_dmudt,
+        )
         L0 = _assemble_from_prepared(prep, floquet_exp=floquet_exp)
         if dissipation_epsilon > 0.0:
             # Artificial dissipation is an L0-level correction. It belongs
@@ -299,6 +312,7 @@ def build_lnse_operator_petsc(
     *,
     dissipation_epsilon: float = 0.0,
     solver_cfg: dict | None = None,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple["PETSc.Mat", dict]:
     """Build the pre-BC LNSE operator L0 directly as a PETSc AIJ matrix.
 
@@ -335,7 +349,14 @@ def build_lnse_operator_petsc(
     ):
         _validate_direct_petsc_backend(model=model, solver_cfg=solver_cfg)
         require_complex(solver_cfg)
-        prep = _prepare_coefficients(mesh, baseflow, kx=kx, model=model, m=m)
+        prep = _prepare_coefficients(
+            mesh,
+            baseflow,
+            kx=kx,
+            model=model,
+            m=m,
+            matlab_parity_dmudt=matlab_parity_dmudt,
+        )
         L0 = _assemble_from_prepared_petsc(prep, floquet_exp=floquet_exp, solver_cfg=solver_cfg)
         idx = _build_index_structure(mesh.idx, mesh.ngp)
         _note_assembly_metadata(
@@ -472,6 +493,7 @@ def _build_lnse_system_scipy(
     dissipation_epsilon: float = 0.0,
     bc_recipe: list[dict] | None = None,
     bc_penalty: float = 1e4,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple[sp.csc_matrix, dict, np.ndarray]:
     """Build the LNSE system through the canonical SciPy assembly/BC path."""
     from ..boundary_conditions.recipe import apply_bc_recipe
@@ -484,6 +506,7 @@ def _build_lnse_system_scipy(
         m=m,
         floquet_exp=floquet_exp,
         dissipation_epsilon=dissipation_epsilon,
+        matlab_parity_dmudt=matlab_parity_dmudt,
     )
     with _assembly_stage("apply_bc") as stage:
         if bc_recipe:
@@ -542,6 +565,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
                 dissipation_epsilon=request.dissipation_epsilon,
                 bc_recipe=request.bc_recipe,
                 bc_penalty=request.bc_penalty,
+                matlab_parity_dmudt=request.matlab_parity_dmudt,
             )
             nnz_post_bc = _matrix_nnz(L0_sp)
             with _assembly_stage("scipy_to_petsc") as stage:
@@ -579,6 +603,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
                 floquet_exp=request.floquet_exp,
                 dissipation_epsilon=request.dissipation_epsilon,
                 solver_cfg=request.solver_cfg,
+                matlab_parity_dmudt=request.matlab_parity_dmudt,
             )
             with _assembly_stage("apply_bc") as stage:
                 if request.bc_recipe:
@@ -639,6 +664,7 @@ def _build_lnse_system_from_request(request: _LNSEAssemblyRequest) -> LNSESystem
             dissipation_epsilon=request.dissipation_epsilon,
             bc_recipe=request.bc_recipe,
             bc_penalty=request.bc_penalty,
+            matlab_parity_dmudt=request.matlab_parity_dmudt,
         )
         _note_assembly_metadata(
             nnz_post_bc=_matrix_nnz(L0),
@@ -680,6 +706,7 @@ def build_lnse_system_result(
     bc_penalty: float = 1e4,
     backend: str | None = None,
     solver_cfg: dict | None = None,
+    matlab_parity_dmudt: bool = False,
 ) -> LNSESystem:
     """Build an LNSE system and return the operator with assembly metadata.
 
@@ -702,6 +729,7 @@ def build_lnse_system_result(
         bc_penalty=bc_penalty,
         backend=backend,
         solver_cfg=solver_cfg,
+        matlab_parity_dmudt=matlab_parity_dmudt,
     )
     return _build_lnse_system_from_request(request)
 
@@ -719,6 +747,7 @@ def build_lnse_system(
     bc_penalty: float = 1e4,
     backend: str | None = None,
     solver_cfg: dict | None = None,
+    matlab_parity_dmudt: bool = False,
 ) -> tuple[sp.csc_matrix | "PETSc.Mat", dict, np.ndarray]:
     """Build an LNSE operator and optionally apply BCs with one backend selector.
 
@@ -738,6 +767,7 @@ def build_lnse_system(
         bc_penalty=bc_penalty,
         backend=backend,
         solver_cfg=solver_cfg,
+        matlab_parity_dmudt=matlab_parity_dmudt,
     )
     return result.operator, result.idx, result.bc_indices
 
@@ -749,6 +779,7 @@ def _prepare_coefficients(
     kx: float = 0.0,
     model: str = "2D",
     m: float = 0,
+    matlab_parity_dmudt: bool = False,
 ) -> dict:
     """Compute LNSE coefficients and base derivative matrices (once).
 
@@ -911,6 +942,8 @@ def _prepare_coefficients(
 
             d2Udrz = _recorded_derivative_matvec(stage, "d2Udrz", Dx, dUdr)
             d2Wdrz = _recorded_derivative_matvec(stage, "d2Wdrz", Dx, dWdr)
+            d2Tdr2 = _recorded_derivative_matvec(stage, "d2Tdr2", D2y, T)
+            d2Tdz2 = _recorded_derivative_matvec(stage, "d2Tdz2", D2x, T)
 
             _record_prepare_derivative_metrics(
                 stage,
@@ -933,6 +966,8 @@ def _prepare_coefficients(
                     "d2Wdz2": d2Wdz2,
                     "d2Udrz": d2Udrz,
                     "d2Wdrz": d2Wdrz,
+                    "d2Tdr2": d2Tdr2,
+                    "d2Tdz2": d2Tdz2,
                 },
             )
 
@@ -962,16 +997,17 @@ def _prepare_coefficients(
                 d2Udr2=d2Udr2,
                 d2Vdr2=d2Vdr2,
                 d2Wdr2=d2Wdr2,
-                d2Tdr2=unused_derivative,
+                d2Tdr2=d2Tdr2,
                 d2Udz2=d2Udz2,
                 d2Vdz2=d2Vdz2,
                 d2Wdz2=d2Wdz2,
-                d2Tdz2=unused_derivative,
+                d2Tdz2=d2Tdz2,
                 d2Udrz=d2Udrz,
                 d2Vdrz=unused_derivative,
                 d2Wdrz=d2Wdrz,
                 dmudT=dmudT,
                 d2mudT2=d2mudT2,
+                matlab_parity_dmudt=matlab_parity_dmudt,
             )
             DR, D2R, DZ, D2Z, D2RZ = _create_axy_diff_matrices(mesh, m)
 

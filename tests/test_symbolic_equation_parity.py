@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytest
 import scipy.sparse as sps
 import sympy as sp
 from symbolic_compressible_nse import (
@@ -353,6 +354,8 @@ def _run_cylindrical(ngp: int, seed: int, m: float, tol: float) -> dict[str, Any
         d2Wdrz=fields["d2Wdrz"],
         dmudT=fields["dmudT"],
         d2mudT2=fields["d2mudT2"],
+        # The frozen reference is the LinStab2D formulation.
+        matlab_parity_dmudt=True,
     )
 
     order, funcs = _compiled_symbolic_cylindrical()
@@ -999,7 +1002,8 @@ def test_cartesian_coefficients_match_independent_nse_derivation():
     )
 
 
-def test_cylindrical_coefficients_match_independent_nse_derivation():
+@pytest.mark.parametrize("matlab_parity_dmudt", [False, True], ids=["full", "matlab_parity"])
+def test_cylindrical_coefficients_match_independent_nse_derivation(matlab_parity_dmudt):
     """Independent first-principles cylindrical NSE derivation must match
     the production compute_cylindrical_coefficients to machine precision.
 
@@ -1011,11 +1015,10 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
     A0_55 sign error in Front E) that a frozen-reference round-trip cannot
     detect.
 
-    Convention: frozen-base-viscosity -- Martini's LNSE operator excludes
-    the perturbation-viscosity x base-stress/heat-flux divergence terms
-    (all O(dmudT/Re)). The _momentum_temperature_base_stress_corrections and
-    _energy_temperature_base_flux_correction helpers apply this convention
-    consistently so the independent derivation matches the production operator.
+    Default: production equals the full oracle. With ``matlab_parity_dmudt``:
+    production equals the oracle minus the terms LinStab2D getCoeffsLaminar.m
+    omits (``_momentum_temperature_base_stress_corrections`` and
+    ``_energy_temperature_base_flux_correction``).
 
     Parameters: Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4, m in {0.0, 1.0, 2.0},
     seed=42, ngp=64.
@@ -1023,10 +1026,10 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
     Re, Ma, Pr, kappa = 1e4, 0.3, 0.7, 1.4
     ngp = 64
     seed = 42
-    tol = 1e-10
+    tol = 1e-12
 
     syms = cylindrical_symbol_table()
-    derived = cylindrical_lnse_coefficients_from_nse(syms)
+    derived = cylindrical_lnse_coefficients_from_nse(syms, matlab_parity_dmudt=matlab_parity_dmudt)
 
     sym_order = list(syms.keys())
     sym_args = [syms[n] for n in sym_order]
@@ -1087,6 +1090,7 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
             d2Wdrz=fields["d2Wdrz"],
             dmudT=fields["dmudT"],
             d2mudT2=fields["d2mudT2"],
+            matlab_parity_dmudt=matlab_parity_dmudt,
         )
         prod_blocks = {
             "A0": prod.A0,
@@ -1119,6 +1123,21 @@ def test_cylindrical_coefficients_match_independent_nse_derivation():
         f"max|delta|={overall_max:.3e} at block={worst_block}[{worst_i},{worst_j}] "
         f"(tol={tol:.1e})"
     )
+
+
+def test_matlab_parity_flag_changes_only_temperature_column_of_a0():
+    """The flag removes exactly the mu'(T) T' terms: A0 rows u, v, w, T, column T."""
+    fields = _make_random_cylindrical_fields(ngp=32, seed=7)
+    kwargs = {k: fields[k] for k in fields}
+    kwargs.update(m=1.0, Re=1e4, Ma=0.3, Pr=0.7, kappa=1.4)
+    full = compute_cylindrical_coefficients(**kwargs)
+    parity = compute_cylindrical_coefficients(**kwargs, matlab_parity_dmudt=True)
+    for name in ("Ax", "Ay", "Axx", "Ayy", "Axy", "B"):
+        assert np.array_equal(getattr(full, name), getattr(parity, name))
+    diff = np.abs(full.A0 - parity.A0).max(axis=2)
+    expected = np.zeros((5, 5), dtype=bool)
+    expected[1:, 4] = True
+    assert np.array_equal(diff > 0, expected)
 
 
 def main() -> int:

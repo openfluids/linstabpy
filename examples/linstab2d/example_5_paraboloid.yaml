@@ -31,6 +31,7 @@ use_omega_shift_fallback: true     # apply that shift
 n_modes: 3                 # leading resolvent triplets
 m: 5                       # azimuthal Fourier mode
 model: axy                 # axisymmetric LNSE
+matlab_parity_dmudt: true  # omit mu'(T) T' terms, as LinStab2D does (MATLAB reference parity)
 
 # scipy is the cross-machine baseline. petsc is an explicit opt-in.
 # Do not use auto for installation baselines.

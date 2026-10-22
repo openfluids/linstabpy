@@ -121,6 +121,7 @@ def compute(cfg: dict) -> None:
         bc_penalty=bc_penalty,
         backend=assembly_backend,
         solver_cfg=solver_cfg,
+        matlab_parity_dmudt=bool(cfg.get("matlab_parity_dmudt", False)),
     )
     L0 = lnse_system.operator
     idx = lnse_system.idx

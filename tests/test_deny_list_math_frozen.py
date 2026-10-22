@@ -126,7 +126,15 @@ _FROZEN_SIGNATURES = {
     # ENTRYWISE to max|delta| = 4.4e-12 (4e-16 relative), axis rows included;
     # before the fix the axis rows differed by O(1) and the example-2 gains
     # missed the MATLAB reference.
-    "coefficients": "592595e2b4de0821343b9baeb711e4eb9aa23aada8c47dc1dd78e0f3b8024d84",
+    # coefficients re-baselined 2026-10-22: the axisymmetric operator now keeps the
+    # mu'(T) T' div(S_bar) terms (momentum rows) and the matching mu', k' terms
+    # (energy row) that LinStab2D getCoeffsLaminar.m omits. The flag
+    # matlab_parity_dmudt=True reproduces LinStab2D bit for bit. Evidence:
+    # production == full sympy oracle to <1e-12 (default) and == oracle with the
+    # LinStab2D omission (flag on); measured effect: operator ~1e-4/Re, leading
+    # eigenvalue 1e-4 at Re 500 to 1e-6 at Re 5e4, resolvent gains up to 1.2e-2 at
+    # Re 500 (docs/plans/axy_dmudt/); user-approved 2026-10-22.
+    "coefficients": "a187d42a47dd9b53969dae8be081d51ccb1b39344f3cf95094b09832ebc1e1f1",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
     # mesh re-baselined 2026-06-12: Mesh.create gained an
     # argument-validation preamble; zero math statements changed. Evidence: all 13

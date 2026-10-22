@@ -186,6 +186,18 @@ class _PhysicalCoefficientBuilder:
         )
         self._out[dest_name][row_phys, col_phys, :] = sign * value
 
+    def add(self, source_name: str, row: int, col: int, value: np.ndarray) -> None:
+        """Add ``value`` to an entry already written by :meth:`set`."""
+        dest_name = _SOURCE_TO_DEST[source_name]
+        row_phys = self._c2p_idx[row - 1]
+        col_phys = self._c2p_idx[col - 1]
+        sign = (
+            complex(self._source_signs.get(source_name, 1.0))
+            * complex(self._c2p_sgn[row - 1])
+            * complex(self._c2p_sgn[col - 1])
+        )
+        self._out[dest_name][row_phys, col_phys, :] += sign * value
+
     def finish(self) -> LNSECoefficients:
         return LNSECoefficients(
             A0=self._out["A0"],
@@ -884,6 +896,7 @@ def compute_cylindrical_coefficients(
     d2Wdrz: np.ndarray,
     dmudT: np.ndarray,
     d2mudT2: np.ndarray,
+    matlab_parity_dmudt: bool = False,
 ) -> LNSECoefficients:
     r"""Compute LNSE coefficient matrices for a cylindrical 2-D base flow.
 
@@ -909,6 +922,12 @@ def compute_cylindrical_coefficients(
     dmudT, d2mudT2 : np.ndarray, shape ``(ngp,)``
         First and second derivatives of viscosity with respect to
         temperature.
+    matlab_parity_dmudt : bool
+        LinStab2D ``getCoeffsLaminar.m`` omits the terms
+        ``mu'(T) T' div(S_bar)`` in the momentum rows and the matching
+        ``mu'`` and ``k'`` terms in the energy row. They are in the operator
+        by default. ``True`` omits them to reproduce LinStab2D.
+        The energy term needs ``d2Tdr2`` and ``d2Tdz2``.
 
     Returns
     -------
@@ -1769,6 +1788,35 @@ def compute_cylindrical_coefficients(
     _set_coeff("B", 5, 3, 1j * V * RHO)
     _set_coeff("B", 5, 4, 1j * W * RHO)
     _set_coeff("B", 5, 5, 1j * RHO * cv)
+
+    if not matlab_parity_dmudt:
+        # Base viscous-stress divergence (unit viscosity) and its work term.
+        div_r = 4 * d2Udr2 / 3 + d2Udz2 + d2Wdrz / 3 + 4 * dUdr / (3 * R) - 4 * U / (3 * R**2)
+        div_t = d2Vdr2 + d2Vdz2 + dVdr / R - V / R**2
+        div_z = d2Udrz / 3 + d2Wdr2 + 4 * d2Wdz2 / 3 + (dUdz / 3 + dWdr) / R
+        div_work = (
+            U * (4 * d2Udr2 / 3 + d2Udz2 + d2Wdrz / 3)
+            + V * (d2Vdr2 + d2Vdz2)
+            + W * (d2Udrz / 3 + d2Wdr2 + 4 * d2Wdz2 / 3)
+            + 4 * dUdr**2 / 3
+            - 4 * dUdr * dWdz / 3
+            + dUdz**2
+            + 2 * dUdz * dWdr
+            + dVdr**2
+            + dVdz**2
+            + dWdr**2
+            + 4 * dWdz**2 / 3
+            + (-4 * U * dWdz / 3 - V * dVdr + W * dUdz / 3 + W * dWdr) / R
+        )
+        _coeffs.add("A0", 2, 5, dmudT * div_r / Re)
+        _coeffs.add("A0", 3, 5, dmudT * div_t / Re)
+        _coeffs.add("A0", 4, 5, dmudT * div_z / Re)
+        _coeffs.add(
+            "A0",
+            5,
+            5,
+            dmudT * div_work / Re + dmudT * (d2Tdr2 + dTdr / R + d2Tdz2) / c1,
+        )
 
     # ------------------------------------------------------------------
     # Step 3: Pack directly into the final physical-order tensors.
