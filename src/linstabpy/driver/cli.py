@@ -10,7 +10,6 @@ import sys
 import zipfile
 from collections.abc import Sequence
 from importlib import metadata
-from pathlib import Path
 
 import numpy as np
 
@@ -189,57 +188,49 @@ def main(argv: Sequence[str] | None = None) -> None:
                 need_recompute = True
             else:
                 try:
-                    config_path_raw = runtime._first_env(
-                        "LINSTABPY_CASE_CONFIG",
-                        "LINSTABPY_CASE2_CONFIG",
-                        "LINSTABPY_CASE1_CONFIG",
+                    # Same path run() would load, including its default.
+                    current_config = load_config(runtime._runtime_config_path())
+                    current_hash = runtime._config_hash(current_config)[:16]
+                    current_sha = runtime._git_head_sha()
+                    cached_hash = (
+                        data.get(
+                            "provenance_config_hash",
+                            np.bytes_(b""),
+                        )
+                        .item()
+                        .decode("utf-8", errors="replace")
                     )
-                    if config_path_raw is not None:
-                        current_config = load_config(Path(config_path_raw))
-                        current_hash = runtime._config_hash(current_config)[:16]
-                        current_sha = runtime._git_head_sha()
-                        cached_hash = (
-                            data.get(
-                                "provenance_config_hash",
-                                np.bytes_(b""),
-                            )
-                            .item()
-                            .decode("utf-8", errors="replace")
+                    cached_sha = (
+                        data.get(
+                            "provenance_linstabpy_git_sha",
+                            np.bytes_(b""),
                         )
-                        cached_sha = (
-                            data.get(
-                                "provenance_linstabpy_git_sha",
-                                np.bytes_(b""),
-                            )
-                            .item()
-                            .decode("utf-8", errors="replace")
+                        .item()
+                        .decode("utf-8", errors="replace")
+                    )
+                    if cached_hash != current_hash:
+                        print(
+                            "Config hash mismatch "
+                            f"(cached={cached_hash!r}, current={current_hash!r}), "
+                            "recomputing."
                         )
-                        if cached_hash != current_hash:
-                            print(
-                                "Config hash mismatch "
-                                f"(cached={cached_hash!r}, current={current_hash!r}), "
-                                "recomputing."
-                            )
-                            need_recompute = True
-                        elif (
-                            cached_sha != current_sha
-                            and cached_sha not in {"", "unknown"}
-                            and current_sha != "unknown"
-                        ):
-                            print(
-                                "Git SHA mismatch "
-                                f"(cached={cached_sha!r}, current={current_sha!r}), "
-                                "recomputing."
-                            )
-                            need_recompute = True
-                        else:
-                            print(
-                                f"Cache valid (hash={cached_hash!r}, sha={cached_sha!r}), "
-                                "using cached results."
-                            )
+                        need_recompute = True
+                    elif (
+                        cached_sha != current_sha
+                        and cached_sha not in {"", "unknown"}
+                        and current_sha != "unknown"
+                    ):
+                        print(
+                            "Git SHA mismatch "
+                            f"(cached={cached_sha!r}, current={current_sha!r}), "
+                            "recomputing."
+                        )
+                        need_recompute = True
                     else:
-                        # No config path available to check; trust cache.
-                        pass
+                        print(
+                            f"Cache valid (hash={cached_hash!r}, sha={cached_sha!r}), "
+                            "using cached results."
+                        )
                 except Exception as exc:
                     print(f"Cache validation failed ({exc}), recomputing.")
                     need_recompute = True
