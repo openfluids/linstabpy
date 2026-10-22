@@ -37,7 +37,7 @@ from linstabpy.driver.preflight import (
     mesh_advisories,
     result_advisories,
 )
-from linstabpy.linalg.backends import FACTOR_PRECISION, resolve_factor_backend
+from linstabpy.linalg.backends import resolve_factor_backend
 from linstabpy.mesh import Mesh
 from linstabpy.mesh.sbp import DISSIPATION_DEFAULTS
 from linstabpy.operators.assembly import build_lnse_system_result
@@ -1364,6 +1364,8 @@ def run() -> None:
         )
     if use_root_operator:
         solver_cfg.setdefault("root_scatter", True)
+        # The eigen solve reads cfg_obj, which is frozen; reload it so root_scatter applies.
+        cfg_obj = Config.load(config)
 
     _linsolve = solver_cfg.get("linsolve", {})
     _resolvent_cfg = solver_cfg.get("resolvent", _linsolve)
@@ -1720,14 +1722,14 @@ def run() -> None:
             },
             stability={
                 "stability_eps_nev": int(stability_info.get("nev_requested", -1)),
-                "stability_eps_ncv": int(stability_info.get("ncv_used", -1)),
+                "stability_eps_ncv": int(stability_info.get("ncv_used") or -1),
                 "stability_eps_nconv": int(stability_info.get("nconv", -1)),
                 "stability_eps_iterations": int(stability_info.get("eps_iterations", -1)),
                 "stability_eps_reason": np.array(str(stability_info.get("eps_reason", ""))),
                 "stability_ksp_reason": np.array(str(stability_info.get("ksp_reason", ""))),
                 "stability_eps_conv_test": np.array(str(stability_info.get("conv_test", ""))),
-                "stability_eps_tol": float(stability_info.get("eps_tol", np.nan)),
-                "stability_eps_max_it": int(stability_info.get("eps_max_it", -1)),
+                "stability_eps_tol": float(stability_info.get("eps_tol") or np.nan),
+                "stability_eps_max_it": int(stability_info.get("eps_max_it") or -1),
                 "stability_eps_setup_seconds": float(
                     stability_info.get("eps_setup_seconds", np.nan)
                 ),
@@ -1781,7 +1783,7 @@ def run() -> None:
                     stability_acceptance_omega_imag_abs_max
                 ),
                 "stability_acceptance_conjugate_aware": bool(
-                    stability_acceptance.get("acceptance_conjugate_aware", False)
+                    stability_acceptance_conjugate_aware
                 ),
                 "stability_accepted_count": int(stability_acceptance.get("accepted_count", -1)),
                 "stability_accepted_indices": np.asarray(
@@ -1847,7 +1849,11 @@ def run() -> None:
                 "provenance_config_hash": np.bytes_(config_hash[:16].encode()),
                 "provenance_linstabpy_git_sha": np.bytes_(git_sha.encode()),
                 "provenance_factor_backend": str(factor_backend_provenance),
-                "provenance_factor_precision": np.array(FACTOR_PRECISION),
+                "provenance_factor_precision": np.array(
+                    cfg_obj.eigen.factor_precision
+                    if run_stability
+                    else cfg_obj.linsolve.factor_precision
+                ),
             },
         )
         save_results(
