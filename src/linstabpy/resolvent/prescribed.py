@@ -5,7 +5,7 @@ Solves the classical resolvent problem for a known forcing vector, instead
 of the optimal-forcing SVD that resolvent_analysis computes.  Given a
 discrete linear operator L0 and a right-hand side f_hat(beta, omega):
 
-    q_hat = (L0 - (gamma + i*omega) I)^-1 (B f_hat)
+    q_hat = [(gamma - i*omega) I - L0]^-1 (B f_hat)
 
 with the gain
 
@@ -248,7 +248,7 @@ def _solve_pipeline(
         ``factor_s``, ``solve_s``, and ``residual_s``, and ``backend`` the
         name of the factorization backend that ran.
     """
-    L_sigma = shifted_operator(L0, omega, gamma=gamma)
+    L_sigma = shifted_operator(L0, omega, gamma=gamma, matlab_parity=cfg.resolvent.matlab_parity)
     t0 = time.perf_counter()
     lu: Factorization = factorize(
         L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg
@@ -298,13 +298,16 @@ def prescribed_forcing_response(
     L0 : sparse matrix or PETSc.Mat, shape (ndof, ndof)
         LNSE operator, boundary conditions already applied.
     omega : float
-        Frequency in ``L0 - (gamma + i*omega) I``.
+        Forcing frequency. The response solves ``[(gamma - i*omega) I - L0] q = f``
+        (``solver.resolvent_sign_convention: matlab_parity``: ``L0 - (gamma + i*omega) I``),
+        as in ``resolvent_analysis``. See ``docs/resolvent_sign_convention.md``.
     W_diag : ndarray, shape (ndof,)
         Diagonal of the Chu energy-norm matrix.
     f_hat : ndarray, shape (ndof,)
-        Prescribed complex forcing vector, in the same DOF order as ``L0``.
+        Prescribed complex forcing amplitude, in the same DOF order as ``L0``.
+        The forcing in time is ``Re[f_hat * exp(-i*omega*t)]``.
     gamma : float, optional
-        Real discount in ``L0 - (gamma + i*omega) I``. Default 0.
+        Real discount ``gamma`` in the shifted matrix above. Default 0.
     B_mat, C_mat : sparse matrix or PETSc.Mat, optional
         Input/output masks, applied as in ``ResolventOperator``. Default
         identity.

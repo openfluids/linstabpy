@@ -53,8 +53,12 @@ def _seeded_operator(n: int, seed: int) -> sp.csc_matrix:
     return sp.csc_matrix(dense)
 
 
-def _dense_shifted(operator: sp.csc_matrix, omega: float, gamma: float) -> np.ndarray:
-    """Return the dense ``L0 - (gamma + i*omega) I`` reference matrix.
+def _dense_shifted(
+    operator: sp.csc_matrix, omega: float, gamma: float, *, matlab_parity: bool = False
+) -> np.ndarray:
+    """Return the dense ``(gamma - i*omega) I - L0`` reference matrix.
+
+    With ``matlab_parity`` it is the LinStab2D matrix ``L0 - (gamma + i*omega) I``.
 
     Returns
     -------
@@ -62,7 +66,9 @@ def _dense_shifted(operator: sp.csc_matrix, omega: float, gamma: float) -> np.nd
         The dense shifted operator.
     """
     n = operator.shape[0]
-    return operator.toarray() - (gamma + 1j * omega) * np.eye(n)
+    if matlab_parity:
+        return operator.toarray() - (gamma + 1j * omega) * np.eye(n)
+    return (gamma - 1j * omega) * np.eye(n) - operator.toarray()
 
 
 def _dense_leading_svd(
@@ -110,6 +116,23 @@ def test_prescribed_forcing_matches_dense_solve(gamma: float) -> None:
     assert gain == pytest.approx(q_w_norm / f_w_norm, abs=1e-12, rel=1e-12)
     assert info["forcing_norm"] == "chu"
     assert cast("float", info["rho_fwd"]) < 1e-8
+
+
+@_requires_solver
+def test_prescribed_forcing_follows_the_resolvent_sign_setting() -> None:
+    """The matlab_parity setting gives the LinStab2D response, as in resolvent_analysis."""
+    n, omega, gamma = 12, 2.5, 0.3
+    L0 = _seeded_operator(n, seed=1)
+    rng = np.random.default_rng(7)
+    f_hat = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    cfg = {"resolvent": {"eigen": {}}, "resolvent_sign_convention": "matlab_parity"}
+
+    q_hat, _, _ = prescribed_forcing_response(
+        L0, omega, np.ones(n), f_hat, gamma=gamma, solver_cfg=cfg
+    )
+
+    q_dense = np.linalg.solve(_dense_shifted(L0, omega, gamma, matlab_parity=True), f_hat)
+    np.testing.assert_allclose(q_hat, q_dense, atol=1e-12, rtol=1e-12)
 
 
 @_requires_solver
