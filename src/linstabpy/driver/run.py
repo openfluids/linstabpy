@@ -153,20 +153,13 @@ def _stage_start() -> tuple[float, int]:
     return time.perf_counter(), _peak_rss_bytes()
 
 
-def _log_stage(stage: str, stage_start: float | tuple[float, int]) -> None:
+def _log_stage(stage: str, stage_start: tuple[float, int]) -> None:
     """Emit a machine-parseable stage timing line."""
-    if isinstance(stage_start, tuple):
-        start_time, rss0 = stage_start
-        elapsed = time.perf_counter() - start_time
-        _STAGE_WALL[stage] = _STAGE_WALL.get(stage, 0.0) + elapsed
-        rss_delta = max(0, _peak_rss_bytes() - rss0)
-        _log(
-            f"stage complete: stage={stage} elapsed={elapsed:.2f}s rss_peak_delta_bytes={rss_delta}"
-        )
-        return
-    elapsed = time.perf_counter() - stage_start
+    start_time, rss0 = stage_start
+    elapsed = time.perf_counter() - start_time
     _STAGE_WALL[stage] = _STAGE_WALL.get(stage, 0.0) + elapsed
-    _log(f"stage complete: stage={stage} elapsed={elapsed:.2f}s")
+    rss_delta = max(0, _peak_rss_bytes() - rss0)
+    _log(f"stage complete: stage={stage} elapsed={elapsed:.2f}s rss_peak_delta_bytes={rss_delta}")
 
 
 def _default_stage_heartbeat_seconds() -> float:
@@ -189,39 +182,6 @@ def _parse_alpha_filter(alpha_filter_raw: object) -> float | str:
         if alpha_filter.lower() == "none" or alpha_filter == "":
             return "none"
         return alpha_filter
-
-
-def _effective_alpha_filter(
-    alpha_filter_raw: object,
-    *,
-    run_resolvent: bool,
-    context: str = "config",
-) -> float | str:
-    """Parse the configured alpha-filter, honoring it for every analysis stage.
-
-    The previous behaviour silently overrode a numeric ``alpha_filter`` to
-    ``"none"`` whenever ``run_resolvent=False``, as a build-time optimisation
-    for EVP-only runs.
-    That override had a real numerical side-effect.
-    SBP diagonal-norm operators have a near-null-space mode at the 2-Δ
-    Nyquist wavenumber.
-    The Mattsson operator-level filter is the designed damping for that
-    mode.
-    Skipping it for EVP-only runs made those runs produce pixel-scale
-    saw-tooth eigenvectors localised near the boundary closure.
-    That is a purely numerical artefact.
-    It also contaminated resolvent extraction whenever someone set
-    ``alpha_filter: 0.0``.
-
-    The filter is an operator-level property and should not depend on which
-    analysis stage runs.
-    Honour the configured value for every stage.
-    The ``run_resolvent`` argument stays so the context parameter remains
-    informative in any future logging.
-    """
-    del run_resolvent  # kept in signature for back-compat; no longer branches.
-    del context
-    return _parse_alpha_filter(alpha_filter_raw)
 
 
 @contextmanager
@@ -1272,11 +1232,8 @@ def run() -> None:
     native_sponge_enabled = bool((sponge_cfg or {}).get("enabled", False))
     use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", False))
     alpha_filter_raw = cfg("numerics.alpha_filter", "none")
-    alpha_filter = _effective_alpha_filter(
-        alpha_filter_raw,
-        run_resolvent=run_resolvent,
-        context="config",
-    )
+    # Honoured for every stage: the filter damps the SBP 2-dx mode in EVP-only runs too.
+    alpha_filter = _parse_alpha_filter(alpha_filter_raw)
     od_raw = cfg("numerics.operator_dissipation", None)
     od_cfg = od_raw if isinstance(od_raw, dict) else {}
     od_enabled = bool(od_cfg.get("enabled", False))

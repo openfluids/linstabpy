@@ -16,13 +16,11 @@ results_runtime = importlib.import_module("linstabpy.driver.run")
 from linstabpy.operators import LNSESystem
 
 
-def test_effective_alpha_filter_keeps_filter_for_resolvent():
-    assert results_runtime._effective_alpha_filter(0.0, run_resolvent=True) == 0.0
-    assert results_runtime._effective_alpha_filter("none", run_resolvent=True) == "none"
-
-
-def test_effective_alpha_filter_keeps_filter_without_resolvent():
-    assert results_runtime._effective_alpha_filter(0.0, run_resolvent=False, context="unit") == 0.0
+def test_parse_alpha_filter_keeps_numbers_and_none():
+    assert results_runtime._parse_alpha_filter(0.0) == 0.0
+    assert results_runtime._parse_alpha_filter("0.4") == 0.4
+    assert results_runtime._parse_alpha_filter("none") == "none"
+    assert results_runtime._parse_alpha_filter("") == "none"
 
 
 def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):

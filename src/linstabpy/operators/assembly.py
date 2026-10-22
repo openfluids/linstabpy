@@ -1479,7 +1479,7 @@ def _insert_owned_block_rows_petsc(
 def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
     """Build the variable/boundary index structure for DOFs.
 
-    Create index arrays that map boundary locations to DOF indices.
+    Add the DOF index range of each variable to the mesh boundary indices.
     The state vector is q = [rho, u, v, w, T] of length 5*ngp.
     """
     idx = dict(mesh_idx)  # copy boundary indices
@@ -1490,20 +1490,6 @@ def _build_index_structure(mesh_idx: dict, ngp: int) -> dict:
     # Variable DOF ranges (full index arrays)
     for v in variables:
         idx[f"{v}_j"] = np.arange(var_offsets[v], var_offsets[v] + ngp)
-
-    # Border-variable indices
-    borders = {"b": "bi", "t": "ti", "l": "li", "r": "ri"}
-    for b_char, b_key in borders.items():
-        if b_key not in idx:
-            continue
-        grid_idx = idx[b_key]
-        all_border = []
-        for v in variables:
-            border_var_key = f"{b_key}_{v}"
-            dof_idx = grid_idx + var_offsets[v]
-            idx[border_var_key] = dof_idx
-            all_border.append(dof_idx)
-        idx[f"{b_key}_all"] = np.concatenate(all_border)
 
     return idx
 

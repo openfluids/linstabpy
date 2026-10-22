@@ -116,7 +116,6 @@ _INT_FIELDS = frozenset(
         "m",
         "coarsen",
         "n_periods",
-        "x_min_factor",
         "n_modes_stability",
         "stability_search_extra_modes",
         "n_modes_resolvent",
@@ -140,6 +139,7 @@ _NUMERIC_FIELDS = frozenset(
         "Lx",
         "Ly",
         "x_max_base",
+        "x_min_factor",
         "y_i",
         "y_max",
         "penalty",
@@ -149,7 +149,6 @@ _NUMERIC_FIELDS = frozenset(
         "y_stretch_yi",
         "omega_shift_fallback",
         "spatial_omega_imag_shift",
-        "mumps_blr_tol",
     }
 )
 
@@ -164,7 +163,6 @@ _BOOL_FIELDS = frozenset(
         "run_stability",
         "run_resolvent",
         "use_omega_shift_fallback",
-        "mumps_blr",
     }
 )
 
@@ -173,12 +171,7 @@ _STRING_FIELDS = frozenset(
         "model",
         "bc_mask_layout",
         "assembly_backend",
-        "output_root",
-        "base_config",
-        "factor_precision",
-        "mumps_ordering",
         "schema_version",
-        "$include",
     }
 )
 

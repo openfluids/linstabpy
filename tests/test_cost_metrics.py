@@ -161,14 +161,11 @@ def test_log_stage_populates_stage_wall():
     # because they injected a hand-built stage_wall dict.
     # This check exercises the REAL wiring.)
     _STAGE_WALL.clear()
-    start = _stage_start()  # (perf_counter, peak_rss) tuple branch
+    start = _stage_start()
     _log_stage("assemble_operator_bc", start)
     _log_stage("assemble_operator_bc", start)  # second call must accumulate
     assert "assemble_operator_bc" in _STAGE_WALL
     assert _STAGE_WALL["assemble_operator_bc"] >= 0.0
-    # float (non-tuple) branch must also record.
-    _log_stage("stability", float(start[0]))
-    assert "stability" in _STAGE_WALL
     _STAGE_WALL.clear()
 
 
