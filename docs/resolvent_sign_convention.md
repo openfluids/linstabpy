@@ -85,7 +85,7 @@ case for a real `L0` and for `beta != 0` with `W = 0`. It is not the case for
 |------|---------------------|-----------------------|----------------------------|
 | `beta = 0`, real `L0` | unchanged | even, unchanged | new = complex conjugate of old; the response also changes sign relative to the forcing |
 | `beta != 0`, `W = 0` | unchanged | even, unchanged | new = complex conjugate of old with the sign of the spanwise (azimuthal) velocity component reversed; the response also changes sign relative to the forcing |
-| `beta != 0`, `W != 0`; Floquet; swirl | `gain_new(omega) = gain_old(-omega)` | mirrored about `omega = 0` | `forcing_new(omega) = forcing_old(-omega)` |
+| `beta != 0`, `W != 0`; Floquet; swirl | `gain_new(omega) = gain_old(-omega)` | mirrored about `omega = 0` | `forcing_new(omega) = forcing_old(-omega)`; `response_new(omega) = -response_old(-omega)` (the response changes sign relative to the forcing) |
 
 Modes are defined up to a unit complex factor. The statements about modes hold
 up to that factor. The relative sign between a forcing and its response is not
@@ -176,7 +176,7 @@ Modes from the old code:
   conjugate of the response and reverse its sign relative to the forcing.
 - `beta != 0`, `W = 0`: do the same, and also reverse the sign of the spanwise
   (azimuthal) velocity component of both modes.
-- `beta != 0`, `W != 0`: the modes at `omega` are the old modes at `-omega`.
+- `beta != 0`, `W != 0`: the forcing at `omega` is the old forcing at `-omega`. The response at `omega` is the old response at `-omega` with its sign reversed relative to the forcing.
 
 If a conversion is not exact for your case, rerun with the default.
 
