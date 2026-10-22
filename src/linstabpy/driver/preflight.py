@@ -472,6 +472,9 @@ def metric_cross_coupling(X: np.ndarray, Y: np.ndarray) -> float:
     Y = np.asarray(Y, dtype=float)
     if X.shape != Y.shape or X.ndim != 2:
         raise ValueError(f"X and Y must be the same 2-D shape, got {X.shape} and {Y.shape}")
+    # Accept both layouts: Mesh.create gives (ny, nx), where x varies along axis 1.
+    if np.abs(X[:, -1] - X[:, 0]).mean() > np.abs(X[-1, :] - X[0, :]).mean():
+        X, Y = X.T, Y.T
 
     dx_dxi = np.abs(np.diff(X, axis=0)).max()
     dx_deta = np.abs(np.diff(X, axis=1)).max()

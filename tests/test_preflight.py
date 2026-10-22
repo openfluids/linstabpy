@@ -209,6 +209,16 @@ def test_metric_cross_coupling_separates_rectilinear_from_curvilinear():
     assert metric_cross_coupling(X_shear, Y_rect) > METRIC_COUPLING_GATE
 
 
+def test_metric_cross_coupling_reads_the_mesh_create_layout():
+    """The driver passes (ny, nx) arrays from Mesh.create; the result must not depend on layout."""
+    x = np.linspace(0.0, 2.0, 40)
+    y = np.geomspace(1.0e-4, 1.0, 30)
+    X, Y = np.meshgrid(x, y)  # shape (ny, nx)
+    assert metric_cross_coupling(X, Y) == pytest.approx(0.0, abs=1e-14)
+    Y_curv = Y + 0.3 * np.sin(np.pi * X / 2.0)
+    assert metric_cross_coupling(X, Y_curv) == pytest.approx(metric_cross_coupling(X.T, Y_curv.T))
+
+
 def test_metric_cross_coupling_rejects_a_degenerate_mesh():
     flat = np.zeros((5, 5))
     with pytest.raises(ValueError, match="degenerate"):
