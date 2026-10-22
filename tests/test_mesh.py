@@ -1319,3 +1319,14 @@ def test_fdweights_empty_nodes_return_an_empty_stencil():
     weights = fdweights(0.0, [], 1)
     assert weights.shape == (0,)
     assert weights.dtype == np.float64
+
+
+@pytest.mark.parametrize("n_removed", [1, 2, 3])
+def test_mask_splits_lines_at_a_removed_column(n_removed):
+    """A derivative line must not span a hole, even one column wide."""
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=25, ny=25, fd_order=4)
+    keep = np.ones(mesh.X.shape, dtype=bool)
+    keep[:, 10 : 10 + n_removed] = False
+    masked = mesh.mask(keep)
+    x_kept = mesh.X.ravel(order="F")[np.flatnonzero(keep.ravel(order="F"))]
+    np.testing.assert_allclose(masked.Dx @ x_kept, 1.0, atol=1e-10)
