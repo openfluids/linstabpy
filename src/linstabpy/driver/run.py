@@ -901,15 +901,19 @@ def _stage_run_stability(
             "running raw eigensolve on L0 "
             f"(diagnostic path): target={omega_target:.8g}, modes={n_modes}"
         )
+        # omega = eig(i*L0) = i*lambda for lambda = eig(L0), so the search
+        # centre for L0 is -i*omega_target. The solver takes a scipy or a
+        # PETSc matrix as it is.
         with _stage_heartbeat("stability", interval_seconds=heartbeat_seconds):
-            omega, direct_modes, stability_info = _solve_near_target(
-                L0.tocsc(),
+            lam, direct_modes, stability_info = _solve_near_target(
+                L0,
                 n_modes=n_modes,
-                target=omega_target,
+                target=-1j * omega_target,
                 solver_cfg=solver_cfg,
                 cfg=cfg,
                 return_info=True,
             )
+        omega = 1j * lam
         order = np.argsort(np.abs(omega - omega_target))
         omega = omega[order]
         direct_modes = direct_modes[:, order]
@@ -1519,7 +1523,8 @@ def run() -> None:
 
     # ------------------------------------------------------------------
     # 7) Optional stability analysis.
-    #    - raw_eigs: eig(L0) directly (diagnostic-only path, not MATLAB parity)
+    #    - raw_eigs: eig(L0) directly, reported as omega = i*lambda (diagnostic path,
+    #      no BC reduction or weighted normalisation)
     #    - temporal: eig(i*L0), which matches MATLAB's L0 = L0 / -1i convention
     # ------------------------------------------------------------------
     stability_result = _stage_run_stability(
