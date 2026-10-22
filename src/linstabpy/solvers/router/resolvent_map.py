@@ -55,7 +55,12 @@ import scipy.sparse as sp
 
 from linstabpy.config.defaults import REMOVED_DISSIPATION_KEYS, stage_dissipation_epsilon
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
-from linstabpy.solvers.router.map_record import atomic_savez
+from linstabpy.solvers.router.map_record import (
+    atomic_savez,
+    differing_fields,
+    digest,
+    object_digests,
+)
 from linstabpy.solvers.router.map_walk import LineWalker, WalkDeferred
 from linstabpy.utils._solver_cfg import as_bool as _as_bool
 from linstabpy.utils.cost_metrics import peak_rss_bytes as _peak_rss_bytes
@@ -918,11 +923,44 @@ def _resolvent_sign_convention(cfg_map: Mapping[str, Any], cfg_obj: Any) -> str:
     return cfg.resolvent.sign_convention
 
 
+class StoreFingerprintError(RuntimeError):
+    """The resume store was written for another problem than this run."""
+
+
+# Keys that name files or set logging. They do not change a gain.
+_FINGERPRINT_SKIP = frozenset(
+    {"output_npz", "output_store", "cache_npz", "logging", "stage_heartbeat_seconds", "mesh"}
+)
+
+
+def _fingerprint(
+    cfg_map: Mapping[str, Any],
+    cfg_obj: Any,
+    mesh: Any,
+    base_flow: Any,
+    W_diag: np.ndarray,
+) -> dict[str, str]:
+    """Return one digest per input that changes a gain.
+
+    The inputs are every config key, the typed config object, the mesh arrays
+    and operators, the base-flow arrays and the forcing norm ``W_diag``.
+    A resumed run compares these with the ones stored with the map.
+    """
+    fields = {f"cfg.{k}": digest(v) for k, v in cfg_map.items() if k not in _FINGERPRINT_SKIP}
+    if cfg_obj is not None:
+        fields["cfg_object"] = digest(cfg_obj)
+    fields.update(object_digests("mesh", mesh))
+    fields.update(object_digests("base_flow", base_flow))
+    fields["W_diag"] = digest(W_diag)
+    return fields
+
+
 def _load_store(
     path: Path | None,
     beta: np.ndarray,
     f: np.ndarray,
     sign_convention: str,
+    fingerprint: Mapping[str, str],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
     gain = np.full((beta.size, f.size), np.nan, dtype=float)
     labels = np.full((beta.size, f.size), "", dtype="U32")
@@ -956,6 +994,21 @@ def _load_store(
                     "convention, write to a new output_npz path. To convert an old map "
                     "without recomputing, see docs/resolvent_sign_convention.md."
                 )
+            if "fingerprint_json" in data.files:
+                stored_fp = json.loads(str(data["fingerprint_json"]))
+                changed = differing_fields(stored_fp, fingerprint)
+                if changed:
+                    raise StoreFingerprintError(
+                        f"resolvent_map: cannot resume {path}. It was written for another "
+                        f"problem. These inputs differ: {', '.join(changed)}. Write to a new "
+                        "output_npz path, or restore the inputs of the stored map."
+                    )
+            else:
+                LOGGER.warning(
+                    "resolvent_map: resuming %s, which has no input fingerprint. Whether it "
+                    "matches this problem cannot be verified.",
+                    path,
+                )
             gain = np.asarray(data["gain"], dtype=float).reshape(beta.size, f.size)
             labels = np.asarray(data["regime_label"], dtype=str).reshape(beta.size, f.size)
             if "reason_code" in data.files:
@@ -980,6 +1033,7 @@ def _save_store(
     failure_records: list[dict[str, object]],
     point_records: list[dict[str, object]],
     sign_convention: str,
+    fingerprint: Mapping[str, str],
     cost_metrics: Mapping[str, object] | None = None,
 ) -> None:
     if path is None:
@@ -994,6 +1048,7 @@ def _save_store(
         "failure_records_json": _json_records(failure_records),
         "point_records_json": _json_records(point_records),
         "resolvent_sign_convention": np.asarray(sign_convention, dtype=str),
+        "fingerprint_json": np.asarray(json.dumps(dict(fingerprint), sort_keys=True), dtype=str),
     }
     if cost_metrics:
         payload.update(cost_metrics)
@@ -1086,6 +1141,14 @@ def resolvent_map(
     -------
     RouterResult
         Gain map, intended band labels, CP3 cost metrics, and point records.
+
+    Notes
+    -----
+    With ``output_npz`` set, the run resumes from that file. The file stores a
+    fingerprint of every input that changes a gain: config keys, mesh, base
+    flow and forcing norm. A resume with other inputs raises
+    ``StoreFingerprintError`` that names the differing fields, and leaves the
+    file as it is. A file without a fingerprint resumes with a warning.
     """
     cfg_map, cfg_obj = _normalise_cfg(cfg)
     beta = _finite_1d_range(beta_range, "beta_range")
@@ -1095,7 +1158,10 @@ def resolvent_map(
     store = _store_path(cfg_map)
 
     sign_convention = _resolvent_sign_convention(cfg_map, cfg_obj)
-    gain, regime_label, reason_code, failure_records = _load_store(store, beta, f, sign_convention)
+    fingerprint = _fingerprint(cfg_map, cfg_obj, mesh, base_flow, W_diag)
+    gain, regime_label, reason_code, failure_records = _load_store(
+        store, beta, f, sign_convention, fingerprint
+    )
     point_records: list[dict[str, object]] = []
     stage_wall: dict[str, float] = {}
     total_points = int(beta.size * f.size)
@@ -1362,6 +1428,7 @@ def resolvent_map(
                         failure_records=failure_records,
                         point_records=point_records,
                         sign_convention=sign_convention,
+                        fingerprint=fingerprint,
                     )
                     continue
 
@@ -1424,6 +1491,7 @@ def resolvent_map(
                     failure_records=failure_records,
                     point_records=point_records,
                     sign_convention=sign_convention,
+                    fingerprint=fingerprint,
                 )
 
         if walker is not None:
@@ -1441,6 +1509,7 @@ def resolvent_map(
         failure_records=failure_records,
         point_records=point_records,
         sign_convention=sign_convention,
+        fingerprint=fingerprint,
         cost_metrics=cost_metrics,
     )
     return RouterResult(

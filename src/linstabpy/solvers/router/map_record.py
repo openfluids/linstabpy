@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import scipy.sparse as sp
 
 _PAIR_ATOL = 1.0e-12
 
@@ -116,3 +119,56 @@ def time_left_for_factor(remaining_s: float | None, need_s: float) -> bool:
     if float(need_s) <= 0.0:
         return True
     return float(remaining_s) > float(need_s)
+
+
+def _feed(sink: Any, value: Any) -> None:
+    """Add one value to a hash. Equal contents give equal bytes in every session."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if sp.issparse(value):
+        csr = value.tocsr()
+        sink.update(f"sparse{csr.shape}".encode())
+        for part in (csr.data, csr.indices, csr.indptr):
+            _feed(sink, part)
+    elif isinstance(value, np.ndarray) and value.dtype != object:
+        sink.update(f"{value.dtype}{value.shape}".encode())
+        sink.update(np.ascontiguousarray(value).tobytes())
+    elif isinstance(value, np.ndarray):
+        _feed(sink, value.tolist())
+    elif isinstance(value, Mapping):
+        for key in sorted(value, key=str):
+            sink.update(str(key).encode() + b"=")
+            _feed(sink, value[key])
+    elif isinstance(value, (list, tuple)):
+        sink.update(b"[")
+        for item in value:
+            _feed(sink, item)
+    elif is_dataclass(value) and not isinstance(value, type):
+        _feed(sink, vars(value))
+    elif value is None or isinstance(value, (bool, int, float, complex, str, bytes, Path)):
+        sink.update(repr(value).encode())
+    else:
+        # An object with no stable contents counts by its type only.
+        sink.update(type(value).__qualname__.encode())
+    sink.update(b"|")
+
+
+def digest(value: Any) -> str:
+    """Return a hex digest of the contents of arrays, mappings, dataclasses and scalars."""
+    sink = hashlib.sha256()
+    _feed(sink, value)
+    return sink.hexdigest()
+
+
+def object_digests(prefix: str, obj: Any) -> dict[str, str]:
+    """Return one digest per array, sparse matrix or scalar attribute of ``obj``."""
+    fields = {}
+    for name, value in getattr(obj, "__dict__", {}).items():
+        if isinstance(value, (np.ndarray, int, float, str, bool)) or sp.issparse(value):
+            fields[f"{prefix}.{name}"] = digest(value)
+    return fields
+
+
+def differing_fields(stored: Mapping[str, str], current: Mapping[str, str]) -> list[str]:
+    """Return the sorted names whose digest differs, or that exist on one side only."""
+    return sorted(k for k in set(stored) | set(current) if stored.get(k) != current.get(k))

@@ -281,6 +281,57 @@ def test_resume_refuses_a_store_from_the_other_convention(
     assert "new output_npz path" in message
 
 
+def _flow(scale: float = 1.0) -> SimpleNamespace:
+    return SimpleNamespace(RHO=scale * np.ones((2, 2)), Ma=0.3)
+
+
+def test_resume_refuses_a_store_from_another_problem_and_keeps_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "map.npz"
+    cfg = {"mesh": object(), "output_npz": output_npz, "bc_penalty": 10.0, "n_modes": 1}
+    router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    before = output_npz.read_bytes()
+
+    # A config value, the base flow and the forcing norm each change a gain.
+    with pytest.raises(router_map.StoreFingerprintError, match="cfg.bc_penalty"):
+        router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], {**cfg, "bc_penalty": 20.0})
+    with pytest.raises(router_map.StoreFingerprintError, match="base_flow.RHO"):
+        router_map.resolvent_map(_flow(1.5), [0.1], [1.0, 2.0], cfg)
+    monkeypatch.setattr(router_map, "_compute_w_diag", lambda *_a: 2.0 * np.ones(3))
+    with pytest.raises(router_map.StoreFingerprintError, match="W_diag"):
+        router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    assert output_npz.read_bytes() == before
+
+    # A heartbeat change does not alter a gain: the store resumes.
+    monkeypatch.setattr(router_map, "_compute_w_diag", lambda *_a: np.ones(3))
+    same = router_map.resolvent_map(
+        _flow(), [0.1], [1.0, 2.0], {**cfg, "stage_heartbeat_seconds": 5.0}
+    )
+    assert [r["status"] for r in same.point_records] == ["skipped", "skipped"]
+
+
+def test_resume_of_a_store_without_fingerprint_warns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "legacy.npz"
+    cfg = {"mesh": object(), "output_npz": output_npz}
+    router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    with np.load(output_npz, allow_pickle=False) as data:
+        kept = {k: data[k] for k in data.files if k != "fingerprint_json"}
+    np.savez(output_npz, **kept)
+
+    with caplog.at_level("WARNING", logger=router_map.LOGGER.name):
+        resumed = router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+
+    assert "cannot be verified" in caplog.text
+    assert [r["status"] for r in resumed.point_records] == ["skipped", "skipped"]
+
+
 def test_region_mask_uses_fortran_order_single_variable_cell() -> None:
     mesh, idx, ndof = _region_mesh_idx()
     mask = router_map._build_region_mask(
