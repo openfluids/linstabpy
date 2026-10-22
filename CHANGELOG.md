@@ -20,9 +20,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
     `beta`, are unchanged.
   - For `beta != 0` and `W != 0` (also Floquet and swirl cases) the gain map is
     mirrored in `omega`: `gain_new(omega) = gain_old(-omega)`.
-  - Forcing and response modes change in every case. They are the complex
-    conjugates of the old modes, the response also changes sign relative to the
-    forcing, and for `beta != 0` the spanwise velocity component also changes sign.
+  - Forcing and response modes change in every case. For `W = 0` they are the
+    complex conjugates of the old modes, the response also changes sign relative
+    to the forcing, and for `beta != 0` the spanwise velocity component also
+    changes sign. For `beta != 0` and `W != 0` the modes at `omega` are the old
+    modes at `-omega`, with the response sign reversed.
   - Waves in the old modes travelled upstream when animated with
     `Re[q exp(-i*omega*t)]`. The new modes travel in the correct direction.
 
@@ -38,7 +40,41 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   How to convert old maps and modes, with the derivation and the evidence, is in
   `docs/resolvent_sign_convention.md`.
 
+- The `linstabpy` command refuses a case file that sets a top-level key it does
+  not read (`Re`, `Ma`, `Pr`, `kappa`, `T_0`, `sponge`, `fd_order`, `beta`,
+  `penalty`, `St`, `omega_target`, `run_stability`, `run_resolvent`, `n_modes`,
+  `ncv` and others). Before, the key was accepted and the default value was used
+  without a warning. The error names the nested key to use (for example
+  `physics.Re`). Example scripts that read these keys from their own YAML files
+  are not affected. The `logging` block (`stage_heartbeat_seconds`) is now
+  accepted.
+- `resolvent_map` refuses to resume a store written for other inputs: another
+  beta/f grid, configuration, mesh, base flow or energy weight. The error names
+  the inputs that differ and the store is not changed. Before, the store was
+  ignored and then overwritten. A store without a fingerprint resumes with a
+  warning. A store that cannot be read is moved to `<name>.unreadable-<time>`.
+- Band marking searches for poles at up to 9 targets across the requested
+  frequency range, not only at its centre. Poles near the ends of the range were
+  missed before. Each target costs one shift-invert factorization;
+  `skip_band_marking` still removes the stage.
+
 ### Fixed
+
+- `resolvent_map` stores the discount `gamma` used at each point
+  (`discount_gamma`, 0 for ordinary points). Points near a pole are solved with
+  a discount and were stored like ordinary gains. Stores written before this
+  change give NaN at their near-pole points on resume.
+- Dissipation on a masked mesh is built on the used points, one operator per
+  line segment, with the same segment rule as the masked derivatives. Before,
+  the assembly failed with a shape error.
+- `deform` in one direction keeps the metric of the other direction. Before, a
+  y-only deform after an x-only deform reset the x metric to the identity.
+- The raw-eigenvalue diagnostic in the driver uses the `omega = eig(i*L0)`
+  convention for its target and its results, and accepts a PETSc `L0`.
+- The frequency walk starts each inner solve from zero. The previous solution
+  belonged to another right-hand side and saved no iterations.
+- The block solve lets PETSc split the columns of the dense right-hand sides
+  across ranks (results were correct before at 2 and 3 ranks).
 
 - `limit_strumpack_host_threads()` sets the OpenMP thread count to one
   before the first STRUMPACK factorization, because the library is not thread
