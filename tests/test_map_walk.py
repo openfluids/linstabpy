@@ -123,7 +123,6 @@ def test_gated_raises_walk_aborted_after_deadline() -> None:
         rtol=1.0e-10,
         maxiter=50,
         restart=50,
-        x0=None,
         deadline=time.perf_counter() - 1.0,
         apply_budget_s=0.0,
         raise_on_fail=False,
@@ -275,6 +274,34 @@ def test_second_frequency_matches_direct_and_may_walk(mumps_or_skip: None) -> No
         walker.last_factor_s = 1.0e9
         point = walker.compute(L0, 0.85, np.ones(L0.shape[0]), 1)
         assert point.source in {"walk", "fallback", "budget"}
+        assert point.gain == pytest.approx(_direct_gain(L0, 0.85), rel=_SIGMA_TOL, abs=_SIGMA_TOL)
+    finally:
+        walker.close()
+
+
+def test_walk_solves_start_from_zero(mumps_or_skip: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The right-hand sides of one analysis are unrelated to the last omega's solve."""
+    from linstabpy.solvers.router import map_walk
+
+    starts: list[object] = []
+    real_gmres = map_walk._right_preconditioned_gmres
+
+    def spy(*args, **kwargs):
+        starts.append(kwargs.get("x0"))
+        return real_gmres(*args, **kwargs)
+
+    monkeypatch.setattr(map_walk, "_right_preconditioned_gmres", spy)
+    L0 = _operator()
+    walker = _walker()
+    try:
+        walker.n_anchor = 1
+        walker.compute(L0, 0.8, np.ones(L0.shape[0]), 1)
+        walker.last_direct_wall_s = 1.0e9
+        walker.last_factor_s = 1.0e9
+        point = walker.compute(L0, 0.85, np.ones(L0.shape[0]), 1)
+        assert point.source == "walk"
+        assert len(starts) > 2
+        assert all(x0 is None for x0 in starts)
         assert point.gain == pytest.approx(_direct_gain(L0, 0.85), rel=_SIGMA_TOL, abs=_SIGMA_TOL)
     finally:
         walker.close()

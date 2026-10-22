@@ -210,7 +210,6 @@ class LineWalker:
             rtol=self.rtol,
             maxiter=solve_cap,
             restart=solve_cap,
-            x0=None,
             deadline=deadline,
             apply_budget_s=apply_budget_s,
             raise_on_fail=False,
@@ -237,7 +236,6 @@ class LineWalker:
         )
         gated.max_residual = max(forward_residual, float(gated.max_residual))
         gated.iterations = forward_iters + int(gated.iterations)
-        gated.x0 = self.last_solve
         past_deadline = deadline is not None and time.perf_counter() >= deadline
         cheap = (
             not past_deadline
@@ -436,7 +434,7 @@ class LineWalker:
 
 
 class _RecordingSolve:
-    """Keep the last forward solve so the next omega can start from it."""
+    """Keep the last forward solve. The next omega builds its probe right-hand side from it."""
 
     def __init__(self, lu: Any) -> None:
         self._lu = lu
@@ -462,7 +460,12 @@ class _RecordingSolve:
 
 
 class _GatedPcSolve:
-    """Look like a factor: solve by GMRES with a live factor as PC."""
+    """Look like a factor: solve by GMRES with a live factor as PC.
+
+    Every solve starts from zero. The right-hand sides of one analysis differ
+    from each other and from the previous omega, so a stored solution is not
+    a guess for any of them.
+    """
 
     def __init__(
         self,
@@ -472,7 +475,6 @@ class _GatedPcSolve:
         rtol: float,
         maxiter: int,
         restart: int,
-        x0: np.ndarray | None,
         deadline: float | None = None,
         apply_budget_s: float = 0.0,
         raise_on_fail: bool = False,
@@ -482,7 +484,6 @@ class _GatedPcSolve:
         self.rtol = float(rtol)
         self.maxiter = int(maxiter)
         self.restart = int(restart)
-        self.x0 = x0
         self.deadline = deadline
         self.apply_budget_s = float(apply_budget_s)
         self.raise_on_fail = bool(raise_on_fail)
@@ -516,9 +517,6 @@ class _GatedPcSolve:
                 return self.last
             return np.zeros(rhs_arr.size, dtype=complex)
         prec = self._pc.solve_adjoint if adjoint else self._pc.solve
-        start = None if adjoint else self.x0
-        if start is not None and np.asarray(start).size != rhs_arr.size:
-            start = None
         apply_deadline = self.deadline
         if self.apply_budget_s > 0.0:
             local = time.perf_counter() + self.apply_budget_s
@@ -530,7 +528,6 @@ class _GatedPcSolve:
             rtol=self.rtol,
             maxiter=self.maxiter,
             restart=self.restart,
-            x0=start,
             deadline=apply_deadline,
         )
         self.iterations += int(iters)
