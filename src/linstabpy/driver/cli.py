@@ -7,6 +7,7 @@ import argparse
 import importlib
 import os
 import sys
+import zipfile
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
@@ -183,7 +184,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 from linstabpy.driver.io import load_results
 
                 data = load_results(output_npz)
-            except (FileNotFoundError, EOFError, OSError, ValueError) as exc:
+            except (FileNotFoundError, EOFError, OSError, ValueError, zipfile.BadZipFile) as exc:
                 print(f"Cached results unavailable or invalid ({exc}), recomputing.")
                 need_recompute = True
             else:
