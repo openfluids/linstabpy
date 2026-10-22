@@ -1184,7 +1184,8 @@ def run() -> None:
     beta = float(cfg("numerics.beta", 0.0))
     floquet_shift = cfg("numerics.floquet_shift", None)
     if floquet_shift is not None:
-        os.environ.setdefault("LINSTABPY_FLOQUET_SHIFT", str(floquet_shift))
+        # YAML over env, as for every other solver knob (setdefault let a stale env win).
+        os.environ["LINSTABPY_FLOQUET_SHIFT"] = str(floquet_shift)
     penalty = float(cfg("bc.penalty", 1e8))
 
     ratio_u = float(cfg("analysis.ratio_uinf", 1.0))
