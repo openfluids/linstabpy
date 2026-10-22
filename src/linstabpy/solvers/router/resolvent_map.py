@@ -115,6 +115,13 @@ class RouterResult:
     reason_code:
         Integer per-point status, ``0`` for success, ``1`` for failed, ``-1``
         for not-yet-computed/pending.
+    discount_gamma:
+        Discount rate used for each point, same shape as ``gain``. ``0`` for
+        an ordinary point. A NEAR_POLE point is solved with ``gamma > 0``
+        (``regime_b_discount_gamma``, default 0.25), so its gain belongs to
+        the discounted resolvent and is not the gain at the real frequency.
+        A store written before this array existed gives NaN for its NEAR_POLE
+        points, because the discount used is unknown.
     point_records:
         Structured per-point success/skip/failure records emitted during the
         current call.
@@ -128,6 +135,7 @@ class RouterResult:
     failure_records: list[dict[str, object]] = field(default_factory=list)
     reason_code: np.ndarray = field(default_factory=lambda: np.empty((0, 0), dtype=np.int16))
     point_records: list[dict[str, object]] = field(default_factory=list)
+    discount_gamma: np.ndarray = field(default_factory=lambda: np.empty((0, 0), dtype=float))
 
 
 @dataclass(frozen=True)
@@ -961,13 +969,14 @@ def _load_store(
     f: np.ndarray,
     sign_convention: str,
     fingerprint: Mapping[str, str],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
     gain = np.full((beta.size, f.size), np.nan, dtype=float)
+    discount = np.zeros((beta.size, f.size), dtype=float)
     labels = np.full((beta.size, f.size), "", dtype="U32")
     reason = np.full((beta.size, f.size), REASON_PENDING, dtype=np.int16)
     failures: list[dict[str, object]] = []
     if path is None or not path.exists():
-        return gain, labels, reason, failures
+        return gain, labels, reason, discount, failures
     try:
         with np.load(path, allow_pickle=False) as data:
             cached_beta = np.asarray(data["beta"], dtype=float).reshape(-1)
@@ -1011,6 +1020,11 @@ def _load_store(
                 )
             gain = np.asarray(data["gain"], dtype=float).reshape(beta.size, f.size)
             labels = np.asarray(data["regime_label"], dtype=str).reshape(beta.size, f.size)
+            if "discount_gamma" in data.files:
+                discount = np.asarray(data["discount_gamma"], dtype=float)
+                discount = discount.reshape(beta.size, f.size)
+            else:
+                discount = np.where(labels == NEAR_POLE, np.nan, 0.0)
             if "reason_code" in data.files:
                 reason = np.asarray(data["reason_code"], dtype=np.int16).reshape(beta.size, f.size)
             else:
@@ -1019,7 +1033,7 @@ def _load_store(
                 failures = _records_from_json_array(data["failure_records_json"])
     except (OSError, KeyError, ValueError) as exc:
         LOGGER.info("resolvent_map cache ignored path=%s reason=%s", path, exc)
-    return gain, labels, reason, failures
+    return gain, labels, reason, discount, failures
 
 
 def _save_store(
@@ -1030,6 +1044,7 @@ def _save_store(
     gain: np.ndarray,
     regime_label: np.ndarray,
     reason_code: np.ndarray,
+    discount_gamma: np.ndarray,
     failure_records: list[dict[str, object]],
     point_records: list[dict[str, object]],
     sign_convention: str,
@@ -1045,6 +1060,7 @@ def _save_store(
         "gain": gain,
         "regime_label": np.asarray(regime_label, dtype=str),
         "reason_code": reason_code,
+        "discount_gamma": discount_gamma,
         "failure_records_json": _json_records(failure_records),
         "point_records_json": _json_records(point_records),
         "resolvent_sign_convention": np.asarray(sign_convention, dtype=str),
@@ -1159,7 +1175,7 @@ def resolvent_map(
 
     sign_convention = _resolvent_sign_convention(cfg_map, cfg_obj)
     fingerprint = _fingerprint(cfg_map, cfg_obj, mesh, base_flow, W_diag)
-    gain, regime_label, reason_code, failure_records = _load_store(
+    gain, regime_label, reason_code, discount_gamma, failure_records = _load_store(
         store, beta, f, sign_convention, fingerprint
     )
     point_records: list[dict[str, object]] = []
@@ -1425,6 +1441,7 @@ def resolvent_map(
                         gain=gain,
                         regime_label=regime_label,
                         reason_code=reason_code,
+                        discount_gamma=discount_gamma,
                         failure_records=failure_records,
                         point_records=point_records,
                         sign_convention=sign_convention,
@@ -1443,6 +1460,7 @@ def resolvent_map(
                             f"consider reducing regime_b_discount_gamma"
                         )
                 gain[beta_i, f_i] = point.gain
+                discount_gamma[beta_i, f_i] = gamma
                 reason_code[beta_i, f_i] = REASON_OK
                 record = _point_record(
                     status="ok",
@@ -1468,13 +1486,14 @@ def resolvent_map(
                 point_records.append(record)
                 LOGGER.info(
                     "resolvent_map point complete index=%d total=%d beta=%.12g omega=%.12g "
-                    "leading_gain=%.12g iters=%s residual=%s walk_source=%s wall_s=%.6g "
-                    "peak_rss_bytes=%d",
+                    "leading_gain=%.12g discount_gamma=%.6g iters=%s residual=%s walk_source=%s "
+                    "wall_s=%.6g peak_rss_bytes=%d",
                     _point_index(beta_i, f_i, f.size),
                     total_points,
                     float(beta_value),
                     float(omega),
                     point.gain,
+                    float(gamma),
                     point.iterations,
                     None if point.residual is None else f"{point.residual:.6e}",
                     point.source,
@@ -1488,6 +1507,7 @@ def resolvent_map(
                     gain=gain,
                     regime_label=regime_label,
                     reason_code=reason_code,
+                    discount_gamma=discount_gamma,
                     failure_records=failure_records,
                     point_records=point_records,
                     sign_convention=sign_convention,
@@ -1506,6 +1526,7 @@ def resolvent_map(
         gain=gain,
         regime_label=regime_label,
         reason_code=reason_code,
+        discount_gamma=discount_gamma,
         failure_records=failure_records,
         point_records=point_records,
         sign_convention=sign_convention,
@@ -1521,6 +1542,7 @@ def resolvent_map(
         failure_records=failure_records,
         reason_code=reason_code,
         point_records=point_records,
+        discount_gamma=discount_gamma,
     )
 
 

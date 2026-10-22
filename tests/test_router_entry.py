@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from linstabpy.solvers.router.band_marking import SMOOTH, STABLE, BandMarks
+from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
 
 router_map = importlib.import_module("linstabpy.solvers.router.resolvent_map")
 
@@ -330,6 +330,33 @@ def test_resume_of_a_store_without_fingerprint_warns(
 
     assert "cannot be verified" in caplog.text
     assert [r["status"] for r in resumed.point_records] == ["skipped", "skipped"]
+
+
+def test_discount_used_per_point_is_returned_stored_and_logged(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, NEAR_POLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "discount.npz"
+    cfg = {"mesh": object(), "output_npz": output_npz, "regime_b_discount_gamma": 0.5}
+
+    with caplog.at_level("INFO", logger=router_map.LOGGER.name):
+        result = router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+
+    np.testing.assert_array_equal(result.discount_gamma, [[0.0, 0.5]])
+    assert "discount_gamma=0.5 " in caplog.text
+    with np.load(output_npz, allow_pickle=False) as data:
+        np.testing.assert_array_equal(data["discount_gamma"], [[0.0, 0.5]])
+    resumed = router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    np.testing.assert_array_equal(resumed.discount_gamma, [[0.0, 0.5]])
+
+    # A store from before the array existed: the discount of a NEAR_POLE point is unknown.
+    with np.load(output_npz, allow_pickle=False) as data:
+        kept = {k: data[k] for k in data.files if k != "discount_gamma"}
+    np.savez(output_npz, **kept)
+    legacy = router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    assert legacy.discount_gamma[0, 0] == 0.0
+    assert np.isnan(legacy.discount_gamma[0, 1])
 
 
 def test_region_mask_uses_fortran_order_single_variable_cell() -> None:
