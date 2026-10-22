@@ -36,6 +36,7 @@ from typing import Any, Literal
 __all__ = [
     "DISSIPATION_APPLY_DEFAULTS",
     "REMOVED_DISSIPATION_KEYS",
+    "RESOLVENT_SIGN_CONVENTIONS",
     "stage_dissipation_epsilon",
 ]
 
@@ -50,6 +51,11 @@ DISSIPATION_APPLY_DEFAULTS: dict[str, bool] = {
 # Top-level spellings of the dissipation strength that the map router used to
 # read. The strength now comes only from ``numerics.operator_dissipation``.
 REMOVED_DISSIPATION_KEYS: tuple[str, ...] = ("dissipation_epsilon", "eps_resolv")
+
+# Values of ``solver.resolvent_sign_convention``; the first is the default.
+# "physical": H = [(gamma - i*omega) I - L0]^-1. "matlab_parity": the LinStab2D
+# matrix L0 - (gamma + i*omega) I. See docs/resolvent_sign_convention.md.
+RESOLVENT_SIGN_CONVENTIONS: tuple[str, ...] = ("physical", "matlab_parity")
 
 
 def stage_dissipation_epsilon(

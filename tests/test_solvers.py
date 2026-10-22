@@ -125,7 +125,7 @@ def test_import_stability_package_is_petsc_free():
     assert proc.stdout.strip() == "0 0"
 
 
-def test_shifted_operator_scipy_matches_legacy_and_direct_gamma_shift():
+def test_shifted_operator_scipy_matlab_parity_matches_legacy_and_direct_gamma_shift():
     L0 = sp.csr_matrix(
         np.array(
             [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
@@ -137,17 +137,17 @@ def test_shifted_operator_scipy_matches_legacy_and_direct_gamma_shift():
 
     old_gamma0 = sp.csc_matrix(L0, copy=True)
     old_gamma0.setdiag(old_gamma0.diagonal() - 1j * omega)
-    moved_gamma0 = shifted_operator(L0, omega, 0.0)
+    moved_gamma0 = shifted_operator(L0, omega, 0.0, matlab_parity=True)
     assert (moved_gamma0 != old_gamma0).nnz == 0
     np.testing.assert_array_equal(moved_gamma0.toarray(), old_gamma0.toarray())
 
     direct_gamma = sp.csc_matrix(L0, copy=True)
     direct_gamma.setdiag(direct_gamma.diagonal() - (gamma + 1j * omega))
-    moved_gamma = shifted_operator(L0, omega, gamma)
+    moved_gamma = shifted_operator(L0, omega, gamma, matlab_parity=True)
     np.testing.assert_array_equal(moved_gamma.toarray(), direct_gamma.toarray())
 
 
-def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
+def test_shifted_operator_petsc_matlab_parity_matches_legacy_and_direct_gamma_shift():
     L0_sp = sp.csr_matrix(
         np.array(
             [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
@@ -161,7 +161,7 @@ def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
         old_gamma0 = L0.copy()
         old_gamma0.shift(-1j * omega)
         old_gamma0.assemble()
-        moved_gamma0 = shifted_operator(L0, omega, 0.0)
+        moved_gamma0 = shifted_operator(L0, omega, 0.0, matlab_parity=True)
         np.testing.assert_array_equal(
             petsc_to_scipy(moved_gamma0).toarray(), petsc_to_scipy(old_gamma0).toarray()
         )
@@ -169,7 +169,7 @@ def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
         direct_gamma = L0.copy()
         direct_gamma.shift(-(gamma + 1j * omega))
         direct_gamma.assemble()
-        moved_gamma = shifted_operator(L0, omega, gamma)
+        moved_gamma = shifted_operator(L0, omega, gamma, matlab_parity=True)
         np.testing.assert_array_equal(
             petsc_to_scipy(moved_gamma).toarray(),
             petsc_to_scipy(direct_gamma).toarray(),
@@ -184,6 +184,45 @@ def test_shifted_operator_petsc_matches_legacy_and_direct_gamma_shift():
         ):
             if matrix is not None:
                 matrix.destroy()
+
+
+def test_shifted_operator_scipy_default_is_physical_resolvent_inverse():
+    L0 = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    for gamma in (0.0, 0.75):
+        expected = (gamma - 1j * omega) * np.eye(3) - L0.toarray()
+        moved = shifted_operator(L0, omega, gamma)
+        np.testing.assert_allclose(moved.toarray(), expected, rtol=0.0, atol=1e-15)
+        # Legacy matrix is -H(-omega)^-1: the two conventions differ by omega -> -omega and a sign.
+        legacy = shifted_operator(L0, -omega, gamma, matlab_parity=True)
+        np.testing.assert_array_equal(moved.toarray(), -legacy.toarray())
+
+
+def test_shifted_operator_petsc_default_is_physical_resolvent_inverse():
+    L0_sp = sp.csr_matrix(
+        np.array(
+            [[2.0 + 0.25j, -1.0j, 0.0], [3.0, -4.0 + 0.5j, 2.0], [0.0, 1.5j, 6.0]],
+            dtype=complex,
+        )
+    )
+    omega = 1.25 - 0.5j
+    L0 = scipy_to_petsc(L0_sp)
+    moved = []
+    try:
+        for gamma in (0.0, 0.75):
+            moved.append(shifted_operator(L0, omega, gamma))
+            expected = (gamma - 1j * omega) * np.eye(3) - L0_sp.toarray()
+            np.testing.assert_allclose(
+                petsc_to_scipy(moved[-1]).toarray(), expected, rtol=0.0, atol=1e-15
+            )
+    finally:
+        for matrix in (L0, *moved):
+            matrix.destroy()
 
 
 def test_linalg_factorization_exports_and_adjoint_aliases():
@@ -534,8 +573,8 @@ def test_resolvent_svd_residual_uses_w_norm_numerator() -> None:
     W_diag = np.array([1.0, 1.0e6, 1.0, 1.0e6])
     solver_cfg = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
 
-    # Analytic diagonal resolvent action H = inv(L0 - i*omega*I), B=C=None, no filters.
-    h_diag = 1.0 / (diag - 1j * omega)
+    # Analytic diagonal resolvent action H = inv(-i*omega*I - L0), B=C=None, no filters.
+    h_diag = 1.0 / (-1j * omega - diag)
     v = np.array([0.3, 0.1, 0.2, 0.05], dtype=complex)
     v = v / np.sqrt(np.real(v.conj() @ (W_diag * v)))  # ||v||_W == 1
     hv = h_diag * v

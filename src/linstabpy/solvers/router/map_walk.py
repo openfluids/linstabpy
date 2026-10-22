@@ -156,7 +156,9 @@ class LineWalker:
         if not time_left_for_factor(job_remaining_s(), need_s):
             raise WalkDeferred(f"remaining wall is shorter than the last factor ({need_s:.3f} s)")
         t0 = time.perf_counter()
-        operator = shifted_operator(L0, omega, gamma=gamma)
+        operator = shifted_operator(
+            L0, omega, gamma=gamma, matlab_parity=self.cfg_obj.resolvent.matlab_parity
+        )
         try:
             return self._compute_with_operator(
                 operator,

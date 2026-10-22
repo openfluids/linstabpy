@@ -113,9 +113,9 @@ class TestResolventNumerics:
         W_diag = d["W_diag"]
         sigma_1 = gains[0]
 
-        # Build resolvent H(ω) = (iωI - L0)^{-1}
+        # Build resolvent H(ω) = (-iωI - L0)^{-1}
         n = L0.shape[0]
-        L_sigma = 1j * omega * sp.eye(n) - L0
+        L_sigma = -1j * omega * sp.eye(n) - L0
         from linstabpy.linalg.factorize import factorize
 
         solver = factorize(L_sigma.tocsc())
@@ -139,7 +139,7 @@ class TestResolventNumerics:
         W_diag = d["W_diag"]
 
         n = L0.shape[0]
-        L_sigma = 1j * omega * sp.eye(n) - L0
+        L_sigma = -1j * omega * sp.eye(n) - L0
         from linstabpy.linalg.factorize import factorize
 
         solver = factorize(L_sigma.tocsc())

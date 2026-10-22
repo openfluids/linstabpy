@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from linstabpy.config.defaults import RESOLVENT_SIGN_CONVENTIONS
 from linstabpy.linalg.backends import (
     DEFAULT_AUTO_ROUTE_DOF_THRESHOLD,
     DEFAULT_FACTOR_BACKEND,
@@ -55,6 +56,23 @@ def _spatial_subsection(solver: Mapping[str, Any]) -> Mapping[str, Any]:
 def _resolvent_eps_subsection(solver: Mapping[str, Any]) -> Mapping[str, Any]:
     res = _subsection(solver, "LINSTABPY_RESOLVENT")
     return res.get("eigen", res) or {}
+
+
+def _sign_convention(solver: Mapping[str, Any]) -> str:
+    """Read ``solver.resolvent_sign_convention``; no environment variable.
+
+    The key sits beside, not inside, ``solver.resolvent``: a ``resolvent`` block
+    replaces the whole ``solver.linsolve`` fallback for the resolvent solve.
+    """
+    raw = solver.get("resolvent_sign_convention")
+    if raw is None:
+        return RESOLVENT_SIGN_CONVENTIONS[0]
+    if raw not in RESOLVENT_SIGN_CONVENTIONS:
+        raise ValueError(
+            f"solver.resolvent_sign_convention = {raw!r} "
+            f"(allowed: {', '.join(RESOLVENT_SIGN_CONVENTIONS)})"
+        )
+    return raw
 
 
 def _env_get(env: Mapping[str, str], key: str) -> str | None:
@@ -340,6 +358,11 @@ class ResolventEpsCfg:
 class ResolventCfg:
     linear: LinSolveCfg
     eps: ResolventEpsCfg
+    sign_convention: str = RESOLVENT_SIGN_CONVENTIONS[0]
+
+    @property
+    def matlab_parity(self) -> bool:
+        return self.sign_convention == "matlab_parity"
 
 
 @dataclass(frozen=True)
@@ -636,6 +659,7 @@ class Config:
                     resolvent_sub, env, "LINSTABPY_RESOLVENT", solver_default
                 ),
                 eps=ResolventEpsCfg.from_mapping(_resolvent_eps_subsection(solver), env),
+                sign_convention=_sign_convention(solver),
             ),
             eigen=EigenCfg.from_mapping(eigen_sub, env, solver_default),
             spatial=SpatialCfg.from_mapping(_spatial_subsection(solver), env),

@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from difflib import get_close_matches
 from typing import Any
 
-from .defaults import REMOVED_DISSIPATION_KEYS
+from .defaults import REMOVED_DISSIPATION_KEYS, RESOLVENT_SIGN_CONVENTIONS
 
 
 class ConfigValidationError(ValueError):
@@ -210,6 +210,15 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
         elif value.strip().lower().replace("-", "_") not in _ALLOWED_FLOQUET_SHIFT_KEYS:
             violations.append(
                 f"{path} = {value!r} (unknown mode; expected 'matlab_parity' or 'continuum')"
+            )
+
+    solver = cfg.get("solver")
+    if isinstance(solver, dict) and "resolvent_sign_convention" in solver:
+        value = solver["resolvent_sign_convention"]
+        if value not in RESOLVENT_SIGN_CONVENTIONS:
+            violations.append(
+                f"solver.resolvent_sign_convention = {value!r} "
+                f"(allowed: {', '.join(RESOLVENT_SIGN_CONVENTIONS)})"
             )
 
     for key in sorted(_INT_FIELDS & cfg.keys()):

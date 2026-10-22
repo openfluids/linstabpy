@@ -69,8 +69,9 @@ def test_mark_unstable_band_forwards_cfg_aliases_to_evp_seam(
     _assert_same_band_marks(marks, label_band(known_spectrum, f_range, cfg))
 
 
-def test_mark_unstable_band_uses_negated_asymmetric_median_target_default(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("parity", [False, True], ids=["physical", "matlab_parity"])
+def test_mark_unstable_band_asymmetric_median_target_default(
+    monkeypatch: pytest.MonkeyPatch, parity: bool
 ) -> None:
     captured: dict[str, object] = {}
     known_spectrum = np.array([-2.0 + 0.0j])
@@ -82,16 +83,27 @@ def test_mark_unstable_band_uses_negated_asymmetric_median_target_default(
     monkeypatch.setattr(band_marking, "_evp_eigenvalues", fake_evp)
     f_range = np.array([1.0, 2.0, 3.0])
     cfg = {"band_marking": {"danger_radius": 1.0e-6}}
+    if parity:
+        cfg["solver"] = {"resolvent_sign_convention": "matlab_parity"}
 
     marks = mark_unstable_band(object(), f_range, cfg)
 
-    assert captured["target"] == -np.median(f_range) + 0.0j
+    # Physical poles sit at +omega_eig, matlab_parity poles at -omega_eig.
+    sign = -1.0 if parity else 1.0
+    assert captured["target"] == sign * np.median(f_range) + 0.0j
     assert captured["n_modes"] == 8
     assert captured["ncv"] is None
-    _assert_same_band_marks(marks, label_band(known_spectrum, f_range, cfg))
+    _assert_same_band_marks(marks, label_band(known_spectrum, f_range, cfg, matlab_parity=parity))
 
 
-def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator() -> None:
+@pytest.mark.parametrize(
+    ("parity", "f_range"),
+    [(False, [-2.0, -5.0]), (True, [2.0, 5.0])],
+    ids=["physical", "matlab_parity"],
+)
+def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator(
+    parity: bool, f_range: list[float]
+) -> None:
     pytest.importorskip(
         "petsc4py",
         reason="SKIPPED: missing petsc4py complex PETSc stack for real _evp_eigenvalues check",
@@ -102,10 +114,13 @@ def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator() -> None:
     )
 
     # stability.eigenvalues solves eig(i*L0).  This diagonal therefore has
-    # temporal eigenvalues [-2, -10, 5], so the marker must label the pole at omega=2.
+    # temporal eigenvalues [-2, -10, 5].  The physical pole sits at +omega_eig = -2;
+    # under matlab_parity it sits at -omega_eig = +2.  Each case mirrors the other.
     operator = sp.diags([2.0j, 10.0j, -5.0j], format="csr", dtype=complex)
-    f_range = np.array([2.0, 5.0])
+    f_range = np.array(f_range)
     cfg = {"band_marking": {"n_modes": 1, "danger_radius": 1.0e-8}}
+    if parity:
+        cfg["solver"] = {"resolvent_sign_convention": "matlab_parity"}
 
     try:
         marks = mark_unstable_band(operator, f_range, cfg)

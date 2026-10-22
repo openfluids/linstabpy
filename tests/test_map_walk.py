@@ -206,6 +206,28 @@ def test_first_two_frequencies_are_mumps_anchors(mumps_or_skip: None) -> None:
         walker.close()
 
 
+def test_walker_follows_the_sign_convention_of_its_config(mumps_or_skip: None) -> None:
+    from linstabpy.resolvent.analysis import resolvent_analysis
+
+    parity_cfg = {
+        "resolvent": {"eigen": {"eps_tol": 1e-10}},
+        "resolvent_sign_convention": "matlab_parity",
+    }
+    L0 = _operator()
+    omega = 0.8
+    walker = LineWalker(solver_cfg=parity_cfg, cfg_obj=Config.load(parity_cfg), rtol=1.0e-8)
+    try:
+        point = walker.compute(L0, omega, np.ones(L0.shape[0]), 1)
+    finally:
+        walker.close()
+    gains, _, _ = resolvent_analysis(
+        L0, omega=omega, n_modes=1, W_diag=np.ones(L0.shape[0]), solver_cfg=parity_cfg
+    )
+    assert point.gain == pytest.approx(float(gains[0]), rel=_SIGMA_TOL, abs=_SIGMA_TOL)
+    # The operator is asymmetric in omega, so the other convention gives another gain.
+    assert abs(point.gain - _direct_gain(L0, omega)) > 1e-3 * point.gain
+
+
 def test_every_point_carries_the_farm_svd_residuals(mumps_or_skip: None) -> None:
     """A direct point carries rho_fwd / rho_adj like a farm point.
 

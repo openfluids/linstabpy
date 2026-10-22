@@ -3,14 +3,17 @@
 
 The marker accepts temporal EVP values in the ``omega`` plane used by
 :func:`linstabpy.stability.eigenvalues`.
-The resolvent solve forms ``L_sigma = L0 - i*omega*I``.
-Singular shifts occur when ``i*omega = lambda(L0)``.
-The resolvent pole is ``omega_pole = -i*lambda(L0)``.
+The resolvent solve forms ``L_sigma = (gamma - i*omega)*I - L0``.
+Singular shifts occur when ``-i*omega = lambda(L0)`` (``gamma = 0``).
+The resolvent pole is ``omega_pole = i*lambda(L0)``.
 The EVP returns ``omega_eig = eig(i*L0) = i*lambda(L0)``.
 The pole associated with a temporal EVP value is therefore
-``omega_pole = -omega_eig``.
+``omega_pole = +omega_eig``.
 Compare a requested real forcing frequency ``omega_req`` with
-``min(abs(omega_req + omega_eig))``.
+``min(abs(omega_req - omega_eig))``.
+With ``solver.resolvent_sign_convention: matlab_parity`` the solve forms
+``L0 - (gamma + i*omega)*I`` and the pole is ``-omega_eig``.
+See ``docs/resolvent_sign_convention.md``.
 :func:`label_band` performs no shifted linear solve or resolvent solve.
 
 Configuration.
@@ -54,6 +57,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+from linstabpy.config import Config
 
 STABLE = "stable"
 NEAR_POLE = "near-pole"
@@ -130,7 +135,11 @@ def _smooth_regions(cfg: Mapping[str, Any] | None) -> tuple[tuple[float, float],
 
 
 def label_band(
-    eigs: Sequence[complex], omegas: Sequence[float], cfg: Mapping[str, Any] | None = None
+    eigs: Sequence[complex],
+    omegas: Sequence[float],
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    matlab_parity: bool = False,
 ) -> BandMarks:
     """Label requested real frequencies by distance to a supplied EVP spectrum.
 
@@ -138,11 +147,14 @@ def label_band(
     ----------
     eigs:
         Complex temporal eigenvalues in the ``omega = eig(i*L0)`` plane.
-        The compared resolvent poles are ``-eigs``.
+        The compared resolvent poles are ``+eigs``, or ``-eigs`` when
+        ``matlab_parity`` is true.
     omegas:
         Requested real forcing frequencies in that same omega normalization.
     cfg:
         Optional band-marking configuration.  See the module docstring for keys.
+    matlab_parity:
+        True when the resolvent solve uses the LinStab2D sign convention.
 
     Returns
     -------
@@ -156,7 +168,7 @@ def label_band(
     if eig_arr.size == 0:
         distances = np.full(omega_arr.shape, np.inf, dtype=float)
     else:
-        poles = -eig_arr
+        poles = -eig_arr if matlab_parity else eig_arr
         distances = np.min(np.abs(omega_arr[:, None] - poles[None, :]), axis=1)
 
     labels = np.full(omega_arr.shape, STABLE, dtype=object)
@@ -213,12 +225,12 @@ def mark_unstable_band(
     root = _as_mapping(cfg)
     band = _band_cfg(root)
     omega_arr = np.asarray(f_range, dtype=float).ravel()
-    # Poles sit at -omega_eig, so eigenvalues relevant to the requested real
-    # frequencies live near the NEGATED band center in the EVP omega plane.
+    matlab_parity = Config.load(root).resolvent.matlab_parity
+    # Physical poles sit at +omega_eig, so the eigenvalues relevant to the requested
+    # real frequencies live near the band center; under matlab_parity, near its negative.
+    centre = float(np.median(omega_arr)) if omega_arr.size else 0.0
     target = complex(
-        _get_first(
-            band, "target", "evp_target", default=-np.median(omega_arr) if omega_arr.size else 0.0
-        )
+        _get_first(band, "target", "evp_target", default=-centre if matlab_parity else centre)
     )
     n_modes = int(_get_first(band, "n_modes", "evp_n_modes", default=8))
     ncv = _get_first(band, "ncv", "evp_ncv", default=None)
@@ -231,7 +243,7 @@ def mark_unstable_band(
         ncv=None if ncv is None else int(ncv),
         solver_cfg=solver_cfg,
     )
-    return label_band(eigs, omega_arr, root)
+    return label_band(eigs, omega_arr, root, matlab_parity=matlab_parity)
 
 
 __all__ = ["BandMarks", "NEAR_POLE", "SMOOTH", "STABLE", "label_band", "mark_unstable_band"]

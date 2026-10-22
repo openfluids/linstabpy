@@ -14,6 +14,10 @@ import scipy.sparse as sp
 from linstabpy.resolvent.analysis import resolvent_analysis
 
 _CFG = {"resolvent": {"eigen": {"eps_tol": 1e-12}}}
+_CFG_PARITY = {
+    "resolvent": {"eigen": {"eps_tol": 1e-12}},
+    "resolvent_sign_convention": "matlab_parity",
+}
 _OMEGA = 3.0
 
 
@@ -26,13 +30,14 @@ def _leading_gain(
     omega: float,
     *,
     gamma: float = 0.0,
+    solver_cfg: dict = _CFG,
 ) -> float:
     gains, _, _ = resolvent_analysis(
         L0,
         omega=omega,
         n_modes=1,
         W_diag=_weighted_identity(L0.shape[0]),
-        solver_cfg=_CFG,
+        solver_cfg=solver_cfg,
         gamma=gamma,
     )
     return float(gains[0])
@@ -43,9 +48,14 @@ def _dense_gain_oracle(
     omega: float,
     *,
     gamma: float = 0.0,
+    matlab_parity: bool = False,
 ) -> float:
     dense = L0.toarray()
-    shifted = dense - (float(gamma) + 1j * omega) * np.eye(dense.shape[0])
+    eye = np.eye(dense.shape[0])
+    if matlab_parity:
+        shifted = dense - (float(gamma) + 1j * omega) * eye
+    else:
+        shifted = (float(gamma) - 1j * omega) * eye - dense
     return float(1.0 / scipy.linalg.svdvals(shifted)[-1])
 
 
@@ -123,13 +133,29 @@ def test_gamma_zero_gain_matches_independent_dense_svd_oracle():
     assert gain == pytest.approx(expected, rel=2e-11, abs=1e-12)
 
 
-def test_discount_rescues_blowup_near_pole():
+def test_gamma_zero_gain_matches_dense_svd_oracle_under_matlab_parity():
+    L0 = _near_diagonal_operator()
+
+    gain = _leading_gain(L0, _OMEGA, gamma=0.0, solver_cfg=_CFG_PARITY)
+    expected = _dense_gain_oracle(L0, _OMEGA, gamma=0.0, matlab_parity=True)
+
+    assert gain == pytest.approx(expected, rel=2e-11, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("solver_cfg", "omega_pole"),
+    [(_CFG, -_OMEGA), (_CFG_PARITY, _OMEGA)],
+    ids=["physical", "parity"],
+)
+def test_discount_rescues_blowup_near_pole(solver_cfg, omega_pole):
     # Capability contrast: near an (unstable) eigenvalue the UNshifted resolvent
     # gain blows up, and a real discount gamma>0 rescues well-posedness.
+    # The eigenvalue 1j*_OMEGA is a pole at omega = i*lambda = -_OMEGA (physical)
+    # and at omega = +_OMEGA (matlab_parity).
     L0 = _near_pole_operator()
 
-    gain_unshifted = _leading_gain(L0, _OMEGA, gamma=0.0)
-    gain_discounted = _leading_gain(L0, _OMEGA, gamma=0.25)
+    gain_unshifted = _leading_gain(L0, omega_pole, gamma=0.0, solver_cfg=solver_cfg)
+    gain_discounted = _leading_gain(L0, omega_pole, gamma=0.25, solver_cfg=solver_cfg)
 
     # gamma=0: eigenvalue offset 1e-5 from the pole -> gain ~ 1/1e-5 = 1e5 (huge).
     assert np.isfinite(gain_unshifted)

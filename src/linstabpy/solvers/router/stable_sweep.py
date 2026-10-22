@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import scipy.sparse as sp
 
+from linstabpy.config import Config
 from linstabpy.linalg.backends import factor_backend_available
 from linstabpy.linalg.factorize import Factorization, factorize
 from linstabpy.linalg.shifted import shifted_operator
@@ -591,7 +592,7 @@ def sweep_stable_regime(
     reuse the same :class:`~linstabpy.linalg.factorize.Factorization` object;
     adjoint preconditioning calls ``Factorization.solve_adjoint``.
     When ``B_mat`` / ``C_mat`` are set, ``H`` matches the certified resolvent
-    ``C F inv(L-iω) F B``.
+    ``C F inv((-iω) I - L) F B``.
     """
     # Bound once here; the nested solve closures below inherit this binding from
     # the enclosing scope, so they need no lazy lookup of their own.
@@ -602,6 +603,8 @@ def sweep_stable_regime(
     rtol = float(_cfg_get(cfg, "fgmres_rtol", _cfg_get(cfg, "actual_solve_tol", 1.0e-10)))
     maxiter, restart = _gmres_iteration_controls(cfg, n=n)
     solver_cfg = _cfg_get(cfg, "solver_cfg", None)
+    # Same switch as resolvent_analysis: solver.resolvent_sign_convention.
+    matlab_parity = Config.load(solver_cfg).resolvent.matlab_parity
     factorize_cfg = _cfg_get(cfg, "factorize_cfg", None)
     compressed_anchor, strumpack_options, measure_exact_lu = _compressed_anchor_controls(cfg)
     recycling_enabled, recycling_max_dim, recycling_orth_tol, measure_baseline = (
@@ -710,7 +713,7 @@ def sweep_stable_regime(
 
     def factorize_anchor(anchor_i: int) -> Any:
         anchor = anchor_values[int(anchor_i)]
-        operator = shifted_operator(L0_beta, anchor)
+        operator = shifted_operator(L0_beta, anchor, matlab_parity=matlab_parity)
         start = time.perf_counter()
         with _temporary_petsc_options(strumpack_options):
             fac = factorize(
@@ -763,7 +766,7 @@ def sweep_stable_regime(
     ) -> tuple[Array, Array]:
         omega = omegas[pos]
         anchor = anchor_values[int(anchor_indices[pos])]
-        operator = shifted_operator(L0_beta, omega)
+        operator = shifted_operator(L0_beta, omega, matlab_parity=matlab_parity)
         iter_log: list[int] = []
         residual_log: list[float] = []
         adj_iter_log: list[int] = []
@@ -1079,7 +1082,7 @@ def sweep_stable_regime(
             if anchor_i > 0:
                 t_ref = time.perf_counter()
                 try:
-                    operator = shifted_operator(L0_beta, anchor)
+                    operator = shifted_operator(L0_beta, anchor, matlab_parity=matlab_parity)
                     with _temporary_petsc_options(strumpack_options):
                         first_factor.refactorize(operator)
                     _add_factor_time(anchor_i, time.perf_counter() - t_ref)

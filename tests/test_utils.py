@@ -390,15 +390,28 @@ def test_resolve_baseflow_plot_field_prefers_streamwise_w() -> None:
     assert title.endswith("$W$")
 
 
-def test_shifted_operator_scipy_subtracts_i_omega_on_the_diagonal() -> None:
+def test_shifted_operator_scipy_matlab_parity_subtracts_i_omega_on_the_diagonal() -> None:
+    from linstabpy.linalg.shifted import shifted_operator
+
+    op = sp.eye(3, format="csc", dtype=complex)
+    op = op + sp.diags([0.1, 0.2, 0.3], format="csc")
+    omega = 2.0
+    shifted = shifted_operator(op, omega, matlab_parity=True)
+    expected = op.diagonal() - 1j * omega
+    np.testing.assert_allclose(shifted.diagonal(), expected)
+    damped = shifted_operator(op, omega, gamma=0.5, matlab_parity=True)
+    np.testing.assert_allclose(damped.diagonal(), op.diagonal() - (0.5 + 1j * omega))
+    assert damped.format == "csc"
+
+
+def test_shifted_operator_scipy_default_is_gamma_minus_i_omega_minus_operator() -> None:
     from linstabpy.linalg.shifted import shifted_operator
 
     op = sp.eye(3, format="csc", dtype=complex)
     op = op + sp.diags([0.1, 0.2, 0.3], format="csc")
     omega = 2.0
     shifted = shifted_operator(op, omega)
-    expected = op.diagonal() - 1j * omega
-    np.testing.assert_allclose(shifted.diagonal(), expected)
+    np.testing.assert_allclose(shifted.diagonal(), -op.diagonal() - 1j * omega)
     damped = shifted_operator(op, omega, gamma=0.5)
-    np.testing.assert_allclose(damped.diagonal(), op.diagonal() - (0.5 + 1j * omega))
+    np.testing.assert_allclose(damped.diagonal(), -op.diagonal() + (0.5 - 1j * omega))
     assert damped.format == "csc"

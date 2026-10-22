@@ -21,22 +21,42 @@ def shifted_operator(
     operator: sp.spmatrix | PETSc.Mat,
     omega: complex,
     gamma: float = 0.0,
+    *,
+    matlab_parity: bool = False,
 ) -> sp.csc_matrix | PETSc.Mat:
-    """Return ``operator - (gamma + 1j*omega)*I`` preserving the backend."""
+    """Return the matrix whose inverse is the resolvent, preserving the backend.
+
+    Default (physical): ``(gamma - 1j*omega)*I - operator``.
+    Its inverse is ``H(omega) = [(gamma - i*omega) I - L0]^-1``, the response to
+    forcing ``f*exp(-i*omega*t)`` of ``dq/dt = L0 q + f`` (``q ~ exp(-i*omega*t)``,
+    the convention of the stability solver).  The sign of ``H`` is included.
+
+    ``matlab_parity=True`` returns the LinStab2D matrix
+    ``operator - (gamma + 1j*omega)*I``.  Its inverse is ``-H(-omega)``.
+    See ``docs/resolvent_sign_convention.md``.
+    """
     if _is_petsc_matrix(operator):
         # Idempotent; a live PETSc.Mat implies PETSc is already up, but this
         # preserves the argv-parsing guarantee the module-scope call provided.
         init_slepc_from_argv()
         shifted = operator.copy()
-        if gamma == 0.0:
-            shifted.shift(-1j * omega)
+        if matlab_parity:
+            if gamma == 0.0:
+                shifted.shift(-1j * omega)
+            else:
+                shifted.shift(-(float(gamma) + 1j * omega))
         else:
-            shifted.shift(-(float(gamma) + 1j * omega))
+            shifted.scale(-1.0)
+            shifted.shift(float(gamma) - 1j * omega)
         shifted.assemble()
         return shifted
     shifted = sp.csc_matrix(operator, copy=True)
-    if gamma == 0.0:
-        shifted.setdiag(shifted.diagonal() - 1j * omega)
-    else:
-        shifted.setdiag(shifted.diagonal() - (float(gamma) + 1j * omega))
+    if matlab_parity:
+        if gamma == 0.0:
+            shifted.setdiag(shifted.diagonal() - 1j * omega)
+        else:
+            shifted.setdiag(shifted.diagonal() - (float(gamma) + 1j * omega))
+        return shifted
+    shifted = -shifted
+    shifted.setdiag(shifted.diagonal() + (float(gamma) - 1j * omega))
     return shifted

@@ -247,9 +247,12 @@ def _resolvent_analysis_impl(
     logger.info("Resolvent analysis: omega = %.6g, n_modes = %d, ndof = %d", omega, n_modes, ndof)
 
     # ------------------------------------------------------------------
-    # 1. Form the shifted operator  L_sigma = L0 - (gamma + i*omega)*I
+    # 1. Form the shifted operator  L_sigma = (gamma - i*omega)*I - L0, so that
+    #    H = L_sigma^-1 is the physical resolvent for q ~ exp(-i*omega*t).
+    #    solver.resolvent_sign_convention = matlab_parity restores the old
+    #    LinStab2D matrix L0 - (gamma + i*omega)*I (docs/resolvent_sign_convention.md).
     # ------------------------------------------------------------------
-    L_sigma = shifted_operator(L0, omega, gamma=gamma)
+    L_sigma = shifted_operator(L0, omega, gamma=gamma, matlab_parity=cfg.resolvent.matlab_parity)
 
     # ------------------------------------------------------------------
     # 2. Shifted solve setup.  Direct MUMPS is the default, but the concrete
@@ -484,7 +487,7 @@ def compute_resolvent_svd_residuals(
     # a separate "analysis" and "postcheck" stage keep their timing/provenance
     # boundaries. New code that can combine both stages should call
     # resolvent_analysis(..., residuals=True).
-    L_sigma = shifted_operator(L0, omega, gamma=gamma)
+    L_sigma = shifted_operator(L0, omega, gamma=gamma, matlab_parity=cfg.resolvent.matlab_parity)
     lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     try:
         op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
