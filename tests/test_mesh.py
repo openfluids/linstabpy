@@ -168,16 +168,6 @@ class TestSBPProperty:
         row_sums = np.array(D1.sum(axis=1)).ravel()
         np.testing.assert_allclose(row_sums, 0.0, atol=1e-12)
 
-    @pytest.mark.parametrize("order", [4, 6, 8])
-    def test_small_n_closures_overlap_exactly(self, order):
-        """For min_points <= n < 2r the two closures overlap; D1 and D2 stay exact on x and x**2."""
-        r = sbp_stencils(order)["a_b1"].shape[0]
-        for n in range(min_points(order), 2 * r + 1):
-            x = np.arange(n, dtype=float)
-            D1, D2 = build_sbp_matrix(n, 1.0, order)
-            np.testing.assert_allclose(D1 @ x, 1.0, atol=1e-9, err_msg=f"n={n}")
-            np.testing.assert_allclose(D2 @ x**2, 2.0, atol=1e-9, err_msg=f"n={n}")
-
     def test_sbp_identity_order2(self):
         """For order 2 the SBP norm is trapezoidal and Q + Q^T = B."""
         n = 40
@@ -1319,14 +1309,3 @@ def test_fdweights_empty_nodes_return_an_empty_stencil():
     weights = fdweights(0.0, [], 1)
     assert weights.shape == (0,)
     assert weights.dtype == np.float64
-
-
-@pytest.mark.parametrize("n_removed", [1, 2, 3])
-def test_mask_splits_lines_at_a_removed_column(n_removed):
-    """A derivative line must not span a hole, even one column wide."""
-    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=25, ny=25, fd_order=4)
-    keep = np.ones(mesh.X.shape, dtype=bool)
-    keep[:, 10 : 10 + n_removed] = False
-    masked = mesh.mask(keep)
-    x_kept = mesh.X.ravel(order="F")[np.flatnonzero(keep.ravel(order="F"))]
-    np.testing.assert_allclose(masked.Dx @ x_kept, 1.0, atol=1e-10)

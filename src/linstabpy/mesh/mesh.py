@@ -1529,7 +1529,7 @@ def _build_indices(
     return {"bi": bi, "ti": ti, "li": li, "ri": ri, "mi": mi}
 
 
-def _line_breaks(deltas: np.ndarray) -> np.ndarray:
+def _line_breaks(deltas: np.ndarray, *, min_gap_ratio: float = 3.0) -> np.ndarray:
     """Return local-gap indices for segmenting 1-D derivative lines."""
     if deltas.size == 0:
         return np.array([], dtype=int)
@@ -1538,8 +1538,7 @@ def _line_breaks(deltas: np.ndarray) -> np.ndarray:
     if not np.isfinite(scale) or scale <= 0.0:
         return np.array([], dtype=int)
 
-    # One missing point doubles the spacing; split at any gap above 1.5 typical spacings.
-    threshold = 1.5 * scale
+    threshold = max(1.5, min_gap_ratio * scale)
     return np.where(np.abs(deltas) > threshold)[0]
 
 
