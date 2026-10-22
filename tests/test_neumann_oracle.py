@@ -39,6 +39,7 @@ curved mesh.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import scipy.sparse as sps
 
 from linstabpy.boundary_conditions.neumann import apply_neumann
@@ -156,3 +157,34 @@ def test_neumann_curvilinear_is_normal_derivative_on_curved_mesh():
         for variable in ("r", "v", "T"):
             rec = _check_border(mesh, idx, border, variable, curvilinear=True)
             assert _passes(rec), rec
+
+
+@pytest.mark.parametrize("edge", ["l", "r", "b", "t"])
+def test_neumann_rows_add_no_spurious_unstable_mode(edge: str) -> None:
+    """The penalty row must damp: an outward normal gave Im(omega) ~ penalty / h."""
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.boundary_conditions.neumann import apply_neumann
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator
+
+    mesh = Mesh.create(xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=10, ny=9, fd_order=4)
+    T = 1.0 + 0.3 * np.exp(-3.0 * mesh.Y)
+    zero = np.zeros_like(T)
+    bf = BaseFlow(
+        Re=500.0,
+        Ma=0.5,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=1.0 / T,
+        U=np.tanh(4.0 * mesh.Y),
+        V=zero,
+        W=zero,
+        T=T,
+    )
+    sutherland_air(bf)
+    L0, idx = build_lnse_operator(mesh, bf, model="2D")
+    growth_free = np.linalg.eigvals(1j * L0.toarray()).imag.max()
+    L, _ = apply_neumann(L0, mesh, idx, edge, "T", penalty=1.0e4)
+    growth = np.linalg.eigvals(1j * L.toarray()).imag.max()
+    assert growth < growth_free + 1.0

@@ -328,8 +328,9 @@ class TestNeumannBC:
         gradY_y: np.ndarray,
         imesh: int,
     ) -> tuple[float, float]:
+        # Inward normal on every edge (see neumann._NEUMANN_BORDER_SIGNS).
         if border in ("l", "r"):
-            sign = -1.0 if border == "l" else 1.0
+            sign = 1.0 if border == "l" else -1.0
             return sign * gradY_y[imesh], sign * (-gradY_x[imesh])
         sign = 1.0 if border == "b" else -1.0
         return sign * (-gradX_y[imesh]), sign * gradX_x[imesh]

@@ -19,9 +19,13 @@ from .dirichlet import _BORDER_MAP, _VARIABLE_MAP, _zero_rows_csr
 if TYPE_CHECKING:  # pragma: no cover - typing-only optional dependency
     from petsc4py import PETSc
 
+# Inward normal on every edge. The row reads lambda * q_i = penalty * (dq/dn)_i, so its
+# one-sided stencil puts -c * penalty / h on the diagonal only for the inward normal.
+# An outward normal (as on l and r before) adds a spurious mode with
+# Im(omega) ~ penalty / h, measured 6e4 for penalty 1e4.
 _NEUMANN_BORDER_SIGNS: dict[str, float] = {
-    "l": -1.0,
-    "r": 1.0,
+    "l": 1.0,
+    "r": -1.0,
     "b": 1.0,
     "t": -1.0,
 }
