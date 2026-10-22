@@ -111,10 +111,14 @@ def evaluate_stability_acceptance(
     ~~~~~~~~~~~~~~~
     Set ``conjugate_aware=False`` only when the underlying operator is no
     longer real.
-    Examples: a spanwise wavenumber ``beta != 0`` (the operator carries
-    ``i*beta`` terms), Floquet-shifted problems, complex base-flow
-    perturbation tracking, or any formulation that explicitly breaks the
-    real-``L`` symmetry.
+    A spanwise wavenumber alone does not break the pairing: with ``beta != 0``
+    and base ``W = 0``, conjugation maps ``beta -> -beta`` and the
+    reflection ``z -> -z, w -> -w`` maps it back, so the spectrum keeps the
+    ``omega -> -conj(omega)`` symmetry.
+    Examples that break it: ``beta != 0`` with a spanwise base velocity
+    ``W != 0`` (the driver default turns the flag off there), Floquet-shifted
+    problems, complex base-flow perturbation tracking, or any formulation
+    that explicitly breaks the symmetry.
     In those cases, admitting ``-conj(target)`` would over-accept
     unphysical partners.
 

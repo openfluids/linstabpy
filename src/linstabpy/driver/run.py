@@ -1213,14 +1213,8 @@ def run() -> None:
             "analysis.stability_acceptance.sigma_abs_max",
         )
     )
-    # Default True: real-valued baseflows have a conjugate-pair spectrum, and
-    # admitting the conjugate partner at the same target_distance_max is the
-    # physically correct metric (see _postcheck_target_distance docstring and
-    # SWBLI.md for the mode-family rationale). Set to False in the YAML only
-    # for complex baseflows (Floquet, complex perturbation-tracking).
-    stability_acceptance_conjugate_aware: bool = bool(
-        cfg("analysis.stability_acceptance.conjugate_aware", True)
-    )
+    # None means "decide from the base flow" once it is loaded (see below).
+    _conjugate_aware_raw = cfg("analysis.stability_acceptance.conjugate_aware", None)
 
     n_modes = int(cfg("analysis.n_modes_stability", 100))
     n_modes_resolvent = int(cfg("analysis.n_modes_resolvent", 10))
@@ -1395,6 +1389,15 @@ def run() -> None:
     sponge = loaded_case.sponge
     sponge_enabled = loaded_case.sponge_enabled
     sponge_source = loaded_case.sponge_source
+    # The spectrum is closed under omega -> -conj(omega) when L0 is real (beta = 0), and
+    # also for beta != 0 when W = 0 (conjugation maps beta -> -beta, z-reflection maps it
+    # back). A spanwise base velocity with beta != 0 breaks the pairing, so the default
+    # turns conjugate-aware acceptance off there. Floquet or other complex formulations
+    # must set it to False in the YAML.
+    if _conjugate_aware_raw is None:
+        stability_acceptance_conjugate_aware = not (beta != 0.0 and bool(np.any(baseflow.W)))
+    else:
+        stability_acceptance_conjugate_aware = bool(_conjugate_aware_raw)
 
     # Freestream normalisation gate. The canonical convention is rho = u = T = 1 in the
     # freestream; a base flow scaled any other way runs to completion and returns numbers

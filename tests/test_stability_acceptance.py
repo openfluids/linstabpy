@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from linstabpy.stability.acceptance import evaluate_stability_acceptance
 
@@ -202,3 +203,34 @@ def test_conjugate_pair_gate_skips_on_axis_modes() -> None:
         result["missing_partner_indices"], np.array([0, 2], dtype=np.int32)
     )
     np.testing.assert_array_equal(result["partner_rejected_indices"], np.array([], dtype=np.int32))
+
+
+@pytest.mark.parametrize(
+    ("W_amp", "beta", "paired"), [(0.0, 0.7, True), (0.3, 0.0, True), (0.3, 0.7, False)]
+)
+def test_lnse_spectrum_pairing_follows_beta_and_spanwise_base_velocity(W_amp, beta, paired) -> None:
+    """omega -> -conj(omega) holds for beta = 0 or W = 0, and fails for beta != 0 with W != 0."""
+    from linstabpy.baseflow import BaseFlow, sutherland_air
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator
+
+    mesh = Mesh.create(xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=10, ny=9, fd_order=4)
+    Y, X = mesh.Y, mesh.X
+    T = 1.0 + 0.3 * np.exp(-3.0 * Y)
+    bf = BaseFlow(
+        Re=500.0,
+        Ma=0.5,
+        Pr=0.7,
+        kappa=1.4,
+        T_0=288.15,
+        RHO=1.0 / T,
+        U=np.tanh(4.0 * Y) * (1.0 + 0.1 * X),
+        V=0.02 * Y * np.exp(-Y),
+        W=W_amp * np.tanh(4.0 * Y),
+        T=T,
+    )
+    sutherland_air(bf)
+    L0, _ = build_lnse_operator(mesh, bf, kx=beta, model="2D")
+    omega = np.linalg.eigvals(1j * L0.toarray())
+    mismatch = max(np.min(np.abs(omega + np.conj(w))) for w in omega) / np.max(np.abs(omega))
+    assert bool(mismatch < 1e-6) is paired
