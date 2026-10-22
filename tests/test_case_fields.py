@@ -445,3 +445,17 @@ def test_apply_preprocess_can_enable_shock_cleanup(tmp_path: Path) -> None:
         preprocess_cfg={"enabled": True, "shock": {"enabled": True}},
     )
     assert "shock_cleanup" in info["applied"]
+
+
+def test_apply_preprocess_filter_leaves_the_caller_arrays_alone(tmp_path: Path) -> None:
+    fields = _preprocess_fields(tmp_path)
+    rng = np.random.default_rng(1)
+    for arr in fields[2:7]:
+        arr += 0.1 * rng.standard_normal(arr.shape)
+    before = [np.array(arr, copy=True) for arr in fields[2:7]]
+    out = apply_preprocess(
+        *fields, preprocess_cfg={"enabled": True, "filter": {"enabled": True, "passes": 1}}
+    )
+    for arr, ref in zip(fields[2:7], before, strict=True):
+        np.testing.assert_array_equal(arr, ref)
+    assert not np.array_equal(out[2], before[0])

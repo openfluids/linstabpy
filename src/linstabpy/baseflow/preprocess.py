@@ -216,7 +216,11 @@ def apply_preprocess(
     }
 
     if filter_enabled and passes > 0 and eta_min < eta_max:
-        field_map = {"rho": rho, "u": u, "v": v, "w": w, "T": T}
+        # Filter copies: the caller's arrays stay untouched, as in shock_cleanup.
+        field_map = {
+            name: np.array(arr, copy=True)
+            for name, arr in {"rho": rho, "u": u, "v": v, "w": w, "T": T}.items()
+        }
         invalid = [name for name in fields if name not in field_map]
         if invalid:
             raise ValueError(f"Unsupported filter field names: {invalid}")
@@ -234,6 +238,7 @@ def apply_preprocess(
             delta = float(np.linalg.norm(field_map[name] - original))
             change_norms[name] = 0.0 if denom == 0.0 else delta / denom
 
+        rho, u, v, w, T = (field_map[name] for name in ("rho", "u", "v", "w", "T"))
         info["filter"]["relative_l2_change"] = change_norms
         info["applied"].append(
             "explicit_filter="
