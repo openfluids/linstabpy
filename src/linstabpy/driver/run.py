@@ -1808,6 +1808,7 @@ def run() -> None:
                 "solver_apply_to_resolvent_effective": np.bool_(eps_resolv > 0.0),
                 "provenance_config_hash": np.bytes_(config_hash[:16].encode()),
                 "provenance_linstabpy_git_sha": np.bytes_(git_sha.encode()),
+                "resolvent_sign_convention": np.array(cfg_obj.resolvent.sign_convention),
                 "provenance_factor_backend": str(factor_backend_provenance),
                 "provenance_factor_precision": np.array(
                     cfg_obj.eigen.factor_precision

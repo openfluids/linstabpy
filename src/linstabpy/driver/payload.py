@@ -73,6 +73,7 @@ RUNTIME_NPZ_CONTRACT_KEYS = (
     "solver_apply_to_resolvent_effective",
     "provenance_config_hash",
     "provenance_linstabpy_git_sha",
+    "resolvent_sign_convention",
     "provenance_factor_backend",
     "provenance_factor_precision",
     "git_sha",

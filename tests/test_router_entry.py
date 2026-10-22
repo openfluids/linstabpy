@@ -224,6 +224,63 @@ def test_failure_tolerance_and_npz_resume_retries_only_failed_points(
     assert [record["status"] for record in resumed.point_records] == ["skipped", "ok"]
 
 
+def _ok_direct(_L0, omega, *_args, **_kwargs):
+    return router_map._DirectPointResult(gain=float(omega), iterations=3, residual=1.0e-9)
+
+
+def test_store_records_the_sign_convention_and_resumes_under_the_same_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    for name in ("physical", "matlab_parity"):
+        cfg = {
+            "mesh": object(),
+            "output_npz": tmp_path / f"{name}.npz",
+            "solver": {"resolvent_sign_convention": name},
+        }
+        router_map.resolvent_map(object(), [0.1], [1.0, 2.0], cfg)
+        with np.load(cfg["output_npz"], allow_pickle=False) as data:
+            assert str(data["resolvent_sign_convention"]) == name
+        # Same convention again: the store is accepted and every point is skipped.
+        resumed = router_map.resolvent_map(object(), [0.1], [1.0, 2.0], cfg)
+        assert [record["status"] for record in resumed.point_records] == ["skipped", "skipped"]
+
+
+@pytest.mark.parametrize("stored", ["matlab_parity", None])
+def test_resume_refuses_a_store_from_the_other_convention(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, stored: str | None
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "old_map.npz"
+    router_map.resolvent_map(
+        object(),
+        [0.1],
+        [1.0, 2.0],
+        {
+            "mesh": object(),
+            "output_npz": output_npz,
+            "solver": {"resolvent_sign_convention": "matlab_parity"},
+        },
+    )
+    if stored is None:
+        # A store written before the key existed counts as matlab_parity.
+        with np.load(output_npz, allow_pickle=False) as data:
+            kept = {k: data[k] for k in data.files if k != "resolvent_sign_convention"}
+        np.savez(output_npz, **kept)
+
+    with pytest.raises(router_map.StoreSignConventionError) as excinfo:
+        router_map.resolvent_map(
+            object(), [0.1], [1.0, 2.0], {"mesh": object(), "output_npz": output_npz}
+        )
+    message = str(excinfo.value)
+    assert "'matlab_parity'" in message
+    assert "'physical'" in message
+    assert "solver.resolvent_sign_convention: matlab_parity" in message
+    assert "new output_npz path" in message
+
+
 def test_region_mask_uses_fortran_order_single_variable_cell() -> None:
     mesh, idx, ndof = _region_mesh_idx()
     mask = router_map._build_region_mask(

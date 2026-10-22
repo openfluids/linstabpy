@@ -905,10 +905,22 @@ def _records_from_json_array(values: np.ndarray) -> list[dict[str, object]]:
     return records
 
 
+class StoreSignConventionError(RuntimeError):
+    """The resume store was written with another resolvent sign convention."""
+
+
+def _resolvent_sign_convention(cfg_map: Mapping[str, Any], cfg_obj: Any) -> str:
+    from linstabpy.config import Config
+
+    cfg = cfg_obj if cfg_obj is not None else Config.load(_solver_cfg(cfg_map))
+    return cfg.resolvent.sign_convention
+
+
 def _load_store(
     path: Path | None,
     beta: np.ndarray,
     f: np.ndarray,
+    sign_convention: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
     gain = np.full((beta.size, f.size), np.nan, dtype=float)
     labels = np.full((beta.size, f.size), "", dtype="U32")
@@ -927,6 +939,21 @@ def _load_store(
                 and np.allclose(cached_f, f, rtol=0.0, atol=0.0)
             ):
                 raise ValueError("range value mismatch")
+            # A store written before this key existed used the LinStab2D sign.
+            stored = (
+                str(data["resolvent_sign_convention"])
+                if "resolvent_sign_convention" in data.files
+                else "matlab_parity"
+            )
+            if stored != sign_convention:
+                raise StoreSignConventionError(
+                    f"resolvent_map: cannot resume {path}. It was written with "
+                    f"resolvent sign convention {stored!r}, this run uses {sign_convention!r}. "
+                    "One map never mixes conventions. To finish the old map, set "
+                    f"solver.resolvent_sign_convention: {stored}. To use the current "
+                    "convention, write to a new output_npz path. To convert an old map "
+                    "without recomputing, see docs/resolvent_sign_convention.md."
+                )
             gain = np.asarray(data["gain"], dtype=float).reshape(beta.size, f.size)
             labels = np.asarray(data["regime_label"], dtype=str).reshape(beta.size, f.size)
             if "reason_code" in data.files:
@@ -950,6 +977,7 @@ def _save_store(
     reason_code: np.ndarray,
     failure_records: list[dict[str, object]],
     point_records: list[dict[str, object]],
+    sign_convention: str,
     cost_metrics: Mapping[str, object] | None = None,
 ) -> None:
     if path is None:
@@ -963,6 +991,7 @@ def _save_store(
         "reason_code": reason_code,
         "failure_records_json": _json_records(failure_records),
         "point_records_json": _json_records(point_records),
+        "resolvent_sign_convention": np.asarray(sign_convention, dtype=str),
     }
     if cost_metrics:
         payload.update(cost_metrics)
@@ -1063,7 +1092,8 @@ def resolvent_map(
     W_diag = _compute_w_diag(mesh, base_flow, cfg_map)
     store = _store_path(cfg_map)
 
-    gain, regime_label, reason_code, failure_records = _load_store(store, beta, f)
+    sign_convention = _resolvent_sign_convention(cfg_map, cfg_obj)
+    gain, regime_label, reason_code, failure_records = _load_store(store, beta, f, sign_convention)
     point_records: list[dict[str, object]] = []
     stage_wall: dict[str, float] = {}
     total_points = int(beta.size * f.size)
@@ -1329,6 +1359,7 @@ def resolvent_map(
                         reason_code=reason_code,
                         failure_records=failure_records,
                         point_records=point_records,
+                        sign_convention=sign_convention,
                     )
                     continue
 
@@ -1390,6 +1421,7 @@ def resolvent_map(
                     reason_code=reason_code,
                     failure_records=failure_records,
                     point_records=point_records,
+                    sign_convention=sign_convention,
                 )
 
         if walker is not None:
@@ -1406,6 +1438,7 @@ def resolvent_map(
         reason_code=reason_code,
         failure_records=failure_records,
         point_records=point_records,
+        sign_convention=sign_convention,
         cost_metrics=cost_metrics,
     )
     return RouterResult(
