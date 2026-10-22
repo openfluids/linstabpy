@@ -557,6 +557,9 @@ def build_sbp_matrix(n: int, dz: float, order: int) -> tuple[sp.csr_matrix, sp.c
     # --- Minus boundary (bottom rows, MATLAB: jz = 1 : r) ---------------
     # Python 0-indexed: j = 0, 1, ..., r-1
     for j in range(r):
+        # When n < 2r the plus closure already wrote this row; clear it so no stale entry stays.
+        D1[j, :] = 0.0
+        D2[j, :] = 0.0
         for col_k in range(m):
             D1[j, col_k] = a_b1[j, col_k] / dz
             D2[j, col_k] = a_b2[j, col_k] / dz**2
@@ -577,10 +580,7 @@ def build_sbp_pole_matrices(
     reference. It is only used for derivatives along the symmetry axis
     in axisymmetric meshes.
     """
-    # --- Build base SBP stencils with pole-closure variants ----------------
-    D1, D2, D1_sym, D1_asymm, D2_sym, D2_asymm = _build_sbp_with_pole(n, dz, order)
-
-    return D1_sym.tocsr(), D1_asymm.tocsr(), D2_sym.tocsr(), D2_asymm.tocsr()
+    return _build_sbp_with_pole(n, dz, order)
 
 
 def _build_sbp_with_pole(n: int, dz: float, order: int):
@@ -596,29 +596,6 @@ def _build_sbp_with_pole(n: int, dz: float, order: int):
 
     r, m = a_b1.shape
     w = (len(a_i1) - 1) // 2
-
-    # Base 1-D operators (no pole closure).
-    D1 = sp.lil_matrix((n, n))
-    D2 = sp.lil_matrix((n, n))
-
-    # --- Interior points (MATLAB: j = 1+w : n-r )
-    for j in range(w, n - r):
-        D1[j, j - w : j + w + 1] = a_i1 / dz
-        D2[j, j - w : j + w + 1] = a_i2 / dz**2
-
-    # --- Plus boundary (top rows)
-    for j in range(n - r, n):
-        brow = n - 1 - j
-        for col_k in range(m):
-            col = n - 1 - col_k
-            D1[j, col] = -a_b1[brow, col_k] / dz
-            D2[j, col] = a_b2[brow, col_k] / dz**2
-
-    # --- Minus boundary (bottom rows)
-    for j in range(r):
-        for col_k in range(m):
-            D1[j, col_k] = a_b1[j, col_k] / dz
-            D2[j, col_k] = a_b2[j, col_k] / dz**2
 
     # Pole-modified stencils
     D1p = _mohseni_pole_stencil(a_i1, +1)
@@ -664,8 +641,6 @@ def _build_sbp_with_pole(n: int, dz: float, order: int):
         D2_asymm[j, :n2] = src2_asymm[:n2] / dz**2
 
     return (
-        D1.tocsr(),
-        D2.tocsr(),
         D1_sym.tocsr(),
         D1_asymm.tocsr(),
         D2_sym.tocsr(),
