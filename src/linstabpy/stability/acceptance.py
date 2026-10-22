@@ -16,17 +16,18 @@ def _postcheck_target_distance(
 
     Background
     ----------
-    For a real-valued baseflow, the linearised Navier-Stokes operator ``L`` has
-    real matrix entries.
+    For a real-valued baseflow, the linearised Navier-Stokes operator ``L0`` has
+    real matrix entries, and ``omega = eig(i*L0)``.
     If ``(omega, v)`` is an eigenpair, conjugate both sides of
-    ``L v = omega v``.
-    That gives ``L conj(v) = conj(omega) conj(v)``.
-    So ``(conj(omega), conj(v))`` is also an eigenpair.
+    ``i L0 v = omega v``.
+    That gives ``i L0 conj(v) = -conj(omega) conj(v)``.
+    So ``(-conj(omega), conj(v))`` is also an eigenpair: the same growth rate
+    ``Im(omega)`` with the opposite frequency.
     The two are the same physical instability wave in two complex
     representations.
 
     When ``conjugate_aware=True``, the distance is
-    ``min(|omega - target|, |omega - conj(target)|)``.
+    ``min(|omega - target|, |omega + conj(target)|)``.
     The conjugate partner then passes the same target-distance gate as
     the primary branch.
     Use ``conjugate_aware=False`` for complex operators where
@@ -36,7 +37,7 @@ def _postcheck_target_distance(
     direct = np.abs(omega_arr - complex(target))
     if not conjugate_aware:
         return direct
-    conj_dist = np.abs(omega_arr - np.conjugate(complex(target)))
+    conj_dist = np.abs(omega_arr + np.conjugate(complex(target)))
     return np.minimum(direct, conj_dist)
 
 
@@ -77,24 +78,25 @@ def evaluate_stability_acceptance(
 
     The ``conjugate_aware`` flag (default ``True``)
     -----------------------------------------------
-    For a real-valued baseflow the linearised operator ``L`` is real.
-    The spectrum is symmetric under complex conjugation.
-    ``(omega, v)`` and ``(conj(omega), conj(v))`` are both eigenpairs of ``L``.
+    For a real-valued baseflow the linearised operator ``L0`` is real.
+    With ``omega = eig(i*L0)`` the spectrum is symmetric under
+    ``omega -> -conj(omega)``.
+    ``(omega, v)`` and ``(-conj(omega), conj(v))`` are both eigenpairs of ``i*L0``.
     These two eigenpairs represent the SAME physical instability wave.
     Their sum is the real, observable perturbation field.
     A shift-invert EVP with a complex ``omega_target`` that has non-zero
-    real part sits near ONE branch of this conjugate pair.
-    The other branch lives near ``conj(omega_target)`` on the far side of
-    the real axis.
+    real part sits near ONE branch of this pair.
+    The other branch lives near ``-conj(omega_target)``, with the same
+    growth rate and the opposite frequency.
 
     Why this is the default.
     For the SWBLI mode families tracked in this project (see ``SWBLI.md``).
 
     * BG-S (bubble global stationary mode): ``Re(omega) ~ 0``.
-      Target and its conjugate coincide on the imaginary axis.
+      Target and its partner coincide on the imaginary axis.
       The metric is a no-op here. Steady modes pass cleanly.
-    * OM-1 (oblique first-Mack wave): a conjugate pair
-      ``(omega_r + 1j*omega_i, omega_r - 1j*omega_i)``.
+    * OM-1 (oblique first-Mack wave): a pair
+      ``(omega_r + 1j*omega_i, -omega_r + 1j*omega_i)``.
       Without conjugate awareness the Euclidean ``|omega - target|``
       metric would silently drop the mirror partner.
       That would lose half the physical mode.
@@ -102,7 +104,7 @@ def evaluate_stability_acceptance(
       No effect either way.
 
     With ``conjugate_aware=True``, the distance metric is
-    ``min(|omega - target|, |omega - conj(target)|)``.
+    ``min(|omega - target|, |omega + conj(target)|)``.
     The conjugate partner then passes the same gate as the primary.
 
     When to disable
@@ -112,7 +114,7 @@ def evaluate_stability_acceptance(
     Examples: Floquet-shifted problems, complex base-flow perturbation
     tracking, or any formulation that explicitly breaks the real-``L``
     symmetry.
-    In those cases, admitting ``conj(target)`` would over-accept
+    In those cases, admitting ``-conj(target)`` would over-accept
     unphysical partners.
 
     Provenance
@@ -234,16 +236,15 @@ def check_conjugate_pair_completeness(
     omega: np.ndarray,
     accepted_indices: np.ndarray,
     *,
-    pair_tol_imag: float = 1e-10,
     pair_tol_real: float = 1e-6,
     pair_tolerance: float = 1e-6,
 ) -> dict[str, np.ndarray]:
     """Diagnostic: check whether accepted complex modes have their conjugate partners.
 
-    For each accepted mode with ``|Im(omega)| > pair_tol_imag`` and
-    ``|Re(omega)| > pair_tol_real`` (off both axes), search all returned
-    omegas.
-    Look for a conjugate partner within ``pair_tolerance``.
+    For each accepted mode with ``|Re(omega)| > pair_tol_real``, search all
+    returned omegas.
+    Look for the partner ``-conj(omega)`` within ``pair_tolerance``.
+    A mode with ``Re(omega) = 0`` is its own partner.
 
     Does NOT modify the accepted/rejected sets. Pure diagnostic.
 
@@ -253,8 +254,6 @@ def check_conjugate_pair_completeness(
         All returned complex eigenvalues (not just accepted ones).
     accepted_indices : np.ndarray
         Integer indices into ``omega`` of the accepted modes.
-    pair_tol_imag : float
-        Minimum |Im(omega)| for a conjugate-pair candidate.
     pair_tol_real : float
         Minimum |Re(omega)| for a conjugate-pair candidate.
     pair_tolerance : float
@@ -277,10 +276,10 @@ def check_conjugate_pair_completeness(
 
     for ai in accepted_idx:
         oi = omega_arr[int(ai)]
-        if abs(np.imag(oi)) <= pair_tol_imag or abs(np.real(oi)) <= pair_tol_real:
-            # On real or imaginary axis — no conjugate-pair obligation.
+        if abs(np.real(oi)) <= pair_tol_real:
+            # On the imaginary axis the mode is its own partner.
             continue
-        conj_oi = np.conj(oi)
+        conj_oi = -np.conj(oi)
         # Search ALL omegas for the conjugate partner.
         dists = np.abs(omega_arr - conj_oi)
         # Exclude self (the mode itself is not its own partner when off-axis).

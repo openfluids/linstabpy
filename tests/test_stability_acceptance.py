@@ -108,8 +108,8 @@ def test_reject_reason_code_bitmask() -> None:
 def test_conjugate_aware_distance_accepts_conjugate() -> None:
     """Front B: verify conjugate-aware distance accepts the physical conjugate of the target."""
     target = 0.5 - 1.1j
-    # Mode 0: exactly on target, Mode 1: conjugate of target, Mode 2: far from both
-    omega = np.array([0.5 - 1.1j, 0.5 + 1.1j, 2.0 + 2.0j], dtype=complex)
+    # Mode 0: exactly on target, Mode 1: partner -conj(target), Mode 2: far from both
+    omega = np.array([0.5 - 1.1j, -0.5 - 1.1j, 2.0 + 2.0j], dtype=complex)
     post_rel = np.array([1.0e-6, 1.0e-6, 1.0e-6], dtype=float)
     # Pre-compute distances against target for reference; gate uses conjugate_aware path
     target_dist_direct = np.abs(omega - target)
@@ -152,23 +152,34 @@ def test_conjugate_pair_completeness() -> None:
     """Fix #5: conjugate-pair completeness diagnostic."""
     from linstabpy.stability.acceptance import check_conjugate_pair_completeness
 
-    # Omega list: modes 0 and 1 are a conjugate pair, mode 2 has no partner in the list.
-    omega = np.array([0.5 + 1.0j, 0.5 - 1.0j, 3.0 + 2.0j], dtype=complex)
+    # Omega list: modes 0 and 1 are a pair (omega, -conj(omega)), mode 2 has no partner.
+    omega = np.array([0.5 + 1.0j, -0.5 + 1.0j, 3.0 + 2.0j], dtype=complex)
     # Accepted: modes 0 and 2 only (mode 1 — the partner of mode 0 — failed the gate).
     accepted_indices = np.array([0, 2], dtype=np.int32)
 
     result = check_conjugate_pair_completeness(omega, accepted_indices)
 
-    # Mode 0's partner (mode 1, conj = 0.5 - 1.0j) is found in omega but failed the gate.
+    # Mode 0's partner (mode 1, -conj = -0.5 + 1.0j) is found in omega but failed the gate.
     np.testing.assert_array_equal(
         result["partner_rejected_indices"],
         np.array([0], dtype=np.int32),
     )
-    # Mode 2's partner (conj = 3.0 - 2.0j) does not exist in omega at all.
+    # Mode 2's partner (-conj = -3.0 + 2.0j) does not exist in omega at all.
     np.testing.assert_array_equal(
         result["missing_partner_indices"],
         np.array([2], dtype=np.int32),
     )
+
+
+def test_partner_symmetry_matches_real_operator_spectrum() -> None:
+    """For a real L0 the spectrum of i*L0 is closed under omega -> -conj(omega), not conj."""
+    from linstabpy.stability.acceptance import check_conjugate_pair_completeness
+
+    rng = np.random.default_rng(0)
+    omega = np.linalg.eigvals(1j * rng.standard_normal((8, 8)))
+    result = check_conjugate_pair_completeness(omega, np.arange(omega.size, dtype=np.int32))
+    assert result["missing_partner_indices"].size == 0
+    assert result["partner_rejected_indices"].size == 0
 
 
 def test_target_distance_without_conjugate_is_the_direct_distance() -> None:
@@ -184,7 +195,10 @@ def test_target_distance_without_conjugate_is_the_direct_distance() -> None:
 def test_conjugate_pair_gate_skips_on_axis_modes() -> None:
     from linstabpy.stability.acceptance import check_conjugate_pair_completeness
 
+    # Mode 1 sits on the imaginary axis and is its own partner; modes 0 and 2 lack -conj(omega).
     omega = np.array([1.0 + 0.0j, 0.0 + 2.0j, 0.4 + 0.7j], dtype=complex)
     result = check_conjugate_pair_completeness(omega, np.array([0, 1, 2], dtype=np.int32))
-    np.testing.assert_array_equal(result["missing_partner_indices"], np.array([2], dtype=np.int32))
+    np.testing.assert_array_equal(
+        result["missing_partner_indices"], np.array([0, 2], dtype=np.int32)
+    )
     np.testing.assert_array_equal(result["partner_rejected_indices"], np.array([], dtype=np.int32))
