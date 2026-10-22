@@ -738,7 +738,9 @@ def _forcing_response_mats(
 def _mark_unstable_band(L0_beta: Any, f_range: np.ndarray, cfg: Mapping[str, Any]) -> BandMarks:
     from linstabpy.solvers.router.band_marking import mark_unstable_band
 
-    return mark_unstable_band(L0_beta, f_range, cfg)
+    # Read the sign from the same solver config as the resolvent solves.
+    parity = _resolvent_sign_convention(cfg, None) == "matlab_parity"
+    return mark_unstable_band(L0_beta, f_range, cfg, matlab_parity=parity)
 
 
 def _direct_engine_result(

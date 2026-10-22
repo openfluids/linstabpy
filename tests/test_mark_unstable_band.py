@@ -135,3 +135,23 @@ def test_mark_unstable_band_real_evp_seam_on_tiny_diagonal_operator(
     assert marks.distances.shape == f_range.shape
     assert marks.labels.tolist() == [NEAR_POLE, STABLE]
     assert np.all(np.isfinite(marks.distances))
+
+
+def test_router_band_marking_reads_sign_from_explicit_solver_cfg(monkeypatch) -> None:
+    """The router band marking takes its sign from the solver config of the solves."""
+    import linstabpy.solvers.router.band_marking as band_marking
+    import importlib
+
+    router_map = importlib.import_module("linstabpy.solvers.router.resolvent_map")
+
+    seen: dict[str, object] = {}
+
+    def capture(L0_beta, f_range, cfg=None, *, matlab_parity=None):
+        seen["matlab_parity"] = matlab_parity
+
+    monkeypatch.setattr(band_marking, "mark_unstable_band", capture)
+    cfg = {"solver_cfg": {"resolvent_sign_convention": "matlab_parity"}}
+    router_map._mark_unstable_band(None, [1.0, 2.0], cfg)
+    assert seen["matlab_parity"] is True
+    router_map._mark_unstable_band(None, [1.0, 2.0], {"solver": {}})
+    assert seen["matlab_parity"] is False

@@ -215,17 +215,23 @@ def _evp_eigenvalues(
 
 
 def mark_unstable_band(
-    L0_beta: Any, f_range: Sequence[float], cfg: Mapping[str, Any] | None = None
+    L0_beta: Any,
+    f_range: Sequence[float],
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    matlab_parity: bool | None = None,
 ) -> BandMarks:
     """Compute EVP values near a beta slice and label the requested band.
 
     This is intentionally a thin wrapper around :func:`linstabpy.stability.eigenvalues`;
     it does not assemble operators or run a resolvent sweep.
+    ``matlab_parity=None`` reads ``solver.resolvent_sign_convention`` from ``cfg``.
     """
     root = _as_mapping(cfg)
     band = _band_cfg(root)
     omega_arr = np.asarray(f_range, dtype=float).ravel()
-    matlab_parity = Config.load(root).resolvent.matlab_parity
+    if matlab_parity is None:
+        matlab_parity = Config.load(root).resolvent.matlab_parity
     # Physical poles sit at +omega_eig, so the eigenvalues relevant to the requested
     # real frequencies live near the band center; under matlab_parity, near its negative.
     centre = float(np.median(omega_arr)) if omega_arr.size else 0.0
