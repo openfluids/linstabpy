@@ -36,6 +36,7 @@ def _git_head_sha() -> str:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
             capture_output=True,
             text=True,
             timeout=5,
