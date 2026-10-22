@@ -37,5 +37,12 @@ LINSTABPY_EXAMPLE_STEM=example_3_paper_spatial_Lxpi_nP2 \
 .venv/bin/python examples/linstab2d/example_3_streaky_bl.py
 ```
 
+Examples 1, 2 and 5 run a resolvent and compare complex modes with the LinStab2D
+MATLAB references. Their YAML files set `solver.resolvent_sign_convention: matlab_parity`,
+the LinStab2D sign `L0 - (gamma + i*omega) I`, so the modes match the references.
+The library default is `physical`, `(gamma - i*omega) I - L0`; see
+`docs/resolvent_sign_convention.md`. Gains do not depend on the choice here: the base flows of all three
+have no spanwise or azimuthal velocity (`W = 0`). Examples 3 and 4 run no resolvent.
+
 Validation audit CLIs (assembly/symbolic parity) live under `tests/tools/`; see
 `tests/tools/README.md`.

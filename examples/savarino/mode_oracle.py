@@ -34,7 +34,10 @@ and ``idx``, and does the single solve there.
 Everything upstream is the production path, unmodified.
 
 The check covers two conventions; it does not assume one.
-Our shift is ``L_sigma = L0 - (gamma + i*omega) I``.
+Our shift is ``L_sigma = (gamma - i*omega) I - L0``, so ``H = inv(L_sigma)``
+is the response to forcing ``exp(-i*omega*t)``
+(``docs/resolvent_sign_convention.md``).
+Before that page, the shift was ``L0 - (gamma + i*omega) I``, which is ``-H(-omega)``.
 His ansatz is ``exp(i beta z - lambda t)`` with ``lambda = sigma + i omega``.
 The relative sign of the time convention is not stated anywhere we can
 read.

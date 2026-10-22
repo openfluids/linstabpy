@@ -212,6 +212,38 @@ directly into the assembled operator and compares the response against the
 published mode, independent of the gain and the norm convention (see the
 script's own docstring for what it does and does not test).
 
+## The resolvent sign convention
+
+The resolvent now uses `H = [(gamma - i*omega) I - L0]^-1`
+(`docs/resolvent_sign_convention.md`). The old code inverted
+`L0 - (gamma + i*omega) I`, which is `-H(-omega)`.
+
+The Savarino base flow has `W = 0` exactly: the `row` column of the published
+Tecplot file is `0.0` at every one of its 300 x 300 points, and
+`savarino_to_npy.py` stops if `max|w| != 0`. With `W = 0` the spectrum of `L0`
+is closed under `omega -> -conj(omega)` at every `beta`. The leading gains and
+the gain map are therefore unchanged. The forcing and response modes change: the
+new mode is the complex conjugate of the old one with the sign of the spanwise
+velocity component reversed (checked on a synthetic `W = 0` jet with `m = 3`:
+overlap 1.000000 with that form, 0.78 and 0.87 with the plain conjugate). The
+response also changes sign.
+
+What this means for the files here:
+
+- `output/compare/*.npz` were computed with the old sign. Their gains stay valid.
+  Their modes relate to a new run as described above.
+- `compare_modes.py` and `compare_backend_modes.py` try a mode and its plain
+  conjugate. They do not also reverse the spanwise component. With `beta != 0`
+  the correlation they report between an old-sign run and a new-sign run, or
+  against a published mode in the other convention, can be lower than the modes
+  deserve. `mode_oracle.py` solves both signs of omega against the published mode.
+- The campaign YAMLs in `configs/` and the root `savarino_*.yaml` use the default,
+  `physical`. To reproduce an old run bit for bit, add
+  `resolvent_sign_convention: matlab_parity` under `solver:`.
+- A resumable map store written before this change refuses to resume under the
+  new default. Finish it with `resolvent_sign_convention: matlab_parity`, or write
+  to a new `output_npz`.
+
 ## The norm convention
 
 The published figure's forcing is unit-norm in a mass-weighted L2 norm over
