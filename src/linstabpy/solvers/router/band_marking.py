@@ -41,6 +41,17 @@ does not set the radius.
 Any explicit ``danger_radius`` key above overrides this default.
 It is still validated as a finite non-negative omega-plane distance.
 
+Eigenvalue search.
+:func:`mark_unstable_band` runs one shift-invert eigensolve per target and
+merges the eigenvalues, dropping repeats.
+Without ``target`` the targets are spread over the requested range: both
+ends and the centre at least, more when the range is wide compared with
+``n_modes`` danger radii, up to 9.
+Poles at the edges of the range are then found, not only those near the
+median.
+Each target costs one factorisation.
+An explicit ``target`` (or ``evp_target``) gives that single target.
+
 Smooth regions are opt-in.
 By default every non-danger point gets the label ``"stable"``.
 A point gets ``"smooth"`` only if it sits outside the danger radius.
@@ -188,6 +199,38 @@ def label_band(
     )
 
 
+_TARGET_OFFSET = 1.0e-6
+_MAX_TARGETS = 9  # each target is one full-size shift-invert factorisation
+
+
+def _evp_targets(omega_arr: np.ndarray, radius: float, n_modes: int, sign: float) -> list[complex]:
+    """Return EVP targets that cover the requested range, ends and centre first.
+
+    ``sign`` is ``-1`` for the LinStab2D convention, whose poles sit at
+    ``-omega_eig``, and ``+1`` otherwise.
+    """
+    finite = omega_arr[np.isfinite(omega_arr)]
+    if finite.size == 0:
+        return [0j]
+    lo, hi = float(finite.min()), float(finite.max())
+    count = 3
+    if radius > 0.0:
+        count = max(count, int(np.ceil((hi - lo) / (n_modes * radius))) + 1)
+    points = np.unique(sign * np.linspace(lo, hi, min(count, _MAX_TARGETS)))
+    # A small imaginary offset keeps a target that sits exactly on an eigenvalue
+    # (a range end on a pole) from making the shifted matrix singular.
+    return [complex(point, _TARGET_OFFSET * (1.0 + abs(point))) for point in points]
+
+
+def _merge_eigenvalues(groups: Sequence[Any]) -> np.ndarray:
+    """Join eigenvalue arrays and drop values that repeat within 1e-8 (relative)."""
+    kept: list[complex] = []
+    for value in np.concatenate([np.asarray(g, dtype=np.complex128).ravel() for g in groups]):
+        if not any(abs(value - k) <= 1.0e-8 * (1.0 + abs(k)) for k in kept):
+            kept.append(complex(value))
+    return np.asarray(kept, dtype=np.complex128)
+
+
 def _get_first(cfg: Mapping[str, Any], *names: str, default: Any = None) -> Any:
     for name in names:
         if name in cfg:
@@ -232,23 +275,29 @@ def mark_unstable_band(
     omega_arr = np.asarray(f_range, dtype=float).ravel()
     if matlab_parity is None:
         matlab_parity = Config.load(root).resolvent.matlab_parity
-    # Physical poles sit at +omega_eig, so the eigenvalues relevant to the requested
-    # real frequencies live near the band center; under matlab_parity, near its negative.
-    centre = float(np.median(omega_arr)) if omega_arr.size else 0.0
-    target = complex(
-        _get_first(band, "target", "evp_target", default=-centre if matlab_parity else centre)
-    )
     n_modes = int(_get_first(band, "n_modes", "evp_n_modes", default=8))
+    explicit = _get_first(band, "target", "evp_target", default=None)
+    if explicit is not None:
+        targets = [complex(explicit)]
+    else:
+        # Physical poles sit at +omega_eig, so the eigenvalues relevant to the requested
+        # real frequencies live in the range itself; under matlab_parity, in its mirror.
+        radius = _danger_radius(root, omega_arr)
+        targets = _evp_targets(omega_arr, radius, n_modes, -1.0 if matlab_parity else 1.0)
     ncv = _get_first(band, "ncv", "evp_ncv", default=None)
     solver_cfg = root.get("solver", root if root else None)
 
-    eigs, _modes = _evp_eigenvalues(
-        L0_beta,
-        n_modes=n_modes,
-        target=target,
-        ncv=None if ncv is None else int(ncv),
-        solver_cfg=solver_cfg,
-    )
+    groups = [
+        _evp_eigenvalues(
+            L0_beta,
+            n_modes=n_modes,
+            target=target,
+            ncv=None if ncv is None else int(ncv),
+            solver_cfg=solver_cfg,
+        )[0]
+        for target in targets
+    ]
+    eigs = _merge_eigenvalues(groups)
     return label_band(eigs, omega_arr, root, matlab_parity=matlab_parity)
 
 

@@ -70,30 +70,57 @@ def test_mark_unstable_band_forwards_cfg_aliases_to_evp_seam(
 
 
 @pytest.mark.parametrize("parity", [False, True], ids=["physical", "matlab_parity"])
-def test_mark_unstable_band_asymmetric_median_target_default(
+def test_mark_unstable_band_default_targets_cover_the_range(
     monkeypatch: pytest.MonkeyPatch, parity: bool
 ) -> None:
-    captured: dict[str, object] = {}
+    targets: list[complex] = []
     known_spectrum = np.array([-2.0 + 0.0j])
 
     def fake_evp(_L0_beta: object, **kwargs: object) -> tuple[np.ndarray, np.ndarray]:
-        captured.update(kwargs)
+        targets.append(kwargs["target"])
+        assert kwargs["n_modes"] == 8
+        assert kwargs["ncv"] is None
         return known_spectrum, np.empty((0, 0), dtype=complex)
 
     monkeypatch.setattr(band_marking, "_evp_eigenvalues", fake_evp)
     f_range = np.array([1.0, 2.0, 3.0])
-    cfg = {"band_marking": {"danger_radius": 1.0e-6}}
+    cfg = {"band_marking": {"danger_radius": 1.0}}
     if parity:
         cfg["solver"] = {"resolvent_sign_convention": "matlab_parity"}
 
     marks = mark_unstable_band(object(), f_range, cfg)
 
-    # Physical poles sit at +omega_eig, matlab_parity poles at -omega_eig.
+    # Physical poles sit at +omega_eig, matlab_parity poles at -omega_eig: both ends
+    # and the centre of the range are searched, the repeated eigenvalue is merged.
     sign = -1.0 if parity else 1.0
-    assert captured["target"] == sign * np.median(f_range) + 0.0j
-    assert captured["n_modes"] == 8
-    assert captured["ncv"] is None
+    assert sorted(t.real for t in targets) == sorted(sign * f_range)
     _assert_same_band_marks(marks, label_band(known_spectrum, f_range, cfg, matlab_parity=parity))
+
+
+@pytest.mark.parametrize("parity", [False, True], ids=["physical", "matlab_parity"])
+def test_mark_unstable_band_finds_poles_at_the_edges_of_a_wide_range(
+    monkeypatch: pytest.MonkeyPatch, parity: bool
+) -> None:
+    sign = -1.0 if parity else 1.0
+    # Poles near the two ends of the range; none near the median.
+    spectrum = sign * np.array([1.0 + 0.1j, 99.0 + 0.1j])
+
+    def nearest_modes(_L0_beta: object, **kwargs: object) -> tuple[np.ndarray, np.ndarray]:
+        order = np.argsort(np.abs(spectrum - kwargs["target"]))[: kwargs["n_modes"]]
+        return spectrum[order], np.empty((0, 0), dtype=complex)
+
+    monkeypatch.setattr(band_marking, "_evp_eigenvalues", nearest_modes)
+    f_range = np.linspace(0.0, 100.0, 101)
+    cfg = {"band_marking": {"n_modes": 1, "danger_radius": 0.5}}
+    if parity:
+        cfg["solver"] = {"resolvent_sign_convention": "matlab_parity"}
+
+    marks = mark_unstable_band(object(), f_range, cfg)
+
+    assert marks.labels[1] == NEAR_POLE
+    assert marks.labels[99] == NEAR_POLE
+    assert marks.distances[1] == pytest.approx(0.1)
+    assert marks.distances[99] == pytest.approx(0.1)
 
 
 @pytest.mark.parametrize(

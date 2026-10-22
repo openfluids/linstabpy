@@ -1239,8 +1239,8 @@ def resolvent_map(
             band_start = time.perf_counter()
             if _analysis_bool(cfg_map, "skip_band_marking", False):
                 # Opt-in: skip the band-marking EVP and label every frequency
-                # regime-a (stable interior). The band-marking eigenproblem uses a
-                # real shift sigma=-median(omega) that sits near the spectrum; its
+                # regime-a (stable interior). The band-marking eigenproblem uses
+                # real shifts across the frequency range that sit near the spectrum; its
                 # shift-invert does not scale on GPU at high resolution (the
                 # well-conditioned imaginary-shift resolvent solve does). For a base
                 # flow / frequency range known to be away from global-mode poles
