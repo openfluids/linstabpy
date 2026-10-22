@@ -171,7 +171,17 @@ _FROZEN_SIGNATURES = {
     # block, short-segment cases) are bitwise identical except masked meshes with a
     # one-point hole or a segment shorter than 2r; on those, Dx x = 1, Dy y = 1,
     # D2 x^2 = 2 hold to <3e-12. Full suite green at the re-baseline.
-    "mesh": "0440449ac24490cd33cec3637d23d58397db780ae645f68799621da833f6990a",
+    # mesh re-baselined again 2026-10-22, user-approved: _deform_x_only and
+    # _deform_y_only returned a reset metric (J = identity) for the other direction, so
+    # chained one-direction deforms lost J (Neumann curvilinear-normal rows read J). They now
+    # compose it: J11, J21 scale by dX_new/dX_old in an x-only step, J12, J22 by dY_new/dY_old
+    # in a y-only step. No derivative operator or weight statement changed. Evidence: 84
+    # meshes x 23 fields (Mesh.create fd2-6, y_symmetry on/off, n = 16, 24, with and without
+    # dissipation; x-only, y-only, full-2D, separable-2D deforms; masked cavity; all-True
+    # mask) hash identically before and after, bit for bit; chains x-y, y-x, x-x, y-y now
+    # match J of the final map computed on the base grid to 1e-10 (test_mesh.py::
+    # test_chained_one_direction_deformations_compose_the_metric, failing before the fix).
+    "mesh": "8d173250c86dac819f11b05fdadd943e957d71bc7e892156bf92b61f23824381",
     # sbp re-hashed again 2026-10-22: build_sbp_pole_matrices and
     # build_sbp_dissipation_matrices refuse n < min_points like build_sbp_matrix.
     # Guard statements only; no operator value changes (full suite green).

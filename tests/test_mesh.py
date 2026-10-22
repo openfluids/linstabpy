@@ -1347,3 +1347,34 @@ def test_line_breaks_ignore_smooth_stretching():
     holed = deltas.copy()
     holed[7] *= 2.0  # one removed point
     np.testing.assert_array_equal(_line_breaks(holed), [7])
+
+
+@pytest.mark.parametrize("order", ["xy", "yx", "xx", "yy"])
+def test_chained_one_direction_deformations_compose_the_metric(order):
+    """J of a chain of one-direction deforms equals J of the final map on the base grid."""
+    base = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=20, ny=20, fd_order=4)
+    maps = {
+        "x": [lambda X: X + 0.2 * X**2, lambda X: X + 0.1 * np.sin(X)],
+        "y": [lambda Y: Y + 0.3 * Y**2, lambda Y: 1.0 + 0.5 * Y + 0.1 * Y**3],
+    }
+    count = {"x": 0, "y": 0}
+    mesh, X, Y = base, base.X, base.Y
+    for axis in order:
+        f = maps[axis][count[axis]]
+        count[axis] += 1
+        if axis == "x":
+            X = f(X)
+            mesh = mesh.deform(X_new=X)
+        else:
+            Y = f(Y)
+            mesh = mesh.deform(Y_new=Y)
+    x = X.ravel(order="F")[base.used_ind]
+    y = Y.ravel(order="F")[base.used_ind]
+    expected = {
+        "J11": base.Dx @ x,
+        "J12": base.Dx @ y,
+        "J21": base.Dy @ x,
+        "J22": base.Dy @ y,
+    }
+    for name, value in expected.items():
+        np.testing.assert_allclose(getattr(mesh, name), value, atol=1e-10, err_msg=name)

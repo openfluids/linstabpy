@@ -499,9 +499,10 @@ class Mesh:
         Matches MATLAB ``DeformMesh.m`` exactly with three branches.
 
         - **X-only** (``X_new`` given, ``Y_new`` is None): 1-D chain rule
-          on the x-derivative operators only.
+          on the x-derivative operators only. The metric J of the other
+          direction is kept, so chained one-direction deforms compose.
         - **Y-only** (``Y_new`` given, ``X_new`` is None): 1-D chain rule
-          on the y-derivative operators only.
+          on the y-derivative operators only, with the same metric rule.
         - **Full 2-D** (both given): full Jacobian transformation of all
           derivative operators.
 
@@ -761,10 +762,10 @@ class Mesh:
             Dyx_symm_new,
             Dxy_asymm_new,
             Dyx_asymm_new,
-            x2p,
-            np.zeros_like(x2p),
-            np.zeros_like(x2p),
-            np.ones_like(x2p),
+            x2p * self.J11,
+            self.J12,
+            x2p * self.J21,
+            self.J22,
         )
 
     def _deform_y_only(self, Y_new, p):
@@ -826,10 +827,10 @@ class Mesh:
             Dyx_symm_new,
             Dxy_asymm_new,
             Dyx_asymm_new,
-            np.ones_like(y2p),
-            np.zeros_like(y2p),
-            np.zeros_like(y2p),
-            y2p,
+            self.J11,
+            y2p * self.J12,
+            self.J21,
+            y2p * self.J22,
         )
 
     def _deform_full_2d(self, X_new, Y_new, p):
