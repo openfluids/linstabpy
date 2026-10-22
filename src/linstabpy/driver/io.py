@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +16,12 @@ _LOG = logging.getLogger(__name__)
 
 def _jsonify_metrics_value(value: Any) -> Any:
     """Convert NumPy/Python metrics values to JSON-safe sidecar values."""
-    if isinstance(value, float) and np.isnan(value):
+    # JSON has no NaN or Infinity; write null for any non-finite float.
+    if isinstance(value, float) and not np.isfinite(value):
         return None
     if isinstance(value, np.number):
         item = value.item()
-        if isinstance(item, float) and np.isnan(item):
+        if isinstance(item, float) and not np.isfinite(item):
             return None
         if isinstance(item, complex):
             return {"real": item.real, "imag": item.imag}
@@ -78,7 +80,12 @@ def save_results(
     payload = {**payload, **cost, **provenance}
     provenance_lines = "\n".join(f"  {key}: {value}" for key, value in provenance.items())
     _LOG.info("provenance block for %s:\n%s", output_npz, provenance_lines)
-    np.savez_compressed(output_npz, **payload)
+    # Write beside the target, then rename: a killed run never leaves a truncated cache,
+    # and the file keeps its exact name even without a .npz suffix.
+    tmp = output_npz.with_name(output_npz.name + ".tmp")
+    with open(tmp, "wb") as fh:
+        np.savez_compressed(fh, **payload)
+    os.replace(tmp, output_npz)
     if _is_root_rank():
         from linstabpy.metrics_schema import METRICS_SIDECAR_KEYS, validate_metrics
 

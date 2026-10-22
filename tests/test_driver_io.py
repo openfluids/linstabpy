@@ -161,3 +161,22 @@ def test_nvidia_smi_probe_empty_and_unparseable(monkeypatch) -> None:
 
     monkeypatch.setattr(cost_metrics_module.subprocess, "run", lambda *a, **k: _Bad())
     assert math.isnan(cost_metrics_module._gpu_memory_bytes_nvidia_smi())
+
+
+def test_jsonify_metrics_value_writes_null_for_infinity() -> None:
+    assert _jsonify_metrics_value(float("inf")) is None
+    assert _jsonify_metrics_value(np.float64(-np.inf)) is None
+
+
+def test_save_results_keeps_an_output_name_without_npz_suffix(tmp_path):
+    output = tmp_path / "result.dat"
+    save_results(
+        output_npz=output,
+        heartbeat_seconds=1e9,
+        payload={"stability_all_omega": np.array([1.0 + 2.0j])},
+        peak_rss_bytes=1,
+    )
+    assert output.exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["result.dat", "result.metrics.json"]
+    with load_results(output) as data:
+        np.testing.assert_array_equal(data["stability_all_omega"], np.array([1.0 + 2.0j]))
