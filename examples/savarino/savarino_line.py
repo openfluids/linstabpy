@@ -271,7 +271,8 @@ def main() -> int:
                 anchors = np.unique(np.array([omegas[0], omegas[omegas.size // 2], omegas[-1]]))
             sweep_cfg = {
                 "W": np.asarray(W_diag, dtype=complex).reshape(-1),
-                "invW": 1.0 / np.asarray(W_diag, dtype=complex).reshape(-1),
+                # forcing_norm is l2 (whitened forcing): the normal operator is H^H W H, no invW.
+                "invW": np.ones(np.asarray(W_diag).size, dtype=complex),
                 "solver_cfg": solver_cfg,
                 "factorize_cfg": cfg_obj,
                 "recycling": {

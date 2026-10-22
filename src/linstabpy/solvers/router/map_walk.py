@@ -270,7 +270,7 @@ class LineWalker:
                     raise
                 result = None
             if not gated.failed and result is not None:
-                self.last_solve = gated.last
+                self.last_solve = gated.last_forward
                 return WalkPointResult(
                     gain=float(np.asarray(result[0]).reshape(-1)[0]),
                     rho_fwd=float(np.asarray(result[5]).reshape(-1)[0]),
@@ -489,6 +489,8 @@ class _GatedPcSolve:
         self.max_residual = 0.0
         self.iterations = 0
         self.last: np.ndarray | None = None
+        # Forward solves only, like _RecordingSolve.last: the next omega starts from it.
+        self.last_forward: np.ndarray | None = None
         self.backend = getattr(pc_factor, "backend", "walk")
 
     def solve(self, rhs: np.ndarray) -> np.ndarray:
@@ -532,6 +534,8 @@ class _GatedPcSolve:
         self.iterations += int(iters)
         self.max_residual = max(self.max_residual, float(residual))
         self.last = np.asarray(x, dtype=complex).reshape(-1).copy()
+        if not adjoint:
+            self.last_forward = self.last
         if apply_deadline is not None and time.perf_counter() >= apply_deadline:
             self.over_budget = True
             self.failed = True

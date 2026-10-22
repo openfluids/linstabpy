@@ -625,8 +625,8 @@ def sweep_stable_regime(
     invW = np.asarray(_cfg_get(cfg, "invW", np.ones(n, dtype=complex)), dtype=complex).reshape(-1)
 
     anchor_indices = _nearest_anchor_indices(omegas, anchor_values)
-    use_symbolic_reuse = bool(_cfg_get(cfg, "reuse_symbolic", True))
-    use_block_solve = bool(_cfg_get(cfg, "use_block_solve", True))
+    use_symbolic_reuse = _as_bool(_cfg_get(cfg, "reuse_symbolic", True))
+    use_block_solve = _as_bool(_cfg_get(cfg, "use_block_solve", True))
     metrics: dict[str, MetricValue] = {
         "symbolic_reuse_requested": use_symbolic_reuse,
         "symbolic_reuse_used": False,
