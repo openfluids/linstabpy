@@ -111,9 +111,10 @@ def evaluate_stability_acceptance(
     ~~~~~~~~~~~~~~~
     Set ``conjugate_aware=False`` only when the underlying operator is no
     longer real.
-    Examples: Floquet-shifted problems, complex base-flow perturbation
-    tracking, or any formulation that explicitly breaks the real-``L``
-    symmetry.
+    Examples: a spanwise wavenumber ``beta != 0`` (the operator carries
+    ``i*beta`` terms), Floquet-shifted problems, complex base-flow
+    perturbation tracking, or any formulation that explicitly breaks the
+    real-``L`` symmetry.
     In those cases, admitting ``-conj(target)`` would over-accept
     unphysical partners.
 

@@ -1796,7 +1796,7 @@ def run() -> None:
                 "provenance_factor_precision": np.array(
                     cfg_obj.eigen.factor_precision
                     if run_stability
-                    else cfg_obj.linsolve.factor_precision
+                    else cfg_obj.resolvent.linear.factor_precision
                 ),
             },
         )
