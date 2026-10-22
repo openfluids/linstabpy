@@ -552,8 +552,8 @@ def test_harmonic_blocks_match_full_fft() -> None:
     from linstabpy.mesh import Mesh
     from linstabpy.operators.assembly import build_lnse_system
 
-    # 8 x 6 points keep the dense stack at 8 x 240 x 240.
-    small_mesh_2d = Mesh.create(xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=8, ny=6, fd_order=4)
+    # 8 x 8 points (the fd_order=4 SBP minimum) keep the dense stack at 8 x 320 x 320.
+    small_mesh_2d = Mesh.create(xrange=(0.0, 2.0), yrange=(0.0, 1.0), nx=8, ny=8, fd_order=4)
 
     ny, nx = small_mesh_2d.Y.shape[0], small_mesh_2d.X.shape[1]
     qhat = np.zeros((3, 5, ny, nx), dtype=complex)
