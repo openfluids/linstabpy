@@ -208,3 +208,19 @@ def test_petsc_backend_rejects_dissipation():
 
     with _pytest.raises(NotImplementedError, match="dissipation_epsilon"):
         build_lnse_operator_petsc(mesh, bf, dissipation_epsilon=1.0)
+
+
+def test_auto_backend_assembles_with_dissipation_through_scipy():
+    """backend='auto' must not route a dissipative operator to the PETSc builder."""
+    pytest.importorskip("petsc4py", reason="petsc4py not available")
+    from linstabpy.operators import build_lnse_operator
+    from linstabpy.operators.assembly import build_lnse_system_result
+
+    mesh = _make_mesh(enabled=True)
+    bf = _make_baseflow(mesh)
+    system = build_lnse_system_result(mesh, bf, backend="auto", dissipation_epsilon=0.1)
+    assert system.backend_metadata["backend_reason"].startswith("auto_fallback_scipy")
+    reference, _ = build_lnse_operator(mesh, bf, dissipation_epsilon=0.1)
+    L0 = system.operator
+    dense = L0.toarray() if hasattr(L0, "toarray") else L0.convert("dense").getDenseArray()
+    np.testing.assert_allclose(dense, reference.toarray(), atol=1e-12)

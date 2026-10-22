@@ -314,8 +314,8 @@ def build_lnse_operator_petsc(
         # than assembling a PETSc operator with a missing numerical term.
         raise NotImplementedError(
             "Direct PETSc backend does not yet support dissipation_epsilon. "
-            'Use backend="auto" or "scipy", or implement Q_diss subtraction '
-            "in build_lnse_operator_petsc()."
+            'Use backend="scipy" (or "auto", which picks SciPy when dissipation is on), '
+            "or implement Q_diss subtraction in build_lnse_operator_petsc()."
         )
 
     from ..utils.petsc_core import require_complex
@@ -425,9 +425,12 @@ def _decide_lnse_backend(request: _LNSEAssemblyRequest) -> _LNSEBackendDecision:
         request.backend, model=request.model, solver_cfg=request.solver_cfg
     )
     distributed_requested = _use_distributed_matrix(request.solver_cfg)
-    direct_supported = _direct_petsc_backend_supported(
+    # The direct PETSc builder has no Q_diss term, so dissipation needs the SciPy path.
+    direct_supported = request.dissipation_epsilon == 0.0 and _direct_petsc_backend_supported(
         model=request.model, solver_cfg=request.solver_cfg
     )
+    if requested_backend == "auto" and not direct_supported:
+        resolved_backend = "scipy"
     use_petsc_fallback = (
         requested_backend in {"petsc", "auto"}
         and distributed_requested
