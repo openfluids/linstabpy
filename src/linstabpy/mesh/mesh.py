@@ -1203,9 +1203,8 @@ def _build_operators(
             if n_seg < 3:
                 continue
 
-            fd_ord = fd_order
-            if n_seg < min_points(fd_ord):
-                fd_ord = 2
+            # Highest SBP order (at most fd_order) whose closures fit the segment.
+            fd_ord = max(o for o in (2, 4, 6, 8) if o <= fd_order and min_points(o) <= n_seg)
 
             D1_1d, D2_1d = build_sbp_matrix(n_seg, dx, fd_ord)
 
@@ -1240,9 +1239,8 @@ def _build_operators(
             if n_seg < 3:
                 continue
 
-            fd_ord = fd_order
-            if n_seg < min_points(fd_ord):
-                fd_ord = 2
+            # Highest SBP order (at most fd_order) whose closures fit the segment.
+            fd_ord = max(o for o in (2, 4, 6, 8) if o <= fd_order and min_points(o) <= n_seg)
 
             D1_base, D2_base = build_sbp_matrix(n_seg, dy, fd_ord)
             D1_sym = None
@@ -1529,7 +1527,7 @@ def _build_indices(
     return {"bi": bi, "ti": ti, "li": li, "ri": ri, "mi": mi}
 
 
-def _line_breaks(deltas: np.ndarray, *, min_gap_ratio: float = 3.0) -> np.ndarray:
+def _line_breaks(deltas: np.ndarray) -> np.ndarray:
     """Return local-gap indices for segmenting 1-D derivative lines."""
     if deltas.size == 0:
         return np.array([], dtype=int)
@@ -1538,8 +1536,14 @@ def _line_breaks(deltas: np.ndarray, *, min_gap_ratio: float = 3.0) -> np.ndarra
     if not np.isfinite(scale) or scale <= 0.0:
         return np.array([], dtype=int)
 
-    threshold = max(1.5, min_gap_ratio * scale)
-    return np.where(np.abs(deltas) > threshold)[0]
+    # A removed point at least doubles the local spacing, while a smooth line changes it by
+    # far less than 1.5 between neighbours. Compare each gap with its smaller neighbour so
+    # a one-point hole splits the line on any spacing law.
+    gaps = np.abs(deltas)
+    neighbour = np.full(gaps.shape, np.inf)
+    neighbour[1:] = gaps[:-1]
+    neighbour[:-1] = np.minimum(neighbour[:-1], gaps[1:])
+    return np.where(gaps > 1.5 * neighbour)[0]
 
 
 def _build_periodic_1d_operators(

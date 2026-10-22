@@ -494,10 +494,15 @@ def sbp_stencils(order: int) -> dict[str, np.ndarray]:
 def min_points(order: int) -> int:
     """Minimum number of grid points required for an SBP operator of *order*.
 
-    This equals the closure width *m* (number of columns in ``a_b1``).
+    The two boundary closures (``r`` rows each, ``m`` columns wide) must not
+    overlap, so ``n >= max(m, 2r)``.
+    Below ``2r`` the matrix loses the SBP property ``Q + Q^T = B``: the
+    measured defect is 0.16 at order 4 with n = 6 and 48 at order 8 with
+    n = 12, while n = 2r gives 1e-16.
+    SummationByPartsOperators.jl applies the same rule (``N > 2r``).
     """
-    s = sbp_stencils(order)
-    return s["a_b1"].shape[1]
+    r, m = sbp_stencils(order)["a_b1"].shape
+    return max(m, 2 * r)
 
 
 @functools.lru_cache(maxsize=64)
@@ -524,6 +529,8 @@ def build_sbp_matrix(n: int, dz: float, order: int) -> tuple[sp.csr_matrix, sp.c
     D2 : scipy.sparse.csr_matrix, shape (n, n)
         Second-derivative matrix.
     """
+    if n < min_points(order):
+        raise ValueError(f"n={n} is below min_points({order})={min_points(order)}")
     stencils = sbp_stencils(order)
     a_i1 = stencils["a_i1"]
     a_i2 = stencils["a_i2"]

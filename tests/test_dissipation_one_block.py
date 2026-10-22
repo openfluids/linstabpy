@@ -62,7 +62,7 @@ def test_router_refuses_strength_on_a_mesh_without_q_diss() -> None:
     from linstabpy.mesh import Mesh
 
     cfg = {"numerics": {"operator_dissipation": {"enabled": True, "epsilon": 0.1}}}
-    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=8, ny=6, fd_order=4)
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=8, ny=8, fd_order=4)
     ones = np.ones(mesh.X.shape)
     base_flow = BaseFlow(
         Re=1000.0,

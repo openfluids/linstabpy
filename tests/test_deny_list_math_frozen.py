@@ -150,8 +150,21 @@ _FROZEN_SIGNATURES = {
     # (4) 18 closed-form and timing files green at the re-baseline (367 passed, 4
     # skipped); full suite 1432 passed. Regression guard:
     # test_mesh.py::test_deform_full_2d_family_metric_terms_use_full_operators.
-    "mesh": "bfad6c846c80005bcb1a152b3a92ce15978e8e45ee681ea19c2ac883be549ec1",
-    "sbp": "1ff8cfe68c6a3e464c2b76a7ebe5c77175a06f2868020d0a06f5b60d2036efc1",
+    # mesh and sbp re-baselined 2026-10-22, user-approved ("fix all"). Two real math
+    # edits. (a) sbp.min_points is max(m, 2r), not m: below 2r the two boundary
+    # closures overlap. Measured SBP defect max|H D1 + (H D1)^T - B| = 0.16 (fd4, n=6),
+    # 1.4 (fd6, n=9), 48 (fd8, n=12) against 1e-16 at n = 2r; D1 @ 1 was nonzero at
+    # fd4 n=7, fd6 n=10-11, fd8 n=13-15 (up to 28). SummationByPartsOperators.jl uses
+    # the same rule (N > 2r). Short masked segments now take the highest order whose
+    # closures fit, instead of order 2. (b) _line_breaks compares each gap with its
+    # smaller neighbour (split above 1.5x) instead of max(1.5, 3*median): a one-point
+    # hole was spanned by the stencil (max|Dx x - 1| = 0.5). Evidence: operator hashes
+    # on 44 meshes (Mesh.create fd2-8 at n = 16-31, y_symmetry on/off; masked cavity,
+    # block, short-segment cases) are bitwise identical except masked meshes with a
+    # one-point hole or a segment shorter than 2r; on those, Dx x = 1, Dy y = 1,
+    # D2 x^2 = 2 hold to <3e-12. Full suite green at the re-baseline.
+    "mesh": "0440449ac24490cd33cec3637d23d58397db780ae645f68799621da833f6990a",
+    "sbp": "7e8aa7a4492ff9ae5afae9b369f24ead92b6ad69edb8ed662c7cdd5fb82db706",
     "sbp_generator": "42827492ac4806916ee246aa7046c706fc312c8521187c74fb280f73acd45beb",
 }
 

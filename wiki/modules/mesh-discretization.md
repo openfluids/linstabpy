@@ -165,7 +165,7 @@ Validation (`_validate_create_inputs`):
 
 - `xrange` / `yrange` must be finite, distinct endpoint pairs.
 - `nx`, `ny`, `fd_order` must be integers.
-- `nx` and `ny` must be at least `min_points(fd_order)` (closure width of the SBP boundary block).
+- `nx` and `ny` must be at least `min_points(fd_order)` = max(m, 2r): the two SBP boundary closures (r rows, m columns) must not overlap.
 
 ### Grid generation
 
@@ -230,7 +230,7 @@ Unsupported even orders fall through to `generate_sbp_stencils` (validated norms
 
 ### `min_points(order)`
 
-Minimum number of points equals the boundary closure width \(m = a_{b1}.\mathrm{shape}[1]\). Mesh creation enforces this on both `nx` and `ny`.
+Minimum number of points is \(\max(m, 2r)\) for a closure of \(r\) rows and width \(m\) (`a_b1.shape`): below \(2r\) the closures overlap and the SBP identity \(Q + Q^T = B\) fails. Order 2, 4, 6, 8 gives 3, 8, 12, 16. Mesh creation enforces this on both `nx` and `ny`; masked line segments that are too short use the highest order that fits.
 
 ### `build_sbp_matrix(n, dz, order)`
 

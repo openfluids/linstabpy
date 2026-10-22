@@ -21,7 +21,7 @@ from linstabpy.mesh.sbp import build_sbp_dissipation_matrices
 
 # Small mesh dimensions used throughout.
 _NX = 20
-_NY = 15
+_NY = 16  # fd8 needs n >= 2r = 16
 
 
 class TestMeshDissipationDefaultOff:

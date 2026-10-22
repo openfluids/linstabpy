@@ -120,9 +120,23 @@ class TestSBPStencils:
             sbp_stencils(0)
 
     @pytest.mark.parametrize("order", [2, 4, 6, 8])
-    def test_min_points_matches_closure_width(self, order):
-        s = sbp_stencils(order)
-        assert min_points(order) == s["a_b1"].shape[1]
+    def test_min_points_keeps_the_closures_apart(self, order):
+        r, m = sbp_stencils(order)["a_b1"].shape
+        assert min_points(order) == max(m, 2 * r)
+
+    @pytest.mark.parametrize("order", [4, 6, 8])
+    def test_sbp_identity_holds_from_min_points(self, order):
+        """Q + Q^T = B, with Q = H D1, at the smallest allowed n; below it the builder refuses."""
+        from linstabpy.mesh.sbp import _build_sbp_norm_diag
+
+        n = min_points(order)
+        D1, _ = build_sbp_matrix(n, 1.0, order)
+        Q = np.diag(_build_sbp_norm_diag(n, 1.0, order)) @ D1.toarray()
+        B = np.zeros((n, n))
+        B[0, 0], B[-1, -1] = -1.0, 1.0
+        np.testing.assert_allclose(Q + Q.T, B, atol=1e-12)
+        with pytest.raises(ValueError, match="min_points"):
+            build_sbp_matrix(n - 1, 1.0, order)
 
 
 # ===================================================================
@@ -168,6 +182,16 @@ class TestSBPProperty:
         row_sums = np.array(D1.sum(axis=1)).ravel()
         np.testing.assert_allclose(row_sums, 0.0, atol=1e-12)
 
+    @pytest.mark.parametrize("order", [4, 6, 8])
+    def test_small_n_closures_overlap_exactly(self, order):
+        """For min_points <= n < 2r the two closures overlap; D1 and D2 stay exact on x and x**2."""
+        r = sbp_stencils(order)["a_b1"].shape[0]
+        for n in range(min_points(order), 2 * r + 1):
+            x = np.arange(n, dtype=float)
+            D1, D2 = build_sbp_matrix(n, 1.0, order)
+            np.testing.assert_allclose(D1 @ x, 1.0, atol=1e-9, err_msg=f"n={n}")
+            np.testing.assert_allclose(D2 @ x**2, 2.0, atol=1e-9, err_msg=f"n={n}")
+
     def test_sbp_identity_order2(self):
         """For order 2 the SBP norm is trapezoidal and Q + Q^T = B."""
         n = 40
@@ -203,7 +227,7 @@ class TestDerivativeAccuracy:
         dz = 1.0 / (n - 1)
         D1, _ = build_sbp_matrix(n, dz, order)
         x = np.linspace(0, 1, n)
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
 
         for p in range(order + 1):
             f = x**p
@@ -223,7 +247,7 @@ class TestDerivativeAccuracy:
         dz = 1.0 / (n - 1)
         _, D2 = build_sbp_matrix(n, dz, order)
         x = np.linspace(0, 1, n)
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
 
         for p in range(order + 1):
             f = x**p
@@ -251,7 +275,7 @@ class TestDerivativeAccuracy:
         if len(ns) < 3:
             pytest.skip("Not enough distinct grid sizes after clamping")
 
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
         errors = []
         for n in ns:
             dz = 1.0 / (n - 1)
@@ -279,7 +303,7 @@ class TestDerivativeAccuracy:
         if len(ns) < 3:
             pytest.skip("Not enough distinct grid sizes after clamping")
 
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
         errors = []
         for n in ns:
             dz = 1.0 / (n - 1)
@@ -451,7 +475,7 @@ class Test2DOperatorAccuracy:
         mesh = _square_mesh(n=n, fd_order=order)
         X_flat = mesh.X.ravel(order="F")
         result = mesh.Dx @ X_flat
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
         interior = _deep_interior(n, cw)
         np.testing.assert_allclose(result[interior], 1.0, atol=1e-10)
 
@@ -462,7 +486,7 @@ class Test2DOperatorAccuracy:
         mesh = _square_mesh(n=n, fd_order=order)
         Y_flat = mesh.Y.ravel(order="F")
         result = mesh.Dy @ Y_flat
-        cw = min_points(order)
+        cw = sbp_stencils(order)["a_b1"].shape[1]  # closure width
         interior = _deep_interior(n, cw)
         np.testing.assert_allclose(result[interior], 1.0, atol=1e-10)
 
@@ -1309,3 +1333,27 @@ def test_fdweights_empty_nodes_return_an_empty_stencil():
     weights = fdweights(0.0, [], 1)
     assert weights.shape == (0,)
     assert weights.dtype == np.float64
+
+
+@pytest.mark.parametrize(
+    ("i0", "i1", "j0", "j1"), [(10, 11, 0, 25), (10, 12, 0, 25), (10, 13, 0, 25), (10, 11, 12, 13)]
+)
+def test_mask_splits_lines_at_a_hole(i0, i1, j0, j1):
+    """A derivative line must not span a hole, even one point wide."""
+    mesh = Mesh.create(xrange=(0.0, 1.0), yrange=(0.0, 1.0), nx=25, ny=25, fd_order=4)
+    keep = np.ones(mesh.X.shape, dtype=bool)
+    keep[j0:j1, i0:i1] = False
+    masked = mesh.mask(keep)
+    flat = np.flatnonzero(keep.ravel(order="F"))
+    x_kept = mesh.X.ravel(order="F")[flat]
+    y_kept = mesh.Y.ravel(order="F")[flat]
+    np.testing.assert_allclose(masked.Dx @ x_kept, 1.0, atol=1e-10)
+    np.testing.assert_allclose(masked.Dy @ y_kept, 1.0, atol=1e-10)
+
+
+def test_line_breaks_ignore_smooth_stretching():
+    deltas = 1.2 ** np.arange(20)  # 20 % growth per cell: no hole
+    assert _line_breaks(deltas).size == 0
+    holed = deltas.copy()
+    holed[7] *= 2.0  # one removed point
+    np.testing.assert_array_equal(_line_breaks(holed), [7])
