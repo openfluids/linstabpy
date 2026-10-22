@@ -969,7 +969,12 @@ def _stage_run_stability(
                     cfg=cfg,
                     return_info=True,
                 )
-    if not use_root_operator:
+    if use_root_operator:
+        # The residual needs the operator, the target distance does not.
+        stability_info["postcheck_target_distance"] = _postcheck_target_distance(
+            omega, omega_target, conjugate_aware=stability_acceptance_conjugate_aware
+        )
+    else:
         stability_info.update(
             _postcheck_stability_modes(
                 L0,
@@ -1300,6 +1305,13 @@ def run() -> None:
         raise RuntimeError(
             "Root-only operator assembly mode is currently intended for stability solves only. "
             "Set LINSTABPY_CASE_ROOT_ASSEMBLY=0 when running resolvent in MPI."
+        )
+    if use_root_operator and np.isfinite(stability_acceptance_postcheck_rel_max):
+        # Non-root ranks hold no operator, so the residual postcheck cannot run; without
+        # this check every mode would be rejected with a "postcheck failed" code.
+        raise ValueError(
+            "analysis.stability_acceptance.postcheck_rel_max needs the residual postcheck, "
+            "which root-only assembly skips. Set LINSTABPY_CASE_ROOT_ASSEMBLY=0 or drop the gate."
         )
     if use_root_operator:
         solver_cfg.setdefault("root_scatter", True)
