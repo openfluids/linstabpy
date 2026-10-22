@@ -168,18 +168,14 @@ def _eigs_generalized(
         ksp.setType(PETSc.KSP.Type.PREONLY)
         pc = ksp.getPC()
         pc.setType(PETSc.PC.Type.LU)
-        if st_solver == "mumps":
-            apply_factor_backend(
-                pc,
-                cfg.spatial.factor_backend,
-                options_prefix=ksp.getOptionsPrefix() or "",
-            )
-        else:
-            apply_factor_backend(
-                pc,
-                cfg.spatial.factor_backend,
-                options_prefix=ksp.getOptionsPrefix() or "",
-            )
+        apply_factor_backend(
+            pc,
+            cfg.spatial.factor_backend,
+            options_prefix=ksp.getOptionsPrefix() or "",
+        )
+    else:
+        # Any other value used to fall through to SLEPc's default solve without a word.
+        raise ValueError(f"Unsupported spatial st_solver={st_solver!r}; expected mumps|direct|lu")
 
     eps.setUp()
 

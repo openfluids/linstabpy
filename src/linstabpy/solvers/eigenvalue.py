@@ -194,7 +194,7 @@ def _check_inputs_shape(
     if n_modes > nrows:
         raise ValueError("n_modes cannot exceed matrix size")
     if _is_petsc_matrix(operator):
-        # No copy here — _eigs_near_target makes its own working copy.
+        # No copy here — _solve_near_target makes its own working copy.
         return operator, nrows
     return sp.csc_matrix(operator, dtype=complex), nrows
 
@@ -478,7 +478,8 @@ def _make_sub_pc_applier(
     pc: "PETSc.PC",
     pc_type: str,
     sub_pc_type: str,
-    factor_levels: int,
+    factor_levels: int | None,
+    sub_ksp_type: str = "preonly",
 ):
     """Build a deferred applier for ASM/BJacobi sub-preconditioner settings.
 
@@ -495,10 +496,10 @@ def _make_sub_pc_applier(
     def apply() -> dict[str, object]:
         sub_ksps = pc.getASMSubKSP() if pc_type in {"asm", "gasm"} else pc.getBJacobiSubKSP()
         for sub_ksp in sub_ksps:
-            sub_ksp.setType("preonly")
+            sub_ksp.setType(sub_ksp_type)
             sub_pc = sub_ksp.getPC()
             sub_pc.setType(sub_pc_type)
-            if sub_pc_type in {"ilu", "icc"}:
+            if factor_levels is not None and sub_pc_type in {"ilu", "icc"}:
                 sub_pc.setFactorLevels(factor_levels)
         realized_levels = None
         if sub_ksps:
@@ -511,7 +512,7 @@ def _make_sub_pc_applier(
                     f"one requested, or reported iteration counts and cost are not "
                     f"attributable to the configuration."
                 )
-            if sub_pc_type in {"ilu", "icc"}:
+            if factor_levels is not None and sub_pc_type in {"ilu", "icc"}:
                 realized_levels = factor_levels
         return {
             "sub_pc_type": sub_pc_type,
@@ -639,16 +640,16 @@ def _configure_st_for_eigenvalue(
             _apply_ksp_options(ksp, ecfg)
         if pc_type == "asm":
             pc.setASMOverlap(asm_overlap)
-            # Rank-local coarse solves for ASM blocks (parallel-safe default).
-            # A user can still override from PETSc options DB.
-            try:
-                sub_ksps = pc.getASMSubKSP()
-                for sub_ksp in sub_ksps:
-                    sub_ksp.setType(sub_ksp_type)
-                    sub_pc = sub_ksp.getPC()
-                    sub_pc.setType(sub_pc_type)
-            except PETSc.Error:
-                pass
+            # The sub-KSPs exist only after eps.setUp(); apply them there, as in the
+            # inexact branch. Calling getASMSubKSP() here raised ierr=58 and the
+            # settings were silently dropped.
+            deferred_sub_pc = _make_sub_pc_applier(
+                pc=pc,
+                pc_type=pc_type,
+                sub_pc_type=sub_pc_type,
+                factor_levels=None,
+                sub_ksp_type=sub_ksp_type,
+            )
 
     elif st_solver in FGMRES_DIRECT_PC_EIGEN_SOLVER_TYPES:
         inexact_cfg = cfg.eigen.inexact
@@ -689,12 +690,6 @@ def _configure_st_for_eigenvalue(
         if pc_type in {"asm", "gasm"}:
             pc.setASMOverlap(asm_overlap)
 
-            # KNOWN LIMITATION (documented, deliberately not fixed -- see ISSUES.md
-            # "ASM/BJacobi sub-PC settings are silently dropped").
-            #
-            # getASMSubKSP() requires the matrix, which does not exist until
-            # eps.setUp().  Called here it raises PETSc.Error ierr=58, so the except
-            # branch below discards `sub_pc_type` and `pc_factor_levels` and the solve
             # getASMSubKSP()/getBJacobiSubKSP() need the matrix, which does not exist
             # until eps.setUp().  Calling them here raises PETSc ierr=58, so this used
             # to swallow the error and lose `sub_pc_type` and `pc_factor_levels`
@@ -760,60 +755,6 @@ def _raise_backend_probe_failure(
         f"||Kx-b||/||b|| = {residual_rel:.3e} > {residual_rel_max:.3e}; "
         "refusing to run EVP (set eigen.backend_probe.enabled=false to override)"
     )
-
-
-def _eigs_near_target(
-    operator: sp.csc_matrix | PETSc.Mat,
-    n_modes: int,
-    target: complex,
-    *,
-    ncv: int | None = None,
-    initial_space: np.ndarray | None = None,
-    solver_cfg: dict | None = None,
-    cfg: Config | None = None,
-    return_info: bool = False,
-) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, dict[str, object]]:
-    """Deprecated compatibility shim for :func:`linstabpy.stability._solve_near_target`."""
-    import warnings
-
-    from linstabpy.stability._eigenvalues import _solve_near_target
-
-    warnings.warn(
-        "linstabpy.solvers.eigenvalue._eigs_near_target is deprecated; "
-        "use linstabpy.stability._eigenvalues._solve_near_target",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return _solve_near_target(
-        operator,
-        n_modes,
-        target,
-        ncv=ncv,
-        initial_space=initial_space,
-        solver_cfg=solver_cfg,
-        cfg=cfg,
-        return_info=return_info,
-    )
-
-
-def _build_adjoint_operator(
-    L0: sp.csc_matrix,
-    W_diag: np.ndarray,
-    invW_diag: np.ndarray,
-) -> sp.csc_matrix:
-    """Build the W-weighted adjoint operator ``W^{-1} L0^* W``."""
-    W = np.asarray(W_diag)
-    invW = np.asarray(invW_diag)
-    if W.shape != invW.shape:
-        raise ValueError("W_diag and invW_diag must be the same shape")
-    if W.ndim != 1:
-        raise ValueError("W_diag and invW_diag must be one-dimensional")
-    if W.size != L0.shape[0]:
-        raise ValueError("W vector lengths must match L0 shape")
-    if np.any(invW == 0):
-        raise ValueError("invW_diag contains zero entries")
-
-    return sp.diags(invW, format="csc") @ (L0.conj().T @ sp.diags(W, format="csc"))
 
 
 _DEPRECATED_EXPORTS = {
