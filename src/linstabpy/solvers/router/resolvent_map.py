@@ -981,13 +981,14 @@ def _load_store(
         with np.load(path, allow_pickle=False) as data:
             cached_beta = np.asarray(data["beta"], dtype=float).reshape(-1)
             cached_f = np.asarray(data["f"], dtype=float).reshape(-1)
-            if cached_beta.shape != beta.shape or cached_f.shape != f.shape:
-                raise ValueError("range shape mismatch")
-            if not (
-                np.allclose(cached_beta, beta, rtol=0.0, atol=0.0)
-                and np.allclose(cached_f, f, rtol=0.0, atol=0.0)
-            ):
-                raise ValueError("range value mismatch")
+            if not (np.array_equal(cached_beta, beta) and np.array_equal(cached_f, f)):
+                # Resuming would later overwrite the stored map, so refuse instead.
+                raise StoreFingerprintError(
+                    f"resolvent_map: cannot resume {path}. It holds another beta/f grid "
+                    f"({cached_beta.size} x {cached_f.size} points, this run "
+                    f"{beta.size} x {f.size}). Write to a new output_npz path, or "
+                    "restore the beta and f ranges of the stored map."
+                )
             # A store written before this key existed used the LinStab2D sign.
             stored = (
                 str(data["resolvent_sign_convention"])
@@ -1032,7 +1033,12 @@ def _load_store(
             if "failure_records_json" in data.files:
                 failures = _records_from_json_array(data["failure_records_json"])
     except (OSError, KeyError, ValueError) as exc:
-        LOGGER.info("resolvent_map cache ignored path=%s reason=%s", path, exc)
+        # Keep the unreadable file: the next save would overwrite it.
+        backup = path.with_name(f"{path.name}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
+        path.replace(backup)
+        LOGGER.warning(
+            "resolvent_map: cannot read store %s (%s); moved it to %s", path, exc, backup
+        )
     return gain, labels, reason, discount, failures
 
 

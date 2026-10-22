@@ -313,6 +313,42 @@ def test_resume_refuses_a_store_from_another_problem_and_keeps_it(
     assert [r["status"] for r in same.point_records] == ["skipped", "skipped"]
 
 
+def test_resume_refuses_a_store_with_another_grid_and_keeps_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "map.npz"
+    cfg = {"mesh": object(), "output_npz": output_npz}
+    router_map.resolvent_map(_flow(), [0.1], [1.0, 2.0], cfg)
+    before = output_npz.read_bytes()
+
+    with pytest.raises(router_map.StoreFingerprintError, match="beta/f grid"):
+        router_map.resolvent_map(_flow(), [0.1], [1.0, 3.0], cfg)
+    with pytest.raises(router_map.StoreFingerprintError, match="beta/f grid"):
+        router_map.resolvent_map(_flow(), [0.1, 0.2], [1.0, 2.0], cfg)
+    assert output_npz.read_bytes() == before
+
+
+def test_unreadable_store_is_moved_aside_not_overwritten(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE))
+    monkeypatch.setattr(router_map, "_direct_engine_result", _ok_direct)
+    output_npz = tmp_path / "map.npz"
+    np.savez(output_npz, unrelated=np.arange(3))
+    before = output_npz.read_bytes()
+
+    router_map.resolvent_map(
+        _flow(), [0.1], [1.0, 2.0], {"mesh": object(), "output_npz": output_npz}
+    )
+
+    backups = list(tmp_path.glob("map.npz.unreadable-*"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == before
+    assert output_npz.exists()
+
+
 def test_resume_of_a_store_without_fingerprint_warns(
     monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
 ) -> None:
