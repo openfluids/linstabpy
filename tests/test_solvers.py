@@ -464,6 +464,22 @@ def test_adjoint_temporal_scaling() -> None:
     np.testing.assert_allclose(adjoint_omegas[rows], expected[cols], atol=1e-12)
 
 
+def test_adjoint_temporal_returns_conj_omega_off_the_imaginary_axis() -> None:
+    """With Re(omega) != 0 the adjoint must return conj(omega), not -omega."""
+    eig_L0 = np.array([-0.1 + 1.0j, -0.2 + 2.0j, -0.3 + 3.0j])
+    L0 = sp.diags(eig_L0, format="csc", dtype=complex)
+    ones = np.ones(eig_L0.size)
+    omega = 1j * eig_L0[1]  # omega = i * lambda(L0)
+    target = omega + 0.05  # off the eigenvalue, so the shift-invert factor is regular
+
+    direct_omegas, _ = temporal_eigenvalues(L0, n_modes=1, target=target)
+    adjoint_omegas, _ = adjoint_eigenvalues(
+        L0, n_modes=1, target=target, W_diag=ones, invW_diag=ones, temporal=True
+    )
+    np.testing.assert_allclose(direct_omegas, [omega], atol=1e-10)
+    np.testing.assert_allclose(adjoint_omegas, np.conj(direct_omegas), atol=1e-10)
+
+
 def test_resolvent_svd_residual_norm() -> None:
     """SVD residuals use the forcing W-norm in the denominator."""
     diag = -np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
