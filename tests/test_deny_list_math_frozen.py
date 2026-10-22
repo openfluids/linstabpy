@@ -181,7 +181,18 @@ _FROZEN_SIGNATURES = {
     # mask) hash identically before and after, bit for bit; chains x-y, y-x, x-x, y-y now
     # match J of the final map computed on the base grid to 1e-10 (test_mesh.py::
     # test_chained_one_direction_deformations_compose_the_metric, failing before the fix).
-    "mesh": "8d173250c86dac819f11b05fdadd943e957d71bc7e892156bf92b61f23824381",
+    # mesh re-baselined again 2026-10-22, user-approved: Mesh.mask rebuilds the SBP
+    # dissipation Q_diss_x, Q_diss_y on the used points (new _build_masked_dissipation),
+    # one 1-D operator per line run cut by the same rule as the masked derivatives; before,
+    # it carried the full-grid (nx, nx) and (ny, ny) matrices and the assembler failed with a
+    # shape error on any masked mesh. The line-run split of _build_operators moved into the
+    # shared helper _line_segments, statements unchanged. Evidence: the same 84-mesh x 23-field
+    # hash set as above is bit-for-bit identical before and after except Q_diss_x and Q_diss_y
+    # of the 16 masked and all-True-mask meshes with dissipation (32 hashes); every derivative
+    # matrix, weight and J, masked or not, is unchanged. Tests: test_mesh_dissipation.py::
+    # TestMaskedMeshDissipation and test_assembly_dissipation.py::
+    # test_masked_mesh_assembles_with_dissipation (failing before the fix).
+    "mesh": "9ba71e1b1d22be51ecc795cc6f637d1f43578480fb8c295020760199717a4b1b",
     # sbp re-hashed again 2026-10-22: build_sbp_pole_matrices and
     # build_sbp_dissipation_matrices refuse n < min_points like build_sbp_matrix.
     # Guard statements only; no operator value changes (full suite green).

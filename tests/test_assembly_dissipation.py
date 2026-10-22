@@ -224,3 +224,29 @@ def test_auto_backend_assembles_with_dissipation_through_scipy():
     L0 = system.operator
     dense = L0.toarray() if hasattr(L0, "toarray") else L0.convert("dense").getDenseArray()
     np.testing.assert_allclose(dense, reference.toarray(), atol=1e-12)
+
+
+def test_masked_mesh_assembles_with_dissipation() -> None:
+    """A masked mesh with dissipation assembles; the term is -eps * I_5 (x) (Q_x + Q_y)."""
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator
+
+    mesh = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(0.0, 1.0),
+        nx=_NX,
+        ny=_NX,
+        fd_order=_FD_ORDER,
+        numerics_operator_dissipation={"enabled": True, "order_diss": _FD_ORDER},
+    )
+    keep = np.ones(mesh.X.shape, dtype=bool)
+    keep[6:10, 5:9] = False
+    masked = mesh.mask(keep)
+    bf = _make_baseflow(masked)
+    epsilon = 0.1
+    L_off, _ = build_lnse_operator(masked, bf)
+    L_on, _ = build_lnse_operator(masked, bf, dissipation_epsilon=epsilon)
+    assert L_on.shape == (5 * masked.ngp, 5 * masked.ngp)
+    Q_block = sp.block_diag([masked.Q_diss_x + masked.Q_diss_y] * 5, format="csr")
+    diff = (L_on - (L_off - epsilon * Q_block)).tocsr()
+    assert diff.nnz == 0 or np.abs(diff.data).max() < 1e-12

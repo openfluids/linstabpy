@@ -165,3 +165,73 @@ class TestMeshDissipationExplicitOrder:
                 fd_order=4,
                 numerics_operator_dissipation={"enabled": True, "order_diss": 6},
             )
+
+
+def _runs(coord, level_coord, step):
+    """Independent line runs: indices of used points on each grid line, split at holes."""
+    for level in np.unique(level_coord):
+        pos = np.flatnonzero(level_coord == level)
+        pos = pos[np.argsort(coord[pos])]
+        cuts = np.flatnonzero(np.diff(coord[pos]) > 1.5 * step) + 1
+        yield from np.split(pos, cuts)
+
+
+class TestMaskedMeshDissipation:
+    """Mesh.mask rebuilds Q_diss on the used points, one operator per line run."""
+
+    def _masked(self):
+        from linstabpy.mesh import Mesh
+
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=25,
+            ny=25,
+            fd_order=4,
+            numerics_operator_dissipation={"enabled": True},
+        )
+        keep = np.ones(mesh.X.shape, dtype=bool)
+        keep[9:13, 7:12] = False
+        return mesh, mesh.mask(keep)
+
+    def test_blocks_match_the_line_runs_and_are_semidefinite(self) -> None:
+        from linstabpy.mesh.sbp import _build_sbp_norm_diag
+
+        _, masked = self._masked()
+        x = masked.X.ravel(order="F")[masked.used_ind]
+        y = masked.Y.ravel(order="F")[masked.used_ind]
+        h = 1.0 / 24
+        for Q, along, across in ((masked.Q_diss_x, x, y), (masked.Q_diss_y, y, x)):
+            assert Q.shape == (masked.ngp, masked.ngp)
+            expected = sp.lil_matrix(Q.shape)
+            for run in _runs(along, across, h):
+                if run.size < 8:  # shorter than min_points(4): no dissipation on the run
+                    continue
+                Q_run, _ = build_sbp_dissipation_matrices(run.size, h, 4, 4)
+                expected[np.ix_(run, run)] = Q_run
+                HQ = (sp.diags(_build_sbp_norm_diag(run.size, h, 4)) @ Q_run).toarray()
+                np.testing.assert_allclose(HQ, HQ.T, atol=1e-12 * np.abs(HQ).max())
+                assert np.linalg.eigvalsh(0.5 * (HQ + HQ.T)).min() >= -1e-12 * np.abs(HQ).max()
+            assert abs(Q - expected.tocsr()).max() == 0.0
+
+    def test_hole_edge_differs_from_the_unmasked_line(self) -> None:
+        mesh, masked = self._masked()
+        ny = mesh.X.shape[0]
+        full = sp.kron(mesh.Q_diss_x, sp.eye(ny), format="csr")[masked.used_ind][:, masked.used_ind]
+        assert abs(masked.Q_diss_x - full).max() > 0.0
+
+    def test_all_true_mask_equals_the_unmasked_operator(self) -> None:
+        from linstabpy.mesh import Mesh
+
+        mesh = Mesh.create(
+            xrange=(0.0, 1.0),
+            yrange=(0.0, 1.0),
+            nx=20,
+            ny=18,
+            fd_order=6,
+            numerics_operator_dissipation={"enabled": True, "order_diss": 6},
+        )
+        full = mesh.mask(np.ones(mesh.X.shape, dtype=bool))
+        ny, nx = mesh.X.shape
+        assert abs(full.Q_diss_x - sp.kron(mesh.Q_diss_x, sp.eye(ny))).max() == 0.0
+        assert abs(full.Q_diss_y - sp.kron(sp.eye(nx), mesh.Q_diss_y)).max() == 0.0

@@ -286,12 +286,16 @@ def build_lnse_operator(
         if dissipation_epsilon > 0.0:
             # Artificial dissipation is an L0-level correction. It belongs
             # after inv(B) and sponge, but before any BC recipe overwrites rows.
-            ny, nx = mesh.X.shape
-            I_ny = sp.eye(ny, format="csr")
-            I_nx = sp.eye(nx, format="csr")
-            Q_diss_2D = sp.kron(mesh.Q_diss_x, I_ny, format="csr") + sp.kron(
-                I_nx, mesh.Q_diss_y, format="csr"
-            )
+            if mesh.ngp == mesh.X.size:
+                ny, nx = mesh.X.shape
+                I_ny = sp.eye(ny, format="csr")
+                I_nx = sp.eye(nx, format="csr")
+                Q_diss_2D = sp.kron(mesh.Q_diss_x, I_ny, format="csr") + sp.kron(
+                    I_nx, mesh.Q_diss_y, format="csr"
+                )
+            else:
+                # Masked mesh: the 1-D operators already act on the used points.
+                Q_diss_2D = (mesh.Q_diss_x + mesh.Q_diss_y).tocsr()
             Q_diss_block = sp.block_diag([Q_diss_2D] * 5, format="csr")
             L0 = (L0 - dissipation_epsilon * Q_diss_block).tocsc()
         idx = _build_index_structure(mesh.idx, mesh.ngp)

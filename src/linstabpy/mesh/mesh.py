@@ -192,10 +192,16 @@ class Mesh:
         1-D SBP artificial dissipation operator along the ksi (x) reference
         direction, shape (nx, nx).  None when
         numerics.operator_dissipation.enabled is absent or False.
+        On a masked mesh (``Mesh.mask``) it acts along x on the used points,
+        shape (ngp, ngp), one operator per line run.
     Q_diss_y : sp.csr_matrix | None
         1-D SBP artificial dissipation operator along the eta (y) reference
         direction, shape (ny, ny).  None when
         numerics.operator_dissipation.enabled is absent or False.
+        On a masked mesh it acts along y on the used points, shape (ngp, ngp).
+    dissipation_params : dict | None
+        Taper parameters that built ``Q_diss_x`` and ``Q_diss_y``; ``Mesh.mask``
+        uses them to rebuild the operators on the used points.
     """
 
     X: np.ndarray
@@ -232,6 +238,7 @@ class Mesh:
     J22: np.ndarray | None = None  # dY_phys/deta_comp, shape (ngp,)
     Q_diss_x: sp.csr_matrix | None = None  # 1-D SBP dissipation along ksi (x), shape (nx, nx)
     Q_diss_y: sp.csr_matrix | None = None  # 1-D SBP dissipation along eta (y), shape (ny, ny)
+    dissipation_params: dict | None = None  # taper parameters; lets ``mask`` rebuild Q_diss
 
     @property
     def geometry(self) -> MeshGeometry:
@@ -416,6 +423,11 @@ class Mesh:
             )
             end_exp = float(od.get("endpoint_exponent", DISSIPATION_DEFAULTS["endpoint_exponent"]))
             int_val = float(od.get("interior_value", DISSIPATION_DEFAULTS["interior_value"]))
+            diss_params = {
+                "transition_fraction": n_trans,
+                "endpoint_exponent": end_exp,
+                "interior_value": int_val,
+            }
             hx_ref = 1.0 / (nx_full - 1) if nx_full > 1 else 1.0
             hy_ref = 1.0 / (ny_full - 1) if ny_full > 1 else 1.0
             Q_diss_x, _ = build_sbp_dissipation_matrices(
@@ -439,6 +451,7 @@ class Mesh:
         else:
             Q_diss_x = None
             Q_diss_y = None
+            diss_params = None
 
         idx = _build_indices(
             X,
@@ -483,6 +496,7 @@ class Mesh:
             J22=np.ones(used_ind.size),
             Q_diss_x=Q_diss_x,
             Q_diss_y=Q_diss_y,
+            dissipation_params=diss_params,
         )
 
     # ------------------------------------------------------------------
@@ -709,6 +723,7 @@ class Mesh:
             J22=J22_new,
             Q_diss_x=self.Q_diss_x,
             Q_diss_y=self.Q_diss_y,
+            dissipation_params=self.dissipation_params,
         )
 
     def _deform_x_only(self, X_new, p):
@@ -1016,6 +1031,17 @@ class Mesh:
         )
         filters = build_mesh_filters(self.X, self.Y, used_ind, self.alpha_filter)
 
+        Q_diss_x = Q_diss_y = None
+        if self.dissipation_params is not None:
+            Q_diss_x, Q_diss_y = _build_masked_dissipation(
+                self.X.ravel(order="F")[used_ind],
+                self.Y.ravel(order="F")[used_ind],
+                (dx, dy),
+                (self.X.shape[1], self.X.shape[0]),
+                self.fd_order,
+                self.dissipation_params,
+            )
+
         # Remap symmetric axis weights if present and available
         W_symm_masked = None
         W_asymm_masked = None
@@ -1056,8 +1082,9 @@ class Mesh:
             J12=np.zeros(used_ind.size),
             J21=np.zeros(used_ind.size),
             J22=np.ones(used_ind.size),
-            Q_diss_x=self.Q_diss_x,
-            Q_diss_y=self.Q_diss_y,
+            Q_diss_x=Q_diss_x,
+            Q_diss_y=Q_diss_y,
+            dissipation_params=self.dissipation_params,
         )
 
 
@@ -1190,16 +1217,7 @@ def _build_operators(
             w_full[used_ind[pos]] *= dx
             continue
 
-        # Sort by x-coordinate and split by gaps.
-        order = np.argsort(x_used[pos])
-        pos = pos[order]
-        x_line = x_used[pos]
-        dx_line = np.diff(x_line) / dx
-        breaks = _line_breaks(dx_line)
-        dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
-
-        for i_seg in range(len(dom_bounds) - 1):
-            seg = pos[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
+        for seg in _line_segments(pos, x_used, dx):
             n_seg = seg.size
             if n_seg < 3:
                 continue
@@ -1227,15 +1245,7 @@ def _build_operators(
         if pos.size == 0:
             continue
 
-        order = np.argsort(y_used[pos])
-        pos = pos[order]
-        y_line = y_used[pos]
-        dy_line = np.diff(y_line) / dy
-        breaks = _line_breaks(dy_line)
-        dom_bounds = np.concatenate(([0], breaks + 1, [pos.size]))
-
-        for i_seg in range(len(dom_bounds) - 1):
-            seg = pos[dom_bounds[i_seg] : dom_bounds[i_seg + 1]]
+        for seg in _line_segments(pos, y_used, dy):
             n_seg = seg.size
             if n_seg < 3:
                 continue
@@ -1249,7 +1259,7 @@ def _build_operators(
             D2_sym = None
             D2_asym = None
 
-            if y_symmetry and _starts_at_pole_line(y_line[dom_bounds[i_seg]], dy):
+            if y_symmetry and _starts_at_pole_line(y_used[seg[0]], dy):
                 D1_sym, D1_asym, D2_sym, D2_asym = build_sbp_pole_matrices(
                     n_seg,
                     dy,
@@ -1545,6 +1555,80 @@ def _line_breaks(deltas: np.ndarray) -> np.ndarray:
     neighbour[1:] = gaps[:-1]
     neighbour[:-1] = np.minimum(neighbour[:-1], gaps[1:])
     return np.where(gaps > 1.5 * neighbour)[0]
+
+
+def _line_segments(pos: np.ndarray, coord: np.ndarray, step: float):
+    """Yield the runs of consecutive points on one grid line, split at holes.
+
+    ``pos`` indexes the used points on the line, ``coord`` holds their
+    coordinate along it, and ``step`` is the computational spacing. Each run
+    is sorted along the line.
+    """
+    pos = pos[np.argsort(coord[pos])]
+    breaks = _line_breaks(np.diff(coord[pos]) / step)
+    bounds = np.concatenate(([0], breaks + 1, [pos.size]))
+    for lo, hi in zip(bounds[:-1], bounds[1:]):
+        yield pos[lo:hi]
+
+
+def _build_masked_dissipation(
+    x_used: np.ndarray,
+    y_used: np.ndarray,
+    steps: tuple[float, float],
+    sizes: tuple[int, int],
+    fd_order: int,
+    params: dict,
+) -> tuple[sp.csr_matrix, sp.csr_matrix]:
+    """Build the SBP dissipation along x and y on the used points of a masked mesh.
+
+    Each run of consecutive points on a grid line gets its own 1-D operator
+    (:func:`build_sbp_dissipation_matrices`), cut by the same rule as the
+    masked derivatives, so a hole edge has the same boundary closure. A run
+    uses the highest order up to ``fd_order`` whose closures fit it. A run
+    shorter than the 4th-order minimum gets no dissipation.
+
+    Parameters
+    ----------
+    x_used, y_used : np.ndarray, shape (ngp,)
+        Coordinates of the used points.
+    steps : (float, float)
+        Computational spacings ``(dx, dy)`` that define the line runs.
+    sizes : (int, int)
+        Point counts ``(nx, ny)`` of the unmasked grid; the dissipation
+        spacing is ``1 / (n - 1)`` as in :meth:`Mesh.create`.
+    fd_order : int
+        SBP order of the mesh.
+    params : dict
+        ``transition_fraction``, ``endpoint_exponent``, ``interior_value``.
+
+    Returns
+    -------
+    Q_x, Q_y : sp.csr_matrix, shape (ngp, ngp)
+        Dissipation along x and along y in used-point indexing.
+    """
+    ngp = x_used.size
+    out = []
+    for along, across, step, n_full in (
+        (x_used, y_used, steps[0], sizes[0]),
+        (y_used, x_used, steps[1], sizes[1]),
+    ):
+        Q = sp.lil_matrix((ngp, ngp))
+        h = 1.0 / (n_full - 1) if n_full > 1 else 1.0
+        for level in np.unique(across):
+            for seg in _line_segments(np.flatnonzero(across == level), along, step):
+                orders = [o for o in (4, 6, 8) if o <= fd_order and min_points(o) <= seg.size]
+                if not orders:
+                    continue
+                Q_seg, _ = build_sbp_dissipation_matrices(
+                    n=seg.size,
+                    h=h,
+                    order_interior=orders[-1],
+                    order_diss=orders[-1],
+                    **params,
+                )
+                Q[np.ix_(seg, seg)] = Q_seg
+        out.append(Q.tocsr())
+    return out[0], out[1]
 
 
 def _build_periodic_1d_operators(
