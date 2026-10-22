@@ -724,7 +724,7 @@ def factorize(
     def _dense_from_block(block: np.ndarray) -> PETSc.Mat:
         r0, r1 = A.getOwnershipRange()
         nrhs = int(block.shape[1])
-        mat = PETSc.Mat().createDense(size=((r1 - r0, n), (nrhs, nrhs)), comm=A.getComm())
+        mat = PETSc.Mat().createDense(size=((r1 - r0, n), (None, nrhs)), comm=A.getComm())
         mat.getDenseArray()[:, :] = block[r0:r1, :]
         mat.assemble()
         return mat
