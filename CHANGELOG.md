@@ -25,6 +25,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- The axisymmetric (`model: axy`) operator keeps the mu'(T) T' terms by
+  default: mu'(T) T' div(S_bar) in the three momentum rows and the matching
+  mu' and k' terms in the energy row. LinStab2D `getCoeffsLaminar.m` omits
+  them. Results of axy runs with temperature-dependent viscosity change by
+  O(1/Re): the operator by about 1e-4/Re, the leading eigenvalue by 1e-4 at
+  Re 500 down to 1e-6 at Re 5e4, and resolvent gains by up to 1.2e-2 at
+  Re 500. Set `matlab_parity_dmudt: true` (keyword `matlab_parity_dmudt=True`
+  in the assembly functions) to restore the LinStab2D operator. The jet and
+  paraboloid examples set it.
+
 - The `linstabpy` command refuses a case that sets `beta` or `kx` at the
   top level. It reads the spanwise wavenumber only from `numerics.beta`, so
   such a case ran at beta = 0 without a message. The example scripts still
