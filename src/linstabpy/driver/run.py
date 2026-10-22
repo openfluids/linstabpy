@@ -510,55 +510,43 @@ def _stage_load_case(
     prefer_matlab_sponge_aux: bool,
     native_sponge_enabled: bool,
     sponge_cfg: dict | None,
+    preprocess_cfg: dict | None,
     zero_mu_t_derivs: bool,
     heartbeat_seconds: float,
 ) -> _LoadedCase:
     """Load the base-flow snapshot and apply transport-property conventions."""
     stage_start = _stage_start()
     with _stage_heartbeat("load_case", interval_seconds=heartbeat_seconds):
+        X, Y, baseflow, sponge, _info = load_case_fields(
+            case_dir,
+            Re=Re,
+            Ma=Ma,
+            Pr=Pr,
+            kappa=kappa,
+            T_0=T_0,
+            stride_ksi=stride_ksi,
+            stride_eta=stride_eta,
+            transpose_input=True,
+            zero_spanwise=zero_spanwise,
+            preprocess=preprocess_cfg,
+        )
         if native_sponge_enabled and sponge_cfg is not None:
             from linstabpy.baseflow import sponge_from_config
 
-            fields_source = case_dir
-            X, Y, baseflow, sponge, _info = load_case_fields(
-                fields_source,
-                Re=Re,
-                Ma=Ma,
-                Pr=Pr,
-                kappa=kappa,
-                T_0=T_0,
-                stride_ksi=stride_ksi,
-                stride_eta=stride_eta,
-                transpose_input=True,
-                zero_spanwise=zero_spanwise,
-            )
             sponge = sponge_from_config(sponge.shape, sponge_cfg, X=X, Y=Y)
-        else:
-            X, Y, baseflow, sponge, _info = load_case_fields(
-                case_dir,
-                Re=Re,
-                Ma=Ma,
-                Pr=Pr,
-                kappa=kappa,
-                T_0=T_0,
-                stride_ksi=stride_ksi,
-                stride_eta=stride_eta,
-                transpose_input=True,
-                zero_spanwise=zero_spanwise,
-            )
-            if prefer_matlab_sponge_aux and sponge_mat_path.exists():
-                from linstabpy.baseflow.sponge import load_sponge_aux
+        elif prefer_matlab_sponge_aux and sponge_mat_path.exists():
+            from linstabpy.baseflow.sponge import load_sponge_aux
 
-                sponge_aux = load_sponge_aux(Path(sponge_mat_path))
-                if sponge_aux.shape != sponge.shape:
-                    if sponge_aux.T.shape == sponge.shape:
-                        sponge_aux = sponge_aux.T
-                    else:
-                        raise ValueError(
-                            "sponge_aux shape mismatch: "
-                            f"{sponge_aux.shape} vs field shape {sponge.shape}"
-                        )
-                sponge = sponge_aux
+            sponge_aux = load_sponge_aux(Path(sponge_mat_path))
+            if sponge_aux.shape != sponge.shape:
+                if sponge_aux.T.shape == sponge.shape:
+                    sponge_aux = sponge_aux.T
+                else:
+                    raise ValueError(
+                        "sponge_aux shape mismatch: "
+                        f"{sponge_aux.shape} vs field shape {sponge.shape}"
+                    )
+            sponge = sponge_aux
 
     sutherland_air(baseflow)
     if zero_mu_t_derivs:
@@ -1440,6 +1428,7 @@ def run() -> None:
         prefer_matlab_sponge_aux=prefer_matlab_sponge_aux,
         native_sponge_enabled=native_sponge_enabled,
         sponge_cfg=sponge_cfg,
+        preprocess_cfg=cfg("preprocess", None),
         zero_mu_t_derivs=zero_mu_t_derivs,
         heartbeat_seconds=heartbeat_seconds,
     )
@@ -1782,9 +1771,7 @@ def run() -> None:
                 "stability_acceptance_omega_imag_abs_max": float(
                     stability_acceptance_omega_imag_abs_max
                 ),
-                "stability_acceptance_conjugate_aware": bool(
-                    stability_acceptance_conjugate_aware
-                ),
+                "stability_acceptance_conjugate_aware": bool(stability_acceptance_conjugate_aware),
                 "stability_accepted_count": int(stability_acceptance.get("accepted_count", -1)),
                 "stability_accepted_indices": np.asarray(
                     stability_acceptance.get("accepted_indices", EMPTY_INT32),
