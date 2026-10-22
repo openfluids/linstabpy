@@ -1914,7 +1914,8 @@ else
     SLEPC_SPEC="slepc==${SLEPC_VERSION}"
     PETSC4PY_SPEC="petsc4py==${PETSC4PY_VERSION}"
     SLEPC4PY_SPEC="slepc4py==${SLEPC4PY_VERSION}"
-    BUILD_DEPS=("Cython>=3.0" "setuptools<72")
+    # Cython 3.3 rejects petsc4py 3.24 sources ("Invalid index type 'int'" in PC.pyx).
+    BUILD_DEPS=("Cython>=3.0,<3.3" "setuptools<72")
     H5PY_SPEC="h5py>=3.16"
     DEV_DEPS=(pytest pytest-cov "sympy>=1.13")
 fi
