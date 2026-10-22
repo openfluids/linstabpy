@@ -7,7 +7,7 @@ Any other top-level key fails `validate_config`.
 
 SBP `fd_order` values allowed: 2, 4, 6, 8.
 
-Total keys: 73.
+Total keys: 74.
 
 - `L_cavity`
 - `Lx`
@@ -40,6 +40,7 @@ Total keys: 73.
 - `m`
 - `mask_x_left`
 - `mask_x_right`
+- `matlab_parity_dmudt`
 - `model`
 - `n_modes`
 - `n_modes_resolvent`

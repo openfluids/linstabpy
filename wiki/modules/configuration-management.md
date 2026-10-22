@@ -194,7 +194,7 @@ Failures raise `ConfigValidationError` (subclass of `ValueError`), optionally pr
 | Physics scalars | `Re`, `Ma`, `Pr`, `kappa`, `T_0`, `beta`, `omega`, … |
 | Run switches | `run_temporal`, `run_spatial`, `run_stability`, `run_resolvent` |
 | Mode counts | `n_modes`, `n_modes_stability`, `n_modes_resolvent`, `ncv`, … |
-| Parity / example keys | `floquet_shift`, `zero_dmudT`, `zero_dmudT_martini_parity`, `bc_mask_layout` |
+| Parity / example keys | `floquet_shift`, `zero_dmudT`, `zero_dmudT_martini_parity`, `matlab_parity_dmudt`, `bc_mask_layout` |
 | I/O hooks | `baseflow_input`, `baseflow_preprocess`, `assembly_backend` |
 
 Unknown top-level keys produce messages such as:  
