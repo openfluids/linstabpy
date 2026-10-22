@@ -122,6 +122,16 @@ eigenvalue search at the median of the requested frequencies. Under
 If your scripts negate the frequency window to follow an eigenvalue, remove that
 step when you move to the default.
 
+## Harmonic resolvent
+
+The harmonic resolvent (`solvers/harmonic_resolvent.py`, through resolvent4py)
+uses the time convention of resolvent4py: perturbations `exp(+i*omega_j*t)` and
+base-flow harmonics `exp(+i*k*omega0*t)`. Each diagonal block is
+`(gamma + i*omega_j) I - A`. This is the classical matrix at `omega = -omega_j`.
+At `N_h = 0` the harmonic gain at `omega_j` equals the classical gain at
+`-omega_j`. The `resolvent_sign_convention` setting does not change the
+harmonic path.
+
 ## Check which convention produced a file
 
 - A resolvent map store (`output_npz` of `resolvent_map`) and a driver result

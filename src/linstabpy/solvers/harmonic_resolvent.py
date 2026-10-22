@@ -20,6 +20,14 @@ def harmonic_resolvent_gains(
 ) -> tuple[np.ndarray, dict]:
     """Compute harmonic resolvent gains via resolvent4py.
 
+    Time convention: this path follows resolvent4py, with perturbations
+    ``q(t) = sum_j q_j exp(+i*omega_j*t)`` and base harmonics ``exp(+i*k*omega0*t)``.
+    The classical resolvent uses ``exp(-i*omega*t)``. At ``N_h = 0`` the
+    harmonic gain at ``omega_j`` therefore equals the classical gain at
+    ``-omega_j``; the two agree at ``+omega_j`` only when the classical gain map
+    is even in ``omega`` (``W = 0`` or ``beta = 0``).
+    See ``docs/resolvent_sign_convention.md``.
+
     Assembles the block-Toeplitz operator T and computes singular values
     of T^{-1} (or the projected T^{-1} when the caller supplies dQ).
 
@@ -52,7 +60,7 @@ def harmonic_resolvent_gains(
         Clamped internally to min(n_rand, N_full).
     gamma : float, optional
         Discount (shifts A -> A - gamma*I), the same quantity as ``gamma``
-        in the classical ``L0 - (gamma + i*omega) I``. Any sign is applied.
+        in the classical ``(gamma - i*omega) I - L0``. Any sign is applied.
         Default 0.
     eps_reg : float, optional
         Regularization epsilon added to T diagonal before factoring.
@@ -143,9 +151,9 @@ def harmonic_resolvent_gains(
         full_sizes=full_sizes,
     )
 
-    # Discount shifts the operator: A -> A - gamma*I. This gives the k=0
-    # block a global shift of -(gamma + i*omega_j) at each frequency omega_j,
-    # matching L0 - (gamma + i*omega)*I in the classical resolvent frame.
+    # Discount shifts the operator: A -> A - gamma*I. After the sign flip below,
+    # each diagonal block is (gamma + i*omega_j) I - A: the exp(+i*omega*t)
+    # resolvent, which is the classical (gamma - i*omega) I - L0 at omega = -omega_j.
     if gamma != 0.0:
         A.shift(-gamma)
 
