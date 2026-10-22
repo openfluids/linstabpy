@@ -40,6 +40,9 @@ KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
         "LINSTABPY_CASE1_ROOT_ASSEMBLY",
         "LINSTABPY_FORCE_RECOMPUTE",
         "LINSTABPY_STAGE_HEARTBEAT_SECONDS",
+        # -- cost metrics (utils/cost_metrics.py) --
+        "LINSTABPY_GPUS",
+        "LINSTABPY_HARDWARE_TAG",
         "LINSTABPY_FLOQUET_SHIFT",
         "LINSTABPY_JOB_DEADLINE",
         # -- provenance (utils/provenance.py) --

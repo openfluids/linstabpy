@@ -130,7 +130,8 @@ def collect_cost_metrics(
     solve_times = [
         float(stage_wall[stage]) for stage in ("stability", "resolvent") if stage in stage_wall
     ]
-    cost_gpus = int(os.getenv("LINSTAB2D_GPUS", "0") or 0)
+    # LINSTAB2D_* is the pre-rename spelling, still honoured.
+    cost_gpus = int(os.getenv("LINSTABPY_GPUS") or os.getenv("LINSTAB2D_GPUS") or 0)
 
     return {
         "cost_wall_total_s": float(sum(stage_wall.values())),
@@ -142,6 +143,8 @@ def collect_cost_metrics(
         "cost_mpi_ranks": int(_petsc_comm().getSize()) if _petsc_comm() is not None else 1,
         "cost_gpus": cost_gpus,
         "cost_petsc_options": _petsc_options_string(),
-        "cost_hardware_tag": str(os.getenv("LINSTAB2D_HARDWARE_TAG", "unknown")),
+        "cost_hardware_tag": str(
+            os.getenv("LINSTABPY_HARDWARE_TAG") or os.getenv("LINSTAB2D_HARDWARE_TAG") or "unknown"
+        ),
         "cost_git_sha": str(git_sha),
     }
