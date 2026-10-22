@@ -259,28 +259,25 @@ def _resolvent_analysis_impl(
     t_factor = time.perf_counter()
     lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     factor_s = time.perf_counter() - t_factor
-    # factorize copies the operator internally; free the shifted copy.
-    if _is_petsc_matrix(L_sigma):
-        L_sigma.destroy()
     logger.info("  linear solver backend: %s", lu.backend)
     logger.info("  MUMPS factorisation done.")
 
     # ------------------------------------------------------------------
     # 3. Define forward (H) and adjoint (H^H) resolvent operators
     # ------------------------------------------------------------------
-    op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
-
-    t_svd = time.perf_counter()
-    gains, responses, forcings, W_vec, invW_vec = compute_leading_gains(
-        op,
-        W_diag,
-        n_modes,
-        ndof,
-        cfg,
-    )
-    svd_s = time.perf_counter() - t_svd
-
     try:
+        op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
+
+        t_svd = time.perf_counter()
+        gains, responses, forcings, W_vec, invW_vec = compute_leading_gains(
+            op,
+            W_diag,
+            n_modes,
+            ndof,
+            cfg,
+        )
+        svd_s = time.perf_counter() - t_svd
+
         rho_fwd: np.ndarray | None = None
         rho_adj: np.ndarray | None = None
         residual_s = 0.0
@@ -302,6 +299,9 @@ def _resolvent_analysis_impl(
         return gains, responses, forcings, rho_fwd, rho_adj, timings
     finally:
         lu.destroy()
+        # The adjoint heal transposes L_sigma on first use, so keep it alive until here.
+        if _is_petsc_matrix(L_sigma):
+            L_sigma.destroy()
 
 
 def _compute_resolvent_svd_residuals_from_apply(
@@ -487,9 +487,6 @@ def compute_resolvent_svd_residuals(
     L_sigma = shifted_operator(L0, omega, gamma=gamma)
     lu = factorize(L_sigma, env_prefix="LINSTABPY_RESOLVENT", solver_cfg=solver_cfg, cfg=cfg)
     try:
-        if _is_petsc_matrix(L_sigma):
-            L_sigma.destroy()
-
         op = ResolventOperator(lu, B_mat, C_mat, filter_fn, filter_ct_fn)
 
         return _compute_resolvent_svd_residuals_from_apply(
@@ -500,6 +497,9 @@ def compute_resolvent_svd_residuals(
             invW_vec,
             op.apply,
             op.apply_adjoint,
+            cfg.resolvent.eps.forcing_norm,
         )
     finally:
         lu.destroy()
+        if _is_petsc_matrix(L_sigma):
+            L_sigma.destroy()
