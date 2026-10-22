@@ -7,7 +7,7 @@ Any other top-level key fails `validate_config`.
 
 SBP `fd_order` values allowed: 2, 4, 6, 8.
 
-Total keys: 74.
+Total keys: 75.
 
 - `L_cavity`
 - `Lx`
@@ -37,6 +37,7 @@ Total keys: 74.
 - `forcing_zero_vars`
 - `kappa`
 - `kx`
+- `logging`
 - `m`
 - `mask_x_left`
 - `mask_x_right`

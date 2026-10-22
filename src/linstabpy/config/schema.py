@@ -25,6 +25,7 @@ TOP_LEVEL_ALLOWED = frozenset(
         "preprocess",
         "bc",
         "solver",
+        "logging",
         "cases",
         "schema_version",
         "fd_order",
@@ -221,6 +222,22 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
                 f"(allowed: {', '.join(RESOLVENT_SIGN_CONVENTIONS)})"
             )
 
+    logging_cfg = cfg.get("logging")
+    if logging_cfg is not None:
+        if not isinstance(logging_cfg, dict):
+            violations.append(f"logging: expected mapping, got {type(logging_cfg).__name__}")
+        else:
+            for key in logging_cfg:
+                if key != "stage_heartbeat_seconds":
+                    violations.append(
+                        f"unknown key logging.{key} (allowed: stage_heartbeat_seconds)"
+                    )
+            beat = logging_cfg.get("stage_heartbeat_seconds")
+            if beat is not None and (isinstance(beat, bool) or not isinstance(beat, (int, float))):
+                violations.append(
+                    f"logging.stage_heartbeat_seconds: expected int or float, got {type(beat).__name__}"
+                )
+
     for key in sorted(_INT_FIELDS & cfg.keys()):
         value = cfg[key]
         if isinstance(value, bool):
@@ -250,30 +267,53 @@ def validate_config(cfg: dict, *, source: str | None = None) -> None:
         raise ConfigValidationError(prefix + "; ".join(violations))
 
 
-# Top-level wavenumber keys that only the example scripts read. The
-# linstabpy command reads the spanwise wavenumber from numerics.beta.
-_SCRIPT_ONLY_WAVENUMBER_KEYS = ("beta", "kx")
+# Top-level keys that the example scripts read from their own YAML files but
+# the linstabpy command does not. Each maps to the nested key it reads.
+_SCRIPT_ONLY_KEYS = {
+    "Re": "physics.Re",
+    "Ma": "physics.Ma",
+    "Pr": "physics.Pr",
+    "kappa": "physics.kappa",
+    "T_0": "physics.T_0",
+    "sponge": "physics.sponge",
+    "fd_order": "numerics.fd_order",
+    "alpha_filter": "numerics.alpha_filter",
+    "beta": "numerics.beta",
+    "kx": "numerics.beta",
+    "stride_ksi": "numerics.stride_ksi",
+    "stride_eta": "numerics.stride_eta",
+    "penalty": "bc.penalty",
+    "St": "analysis.St",
+    "omega_target": "analysis.omega_target",
+    "run_stability": "analysis.run_stability",
+    "run_resolvent": "analysis.run_resolvent",
+    "n_modes_stability": "analysis.n_modes_stability",
+    "n_modes_resolvent": "analysis.n_modes_resolvent",
+    "n_modes": "analysis.n_modes_stability or analysis.n_modes_resolvent",
+    "ncv": "solver.eigen.ncv",
+}
 
 
-def check_cli_wavenumber_keys(cfg: dict, *, source: str | None = None) -> None:
-    """Refuse top-level ``beta`` / ``kx`` in a case run by the linstabpy command.
+def check_cli_ignored_keys(cfg: dict, *, source: str | None = None) -> None:
+    """Refuse top-level keys that the linstabpy command would ignore.
 
     ``validate_config`` accepts these keys because the example scripts read
-    them from their own YAML files. The command reads only
-    ``numerics.beta``, so a case with ``beta: 19.2`` at the top level
-    would run at beta = 0 without a message.
+    them from their own YAML files. The command reads only the nested
+    equivalent, so a case with ``beta: 19.2`` at the top level would run at
+    beta = 0 without a message.
 
     Raises
     ------
     ConfigValidationError
-        If ``cfg`` sets ``beta`` or ``kx`` at the top level.
+        If ``cfg`` sets a top-level key listed in ``_SCRIPT_ONLY_KEYS``.
+        The message names the nested key to use.
     """
-    flat = [key for key in _SCRIPT_ONLY_WAVENUMBER_KEYS if key in cfg]
+    flat = [f"{key!r} (use {_SCRIPT_ONLY_KEYS[key]})" for key in _SCRIPT_ONLY_KEYS if key in cfg]
     if flat:
         prefix = f"{source}: " if source else ""
         raise ConfigValidationError(
-            f"{prefix}top-level {', '.join(repr(k) for k in flat)} is not read by the "
-            "linstabpy command; set the spanwise wavenumber as numerics.beta"
+            f"{prefix}top-level {', '.join(flat)} is not read by the linstabpy command; "
+            "set the value under the nested key"
         )
 
 

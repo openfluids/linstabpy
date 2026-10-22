@@ -1,4 +1,4 @@
-# Minimal linstabpy case template (flat top-level keys).
+# Minimal linstabpy case template (nested blocks, as the linstabpy command reads them).
 #
 # This file passes validate_config; it is a starting point, not a complete
 # research case (a real run also needs baseflow inputs and BC/solver detail
@@ -14,22 +14,26 @@
 #   mpiexec -n 4 linstabpy
 #
 # Notes: SBP fd_order is 2, 4, 6, or 8 only; complex values use
-# [real, imag] lists; every key below is in TOP_LEVEL_ALLOWED
-# (see ../references/generated/yaml-keys.md).
+# [real, imag] lists; every top-level key below is in
+# TOP_LEVEL_ALLOWED (see ../references/generated/yaml-keys.md). The command refuses
+# flat Re, Ma, fd_order, beta, ... because it reads only the nested keys.
 
 schema_version: "1"
 model: martini
-fd_order: 4
 nx: 60
 ny: 40
-Re: 6.0e5
-Ma: 0.3
-Pr: 0.72
-kappa: 1.4
-T_0: 1.0
-beta: 0.0
-run_stability: true
-run_resolvent: false
-n_modes_stability: 4
-n_modes_resolvent: 0
-omega_target: [0.5, 0.0]
+physics:
+  Re: 6.0e5
+  Ma: 0.3
+  Pr: 0.72
+  kappa: 1.4
+  T_0: 1.0
+numerics:
+  fd_order: 4
+  beta: 0.0
+analysis:
+  run_stability: true
+  run_resolvent: false
+  n_modes_stability: 4
+  n_modes_resolvent: 0
+  omega_target: [0.5, 0.0]

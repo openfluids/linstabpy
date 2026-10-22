@@ -32,6 +32,11 @@ compute. In sweeps, use one output path per run or export
 - Top-level keys must be inside `TOP_LEVEL_ALLOWED` — full generated
   list in `generated/yaml-keys.md`. Unknown keys fail `validate_config`
   (with a did-you-mean hint when the typo is close).
+- The `linstabpy` command reads physics, numerics, bc and analysis values
+  from their nested blocks (`physics.Re`, `numerics.fd_order`,
+  `analysis.run_stability`, ...). Some flat keys pass `validate_config`
+  because example scripts read them; the command refuses them with the
+  nested key to use.
 - Complex values as `[real, imag]` lists (also plain numbers or strings
   parseable by `complex()`); unsigned scientific floats like `1e5` are
   accepted.

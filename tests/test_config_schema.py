@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from linstabpy.config import ConfigValidationError, validate_config
+from linstabpy.config.schema import TOP_LEVEL_ALLOWED
 from linstabpy.utils.yaml_io import load_config
 
 
@@ -200,17 +201,71 @@ def test_floquet_shift_top_level_still_validated() -> None:
     assert validate_config({"floquet_shift": "continuum"}) is None
 
 
-@pytest.mark.parametrize("key", ["beta", "kx"])
-def test_cli_refuses_top_level_wavenumber(key: str) -> None:
-    """The command reads numerics.beta only, so a flat beta or kx is refused."""
-    from linstabpy.config.schema import check_cli_wavenumber_keys
+@pytest.mark.parametrize(
+    ("key", "nested"),
+    [
+        ("beta", "numerics.beta"),
+        ("kx", "numerics.beta"),
+        ("Re", "physics.Re"),
+        ("Ma", "physics.Ma"),
+        ("fd_order", "numerics.fd_order"),
+        ("penalty", "bc.penalty"),
+        ("run_resolvent", "analysis.run_resolvent"),
+        ("n_modes_stability", "analysis.n_modes_stability"),
+        ("ncv", "solver.eigen.ncv"),
+    ],
+)
+def test_cli_refuses_top_level_key_with_nested_equivalent(key: str, nested: str) -> None:
+    """The command reads the nested key only, so the flat key is refused by name."""
+    from linstabpy.config.schema import check_cli_ignored_keys
 
-    validate_config({key: 19.2})  # the example scripts read the flat key
-    with pytest.raises(ConfigValidationError, match=r"numerics\.beta"):
-        check_cli_wavenumber_keys({key: 19.2}, source="case.yaml")
+    values = {"fd_order": 4, "ncv": 4, "n_modes_stability": 4, "run_resolvent": False}
+    value = values.get(key, 19.2)
+    validate_config({key: value})  # the example scripts read the flat key
+    with pytest.raises(ConfigValidationError, match=nested.replace(".", r"\.")):
+        check_cli_ignored_keys({key: value}, source="case.yaml")
 
 
-def test_cli_accepts_numerics_beta() -> None:
-    from linstabpy.config.schema import check_cli_wavenumber_keys
+def test_cli_accepts_nested_keys() -> None:
+    from linstabpy.config.schema import check_cli_ignored_keys
 
-    assert check_cli_wavenumber_keys({"numerics": {"beta": 19.2}}) is None
+    cfg = {
+        "numerics": {"beta": 19.2, "fd_order": 4},
+        "physics": {"Re": 1.0e5},
+        "analysis": {"run_resolvent": False},
+        "bc": {"penalty": 1.0e8},
+    }
+    assert check_cli_ignored_keys(cfg) is None
+
+
+def test_cli_ignored_keys_are_all_allowed_top_level_keys() -> None:
+    from linstabpy.config.schema import _SCRIPT_ONLY_KEYS
+
+    assert set(_SCRIPT_ONLY_KEYS) <= TOP_LEVEL_ALLOWED
+
+
+def test_logging_block_is_accepted_with_its_one_key() -> None:
+    assert validate_config({"logging": {"stage_heartbeat_seconds": 5}}) is None
+    with pytest.raises(ConfigValidationError, match=r"logging\.chatty"):
+        validate_config({"logging": {"chatty": True}})
+    with pytest.raises(ConfigValidationError, match="stage_heartbeat_seconds"):
+        validate_config({"logging": {"stage_heartbeat_seconds": "often"}})
+    with pytest.raises(ConfigValidationError, match="logging"):
+        validate_config({"logging": 5})
+
+
+def test_driver_refuses_flat_re_and_accepts_nested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The driver stops on a flat Re instead of running with the default Re."""
+    pytest.importorskip("mpi4py", reason="SKIPPED: missing mpi4py")
+    pytest.importorskip("petsc4py", reason="SKIPPED: missing PETSc stack")
+    from linstabpy.driver.run import _stage_load_runtime_config
+
+    case = tmp_path / "case.yaml"
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(case))
+    case.write_text("Re: 1.0e5\n")
+    with pytest.raises(ConfigValidationError, match=r"physics\.Re"):
+        _stage_load_runtime_config()
+    case.write_text("physics:\n  Re: 1.0e5\nlogging:\n  stage_heartbeat_seconds: 5\n")
+    assert _stage_load_runtime_config().config["physics"]["Re"] == 1.0e5

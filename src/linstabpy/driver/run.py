@@ -420,10 +420,10 @@ def _stage_load_runtime_config() -> _RuntimeConfigSource:
     if config_path.exists():
         config = load_config(config_path)
         from linstabpy.config import validate_config
-        from linstabpy.config.schema import check_cli_wavenumber_keys
+        from linstabpy.config.schema import check_cli_ignored_keys
 
         validate_config(config, source=str(config_path))
-        check_cli_wavenumber_keys(config, source=str(config_path))
+        check_cli_ignored_keys(config, source=str(config_path))
         _log(f"loaded config: {config_path}")
     elif any(
         name in os.environ
