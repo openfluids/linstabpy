@@ -99,38 +99,44 @@ def _as_dir_fractions(values: Any, *, name: str) -> np.ndarray:
 def _constant_sponge(
     shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray
 ) -> np.ndarray:
+    # Edges combine by maximum, so corners do not depend on the edge order.
     sponge = np.zeros(shape, dtype=float)
     if pts_dir[0] != 0:
-        sponge[:, -pts_dir[0] :] = amp_dir[0]
+        sponge[:, -pts_dir[0] :] = np.maximum(sponge[:, -pts_dir[0] :], amp_dir[0])
     if pts_dir[1] != 0:
-        sponge[-pts_dir[1] :, :] = amp_dir[1]
+        sponge[-pts_dir[1] :, :] = np.maximum(sponge[-pts_dir[1] :, :], amp_dir[1])
     if pts_dir[2] != 0:
-        sponge[:, : pts_dir[2]] = amp_dir[2]
+        sponge[:, : pts_dir[2]] = np.maximum(sponge[:, : pts_dir[2]], amp_dir[2])
     if pts_dir[3] != 0:
-        sponge[: pts_dir[3], :] = amp_dir[3]
+        sponge[: pts_dir[3], :] = np.maximum(sponge[: pts_dir[3], :], amp_dir[3])
     return sponge
 
 
 def _parabolic_sponge(
     shape: tuple[int, int], pts_dir: np.ndarray, amp_dir: np.ndarray
 ) -> np.ndarray:
+    # Edges combine by maximum, so one edge's ramp never erases another's.
     sponge = np.zeros(shape, dtype=float)
     if pts_dir[0] != 0:
         width = pts_dir[0]
         for i in range(-width, 0):
-            sponge[:, i] = amp_dir[0] * (width + 1 + i) ** 2 / width**2
+            ramp = amp_dir[0] * (width + 1 + i) ** 2 / width**2
+            sponge[:, i] = np.maximum(sponge[:, i], ramp)
     if pts_dir[1] != 0:
         width = pts_dir[1]
         for i in range(-width, 0):
-            sponge[i, :] = amp_dir[1] * (width + 1 + i) ** 2 / width**2
+            ramp = amp_dir[1] * (width + 1 + i) ** 2 / width**2
+            sponge[i, :] = np.maximum(sponge[i, :], ramp)
     if pts_dir[2] != 0:
         width = pts_dir[2]
-        for i in range(0, width + 1):
-            sponge[:, i] = amp_dir[2] * (width - i) ** 2 / width**2
+        for i in range(0, width):
+            ramp = amp_dir[2] * (width - i) ** 2 / width**2
+            sponge[:, i] = np.maximum(sponge[:, i], ramp)
     if pts_dir[3] != 0:
         width = pts_dir[3]
-        for i in range(0, width + 1):
-            sponge[i, :] = amp_dir[3] * (width - i) ** 2 / width**2
+        for i in range(0, width):
+            ramp = amp_dir[3] * (width - i) ** 2 / width**2
+            sponge[i, :] = np.maximum(sponge[i, :], ramp)
     return sponge
 
 

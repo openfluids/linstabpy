@@ -383,3 +383,16 @@ def test_load_sponge_aux_reads_hdf5_and_loud_fails(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(sys, "meta_path", [_BlockH5py(), *sys.meta_path])
     with pytest.raises(ModuleNotFoundError, match="h5py"):
         load_sponge_aux(path)
+
+
+@pytest.mark.parametrize("sponge_type", ["constant", "parabolic"])
+def test_edge_sponges_do_not_erase_each_other(sponge_type: str) -> None:
+    pts = (0, 3, 3, 0)
+    both = generate_sponge((12, 10), sponge_type=sponge_type, pts_dir=pts, amp_dir=(0, 1, 1, 0))
+    right = generate_sponge(
+        (12, 10), sponge_type=sponge_type, pts_dir=(0, 3, 0, 0), amp_dir=(0, 1, 0, 0)
+    )
+    bottom = generate_sponge(
+        (12, 10), sponge_type=sponge_type, pts_dir=(0, 0, 3, 0), amp_dir=(0, 0, 1, 0)
+    )
+    np.testing.assert_array_equal(both, np.maximum(right, bottom))
