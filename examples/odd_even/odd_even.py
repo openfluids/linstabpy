@@ -6,9 +6,10 @@ two meshes of the same box. One mesh is Cartesian. The other mesh is
 curvilinear, with a wavy lower wall. We repeat the solve at two resolutions
 and for a ladder of operator-dissipation coefficients epsilon.
 
-For each case we record the gain and the fraction of the response energy at
-the grid scale (r_n). One (1/4, 1/2, 1/4) smoothing pass along each mesh
-direction removes the grid-scale content; rN is the removed energy fraction.
+For each case we record the gain and the fraction of the energy of the u
+component of the response at the grid scale (r_n). The other components are
+not used. One (1/4, 1/2, 1/4) smoothing pass along each mesh direction removes
+the grid-scale content; r_n is the removed energy fraction.
 
 All lengths are nondimensional. We use the SciPy path only (no PETSc).
 
