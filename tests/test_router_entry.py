@@ -481,3 +481,109 @@ def test_region_mask_logs_variable_coverage(caplog: pytest.LogCaptureFixture) ->
     assert "resolvent_map region_mask name=input_region var=T n_active=2 n_total=6" in caplog.text
     assert "bbox_x=[1,1]" in caplog.text
     assert "bbox_y=[0,1]" in caplog.text
+
+
+def _statuses(result) -> list[str]:
+    return [r["status"] for r in result.point_records]
+
+
+def _run_map(monkeypatch, tmp_path, cfg, beta=(0.1,), f=(1.0, 2.0), flow=None):
+    calls: list[float] = []
+
+    def counting(_L0, omega, *_a, **_k):
+        calls.append(float(omega))
+        return _ok_direct(_L0, omega)
+
+    monkeypatch.setattr(router_map, "_direct_engine_result", counting)
+    result = router_map.resolvent_map(
+        flow or _flow(), np.array(beta), np.array(f), {"mesh": object(), **cfg}
+    )
+    return result, calls
+
+
+def _first_map(monkeypatch, tmp_path, cfg, **grid):
+    _install_fake_seams(monkeypatch, labels=(STABLE, STABLE, STABLE))
+    out = tmp_path / "map.npz"
+    _run_map(monkeypatch, tmp_path, {"output_npz": out, **cfg}, **grid)
+    return out
+
+
+def test_resume_with_other_solver_settings_warns_and_skips_points(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {"solver": {"linsolve": {"ksp_rtol": 1e-8}}})
+    with caplog.at_level("WARNING", logger=router_map.LOGGER.name):
+        resumed, calls = _run_map(
+            monkeypatch,
+            tmp_path,
+            {"output_npz": out, "solver": {"linsolve": {"ksp_rtol": 1e-6}}},
+        )
+    assert _statuses(resumed) == ["skipped", "skipped"] and calls == []
+    assert caplog.text.count("resuming") == 1
+    assert "cfg_object.linsolve.ksp_rtol" in caplog.text
+
+
+def test_resume_with_other_problem_settings_still_refuses_and_keeps_the_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {"bc_penalty": 10.0, "solver": {"linsolve": {}}})
+    before = out.read_bytes()
+    for cfg in (
+        {"bc_penalty": 20.0, "solver": {"linsolve": {}}},
+        {"bc_penalty": 10.0, "n_modes": 2},
+        {"bc_penalty": 10.0, "regime_b_discount_gamma": 0.5},
+        {"bc_penalty": 10.0, "solver": {"resolvent": {"eigen": {"forcing_norm": "l2"}}}},
+    ):
+        with pytest.raises(router_map.StoreFingerprintError):
+            _run_map(monkeypatch, tmp_path, {"output_npz": out, **cfg})
+    assert out.read_bytes() == before
+
+
+def test_resume_warns_for_a_field_on_one_side_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {})
+    with np.load(out, allow_pickle=False) as data:
+        kept = {k: data[k] for k in data.files}
+    fp = json.loads(str(kept["fingerprint_json"]))
+    fp["base_flow.new_attribute"] = "x"  # a field a later version no longer has
+    fp.pop("cfg_object.mpi.root_scatter")  # a field this version added
+    kept["fingerprint_json"] = np.asarray(json.dumps(fp))
+    np.savez(out, **kept)
+    with caplog.at_level("WARNING", logger=router_map.LOGGER.name):
+        resumed, calls = _run_map(monkeypatch, tmp_path, {"output_npz": out})
+    assert _statuses(resumed) == ["skipped", "skipped"] and calls == []
+    assert "base_flow.new_attribute" in caplog.text
+
+
+def _as_legacy(out) -> None:
+    """Rewrite the fingerprint as the old flat one: whole containers, one digest each."""
+    from linstabpy.solvers.router.map_record import digest
+
+    with np.load(out, allow_pickle=False) as data:
+        kept = {k: data[k] for k in data.files}
+    fp = json.loads(str(kept["fingerprint_json"]))
+    fp = {k: v for k, v in fp.items() if not k.startswith(("cfg_object.", "cfg.solver."))}
+    fp["cfg_object"] = digest("old")
+    fp["cfg.solver"] = digest("old")
+    kept["fingerprint_json"] = np.asarray(json.dumps(fp))
+    np.savez(out, **kept)
+
+
+def test_legacy_flat_fingerprint_follows_the_same_rules(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {"bc_penalty": 10.0, "solver": {"linsolve": {}}})
+    _as_legacy(out)
+    before = out.read_bytes()
+    with pytest.raises(router_map.StoreFingerprintError, match="cfg.bc_penalty"):
+        _run_map(monkeypatch, tmp_path, {"output_npz": out, "bc_penalty": 20.0})
+    assert out.read_bytes() == before
+    with caplog.at_level("WARNING", logger=router_map.LOGGER.name):
+        resumed, calls = _run_map(
+            monkeypatch,
+            tmp_path,
+            {"output_npz": out, "bc_penalty": 10.0, "solver": {"linsolve": {}}},
+        )
+    assert _statuses(resumed) == ["skipped", "skipped"] and calls == []
+    assert "cfg.solver" in caplog.text

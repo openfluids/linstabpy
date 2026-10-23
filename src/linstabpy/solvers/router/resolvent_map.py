@@ -46,7 +46,7 @@ import os
 import time
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager, nullcontext
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -939,6 +939,51 @@ class StoreFingerprintError(RuntimeError):
 _FINGERPRINT_SKIP = frozenset(
     {"output_npz", "output_store", "cache_npz", "logging", "stage_heartbeat_seconds", "mesh"}
 )
+# Config keys that hold router settings next to problem keys. The fingerprint lists their
+# entries one by one.
+_CONFIG_CONTAINERS = frozenset({"solver", "solver_cfg", "router"})
+# Solver group: settings that change how a gain is computed, not which gain. A resume
+# with other values only warns. Sections of the solver config and router settings:
+_SOLVER_SECTIONS = frozenset(
+    {"linsolve", "resolvent", "eigen", "spatial", "mpi", "adaptive_anchors", "break_even"}
+    | {"ram_autoselect"}
+)
+# Backend, factorization, and PETSc settings read at the top level of the solver config:
+_SOLVER_SETTINGS = frozenset(
+    {"factor_backend", "assembly_backend", "assembly_metrics", "assembly_metrics_output"}
+    | {"assembly_metrics_dir", "assembly_metrics_tag", "assembly_metrics_log"}
+    | {"petsc_matrix_mode", "root_scatter", "mumps_icntl_14", "mumps_icntl_24"}
+)
+# The two entries of the typed config object that change a gain. All others are solver group.
+_CONFIG_PROBLEM_FIELDS = frozenset(
+    {"cfg_object.resolvent.eps.forcing_norm", "cfg_object.resolvent.sign_convention"}
+)
+
+
+def _is_solver_field(name: str) -> bool:
+    """Tell whether a fingerprint field belongs to the solver group.
+
+    A field not named here is a problem field. A store written before the split
+    stores whole containers (``cfg.solver``, ``cfg_object``); they get the same answer.
+    """
+    if name == "cfg_object" or name.startswith("cfg_object."):
+        return name not in _CONFIG_PROBLEM_FIELDS
+    parts = name.split(".", 2)
+    if parts[0] != "cfg":
+        return False
+    if len(parts) == 2:
+        return parts[1] in {"solver", "solver_cfg"} or parts[1] in _SOLVER_SETTINGS
+    return parts[2] in _SOLVER_SECTIONS | _SOLVER_SETTINGS
+
+
+def _config_digests(prefix: str, obj: Any) -> dict[str, str]:
+    """Return one digest per leaf value of a (nested) config dataclass."""
+    if not is_dataclass(obj):
+        return {prefix: digest(obj)}
+    out: dict[str, str] = {}
+    for item in fields(obj):
+        out.update(_config_digests(f"{prefix}.{item.name}", getattr(obj, item.name)))
+    return out
 
 
 def _fingerprint(
@@ -948,19 +993,31 @@ def _fingerprint(
     base_flow: Any,
     W_diag: np.ndarray,
 ) -> dict[str, str]:
-    """Return one digest per input that changes a gain.
+    """Return one digest per input that changes a gain or the way it is computed.
 
     The inputs are every config key, the typed config object, the mesh arrays
-    and operators, the base-flow arrays and the forcing norm ``W_diag``.
-    A resumed run compares these with the ones stored with the map.
+    and operators, the base-flow arrays, the forcing norm ``W_diag``, the mode
+    count and the discount. ``_is_solver_field`` sorts them into the problem group
+    and the solver group. A resumed run compares them with the ones stored with the map.
     """
-    fields = {f"cfg.{k}": digest(v) for k, v in cfg_map.items() if k not in _FINGERPRINT_SKIP}
-    if cfg_obj is not None:
-        fields["cfg_object"] = digest(cfg_obj)
-    fields.update(object_digests("mesh", mesh))
-    fields.update(object_digests("base_flow", base_flow))
-    fields["W_diag"] = digest(W_diag)
-    return fields
+    from linstabpy.config import Config
+
+    fields_: dict[str, str] = {}
+    for key, value in cfg_map.items():
+        if key in _FINGERPRINT_SKIP:
+            continue
+        if key in _CONFIG_CONTAINERS and isinstance(value, Mapping):
+            fields_.update({f"cfg.{key}.{sub}": digest(item) for sub, item in value.items()})
+        else:
+            fields_[f"cfg.{key}"] = digest(value)
+    cfg = cfg_obj if cfg_obj is not None else Config.load(_solver_cfg(cfg_map))
+    fields_.update(_config_digests("cfg_object", cfg))
+    fields_.update(object_digests("mesh", mesh))
+    fields_.update(object_digests("base_flow", base_flow))
+    fields_["W_diag"] = digest(W_diag)
+    fields_["n_modes"] = digest(_n_modes(cfg_map))
+    fields_["regime_b_discount_gamma"] = digest(_regime_b_discount_gamma(cfg_map))
+    return fields_
 
 
 def _load_store(
@@ -1007,11 +1064,22 @@ def _load_store(
             if "fingerprint_json" in data.files:
                 stored_fp = json.loads(str(data["fingerprint_json"]))
                 changed = differing_fields(stored_fp, fingerprint)
-                if changed:
+                one_sided = [k for k in changed if k not in stored_fp or k not in fingerprint]
+                problem = [k for k in changed if k not in one_sided and not _is_solver_field(k)]
+                if problem:
                     raise StoreFingerprintError(
                         f"resolvent_map: cannot resume {path}. It was written for another "
-                        f"problem. These inputs differ: {', '.join(changed)}. Write to a new "
+                        f"problem. These inputs differ: {', '.join(problem)}. Write to a new "
                         "output_npz path, or restore the inputs of the stored map."
+                    )
+                if changed:
+                    LOGGER.warning(
+                        "resolvent_map: resuming %s with other solver settings or inputs "
+                        "that exist on one side only. Changed: %s. Only the problem inputs "
+                        "are checked. You are responsible for the results of the changed "
+                        "settings.",
+                        path,
+                        ", ".join(changed),
                     )
             else:
                 LOGGER.warning(
@@ -1173,10 +1241,13 @@ def resolvent_map(
     Notes
     -----
     With ``output_npz`` set, the run resumes from that file. The file stores a
-    fingerprint of every input that changes a gain: config keys, mesh, base
-    flow and forcing norm. A resume with other inputs raises
-    ``StoreFingerprintError`` that names the differing fields, and leaves the
-    file as it is. A file without a fingerprint resumes with a warning.
+    fingerprint of every input that changes a gain (config keys, mesh, base
+    flow, forcing norm, mode count, discount) and of the solver settings. A resume
+    with other problem inputs raises ``StoreFingerprintError`` that names the
+    differing fields, and leaves the file as it is. Other solver settings (backend,
+    tolerances, factorization options) and fields that exist on one side only
+    resume with one warning that names them. A file without a fingerprint resumes
+    with a warning.
     """
     cfg_map, cfg_obj = _normalise_cfg(cfg)
     beta = _finite_1d_range(beta_range, "beta_range")
