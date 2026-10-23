@@ -33,7 +33,9 @@ environment.
 | `2026-09-15_map200` | the full 200-point map as four arms one after another: CPU independent jobs (4 ranks, 5 concurrent), CPU lines (14 lines, 2 concurrent), cuDSS independent jobs (2 concurrent), cuDSS lines (streamlined refactorization, 2 concurrent); collected run records, the arm and cascade scripts, the cascade logs | a rerun of the 200-point rows of the resolvent cost table on the release tree | none: Table 2 quotes the August campaign; this rerun gives 138.6 s (CPU) and 57.6 s (cuDSS) per independent point |
 | `2026-09-16_rc10` | every Savarino campaign again on the tagged `v1.0.0rc10`: the 200-point map (CPU and cuDSS, independent jobs and lines), the 317-point CPU map, the 47-point subset (four arms), and the β = 40 line at 4, 8 and 16 ranks and on one A6000; collected run records, arm and cascade scripts, cascade log | a rerun of the Section 6 cost campaign on a tagged release | none: Table 2 quotes the August campaign (`examples/savarino/savarino_campaign_walltimes.csv`) |
 
-The jobs ran one at a time on an otherwise idle node (`afterany` chain), so
-every wall time in a log is a single-tenant measurement. The scaling jobs
+The jobs and the campaign arms ran one after another on an otherwise idle node
+(`afterany` chain). Inside an arm, several jobs could run at the same time, as the
+"concurrent" counts in the rows above state, so the wall times of those jobs were
+measured with other jobs of the same arm on the node. The scaling jobs
 print `peak_rss_sum_bytes` and `peak_rss_max_bytes` from a three-line addition
 to `driver/run.py` (an `MPI.MAX` allreduce next to the existing `MPI.SUM`).
