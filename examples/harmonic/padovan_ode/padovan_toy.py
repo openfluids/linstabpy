@@ -111,7 +111,9 @@ def main(
     t_period = sol.t[idx0:idxf] - sol.t[idx0]
     Q = sol.y[:, idx0:idxf]
 
-    Qhat = (1.0 / len(t_period)) * np.fft.rfft(Q, axis=-1)[:, : (N_h + 1)]
+    # np.fft.rfft gives the coefficient of exp(+i*k*omega0*t); the harmonic code takes
+    # exp(-i*k*omega0*t), the conjugate for a real signal.
+    Qhat = np.conj((1.0 / len(t_period)) * np.fft.rfft(Q, axis=-1)[:, : (N_h + 1)])
 
     As = np.array(
         [
@@ -120,7 +122,7 @@ def main(
         ]
     )
     As = np.concatenate(As, axis=-1)
-    Ashat = (1.0 / len(t_period)) * np.fft.rfft(As, axis=-1)[:, : (N_h + 1)]
+    Ashat = np.conj((1.0 / len(t_period)) * np.fft.rfft(As, axis=-1)[:, : (N_h + 1)])
 
     omega0 = 2 * np.pi / (t_period[-1] - t_period[0])
     T_period = t_period[-1] - t_period[0]
@@ -153,9 +155,9 @@ N_t = {len(t_period)} samples
 
 Fourier Analysis
 ----------------
-FFT convention: forward (1/N_t), numpy sign exp(-2πijn/N_t)
-Q(t) = Σ_k Qhat_k exp(+i*k*ω₀*t), k=0..{N_h}
-A(t) = Σ_k Ahat_k exp(+i*k*ω₀*t), k=0..{N_h}
+FFT convention: forward (1/N_t), conjugated: exp(+2πijn/N_t)
+Q(t) = Σ_k Qhat_k exp(-i*k*ω₀*t), k=0..{N_h}
+A(t) = Σ_k Ahat_k exp(-i*k*ω₀*t), k=0..{N_h}
 
 ω₀ = 2π/T_period = {omega0:.6f} rad/s
 
@@ -221,9 +223,9 @@ Harmonic Content
         return
 
     # Build phase-shift vectors dQ_k (one per harmonic, two-sided order).
-    # dQ_k = 1j * k * omega0 * Qhat_k. The limit cycle is real, so
-    # Qhat_{-k} = conj(Qhat_k) and therefore dQ_{-k} = conj(dQ_k):
-    # dQ_{-k} = i(-k)*omega0*conj(Qhat_k) = conj(i*k*omega0*Qhat_k).
+    # Q = sum_k Qhat_k exp(-i*k*omega0*t), so dQ_k = -1j * k * omega0 * Qhat_k.
+    # The limit cycle is real, so Qhat_{-k} = conj(Qhat_k) and therefore
+    # dQ_{-k} = conj(dQ_k): dQ_{-k} = i*k*omega0*conj(Qhat_k) = conj(-i*k*omega0*Qhat_k).
     # dQ_0 is zero (no time derivative for the mean).
     dq_vecs = []
     for k in range(-N_h, N_h + 1):
@@ -231,7 +233,7 @@ Harmonic Content
             dq_vecs.append(np.zeros(3, dtype=complex))
         else:
             abs_k = abs(k)
-            dq_k = 1j * abs_k * omega0 * Qhat[:, abs_k]
+            dq_k = -1j * abs_k * omega0 * Qhat[:, abs_k]
             if k < 0:
                 dq_k = np.conj(dq_k)
             dq_vecs.append(dq_k)

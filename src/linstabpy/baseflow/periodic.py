@@ -14,7 +14,11 @@ from .viscosity import sutherland_air
 
 @dataclass(frozen=True)
 class PeriodicBaseFlow:
-    """Fourier modes of a T-periodic base flow Q(t) = sum_k Qhat_k exp(+i k omega0 t).
+    """Fourier modes of a T-periodic base flow Q(t) = sum_k Qhat_k exp(-i k omega0 t).
+
+    The time convention is ``exp(-i*omega*t)``, the one of the classical
+    resolvent. A file written with ``exp(+i*k*omega0*t)`` holds the complex
+    conjugate of these coefficients for k >= 1; conjugate ``Qhat[1:]``.
 
     The flow is real, so negatives are conjugates and are NOT stored.
     Harmonics k=0..N_h are kept; higher harmonics alias the discarded tail
@@ -98,7 +102,7 @@ class PeriodicBaseFlow:
     def reconstruct(self, t: float) -> BaseFlow:
         """Reconstruct Q(t) at instant t.
 
-        Q(t) = Qhat[0] + 2 * sum_{k=1..N_h} Re(Qhat[k] * exp(+i*k*omega0*t))
+        Q(t) = Qhat[0] + 2 * sum_{k=1..N_h} Re(Qhat[k] * exp(-i*k*omega0*t))
 
         Parameters
         ----------
@@ -114,9 +118,9 @@ class PeriodicBaseFlow:
         # Mean component
         q_real = np.real(self.Qhat[0])
 
-        # Harmonic sum: 2*Re(Qhat_k * exp(+i*k*omega0*t))
+        # Harmonic sum: 2*Re(Qhat_k * exp(-i*k*omega0*t))
         for k in range(1, self.N_h + 1):
-            phase = 1j * k * omega0 * t
+            phase = -1j * k * omega0 * t
             q_real = q_real + 2.0 * np.real(self.Qhat[k] * np.exp(phase))
 
         # Unpack variables in order: rho, u, v, w, T
@@ -170,7 +174,8 @@ def load_periodic_baseflow(
     """Load periodic base flow from npz file.
 
     File contract (required keys):
-      - Qhat: complex, shape (N_h+1, 5, ny, nx), harmonics k=0..N_h.
+      - Qhat: complex, shape (N_h+1, 5, ny, nx), harmonics k=0..N_h, the
+        coefficients of exp(-i*k*omega0*t).
       - T_period: float, period in case nondimensional time units.
       - x, y: coordinate arrays in case nondimensional length units.
       - Re, Ma, Pr, kappa, T_0: scalar parameters.

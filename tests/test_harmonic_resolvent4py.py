@@ -190,7 +190,7 @@ def test_harmonic_resolvent_steady_limit_equivalence(small_mesh_2d) -> None:
         # Dense reference: build T_dense with gamma=10
         A_dense = blocks.Ahat[0].toarray()
         n = A_dense.shape[0]
-        T_dense = -(A_dense - 10.0 * np.eye(n)) + 1j * omega * np.eye(n)
+        T_dense = -(A_dense - 10.0 * np.eye(n)) - 1j * omega * np.eye(n)
         svals = np.linalg.svd(T_dense, compute_uv=False)
         gain_dense = 1.0 / svals[-1]
 
@@ -426,8 +426,11 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
     from linstabpy.solvers.harmonic_resolvent import harmonic_resolvent_gains
 
     ahat_csr_list = [sp.csr_matrix(Ashat[:, k].reshape((3, 3), order="C")) for k in range(N_h + 1)]
+    # np.fft.rfft gives the coefficient of exp(+i*k*omega0*t). The harmonic
+    # path takes exp(-i*k*omega0*t), so harmonic k > 0 is the conjugate of
+    # the rfft bin and harmonic k < 0 is the rfft bin |k|.
     ahat_two_sided = [
-        ahat_csr_list[abs(k)].conj() if k < 0 else ahat_csr_list[k] for k in range(-N_h, N_h + 1)
+        ahat_csr_list[k].conj() if k > 0 else ahat_csr_list[abs(k)] for k in range(-N_h, N_h + 1)
     ]
 
     blocks = HarmonicBlocks(Ahat=ahat_two_sided, N_h=N_h, N_t=len(t_period))
@@ -450,32 +453,33 @@ def test_harmonic_resolvent_toy_dense_reference() -> None:
                     idx_diff = (j - k) + N_h
                     A_diff = ahat_two_sided[idx_diff].toarray()
                     T_dense[jb * n : (jb + 1) * n, kb * n : (kb + 1) * n] = A_diff
-                # Diagonal: subtract i*omega_k (omega_k = k*omega0)
+                # Diagonal: add i*omega_k (omega_k = k*omega0), so that the
+                # sign flip below gives -i*omega_k I - A (exp(-i*omega*t)).
                 if j == k:
                     omega_j = j * omega0
-                    T_dense[jb * n : (jb + 1) * n, kb * n : (kb + 1) * n] -= (
+                    T_dense[jb * n : (jb + 1) * n, kb * n : (kb + 1) * n] += (
                         1j * omega_j * np.eye(n)
                     )
 
-        # Flip sign to -T (resolvent4py convention), then add the same
-        # eps regularization the wrapper applies before it factors T.
-        # Both sides must carry the identical eps for a 1e-8 comparison.
+        # Flip sign to -T, then add the same eps regularization the wrapper
+        # applies before it factors T. Both sides must carry the identical
+        # eps for a 1e-8 comparison.
         eps_reg = 1e-7
         T_dense = -T_dense + eps_reg * np.eye(N_full)
 
         # dQ vectors: one length-n block per ladder harmonic k=-N_p..N_p.
-        # dQ_k = i*k*omega0*Qhat_k. Qhat has no harmonics beyond N_h, so
-        # blocks with |k| > N_h are zero. The limit cycle is real, so
-        # dQ_{-k} = conj(dQ_k) = conj(i*k*omega0*Qhat_k).
+        # Q(t) = sum_k Qhat_k exp(-i*k*omega0*t), so dQ_k = -i*k*omega0*Qhat_k
+        # with Qhat_k the conjugate of the rfft bin k (k > 0). Blocks with
+        # |k| > N_h are zero. The limit cycle is real, so
+        # dQ_{-k} = conj(dQ_k) = i*k*omega0*Qhat_rfft_k.
         dq_vecs_dense = []
         for k in range(-N_p, N_p + 1):
             if k == 0 or abs(k) > N_h:
                 dq_vecs_dense.append(np.zeros(n, dtype=complex))
+            elif k > 0:
+                dq_vecs_dense.append(-1j * k * omega0 * np.conj(Qhat[:, k]))
             else:
-                dq_k = 1j * abs(k) * omega0 * Qhat[:, abs(k)]
-                if k < 0:
-                    dq_k = np.conj(dq_k)
-                dq_vecs_dense.append(dq_k)
+                dq_vecs_dense.append(1j * abs(k) * omega0 * Qhat[:, abs(k)])
 
         dq_all = np.concatenate(dq_vecs_dense)
         dq_all /= np.linalg.norm(dq_all)
@@ -670,10 +674,10 @@ def test_harmonic_resolvent_gamma_dense_reference() -> None:
             gamma=0.4,
         )
 
-        # Dense reference: T = -(A - 0.4*I) + i*1.3*I + eps_reg*I.
+        # Dense reference: T = -(A - 0.4*I) - i*1.3*I + eps_reg*I.
         # eps_reg defaults to 1e-7 in the solver.
         eps_reg = 1e-7
-        T_dense = -(A_dense - 0.4 * np.eye(6)) + 1j * 1.3 * np.eye(6) + eps_reg * np.eye(6)
+        T_dense = -(A_dense - 0.4 * np.eye(6)) - 1j * 1.3 * np.eye(6) + eps_reg * np.eye(6)
 
         sigma_min = np.linalg.svd(T_dense, compute_uv=False)[-1]
         expected_gain = 1.0 / sigma_min
@@ -688,7 +692,7 @@ def test_harmonic_resolvent_gamma_dense_reference() -> None:
 def _dense_ladder(
     blocks: list[np.ndarray], n_h: int, n_p: int, omega0: float, gamma: float, *, flip: bool
 ) -> np.ndarray:
-    """Return -(T - gamma I) with T_jk = Ahat_{j-k} - i omega_j delta_jk.
+    """Return the ladder (gamma - i omega_j) delta_jk - Ahat_{j-k}.
 
     ``flip=True`` places Ahat_{k-j} instead: the wrong orientation, used to
     show that the test can tell the two apart.
@@ -703,7 +707,7 @@ def _dense_ladder(
             if abs(d) <= n_h:
                 T[jb : jb + n, kb : kb + n] = blocks[d + n_h]
             if j == k:
-                T[jb : jb + n, kb : kb + n] -= (gamma + 1j * j * omega0) * np.eye(n)
+                T[jb : jb + n, kb : kb + n] -= (gamma - 1j * j * omega0) * np.eye(n)
     return -T
 
 
@@ -761,12 +765,12 @@ def test_harmonic_resolvent_ladder_orientation_dense_reference() -> None:
 
 
 @_requires_stack
-def test_harmonic_time_convention_is_the_classical_one_mirrored() -> None:
-    """At N_h = 0 the harmonic gain at +omega is the classical gain at -omega.
+def test_harmonic_time_convention_is_the_classical_one() -> None:
+    """At N_h = 0 the harmonic gain at omega equals the classical gain at omega.
 
     The operator is diagonal with the dominant eigenvalue -0.2 + 3i, so the
     classical gain peaks at omega = -3 (value 1/0.2 = 5). The harmonic path
-    uses exp(+i*omega*t) and peaks at omega = +3.
+    uses exp(-i*omega*t) as well and peaks at omega = -3.
     """
     import tempfile
 
@@ -797,6 +801,6 @@ def test_harmonic_time_convention_is_the_classical_one_mirrored() -> None:
             for w in (3.0, -3.0)
         }
 
-    assert harmonic[3.0] == pytest.approx(5.0, rel=1e-8)
-    assert harmonic[3.0] == pytest.approx(classical(-3.0), rel=1e-8)
-    assert harmonic[-3.0] == pytest.approx(classical(3.0), rel=1e-8)
+    assert harmonic[-3.0] == pytest.approx(5.0, rel=1e-8)
+    assert harmonic[3.0] == pytest.approx(classical(3.0), rel=1e-8)
+    assert harmonic[-3.0] == pytest.approx(classical(-3.0), rel=1e-8)

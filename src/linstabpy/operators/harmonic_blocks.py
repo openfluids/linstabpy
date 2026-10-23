@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 class HarmonicBlocks:
     """Fourier blocks of LNSE operator at harmonics k=-N_h..N_h.
 
+    The time dependence is ``A(t) = sum_k Ahat_k exp(-i*k*omega0*t)``, the
+    ``exp(-i*omega*t)`` convention of the classical resolvent.
+
     All blocks share the same union sparsity pattern to enable FFT of
     data arrays while preserving alignment.
 
@@ -26,6 +29,7 @@ class HarmonicBlocks:
     ----------
     Ahat : list[sp.csr_matrix]
         Length 2*N_h+1, CSR matrices for k=-N_h..N_h, all sharing indices/indptr.
+        ``Ahat[k]`` is the coefficient of ``exp(-i*k*omega0*t)``.
         Index j = k + N_h, so k=-N_h..0..N_h maps to j=0..N_h..2*N_h.
         Shape (n_dof, n_dof).
     N_h : int
@@ -73,7 +77,8 @@ def assemble_harmonic_blocks(
     For each sample time t_n in [0, T_period), reconstruct the real base flow
     Q(t_n), call build_lnse_system, and collect the operators. Then align
     all matrices onto a union sparsity pattern and FFT the data arrays to
-    extract k=-N_h..N_h (full two-sided spectrum).
+    extract k=-N_h..N_h (full two-sided spectrum). ``Ahat_k`` is the
+    coefficient of ``exp(-i*k*omega0*t)``.
 
     Union pattern alignment is critical because assembly() calls
     eliminate_zeros(), making the pattern depend on base-flow values.
@@ -178,8 +183,10 @@ def assemble_harmonic_blocks(
     # Harmonics to keep: k = -N_h..N_h, plus N_h+1 for the aliasing
     # diagnostic when N_t resolves it. Accumulating the discrete Fourier
     # sum one instant at a time holds (2*N_h+2) data arrays instead of the
-    # (N_t, nnz) array a full FFT needs. The normalization is the forward
-    # 1/N_t of np.fft.fft, so bin k is the coefficient of exp(+i*k*omega0*t).
+    # (N_t, nnz) array a full FFT needs. The normalization is the 1/N_t of
+    # np.fft.fft. The kernel is exp(+2*pi*i*k*n/N_t), the inverse-FFT sign,
+    # so bin k is the coefficient of exp(-i*k*omega0*t) (np.fft.fft gives
+    # exp(+i*k*omega0*t)).
     with_tail = N_t > 2 * (N_h + 1)
     k_values = list(range(-N_h, N_h + 1)) + ([N_h + 1] if with_tail else [])
     k_array = np.asarray(k_values, dtype=float)
@@ -208,7 +215,7 @@ def assemble_harmonic_blocks(
             )
             raise RuntimeError(message)
 
-        phase = np.exp(-2j * np.pi * k_array * inst / N_t) / N_t
+        phase = np.exp(2j * np.pi * k_array * inst / N_t) / N_t
         acc += phase[:, None] * out[None, :]
         # The instant is folded into every kept harmonic; release it.
         A_list[inst] = None
@@ -258,7 +265,10 @@ def write_resolvent4py_coo(
 
     The writer stores three binary files per harmonic:
       rows_XX.dat, cols_XX.dat, vals_XX.dat.
-    The index XX = k + N_h runs 0..2*N_h for k=-N_h..N_h.
+    The index XX = k + N_h runs 0..2*N_h for k=-N_h..N_h. File k holds
+    Ahat_k, the coefficient of exp(-i*k*omega0*t). resolvent4py reads the
+    files with exp(+i*k*omega0*t); harmonic_resolvent_gains reverses the
+    file order to map one convention onto the other.
 
     resolvent4py.write_to_file() stores PETSc objects, so the indices
     ride as PETSc scalars. The reader later extracts them as integers

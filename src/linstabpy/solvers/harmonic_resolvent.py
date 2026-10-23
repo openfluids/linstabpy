@@ -3,7 +3,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+if TYPE_CHECKING:
+    from petsc4py import PETSc
 
 
 def harmonic_resolvent_gains(
@@ -20,12 +25,15 @@ def harmonic_resolvent_gains(
 ) -> tuple[np.ndarray, dict]:
     """Compute harmonic resolvent gains via resolvent4py.
 
-    Time convention: this path follows resolvent4py, with perturbations
-    ``q(t) = sum_j q_j exp(+i*omega_j*t)`` and base harmonics ``exp(+i*k*omega0*t)``.
-    The classical resolvent uses ``exp(-i*omega*t)``. At ``N_h = 0`` the
-    harmonic gain at ``omega_j`` therefore equals the classical gain at
-    ``-omega_j``; the two agree at ``+omega_j`` only when the classical gain map
-    is even in ``omega`` (``W = 0`` or ``beta = 0``).
+    Time convention: the same as the classical resolvent, ``exp(-i*omega*t)``.
+    The perturbation is ``q(t) = sum_j q_j exp(-i*omega_j*t)`` and the base
+    flow is ``A(t) = sum_k Ahat_k exp(-i*k*omega0*t)``. With
+    ``omega_j = omega + j*omega0`` the ladder solves
+    ``(gamma - i*omega_j) q_j - sum_k Ahat_k q_{j-k} = f_j``. At ``N_h = 0``
+    the harmonic gain at ``omega_j`` equals the classical gain at the same
+    ``omega_j``. resolvent4py uses ``exp(+i*omega*t)``. ``_harmonic_generator``
+    maps the problem onto it, so the gains are those of the
+    ``exp(-i*omega*t)`` problem.
     See ``docs/resolvent_sign_convention.md``.
 
     Assembles the block-Toeplitz operator T and computes singular values
@@ -39,12 +47,14 @@ def harmonic_resolvent_gains(
     Parameters
     ----------
     coo_fnames : list[tuple[str, str, str]]
-        List of (rows_path, cols_path, vals_path) for k=-N_h..N_h,
-        written by write_resolvent4py_coo (two-sided storage).
+        List of (rows_path, cols_path, vals_path) for k=-N_h..N_h, where
+        Ahat_k is the coefficient of ``exp(-i*k*omega0*t)``, written by
+        write_resolvent4py_coo (two-sided storage).
     n : int
         DOF per harmonic block at single frequency.
     perts_freqs : np.ndarray
-        Perturbation frequencies omega_j, length 2*N_p+1.
+        Perturbation frequencies omega_j (perturbation ``exp(-i*omega_j*t)``),
+        ascending with spacing omega0, length 2*N_p+1.
         Default ladder: arange(-N_p, N_p+1)*omega0 with N_p >= N_h+3.
     n_modes : int, optional
         Number of leading singular values to extract. Default 10.
@@ -68,8 +78,8 @@ def harmonic_resolvent_gains(
         unperturbed solve (e.g., steady-state gate).
     dq_fnames : list[str], optional
         One Vec file per base harmonic k=-N_h..N_h
-        (2*N_h+1 files). Reader centers them on the
-        perturbation ladder (2*N_p+1 blocks).
+        (2*N_h+1 files), the coefficient of ``exp(-i*k*omega0*t)`` of dQ/dt.
+        Reader centers them on the perturbation ladder (2*N_p+1 blocks).
 
     Returns
     -------
@@ -90,11 +100,8 @@ def harmonic_resolvent_gains(
     """
     try:
         from resolvent4py import (
-            assemble_harmonic_resolvent_generator,
             check_lu_factorization,
-            create_AIJ_identity,
             create_mumps_solver,
-            read_harmonic_balanced_matrix,
             read_harmonic_balanced_vector,
         )
         from resolvent4py.linalg import randomized_svd
@@ -129,55 +136,13 @@ def harmonic_resolvent_gains(
     # Full system DOF
     N_full = (2 * N_p + 1) * n
 
-    # Compute local sizes for parallel PETSc (here: single-rank for simplicity)
+    # Local sizes for parallel PETSc (here: single-rank for simplicity)
     from resolvent4py import compute_local_size
 
     nl = compute_local_size(n)
     Nl = compute_local_size(N_full)
 
-    # Block and full sizes for reader
-    block_sizes = ((nl, n), (nl, n))
-    full_sizes = ((Nl, N_full), (Nl, N_full))
-
-    # Read harmonic balanced matrix (two-sided storage k=-N_h..N_h).
-    # At kx=0, Ahat[-k] = conj(Ahat[k]); at kx!=0 they differ, because
-    # A(t; kx) is complex through its i*kx derivatives. The
-    # real_bflow=False flag tells the reader to expect both and read them
-    # independently (files in order k=-N_h..N_h).
-    A = read_harmonic_balanced_matrix(
-        coo_fnames,
-        real_bflow=False,
-        block_sizes=block_sizes,
-        full_sizes=full_sizes,
-    )
-
-    # Discount shifts the operator: A -> A - gamma*I. After the sign flip below,
-    # each diagonal block is (gamma + i*omega_j) I - A: the exp(+i*omega*t)
-    # resolvent, which is the classical (gamma - i*omega) I - L0 at omega = -omega_j.
-    if gamma != 0.0:
-        A.shift(-gamma)
-
-    # Assemble generator T = A - i*omega*I. The resolvent4py 1.0.1 wheel
-    # takes exactly two positional args (A, freqs); upstream git main added
-    # a Mass parameter, but we pin 1.0.1 for reproducibility.
-    T = assemble_harmonic_resolvent_generator(A, perts_freqs)
-
-    # Scale by -1 to flip sign: -A + i*omega*I. This matches the resolvent4py
-    # toy convention (apply .scale(-1.0) after assembly). Then add epsilon
-    # regularization. Gains are sign-invariant; global phase in modes is
-    # physically immaterial.
-    T.scale(-1.0)
-
-    # Add regularization only if eps_reg > 0. For the steady-state gate
-    # (eps_reg=0), skip regularization to test the unperturbed system.
-    # We do NOT use MatShift on T because its diagonal blocks at padded
-    # harmonics may lack pre-allocated diagonal entries; instead build the
-    # perturbation as an identity and axpy it in.
-    if eps_reg > 0.0:
-        Id = create_AIJ_identity(PETSc.COMM_WORLD, T.getSizes())
-        Id.scale(eps_reg)
-        T.axpy(1.0, Id)
-        Id.destroy()
+    T = _harmonic_generator(coo_fnames, n, perts_freqs, gamma, eps_reg)
 
     # MUMPS LU factorization
     ksp = create_mumps_solver(T)
@@ -198,7 +163,7 @@ def harmonic_resolvent_gains(
         # Read dQ vector (single PETSc Vec file per harmonic, two-sided order).
         # The reader expects a flat list of file paths (one per harmonic).
         dQ = read_harmonic_balanced_vector(
-            dq_fnames,
+            dq_fnames[::-1],
             real_bflow=False,
             block_sizes=(nl, n),
             full_sizes=(Nl, N_full),
@@ -269,3 +234,82 @@ def harmonic_resolvent_gains(
     }
 
     return gains, info
+
+
+def _harmonic_generator(
+    coo_fnames: list[tuple[str, str, str]],
+    n: int,
+    perts_freqs: np.ndarray,
+    gamma: float,
+    eps_reg: float,
+) -> PETSc.Mat:
+    """Assemble the resolvent4py matrix of the ``exp(-i*omega*t)`` ladder.
+
+    The target ladder is ``(gamma - i*omega_j) q_j - sum_k Ahat_k q_{j-k} = f_j``
+    with ``omega_j = perts_freqs[j + N_p]``. resolvent4py assembles
+    ``(gamma + i*w_p) q_p - sum_k X_k q_{p-k}`` with the file k holding ``X_k``.
+    Put ``w_p = -omega_{-p}`` and ``X_k = Ahat_{-k}``. Block ``p`` of the
+    resolvent4py ladder is then harmonic ``j = -p`` and the equations are
+    identical. Both maps reverse an ordered list: the COO files, and the
+    negated frequencies. A block reversal does not change singular values.
+
+    Block ``p``, counted from the centre, carries the harmonic ``j = -p``
+    of the target ladder.
+
+    Parameters
+    ----------
+    coo_fnames : list[tuple[str, str, str]]
+        COO files of ``Ahat_k`` for k=-N_h..N_h.
+    n : int
+        DOF per harmonic block.
+    perts_freqs : np.ndarray
+        Ascending frequencies omega_j, length 2*N_p+1.
+    gamma : float
+        Discount.
+    eps_reg : float
+        Regularization added to the diagonal. 0 skips it.
+
+    Returns
+    -------
+    PETSc.Mat
+        The matrix whose inverse is the harmonic resolvent.
+    """
+    from petsc4py import PETSc
+    from resolvent4py import (
+        assemble_harmonic_resolvent_generator,
+        compute_local_size,
+        create_AIJ_identity,
+        read_harmonic_balanced_matrix,
+    )
+
+    N_full = len(perts_freqs) * n
+    nl = compute_local_size(n)
+    Nl = compute_local_size(N_full)
+
+    # Two-sided storage: at kx != 0 Ahat[-k] differs from conj(Ahat[k]),
+    # so real_bflow=False reads all 2*N_h+1 files independently.
+    A = read_harmonic_balanced_matrix(
+        coo_fnames[::-1],
+        real_bflow=False,
+        block_sizes=((nl, n), (nl, n)),
+        full_sizes=((Nl, N_full), (Nl, N_full)),
+    )
+
+    # The discount shifts A -> A - gamma*I. After the sign flip below, each
+    # diagonal block is (gamma + i*w_p) I - A with w_p = -omega_{-p}.
+    if gamma != 0.0:
+        A.shift(-gamma)
+
+    # The resolvent4py 1.0.1 wheel takes exactly two positional args
+    # (A, freqs); upstream git main added a Mass parameter, but we pin 1.0.1.
+    T = assemble_harmonic_resolvent_generator(A, -np.asarray(perts_freqs)[::-1])
+    T.scale(-1.0)
+
+    # Build the regularization as an identity and axpy it in: MatShift needs
+    # diagonal entries that padded harmonics may lack.
+    if eps_reg > 0.0:
+        Id = create_AIJ_identity(PETSc.COMM_WORLD, T.getSizes())
+        Id.scale(eps_reg)
+        T.axpy(1.0, Id)
+        Id.destroy()
+    return T

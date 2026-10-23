@@ -581,10 +581,12 @@ def test_harmonic_blocks_match_full_fft() -> None:
             for t in pbf.sample_times(N_t)
         ]
     )
+    # np.fft.fft bin m is the coefficient of exp(+i*m*omega0*t); Ahat_k is the
+    # coefficient of exp(-i*k*omega0*t), so it sits in bin -k.
     ref = np.fft.fft(dense, axis=0) / N_t
     scale = np.max(np.abs(ref[0]))
     for k in range(-N_h, N_h + 1):
-        err = np.max(np.abs(blocks.Ahat[k + N_h].toarray() - ref[k % N_t]))
+        err = np.max(np.abs(blocks.Ahat[k + N_h].toarray() - ref[-k % N_t]))
         assert err <= 1e-12 * scale, f"k={k}: max error {err:.2e} against fft"
-    tail = np.linalg.norm(ref[N_h + 1]) / np.linalg.norm(ref[0])
+    tail = np.linalg.norm(ref[-(N_h + 1) % N_t]) / np.linalg.norm(ref[0])
     assert blocks.tail_ratio == pytest.approx(tail, rel=1e-10)
