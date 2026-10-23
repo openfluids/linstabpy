@@ -108,12 +108,12 @@ def test_periodic_baseflow_reconstruct() -> None:
 
     # Reconstruct at t=0
     bf = pbf.reconstruct(0.0)
-    # Expected: Q(0) = 1 + 2*Re(0.1*exp(i*omega0*0)) = 1 + 2*0.1 = 1.2
+    # Expected: Q(0) = 1 + 2*Re(0.1*exp(-i*omega0*0)) = 1 + 2*0.1 = 1.2
     np.testing.assert_allclose(bf.RHO, 1.2, rtol=1e-14)
 
     # Reconstruct at t = T_period/4
     bf = pbf.reconstruct(T_period / 4.0)
-    # Q(T/4) = 1 + 2*Re(0.1*exp(i*omega0*T/4)) = 1 + 2*0.1*cos(pi/2) = 1
+    # Q(T/4) = 1 + 2*Re(0.1*exp(-i*omega0*T/4)) = 1 + 2*0.1*cos(pi/2) = 1
     np.testing.assert_allclose(bf.RHO, 1.0, atol=1e-14)
 
     # Reconstruct at t = T_period (should equal t=0)
