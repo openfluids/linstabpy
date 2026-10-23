@@ -251,7 +251,6 @@ Produces the DOF map used by BCs and solvers, including:
 
 - Border grid indices: `bi`, `ti`, `li`, `ri` (and mask `mi` when present)
 - Variable blocks: `rho_j`, `u_j`, `v_j`, `w_j`, `T_j`
-- Combined keys `{border}_{var}` for each border/variable pair
 
 Global size is \(5 N_{gp}\).
 

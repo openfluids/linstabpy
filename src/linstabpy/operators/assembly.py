@@ -247,7 +247,6 @@ def build_lnse_operator(
         Index mapping for variables and boundaries. Keys include:
         - 'bi', 'ti', 'li', 'ri': boundary grid point indices (0-based).
         - 'rho_j', 'u_j', 'v_j', 'w_j', 'T_j': DOF index arrays for each variable.
-        - '{border}_{var}': DOF indices for each variable at each border.
 
     Raises
     ------
