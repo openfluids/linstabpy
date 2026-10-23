@@ -86,6 +86,15 @@ Harmonic resolvent analysis via resolvent4py.
   PETSc build with MUMPS (petsc4py >= 3.20) must already exist in the
   environment.
 
+- The harmonic path uses the time convention `exp(-i*omega*t)` of the classical
+  resolvent: perturbation `exp(-i*omega_j*t)`, base-flow harmonics
+  `exp(-i*k*omega0*t)`, ladder `(gamma - i*omega_j) q_j - sum_k Ahat_k q_{j-k} = f_j`.
+  At `N_h = 0` the harmonic gain at `omega` equals the classical gain at `omega`.
+  A time integration of a periodic operator agrees with the ladder to 1e-12; the
+  unmapped resolvent4py ladder differs by 0.86 to 0.95. Files written with
+  `exp(+i*k*omega0*t)` map by `k -> -k`: conjugate `Qhat[1:]` and reverse the
+  order of the `Ahat_k` and `dQ_k` files (`docs/resolvent_sign_convention.md`).
+
 ### Known Limitations
 
 - Two-sided harmonic storage (k=-N_h..N_h) is required at non-zero spanwise

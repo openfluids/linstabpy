@@ -81,8 +81,8 @@ sufficient and no separate build is needed.
 **What is included in 1.2.0:**
 
 - Periodic base-flow loader: `load_periodic_baseflow()` reads Fourier harmonics
-  Qhat_k (k=0..N_h) from `.npz` and validates canonical normalization
-  (ρ_∞ = u_∞ = T_∞ = 1).
+  Qhat_k (k=0..N_h, coefficients of `exp(-i*k*omega0*t)`) from `.npz` and validates
+  canonical normalization (ρ_∞ = u_∞ = T_∞ = 1).
 - Harmonic operator blocks: time-stepping through one period, assembling the
   LNSE Jacobian at each instant, FFT to extract harmonics, automatic sparsity
   union to preserve memory efficiency.

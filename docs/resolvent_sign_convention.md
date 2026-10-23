@@ -125,12 +125,57 @@ step when you move to the default.
 ## Harmonic resolvent
 
 The harmonic resolvent (`solvers/harmonic_resolvent.py`, through resolvent4py)
-uses the time convention of resolvent4py: perturbations `exp(+i*omega_j*t)` and
-base-flow harmonics `exp(+i*k*omega0*t)`. Each diagonal block is
-`(gamma + i*omega_j) I - A`. This is the classical matrix at `omega = -omega_j`.
-At `N_h = 0` the harmonic gain at `omega_j` equals the classical gain at
-`-omega_j`. The `resolvent_sign_convention` setting does not change the
-harmonic path.
+uses the same time convention as the classical resolvent, `exp(-i*omega*t)`.
+The perturbation is `q(t) = sum_j q_j exp(-i*omega_j*t)` and the periodic
+operator is `A(t) = sum_k Ahat_k exp(-i*k*omega0*t)`. With
+`omega_j = omega + j*omega0` the ladder is
+
+```
+(gamma - i*omega_j) q_j - sum_k Ahat_k q_{j-k} = f_j
+```
+
+At `N_h = 0` this is the classical equation, so the harmonic gain at `omega_j`
+equals the classical gain at the same `omega_j`. The `resolvent_sign_convention`
+setting does not change the harmonic path.
+
+resolvent4py fixes its own convention, `exp(+i*omega*t)`, with the ladder
+`(gamma + i*w_p) q_p - sum_k X_k q_{p-k}`. The code maps one onto the other
+(`_harmonic_generator`): it passes the frequencies `w_p = -omega_{-p}` and the
+files `X_k = Ahat_{-k}`. Both are reversals of an ordered list. Block `p` of the
+resolvent4py ladder is then harmonic `j = -p`. A reversal of the blocks does not
+change singular values.
+
+What carries the new convention:
+
+- `PeriodicBaseFlow.Qhat[k]` is the coefficient of `exp(-i*k*omega0*t)`.
+  `reconstruct(t)` returns `Qhat[0] + 2 Re sum_{k>=1} Qhat[k] exp(-i*k*omega0*t)`.
+- `HarmonicBlocks.Ahat[k]` is the coefficient of `exp(-i*k*omega0*t)`. The
+  files written by `write_resolvent4py_coo` and `write_resolvent4py_vecs` hold
+  `k = -N_h..N_h` in this convention.
+- `perts_freqs` are the frequencies `omega_j` of `exp(-i*omega_j*t)`, in ascending order.
+
+Files written before this change use `exp(+i*k*omega0*t)`. To convert them,
+replace each harmonic `k` by `-k`:
+
+- a periodic base-flow `.npz`: take the complex conjugate of `Qhat[1:]`. `Qhat[0]`
+  is real and stays;
+- a list of `Ahat_k` files or arrays: reverse the order, so that the file for
+  `k` becomes the file for `-k`;
+- a list of `dQ_k` vectors: reverse the order in the same way.
+
+Gains from the old code at `N_h = 0` are the classical gains at `-omega_j`. For
+`N_h >= 1` the old ladder with `omega_j` solved the new ladder with `-omega_j`
+and the harmonics reversed. A gain map computed with the old convention at `omega`
+is therefore the new map at `-omega`.
+
+Evidence (`tests/test_harmonic_exp_minus.py`): a complex 3 x 3 periodic operator with
+`A(t) = A_0 + A_1 exp(-i*omega0*t) + A_{-1} exp(+i*omega0*t)`, `omega0 = 1.3`, with
+Floquet multipliers below 4e-3. The late-time response of
+`dq/dt = (A(t) - gamma) q + f exp(-i*omega*t)`, found with `solve_ivp` (tolerances
+1e-12) and projected on `exp(-i*(omega + j*omega0)*t)` for `j = -1, 0, 1`, is compared
+with the solve of the ladder (`N_p = 8`). The relative difference is 2e-12 at
+`gamma = 0` and 9e-13 at `gamma = 0.2` with the mapping. The ladder as resolvent4py
+reads the same files, without the mapping, differs by 0.95 and 0.86.
 
 ## Check which convention produced a file
 

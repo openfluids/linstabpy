@@ -494,6 +494,9 @@ gains, info = harmonic_resolvent_gains(coo, n, perts_freqs=perts_freqs, n_modes=
 ```
 
 `perts_freqs` holds the `2*N_p+1` perturbation frequencies, with `N_p = N_h + 3`.
+The time convention is `exp(-i*omega*t)` for the perturbation and for the base-flow harmonics
+(`Qhat[k]`, `Ahat[k]` multiply `exp(-i*k*omega0*t)`), the convention of the classical resolvent.
+`docs/resolvent_sign_convention.md` gives the ladder equation and says how to convert files written with `exp(+i*k*omega0*t)`.
 `examples/harmonic/padovan_ode/padovan_toy.py` runs the whole sequence end to end.
 
 The periodic base-flow loader validates the input `.npz` for canonical freestream normalization (ρ_∞ = u_∞ = T_∞ = 1) and rejects mismatched mesh shapes.
