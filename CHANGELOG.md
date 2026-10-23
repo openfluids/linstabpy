@@ -94,7 +94,17 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   BLAS are untouched, so only the STRUMPACK host work becomes serial: 4.10 s
   against 3.64 s on the small test problem, unmeasured on a production
   operator.
-
+- Neumann rows on the `l` and `r` borders use the inward normal, as `b` and `t` did.
+  The outward normal added a spurious mode with `Im(omega) ~ penalty/h`: 6.35e4 at
+  penalty 1e4 on a 10 x 9 fd4 mesh, against 8.2 without the condition. Results of
+  every case with a Neumann rule on `l` or `r` change. The condition `dq/dn = 0` does
+  not depend on the sign. LinStab2D's `BC_Neumann.m` uses `+d/dx` and `+d/dy` on all
+  edges, so it has the same spurious mode on `r` and `t`.
+- Boundary sponge edges combine by maximum, so corner values no longer depend on the
+  edge order. The parabolic ramp no longer writes the row or column at index `width`,
+  which erased the ramp of the perpendicular edge. Sponge values change at corners and
+  next to the ramps.
+- `apply_preprocess` filters copies and leaves the caller's arrays unchanged.
 - The Song run wrote its 430 MB result over the shipped 6.6 MB trimmed file
   `examples/song/output/fd4_n30/song_2023.npz`. The clone then showed a
   modified tracked file, and the tracked-file-size test failed. The run now
