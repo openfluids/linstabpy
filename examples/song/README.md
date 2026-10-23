@@ -42,7 +42,9 @@ From a clone, start from the shipped nodal base flow:
 
 This reads `reference/baseflow/song_32deg.npz`, divides u, v and w by Ma
 (the npz stores velocity / c_inf, the solver reads velocity / U_inf), and
-writes `inputs/baseflow/*.npy`. The result is the input of the paper run.
+writes `inputs/baseflow/*.npy` and contour PNGs of rho, u, v and T (`--no-plot` skips them).
+The shipped file has no pressure, so no `p.npy` is written; the solver does not read it.
+The result is the input of the paper run.
 
 If you have Song's Plot3D files, copy them into `inputs/raw/` and run the
 command without `--from-reference`. It reads `grid.grd` + `mean_flow.dat`,

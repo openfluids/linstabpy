@@ -289,7 +289,8 @@ def read_reference_baseflow(path: Path = BASEFLOW_NPZ) -> dict[str, np.ndarray]:
 
 def plot_fields(output_dir: Path, fields: dict[str, np.ndarray]) -> None:
     x, y = fields["x"], fields["y"]
-    for name in ("rho", "u", "v", "p", "T", "mu"):
+    # The shipped reference has no p and no mu.
+    for name in (n for n in ("rho", "u", "v", "p", "T", "mu") if n in fields):
         fig, ax = plt.subplots()
         ax.contourf(x, y, fields[name], cmap="coolwarm")
         ax.set_aspect("equal")
@@ -336,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
         for name, arr in fields.items():
             np.save(args.output_dir / f"{name}.npy", arr)
+        if not args.no_plot:
+            plot_fields(args.output_dir, fields)
         print(f"Wrote baseflow from {BASEFLOW_NPZ.name} to {args.output_dir}")
         return 0
     ref = SONG2023_REFERENCE
