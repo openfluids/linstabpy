@@ -183,16 +183,16 @@ Re-plot any time without recomputing:
 
 ## Second run: Blasius resolvent
 
-Example 1 is the real first science run: resolvent gains with optimal forcing and [response modes](../core-concepts.md) for a [compressible](https://grokipedia.com/page/Compressible_flow) Blasius [boundary layer](https://grokipedia.com/page/Boundary_layer) ($Re = 6.0\times 10^5$, $Ma = 0.3$, SBP order 4, grid $300 \times 100$). It needs one external file, the MATLAB base flow `BL_BF.mat`, which this repo does not bundle.
+Example 1 is the real first science run: resolvent gains with optimal forcing and [response modes](../core-concepts.md) for a [compressible](https://grokipedia.com/page/Compressible_flow) Blasius [boundary layer](https://grokipedia.com/page/Boundary_layer) ($Re = 6.0\times 10^5$, $Ma = 0.3$, SBP order 4, grid $300 \times 100$). It needs the MATLAB base flow `BL_BF.mat`. The repo ships it in `examples/linstab2d/baseflows/`, and the loader reads it from there, so a fresh clone runs the example.
 
-Fetch the reference data once:
+To read the base flows from a LinStab2D clone instead, fetch the reference data once:
 
 ```bash
 git clone https://github.com/LinStab2D/LinStab2D.git ~/linstab2d-reference
 export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
 ```
 
-Without that variable, the example raises `FileNotFoundError` telling you to set it. Put the export in your shell profile if you run these often. The Song and Savarino cases ship their own data or fetch scripts and never read this variable.
+The variable is optional. The example raises `FileNotFoundError` only when the file is missing from the configured directory (the default one or the one the variable names). The Song and Savarino cases ship their own data or fetch scripts and never read this variable.
 
 Run the case, then the plots:
 
@@ -233,8 +233,8 @@ bash run_all_examples.sh               # everything plus parity and plots
 | # | Module | What it teaches | Needs |
 |---|---|---|---|
 | 0 | `example_0_curvilinear_validation` | SBP derivatives on deformed meshes | Nothing. Pure NumPy. |
-| 1 | `example_1_blasius` | Resolvent gains, forcing and response | `BL_BF.mat` via data dir |
-| 2 | `example_2_jet` | Resolvent on a turbulent jet base flow | `M09jet.mat` via data dir |
+| 1 | `example_1_blasius` | Resolvent gains, forcing and response | `BL_BF.mat` (bundled) |
+| 2 | `example_2_jet` | Resolvent on a turbulent jet base flow | `M09jet.mat` (bundled) |
 | 3 | `example_3_streaky_bl` | Temporal and spatial EVP plus Floquet options | MATLAB fixtures for plots |
 | 4 | `example_4_cavity` | Direct and adjoint eigenvalues, spectra | `Step_BF.mat` via data dir |
 | 5 | `example_5_paraboloid` | Resolvent on a 3D body-fitted mesh | `Paraboloid_BF.mat` via data dir |
@@ -384,7 +384,7 @@ Large generated outputs, raw MATLAB exports, and machine-local benchmark product
 | `mpi4py` import fails after switching MPI | Wheel ABI mismatch | Wipe `.venv`, then `LINSTABPY_MPI4PY_NO_BINARY=1 bash install.sh`. |
 | Python NHEP solve aborts on macOS, C SLEPc works | Accelerate LAPACK interposition | `brew install openblas scalapack`, reinstall, use `.venv/bin/python` only. |
 | PETSc configure hangs | Wrong launcher probed | `LINSTABPY_PETSC_MPIEXEC=/path/to/working/mpiexec bash install.sh`. |
-| Example raises `FileNotFoundError` for `.mat` | Data dir unset | Clone LinStab2D, export `LINSTABPY_BASEFLOW_DATA_DIR`. |
+| Example raises `FileNotFoundError` for `.mat` | The `.mat` file is missing from `examples/linstab2d/baseflows/`, or from the directory `LINSTABPY_BASEFLOW_DATA_DIR` names | Restore the file, or point `LINSTABPY_BASEFLOW_DATA_DIR` at a LinStab2D clone (optional override). |
 | `linstabpy` ran the wrong case | Args ignored (stderr warning, exit 0) | The CLI takes no case args. Set `LINSTABPY_CASE_CONFIG` and rerun. |
 | Stale results reused | Cache hit | Check for the `Cache valid` line. Set unique output paths or `LINSTABPY_FORCE_RECOMPUTE=1`. |
 | Factor crash or OOM | Backend, ranks, or memory | Verify backend build, raise ranks, consider BLR options, check BC setup. |
