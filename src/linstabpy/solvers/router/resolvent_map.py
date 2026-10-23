@@ -748,11 +748,13 @@ def _forcing_response_mats(
     return B_mat, C_mat
 
 
-def _mark_unstable_band(L0_beta: Any, f_range: np.ndarray, cfg: Mapping[str, Any]) -> BandMarks:
+def _mark_unstable_band(
+    L0_beta: Any, f_range: np.ndarray, cfg: Mapping[str, Any], cfg_obj: Any = None
+) -> BandMarks:
     from linstabpy.solvers.router.band_marking import mark_unstable_band
 
-    # Read the sign from the same solver config as the resolvent solves.
-    parity = _resolvent_sign_convention(cfg, None) == "matlab_parity"
+    # Read the sign from the same config as the resolvent solves (typed Config included).
+    parity = _resolvent_sign_convention(cfg, cfg_obj) == "matlab_parity"
     return mark_unstable_band(L0_beta, f_range, cfg, matlab_parity=parity)
 
 
@@ -1397,7 +1399,7 @@ def resolvent_map(
                     omega_arr.size,
                 )
             else:
-                marks = _mark_unstable_band(assembly.L0, f, cfg_map)
+                marks = _mark_unstable_band(assembly.L0, f, cfg_map, cfg_obj)
             stage_wall["stability"] = (
                 stage_wall.get("stability", 0.0) + time.perf_counter() - band_start
             )

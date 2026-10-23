@@ -34,7 +34,7 @@ def _install_small_router_seams(monkeypatch: pytest.MonkeyPatch) -> tuple[list[f
     monkeypatch.setattr(
         router_map,
         "_mark_unstable_band",
-        lambda _L0, f_range, _cfg: BandMarks(
+        lambda _L0, f_range, _cfg, _cfg_obj=None: BandMarks(
             omegas=np.asarray(f_range, dtype=float),
             labels=np.array([STABLE, NEAR_POLE, STABLE, STABLE], dtype=object),
             distances=np.ones(4, dtype=float),
@@ -143,7 +143,7 @@ def test_single_frequency_stays_on_direct_engine(
     monkeypatch.setattr(
         router_map,
         "_mark_unstable_band",
-        lambda _L0, f_range, _cfg: BandMarks(
+        lambda _L0, f_range, _cfg, _cfg_obj=None: BandMarks(
             omegas=np.asarray(f_range, dtype=float),
             labels=np.array([STABLE], dtype=object),
             distances=np.ones(1, dtype=float),

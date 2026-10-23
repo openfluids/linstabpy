@@ -184,6 +184,26 @@ def test_router_band_marking_reads_sign_from_explicit_solver_cfg(monkeypatch) ->
     assert seen["matlab_parity"] is False
 
 
+def test_router_band_marking_reads_sign_from_typed_config(monkeypatch) -> None:
+    """A typed Config has no router mapping; its sign must still reach the band marking."""
+    import importlib
+
+    import linstabpy.solvers.router.band_marking as band_marking
+    from linstabpy.config import Config
+
+    router_map = importlib.import_module("linstabpy.solvers.router.resolvent_map")
+    seen: dict[str, object] = {}
+
+    def capture(L0_beta, f_range, cfg=None, *, matlab_parity=None):
+        seen["matlab_parity"] = matlab_parity
+
+    monkeypatch.setattr(band_marking, "mark_unstable_band", capture)
+    typed = Config.load({"solver": {"resolvent_sign_convention": "matlab_parity"}})
+    cfg_map, cfg_obj = router_map._normalise_cfg(typed)
+    router_map._mark_unstable_band(None, [1.0, 2.0], cfg_map, cfg_obj)
+    assert seen["matlab_parity"] is True
+
+
 def test_band_marking_targets_include_the_range_centre() -> None:
     """An even target count would leave out the centre of the range."""
     from linstabpy.solvers.router.band_marking import _evp_targets

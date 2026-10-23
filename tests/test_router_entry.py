@@ -74,7 +74,7 @@ def _install_fake_seams(
         ),
     )
 
-    def fake_marks(_L0, f_range, _cfg):
+    def fake_marks(_L0, f_range, _cfg, _cfg_obj=None):
         f = np.asarray(f_range, dtype=float).reshape(-1)
         repeated = np.resize(np.asarray(labels, dtype=object), f.size)
         return BandMarks(omegas=f, labels=repeated, distances=np.ones(f.size), danger_radius=0.0)
