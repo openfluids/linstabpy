@@ -54,6 +54,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from linstabpy.config.defaults import REMOVED_DISSIPATION_KEYS, stage_dissipation_epsilon
+from linstabpy.driver.io import _is_root_rank
 from linstabpy.solvers.router.band_marking import NEAR_POLE, SMOOTH, STABLE, BandMarks
 from linstabpy.solvers.router.map_record import (
     atomic_savez,
@@ -1159,7 +1160,8 @@ def _load_store(
         failures = []
         # Keep the unreadable file: the next save would overwrite it.
         backup = path.with_name(f"{path.name}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}")
-        path.replace(backup)
+        if _is_root_rank():
+            path.replace(backup)
         LOGGER.warning(
             "resolvent_map: cannot read store %s (%s); moved it to %s", path, exc, backup
         )
@@ -1198,7 +1200,9 @@ def _save_store(
     }
     if cost_metrics:
         payload.update(cost_metrics)
-    atomic_savez(path, **payload)
+    # Every rank holds the same map; one writer avoids a race on the temporary file.
+    if _is_root_rank():
+        atomic_savez(path, **payload)
 
 
 def _collect_cost_metrics(stage_wall: Mapping[str, float]) -> dict[str, object]:
