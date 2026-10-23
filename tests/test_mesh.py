@@ -1378,3 +1378,46 @@ def test_chained_one_direction_deformations_compose_the_metric(order):
     }
     for name, value in expected.items():
         np.testing.assert_allclose(getattr(mesh, name), value, atol=1e-10, err_msg=name)
+
+
+def _full_step(X, Y):
+    return X + 0.1 * X * Y, Y + 0.05 * np.sin(X) * Y
+
+
+def _full_step_2(X, Y):
+    return X + 0.1 * Y**2, Y * (1.0 + 0.2 * X)
+
+
+@pytest.mark.parametrize("order", ["ff", "xf", "fy", "yf", "fx"])
+def test_chained_full_2d_deformations_compose_the_metric(order):
+    """J and W of a chain that has a full-2D step equal those of the final map."""
+    base = Mesh.create(xrange=(0.1, 1.0), yrange=(0.1, 1.0), nx=24, ny=24, fd_order=4)
+    mesh, X, Y = base, base.X, base.Y
+    steps = {
+        "x": lambda X, Y: (X + 0.2 * X**2, Y),
+        "y": lambda X, Y: (X, Y + 0.3 * Y**2),
+    }
+    full = iter([_full_step, _full_step_2])
+    for axis in order:
+        X, Y = (steps[axis] if axis in steps else next(full))(X, Y)
+        if axis == "x":
+            mesh = mesh.deform(X_new=X)
+        elif axis == "y":
+            mesh = mesh.deform(Y_new=Y)
+        else:
+            mesh = mesh.deform(X_new=X, Y_new=Y)
+    x = X.ravel(order="F")[base.used_ind]
+    y = Y.ravel(order="F")[base.used_ind]
+    expected = {
+        "J11": base.Dx @ x,
+        "J12": base.Dx @ y,
+        "J21": base.Dy @ x,
+        "J22": base.Dy @ y,
+    }
+    # A step taken on a deformed mesh differentiates with the transformed operators,
+    # so chain and final map differ by the fd4 truncation error (1e-6 here), not 1e-10.
+    for name, value in expected.items():
+        np.testing.assert_allclose(getattr(mesh, name), value, atol=1e-5, err_msg=name)
+    det = expected["J11"] * expected["J22"] - expected["J12"] * expected["J21"]
+    w = base.W.ravel(order="F")[base.used_ind] * np.abs(det)
+    np.testing.assert_allclose(mesh.W.ravel(order="F")[base.used_ind], w, rtol=1e-4)

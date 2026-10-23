@@ -518,7 +518,8 @@ class Mesh:
         - **Y-only** (``Y_new`` given, ``X_new`` is None): 1-D chain rule
           on the y-derivative operators only, with the same metric rule.
         - **Full 2-D** (both given): full Jacobian transformation of all
-          derivative operators.
+          derivative operators. The metric J composes with the metric of
+          earlier deforms (J_old @ J_step), as in the one-direction cases.
 
         Parameters
         ----------
@@ -959,10 +960,12 @@ class Mesh:
             Dyx_symm_new,
             Dxy_asymm_new,
             Dyx_asymm_new,
-            J11,
-            J12,
-            J21,
-            J22,
+            # Chain rule J_total = J_old @ J_step: the step J above is taken
+            # on the current operators, so the metric of earlier deforms stays.
+            self.J11 * J11 + self.J12 * J21,
+            self.J11 * J12 + self.J12 * J22,
+            self.J21 * J11 + self.J22 * J21,
+            self.J21 * J12 + self.J22 * J22,
         )
 
     def mask(self, mask_array: np.ndarray) -> Mesh:

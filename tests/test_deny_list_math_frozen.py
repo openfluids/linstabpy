@@ -192,7 +192,18 @@ _FROZEN_SIGNATURES = {
     # matrix, weight and J, masked or not, is unchanged. Tests: test_mesh_dissipation.py::
     # TestMaskedMeshDissipation and test_assembly_dissipation.py::
     # test_masked_mesh_assembles_with_dissipation (failing before the fix).
-    "mesh": "9ba71e1b1d22be51ecc795cc6f637d1f43578480fb8c295020760199717a4b1b",
+    # mesh re-baselined 2026-10-23, user-approved ("fix this to everything match"):
+    # _deform_full_2d returned the metric J of the step alone, so a full-2D deform of an
+    # already deformed mesh lost the metric of the earlier deform (Neumann curvilinear-normal
+    # rows read J). It now returns J_old @ J_step, as the one-direction paths do. No
+    # derivative operator or weight statement changed. Evidence: 180 cases (Mesh.create
+    # fd2-6, y_symmetry on/off, n = 16, 24; plain, masked and all-True-mask meshes; x-only,
+    # y-only, full-2D, separable-2D and identity deforms; 36 raise the degenerate-mapping
+    # error identically) hash identically before and after over 14 operators, W, W_symm,
+    # W_asymm, J11-J22, X, Y, bit for bit. Chains ff, xf, yf now match J and W of the final
+    # map computed on the base grid to the fd4 truncation error (test_mesh.py::
+    # test_chained_full_2d_deformations_compose_the_metric; ff, xf, yf failed before).
+    "mesh": "475e84b605e648ce48cb9595ccc295a64e8a90e674bdad97c9be7dfee466bb56",
     # sbp re-hashed again 2026-10-22: build_sbp_pole_matrices and
     # build_sbp_dissipation_matrices refuse n < min_points like build_sbp_matrix.
     # Guard statements only; no operator value changes (full suite green).
