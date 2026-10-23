@@ -327,7 +327,7 @@ def test_resume_refuses_a_store_with_another_grid_and_keeps_it(
     with pytest.raises(router_map.StoreFingerprintError, match="beta/f grid"):
         router_map.resolvent_map(_flow(), [0.1], [1.0, 3.0], cfg)
     with pytest.raises(router_map.StoreFingerprintError, match="beta/f grid"):
-        router_map.resolvent_map(_flow(), [0.1, 0.2], [1.0, 2.0], cfg)
+        router_map.resolvent_map(_flow(), [0.2], [1.0, 2.0], cfg)
     assert output_npz.read_bytes() == before
 
 
@@ -587,3 +587,39 @@ def test_legacy_flat_fingerprint_follows_the_same_rules(
         )
     assert _statuses(resumed) == ["skipped", "skipped"] and calls == []
     assert "cfg.solver" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("new_beta", "new_f", "computed"),
+    [
+        ((0.1, 0.2), (1.0, 2.0), [1.0, 2.0]),
+        ((0.1,), (1.0, 1.5, 2.0, 3.0), [1.5, 3.0]),
+    ],
+)
+def test_grid_extension_copies_old_points_and_computes_only_new_ones(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    caplog: pytest.LogCaptureFixture,
+    new_beta,
+    new_f,
+    computed,
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {})
+    with caplog.at_level("INFO", logger=router_map.LOGGER.name):
+        result, calls = _run_map(monkeypatch, tmp_path, {"output_npz": out}, beta=new_beta, f=new_f)
+    assert "extending map from 1 x 2 to" in caplog.text
+    assert calls == computed
+    skipped = [r for r in result.point_records if r["status"] == "skipped"]
+    assert {(r["beta"], r["omega"]) for r in skipped} >= {(0.1, 1.0), (0.1, 2.0)}
+    np.testing.assert_allclose(result.gain, np.tile(np.array(new_f), (len(new_beta), 1)))
+
+
+def test_grid_that_drops_an_old_point_is_refused_and_keeps_the_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    out = _first_map(monkeypatch, tmp_path, {})
+    before = out.read_bytes()
+    for beta, f in (((0.1,), (1.0, 3.0)), ((0.2,), (1.0, 2.0)), ((0.1, 0.2), (2.0, 3.0))):
+        with pytest.raises(router_map.StoreFingerprintError, match="beta/f grid"):
+            _run_map(monkeypatch, tmp_path, {"output_npz": out}, beta=beta, f=f)
+    assert out.read_bytes() == before

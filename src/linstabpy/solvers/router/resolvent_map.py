@@ -1020,6 +1020,27 @@ def _fingerprint(
     return fields_
 
 
+def _move_record(
+    record: dict[str, object], beta_at: np.ndarray, f_at: np.ndarray, nf: int, total: int
+) -> None:
+    """Point a stored point record at its place in the new grid."""
+    bi, fi = record.get("beta_index"), record.get("f_index")
+    if isinstance(bi, int) and isinstance(fi, int) and bi < beta_at.size and fi < f_at.size:
+        record.update(
+            beta_index=int(beta_at[bi]),
+            f_index=int(f_at[fi]),
+            index=_point_index(int(beta_at[bi]), int(f_at[fi]), nf),
+            total=total,
+        )
+
+
+def _positions(stored: np.ndarray, current: np.ndarray) -> np.ndarray | None:
+    """Return where each stored value sits in ``current`` (exact match), or None."""
+    where = {float(v): i for i, v in enumerate(current)}
+    found = [where.get(float(v)) for v in stored]
+    return None if None in found else np.asarray(found, dtype=np.intp)
+
+
 def _load_store(
     path: Path | None,
     beta: np.ndarray,
@@ -1038,12 +1059,15 @@ def _load_store(
         with np.load(path, allow_pickle=False) as data:
             cached_beta = np.asarray(data["beta"], dtype=float).reshape(-1)
             cached_f = np.asarray(data["f"], dtype=float).reshape(-1)
-            if not (np.array_equal(cached_beta, beta) and np.array_equal(cached_f, f)):
+            beta_at = _positions(cached_beta, beta)
+            f_at = _positions(cached_f, f)
+            if beta_at is None or f_at is None:
                 # Resuming would later overwrite the stored map, so refuse instead.
                 raise StoreFingerprintError(
-                    f"resolvent_map: cannot resume {path}. It holds another beta/f grid "
-                    f"({cached_beta.size} x {cached_f.size} points, this run "
-                    f"{beta.size} x {f.size}). Write to a new output_npz path, or "
+                    f"resolvent_map: cannot resume {path}. It holds a beta/f grid "
+                    f"({cached_beta.size} x {cached_f.size} points) with values missing from "
+                    f"this run's grid ({beta.size} x {f.size}). A new grid must contain every "
+                    "stored beta and f value. Write to a new output_npz path, or "
                     "restore the beta and f ranges of the stored map."
                 )
             # A store written before this key existed used the LinStab2D sign.
@@ -1087,19 +1111,43 @@ def _load_store(
                     "matches this problem cannot be verified.",
                     path,
                 )
-            gain = np.asarray(data["gain"], dtype=float).reshape(beta.size, f.size)
-            labels = np.asarray(data["regime_label"], dtype=str).reshape(beta.size, f.size)
+            shape = (cached_beta.size, cached_f.size)
+            stored_gain = np.asarray(data["gain"], dtype=float).reshape(shape)
+            stored_labels = np.asarray(data["regime_label"], dtype=str).reshape(shape)
             if "discount_gamma" in data.files:
-                discount = np.asarray(data["discount_gamma"], dtype=float)
-                discount = discount.reshape(beta.size, f.size)
+                stored_discount = np.asarray(data["discount_gamma"], dtype=float).reshape(shape)
             else:
-                discount = np.where(labels == NEAR_POLE, np.nan, 0.0)
+                stored_discount = np.where(stored_labels == NEAR_POLE, np.nan, 0.0)
             if "reason_code" in data.files:
-                reason = np.asarray(data["reason_code"], dtype=np.int16).reshape(beta.size, f.size)
+                stored_reason = np.asarray(data["reason_code"], dtype=np.int16).reshape(shape)
             else:
-                reason = np.where(np.isfinite(gain), REASON_OK, REASON_PENDING).astype(np.int16)
-            if "failure_records_json" in data.files:
-                failures = _records_from_json_array(data["failure_records_json"])
+                stored_reason = np.where(np.isfinite(stored_gain), REASON_OK, REASON_PENDING)
+            stored_failures = (
+                _records_from_json_array(data["failure_records_json"])
+                if "failure_records_json" in data.files
+                else []
+            )
+            same_grid = (
+                shape == (beta.size, f.size)
+                and np.array_equal(np.arange(beta.size), beta_at)
+                and np.array_equal(np.arange(f.size), f_at)
+            )
+            if not same_grid:
+                LOGGER.info(
+                    "resolvent_map: extending map from %d x %d to %d x %d points",
+                    *shape,
+                    beta.size,
+                    f.size,
+                )
+            at = np.ix_(beta_at, f_at)
+            gain[at] = stored_gain
+            labels[at] = stored_labels
+            discount[at] = stored_discount
+            reason[at] = stored_reason.astype(np.int16)
+            for record in stored_failures:
+                if not same_grid:
+                    _move_record(record, beta_at, f_at, f.size, beta.size * f.size)
+                failures.append(record)
     except (OSError, KeyError, ValueError) as exc:
         # Start empty: the arrays above may hold part of the unreadable store.
         gain = np.full((beta.size, f.size), np.nan, dtype=float)
@@ -1248,6 +1296,11 @@ def resolvent_map(
     tolerances, factorization options) and fields that exist on one side only
     resume with one warning that names them. A file without a fingerprint resumes
     with a warning.
+
+    The ``beta`` and ``f`` arrays may grow. When every stored value is in the new
+    array (exact equality), the stored points are copied into the new grid and only
+    the other points are computed. A grid that drops a stored value raises
+    ``StoreFingerprintError``.
     """
     cfg_map, cfg_obj = _normalise_cfg(cfg)
     beta = _finite_1d_range(beta_range, "beta_range")
