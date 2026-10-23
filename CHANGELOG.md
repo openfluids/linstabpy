@@ -67,8 +67,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 - Dissipation on a masked mesh is built on the used points, one operator per
   line segment, with the same segment rule as the masked derivatives. Before,
   the assembly failed with a shape error.
-- `deform` in one direction keeps the metric of the other direction. Before, a
-  y-only deform after an x-only deform reset the x metric to the identity.
+- `deform` composes the metric of earlier deforms: a chain of deforms has the
+  metric of the final map. Before, a one-direction deform reset the metric of
+  the other direction to the identity, and a full-2D deform of a deformed mesh
+  dropped the earlier metric. A deform of an undeformed mesh is unchanged bit
+  for bit.
 - The raw-eigenvalue diagnostic in the driver uses the `omega = eig(i*L0)`
   convention for its target and its results, and accepts a PETSc `L0`.
 - The frequency walk starts each inner solve from zero. The previous solution
