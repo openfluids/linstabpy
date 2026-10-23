@@ -250,3 +250,24 @@ def test_masked_mesh_assembles_with_dissipation() -> None:
     Q_block = sp.block_diag([masked.Q_diss_x + masked.Q_diss_y] * 5, format="csr")
     diff = (L_on - (L_off - epsilon * Q_block)).tocsr()
     assert diff.nnz == 0 or np.abs(diff.data).max() < 1e-12
+
+
+def test_all_true_mask_assembles_with_dissipation() -> None:
+    """A mask that keeps every point gives the same dissipation term as no mask."""
+    from linstabpy.mesh import Mesh
+    from linstabpy.operators import build_lnse_operator
+
+    mesh = Mesh.create(
+        xrange=(0.0, 1.0),
+        yrange=(0.0, 1.0),
+        nx=_NX,
+        ny=_NX,
+        fd_order=_FD_ORDER,
+        numerics_operator_dissipation={"enabled": True, "order_diss": _FD_ORDER},
+    )
+    masked = mesh.mask(np.ones(mesh.X.shape, dtype=bool))
+    epsilon = 0.1
+    L_mask, _ = build_lnse_operator(masked, _make_baseflow(masked), dissipation_epsilon=epsilon)
+    L_full, _ = build_lnse_operator(mesh, _make_baseflow(mesh), dissipation_epsilon=epsilon)
+    diff = (L_mask - L_full).tocsr()
+    assert diff.nnz == 0 or np.abs(diff.data).max() < 1e-12
