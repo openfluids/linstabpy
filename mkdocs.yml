@@ -121,6 +121,7 @@ nav:
           - LNSE operator: modules/lnse-operator-assembly.md
           - Stability: modules/stability-analysis.md
           - Resolvent: modules/resolvent-analysis.md
+          - Resolvent sign convention: resolvent-sign-convention.md
           - Solver routing: modules/solver-routing.md
           - Linear algebra: modules/linear-algebra.md
           - Utilities: modules/shared-utilities.md

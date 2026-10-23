@@ -98,7 +98,7 @@ provenance/cost groups: `references/npz-contract.md`.
    note + tests + readers).
 6. Resolvent `H = [(gamma - i*omega) I - L0]^-1` (physical sign);
    `solver.resolvent_sign_convention: matlab_parity` restores the LinStab2D
-   sign (`docs/resolvent_sign_convention.md`).
+   sign (`wiki/resolvent-sign-convention.md`).
 
 ## References (progressive disclosure)
 

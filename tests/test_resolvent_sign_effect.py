@@ -7,7 +7,7 @@ The gains agree.
 The modes differ by a conjugation and a sign change of the spanwise velocity.
 Take ``W != 0``.
 The gain map then reverses in ``omega``.
-``docs/resolvent_sign_convention.md`` gives the effect table.
+``wiki/resolvent-sign-convention.md`` gives the effect table.
 """
 
 from __future__ import annotations

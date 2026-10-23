@@ -55,7 +55,7 @@ The order that works:
 :material-numeric-4-circle: Run the rest of the family through the runner script.
 :material-numeric-5-circle: Write your own YAML case and run it through the driver or a module.
 
-Math conventions used on this page: temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ means growth. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. You need these two lines to read any spectrum or gain plot below.
+Math conventions used on this page: temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence, so $\mathrm{Im}(\omega) > 0$ means growth. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. You need these two lines to read any spectrum or gain plot below.
 
 
 ## What you need before you start
@@ -531,9 +531,9 @@ python -m linstabpy.driver.cli
 - `complex / int list fields`(complex | list[complex] | list[int]): optional - Loosely typed YAML scalars/lists parsed into Python complex and int lists (parse_complex, parse_complex_list, parse_int_list) for frequencies, [wavenumbers](https://grokipedia.com/page/Wavenumber), and similar solver inputs.
 
 <!-- GENERATED:YAML-KEYS-START -->
-**Top-level keys** (`TOP_LEVEL_ALLOWED`, generated — 73 keys):
+**Top-level keys** (`TOP_LEVEL_ALLOWED`, generated — 75 keys):
 
-`L_cavity`, `Lx`, `Ly`, `Ma`, `Pr`, `Re`, `St`, `T_0`, `alpha_filter`, `alpha_temp`, `analysis`, `assembly_backend`, `baseflow_input`, `baseflow_preprocess`, `bc`, `bc_mask_layout`, `beta`, `cases`, `coarsen`, `conformal_scale`, `dedupe_tol`, `deform`, `dx`, `fd_order`, `floquet_shift`, `forcing_zero_vars`, `kappa`, `kx`, `m`, `mask_x_left`, `mask_x_right`, `model`, `n_modes`, `n_modes_resolvent`, `n_modes_stability`, `n_periods`, `ncv`, `numerics`, `nx`, `ny`, `omega`, `omega_shift_fallback`, `omega_target`, `paths`, `penalty`, `physics`, `preprocess`, `run_resolvent`, `run_spatial`, `run_stability`, `run_temporal`, `schema_version`, `solver`, `spatial_omega_imag_shift`, `sponge`, `stability_search_extra_modes`, `stride_eta`, `stride_ksi`, `temporal_quotas`, `temporal_targets`, `use_omega_shift_fallback`, `x_cavity_start`, `x_max_base`, `x_min_factor`, `x_periodicity`, `xrange`, `y_i`, `y_max`, `y_stretch_yi`, `y_symmetry`, `yrange`, `zero_dmudT`, `zero_dmudT_martini_parity`
+`L_cavity`, `Lx`, `Ly`, `Ma`, `Pr`, `Re`, `St`, `T_0`, `alpha_filter`, `alpha_temp`, `analysis`, `assembly_backend`, `baseflow_input`, `baseflow_preprocess`, `bc`, `bc_mask_layout`, `beta`, `cases`, `coarsen`, `conformal_scale`, `dedupe_tol`, `deform`, `dx`, `fd_order`, `floquet_shift`, `forcing_zero_vars`, `kappa`, `kx`, `logging`, `m`, `mask_x_left`, `mask_x_right`, `matlab_parity_dmudt`, `model`, `n_modes`, `n_modes_resolvent`, `n_modes_stability`, `n_periods`, `ncv`, `numerics`, `nx`, `ny`, `omega`, `omega_shift_fallback`, `omega_target`, `paths`, `penalty`, `physics`, `preprocess`, `run_resolvent`, `run_spatial`, `run_stability`, `run_temporal`, `schema_version`, `solver`, `spatial_omega_imag_shift`, `sponge`, `stability_search_extra_modes`, `stride_eta`, `stride_ksi`, `temporal_quotas`, `temporal_targets`, `use_omega_shift_fallback`, `x_cavity_start`, `x_max_base`, `x_min_factor`, `x_periodicity`, `xrange`, `y_i`, `y_max`, `y_stretch_yi`, `y_symmetry`, `yrange`, `zero_dmudT`, `zero_dmudT_martini_parity`
 
 SBP `fd_order` values allowed: 2, 4, 6, 8.
 <!-- GENERATED:YAML-KEYS-END -->
@@ -705,7 +705,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Modal vs non-modal.** Modal stability asks about $t \to \infty$: do all eigenvalues sit on the stable side. Non-modal stability asks about finite time: how far can a perturbation wander before (possibly) decaying. For normal operators the answers agree; for non-normal ones they can differ wildly, and the finite-time answer is an optimization problem, not an eigenvalue. See Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, *Appl. Mech. Rev.* 75(3), 030802, modal and non-modal stability.
 
-**Resolvent.** The operator $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. See [resolvent analysis](modules/resolvent-analysis.md).
+**Resolvent.** The operator $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. The sign of $\omega$ follows $\exp(-i\omega t)$, as for the eigenvalues; see the [sign convention](resolvent-sign-convention.md). See [resolvent analysis](modules/resolvent-analysis.md).
 
 **Optimal energy gain.** The largest achievable energy ratio $\sigma_1^2 = \max_{f \neq 0} \|Hf\|_E^2 / \|f\|_F^2$: response energy in the Chu norm over forcing energy in the forcing norm. Computed as $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal eigenproblem, never from an explicit [SVD](https://grokipedia.com/page/Singular_value_decomposition) of $H$. "Optimal" means optimal over all forcing shapes at that $(\beta, \omega)$, not over frequencies.
 
@@ -715,7 +715,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Gain map.** Leading gains sampled over a $(\beta, \omega)$ grid: spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) versus frequency. Peaks mark the flow's preferred amplifier settings. Production maps reuse anchor factorizations across nearby $\omega$ under a residual gate instead of refactoring per point. See [solver routing](modules/solver-routing.md).
 
-**Discount ($\gamma$).** A real shift added as $L_0 - (\gamma + i\omega) I$ with $\gamma > 0$ pushing poles off the imaginary axis. Keeps the shifted solve well posed near lightly damped eigenvalues. $\gamma = 0$ is the classical resolvent. Gains of a discounted resolvent answer the discounted question, so report $\gamma$ with the number.
+**Discount ($\gamma$).** A real shift added as $(\gamma - i\omega) I - L_0$ with $\gamma > 0$ pushing poles off the imaginary axis. Keeps the shifted solve well posed near lightly damped eigenvalues. $\gamma = 0$ is the classical resolvent. Gains of a discounted resolvent answer the discounted question, so report $\gamma$ with the number.
 
 **Nonnormality.** $L_0$ does not commute with its [adjoint](https://grokipedia.com/page/Adjoint) in the energy inner product ($H^H W \neq W H$ in the weighted sense). Consequence: all modes stable does not mean quiet. Quantitatively, with $\lambda_r$ the leading real part and $\kappa(V) = \|V\|\|V^{-1}\|$ the eigenvector conditioning, $\exp(2\tau\lambda_r) \le \|\exp(\tau L)\|^2 \le \kappa(V)\,\exp(2\tau\lambda_r)$: the upper bound is where transient growth lives, and it grows with nonnormality. (In repo convention $\lambda_r = \mathrm{Im}(\omega)$.) Mechanically, picture almost-colinear eigenvectors interfering constructively before decaying; the extreme is a non-diagonalizable Jordan block with algebraic growth. See Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, *Appl. Mech. Rev.* 75(3), 030802, non-modal stability. Nonnormal operators support large transient amplification, which is exactly what the gain map measures. The related spectral picture is the [pseudospectrum](https://en.wikipedia.org/wiki/Pseudospectrum): $\{z : \|(zI - A)^{-1}\| > 1/\varepsilon\}$. Scholarpedia's [Stability](http://www.scholarpedia.org/article/Stability) article works the classic two-by-two transient-growth example.
 
@@ -862,7 +862,7 @@ Source: https://linstabpy.vercel.app/overview/
 
     Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
 
-    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
+    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
 
     [SBP](https://grokipedia.com/page/Summation_by_parts) orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), driven by [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](solver-glossary.md).
 
@@ -1173,7 +1173,7 @@ graph TB
 
 1. Resolve frequency, weights, $B$ and $C$ maps, and backend policy.
 2. Reuse the same base flow, mesh, and $L_0$ foundation as Flow A.
-3. Factorize $(L_0 - (\gamma + i\omega) I)$. Apply $H$ and $H^H$ through that factor.
+3. Factorize $((\gamma - i\omega) I - L_0)$. Apply $H$ and $H^H$ through that factor.
 4. Run SLEPc on the weighted normal shell. Extract gains with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$.
 5. Package gains, modes, residuals, and solver metrics.
 
@@ -1278,7 +1278,7 @@ Source: https://linstabpy.vercel.app/architecture/
 This page describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
 
 !!! info "Conventions"
-    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
 
 
 ## Architecture overview
@@ -1711,7 +1711,7 @@ Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` 
 #### Resolvent (`resolvent`)
 
 \[
-H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
+H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
 \]
 
 - Factorize shifted operator once; reuse for forward/adjoint applies
@@ -1740,7 +1740,7 @@ H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
 |-----------|----------------|
 | `factorize` / `Factorization` | solve, transpose solve, block solve, refactorize, destroy |
 | `backends` | Normalize/probe availability, precision, MUMPS BLR/ordering |
-| `shifted_operator` | Build \(L_0 - i\omega I\) and related shifts |
+| `shifted_operator` | Build \((\gamma - i\omega) I - L_0\) (or the LinStab2D \(L_0 - (\gamma + i\omega) I\) under `matlab_parity`) |
 | `cudss_factor` | Optional GPU factor as PETSc PC shell |
 
 **Default path:** KSPPREONLY + PCLU + MUMPS.
@@ -1866,7 +1866,7 @@ sequenceDiagram
 
 #### Resolvent gain analysis (single frequency)
 
-Shares prep through L0, then specializes in \((L_0 - i\omega I)\) factors and weighted gain extraction.
+Shares prep through L0, then specializes in \(((\gamma - i\omega) I - L_0)\) factors and weighted gain extraction.
 
 ```mermaid
 flowchart TD
@@ -1954,7 +1954,7 @@ flowchart TD
 |---------|-----------|
 | PETSc init ordering | `mpi4py` before PETSc; complex scalars mandatory for production |
 | Operator finalization | Fixed order: raw blocks → inv(B) scale → sponge → dissipation → BC last |
-| Shift construction | `linalg.shifted` builds \(L_0 - i\omega I\) (and related) once per target |
+| Shift construction | `linalg.shifted` builds \((\gamma - i\omega) I - L_0\) (and related) once per target |
 | Eigen drive | SLEPc EPS shift-invert using factorization as PC/solve backend |
 | Resolvent drive | MatShell weighted normal operator; repeated H / Hᴴ applies via factors |
 | Map routing | Band mark → anchors → PC reuse → residual gate → optional stable sweep |
@@ -2030,7 +2030,7 @@ Assembly is the mathematical heart of the system:
 #### Analysis products
 
 - **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint
-- **Resolvent:** \(H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
+- **Resolvent:** \(H = C F ((\gamma - i\omega) I - L_0)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
 - **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse
 
 ### Key algorithm design

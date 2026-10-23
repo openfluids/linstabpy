@@ -378,7 +378,7 @@ Returns
 (\gamma - i\omega)\,I - \text{operator}
 \]
 
-so that its inverse is the physical resolvent, sign included. With `matlab_parity=True` it returns the LinStab2D matrix \(\text{operator} - (\gamma + i\omega)\,I\) bit for bit; see [resolvent sign convention](../../docs/resolvent_sign_convention.md).
+so that its inverse is the physical resolvent, sign included. With `matlab_parity=True` it returns the LinStab2D matrix \(\text{operator} - (\gamma + i\omega)\,I\) bit for bit; see [resolvent sign convention](../resolvent-sign-convention.md).
 
 while **preserving backend**:
 

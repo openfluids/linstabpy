@@ -33,7 +33,7 @@ def shifted_operator(
 
     ``matlab_parity=True`` returns the LinStab2D matrix
     ``operator - (gamma + 1j*omega)*I``.  Its inverse is ``-H(-omega)``.
-    See ``docs/resolvent_sign_convention.md``.
+    See ``wiki/resolvent-sign-convention.md``.
     """
     if _is_petsc_matrix(operator):
         # Idempotent; a live PETSc.Mat implies PETSc is already up, but this

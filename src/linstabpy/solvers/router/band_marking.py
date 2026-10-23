@@ -13,7 +13,7 @@ Compare a requested real forcing frequency ``omega_req`` with
 ``min(abs(omega_req - omega_eig))``.
 With ``solver.resolvent_sign_convention: matlab_parity`` the solve forms
 ``L0 - (gamma + i*omega)*I`` and the pole is ``-omega_eig``.
-See ``docs/resolvent_sign_convention.md``.
+See ``wiki/resolvent-sign-convention.md``.
 :func:`label_band` performs no shifted linear solve or resolvent solve.
 
 Configuration.

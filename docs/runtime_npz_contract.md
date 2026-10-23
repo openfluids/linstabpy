@@ -74,7 +74,7 @@ Numerical policy and provenance:
 - `provenance_config_hash`
 - `provenance_linstabpy_git_sha`
 - `resolvent_sign_convention` (`physical` or `matlab_parity`; see
-  `docs/resolvent_sign_convention.md`; a file without this key was written with
+  `wiki/resolvent-sign-convention.md`; a file without this key was written with
   the old LinStab2D sign, that is `matlab_parity`)
 
 Cost keys are merged by `save_results` from `collect_cost_metrics`. They are

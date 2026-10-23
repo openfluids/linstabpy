@@ -215,7 +215,7 @@ script's own docstring for what it does and does not test).
 ## The resolvent sign convention
 
 The resolvent now uses `H = [(gamma - i*omega) I - L0]^-1`
-(`docs/resolvent_sign_convention.md`). The old code inverted
+(`wiki/resolvent-sign-convention.md`). The old code inverted
 `L0 - (gamma + i*omega) I`, which is `-H(-omega)`.
 
 The Savarino base flow has `W = 0` exactly: the `row` column of the published

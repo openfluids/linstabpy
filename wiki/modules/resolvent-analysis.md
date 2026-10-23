@@ -125,7 +125,7 @@ L_\sigma = (\gamma - i\omega)\,I - L_0.
 
 Implementation: `linstabpy.linalg.shifted.shifted_operator`, preserving SciPy CSC or PETSc `Mat` backend.
 
-`solver.resolvent_sign_convention: matlab_parity` selects the older LinStab2D matrix \(L_0 - (\gamma + i\omega)\,I = -H(-\omega)^{-1}\). The derivation, the effect on old results and the conversion rules are in [resolvent sign convention](../../docs/resolvent_sign_convention.md).
+`solver.resolvent_sign_convention: matlab_parity` selects the older LinStab2D matrix \(L_0 - (\gamma + i\omega)\,I = -H(-\omega)^{-1}\). The derivation, the effect on old results and the conversion rules are in [resolvent sign convention](../resolvent-sign-convention.md).
 
 ### Resolvent action (forward)
 

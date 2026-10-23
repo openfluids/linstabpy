@@ -12,7 +12,7 @@ The operator is closest to singular when ``-i*omega`` meets the eigenvalue.
 The leading gain therefore peaks at ``omega = Re(omega_eig) = -Omega``.
 ``solver.resolvent_sign_convention: matlab_parity`` restores the LinStab2D matrix
 ``L0 - (gamma + i*omega) I``, whose gain peaks at ``+Omega``.
-See ``docs/resolvent_sign_convention.md``.
+See ``wiki/resolvent-sign-convention.md``.
 
 The sign matters only for genuinely asymmetric / k_z != 0 base flows
 (the production SWBLI / Savarino-like gain map).

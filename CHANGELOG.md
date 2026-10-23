@@ -38,7 +38,7 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   `resolvent_sign_convention`. `resolvent_map` refuses to resume a store from the
   other convention, and a store without the key counts as `matlab_parity`.
   How to convert old maps and modes, with the derivation and the evidence, is in
-  `docs/resolvent_sign_convention.md`.
+  `wiki/resolvent-sign-convention.md`.
 
 - The `linstabpy` command refuses a case file that sets a top-level key it does
   not read (`Re`, `Ma`, `Pr`, `kappa`, `T_0`, `sponge`, `fd_order`, `beta`,

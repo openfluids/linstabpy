@@ -8,7 +8,7 @@ Navier--Stokes operator at a given frequency.  The resolvent operator is
 
 The sign follows q ~ exp(-i*omega*t), as in the stability solver.
 ``solver.resolvent_sign_convention: matlab_parity`` selects the LinStab2D
-matrix ``L0 - (gamma + i*omega)*I`` instead; see ``docs/resolvent_sign_convention.md``.
+matrix ``L0 - (gamma + i*omega)*I`` instead; see ``wiki/resolvent-sign-convention.md``.
 
 The implementation follows MATLAB's reference route.
 It solves the eigenproblem for ``H^H W H`` in the weighted inner product.
@@ -129,7 +129,7 @@ def resolvent_analysis(
         H = C FILTER( inv((gamma - i omega) I - L0) FILTER( B v ) ).
 
     The sign convention is ``solver.resolvent_sign_convention`` (see the module
-    docstring and ``docs/resolvent_sign_convention.md``).
+    docstring and ``wiki/resolvent-sign-convention.md``).
 
     SLEPc EPS computes its gains and modes from the weighted Hermitian
     operator.
@@ -256,7 +256,7 @@ def _resolvent_analysis_impl(
     # 1. Form the shifted operator  L_sigma = (gamma - i*omega)*I - L0, so that
     #    H = L_sigma^-1 is the physical resolvent for q ~ exp(-i*omega*t).
     #    solver.resolvent_sign_convention = matlab_parity restores the old
-    #    LinStab2D matrix L0 - (gamma + i*omega)*I (docs/resolvent_sign_convention.md).
+    #    LinStab2D matrix L0 - (gamma + i*omega)*I (wiki/resolvent-sign-convention.md).
     # ------------------------------------------------------------------
     L_sigma = shifted_operator(L0, omega, gamma=gamma, matlab_parity=cfg.resolvent.matlab_parity)
 

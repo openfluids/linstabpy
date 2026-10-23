@@ -54,7 +54,7 @@ REMOVED_DISSIPATION_KEYS: tuple[str, ...] = ("dissipation_epsilon", "eps_resolv"
 
 # Values of ``solver.resolvent_sign_convention``; the first is the default.
 # "physical": H = [(gamma - i*omega) I - L0]^-1. "matlab_parity": the LinStab2D
-# matrix L0 - (gamma + i*omega) I. See docs/resolvent_sign_convention.md.
+# matrix L0 - (gamma + i*omega) I. See wiki/resolvent-sign-convention.md.
 RESOLVENT_SIGN_CONVENTIONS: tuple[str, ...] = ("physical", "matlab_parity")
 
 

@@ -48,7 +48,7 @@ assembly_backend: scipy
 solver:
   petsc_matrix_mode: auto  # auto / local / distributed
   # LinStab2D resolvent sign L0 - (gamma + i*omega) I, kept for MATLAB reference parity.
-  # Default is "physical": (gamma - i*omega) I - L0. See docs/resolvent_sign_convention.md.
+  # Default is "physical": (gamma - i*omega) I - L0. See wiki/resolvent-sign-convention.md.
   resolvent_sign_convention: matlab_parity
   linsolve:
     type: mumps            # direct LU
