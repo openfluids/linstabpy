@@ -48,11 +48,19 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   `physics.Re`). Example scripts that read these keys from their own YAML files
   are not affected. The `logging` block (`stage_heartbeat_seconds`) is now
   accepted.
-- `resolvent_map` refuses to resume a store written for other inputs: another
-  beta/f grid, configuration, mesh, base flow or energy weight. The error names
-  the inputs that differ and the store is not changed. Before, the store was
-  ignored and then overwritten. A store without a fingerprint resumes with a
-  warning. A store that cannot be read is moved to `<name>.unreadable-<time>`.
+- `resolvent_map` refuses to resume a store written for other problem inputs:
+  configuration, mesh, base flow, energy weight, forcing norm, mode count,
+  discount or sign convention. The error names the inputs that differ and the
+  store is not changed. Before, the store was ignored and then overwritten.
+  Solver settings (backend, factorization, tolerances, router settings) may
+  differ: the run resumes with one warning that names them, and the user is
+  responsible for the result. A field that exists in only one of the two
+  fingerprints (for example a new attribute after an upgrade) also resumes with a
+  warning. The `beta` and `f` arrays may be extended: when every stored value is
+  in the new arrays, the stored points are copied and only the new points are
+  computed. A grid that drops a stored value is refused. A store without a
+  fingerprint resumes with a warning. A store that cannot be read is moved to
+  `<name>.unreadable-<time>`.
 - Band marking searches for poles at up to 9 targets across the requested
   frequency range, not only at its centre. Poles near the ends of the range were
   missed before. Each target costs one shift-invert factorization;
