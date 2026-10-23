@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from examples._helpers import load_or_compute
+from linstabpy.utils._solver_cfg import as_bool
 from linstabpy.utils.yaml_io import load_config
 
 SCRIPT = Path(__file__).resolve()
@@ -171,7 +172,7 @@ def compute(cfg: dict):
         bc_penalty=cfg["bc"].get("penalty", 1e4),
         backend=cfg.get("assembly_backend"),
         solver_cfg=solver_cfg,
-        matlab_parity_dmudt=bool(cfg.get("matlab_parity_dmudt", False)),
+        matlab_parity_dmudt=as_bool(cfg.get("matlab_parity_dmudt", False)),
     )
     L0 = lnse_system.operator
     idx = lnse_system.idx
