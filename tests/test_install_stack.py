@@ -45,7 +45,7 @@ def test_relocation_replaces_the_build_directory_in_petsc_and_slepc_config(tmp_p
     (petsc / "lib/petsc/conf").mkdir(parents=True)
     (petsc / "include").mkdir()
     (petsc / "lib/petsc/conf/petscvariables").write_text(
-        f"PETSC_DIR = {build}\nPETSC_PYTHON_EXE = /tmp/build-env/bin/python\nCC_INCLUDES = -I{build}/include\n"
+        f"wPETSC_DIR = {build}\nPETSC_PYTHON_EXE = /tmp/build-env/bin/python\nCC_INCLUDES = -I{build}/include\n"
     )
     (petsc / "include/petscconf.h").write_text(f'#define PETSC_DIR "{build}"\n')
     install_stack._relocate_petsc(str(petsc))

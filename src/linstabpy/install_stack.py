@@ -106,7 +106,7 @@ def _stale_prefix(variables: Path, pattern: str) -> str | None:
 def _relocate_petsc(prefix: str) -> None:
     """Point the PETSc config files at the installed prefix instead of the build directory."""
     root = Path(prefix)
-    stale = _stale_prefix(root / "lib/petsc/conf/petscvariables", r"^PETSC_DIR = (.*)$")
+    stale = _stale_prefix(root / "lib/petsc/conf/petscvariables", r"PETSC_DIR = (\S+)")
     if stale and stale != prefix:
         files = [*(root / "lib/petsc/conf").rglob("*"), *(root / "lib/pkgconfig").rglob("*")]
         _rewrite([*files, root / "include/petscconf.h"], stale, prefix)
