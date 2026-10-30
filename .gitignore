@@ -76,6 +76,7 @@ examples/savarino/reference/zenodo/
 *.toc
 *.vrb
 .venv/
+.venv-wiki/
 artifacts/
 output/
 # Savarino output whitelist (needed again after the root output/ rule above).

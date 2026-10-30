@@ -83,8 +83,14 @@ rewritten by hand (prose, links, examples, nav); regenerating would
 destroy that work, so pages are edited directly and there is no
 generator config to run.
 
-Preview locally with `uv run --group wiki mkdocs serve`. The gate is
-`uv run --group wiki mkdocs build --strict` with zero warnings.
+Build the wiki in its own environment. `uv run` and `uv sync` make the
+project environment match `uv.lock` and `.python-version`, so pointed at
+the `.venv` that `install.sh` built they remove PETSc, SLEPc and mpi4py or
+replace the whole environment. Preview locally with
+`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs serve`.
+The gate is
+`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs build --strict`
+with zero warnings.
 
 The site is published at `https://linstabpy.vercel.app/`, which the paper
 cites. Vercel builds it from `main` with `vercel.json`.
