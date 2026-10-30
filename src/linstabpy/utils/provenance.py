@@ -69,7 +69,7 @@ def _compute_mode_from_env() -> str:
 def _probe_string(probe: Callable[[], str]) -> str:
     """Return a non-empty probe string, or ``"unavailable"`` on failure."""
     try:
-        value = str(probe()).strip()
+        value = str(probe()).replace("\x00", "").strip()  # Open MPI 5 pads with NUL
     except Exception:
         return "unavailable"
     return value or "unavailable"
