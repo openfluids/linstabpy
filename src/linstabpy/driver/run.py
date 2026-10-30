@@ -1217,6 +1217,15 @@ def run() -> None:
     sponge_cfg = sponge_cfg_raw if isinstance(sponge_cfg_raw, dict) else None
     native_sponge_enabled = bool((sponge_cfg or {}).get("enabled", False))
     use_matlab_sponge_aux = bool(cfg("physics.use_matlab_sponge_aux", False))
+    if (
+        use_matlab_sponge_aux
+        and not native_sponge_enabled
+        and (sponge_mat_path is None or not sponge_mat_path.exists())
+    ):
+        raise ConfigValidationError(
+            "physics.use_matlab_sponge_aux is true, but paths.case_inputs_mat "
+            f"({sponge_mat_raw!r}) does not name an existing file."
+        )
     alpha_filter_raw = cfg("numerics.alpha_filter", "none")
     # Honoured for every stage: the filter damps the SBP 2-dx mode in EVP-only runs too.
     alpha_filter = _parse_alpha_filter(alpha_filter_raw)

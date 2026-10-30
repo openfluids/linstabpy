@@ -295,3 +295,18 @@ def test_driver_needs_physics_re(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     with pytest.raises(ConfigValidationError, match=r"physics\.Re is required"):
         run_module.run()
+
+
+def test_driver_refuses_matlab_sponge_without_its_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_module = _driver_run_module()
+    config_path = tmp_path / "sponge_aux.yaml"
+    config_path.write_text(
+        "physics:\n  Re: 1000.0\n  use_matlab_sponge_aux: true\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
+    monkeypatch.setattr(run_module, "_log", lambda message: None)
+
+    with pytest.raises(ConfigValidationError, match=r"use_matlab_sponge_aux is true"):
+        run_module.run()
