@@ -71,17 +71,15 @@ releases instead of the pinned PETSc/SLEPc family used by the default installer:
 bash install.sh --force --latest
 ```
 
-Python 3.13 is the default tested interpreter class. Python 3.14 can be tried
-when your `uv` installation can resolve it and all PETSc/SLEPc bindings have
-compatible releases:
+`install.sh` uses the Python version in `.python-version` (3.14), the same
+version CI tests. To build with another version, set it explicitly:
 
 ```bash
-LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest
+LINSTABPY_PYTHON_VERSION=3.13 bash install.sh --force
 ```
 
-Treat Python 3.14 as a freshness test until `install.sh --check`, the pytest
-suite, and the examples pass on your machine. For reproducible comparisons,
-record the Python version printed by `install.sh --check`.
+For reproducible comparisons, record the Python version printed by
+`install.sh --check`.
 
 `install.sh --check` verifies that `petsc4py` and `slepc4py` import, that PETSc
 uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
@@ -111,9 +109,8 @@ Python, NumPy/SciPy, and a **complex-scalar** PETSc/SLEPc/`mpi4py` stack.
 pip then installs this package from `pyproject.toml` with `--no-deps` and
 `-e .`, so pip does not pull a second NumPy or compile PETSc.
 
-Python is `>=3.10,<3.14`. 3.13 is the class that matches the installer default.
-3.14 stays an `install.sh` freshness test; conda-forge `petsc4py` may not
-resolve it.
+Python is `>=3.10,<3.15`. The installer default is 3.14; conda-forge
+`petsc4py` may not resolve 3.14 yet.
 
 ```bash
 # Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR first.

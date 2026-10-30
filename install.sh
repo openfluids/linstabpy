@@ -15,7 +15,7 @@ set -euo pipefail
 #   bash install.sh --stack gpu-strumpack --dry-run  # show isolated GPU-stack plan
 #   LINSTABPY_BUILD_STACK=gpu-strumpack bash install.sh --dry-run
 #   LINSTABPY_WITH_H5PY=1 bash install.sh   # also install h5py (needs HDF5 >= 1.10.7)
-#   LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest  # Python 3.14 + latest packages
+#   LINSTABPY_PYTHON_VERSION=3.13 bash install.sh --force  # other Python than .python-version (3.14)
 #   LINSTABPY_MPI_STACK=intelmpi bash install.sh  # use an already-loaded Intel MPI stack
 #   LINSTABPY_BLAS=mkl bash install.sh  # Linux BLAS: auto (default) | mkl | openblas | reference
 #   LINSTABPY_AUTO_INSTALL_SYS_DEPS=1 bash install.sh  # allow package-manager installs
@@ -52,7 +52,8 @@ BUILD_STACK=""
 VENV_DIR=""
 VENV_DISPLAY=""
 OS_NAME=$(uname -s)
-PYTHON_VERSION="${LINSTABPY_PYTHON_VERSION:-3.13}"
+# The default Python is the one in .python-version, the same file CI reads.
+PYTHON_VERSION="${LINSTABPY_PYTHON_VERSION:-$(tr -d '[:space:]' <"${ROOT_DIR}/.python-version" 2>/dev/null || echo 3.14)}"
 INSTALL_MODE="install"
 FORCE_REINSTALL=0
 LATEST_PACKAGES=0
