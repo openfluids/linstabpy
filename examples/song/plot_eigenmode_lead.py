@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Most-unstable eigenmode: Song vs LinStabPy (supp Fig S3 layout, θ = 32°)."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Compare the 200-point MUMPS farm with the assemble-once line campaign.
 
 Reads savarino_map3_200pt.csv (or another point-farm CSV) and every

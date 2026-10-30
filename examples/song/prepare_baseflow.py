@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Map Song (2023) finite-volume cell-centre mean flow to nodal baseflow arrays.
 
 Cell-centre primitive fields sit on a stretched tensor-product Cartesian

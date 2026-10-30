@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# Copyright (c) 2026 Ricardo Frantz. Benchmark tool for the linstabpy backend measurements.
+# SPDX-License-Identifier: GPL-3.0-only
+# Benchmark tool for the linstabpy backend measurements.
 """cuDSS along an omega line, timed properly.
 
 The map walks a beta line: same L0, omega changes. So K(f) = K(f0) - 2*pi*i*(f-f0)*I

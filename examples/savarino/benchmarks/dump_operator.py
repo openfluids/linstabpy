@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# Copyright (c) 2026 Ricardo Frantz. Benchmark tool for the linstabpy backend measurements.
+# SPDX-License-Identifier: GPL-3.0-only
+# Benchmark tool for the linstabpy backend measurements.
 """Dump K = L0 - i*omega*I at one Savarino map point.
 
 The dump feeds the FP32 and cuDSS benchmarks.

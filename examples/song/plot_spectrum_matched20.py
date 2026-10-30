@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Song vs LinStabPy spectrum (matched-20 Hungarian assignment, supp Fig S2 style)."""
 
 from __future__ import annotations

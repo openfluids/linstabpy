@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 r"""Presentation figures for Martini Example 3 (streaky BL / Floquet).
 
 Figures:

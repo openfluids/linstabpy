@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Figures S4/S5 — Savarino vs linstabpy leading response (Song eigenmode layout).
 
 Same panel template as the Savarino2026 case plotter: shared -1..1 colourbar,

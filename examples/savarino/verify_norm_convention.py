@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Identify the forcing/response norm convention from the published (f,beta)=(2,45)
 pair (supplement, resolvent validation section).
 

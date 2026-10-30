@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared helpers for Martini MATLAB vs linstabpy comparison figures."""
 
 from __future__ import annotations

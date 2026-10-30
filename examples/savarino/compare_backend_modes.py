@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Compare the leading response modes of two runs of the same point.
 
 Load two runtime ``.npz`` files from one ``(f, beta)`` point.

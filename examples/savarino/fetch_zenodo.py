@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Download Zenodo artifacts for the Savarino case-study reproduction.
 
 The Zenodo record is open access but carries no redistribution license, so

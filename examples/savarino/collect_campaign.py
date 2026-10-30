@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Collect per-point outputs into the run-record CSV.
 
 Produce a CSV in the same layout as ``savarino_map3_200pt.csv``,

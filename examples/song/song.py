@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Song & Hao (2023) / Robinet (2007) oblique SWBLI validation case.
 
 Usage (from repo root):

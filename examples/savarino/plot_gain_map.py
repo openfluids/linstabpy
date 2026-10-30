@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Figure S6 — resolvent gain map (Savarino2026 tensor/PCHIP style).
 
 Reads a run-record CSV and renders :math:`\\sigma_1^2` with colorbar ticks in

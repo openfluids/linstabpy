@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# Copyright (c) 2026 Ricardo Frantz. Benchmark tool for the linstabpy backend measurements.
+# SPDX-License-Identifier: GPL-3.0-only
+# Benchmark tool for the linstabpy backend measurements.
 """FP32 factor inside FP64 FGMRES, on the CPU.
 
 For each dumped operator K (see ``dump_operator.py``) the script:

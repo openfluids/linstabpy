@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Hungarian match Song's 20 reference modes to LinStabPy eigenvalues at β = 19.2."""
 
 from __future__ import annotations

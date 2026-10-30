@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Presentation figures for Martini Example 4 (cavity direct / adjoint).
 
 Figures:

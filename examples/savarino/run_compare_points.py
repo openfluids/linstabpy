@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Run the two resolvent points used by ``compare_modes.py``.
 
 Write local outputs under ``output/compare/`` (gitignored).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Write one Slurm job per Savarino map-walk beta line.
 
 The walker factors the first two frequencies of a beta line, then tries

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Presentation figures for Martini Example 1 (Blasius resolvent).
 
 Figures:

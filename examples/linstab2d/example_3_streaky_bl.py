@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """
 Example 3: Streaky boundary-layer temporal and spatial analysis.
 

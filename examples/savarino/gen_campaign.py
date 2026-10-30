@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Generate the 200-point campaign configs and batch scripts.
 
 Reproduce the exact point grid used for the published Savarino resolvent

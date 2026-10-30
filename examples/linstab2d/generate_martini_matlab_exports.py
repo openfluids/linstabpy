@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Run Martini MATLAB parity exports from examples/linstab2d/linstab2D_scripts/."""
 
 from __future__ import annotations

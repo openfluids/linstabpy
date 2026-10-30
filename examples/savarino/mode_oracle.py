@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Forced-response check: inject the published forcing and compare the response.
 
 He publishes no gain values, so a sigma-vs-sigma table against him is impossible.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared helpers for example scripts.
 
 Grid reconstruction, plotting, and other utilities used across multiple examples.

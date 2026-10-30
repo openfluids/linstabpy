@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Convert Savarino's 30.8 deg SWBLI base flow to linstabpy .npy fields.
 
 Produce the base-flow input for the Savarino case-study reproduction

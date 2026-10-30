@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Split extracted Martini NPZ bundles into values + modes files."""
 
 from __future__ import annotations

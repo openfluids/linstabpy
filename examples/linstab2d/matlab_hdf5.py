@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Utilities for reading MATLAB v7.3 HDF5 exports with ``h5py``."""
 
 from __future__ import annotations

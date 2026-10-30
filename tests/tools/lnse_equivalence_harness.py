@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Compare two LNSE assembly paths on deterministic safety cases.
 
 The default ``baseline`` and ``candidate`` paths both call the current assembly

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Linearised conservative -> primitive transform for Savarino's published modes.
 
 Every other script in this directory uses this transform.

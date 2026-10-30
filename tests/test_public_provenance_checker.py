@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 from pathlib import Path
 
 from tests import public_provenance

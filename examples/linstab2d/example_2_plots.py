@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Presentation figures for Martini Example 2 (jet resolvent).
 
 Uses published ``kron``/``repeat`` :math:`B=C` parity

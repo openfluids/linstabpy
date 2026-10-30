@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-# Copyright (c) 2026 Ricardo Frantz. Benchmark tool for the linstabpy backend measurements.
+# SPDX-License-Identifier: GPL-3.0-only
+# Benchmark tool for the linstabpy backend measurements.
 """STRUMPACK and MUMPS preconditioner variants: levers that need no new production code.
 
 Three questions, on the dumped operators of ``dump_operator.py``:

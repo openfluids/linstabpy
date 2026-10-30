@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Plot Song (2023) nodal mesh and mean-flow fields (θ = 32°).
 
 Reads ``inputs/baseflow/*.npy`` (from ``prepare_baseflow.py``) with the same

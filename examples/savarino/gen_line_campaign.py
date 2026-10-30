@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Write one Slurm job per Savarino beta line.
 
 The point campaign (gen_campaign.py) factors L0 at every (beta, f) in its
