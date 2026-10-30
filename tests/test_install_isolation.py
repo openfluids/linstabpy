@@ -102,7 +102,9 @@ def test_matching_python_dry_run_keeps_existing_stack_venv() -> None:
     venv_dir = ROOT / f".venv-{stack}"
     shutil.rmtree(venv_dir, ignore_errors=True)
     try:
-        write_stub_venv_python(venv_dir, "3.13")
+        # install.sh takes its default Python from .python-version.
+        default_python = (ROOT / ".python-version").read_text().strip()
+        write_stub_venv_python(venv_dir, default_python)
         plan = run_dry_run("--stack", stack)
 
         assert plan["force"] == "0"
