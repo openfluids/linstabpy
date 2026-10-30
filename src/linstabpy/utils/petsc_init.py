@@ -9,6 +9,7 @@ Solver modules call these only when a PETSc-backed path loads or runs.
 
 from __future__ import annotations
 
+import importlib
 import sys
 
 _PETSC_INIT_DONE = False
@@ -78,6 +79,22 @@ def _sanitize_petsc_argv(argv: list[str]) -> list[str]:
     return out
 
 
+_MISSING_STACK = (
+    "linstabpy needs complex-scalar PETSc and SLEPc with MUMPS to solve, and "
+    "'pip install linstabpy' does not build them. Use the conda environment "
+    "(environment.yml) or 'bash install.sh' from a checkout or from the source "
+    "archive. See https://github.com/openfluids/linstabpy#installation"
+)
+
+
+def _require(module: str) -> None:
+    """Import a solver-stack module, or fail with the way to install the stack."""
+    try:
+        importlib.import_module(module)
+    except ImportError as exc:
+        raise ImportError(f"Cannot import {module}: {_MISSING_STACK}") from exc
+
+
 def init_petsc_from_argv(argv: list[str] | None = None) -> None:
     """Initialize petsc4py once, forwarding argv for options database parsing.
 
@@ -90,7 +107,8 @@ def init_petsc_from_argv(argv: list[str] | None = None) -> None:
     global _PETSC_INIT_DONE
     if _PETSC_INIT_DONE:
         return
-    import mpi4py.MPI  # noqa: F401 - import before petsc4py (upstream requirement)
+    _require("mpi4py.MPI")  # before petsc4py (upstream requirement)
+    _require("petsc4py")
     import petsc4py
 
     args = _sanitize_petsc_argv(list(sys.argv if argv is None else argv))
@@ -109,6 +127,7 @@ def init_slepc_from_argv(argv: list[str] | None = None) -> None:
     if _SLEPC_INIT_DONE:
         return
 
+    _require("slepc4py")
     import slepc4py
 
     args = _sanitize_petsc_argv(list(sys.argv if argv is None else argv))
