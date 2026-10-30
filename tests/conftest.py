@@ -193,3 +193,15 @@ def build_synthetic_jet(nx=15, ny=10, m=0, borders="ltr", variables="uvwT"):
         "invW_diag": invW_diag,
         "bc_indices": bc_indices,
     }
+
+
+@pytest.fixture(autouse=True)
+def _no_job_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove the job deadline that a Slurm job puts in the environment.
+
+    The map router stops early when the job has little time left. Inside an
+    sbatch job, SLURM_JOB_END_TIME is set, and the walk tests then stop with
+    WalkDeferred. Tests that need a deadline set LINSTABPY_JOB_DEADLINE again.
+    """
+    monkeypatch.delenv("SLURM_JOB_END_TIME", raising=False)
+    monkeypatch.delenv("LINSTABPY_JOB_DEADLINE", raising=False)
