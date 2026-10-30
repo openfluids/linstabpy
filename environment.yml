@@ -2,12 +2,14 @@
 # One file, one stack: complex-scalar PETSc/SLEPc and MUMPS on CPU.
 # There is no environment-gpu.yml. GPU PETSc is not a supported conda path.
 # conda owns PETSc/SLEPc (complex scalars) and the runtime libraries.
-# pip installs only this package from pyproject.toml.
+# pip installs only this package, from PyPI.
 #
 #   conda env create -f environment.yml
 #   conda activate linstabpy
 #
-# Install from a checkout. `bash install.sh` is the reference route.
+# The file needs no checkout. From the web:
+#   conda env create -f https://raw.githubusercontent.com/openfluids/linstabpy/main/environment.yml
+# `bash install.sh` is the reference route for the validated PETSc 3.24 stack.
 # Do not add petsc4py to the pip list. Those sdists compile PETSc from source.
 #
 # Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR before you create the environment.
@@ -34,4 +36,4 @@ dependencies:
   - pip
   - pip:
       - --no-deps
-      - -e .
+      - linstabpy>=1.0.1

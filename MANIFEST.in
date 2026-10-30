@@ -1,2 +1,3 @@
 include CITATION.cff
+include install.sh environment.yml .python-version
 prune artifacts
