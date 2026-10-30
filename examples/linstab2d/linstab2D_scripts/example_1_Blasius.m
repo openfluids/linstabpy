@@ -145,9 +145,10 @@ if verbose
     end
 end
 
+parity = martini2024_parity_constants();
 results_Blasius = martini2024_pack_parity_export( ...
     'resolvent', gains, responses, forces, omega, nEig, mesh, idx, ...
-    martini2024_parity_constants().N_RESOLVENT);
+    parity.N_RESOLVENT);
 results_Blasius.mode_plot_ylim = [0, 0.01];
 logs_Blasius = struct('case_id', 'example_1_blasius', 'Re', baseFlow.Re, 'Ma', baseFlow.Ma);
 save_martini2024_bundle( ...
