@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import tomllib
@@ -108,10 +109,10 @@ def test_environment_yml_petsc_build_is_complex() -> None:
 def test_environment_yml_pip_installs_this_package_without_deps() -> None:
     pip_items = _pip_items(_env()["dependencies"])
     assert "--no-deps" in pip_items
-    assert "-e ." in pip_items or "linstabpy" in pip_items
+    assert any(item.startswith("linstabpy>=") for item in pip_items), pip_items
     for item in pip_items:
         if item.startswith("-"):
             continue
-        name = item.split("[")[0].split("==")[0].strip()
+        name = re.split(r"[\[=<>!~ ]", item, maxsplit=1)[0]
         assert name not in PIP_FORBIDDEN, item
         assert not name.endswith("4py"), item

@@ -42,10 +42,19 @@ _CONSTRAINT_LINE = re.compile(
 )
 
 
+# The git SHA is read from the package directory: an installed copy has none.
+needs_checkout = pytest.mark.skipif(
+    Path(__file__).resolve().parents[1]
+    not in Path(sys.modules["linstabpy"].__file__).resolve().parents,
+    reason="linstabpy is installed outside this checkout",
+)
+
+
 def _git_rev_parse_head() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
 
+@needs_checkout
 def test_collect_provenance_has_stable_typed_fields(tmp_path, monkeypatch):
     monkeypatch.delenv("LINSTABPY_COMPUTE_MODE", raising=False)
     monkeypatch.delenv("LINSTABPY_MPI_STACK", raising=False)
@@ -109,6 +118,7 @@ def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
     assert all(_CONSTRAINT_LINE.match(line) for line in entries)
 
 
+@needs_checkout
 def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkeypatch):
     monkeypatch.setenv("LINSTABPY_GPUS", "0")
     config_path = tmp_path / "case.yaml"
