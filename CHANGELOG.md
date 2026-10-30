@@ -7,6 +7,18 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-30
+
+### Added
+
+- `environment.yml` installs `linstabpy` from PyPI, so the conda route needs no
+  checkout: `conda env create -f <environment.yml>`.
+- The source archive on PyPI carries `install.sh`, `environment.yml` and
+  `.python-version`, so `bash install.sh` works from the unpacked archive.
+- A solve without complex-scalar PETSc/SLEPc fails with an `ImportError` that
+  names the two ways to install the stack. It used to fail with a bare
+  `No module named 'petsc4py'`.
+
 ## [1.0.0] - 2026-10-30
 
 ### Changed (breaking)
@@ -1521,7 +1533,8 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/openfluids/linstabpy/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc11...v1.0.0
 [1.0.0rc11]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc10...v1.0.0rc11
 [1.0.0rc10]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc9...v1.0.0rc10
