@@ -1,7 +1,6 @@
 """Presentation figures for Martini Example 5 (paraboloid resolvent).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_5_paraboloid_resolvent/``.
+Figures:
 
 - ``example_5_paraboloid_baseflow.png`` — baseflow :math:`|\\mathbf{u}_b|`.
 - ``example_5_paraboloid_modes_forcing_response_{u,v,w}[_imag]_mosaic.png`` — forcing/response ranks 1–3

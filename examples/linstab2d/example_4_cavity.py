@@ -9,7 +9,7 @@ OUTPUTS.
   - example_4_cavity.npz.
   - example_4_cavity.log.
 
-Martini parity (see ``martini_ex4_cavity_operator_audit/AGENT.md``).
+Martini parity settings:
   - ``Pr: 0.7`` (MATLAB driver; ``Step_BF.mat`` stores 0.71).
   - ``zero_dmudT: true`` (LinStab2D ``readbaseflow`` uses ``dMUdT=0``).
 

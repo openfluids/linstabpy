@@ -1,7 +1,6 @@
 """Presentation figures for Martini Example 0 (curvilinear derivative).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_0_curvilinear/``:
+Figures:
 
 - ``example_0_curvilinear_mesh.png``
 - ``example_0_curvilinear_validation.png``

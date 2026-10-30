@@ -133,7 +133,7 @@ _FROZEN_SIGNATURES = {
     # production == full sympy oracle to <1e-12 (default) and == oracle with the
     # LinStab2D omission (flag on); measured effect: operator ~1e-4/Re, leading
     # eigenvalue 1e-4 at Re 500 to 1e-6 at Re 5e4, resolvent gains up to 1.2e-2 at
-    # Re 500 (docs/plans/axy_dmudt/); user-approved 2026-10-22.
+    # Re 500; user-approved 2026-10-22.
     "coefficients": "a187d42a47dd9b53969dae8be081d51ccb1b39344f3cf95094b09832ebc1e1f1",
     "energy_norm": "cdbba7b6ff26b91b5647a6753b2efdd0837e8d2918465c1bc156318c6358a4bf",
     # mesh re-baselined 2026-06-12: Mesh.create gained an

@@ -1,7 +1,5 @@
 """Presentation figures for Martini Example 2 (jet resolvent).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_2_jet_resolvent/``.
 Uses published ``kron``/``repeat`` :math:`B=C` parity
 (MATLAB ``kron(B(:), ones(5,1))``).
 

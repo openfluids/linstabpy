@@ -1,7 +1,6 @@
 """Presentation figures for Martini Example 4 (cavity direct / adjoint).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_4_cavity/``.
+Figures:
 
 - ``example_4_cavity_baseflow.png`` — cavity baseflow :math:`u/U_\\infty`.
 - ``example_4_cavity_spectrum_direct.png`` / ``example_4_cavity_spectrum_adjoint.png`` — LinStab2D vs linstabpy.

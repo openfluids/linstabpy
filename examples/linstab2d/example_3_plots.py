@@ -1,7 +1,6 @@
 r"""Presentation figures for Martini Example 3 (streaky BL / Floquet).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_3_streaky_bl/``.
+Figures:
 
 - ``example_3_streaky_bl_baseflow.png`` — streak :math:`W` (from :math:`L_x=2\pi` case).
 - ``example_3_streaky_bl_spectrum_temporal_{Lx2pi,Lxpi_nfloq0,Lxpi_nfloq2}.png``.

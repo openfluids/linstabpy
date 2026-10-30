@@ -1,7 +1,6 @@
 """Presentation figures for Martini Example 1 (Blasius resolvent).
 
-Matches the thesis/campaign layout under
-``cases/Martini2024/comparison/plots/example_1_blasius_resolvent/``.
+Figures:
 
 - ``example_1_blasius_baseflow.png`` — Blasius baseflow :math:`u/U_\\infty`.
 - ``example_1_blasius_modes_forcing_response_{u,v}_mosaic.png`` — LinStab2D | linstabpy | error (Re).
