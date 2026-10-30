@@ -25,12 +25,13 @@ def test_extract_blasius_results_exposes_resolvent_fields() -> None:
 
     flat, inventory = extract_file(path)
 
-    assert "results_Blasius__gains" in flat
-    assert "results_Blasius__responses" in flat
-    assert "results_Blasius__forces" in flat
-    assert flat["results_Blasius__gains"].shape == (1, 3)
-    assert flat["results_Blasius__responses"].dtype.kind == "c"
-    assert any(field.path == "results_Blasius/responses" for field in inventory)
+    # save_martini2024_bundle.m stores the struct in a variable named ``results``.
+    assert "results__results_Blasius__gains" in flat
+    assert "results__results_Blasius__responses" in flat
+    assert "results__results_Blasius__forces" in flat
+    assert flat["results__results_Blasius__gains"].shape == (1, 3)
+    assert flat["results__results_Blasius__responses"].dtype.kind == "c"
+    assert any(field.path == "results/results_Blasius/responses" for field in inventory)
 
 
 # Raw-MATLAB-export extraction check. The martini_examples/ bundle is deliberately
