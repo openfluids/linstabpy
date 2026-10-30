@@ -135,6 +135,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> None:
     """Cache-aware entrypoint used when launched as ``python -m linstabpy.driver.cli``."""
+    words = list(sys.argv[1:] if argv is None else argv)
+    if words[:1] == ["install-stack"]:
+        from linstabpy.install_stack import main as install_stack
+
+        raise SystemExit(install_stack(words[1:]))
     parser = _build_parser()
     args, unknown = parser.parse_known_args(argv)
     ignored = _ignored_cli_words(unknown)
