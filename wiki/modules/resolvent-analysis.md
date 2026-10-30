@@ -1,6 +1,6 @@
 # Resolvent analysis
 
-$H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ with filters $F$ inside the $B$ and $C$ masks. [Gains](../core-concepts.md) solve $W^{-1} H^H W H v = \sigma^2 v$ for `chu` forcing norm or $H^H W H v = \sigma^2 v$ for `l2`, with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ and response $u = Hv/\sigma$. Forward residual $\rho_{\mathrm{fwd}}$ is near roundoff by construction. [Adjoint](https://grokipedia.com/page/Adjoint) residual $\rho_{\mathrm{adj}}$ is the quality signal and should track the [SLEPc](https://en.wikipedia.org/wiki/SLEPc) tolerance. A factor belongs to one $(\omega, \gamma)$ pair.
+$H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ with filters $F$ inside the $B$ and $C$ masks. [Gains](../core-concepts.md) solve $W^{-1} H^H W H v = \sigma^2 v$ for `chu` forcing norm or $H^H W H v = \sigma^2 v$ for `l2`, with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ and response $u = Hv/\sigma$. Forward residual $\rho_{\mathrm{fwd}}$ is near roundoff by construction. [Adjoint](https://grokipedia.com/page/Adjoint) residual $\rho_{\mathrm{adj}}$ is the quality signal and should track the [SLEPc](https://en.wikipedia.org/wiki/SLEPc) tolerance. A factor belongs to one $(\omega, \gamma)$ pair.
 
 Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
@@ -12,7 +12,7 @@ Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver
 The mathematical object is
 
 \[
-H = C\,F\,(L_0 - (\gamma + i\omega)I)^{-1}\,F\,B,
+H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B,
 \]
 
 where \(L_0\) is the BC-enforced LNSE operator, \(\omega\) is the angular frequency, \(\gamma\) is an optional real [discount](../core-concepts.md) parameter, \(B\) and \(C\) are input/output maps, and \(F\) denotes optional spatial filters placed **inside** the masks (MATLAB-aligned composition).
@@ -53,7 +53,7 @@ Resolvent Analysis sits downstream of baseflow ingest, mesh/[SBP](https://grokip
 | Principle | Realization in code |
 |-----------|---------------------|
 | **MATLAB parity** | Filter placement inside \(B\)/\(C\); weighted \(H^\dagger W H\) eigenproblem; \(\sigma=\sqrt{\mathrm{Re}(\lambda)}\) recovery |
-| **Factorize once, apply many** | One factorization of \(L_\sigma = L_0-(\gamma+i\omega)I\) serves all forward and adjoint resolvent matvecs |
+| **Factorize once, apply many** | One factorization of \(L_\sigma = (\gamma-i\omega)I-L_0\) serves all forward and adjoint resolvent matvecs |
 | **Lazy loading** | Package `__getattr__` defers PETSc/SLEPc import until a resolvent symbol is first used |
 | **Norm flexibility without new EPS branches** | `forcing_norm` in `{"chu","l2"}`; conservative momentum uses column whitening + `"l2"` instead of a third branch |
 | **Exact-frequency factorization boundary** | A MUMPS factor is valid only for the \((\omega,\gamma)\) pair used to build \(L_\sigma\) |
@@ -339,7 +339,7 @@ Shared prep with temporal stability through BC-ready \(L_0\), then:
 flowchart TD
   Start[Resolvent case] --> Cfg[Resolve omega weights backend]
   Cfg --> Prep[Baseflow mesh SBP L0 + BCs + W_diag]
-  Prep --> Shift[L_sigma = L0 - gamma+i omega I]
+  Prep --> Shift[L_sigma = (gamma - i omega) I - L0]
   Shift --> Fac[Factorize once]
   Fac --> H[ResolventOperator apply / apply_adjoint]
   H --> Shell[WeightedNormalOperator MatShell]
@@ -443,7 +443,7 @@ CFD mean flow → BaseFlow → Mesh/SBP → LNSE coefficients
     → L0 (+ sponge, dissipation, BC last)
     → W_diag (Chu energy weights)
     → [optional B/C masks or conservative B_tilde]
-    → L_sigma = L0 - (gamma + i omega) I
+    → L_sigma = (gamma - i omega) I - L0
     → Factorization (solve / solve_transpose)
     → H / Hᴴ matvecs
     → MatShell (Hᴴ W H or invW Hᴴ W H)

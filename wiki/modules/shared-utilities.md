@@ -435,7 +435,7 @@ sequenceDiagram
 | **`petsc_to_scipy` sequential-only** | Distributed gather is not implemented; use ownership CSR helpers instead |
 | **`petsc_vec` under MPI** | Always pass full-global arrays; helper slices by ownership |
 | **Dual config seams** | Prefer `config.typed.Config` for new code; keep `_solver_cfg` behavior aligned |
-| **Env name legacy** | Some cost env vars still use `LINSTAB2D_*` prefixes (`GPUS`, `HARDWARE_TAG`) alongside `LINSTABPY_*` elsewhere |
+| **Env name legacy** | Cost metrics read `LINSTABPY_GPUS` and `LINSTABPY_HARDWARE_TAG` first. The old `LINSTAB2D_GPUS` and `LINSTAB2D_HARDWARE_TAG` spellings still work as a fallback |
 
 
 ## Extension Guidelines

@@ -51,7 +51,7 @@ src/linstabpy/mumps_options.py   # PETSc-free MUMPS ICNTL(7) ordering map
 The linear algebra infrastructure is consumed by:
 
 - **Stability Analysis**, [shift-invert](../solver-glossary.md) temporal, spatial, and adjoint [EPS](../solver-glossary.md)
-- **Resolvent Analysis**, repeated applies of \(H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B\)
+- **Resolvent Analysis**, repeated applies of \(H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B\)
 - **Solver Routing**, anchor factorization, preconditioner reuse, residual-gated refactor on \(\beta\)–\(\omega\) maps
 - **Case Orchestration**, backend policy from YAML/env and cost/provenance metrics
 
@@ -394,7 +394,7 @@ Importing the module does not initialize PETSc; a live PETSc Mat path calls `ini
 | Workflow | Typical shift |
 |----------|----------------|
 | Temporal shift-invert | Around target eigenvalue / frequency |
-| Resolvent | \(L_0 - i\omega I\) (\(\gamma=0\)) |
+| Resolvent | \(-i\omega I - L_0\) (\(\gamma=0\)) |
 | Spatial / generalized | Backend-specific shifts via the same helper family |
 | Router line walks | New \(\omega\) → new values, often same pattern → `refactorize` |
 
@@ -512,7 +512,7 @@ Prefix-specific linear-solve knobs (KSP type, PC, rtol, …) are resolved throug
 | Consumer | How it uses linalg |
 |----------|--------------------|
 | Stability EPS | Factor shifted operators for shift-invert; repeated solves inside SLEPc |
-| Resolvent | Factor \((L_0 - i\omega I)\); forward/adjoint applies for \(H\), \(H^H\) |
+| Resolvent | Factor \((-i\omega I - L_0)\); forward/adjoint applies for \(H\), \(H^H\) |
 | Router map walks | Anchor `factorize`; nearby \(\omega\) as PC or `refactorize`; residual gates |
 | Payload / metrics | Backend name, precision, dual-factor flags, cuDSS timings, refactor counts |
 

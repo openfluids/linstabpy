@@ -99,8 +99,6 @@ cases:
       # tolerances are informational only.  The primary closure criterion is the
       # generalized-eigenproblem residual
       #   rho[i] = ||A q_i - alpha_i B q_i|| / (|alpha_i| ||q_i||).
-      # Historical note: docs/archive/example_3_blocker.md records the original
-      # mismatch and the switch to this residual-based gate.
       spatial_residual_max: 1.0e-8
       spatial_spectrum_abs: 1.0e-4
       spatial_spectrum_rel: 1.0e-4

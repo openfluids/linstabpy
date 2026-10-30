@@ -25,8 +25,7 @@ with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
 | `superlu_dist` (manual, not in `install.sh`) | `.venv-superlu_dist` | complex scalar PETSc/SLEPc with `--download-superlu_dist` plus METIS/ParMETIS graph-partitioning downloads | `install.sh` does not ship a `superlu_dist` build stack today. Build manually: run `./install.sh --stack superlu_dist --force` only after adding the stack branch to `install.sh`, or configure PETSc directly with `--download-superlu_dist --download-metis --download-parmetis`. The GPU variant adds `--with-cuda`. Keep this isolated to `.venv-superlu_dist`; `--force` must never target `.venv`. |
 
 This section documents the intended build separation only. It is not a claim
-that any non-default branch has been built, validated, or measured. The Line-3 GPU
-FP64 decision gate is documented in `docs/GPU_FP64_GATE.md`.
+that any non-default branch has been built, validated, or measured.
 
 ### SuperLU_DIST build notes
 

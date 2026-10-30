@@ -123,10 +123,9 @@ conda activate linstabpy
 python -c "import numpy as np; from petsc4py import PETSc; assert np.issubdtype(PETSc.ScalarType, np.complexfloating)"
 ```
 
-After the PyPI release, change the pip line `-e .` to `linstabpy` and recreate
-the environment. Do not add `petsc4py`, `slepc4py`, or `mpi4py` to the pip
-list. Those PyPI sdists compile PETSc from source and fight the conda MPI
-stack.
+Do not add `petsc4py`, `slepc4py`, or `mpi4py` to the pip list. Those source
+packages compile PETSc and fight the conda MPI stack. The reference route is
+`bash install.sh`.
 
 `environment.yml` is not a second reference build. If conda-forge PETSc is a
 different minor than `install.sh` (3.24 + MUMPS), record both versions. A

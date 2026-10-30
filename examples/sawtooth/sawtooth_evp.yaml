@@ -17,7 +17,7 @@ numerics:
   fd_order: 6        # SBP interior order
   beta: 0.0          # spanwise wavenumber (0 = 2-D)
   alpha_filter: 0.0  # implicit filter strength; 0 keeps the filter real
-  # Floquet shift: matlab_parity (default) or continuum
+  # Floquet shift: continuum (default) or matlab_parity
   floquet_shift: matlab_parity
   operator_dissipation:
     enabled: true

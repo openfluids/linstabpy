@@ -1,7 +1,7 @@
 # Core workflows
 
 !!! info "Conventions"
-    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable exactly when $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
+    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable exactly when $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
 
 ## Workflow overview
 
@@ -231,8 +231,10 @@ Orchestration **service-calls** Stability and **module-depends** on Operator Ass
 **Mathematical core:**
 
 \[
-H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
+H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
 \]
+
+Under `solver.resolvent_sign_convention: matlab_parity` the code inverts the older LinStab2D matrix instead. See [resolvent sign convention](resolvent-sign-convention.md).
 
 Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often [Chu](core-concepts.md) norm), implemented as PETSc **[MatShell](solver-glossary.md)** + SLEPc.
 
@@ -664,7 +666,7 @@ flowchart TD
 
 **Intent:** Leading optimal gain and structures of \(H\).
 
-1. Factor \((L_0 - (\gamma + i\omega) I)\).
+1. Factor \(((\gamma - i\omega) I - L_0)\).
 2. Matvecs of \(H\) and \(H^{H}\) via B, solves, C (`ResolventOperator`).
 3. Build `WeightedNormalOperator` shell for \(W\)-inner-product gain problem.
 4. SLEPc on shell; validate residuals; return forcing/response pairs.

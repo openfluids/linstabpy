@@ -18,16 +18,15 @@ If this fails, the problem is the Python env, not MPI or data.
 ## Example 1: Blasius resolvent (first science run)
 
 Compressible Blasius boundary layer, Re = 6.0e5, Ma = 0.3, SBP order 4,
-300x100 grid. Needs the MATLAB base flow `BL_BF.mat` (not bundled):
+300x100 grid. Reads the MATLAB base flow `BL_BF.mat`, which the repository ships in
+`examples/linstab2d/baseflows/` (no setup needed):
 
 ```bash
-git clone https://github.com/LinStab2D/LinStab2D.git ~/linstab2d-reference
-export LINSTABPY_BASEFLOW_DATA_DIR=$HOME/linstab2d-reference
 .venv/bin/python -m examples.linstab2d.example_1_blasius
 .venv/bin/python -m examples.linstab2d.example_1_plots
 ```
 
-Without the data dir the example raises `FileNotFoundError`. Outputs:
+If you set `LINSTABPY_BASEFLOW_DATA_DIR` to a directory without the file, the example raises `FileNotFoundError`. Outputs:
 `example_1_blasius.npz` (gains, modes, mesh, Chu weights, provenance),
 baseflow PNG (look at this before trusting modes), forcing/response
 mosaics per component. Case definition with commented knobs:
@@ -38,16 +37,16 @@ mosaics per component. Case definition with commented knobs:
 | # | Module | Teaches | Needs |
 |---|---|---|---|
 | 0 | `example_0_curvilinear_validation` | SBP derivatives on deformed meshes | Nothing |
-| 1 | `example_1_blasius` | Resolvent gains, forcing/response | `BL_BF.mat` via data dir |
-| 2 | `example_2_jet` | Resolvent on turbulent jet base flow | `M09jet.mat` via data dir |
+| 1 | `example_1_blasius` | Resolvent gains, forcing/response | `BL_BF.mat` (shipped) |
+| 2 | `example_2_jet` | Resolvent on turbulent jet base flow | `M09jet.mat` (shipped) |
 | 3 | `example_3_streaky_bl` | Temporal + spatial EVP, Floquet options | MATLAB fixtures for plots |
-| 4 | `example_4_cavity` | Direct + adjoint eigenvalues, spectra | `Step_BF.mat` via data dir |
-| 5 | `example_5_paraboloid` | Resolvent on 3D body-fitted mesh | `Paraboloid_BF.mat` via data dir |
+| 4 | `example_4_cavity` | Direct + adjoint eigenvalues, spectra | `Step_BF.mat` (shipped) |
+| 5 | `example_5_paraboloid` | Resolvent on 3D body-fitted mesh | `Paraboloid_BF.mat` (shipped) |
 
 Beyond Martini (week two): `examples/song/` (SWBLI global stability,
 ships packed `song_32deg.npz`), `examples/sawtooth/` (ships packed
 `sawtooth.npz`), `examples/savarino/` (gain maps via Slurm; fetch with
-`fetch_zenodo.py`), `examples/prescribed_forcing/` (small demos).
+`fetch_zenodo.py`).
 
 ## Runner
 

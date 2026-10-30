@@ -270,11 +270,12 @@ examples/linstab2d/   Martini examples and MATLAB field constructors
 examples/song/      Song / Robinet SWBLI EVP case
 examples/savarino/  Savarino 30.8 deg resolvent case
 examples/sawtooth/  Lui 2022 suction-side SWBLI
-scripts/            tracked-size and public-provenance checks
+tools/              wiki and llms-full.txt generators
+tests/              test suite, including the tracked-size check
 docs/tutorial/      tutorial source and generated PDF
 \end{outputbox}
 
-Do not put reusable solver code under \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{examples/}, and validation assets under \path{scripts/}. Generated outputs such as example \code{.npz}/\code{.png} files, case-study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
+Do not put reusable solver code under \path{examples/}. Put reusable code under \path{src/linstabpy/}, runnable examples under \path{examples/}, case-specific workflows under \path{examples/}, and tests under \path{tests/}. Generated outputs such as example \code{.npz}/\code{.png} files, case-study \path{output/} directories, caches, and build metadata are ignored and should not define the repository structure.
 
 \subsection*{Use one example runner}
 

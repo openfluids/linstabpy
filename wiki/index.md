@@ -62,7 +62,7 @@ i \mathcal{L}_0(\beta) \hat{\mathbf{q}} = \omega \hat{\mathbf{q}}
 Under external harmonic forcing \( \mathbf{f}'(t) = \mathbf{B} \hat{\mathbf{f}} \exp(-i\omega t) \), the resolvent operator \( \mathcal{H}(\beta, \omega) \) maps inputs to linear responses \( \hat{\mathbf{q}} = \mathcal{H}(\beta, \omega) \hat{\mathbf{f}} \):
 
 \[
-\mathcal{H}(\beta, \omega) = \mathbf{C} \mathbf{F} \left( \mathcal{L}_0(\beta) - (\gamma + i\omega) \mathbf{I} \right)^{-1} \mathbf{F} \mathbf{B}
+\mathcal{H}(\beta, \omega) = \mathbf{C} \mathbf{F} \left( (\gamma - i\omega) \mathbf{I} - \mathcal{L}_0(\beta) \right)^{-1} \mathbf{F} \mathbf{B}
 \]
 
 where \( \mathbf{B} \) and \( \mathbf{C} \) are input and output restriction masks, \( \mathbf{F} \) is an optional spatial filter placed inside the masks, and \( \gamma \ge 0 \) is an optional real discount.
@@ -181,4 +181,4 @@ If this software contributed to published work, please cite the linstabpy paper 
 
 > Martini, E. and Schmidt, O. T. (2024). LinStab2D: stability and resolvent analysis of compressible viscous flows in MATLAB. *Theor. Comput. Fluid Dyn.* 38, 665–685. doi:10.1007/s00162-024-00706-0.
 
-The full bibliography lives on the [references](references.md) page, and `CITATION.cff` carries the machine-readable entry (DOI and version land with the first tagged Zenodo release).
+The full bibliography lives on the [references](references.md) page, and `CITATION.cff` carries the machine-readable entry (the preferred citation is the paper; there is no software DOI).

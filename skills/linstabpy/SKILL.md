@@ -4,7 +4,6 @@ description: Run compressible-flow linear stability and resolvent analysis with 
 license: GPL-3.0-only
 compatibility: Linux reference, macOS supported; needs one MPI stack plus complex-scalar PETSc/SLEPc with MUMPS (via install.sh) for any solve; pure import and YAML validation need only Python + NumPy + PyYAML.
 metadata:
-  version: "0.1.0"
   repo: "https://github.com/openfluids/linstabpy"
   docs: "https://linstabpy.vercel.app/"
 ---
@@ -73,7 +72,7 @@ mpiexec -n 4 linstabpy
 ```
 
 Start from `assets/minimal-case.yaml`. Example 1 (Blasius resolvent,
-needs `BL_BF.mat` via `LINSTABPY_BASEFLOW_DATA_DIR`) is the first real
+reads the shipped `BL_BF.mat`) is the first real
 science run; family map + runner in `references/examples.md`.
 
 **3. Library use (9 lazy names, PETSc starts on first solver call).**

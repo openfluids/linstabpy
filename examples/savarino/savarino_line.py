@@ -3,7 +3,7 @@
 
 This is the line campaign: same physics as gen_campaign.py (conservative
 momentum P, L2 forcing, Chu response, epsilon 0). It does not recycle
-Krylov bases. Each frequency still uses a MUMPS factor of L0 - i omega.
+Krylov bases. Each frequency still uses a MUMPS factor of -i*omega*I - L0 (physical sign, gamma = 0).
 
 Writes savarino_line_b<beta>.csv and savarino_line_b<beta>.log next to
 --out. Rank 0 writes the files. Time every stage with time.perf_counter.

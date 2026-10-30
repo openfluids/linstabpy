@@ -79,9 +79,16 @@ commit SHA.
 ## Architecture wiki
 
 `wiki/` is hand-owned. An early version was machine-generated, then
-rewritten by hand (prose, links, examples, nav); regenerating would
-destroy that work, so pages are edited directly and there is no
-generator config to run.
+rewritten by hand (prose, links, examples, nav), so edit pages directly.
+Two scripts generate parts of it, and CI runs both (`.github/workflows/docs.yml`):
+
+- `python3 tools/generate_wiki_boundaries.py` rewrites the generated regions
+  of `wiki/boundaries.md` (CLI variables, allowed YAML keys, lazy exports).
+  It leaves the rest of the page unchanged.
+- `python3 tools/generate_llms_full.py` writes `wiki/llms-full.txt`. Do not
+  edit that file by hand.
+
+Add `--check` to either script to fail when its output is stale.
 
 Build the wiki in its own environment. `uv run` and `uv sync` make the
 project environment match `uv.lock` and `.python-version`, so pointed at

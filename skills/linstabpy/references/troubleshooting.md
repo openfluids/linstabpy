@@ -45,8 +45,9 @@ keys plus `--diagnose` output.
 
 ## Missing data errors
 
-Martini examples need `LINSTABPY_BASEFLOW_DATA_DIR` pointing at a
-LinStab2D clone (`FileNotFoundError` otherwise). Savarino needs
+Martini examples read the shipped `.mat` base flows in
+`examples/linstab2d/baseflows/`. If you set `LINSTABPY_BASEFLOW_DATA_DIR`,
+it must contain those files (`FileNotFoundError` otherwise). Savarino needs
 `fetch_zenodo.py` first. Song/Sawtooth ship packed NPZs for checks.
 
 ## Conda path gotchas

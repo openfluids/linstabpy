@@ -300,7 +300,6 @@ Beyond Martini, three case families cover harder ground. Leave them for week two
 | `examples/song/` | Song and Robinet SWBLI global stability, $\theta = 32°$ | Ships packed `song_32deg.npz` for checks; full pipeline needs Plot3D `grid.grd` + `mean_flow.dat` in `inputs/raw/` | `prepare_baseflow`, `plot_baseflow`, then `mpiexec -n 4 python -m examples.song.song --config ...` |
 | `examples/sawtooth/` | Lui 2022 suction-side SWBLI, stride-2 field | Ships packed `sawtooth.npz` ($300 \times 340$) | Baseflow figure, `mpiexec -n 4` EVP run, spectrum figure. See its README. |
 | `examples/savarino/` | 30.8° SWBLI resolvent gain maps and backend benchmarks | `fetch_zenodo.py` downloads the Tecplot base flow | Slurm campaign scripts. Validation and speed reproduction, not new physics. |
-| `examples/prescribed_forcing/` | Forcing demos | Local | Small demos, see directory. |
 
 Parity checks compare Python results against MATLAB reference exports:
 
@@ -2217,7 +2216,7 @@ flowchart TB
 | No checked-in ADRs | Medium | Publish ADRs for assembly ordering, factor backend policy, residual gates, dissipation single source of truth |
 | Monolithic `driver/run.py` | Medium | Extract prep / assemble / stability / resolvent / emit stages; keep one façade |
 | Large assembly / coefficients / router modules | Medium | Add internal seams without breaking public contracts |
-| Dual dissipation config paths | Medium | Unify nested fields; keep aliases with deprecation warnings |
+| Dual dissipation config paths | Resolved | Every stage reads `numerics.operator_dissipation` through `stage_dissipation_epsilon`; the old top-level keys are refused |
 | Typed config still migrating | Info | Consolidate `typed.py` with `utils._solver_cfg` dual resolution |
 | Spatial path less CLI-central | Low | Document spatial and map entry points beside lazy public API |
 | GPU path optional / non-conda | Info | Keep CPU complex PETSc as supported default; document cuDSS clearly |
@@ -2247,7 +2246,7 @@ Source: https://linstabpy.vercel.app/workflow/
 # Core workflows
 
 !!! info "Conventions"
-    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable exactly when $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
+    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable exactly when $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
 
 ## Workflow overview
 
@@ -2477,8 +2476,10 @@ Orchestration **service-calls** Stability and **module-depends** on Operator Ass
 **Mathematical core:**
 
 \[
-H = C\,F\,(L_0 - (\gamma + i\omega) I)^{-1}\,F\,B
+H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
 \]
+
+Under `solver.resolvent_sign_convention: matlab_parity` the code inverts the older LinStab2D matrix instead. See [resolvent sign convention](resolvent-sign-convention.md).
 
 Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often [Chu](core-concepts.md) norm), implemented as PETSc **[MatShell](solver-glossary.md)** + SLEPc.
 
@@ -2910,7 +2911,7 @@ flowchart TD
 
 **Intent:** Leading optimal gain and structures of \(H\).
 
-1. Factor \((L_0 - (\gamma + i\omega) I)\).
+1. Factor \(((\gamma - i\omega) I - L_0)\).
 2. Matvecs of \(H\) and \(H^{H}\) via B, solves, C (`ResolventOperator`).
 3. Build `WeightedNormalOperator` shell for \(W\)-inner-product gain problem.
 4. SLEPc on shell; validate residuals; return forcing/response pairs.
@@ -3140,7 +3141,7 @@ Definitions of every solver term used in this wiki, linked to the official docs.
 
 **The two libraries.** [PETSc](https://petsc.org/release/manual/ksp/) (Portable, Extensible Toolkit for Scientific Computation) owns distributed vectors and matrices plus linear solvers. [SLEPc](https://slepc.upv.es/documentation/current/docs/manualpages/EPS/EPSSetProblemType/) (Scalable Library for Eigenvalue Problem Computations) sits on top of PETSc and owns eigensolvers. LinStabPy drives both through their Python bindings, [petsc4py](https://petsc4py.readthedocs.io/en/stable/) and [slepc4py](https://slepc4py.readthedocs.io/en/stable/), over [mpi4py](https://mpi4py.readthedocs.io/) for [MPI](https://grokipedia.com/page/Message_Passing_Interface). The install guide explains how to build this stack. This page explains what the objects mean. Physics and math vocabulary (growth rate, gain, Chu norm, wavemaker) lives in the [core concepts](core-concepts.md) companion.
 
-Repo conventions used below: $\omega = \mathrm{eig}(i L_0)$, unstable exactly when $\mathrm{Im}(\omega) > 0$; [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$.
+Repo conventions used below: $\omega = \mathrm{eig}(i L_0)$, unstable exactly when $\mathrm{Im}(\omega) > 0$; [resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$.
 
 
 ## Mental model
@@ -3228,7 +3229,7 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`MatCreateShell`](https://petsc.org/release/manualpages/Mat/MatCreateShell/)** creates a PETSc `Mat` with no stored entries. You register callback functions (at minimum the multiply `y = Ax`, optionally transpose and others) and PETSc treats the result as a matrix: it can sit inside `KSP`, `EPS`, and `ST` exactly like an assembled `AIJ` matrix. "Shell" contrasts with "assembled." The multiply runs your code, typically a few operator applies and triangular solves.
 
-**Why the resolvent needs it.** The resolvent $H = C F (L_0 - (\gamma + i\omega) I)^{-1} F B$ is dense even though $L_0$ is sparse. Forming it explicitly at $150{,}000$ unknowns is out of the question. Instead `WeightedNormalOperator` is a shell whose multiply chains existing cheap pieces: apply $H$ (two filters plus one factored solve plus $B$ and $C$ maps), weight by $W$, apply $H^H$ (adjoint filters plus one transpose solve), and for the [Chu](core-concepts.md) forcing norm multiply by $W^{-1}$. SLEPc then runs an eigensolver that only ever calls this multiply. [Gains](core-concepts.md) come out as $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ without $H$ ever existing as entries.
+**Why the resolvent needs it.** The resolvent $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ is dense even though $L_0$ is sparse. Forming it explicitly at $150{,}000$ unknowns is out of the question. Instead `WeightedNormalOperator` is a shell whose multiply chains existing cheap pieces: apply $H$ (two filters plus one factored solve plus $B$ and $C$ maps), weight by $W$, apply $H^H$ (adjoint filters plus one transpose solve), and for the [Chu](core-concepts.md) forcing norm multiply by $W^{-1}$. SLEPc then runs an eigensolver that only ever calls this multiply. [Gains](core-concepts.md) come out as $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ without $H$ ever existing as entries.
 
 **Ownership detail.** On multi-rank communicators the multiply callback writes only its rank's local row range into the result vector. Getting this wrong silently corrupts outer iterations, which is why the shell code is explicit about ranges.
 
@@ -3505,10 +3506,9 @@ conda activate linstabpy
 python -c "import numpy as np; from petsc4py import PETSc; assert np.issubdtype(PETSc.ScalarType, np.complexfloating)"
 ```
 
-After the PyPI release, change the pip line `-e .` to `linstabpy` and recreate
-the environment. Do not add `petsc4py`, `slepc4py`, or `mpi4py` to the pip
-list. Those PyPI sdists compile PETSc from source and fight the conda MPI
-stack.
+Do not add `petsc4py`, `slepc4py`, or `mpi4py` to the pip list. Those source
+packages compile PETSc and fight the conda MPI stack. The reference route is
+`bash install.sh`.
 
 `environment.yml` is not a second reference build. If conda-forge PETSc is a
 different minor than `install.sh` (3.24 + MUMPS), record both versions. A

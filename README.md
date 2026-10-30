@@ -510,12 +510,12 @@ follows the standard convective scaling described below.
 
 | Symbol | Definition | Units | Source in code |
 |---|---|---|---|
-| `rho_ref` | freestream density | kg/m³ | implicit: `RHO = 1` at freestream (`loaders.py`) |
+| `rho_ref` | freestream density | kg/m³ | implicit: `RHO = 1` at freestream (set in `linstabpy.baseflow.grid_fields`) |
 | `U_ref` | freestream velocity | m/s | implicit: `U = 1` at freestream |
 | `L_ref` | problem reference length | m | user-supplied (e.g. displacement thickness `delta*` for Blasius, shock-impingement length `X_sh` for SWBLI) |
-| `T_ref` | freestream static temperature | K | `BaseFlow.T_0` (`baseflow.py:40`) |
+| `T_ref` | freestream static temperature | K | `BaseFlow.T_0` (`linstabpy.baseflow.baseflow`) |
 | `p_ref` | `rho_ref * U_ref**2` | Pa | confirmed by Chu norm weights in `energy_norm.py` |
-| `mu_ref` | `mu(T_0)` via Sutherland | Pa·s | `viscosity.py:46`, variable `mu_0` |
+| `mu_ref` | `mu(T_0)` via Sutherland | Pa·s | `sutherland_air` in `linstabpy.baseflow.viscosity`, variable `mu_0` |
 | `t_ref` | `L_ref / U_ref` | s | derived |
 
 `L_ref` is not stored inside `BaseFlow`; it is the length scale used when
@@ -566,7 +566,7 @@ Ma = U_ref / a_ref,  a_ref = sqrt(kappa * R * T_ref)
 
 Enters the operator via `c2 = kappa * Ma**2` (pressure-velocity coupling) and
 `cv = 1 / (kappa * (kappa - 1) * Ma**2)` (energy equation). Both are derived in
-`viscosity.py:34-36` and used throughout `coefficients.py`.
+`sutherland_air` (`viscosity.py`) and used throughout `coefficients.py`.
 
 **[Prandtl number](https://grokipedia.com/page/Prandtl_number)**
 
@@ -584,7 +584,7 @@ kappa = cp / cv  (gamma)
 ```
 
 Stored as `BaseFlow.kappa`. The code uses `kappa` rather than `gamma`; the
-`BaseFlow` docstring at `baseflow.py:27` notes "Heat capacity ratio (gamma)" to
+`BaseFlow` docstring notes "Heat capacity ratio (gamma)" to
 keep the physical meaning explicit. Enters the ideal gas relation, the Chu norm
 weights, and all compressibility terms.
 
@@ -729,12 +729,12 @@ real-valued and conjugate symmetry should not be admitted.
 
 Reference MATLAB examples:
 
-- `linstabpy/data/baseflows/example_0_TestCurvilinearDerivative.m`
-- `linstabpy/data/baseflows/example_1_Blasius.m`
-- `linstabpy/data/baseflows/example_2_Jet.m`
-- `linstabpy/data/baseflows/example_3_Streaky_BL.m`
-- `linstabpy/data/baseflows/example_4_Cavity.m`
-- `linstabpy/data/baseflows/example_5_Paraboloid.m`
+- `examples/linstab2d/linstab2D_scripts/example_0_TestCurvilinearDerivative.m`
+- `examples/linstab2d/linstab2D_scripts/example_1_Blasius.m`
+- `examples/linstab2d/linstab2D_scripts/example_2_Jet.m`
+- `examples/linstab2d/linstab2D_scripts/example_3_Streaky_BL.m`
+- `examples/linstab2d/linstab2D_scripts/example_4_Cavity.m`
+- `examples/linstab2d/linstab2D_scripts/example_5_Paraboloid.m`
 
 Python counterparts:
 
@@ -819,9 +819,9 @@ Example-level parity:
 
 Some parity tests compare against MATLAB reference export bundles (raw `.mat`
 exports and compact `.npz` base bundles). Those bundles are intentionally kept out
-of the repository and are not distributed. The corresponding tests skip cleanly
-when the bundles are absent (so they are silent in CI) and validate against them
-when the bundles are provided locally.
+of the repository and are not distributed. These tests are deselected by default.
+With `LINSTABPY_MATLAB_PARITY=1` they run, and they fail when the bundles are
+absent (see "MATLAB-parity tests are opt-in" above).
 
 ### Numerical equivalence after the assembly refactor
 
@@ -930,20 +930,21 @@ Packaging:
 - importable code uses the `src/` layout
 - package name is `linstabpy`
 - import package is `linstabpy`
-- optional PETSc/SLEPc dependencies are declared as `pip install linstabpy[petsc]`
+- install the PETSc/SLEPc stack with `bash install.sh`
 
 For development from a checkout, prefer the repository installer because it builds
 and verifies PETSc/SLEPc:
 
 ```bash
 bash install.sh
-.venv/bin/python -m pip install -e .
 ```
+
+`install.sh` also installs `linstabpy` in editable mode.
 
 Reference MATLAB source boundary:
 
 - Python implementation: `src/linstabpy/`, `tests/`, `examples/`, and repository docs
-- Martini MATLAB `.mat` assets: a local LinStab2D checkout via `LINSTABPY_BASEFLOW_DATA_DIR`
+- Martini MATLAB base flows (`BL_BF.mat`, `M09jet.mat`, `Paraboloid_BF.mat`, `Step_BF.mat`): shipped in `examples/linstab2d/baseflows/`; `LINSTABPY_BASEFLOW_DATA_DIR` overrides the directory
 - update or replace reference assets only with explicit intent
 - do not edit reference MATLAB files while trying to fix Python parity
 

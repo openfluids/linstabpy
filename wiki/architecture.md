@@ -944,7 +944,7 @@ flowchart TB
 | No checked-in ADRs | Medium | Publish ADRs for assembly ordering, factor backend policy, residual gates, dissipation single source of truth |
 | Monolithic `driver/run.py` | Medium | Extract prep / assemble / stability / resolvent / emit stages; keep one façade |
 | Large assembly / coefficients / router modules | Medium | Add internal seams without breaking public contracts |
-| Dual dissipation config paths | Medium | Unify nested fields; keep aliases with deprecation warnings |
+| Dual dissipation config paths | Resolved | Every stage reads `numerics.operator_dissipation` through `stage_dissipation_epsilon`; the old top-level keys are refused |
 | Typed config still migrating | Info | Consolidate `typed.py` with `utils._solver_cfg` dual resolution |
 | Spatial path less CLI-central | Low | Document spatial and map entry points beside lazy public API |
 | GPU path optional / non-conda | Info | Keep CPU complex PETSc as supported default; document cuDSS clearly |

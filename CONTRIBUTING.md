@@ -36,10 +36,12 @@ The same checks CI runs:
 ```bash
 ruff check .
 ruff format --check .
-uv sync --group test
+uv pip install --python .venv/bin/python --group test
 .venv/bin/python -m pytest tests/
 .venv/bin/python -m pytest tests/test_tracked_file_size.py -q --tb=line
 ```
+
+`install.sh` already installs the test packages. Do not run `uv sync` on `.venv`: it removes the PETSc environment.
 
 The dissipation guardrail tests are the ones that matter most, and CI runs them
 separately for that reason:

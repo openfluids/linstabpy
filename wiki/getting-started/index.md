@@ -257,7 +257,6 @@ Beyond Martini, three case families cover harder ground. Leave them for week two
 | `examples/song/` | Song and Robinet SWBLI global stability, $\theta = 32°$ | Ships packed `song_32deg.npz` for checks; full pipeline needs Plot3D `grid.grd` + `mean_flow.dat` in `inputs/raw/` | `prepare_baseflow`, `plot_baseflow`, then `mpiexec -n 4 python -m examples.song.song --config ...` |
 | `examples/sawtooth/` | Lui 2022 suction-side SWBLI, stride-2 field | Ships packed `sawtooth.npz` ($300 \times 340$) | Baseflow figure, `mpiexec -n 4` EVP run, spectrum figure. See its README. |
 | `examples/savarino/` | 30.8° SWBLI resolvent gain maps and backend benchmarks | `fetch_zenodo.py` downloads the Tecplot base flow | Slurm campaign scripts. Validation and speed reproduction, not new physics. |
-| `examples/prescribed_forcing/` | Forcing demos | Local | Small demos, see directory. |
 
 Parity checks compare Python results against MATLAB reference exports:
 

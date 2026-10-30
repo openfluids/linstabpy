@@ -17,7 +17,7 @@ environment.
 
 | Directory | Job | What it produces | Paper |
 |---|---|---|---|
-| `2026-09-14_3073_martini_table1` | `run_all_examples.sh`, serial | the six Martini examples and `examples/martini/martini_parity_table.csv` | Table 1 |
+| `2026-09-14_3073_martini_table1` | `run_all_examples.sh`, serial | the six Martini examples and `examples/linstab2d/martini_parity_table.csv` | Table 1 |
 | `2026-09-14_3074_example5_ordering` | Example 5 under MUMPS orderings default, metis, pord, amd, qamd | gain sensitivity to the fill-reducing ordering | Example 5 discussion |
 | `2026-09-14_3075_song_fd4_n30` | `examples/song/configs/run_fd4_n30.yaml`, 4 ranks, then the same field scaled by the speed of sound as a control (`run_fd4_n30_cinf.yaml`) | the 32 degree leading eigenvalue against Song (2023) | Section 4 |
 | `2026-09-14_3076_mack_f2_b45_n4` | `examples/savarino/configs/mack_f2_b45.yaml`, 4 ranks | gain, wall time, peak memory (sum and per-rank maximum) | Appendix B |

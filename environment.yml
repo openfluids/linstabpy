@@ -7,7 +7,7 @@
 #   conda env create -f environment.yml
 #   conda activate linstabpy
 #
-# After the PyPI release, replace the pip line `-e .` with `linstabpy`.
+# Install from a checkout. `bash install.sh` is the reference route.
 # Do not add petsc4py to the pip list. Those sdists compile PETSc from source.
 #
 # Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR before you create the environment.
