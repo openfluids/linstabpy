@@ -107,38 +107,12 @@ def test_metrics_recorded() -> None:
     assert factor.metrics["adjoint_oracle_residual"] >= 0.0
 
 
-def test_solve_transpose_alias() -> None:
-    """Verify backward-compatible solve_transpose alias works."""
-    L0 = _operator(6)
-    factor = factorize(L0)
+def test_solve_transpose_names_are_gone() -> None:
+    """The pre-1.0 names solve_transpose and solve_transpose_vec no longer exist."""
+    factor = factorize(_operator(6))
 
-    rhs = np.random.randn(6) + 1j * np.random.randn(6)
-    result1 = factor.solve_transpose(rhs)
-    result2 = factor.solve_adjoint(rhs)
-
-    assert np.allclose(result1, result2)
-
-
-def test_solve_transpose_vec_alias() -> None:
-    """Verify backward-compatible solve_transpose_vec alias works."""
-    from petsc4py import PETSc
-
-    L0 = _operator(6)
-    factor = factorize(L0)
-
-    rhs_arr = np.random.randn(6) + 1j * np.random.randn(6)
-    rhs_vec = PETSc.Vec().createWithArray(rhs_arr, comm=PETSc.COMM_SELF)
-
-    result1_vec = factor.solve_transpose_vec(rhs_vec)
-    result2_vec = factor.solve_adjoint_vec(rhs_vec)
-
-    # Both should be valid PETSc vectors
-    assert result1_vec.getSize() == rhs_vec.getSize()
-    assert result2_vec.getSize() == rhs_vec.getSize()
-
-    result1_vec.destroy()
-    result2_vec.destroy()
-    rhs_vec.destroy()
+    assert not hasattr(factor, "solve_transpose")
+    assert not hasattr(factor, "solve_transpose_vec")
 
 
 # --- Heal-path coverage: the cases the auto-detect/heal logic actually relies on.

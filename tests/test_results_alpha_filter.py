@@ -41,6 +41,8 @@ def test_compute_keeps_mesh_filter_without_resolvent(monkeypatch, tmp_path):
         """
         paths:
           case_dir: "."
+        physics:
+          Re: 395000.0
         analysis:
           run_stability: false
           run_resolvent: false

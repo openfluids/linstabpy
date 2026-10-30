@@ -48,8 +48,8 @@ def _run_point(config: Path, out_npz: Path, *, nranks: int) -> None:
         raise SystemExit(f"missing config: {config}")
     out_npz.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
-    env["LINSTABPY_CASE1_CONFIG"] = str(config.resolve())
-    env["LINSTABPY_CASE1_OUTPUT_NPZ"] = str(out_npz.resolve())
+    env["LINSTABPY_CASE_CONFIG"] = str(config.resolve())
+    env["LINSTABPY_CASE_OUTPUT_NPZ"] = str(out_npz.resolve())
     code = "from linstabpy.driver.run import run; run()"
     if nranks > 1:
         cmd = ["mpiexec", "-n", str(nranks), sys.executable, "-u", "-c", code]

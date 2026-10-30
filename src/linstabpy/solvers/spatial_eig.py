@@ -216,36 +216,3 @@ def _eigs_generalized(
         B.destroy()
 
     return eigenvalues, eigenvectors
-
-
-_DEPRECATED_EXPORTS = {
-    "spatial_eigenvalues": ("linstabpy.stability._eigenvalues", "spatial_eigenvalues"),
-}
-
-
-def __getattr__(name: str):  # noqa: ANN201
-    """Lazily expose deprecated public spatial-eigenvalue wrappers.
-
-    The active backend/knob documentation for these wrappers is the module
-    docstring above and ``docs/COMPUTE_BACKENDS.md``.
-    """
-    if name in _DEPRECATED_EXPORTS:
-        import importlib
-        import warnings
-
-        module_name, attr_name = _DEPRECATED_EXPORTS[name]
-        warnings.warn(
-            f"linstabpy.solvers.spatial_eig.{name} is deprecated; "
-            f"use linstabpy.stability.{attr_name}",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        attr = getattr(importlib.import_module(module_name), attr_name)
-        globals()[name] = attr
-        return attr
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__() -> list[str]:
-    """Return module attributes including deprecated public wrappers."""
-    return sorted(set(globals()) | set(_DEPRECATED_EXPORTS))

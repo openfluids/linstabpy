@@ -72,6 +72,16 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   adjoint eigenvalue is `i*conj(omega)`, so `conj(omega) = -i*lambda_adj`.
   Code that used the old values must change sign of the real part.
 
+- The `linstabpy` command has no default case file. Without `LINSTABPY_CASE_CONFIG` it stops
+  and names the variable. It looked for `./configs/parity_config.yaml` before.
+
+- `physics.Re` has no default in the case file. A case file without it raises
+  `ConfigValidationError`. The default was 395000.
+
+- `paths.case_inputs_mat` has no default. It is read only when
+  `physics.use_matlab_sponge_aux` is true. The default was
+  `MATLAB_exports_resolvent/case_inputs_used.mat`.
+
 ### Fixed
 
 - `resolvent_map` stores the discount `gamma` used at each point
@@ -260,6 +270,27 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   redistribution license. `pack_reference_modes.py` builds them from the
   fetched modes, and `compare_modes.py` prints the commands when they are
   missing.
+
+- All backward-compatibility names, before 1.0:
+  - `LINSTABPY_CASE1_CONFIG`, `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_OUTPUT_NPZ`,
+    `LINSTABPY_CASE2_OUTPUT_NPZ`, `LINSTABPY_CASE1_ROOT_ASSEMBLY` and
+    `LINSTABPY_CASE2_ROOT_ASSEMBLY`. Use `LINSTABPY_CASE_CONFIG`,
+    `LINSTABPY_CASE_OUTPUT_NPZ` and `LINSTABPY_CASE_ROOT_ASSEMBLY`. The driver
+    ignores the old names and warns that they are unknown variables.
+  - `LINSTAB2D_GPUS`, `LINSTAB2D_HARDWARE_TAG` and `LINSTAB2D_STAGE_HEARTBEAT_SECONDS`.
+    Use `LINSTABPY_GPUS`, `LINSTABPY_HARDWARE_TAG` and
+    `LINSTABPY_STAGE_HEARTBEAT_SECONDS`.
+  - `linstabpy.solvers.eigenvalue.temporal_eigenvalues`,
+    `linstabpy.solvers.eigenvalue.adjoint_eigenvalues` and
+    `linstabpy.solvers.spatial_eig.spatial_eigenvalues`, with the deprecation
+    warning that forwarded them. Use `linstabpy.stability.eigenvalues`,
+    `linstabpy.stability.adjoint_eigenvalues` and
+    `linstabpy.stability.spatial_eigenvalues`. The same three names are gone from
+    `linstabpy.solvers`.
+  - `solve_transpose` and `solve_transpose_vec` on the factorization object. Use
+    `solve_adjoint` and `solve_adjoint_vec`.
+  - `AnchorTriggerRecord.trigger`. Use `"+".join(record.triggers)`.
+  - `linstabpy.driver.preflight.SAWTOOTH_BETA_BAND`. Nothing used it.
 
 ### Known issues
 

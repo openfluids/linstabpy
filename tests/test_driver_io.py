@@ -76,8 +76,8 @@ def _assert_npz_value_unchanged(actual, expected):
 
 
 def test_save_and_load_results_preserve_provenance_and_cost_keys(tmp_path, monkeypatch):
-    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
-    monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+    monkeypatch.setenv("LINSTABPY_GPUS", "0")
+    monkeypatch.delenv("LINSTABPY_HARDWARE_TAG", raising=False)
     output_npz = tmp_path / "roundtrip.npz"
     payload = {
         "stability_all_omega": np.array([1.0 + 2.0j, -1.0 - 2.0j]),
@@ -125,8 +125,8 @@ def test_is_root_rank_when_petsc_is_absent() -> None:
 
 
 def test_cost_metrics_without_petsc_or_gpu(monkeypatch) -> None:
-    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
-    monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+    monkeypatch.setenv("LINSTABPY_GPUS", "0")
+    monkeypatch.delenv("LINSTABPY_HARDWARE_TAG", raising=False)
 
     # Simulate a host with no PETSc stack and neither cupy nor nvidia-smi.
     # Without this the asserts depend on the machine: on a PETSc host the

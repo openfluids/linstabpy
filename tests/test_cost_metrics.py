@@ -45,7 +45,7 @@ def test_collect_cost_metrics_has_full_schema():
 
 
 def test_cpu_only_gpu_mem_is_nan(monkeypatch):
-    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
+    monkeypatch.setenv("LINSTABPY_GPUS", "0")
 
     result = collect_cost_metrics({}, git_sha="test", peak_rss_bytes=0)
 
@@ -194,7 +194,7 @@ def test_collect_cost_metrics_has_no_mpi_collective():
 
 
 def test_hardware_tag_from_env(monkeypatch):
-    monkeypatch.setenv("LINSTAB2D_HARDWARE_TAG", "testbox")
+    monkeypatch.setenv("LINSTABPY_HARDWARE_TAG", "testbox")
 
     result = collect_cost_metrics({}, git_sha="test", peak_rss_bytes=0)
 
@@ -202,7 +202,7 @@ def test_hardware_tag_from_env(monkeypatch):
 
 
 def test_hardware_tag_default_is_unknown_not_hostname(monkeypatch):
-    monkeypatch.delenv("LINSTAB2D_HARDWARE_TAG", raising=False)
+    monkeypatch.delenv("LINSTABPY_HARDWARE_TAG", raising=False)
 
     result = collect_cost_metrics({}, git_sha="test", peak_rss_bytes=0)
 

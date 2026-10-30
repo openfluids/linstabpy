@@ -17,12 +17,12 @@ This page is the reference for how you talk to LinStabPy from outside: CLI comma
 **Environment** (the real CLI surface, generated from `CLI_ENV_VARS`):
 
 <!-- GENERATED:CLI-ENV-START -->
-- `LINSTABPY_CASE_CONFIG`: YAML case file. Aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG`. Default `./configs/parity_config.yaml`.
-- `LINSTABPY_CASE_OUTPUT_NPZ`: Result archive path. Aliases `LINSTABPY_CASE2_OUTPUT_NPZ`, `LINSTABPY_CASE1_OUTPUT_NPZ`. Default `{prefix}_{config_md5}_{git_sha8}.npz in the working directory`.
+- `LINSTABPY_CASE_CONFIG`: YAML case file. The CLI stops when it is unset. Default `none (required)`.
+- `LINSTABPY_CASE_OUTPUT_NPZ`: Result archive path. Default `{prefix}_{config_md5}_{git_sha8}.npz in the working directory`.
 - `LINSTABPY_CASE_LOG_PREFIX`: Log-line prefix and default output stem. Default `linstabpy`.
 - `LINSTABPY_FORCE_RECOMPUTE`: Set to 1, true, yes, or on to skip the cache check (CLI gate only; library runs always compute). Default `unset (cache check runs)`.
 - `LINSTABPY_STAGE_HEARTBEAT_SECONDS`: Progress heartbeat interval in float seconds. Default `30`.
-- `LINSTABPY_CASE_ROOT_ASSEMBLY`: Root-only assembly for iterative eigen ST solvers; stability-only. Aliases `LINSTABPY_CASE2_ROOT_ASSEMBLY`, `LINSTABPY_CASE1_ROOT_ASSEMBLY`. Default `unset (auto: on for iterative eigen ST solvers under MPI)`.
+- `LINSTABPY_CASE_ROOT_ASSEMBLY`: Root-only assembly for iterative eigen ST solvers; stability-only. Default `unset (auto: on for iterative eigen ST solvers under MPI)`.
 <!-- GENERATED:CLI-ENV-END -->
 
 !!! warning "Unknown arguments warn, then are ignored"

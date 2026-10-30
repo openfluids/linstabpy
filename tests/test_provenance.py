@@ -110,7 +110,7 @@ def test_freeze_env_script_emits_pip_constraints_file(tmp_path):
 
 
 def test_save_results_round_trips_provenance_to_npz_and_sidecar(tmp_path, monkeypatch):
-    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
+    monkeypatch.setenv("LINSTABPY_GPUS", "0")
     config_path = tmp_path / "case.yaml"
     raw_config = b'{"beta": 3}\n'
     config_path.write_bytes(raw_config)
@@ -150,8 +150,6 @@ def test_default_output_path_embeds_config_md5_and_git_sha8(tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LINSTABPY_CASE_LOG_PREFIX", "caseX")
     monkeypatch.delenv("LINSTABPY_CASE_OUTPUT_NPZ", raising=False)
-    monkeypatch.delenv("LINSTABPY_CASE2_OUTPUT_NPZ", raising=False)
-    monkeypatch.delenv("LINSTABPY_CASE1_OUTPUT_NPZ", raising=False)
 
     output = _output_npz_path(provenance)
 

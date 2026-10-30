@@ -82,13 +82,11 @@ def test_registry_covers_prefix_expansion() -> None:
 
 
 def test_registry_covers_cli_contract() -> None:
-    """CLI_ENV_VARS primaries and aliases must all be registered."""
+    """Every CLI_ENV_VARS name must be registered."""
     from linstabpy.driver.cli import CLI_ENV_VARS
 
-    for primary, aliases, _default, _purpose in CLI_ENV_VARS:
-        assert primary in KNOWN_LINSTABPY_VARS
-        for alias in aliases:
-            assert alias in KNOWN_LINSTABPY_VARS
+    for name, _default, _purpose in CLI_ENV_VARS:
+        assert name in KNOWN_LINSTABPY_VARS
 
 
 def test_registry_covers_test_gating_vars() -> None:
@@ -117,6 +115,18 @@ def test_find_unknown_env_vars_ignores_other_prefixes() -> None:
         "LINSTAB2D_STAGE_HEARTBEAT_SECONDS": "5",
     }
     assert find_unknown_env_vars(env) == ["LINSTABPY_CASE_CONFG"]
+
+
+def test_removed_case_aliases_are_unknown() -> None:
+    """The pre-1.0 CASE1 and CASE2 spellings now trip the unknown-variable guard."""
+    removed = [
+        f"LINSTABPY_CASE{n}_{suffix}"
+        for n in (1, 2)
+        for suffix in ("CONFIG", "OUTPUT_NPZ", "ROOT_ASSEMBLY")
+    ]
+    env = {name: "x" for name in removed}
+    assert sorted(find_unknown_env_vars(env)) == sorted(removed)
+    assert suggest_env_var("LINSTABPY_CASE1_CONFIG") == "LINSTABPY_CASE_CONFIG"
 
 
 def test_suggest_env_var() -> None:

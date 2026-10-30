@@ -192,9 +192,7 @@ omega, modes = linstabpy.temporal_eigenvalues(...)
 5. Broadcast `need_recompute` with `MPI.COMM_WORLD.bcast`.
 6. If true, call `runtime.run()`.
 
-Config path resolution for the cache check uses the same env cascade as the driver:
-
-`LINSTABPY_CASE_CONFIG` → `LINSTABPY_CASE2_CONFIG` → `LINSTABPY_CASE1_CONFIG`.
+The cache check reads the config path from `LINSTABPY_CASE_CONFIG`, as the driver does. The CLI stops with an error when the variable is unset.
 
 
 ### Runtime Pipeline Driver (`driver/run.py`)
@@ -209,8 +207,8 @@ Config path resolution for the cache check uses the same env cascade as the driv
 
 | Helper | Responsibility |
 |--------|----------------|
-| `_first_env(*names)` | First non-empty environment value |
-| `_runtime_config_path()` | Config path; default `cwd/configs/parity_config.yaml` |
+| `_first_env(name)` | Stripped value of one environment variable, or `None` when unset or empty |
+| `_runtime_config_path()` | Config path from `LINSTABPY_CASE_CONFIG`; raises `ConfigValidationError` when unset |
 | `_output_npz_path()` | Explicit env path or `{prefix}_{config_md5}_{sha8}.npz` |
 | `_log_prefix()` | `LINSTABPY_CASE_LOG_PREFIX` (default `linstabpy`) |
 | `_config_hash(dict)` | SHA-256 of sorted-key JSON |
@@ -222,8 +220,8 @@ Config path resolution for the cache check uses the same env cascade as the driv
 
 | Variable | Role |
 |----------|------|
-| `LINSTABPY_CASE_CONFIG` (also `CASE2` / `CASE1`) | YAML case path |
-| `LINSTABPY_CASE_OUTPUT_NPZ` (also `CASE2` / `CASE1`) | Output archive path |
+| `LINSTABPY_CASE_CONFIG` | YAML case path |
+| `LINSTABPY_CASE_OUTPUT_NPZ` | Output archive path |
 | `LINSTABPY_FORCE_RECOMPUTE` | Skip cache |
 | `LINSTABPY_CASE_LOG_PREFIX` | Log / default filename prefix |
 | `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | Heartbeat interval (float seconds) |

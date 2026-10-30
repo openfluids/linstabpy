@@ -325,7 +325,7 @@ def main() -> int:
         if args.local:
             print(
                 f"# {stem}\n"
-                f"LINSTABPY_CASE1_CONFIG={config_path} LINSTABPY_CASE1_OUTPUT_NPZ={output_npz} "
+                f"LINSTABPY_CASE_CONFIG={config_path} LINSTABPY_CASE_OUTPUT_NPZ={output_npz} "
                 f"mpiexec -n {args.nranks} python -u -c "
                 f'"from linstabpy.driver.run import run; run()"'
             )

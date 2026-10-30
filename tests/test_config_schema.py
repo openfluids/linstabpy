@@ -113,8 +113,6 @@ def test_driver_rejects_malformed_config_before_case_loading(
         raise AssertionError("case loading should not be reached for invalid config")
 
     monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
-    monkeypatch.delenv("LINSTABPY_CASE2_CONFIG", raising=False)
-    monkeypatch.delenv("LINSTABPY_CASE1_CONFIG", raising=False)
     monkeypatch.setattr(_DRIVER_RUN_MODULE, "_stage_load_case", fail_if_case_load_reached)
     monkeypatch.setattr(_DRIVER_RUN_MODULE, "_log", lambda message: None)
 
@@ -269,3 +267,31 @@ def test_driver_refuses_flat_re_and_accepts_nested(
         _stage_load_runtime_config()
     case.write_text("physics:\n  Re: 1.0e5\nlogging:\n  stage_heartbeat_seconds: 5\n")
     assert _stage_load_runtime_config().config["physics"]["Re"] == 1.0e5
+
+
+def _driver_run_module():
+    import importlib
+
+    try:
+        return importlib.import_module("linstabpy.driver.run")
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"driver.run needs PETSc/mpi4py: {exc}")
+
+
+def test_driver_needs_case_config_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    run_module = _driver_run_module()
+    monkeypatch.delenv("LINSTABPY_CASE_CONFIG", raising=False)
+
+    with pytest.raises(ConfigValidationError, match="LINSTABPY_CASE_CONFIG"):
+        run_module.run()
+
+
+def test_driver_needs_physics_re(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run_module = _driver_run_module()
+    config_path = tmp_path / "no_re.yaml"
+    config_path.write_text("numerics:\n  fd_order: 4\n", encoding="utf-8")
+    monkeypatch.setenv("LINSTABPY_CASE_CONFIG", str(config_path))
+    monkeypatch.setattr(run_module, "_log", lambda message: None)
+
+    with pytest.raises(ConfigValidationError, match=r"physics\.Re is required"):
+        run_module.run()

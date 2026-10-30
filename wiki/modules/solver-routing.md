@@ -239,7 +239,7 @@ If fewer than two distinct finite frequencies exist, default radius is `0.0` (no
 
 Config may live at top level or under `adaptive_anchors`. Explicit `None` values count as unset.
 
-**`AnchorTriggerRecord`** stores \(\omega\), sample \(\omega\), trigger tuple, insertion flag, EVP distance/radius, FGMRES stats, and nearest-anchor geometry before insertion. The `.trigger` property joins multiple triggers with `+` for backward compatibility.
+**`AnchorTriggerRecord`** stores \(\omega\), sample \(\omega\), trigger tuple, insertion flag, EVP distance/radius, FGMRES stats, and nearest-anchor geometry before insertion.
 
 
 ### Line Walk Engine (`map_walk.py`)
@@ -498,7 +498,7 @@ logging:
 
 Environment:
 
-- `LINSTABPY_STAGE_HEARTBEAT_SECONDS` / `LINSTAB2D_STAGE_HEARTBEAT_SECONDS`
+- `LINSTABPY_STAGE_HEARTBEAT_SECONDS`
 - `LINSTABPY_JOB_DEADLINE` or `SLURM_JOB_END_TIME` (seconds or milliseconds since epoch)
 
 

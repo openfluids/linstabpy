@@ -244,7 +244,6 @@ Module contract (from source):
 | `solve(rhs)` | NumPy complex vector → solution |
 | `solve_adjoint(rhs)` | Hermitian adjoint solve \(A^H x = b\) (lazy dual-factor heal may redirect) |
 | `solve_vec` / `solve_adjoint_vec` | PETSc `Vec` variants preserving distribution |
-| `solve_transpose` / `solve_transpose_vec` | Backward-compatible aliases of adjoint APIs |
 | `residual(rhs, x)` | \(\|A x - b\|_2\) for NumPy inputs |
 | `solve_block(rhs_block)` | Multi-RHS; uses factor `matSolve` on direct path, column loop otherwise |
 | `refactorize(operator)` | Numeric refactor on **identical** nonzero pattern |

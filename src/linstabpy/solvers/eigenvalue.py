@@ -755,37 +755,3 @@ def _raise_backend_probe_failure(
         f"||Kx-b||/||b|| = {residual_rel:.3e} > {residual_rel_max:.3e}; "
         "refusing to run EVP (set eigen.backend_probe.enabled=false to override)"
     )
-
-
-_DEPRECATED_EXPORTS = {
-    "temporal_eigenvalues": ("linstabpy.stability._eigenvalues", "eigenvalues"),
-    "adjoint_eigenvalues": ("linstabpy.stability._eigenvalues", "adjoint_eigenvalues"),
-}
-
-
-def __getattr__(name: str):  # noqa: ANN201
-    """Lazily expose deprecated public eigenvalue wrappers.
-
-    The active backend/knob documentation for these wrappers is the module
-    docstring above and ``docs/COMPUTE_BACKENDS.md``.
-    """
-    if name in _DEPRECATED_EXPORTS:
-        import importlib
-        import warnings
-
-        module_name, attr_name = _DEPRECATED_EXPORTS[name]
-        warnings.warn(
-            f"linstabpy.solvers.eigenvalue.{name} is deprecated; "
-            f"use linstabpy.stability.{attr_name}",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        attr = getattr(importlib.import_module(module_name), attr_name)
-        globals()[name] = attr
-        return attr
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__() -> list[str]:
-    """Return module attributes including deprecated public wrappers."""
-    return sorted(set(globals()) | set(_DEPRECATED_EXPORTS))

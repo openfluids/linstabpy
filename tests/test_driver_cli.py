@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import os
 import subprocess
 import sys
 import textwrap
@@ -16,6 +15,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from linstabpy.config import ConfigValidationError
 from linstabpy.driver.cli import main
 
 
@@ -131,8 +131,11 @@ class _FakeRuntime:
         cfg_hash: str = "a" * 16,
         git_sha: str = "deadbeef",
         config_path: str | None = None,
+        config_env_set: bool = True,
         rank: int = 0,
     ) -> None:
+        self.ConfigValidationError = ConfigValidationError
+        self._config_env_set = config_env_set
         self.PETSc = SimpleNamespace(COMM_WORLD=_FakeComm(rank))
         self.MPI = SimpleNamespace(COMM_WORLD=_FakeComm(rank))
         self._npz = npz
@@ -144,18 +147,12 @@ class _FakeRuntime:
     def _output_npz_path(self) -> Path:
         return self._npz
 
-    def _first_env(self, *names: str) -> str | None:
-        if self._config_path is None:
-            return None
-        for name in names:
-            if os.getenv(name):
-                return self._config_path
-        return self._config_path
-
     def _runtime_config_path(self) -> Path:
-        if self._config_path is None:
-            return Path.cwd() / "configs" / "parity_config.yaml"
-        return Path(self._config_path)
+        if not self._config_env_set:
+            raise ConfigValidationError(
+                "LINSTABPY_CASE_CONFIG is not set. Set it to the path of a YAML case file."
+            )
+        return Path(self._config_path or "case.yaml")
 
     def _config_hash(self, config) -> str:
         del config
@@ -292,26 +289,17 @@ def test_driver_cli_git_sha_mismatch_recomputes(
     assert "Git SHA mismatch" in out.getvalue()
 
 
-def test_driver_cli_checks_cache_against_the_default_config_path(
+def test_driver_cli_stops_when_case_config_is_unset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without a config env var, run() loads the default path, so the cache check reads it too."""
-    npz = tmp_path / "out.npz"
-    _write_cache(npz, cfg_hash="e" * 16, git_sha="abc")
-    runtime = _FakeRuntime(npz, config_path=None, cfg_hash="a" * 16, git_sha="abc")
+    """Without LINSTABPY_CASE_CONFIG the CLI names the variable and does not run."""
+    runtime = _FakeRuntime(tmp_path / "out.npz", config_env_set=False)
     _patch_runtime(monkeypatch, runtime)
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "configs").mkdir()
-    (tmp_path / "configs" / "parity_config.yaml").write_text("solver: {}\n")
-    monkeypatch.delenv("LINSTABPY_FORCE_RECOMPUTE", raising=False)
     monkeypatch.delenv("LINSTABPY_CASE_CONFIG", raising=False)
-    monkeypatch.delenv("LINSTABPY_CASE2_CONFIG", raising=False)
-    monkeypatch.delenv("LINSTABPY_CASE1_CONFIG", raising=False)
-    out = io.StringIO()
-    with contextlib.redirect_stdout(out):
+    with pytest.raises(SystemExit) as excinfo:
         main([])
-    assert runtime.run_calls == 1
-    assert "Config hash mismatch" in out.getvalue()
+    assert "LINSTABPY_CASE_CONFIG" in str(excinfo.value)
+    assert runtime.run_calls == 0
 
 
 def test_driver_cli_corrupt_cache_recomputes(

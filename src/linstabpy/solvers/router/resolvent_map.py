@@ -231,10 +231,9 @@ def _heartbeat_seconds(cfg: Mapping[str, Any]) -> float:
     value = _cfg_value(cfg, "stage_heartbeat_seconds", None)
     if value is not None:
         return float(value)
-    for env_name in ("LINSTABPY_STAGE_HEARTBEAT_SECONDS", "LINSTAB2D_STAGE_HEARTBEAT_SECONDS"):
-        raw = os.getenv(env_name)
-        if raw is not None:
-            return float(raw)
+    raw = os.getenv("LINSTABPY_STAGE_HEARTBEAT_SECONDS")
+    if raw is not None:
+        return float(raw)
     return 30.0
 
 

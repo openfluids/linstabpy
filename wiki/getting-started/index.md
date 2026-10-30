@@ -111,8 +111,8 @@ python -m linstabpy.driver.cli   # same entrypoint as a module
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LINSTABPY_CASE_CONFIG` | `./configs/parity_config.yaml` | YAML case file. Legacy aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG` also work. |
-| `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Where the result archive lands. Per-run aliases exist too. Set a unique path per concurrent run. |
+| `LINSTABPY_CASE_CONFIG` | none (required) | YAML case file. The CLI stops when it is unset. |
+| `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Where the result archive lands. Set a unique path per concurrent run. |
 | `LINSTABPY_CASE_LOG_PREFIX` | `linstabpy` | Prefix for log lines and the default output stem. |
 | `LINSTABPY_FORCE_RECOMPUTE` | unset | Set to `1`, `true`, `yes`, or `on` (case-insensitive) to skip the cache check and recompute. CLI gate only; library `driver.run` callers always compute. |
 | `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | `30` | Progress heartbeat interval for long stages. |

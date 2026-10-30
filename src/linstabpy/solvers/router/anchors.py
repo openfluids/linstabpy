@@ -45,11 +45,6 @@ class AnchorTriggerRecord:
     nearest_anchor_before: complex | None = None
     nearest_anchor_distance_before: float = float("nan")
 
-    @property
-    def trigger(self) -> str:
-        """Backward-compatible single-string view of ``triggers``."""
-        return "+".join(self.triggers)
-
 
 IterProbe = Callable[[complex, Array, Cfg], IterProbeResult | None]
 

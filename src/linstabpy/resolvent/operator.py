@@ -62,7 +62,7 @@ class ResolventOperator:
         """Apply adjoint resolvent: H^H v = B^H FILTER_ct(inv(L_sigma^H) FILTER_ct(C^H v))."""
         w = _apply_optional_adjoint_matrix(self.C_mat, v)
         w = self._filt_ct(w)
-        w = self.lu.solve_transpose(w)
+        w = self.lu.solve_adjoint(w)
         w = self._filt_ct(w)
         w = _apply_optional_adjoint_matrix(self.B_mat, w)
         return w

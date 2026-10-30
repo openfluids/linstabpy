@@ -242,16 +242,6 @@ class Factorization:
     # Closure state of factorize(); holds the dual K^H factor once the adjoint heal builds it.
     _holder: dict[str, object] | None = None
 
-    @property
-    def solve_transpose(self) -> Callable[[np.ndarray], np.ndarray]:
-        """Backward-compatible alias for :meth:`solve_adjoint`."""
-        return self.solve_adjoint
-
-    @property
-    def solve_transpose_vec(self) -> Callable[[PETSc.Vec], PETSc.Vec]:
-        """Backward-compatible alias for :meth:`solve_adjoint_vec`."""
-        return self.solve_adjoint_vec
-
     def solve_block(self, rhs_block: np.ndarray) -> np.ndarray:
         if self._solve_block is not None:
             return self._solve_block(rhs_block)

@@ -87,25 +87,21 @@ def test_stability_public_exports_use_shared_solver_core():
     )
 
 
-def test_legacy_eigenvalue_shims_warn_and_delegate():
-    import linstabpy.solvers.eigenvalue as legacy_eigenvalue
-    import linstabpy.solvers.spatial_eig as legacy_spatial
-    import linstabpy.stability._eigenvalues as stability_eigenvalues
+def test_removed_eigenvalue_wrapper_names_are_gone():
+    import linstabpy.solvers as solvers_package
+    import linstabpy.solvers.eigenvalue as eigenvalue_module
+    import linstabpy.solvers.spatial_eig as spatial_module
 
-    legacy_eigenvalue.__dict__.pop("temporal_eigenvalues", None)
-    with pytest.warns(DeprecationWarning, match="linstabpy.stability.eigenvalues"):
-        old_temporal = legacy_eigenvalue.temporal_eigenvalues
-    assert old_temporal is stability_eigenvalues.eigenvalues
-
-    legacy_eigenvalue.__dict__.pop("adjoint_eigenvalues", None)
-    with pytest.warns(DeprecationWarning, match="linstabpy.stability.adjoint_eigenvalues"):
-        old_adjoint = legacy_eigenvalue.adjoint_eigenvalues
-    assert old_adjoint is stability_eigenvalues.adjoint_eigenvalues
-
-    legacy_spatial.__dict__.pop("spatial_eigenvalues", None)
-    with pytest.warns(DeprecationWarning, match="linstabpy.stability.spatial_eigenvalues"):
-        old_spatial = legacy_spatial.spatial_eigenvalues
-    assert old_spatial is stability_eigenvalues.spatial_eigenvalues
+    for module, name in (
+        (solvers_package, "temporal_eigenvalues"),
+        (solvers_package, "adjoint_eigenvalues"),
+        (solvers_package, "spatial_eigenvalues"),
+        (eigenvalue_module, "temporal_eigenvalues"),
+        (eigenvalue_module, "adjoint_eigenvalues"),
+        (spatial_module, "spatial_eigenvalues"),
+    ):
+        with pytest.raises(AttributeError):
+            getattr(module, name)
 
 
 def test_import_stability_package_is_petsc_free():
@@ -243,7 +239,7 @@ def test_linalg_factorization_exports_and_adjoint_aliases():
         assert hasattr(fac, "solve")
         assert hasattr(fac, "solve_adjoint")
         assert hasattr(fac, "residual")
-        np.testing.assert_array_equal(fac.solve_adjoint(rhs), fac.solve_transpose(rhs))
+        assert not hasattr(fac, "solve_transpose")
         x = fac.solve(rhs)
         assert fac.residual(rhs, x) < 1e-12
     finally:
@@ -251,7 +247,7 @@ def test_linalg_factorization_exports_and_adjoint_aliases():
 
     solver = factorize(A)
     try:
-        np.testing.assert_array_equal(solver.solve_adjoint(rhs), solver.solve_transpose(rhs))
+        assert not hasattr(solver, "solve_transpose_vec")
     finally:
         solver.destroy()
 
@@ -353,7 +349,7 @@ def _build_linsolve_mpi_script() -> str:
             rng = np.random.default_rng(17)
             rhs = rng.standard_normal(L0_ref.shape[0]) + 1j * rng.standard_normal(L0_ref.shape[0])
             expected = solver_ref.solve(rhs)
-            expected_adj = solver_ref.solve_transpose(rhs)
+            expected_adj = solver_ref.solve_adjoint(rhs)
 
             b = L_sigma_sys.createVecLeft()
             r0, r1 = b.getOwnershipRange()
@@ -364,7 +360,7 @@ def _build_linsolve_mpi_script() -> str:
             b.assemblyEnd()
 
             x = solver_sys.solve_vec(b)
-            x_adj = solver_sys.solve_transpose_vec(b)
+            x_adj = solver_sys.solve_adjoint_vec(b)
             try:
                 np.testing.assert_allclose(np.array(x.array_r, copy=True), expected[r0:r1], atol=1e-8, rtol=1e-8)
                 np.testing.assert_allclose(np.array(x_adj.array_r, copy=True), expected_adj[r0:r1], atol=1e-8, rtol=1e-8)
@@ -1021,7 +1017,7 @@ class TestDistributedPetscFallbackSolverInputs:
             b.assemblyEnd()
 
             x_vec = solver_petsc.solve_vec(b)
-            x_adj_vec = solver_petsc.solve_transpose_vec(b)
+            x_adj_vec = solver_petsc.solve_adjoint_vec(b)
             try:
                 np.testing.assert_allclose(
                     np.array(x_vec.array_r, copy=True),
@@ -1031,7 +1027,7 @@ class TestDistributedPetscFallbackSolverInputs:
                 )
                 np.testing.assert_allclose(
                     np.array(x_adj_vec.array_r, copy=True),
-                    solver_sp.solve_transpose(rhs)[r0:r1],
+                    solver_sp.solve_adjoint(rhs)[r0:r1],
                     atol=1e-8,
                     rtol=1e-8,
                 )

@@ -141,8 +141,8 @@ python pack_reference_modes.py
    ```
    A single point by hand, from this directory:
    ```
-   LINSTABPY_CASE1_CONFIG=configs/mack_f2_b45.yaml \
-   LINSTABPY_CASE1_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
+   LINSTABPY_CASE_CONFIG=configs/mack_f2_b45.yaml \
+   LINSTABPY_CASE_OUTPUT_NPZ=sav_map_b45p0_f2.npz \
    python -c "from linstabpy.driver.run import run; run()"
    ```
 3. **Verify the norm convention** at (f, beta) = (2, 45):

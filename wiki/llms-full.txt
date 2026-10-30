@@ -154,8 +154,8 @@ python -m linstabpy.driver.cli   # same entrypoint as a module
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LINSTABPY_CASE_CONFIG` | `./configs/parity_config.yaml` | YAML case file. Legacy aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG` also work. |
-| `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Where the result archive lands. Per-run aliases exist too. Set a unique path per concurrent run. |
+| `LINSTABPY_CASE_CONFIG` | none (required) | YAML case file. The CLI stops when it is unset. |
+| `LINSTABPY_CASE_OUTPUT_NPZ` | `{prefix}_{config_md5}_{git_sha8}.npz` in cwd | Where the result archive lands. Set a unique path per concurrent run. |
 | `LINSTABPY_CASE_LOG_PREFIX` | `linstabpy` | Prefix for log lines and the default output stem. |
 | `LINSTABPY_FORCE_RECOMPUTE` | unset | Set to `1`, `true`, `yes`, or `on` (case-insensitive) to skip the cache check and recompute. CLI gate only; library `driver.run` callers always compute. |
 | `LINSTABPY_STAGE_HEARTBEAT_SECONDS` | `30` | Progress heartbeat interval for long stages. |
@@ -484,12 +484,12 @@ This page is the reference for how you talk to LinStabPy from outside: CLI comma
 **Environment** (the real CLI surface, generated from `CLI_ENV_VARS`):
 
 <!-- GENERATED:CLI-ENV-START -->
-- `LINSTABPY_CASE_CONFIG`: YAML case file. Aliases `LINSTABPY_CASE2_CONFIG`, `LINSTABPY_CASE1_CONFIG`. Default `./configs/parity_config.yaml`.
-- `LINSTABPY_CASE_OUTPUT_NPZ`: Result archive path. Aliases `LINSTABPY_CASE2_OUTPUT_NPZ`, `LINSTABPY_CASE1_OUTPUT_NPZ`. Default `{prefix}_{config_md5}_{git_sha8}.npz in the working directory`.
+- `LINSTABPY_CASE_CONFIG`: YAML case file. The CLI stops when it is unset. Default `none (required)`.
+- `LINSTABPY_CASE_OUTPUT_NPZ`: Result archive path. Default `{prefix}_{config_md5}_{git_sha8}.npz in the working directory`.
 - `LINSTABPY_CASE_LOG_PREFIX`: Log-line prefix and default output stem. Default `linstabpy`.
 - `LINSTABPY_FORCE_RECOMPUTE`: Set to 1, true, yes, or on to skip the cache check (CLI gate only; library runs always compute). Default `unset (cache check runs)`.
 - `LINSTABPY_STAGE_HEARTBEAT_SECONDS`: Progress heartbeat interval in float seconds. Default `30`.
-- `LINSTABPY_CASE_ROOT_ASSEMBLY`: Root-only assembly for iterative eigen ST solvers; stability-only. Aliases `LINSTABPY_CASE2_ROOT_ASSEMBLY`, `LINSTABPY_CASE1_ROOT_ASSEMBLY`. Default `unset (auto: on for iterative eigen ST solvers under MPI)`.
+- `LINSTABPY_CASE_ROOT_ASSEMBLY`: Root-only assembly for iterative eigen ST solvers; stability-only. Default `unset (auto: on for iterative eigen ST solvers under MPI)`.
 <!-- GENERATED:CLI-ENV-END -->
 
 !!! warning "Unknown arguments warn, then are ignored"
@@ -2426,7 +2426,7 @@ flowchart TD
 1. **Runtime initialization**
    - `init_petsc_from_argv()` then MPI/PETSc imports in the driver.
    - Stage wall-clock and RSS deltas (`_stage_start` / `_log_stage`); optional heartbeats via `LINSTABPY_STAGE_HEARTBEAT_SECONDS` (default 30s).
-   - Config path from `LINSTABPY_CASE_CONFIG` (and legacy aliases) or `configs/parity_config.yaml`.
+   - Config path from `LINSTABPY_CASE_CONFIG` (required).
 
 2. **Configuration resolution**
    - Merge YAML, environment, defaults into typed objects (`config/typed.py`).
@@ -3222,7 +3222,7 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`PCBJACOBI`](https://petsc.org/release/manualpages/PC/PCBJACOBI/) and [`PCASM`](https://petsc.org/release/manualpages/PC/PCASM/)** are [domain-decomposition](https://grokipedia.com/page/Domain_decomposition_methods) preconditioners: block Jacobi (each rank factors its own diagonal block, no overlap) and additive Schwarz (overlapping blocks). They appear as the baseline direction for the memory-bound iterative eigensolver path. One API trap the code documents: sub-preconditioner options must be applied *after* `EPS.setUp()`, or they attach to nothing.
 
-**Transpose solves.** Adjoint work and $H^H$ applies need $A^H x = b$, not $Ax = b$. The factorization object exposes `solve_transpose` alongside `solve`, reusing the same LU factors. No second factorization is needed for the adjoint half of resolvent or stability analysis.
+**Transpose solves.** Adjoint work and $H^H$ applies need $A^H x = b$, not $Ax = b$. The factorization object exposes `solve_adjoint` alongside `solve`, reusing the same LU factors. No second factorization is needed for the adjoint half of resolvent or stability analysis.
 
 
 ## MatShell: matrices you never assemble
@@ -3454,17 +3454,15 @@ releases instead of the pinned PETSc/SLEPc family used by the default installer:
 bash install.sh --force --latest
 ```
 
-Python 3.13 is the default tested interpreter class. Python 3.14 can be tried
-when your `uv` installation can resolve it and all PETSc/SLEPc bindings have
-compatible releases:
+`install.sh` uses the Python version in `.python-version` (3.14), the same
+version CI tests. To build with another version, set it explicitly:
 
 ```bash
-LINSTABPY_PYTHON_VERSION=3.14 bash install.sh --force --latest
+LINSTABPY_PYTHON_VERSION=3.13 bash install.sh --force
 ```
 
-Treat Python 3.14 as a freshness test until `install.sh --check`, the pytest
-suite, and the examples pass on your machine. For reproducible comparisons,
-record the Python version printed by `install.sh --check`.
+For reproducible comparisons, record the Python version printed by
+`install.sh --check`.
 
 `install.sh --check` verifies that `petsc4py` and `slepc4py` import, that PETSc
 uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
@@ -3494,9 +3492,8 @@ Python, NumPy/SciPy, and a **complex-scalar** PETSc/SLEPc/`mpi4py` stack.
 pip then installs this package from `pyproject.toml` with `--no-deps` and
 `-e .`, so pip does not pull a second NumPy or compile PETSc.
 
-Python is `>=3.10,<3.14`. 3.13 is the class that matches the installer default.
-3.14 stays an `install.sh` freshness test; conda-forge `petsc4py` may not
-resolve it.
+Python is `>=3.10,<3.15`. The installer default is 3.14; conda-forge
+`petsc4py` may not resolve 3.14 yet.
 
 ```bash
 # Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR first.

@@ -22,7 +22,7 @@ from petsc4py import PETSc
 
 from linstabpy.baseflow import load_case_fields, sutherland_air
 from linstabpy.boundary_conditions import analyze_bc_recipe, dirichlet_free_dofs
-from linstabpy.config import Config
+from linstabpy.config import Config, ConfigValidationError
 from linstabpy.config.defaults import DISSIPATION_APPLY_DEFAULTS, stage_dissipation_epsilon
 from linstabpy.driver.payload import (
     RUNTIME_NPZ_CONTRACT_KEYS as RUNTIME_NPZ_CONTRACT_KEYS,  # noqa: F401
@@ -93,28 +93,19 @@ def _config_hash(config_dict: dict) -> str:
     return hashlib.sha256(json.dumps(config_dict, sort_keys=True).encode()).hexdigest()
 
 
-def _first_env(*names: str, default: str | None = None) -> str | None:
-    """Return the first non-empty environment value across ``names``."""
-    for name in names:
-        raw = os.getenv(name)
-        if raw is None:
-            continue
-        text = raw.strip()
-        if text:
-            return text
-    return default
+def _first_env(name: str) -> str | None:
+    """Return the stripped environment value of ``name``, or None if unset or empty."""
+    return (os.getenv(name) or "").strip() or None
 
 
 def _runtime_config_path() -> Path:
     """Return the configured runtime config path without loading it."""
-    return Path(
-        _first_env(
-            "LINSTABPY_CASE_CONFIG",
-            "LINSTABPY_CASE2_CONFIG",
-            "LINSTABPY_CASE1_CONFIG",
-            default=str(Path.cwd() / "configs" / "parity_config.yaml"),
+    raw = _first_env("LINSTABPY_CASE_CONFIG")
+    if raw is None:
+        raise ConfigValidationError(
+            "LINSTABPY_CASE_CONFIG is not set. Set it to the path of a YAML case file."
         )
-    )
+    return Path(raw)
 
 
 def _output_npz_path(provenance: dict[str, str] | None = None) -> Path:
@@ -123,11 +114,7 @@ def _output_npz_path(provenance: dict[str, str] | None = None) -> Path:
     Defaults to the current study working directory with provenance embedded.
     Concurrent timing runs can isolate themselves with a unique target path.
     """
-    raw = _first_env(
-        "LINSTABPY_CASE_OUTPUT_NPZ",
-        "LINSTABPY_CASE2_OUTPUT_NPZ",
-        "LINSTABPY_CASE1_OUTPUT_NPZ",
-    )
+    raw = _first_env("LINSTABPY_CASE_OUTPUT_NPZ")
     if raw is not None:
         return Path(raw).resolve()
     if provenance is None:
@@ -416,24 +403,15 @@ class _RuntimeConfigSource:
 def _stage_load_runtime_config() -> _RuntimeConfigSource:
     """Load the YAML runtime config and immutable provenance strings."""
     config_path = _runtime_config_path()
-    config: dict = {}
-    if config_path.exists():
-        config = load_config(config_path)
-        from linstabpy.config import validate_config
-        from linstabpy.config.schema import check_cli_ignored_keys
-
-        validate_config(config, source=str(config_path))
-        check_cli_ignored_keys(config, source=str(config_path))
-        _log(f"loaded config: {config_path}")
-    elif any(
-        name in os.environ
-        for name in (
-            "LINSTABPY_CASE_CONFIG",
-            "LINSTABPY_CASE2_CONFIG",
-            "LINSTABPY_CASE1_CONFIG",
-        )
-    ):
+    if not config_path.exists():
         raise FileNotFoundError(f"case config file not found: {config_path}")
+    config = load_config(config_path)
+    from linstabpy.config import validate_config
+    from linstabpy.config.schema import check_cli_ignored_keys
+
+    validate_config(config, source=str(config_path))
+    check_cli_ignored_keys(config, source=str(config_path))
+    _log(f"loaded config: {config_path}")
 
     provenance = collect_provenance(config_path)
     return _RuntimeConfigSource(
@@ -466,7 +444,7 @@ def _stage_load_case(
     stride_ksi: int,
     stride_eta: int,
     zero_spanwise: bool,
-    sponge_mat_path: Path,
+    sponge_mat_path: Path | None,
     prefer_matlab_sponge_aux: bool,
     native_sponge_enabled: bool,
     sponge_cfg: dict | None,
@@ -494,7 +472,7 @@ def _stage_load_case(
             from linstabpy.baseflow import sponge_from_config
 
             sponge = sponge_from_config(sponge.shape, sponge_cfg, X=X, Y=Y)
-        elif prefer_matlab_sponge_aux and sponge_mat_path.exists():
+        elif prefer_matlab_sponge_aux and sponge_mat_path is not None:
             from linstabpy.baseflow.sponge import load_sponge_aux
 
             sponge_aux = load_sponge_aux(Path(sponge_mat_path))
@@ -1169,10 +1147,14 @@ def run() -> None:
     #    Defaults here mirror the reference MATLAB setup.
     # ------------------------------------------------------------------
     case_dir = Path(str(cfg("paths.case_dir", str(Path.cwd() / "data" / "baseflow"))))
-    sponge_mat_path = Path(
-        str(cfg("paths.case_inputs_mat", "MATLAB_exports_resolvent/case_inputs_used.mat"))
-    )
-    Re = float(cfg("physics.Re", 395000.0))
+    sponge_mat_raw = cfg("paths.case_inputs_mat", None)
+    sponge_mat_path = Path(str(sponge_mat_raw)) if sponge_mat_raw is not None else None
+    Re_raw = cfg("physics.Re", None)
+    if Re_raw is None:
+        raise ConfigValidationError(
+            f"physics.Re is required: set it in the case file {config_source.config_path}."
+        )
+    Re = float(Re_raw)
     Ma = float(cfg("physics.Ma", 2.0))
     Pr = float(cfg("physics.Pr", 0.747))
     # MATLAB export note:
@@ -1278,7 +1260,10 @@ def run() -> None:
     # Keep this as default for parity with exported MATLAB spectrum.
     use_raw_eigs = bool(cfg("analysis.use_raw_eigs", False))
     prefer_matlab_sponge_aux = (
-        (not native_sponge_enabled) and use_matlab_sponge_aux and sponge_mat_path.exists()
+        (not native_sponge_enabled)
+        and use_matlab_sponge_aux
+        and sponge_mat_path is not None
+        and sponge_mat_path.exists()
     )
     solver_cfg = config.get("solver")
     if solver_cfg is None:
@@ -1290,11 +1275,7 @@ def run() -> None:
     _ecfg = solver_cfg.get("eigen", {})
     st_solver = cfg_obj.eigen.st_solver
     iterative_st_solver = st_solver in ITERATIVE_EIGEN_SOLVER_TYPES
-    _root_raw = _first_env(
-        "LINSTABPY_CASE_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE2_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE1_ROOT_ASSEMBLY",
-    )
+    _root_raw = _first_env("LINSTABPY_CASE_ROOT_ASSEMBLY")
     requested_root_operator = size > 1 and (
         (_root_raw.strip().lower() in {"1", "true", "yes", "on"})
         if _root_raw is not None

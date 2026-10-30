@@ -85,7 +85,7 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`PCBJACOBI`](https://petsc.org/release/manualpages/PC/PCBJACOBI/) and [`PCASM`](https://petsc.org/release/manualpages/PC/PCASM/)** are [domain-decomposition](https://grokipedia.com/page/Domain_decomposition_methods) preconditioners: block Jacobi (each rank factors its own diagonal block, no overlap) and additive Schwarz (overlapping blocks). They appear as the baseline direction for the memory-bound iterative eigensolver path. One API trap the code documents: sub-preconditioner options must be applied *after* `EPS.setUp()`, or they attach to nothing.
 
-**Transpose solves.** Adjoint work and $H^H$ applies need $A^H x = b$, not $Ax = b$. The factorization object exposes `solve_transpose` alongside `solve`, reusing the same LU factors. No second factorization is needed for the adjoint half of resolvent or stability analysis.
+**Transpose solves.** Adjoint work and $H^H$ applies need $A^H x = b$, not $Ax = b$. The factorization object exposes `solve_adjoint` alongside `solve`, reusing the same LU factors. No second factorization is needed for the adjoint half of resolvent or stability analysis.
 
 
 ## MatShell: matrices you never assemble

@@ -28,41 +28,35 @@ def _package_version() -> str:
 # Canonical driver env-var contract. Single source of truth: argparse --help
 # renders it, tools/generate_wiki_boundaries.py inlines it into
 # wiki/boundaries.md, and skills/.../generate_skill_refs.py copies it into the
-# agent skill. Each entry: (primary name, aliases, default, purpose).
-CLI_ENV_VARS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
+# agent skill. Each entry: (name, default, purpose).
+CLI_ENV_VARS: tuple[tuple[str, str, str], ...] = (
     (
         "LINSTABPY_CASE_CONFIG",
-        ("LINSTABPY_CASE2_CONFIG", "LINSTABPY_CASE1_CONFIG"),
-        "./configs/parity_config.yaml",
-        "YAML case file.",
+        "none (required)",
+        "YAML case file. The CLI stops when it is unset.",
     ),
     (
         "LINSTABPY_CASE_OUTPUT_NPZ",
-        ("LINSTABPY_CASE2_OUTPUT_NPZ", "LINSTABPY_CASE1_OUTPUT_NPZ"),
         "{prefix}_{config_md5}_{git_sha8}.npz in the working directory",
         "Result archive path.",
     ),
     (
         "LINSTABPY_CASE_LOG_PREFIX",
-        (),
         "linstabpy",
         "Log-line prefix and default output stem.",
     ),
     (
         "LINSTABPY_FORCE_RECOMPUTE",
-        (),
         "unset (cache check runs)",
         "Set to 1, true, yes, or on to skip the cache check (CLI gate only; library runs always compute).",
     ),
     (
         "LINSTABPY_STAGE_HEARTBEAT_SECONDS",
-        (),
         "30",
         "Progress heartbeat interval in float seconds.",
     ),
     (
         "LINSTABPY_CASE_ROOT_ASSEMBLY",
-        ("LINSTABPY_CASE2_ROOT_ASSEMBLY", "LINSTABPY_CASE1_ROOT_ASSEMBLY"),
         "unset (auto: on for iterative eigen ST solvers under MPI)",
         "Root-only assembly for iterative eigen ST solvers; stability-only.",
     ),
@@ -110,9 +104,8 @@ def _env_epilog() -> str:
     lines = [
         "case configuration comes from environment variables (there is no --config flag):",
     ]
-    for name, aliases, default, purpose in CLI_ENV_VARS:
-        alias_text = f" Aliases: {', '.join(aliases)}." if aliases else ""
-        lines.append(f"  {name}: {purpose}{alias_text} Default: {default}.")
+    for name, default, purpose in CLI_ENV_VARS:
+        lines.append(f"  {name}: {purpose} Default: {default}.")
     lines.extend(
         [
             "",
@@ -164,6 +157,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         _warn_ignored_cli_words(ignored)
     if unknown_env and rank == 0:
         warn_unknown_env_vars(unknown_env)
+    try:
+        _ = runtime._runtime_config_path()
+    except runtime.ConfigValidationError as exc:
+        raise SystemExit(f"linstabpy: error: {exc}") from None
     output_npz = runtime._output_npz_path()
     need_recompute = False
 

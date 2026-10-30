@@ -36,7 +36,7 @@ src/linstabpy/
 │   ├── acceptance.py        # Target-distance & residual acceptance gates
 │   └── sensitivity.py       # wavemaker structural sensitivity
 └── solvers/
-    ├── __init__.py          # Lazy exports (temporal/adjoint/spatial aliases)
+    ├── __init__.py          # Lazy export of resolvent_analysis
     ├── eigenvalue.py        # SLEPc ST configuration, residual reorder, ST backends
     ├── spatial_eig.py       # Generalized spatial EPS (GNHEP)
     ├── _eps_helpers.py      # Convergence tests, monitors, cfg subsection bridge
@@ -51,7 +51,7 @@ src/linstabpy/
 | `adjoint_eigenvalues` | `stability._eigenvalues.adjoint_eigenvalues` |
 | `wavemaker` | `stability.sensitivity.wavemaker` |
 
-Spatial solves are available as `linstabpy.stability.spatial_eigenvalues` (preferred). The older `linstabpy.solvers.spatial_eig.spatial_eigenvalues` path emits a deprecation warning and forwards to the stability API.
+Spatial solves are available as `linstabpy.stability.spatial_eigenvalues`.
 
 
 ## Architecture and Control Flow

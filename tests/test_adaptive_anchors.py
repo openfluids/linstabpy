@@ -220,7 +220,7 @@ def test_adaptive_anchors_feed_stable_sweep_and_log_fixed_baseline_measurement(c
             "adaptive_anchor_measurement adaptive_factorizations=%d fixed_uniform_factorizations=%d triggers=%s",
             len(adaptive_anchors),
             len(fixed_uniform_baseline),
-            [record.trigger for record in records],
+            ["+".join(record.triggers) for record in records],
         )
 
     result = stable_sweep.sweep_stable_regime(L0, omegas, adaptive_anchors, cfg)

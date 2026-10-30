@@ -46,20 +46,6 @@ __all__ = [
     "translate_solver_error",
 ]
 
-# WITHDRAWN 2026-08-07 -- kept only so an old import does not break.
-#
-# This encoded a claim that no measurement supported: that grid-scale sawtooth
-# "dominates" for beta in 90-135. A direct run of the bare operator at
-# beta = 110 at two resolutions (no undamped run entered the band) gave
-# gain 1.3098e+02 against 1.3099e+02 damped, a difference of 0.008%.
-# Every gain map in the source project stops at beta = 80 with a maximum
-# of 689.9, and a controlled bare-vs-damped comparison at a single point
-# measured 1.2%. There is no band.
-#
-# What actually decides whether the odd-even mode exists is the MESH -- see
-# `metric_cross_coupling` below. Nothing in this module uses this constant any more.
-SAWTOOTH_BETA_BAND = (90.0, 135.0)
-
 # A leading Chu-norm gain above this is far outside the O(1e2-1e3) these cases
 # produce, so it is worth a warning -- but the warning no longer asserts a cause.
 # The historical "gain ~1e6 means sawtooth" reading was a conflation: on a globally

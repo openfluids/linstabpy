@@ -66,12 +66,8 @@ def _cli_env() -> str:
     cli = REPO / "src" / "linstabpy" / "driver" / "cli.py"
     entries = _load_assign(cli, "CLI_ENV_VARS")
     lines = []
-    for name, aliases, default, purpose in entries:
-        alias_text = ""
-        if aliases:
-            quoted = ", ".join(f"`{a}`" for a in aliases)
-            alias_text = f" Aliases {quoted}."
-        lines.append(f"- `{name}`: {purpose}{alias_text} Default `{default}`.")
+    for name, default, purpose in entries:
+        lines.append(f"- `{name}`: {purpose} Default `{default}`.")
     return "\n".join(lines) + "\n"
 
 

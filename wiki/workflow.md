@@ -181,7 +181,7 @@ flowchart TD
 1. **Runtime initialization**
    - `init_petsc_from_argv()` then MPI/PETSc imports in the driver.
    - Stage wall-clock and RSS deltas (`_stage_start` / `_log_stage`); optional heartbeats via `LINSTABPY_STAGE_HEARTBEAT_SECONDS` (default 30s).
-   - Config path from `LINSTABPY_CASE_CONFIG` (and legacy aliases) or `configs/parity_config.yaml`.
+   - Config path from `LINSTABPY_CASE_CONFIG` (required).
 
 2. **Configuration resolution**
    - Merge YAML, environment, defaults into typed objects (`config/typed.py`).

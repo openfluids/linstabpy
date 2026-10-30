@@ -19,7 +19,7 @@ class _DummyFactorization:
     def solve(self, vector: np.ndarray) -> np.ndarray:
         return self.solve_mat @ vector
 
-    def solve_transpose(self, vector: np.ndarray) -> np.ndarray:
+    def solve_adjoint(self, vector: np.ndarray) -> np.ndarray:
         return self.solve_mat.conj().T @ vector
 
 
@@ -68,7 +68,7 @@ def test_resolvent_operator_matches_inline_chain_with_b_c() -> None:
 
     w_adj = C_mat.conj().T @ v
     w_adj = filt_ct(w_adj)
-    w_adj = lu.solve_transpose(w_adj)
+    w_adj = lu.solve_adjoint(w_adj)
     w_adj = filt_ct(w_adj)
     w_adj = B_mat.conj().T @ w_adj
     np.testing.assert_array_equal(op.apply_adjoint(v), w_adj)
@@ -87,7 +87,7 @@ def test_resolvent_operator_matches_inline_chain_without_b_c_or_filters() -> Non
     np.testing.assert_array_equal(op.apply(v), w)
 
     w_adj = v
-    w_adj = lu.solve_transpose(w_adj)
+    w_adj = lu.solve_adjoint(w_adj)
     np.testing.assert_array_equal(op.apply_adjoint(v), w_adj)
 
 

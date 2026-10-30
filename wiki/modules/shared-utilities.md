@@ -299,11 +299,11 @@ Builds the cost subsection dict:
 | `cost_wall_factor_s` | Currently `nan` (placeholder for future factor timing) |
 | `cost_wall_solve_s` | Sum of `stability` + `resolvent` stage walls when present |
 | `cost_peak_rss_bytes` | Caller-supplied **already cross-rank-aggregated** peak |
-| `cost_peak_gpu_mem_bytes` | GPU probe when `LINSTAB2D_GPUS` > 0 |
+| `cost_peak_gpu_mem_bytes` | GPU probe when `LINSTABPY_GPUS` > 0 |
 | `cost_mpi_ranks` | `PETSc.COMM_WORLD` size, or `1` |
-| `cost_gpus` | `int(os.getenv("LINSTAB2D_GPUS", "0"))` |
+| `cost_gpus` | `int(os.getenv("LINSTABPY_GPUS") or 0)` |
 | `cost_petsc_options` | Sorted `key=value` join of `PETSc.Options().getAll()` |
-| `cost_hardware_tag` | `LINSTAB2D_HARDWARE_TAG` or `"unknown"` |
+| `cost_hardware_tag` | `LINSTABPY_HARDWARE_TAG` or `"unknown"` |
 | `cost_git_sha` | Passed-in git SHA string |
 
 **MPI safety:** The body must contain **no MPI collective**. Callers aggregate peak RSS in a collective region on every rank, then invoke this helper only on the rank-0 save path. An allreduce inside would deadlock multi-rank runs.
@@ -435,7 +435,6 @@ sequenceDiagram
 | **`petsc_to_scipy` sequential-only** | Distributed gather is not implemented; use ownership CSR helpers instead |
 | **`petsc_vec` under MPI** | Always pass full-global arrays; helper slices by ownership |
 | **Dual config seams** | Prefer `config.typed.Config` for new code; keep `_solver_cfg` behavior aligned |
-| **Env name legacy** | Cost metrics read `LINSTABPY_GPUS` and `LINSTABPY_HARDWARE_TAG` first. The old `LINSTAB2D_GPUS` and `LINSTAB2D_HARDWARE_TAG` spellings still work as a fallback |
 
 
 ## Extension Guidelines

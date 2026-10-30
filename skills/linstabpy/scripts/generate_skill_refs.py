@@ -162,12 +162,11 @@ def _cli_env() -> str:
         "# Driver env vars (generated)\n",
         "\nSource: `src/linstabpy/driver/cli.py` (`CLI_ENV_VARS`).\n",
         "The CLI takes no case flags; these variables are its whole surface.\n",
-        "\n| Variable | Aliases | Default | Purpose |\n",
-        "|---|---|---|---|\n",
+        "\n| Variable | Default | Purpose |\n",
+        "|---|---|---|\n",
     ]
-    for name, aliases, default, purpose in entries:
-        alias_text = ", ".join(f"`{a}`" for a in aliases) if aliases else "—"
-        lines.append(f"| `{name}` | {alias_text} | `{default}` | {purpose} |\n")
+    for name, default, purpose in entries:
+        lines.append(f"| `{name}` | `{default}` | {purpose} |\n")
     return "".join(lines)
 
 

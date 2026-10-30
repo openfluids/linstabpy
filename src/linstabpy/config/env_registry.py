@@ -29,15 +29,9 @@ KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
     {
         # -- driver / case selection (driver/run.py, driver/cli.py) --
         "LINSTABPY_CASE_CONFIG",
-        "LINSTABPY_CASE2_CONFIG",
-        "LINSTABPY_CASE1_CONFIG",
         "LINSTABPY_CASE_OUTPUT_NPZ",
-        "LINSTABPY_CASE2_OUTPUT_NPZ",
-        "LINSTABPY_CASE1_OUTPUT_NPZ",
         "LINSTABPY_CASE_LOG_PREFIX",
         "LINSTABPY_CASE_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE2_ROOT_ASSEMBLY",
-        "LINSTABPY_CASE1_ROOT_ASSEMBLY",
         "LINSTABPY_FORCE_RECOMPUTE",
         "LINSTABPY_STAGE_HEARTBEAT_SECONDS",
         # -- cost metrics (utils/cost_metrics.py) --

@@ -193,6 +193,7 @@ def _write_config(config_path, operator_dissipation: str | None = None) -> None:
         numerics["operator_dissipation"] = json.loads(operator_dissipation)
     payload = {
         "paths": {"case_dir": "."},
+        "physics": {"Re": 395000.0},
         "analysis": {"run_stability": False, "run_resolvent": False},
         "numerics": numerics,
         "solver": {},
@@ -445,6 +446,8 @@ def test_cache_invalidation_on_config_change(monkeypatch, tmp_path):
         """
         paths:
           case_dir: "."
+        physics:
+          Re: 395000.0
         analysis:
           run_stability: false
           run_resolvent: false

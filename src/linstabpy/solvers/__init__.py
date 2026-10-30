@@ -12,9 +12,6 @@ Eager re-exports here would defeat the lazy contract from
 
 _LAZY_EXPORTS = {
     "resolvent_analysis": "linstabpy.resolvent.analysis",
-    "adjoint_eigenvalues": "linstabpy.solvers.eigenvalue",
-    "temporal_eigenvalues": "linstabpy.solvers.eigenvalue",
-    "spatial_eigenvalues": "linstabpy.solvers.spatial_eig",
 }
 
 __all__ = sorted(_LAZY_EXPORTS)

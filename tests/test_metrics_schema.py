@@ -111,7 +111,7 @@ def test_quality_section_is_run_type_optional():
 
 
 def test_production_sidecar_payload_passes_schema(tmp_path, monkeypatch):
-    monkeypatch.setenv("LINSTAB2D_GPUS", "0")
+    monkeypatch.setenv("LINSTABPY_GPUS", "0")
     output_npz = tmp_path / "tiny_check.npz"
     payload = _complete_metrics_payload()
     provenance = {key: str(payload.pop(key)) for key in SCHEMA["provenance"]}

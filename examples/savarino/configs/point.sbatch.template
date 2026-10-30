@@ -21,7 +21,7 @@ export PYTHONPATH="{repo_root}/src:{repo_root}${{PYTHONPATH:+:$PYTHONPATH}}"
 cd {repo_root}
 echo "SHA=$(git -C {repo_root} rev-parse HEAD)  BETA={beta}  F={freq}"
 echo "resolution=full-res 300x300 stride=1  epsilon=0  leak=rectilinear"
-LINSTABPY_CASE1_CONFIG={config} \
-LINSTABPY_CASE1_OUTPUT_NPZ={output_npz} \
+LINSTABPY_CASE_CONFIG={config} \
+LINSTABPY_CASE_OUTPUT_NPZ={output_npz} \
 mpiexec -n {nranks} "$PY" -u -c "from linstabpy.driver.run import run; run()"
 echo "DONE {jobname}"

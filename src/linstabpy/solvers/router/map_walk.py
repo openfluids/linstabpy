@@ -448,15 +448,9 @@ class _RecordingSolve:
         self.last = np.asarray(x, dtype=complex).reshape(-1).copy()
         return x
 
-    def solve_transpose(self, rhs: np.ndarray) -> np.ndarray:
-        self.n_apply += 1
-        return self._lu.solve_transpose(rhs)
-
     def solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
         self.n_apply += 1
-        if hasattr(self._lu, "solve_adjoint"):
-            return self._lu.solve_adjoint(rhs)
-        return self._lu.solve_transpose(rhs)
+        return self._lu.solve_adjoint(rhs)
 
 
 class _GatedPcSolve:
@@ -499,11 +493,8 @@ class _GatedPcSolve:
     def solve(self, rhs: np.ndarray) -> np.ndarray:
         return self._solve(rhs, adjoint=False)
 
-    def solve_transpose(self, rhs: np.ndarray) -> np.ndarray:
-        return self._solve(rhs, adjoint=True)
-
     def solve_adjoint(self, rhs: np.ndarray) -> np.ndarray:
-        return self.solve_transpose(rhs)
+        return self._solve(rhs, adjoint=True)
 
     def _solve(self, rhs: np.ndarray, *, adjoint: bool) -> np.ndarray:
         rhs_arr = np.asarray(rhs, dtype=complex).reshape(-1)
