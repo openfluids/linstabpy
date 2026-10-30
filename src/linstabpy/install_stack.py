@@ -41,7 +41,13 @@ CONFIGURE_OPTIONS = (
 )
 
 # Cython 3.3 rejects the petsc4py 3.24 sources.
-BUILD_DEPS = ("numpy>=1.23", "Cython>=3.0,<3.3", "setuptools<72", "wheel")
+BUILD_DEPS = (
+    "numpy>=1.23",
+    "Cython>=3.0,<3.3",
+    "setuptools<72",
+    "wheel",
+    *(("patchelf",) if sys.platform.startswith("linux") else ()),
+)
 
 CHECK = (
     "import numpy as np\n"
@@ -103,6 +109,23 @@ def _stale_prefix(variables: Path, pattern: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def _fix_runpath(lib_dir: Path, stale_lib: str, lib: str) -> None:
+    """Replace the build-directory entry in the RUNPATH of every shared library (Linux)."""
+    patchelf = Path(sys.executable).parent / "patchelf"
+    if not patchelf.is_file():
+        return
+    for path in lib_dir.glob("*.so*"):
+        if path.is_symlink():
+            continue
+        shown = subprocess.run(
+            [str(patchelf), "--print-rpath", str(path)], capture_output=True, text=True
+        )
+        if shown.returncode != 0 or stale_lib not in shown.stdout:
+            continue
+        fixed = shown.stdout.strip().replace(stale_lib, lib)
+        subprocess.run([str(patchelf), "--set-rpath", fixed, str(path)], check=True)
+
+
 def _relocate_petsc(prefix: str) -> None:
     """Point the PETSc config files at the installed prefix instead of the build directory."""
     root = Path(prefix)
@@ -110,6 +133,7 @@ def _relocate_petsc(prefix: str) -> None:
     if stale and stale != prefix:
         files = [*(root / "lib/petsc/conf").rglob("*"), *(root / "lib/pkgconfig").rglob("*")]
         _rewrite([*files, root / "include/petscconf.h"], stale, prefix)
+        _fix_runpath(root / "lib", f"{stale}/lib", f"{prefix}/lib")
     variables = root / "lib/petsc/conf/petscvariables"
     if variables.is_file():
         text = re.sub(
