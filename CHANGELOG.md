@@ -66,6 +66,12 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   missed before. Each target costs one shift-invert factorization;
   `skip_band_marking` still removes the stage.
 
+- Temporal `adjoint_eigenvalues` returns `conj(omega)` of the direct eigenvalues.
+  It returned `-omega` before, which broke the documented contract
+  `adjoint_omegas == conj(temporal_omegas)` whenever `Re(omega) != 0`. The
+  adjoint eigenvalue is `i*conj(omega)`, so `conj(omega) = -i*lambda_adj`.
+  Code that used the old values must change sign of the real part.
+
 ### Fixed
 
 - `resolvent_map` stores the discount `gamma` used at each point
@@ -110,6 +116,67 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   modified tracked file, and the tracked-file-size test failed. The run now
   writes to `output/fd4_n30_full/`, which git ignores. The report and plot
   scripts read that file when it exists, and the shipped copy otherwise.
+
+- Stability acceptance pairs `omega` with `-conj(omega)`, not `conj(omega)`. With
+  `omega = eig(i*L0)` and a real `L0`, the spectrum is closed under
+  `omega -> -conj(omega)`. The old conjugate-aware target distance admitted modes
+  near `conj(target)`, which have the opposite growth sign, and the pair
+  completeness check looked for the wrong partner. The driver default for
+  conjugate-aware acceptance is now off only when `beta != 0` and the spanwise
+  base flow `W != 0` (pairing mismatch 6.9e-2 there, against 1e-9 in the other
+  cases). A value set in the YAML still wins.
+- SBP operators need `n >= 2r` points (`r` rows in each boundary closure). The two
+  closures overlap below that size, and the identity `H D1 + (H D1)^T = B` failed
+  (defect 0.16 at fd4 with `n = 6`). `min_points` is now `max(m, 2r)` (3, 8, 12, 16
+  for orders 2 to 8). All SBP builders refuse a smaller `n`. A short masked
+  segment takes the highest order that fits, not order 2. Overlapping closure
+  rows are cleared, so `D1` of a constant is zero. Operators on meshes without a
+  hole and without a segment shorter than `2r` are bitwise identical to before.
+- A masked mesh with a one-point hole splits its derivative lines at the hole.
+  The stencil spanned the hole before (`max|Dx x - 1| = 0.5`).
+- The dissipation layout follows the size of `Q_diss_x`, not the point count. A
+  mask that keeps every point failed with a shape error before.
+- `backend: auto` assembles with SciPy when operator dissipation is on. It chose
+  the direct PETSc builder, which has no dissipation term, and the run failed.
+- The result NPZ is written to a temporary file and renamed, under the exact name
+  in `LINSTABPY_CASE_OUTPUT_NPZ`. A name without `.npz` got `.npz` appended, and the
+  cache never hit. A killed run no longer leaves a truncated file. The metrics
+  file writes `null` for infinite values (`lambda_over_L` at `beta = 0`).
+- A truncated cached NPZ is recomputed. Before, every later call stopped with
+  `zipfile.BadZipFile` on rank 0.
+- With no `LINSTABPY_CASE_CONFIG`, the cache check uses the same default config
+  path as the run. An edited default config reused a stale result before.
+- The recorded git SHA comes from the package directory. It was `unknown`, or the
+  SHA of another repository, when you ran from a case directory.
+- The top-level `preprocess` block applies in the case driver. The filter and the
+  shock cleanup were skipped without a message before.
+- The NPZ provenance records the settings the run used: the configured factor
+  precision (it was always `double`), the resolvent factor precision from
+  `resolvent.linear`, and the `conjugate_aware` flag. Root-assembly mode now
+  applies `root_scatter`. The dense eigenvalue fallback no longer raises
+  `TypeError` after the solve.
+- The iterative shift-and-invert branch applies `sub_ksp_type` and `sub_pc_type`.
+  Before, PETSc error 58 was swallowed and the two options were dropped. The
+  spatial solver raises an error for an unknown `st_solver`. It used the SLEPc
+  default without a message before.
+- The line walk keeps the last forward solve as the next warm start. It stored an
+  adjoint solve. `sweep_stable_regime` reads `reuse_symbolic` and
+  `use_block_solve` as booleans, so the string `false` is false. `savarino_line`
+  uses `invW = 1` for `forcing_norm: l2`. It computed the Chu gain before.
+- The adjoint self-test fails on NaN. A NaN solve passed the identity and oracle
+  checks before. `Factorization.destroy()` frees the dual `K^H` factor.
+- `numerics.floquet_shift` overrides `LINSTABPY_FLOQUET_SHIFT`. The environment
+  value won over the YAML before, and a value from an earlier `run()` in the same
+  process persisted.
+- Cost metrics read `LINSTABPY_GPUS` and `LINSTABPY_HARDWARE_TAG`. Only the old
+  `LINSTAB2D_*` names were read, so the new names gave an unknown-variable
+  warning and `cost_gpus` stayed 0. Both spellings work.
+- With root-only assembly, the target-distance gate works. It rejected every mode
+  with `postcheck failed` before. Asking for the residual gate in that mode,
+  which cannot run there, is now a configuration error.
+- The `resolvent_map` store is written by MPI rank 0 only. All ranks wrote the
+  same file and all but one failed with `FileNotFoundError`, which stopped a
+  4-rank run with `output_npz`. Rank 0 also moves an unreadable store aside.
 
 ### Changed
 
@@ -161,7 +228,15 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   `examples.martini` to `examples.linstab2d`. The file contents are the same
   apart from the path.
 
+- The wiki build command in `docs/DEVELOPMENT.md` uses its own environment
+  (`UV_PROJECT_ENVIRONMENT=.venv-wiki`). `uv run` on `.venv` replaced the PETSc
+  environment that `install.sh` builds.
+
 ### Added
+
+- The `linstabpy` command is installed with the package (console script
+  `linstabpy = linstabpy.driver.cli:main`). Before, only
+  `python -m linstabpy.driver.cli` worked.
 
 - `examples/odd_even/`: the script that reproduces the odd-even decoupling
   figure of the paper (wavy-wall mesh, 81 x 41 and 161 x 81, six values of
