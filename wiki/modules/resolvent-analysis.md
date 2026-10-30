@@ -414,7 +414,7 @@ sequenceDiagram
 | Dependency | Role |
 |------------|------|
 | `linalg.shifted_operator` | Build \(L_\sigma\) |
-| `linalg.factorize` | Direct/iterative factor; solve + transpose solve |
+| `linalg.factorize` | Direct/iterative factor; `solve` + `solve_adjoint` |
 | `solvers._eps_helpers` | EPS monitor and convergence-test resolution |
 | `solvers.petsc_utils` | Shape checks, complex policy, vec conversion |
 | `utils.petsc_init` / `petsc_core` | SLEPc init ordering; SciPy↔PETSc vectors |
@@ -493,7 +493,7 @@ Documented explicitly in the driver: a factorization cannot travel across differ
 Cost is dominated by:
 
 1. [Sparse](https://grokipedia.com/page/Sparse_matrix) direct factorization of \(L_\sigma\) (once per frequency in the single-point path).
-2. Many \(H\)/\(H^H\) applies inside [Krylov–Schur](../solver-glossary.md) (each apply = two filters + one solve or transpose solve + \(B\)/\(C\)).  
+2. Many \(H\)/\(H^H\) applies inside [Krylov–Schur](../solver-glossary.md) (each apply = two filters + one `solve` or `solve_adjoint` + \(B\)/\(C\)).  
 
 Optional `return_info` exposes exclusive stage timers `factor_s`, `svd_s`, `residual_s` for routing and provenance.
 
