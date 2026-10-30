@@ -37,3 +37,29 @@ def test_existing_petsc4py_is_left_alone_without_force(monkeypatch, capsys):
     )
     assert install_stack.main([]) == 0
     assert "already installed" in capsys.readouterr().out
+
+
+def test_relocation_replaces_the_build_directory_in_petsc_and_slepc_config(tmp_path):
+    build = "/tmp/uv-build/petsc/wheel/petsc"
+    petsc = tmp_path / "petsc"
+    (petsc / "lib/petsc/conf").mkdir(parents=True)
+    (petsc / "include").mkdir()
+    (petsc / "lib/petsc/conf/petscvariables").write_text(
+        f"PETSC_DIR = {build}\nPETSC_PYTHON_EXE = /tmp/build-env/bin/python\nCC_INCLUDES = -I{build}/include\n"
+    )
+    (petsc / "include/petscconf.h").write_text(f'#define PETSC_DIR "{build}"\n')
+    install_stack._relocate_petsc(str(petsc))
+    variables = (petsc / "lib/petsc/conf/petscvariables").read_text()
+    assert build not in variables
+    assert f"-I{petsc}/include" in variables
+    assert "PETSC_PYTHON_EXE = python3" in variables
+    assert build not in (petsc / "include/petscconf.h").read_text()
+
+    slepc_build = "/tmp/uv-build/slepc/wheel/slepc"
+    slepc = tmp_path / "slepc"
+    (slepc / "lib/slepc/conf").mkdir(parents=True)
+    (slepc / "lib/slepc/conf/slepc_variables").write_text(f"SLEPC_LIB_DIR = {slepc_build}/lib\n")
+    (slepc / "lib/slepc/conf/slepcvariables").write_text(f"SLEPC_INSTALLDIR = {slepc_build}\n")
+    install_stack._relocate_slepc(str(slepc))
+    assert f"SLEPC_INSTALLDIR = {slepc}" in (slepc / "lib/slepc/conf/slepcvariables").read_text()
+    assert slepc_build not in (slepc / "lib/slepc/conf/slepc_variables").read_text()

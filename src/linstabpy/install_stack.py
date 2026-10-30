@@ -15,11 +15,13 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
 import sysconfig
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from pathlib import Path
 
 PETSC_VERSION = "3.24.2"
 
@@ -79,16 +81,76 @@ def _pip(*args: str, env: dict[str, str], fresh: bool = False) -> list[str]:
     return [sys.executable, "-m", "pip", "install", *(("--no-cache-dir",) if fresh else ()), *args]
 
 
-def _steps(env: dict[str, str]) -> list[tuple[str, list[str], dict[str, str]]]:
+def _rewrite(files, old: str, new: str) -> None:
+    """Replace ``old`` by ``new`` in every text file of ``files``."""
+    for path in files:
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            text = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if old in text:
+            path.write_text(text.replace(old, new))
+
+
+def _stale_prefix(variables: Path, pattern: str) -> str | None:
+    match = (
+        re.search(pattern, variables.read_text(), flags=re.MULTILINE)
+        if variables.is_file()
+        else None
+    )
+    return match.group(1).strip() if match else None
+
+
+def _relocate_petsc(prefix: str) -> None:
+    """Point the PETSc config files at the installed prefix instead of the build directory."""
+    root = Path(prefix)
+    stale = _stale_prefix(root / "lib/petsc/conf/petscvariables", r"^PETSC_DIR = (.*)$")
+    if stale and stale != prefix:
+        files = [*(root / "lib/petsc/conf").rglob("*"), *(root / "lib/pkgconfig").rglob("*")]
+        _rewrite([*files, root / "include/petscconf.h"], stale, prefix)
+    variables = root / "lib/petsc/conf/petscvariables"
+    if variables.is_file():
+        text = re.sub(
+            r"^(PETSC_PYTHON_EXE|PYTHON) = .*$",
+            r"\1 = python3",
+            variables.read_text(),
+            flags=re.MULTILINE,
+        )
+        variables.write_text(text)
+
+
+def _relocate_slepc(prefix: str) -> None:
+    """Point the SLEPc config files at the installed prefix instead of the build directory."""
+    root = Path(prefix)
+    stale = _stale_prefix(
+        root / "lib/slepc/conf/slepc_variables", r"^SLEPC_LIB_DIR\s*=\s*(.*?)/lib$"
+    )
+    if stale and stale != prefix:
+        _rewrite(root.rglob("*"), stale, prefix)
+    for path, pattern, repl in (
+        (
+            root / "lib/slepc/conf/slepcvariables",
+            r"^SLEPC_INSTALLDIR = .*$",
+            f"SLEPC_INSTALLDIR = {prefix}",
+        ),
+        (root / "lib/pkgconfig/SLEPc.pc", r"^prefix=.*$", f"prefix={prefix}"),
+    ):
+        if path.is_file():
+            path.write_text(re.sub(pattern, repl, path.read_text(), flags=re.MULTILINE))
+
+
+Step = tuple[str, "list[str] | Callable[[], None]", dict[str, str]]
+
+
+def _steps(env: dict[str, str]) -> list[Step]:
     site = sysconfig.get_paths()["purelib"]
     petsc_dir = os.path.join(site, "petsc")
     slepc_dir = os.path.join(site, "slepc")
     mpicc = shutil.which("mpicc", path=env.get("PATH"))
     build = {"PETSC_CONFIGURE_OPTIONS": " ".join(CONFIGURE_OPTIONS)}
-    with_petsc = {
-        "PETSC_DIR": petsc_dir,
-        "MPICC": mpicc or "mpicc",
-    }
+    with_petsc = {"PETSC_DIR": petsc_dir, "MPICC": mpicc or "mpicc"}
     isolated = ("--no-build-isolation",)
     return [
         ("build tools", _pip(*BUILD_DEPS, env=env), {}),
@@ -97,6 +159,7 @@ def _steps(env: dict[str, str]) -> list[tuple[str, list[str], dict[str, str]]]:
             _pip(*isolated, f"petsc=={PETSC_VERSION}", env=env, fresh=True),
             build,
         ),
+        ("fix the PETSc build paths", lambda: _relocate_petsc(petsc_dir), {}),
         (
             "mpi4py",
             _pip(*isolated, "--no-binary", "mpi4py", "mpi4py>=3.1", env=env, fresh=True),
@@ -107,7 +170,12 @@ def _steps(env: dict[str, str]) -> list[tuple[str, list[str], dict[str, str]]]:
             _pip(*isolated, f"petsc4py=={PETSC_VERSION}", env=env, fresh=True),
             with_petsc,
         ),
-        ("SLEPc", _pip(*isolated, f"slepc=={PETSC_VERSION}", env=env, fresh=True), with_petsc),
+        (
+            "SLEPc",
+            _pip(*isolated, f"slepc=={PETSC_VERSION}", env=env, fresh=True),
+            {**with_petsc, "SLEPC_CONFIGURE_OPTIONS": "--with-clean"},
+        ),
+        ("fix the SLEPc build paths", lambda: _relocate_slepc(slepc_dir), {}),
         (
             "slepc4py",
             _pip(*isolated, f"slepc4py=={PETSC_VERSION}", env=env, fresh=True),
@@ -149,9 +217,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     for label, command, extra in _steps(env):
         print(f"[install-stack] {label}", flush=True)
         if args.dry_run:
-            print("  " + " ".join(command))
+            print(
+                "  "
+                + (" ".join(command) if isinstance(command, list) else "(rewrites config files)")
+            )
             continue
-        subprocess.run(command, check=True, env={**env, **extra})
+        if callable(command):
+            command()
+        else:
+            subprocess.run(command, check=True, env={**env, **extra})
     if args.dry_run:
         return 0
     subprocess.run([sys.executable, "-c", CHECK], check=True, env=env)
