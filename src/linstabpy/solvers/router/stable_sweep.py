@@ -398,6 +398,9 @@ def _right_preconditioned_gmres(
     comm: Any = None,
 ) -> tuple[Array, int, float]:
     """Right-preconditioned GMRES with a bounded restart length."""
+    # Agree before any early return, so every rank makes the same number of
+    # collective calls whatever its local data says.
+    use_deadline = agree_flag(deadline is not None, comm, op="lor")
     b = np.asarray(rhs, dtype=complex).reshape(-1)
     n = b.size
     rhs_norm = float(np.linalg.norm(b))
@@ -419,7 +422,6 @@ def _right_preconditioned_gmres(
         if residual <= rtol:
             return x, 0, residual
     total_iters = 0
-    use_deadline = agree_flag(deadline is not None, comm, op="lor")
 
     def past_deadline() -> bool:
         # One rank past the deadline stops every rank before the next apply.
