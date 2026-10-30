@@ -80,8 +80,18 @@ linstabpy --version
 
 This installs the package, the `linstabpy` command, config validation and the
 pure-NumPy tools. It does not install the solver stack: linstabpy needs
-complex-scalar PETSc/SLEPc with MUMPS, which pip does not build. To solve, build
-the stack from a checkout as below, or use an existing complex PETSc/SLEPc build.
+complex-scalar PETSc/SLEPc with MUMPS, which pip does not build.
+
+To solve, use the conda environment. It takes complex PETSc 3.24 and SLEPc from
+conda-forge and `linstabpy` from PyPI, with no checkout and no compiling:
+
+```bash
+conda env create -f https://raw.githubusercontent.com/openfluids/linstabpy/main/environment.yml
+conda activate linstabpy
+```
+
+The other route is a checkout with `bash install.sh` (below), which builds the
+validated stack from source. The source archive on PyPI also carries `install.sh`.
 Extras: `linstabpy[petsc]` (mpi4py, petsc4py, slepc4py against your own PETSc),
 `linstabpy[hdf5]`, `linstabpy[cudss]` (GPU).
 

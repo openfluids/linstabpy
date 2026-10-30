@@ -9,6 +9,8 @@
 #
 # The file needs no checkout. From the web:
 #   conda env create -f https://raw.githubusercontent.com/openfluids/linstabpy/main/environment.yml
+# PETSc/SLEPc are pinned to 3.24, the series of the validated stack. conda-forge's
+# 3.26 failed the spatial-eigenvalue tests (MUMPS error INFOG(1)=-9).
 # `bash install.sh` is the reference route for the validated PETSc 3.24 stack.
 # Do not add petsc4py to the pip list. Those sdists compile PETSc from source.
 #
@@ -29,10 +31,10 @@ dependencies:
   - matplotlib>=3.7
   - pyyaml>=6.0
   - mpi4py>=3.1
-  - petsc=*=*complex*
-  - slepc=*=*complex*
-  - petsc4py>=3.18
-  - slepc4py>=3.18
+  - petsc=3.24.*=*complex*
+  - slepc=3.24.*=*complex*
+  - petsc4py=3.24.*
+  - slepc4py=3.24.*
   - pip
   - pip:
       - --no-deps
