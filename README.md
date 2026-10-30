@@ -1,6 +1,8 @@
 ![linstabpy banner](docs/assets/readme-banner-v3.jpg)
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/linstabpy.svg)](https://pypi.org/project/linstabpy/)
+[![Release](https://img.shields.io/github/v/release/openfluids/linstabpy)](https://github.com/openfluids/linstabpy/releases)
+[![Python](https://img.shields.io/pypi/pyversions/linstabpy.svg)](https://pypi.org/project/linstabpy/)
 [![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
@@ -67,7 +69,25 @@ transform, global assembly, boundary rows, and energy norm.
 
 ## Installation
 
-One supported numerical stack: CPU, complex-scalar PETSc/SLEPc, MUMPS. On Linux:
+One supported numerical stack: CPU, complex-scalar PETSc/SLEPc, MUMPS.
+
+### From PyPI
+
+```bash
+pip install linstabpy            # or: uv pip install linstabpy
+linstabpy --version
+```
+
+This installs the package, the `linstabpy` command, config validation and the
+pure-NumPy tools. It does not install the solver stack: linstabpy needs
+complex-scalar PETSc/SLEPc with MUMPS, which pip does not build. To solve, build
+the stack from a checkout as below, or use an existing complex PETSc/SLEPc build.
+Extras: `linstabpy[petsc]` (mpi4py, petsc4py, slepc4py against your own PETSc),
+`linstabpy[hdf5]`, `linstabpy[cudss]` (GPU).
+
+### From a checkout (full solver stack)
+
+On Linux:
 
 ```bash
 git clone https://github.com/openfluids/linstabpy.git
@@ -931,7 +951,7 @@ Packaging:
 - importable code uses the `src/` layout
 - package name is `linstabpy`
 - import package is `linstabpy`
-- install the PETSc/SLEPc stack with `bash install.sh`
+- published on PyPI as `linstabpy`; the PETSc/SLEPc stack comes from `bash install.sh`
 
 For development from a checkout, prefer the repository installer because it builds
 and verifies PETSc/SLEPc:
