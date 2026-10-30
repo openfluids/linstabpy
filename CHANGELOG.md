@@ -9,14 +9,25 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [1.0.1] - 2026-10-30
 
+### Fixed
+
+- The provenance record no longer carries the host name that built Open MPI
+  (`mpi_impl` read `package: Open MPI root@<host> Distribution`).
+- Provenance strings drop the NUL padding that Open MPI 5 adds.
+
 ### Added
 
+- `linstabpy install-stack` builds the CPU solver stack (complex PETSc/SLEPc 3.24
+  with MUMPS) into the current Python environment with pip. It needs a C compiler,
+  gfortran, make and a system MPI with compiler wrappers. It skips the build when
+  `petsc4py` is already installed (`--force` rebuilds) and rewrites the build-directory
+  paths that a pip-built PETSc leaves in its config files and library paths.
 - `environment.yml` installs `linstabpy` from PyPI, so the conda route needs no
   checkout: `conda env create -f <environment.yml>`.
 - The source archive on PyPI carries `install.sh`, `environment.yml` and
   `.python-version`, so `bash install.sh` works from the unpacked archive.
 - A solve without complex-scalar PETSc/SLEPc fails with an `ImportError` that
-  names the two ways to install the stack. It used to fail with a bare
+  names the ways to install the stack. It used to fail with a bare
   `No module named 'petsc4py'`.
 
 ## [1.0.0] - 2026-10-30

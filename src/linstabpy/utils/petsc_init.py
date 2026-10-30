@@ -81,9 +81,9 @@ def _sanitize_petsc_argv(argv: list[str]) -> list[str]:
 
 _MISSING_STACK = (
     "linstabpy needs complex-scalar PETSc and SLEPc with MUMPS to solve, and "
-    "'pip install linstabpy' does not build them. Use the conda environment "
-    "(environment.yml) or 'bash install.sh' from a checkout or from the source "
-    "archive. See https://github.com/openfluids/linstabpy#installation"
+    "'pip install linstabpy' does not build them. Run 'linstabpy install-stack', "
+    "use the conda environment (environment.yml), or run 'bash install.sh' from a "
+    "checkout or from the source archive. See https://github.com/openfluids/linstabpy#installation"
 )
 
 

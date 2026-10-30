@@ -74,26 +74,34 @@ One supported numerical stack: CPU, complex-scalar PETSc/SLEPc, MUMPS.
 ### From PyPI
 
 ```bash
-pip install linstabpy            # or: uv pip install linstabpy
+pip install linstabpy
+linstabpy install-stack          # builds complex PETSc/SLEPc + MUMPS into this environment
 linstabpy --version
 ```
 
-This installs the package, the `linstabpy` command, config validation and the
-pure-NumPy tools. It does not install the solver stack: linstabpy needs
-complex-scalar PETSc/SLEPc with MUMPS, which pip does not build.
+`pip install linstabpy` installs the package, the `linstabpy` command, config
+validation and the NumPy tools. PETSc and SLEPc exist on PyPI only as source
+archives, so the solver stack needs a build. `linstabpy install-stack` runs it
+with pip: complex-scalar PETSc 3.24 with MUMPS, ScaLAPACK, METIS, ParMETIS and
+OpenBLAS (about 15 to 25 min). It needs a C compiler, `gfortran`, `make` and an
+MPI with compiler wrappers; on Debian or Ubuntu:
 
-To solve, use the conda environment. It takes complex PETSc 3.24 and SLEPc from
-conda-forge and `linstabpy` from PyPI, with no checkout and no compiling:
+```bash
+sudo apt install build-essential gfortran libopenmpi-dev openmpi-bin
+```
+
+The conda route needs no compiler and takes minutes. It installs complex PETSc
+3.24 and SLEPc from conda-forge and `linstabpy` from PyPI:
 
 ```bash
 conda env create -f https://raw.githubusercontent.com/openfluids/linstabpy/main/environment.yml
 conda activate linstabpy
 ```
 
-The other route is a checkout with `bash install.sh` (below), which builds the
-validated stack from source. The source archive on PyPI also carries `install.sh`.
-Extras: `linstabpy[petsc]` (mpi4py, petsc4py, slepc4py against your own PETSc),
-`linstabpy[hdf5]`, `linstabpy[cudss]` (GPU).
+GPU stacks (cuDSS), cluster MPI modules, macOS and custom BLAS builds are for
+users who install the stack themselves: `bash install.sh` from a checkout (below)
+builds the validated stack and covers those cases. The source archive on PyPI
+carries `install.sh` too. Extras: `linstabpy[hdf5]`, `linstabpy[cudss]` (GPU).
 
 ### From a checkout (full solver stack)
 
