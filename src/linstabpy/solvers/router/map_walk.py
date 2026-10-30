@@ -11,6 +11,7 @@ walk raises and factors this omega. The gain still comes from SLEPc.
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -21,7 +22,7 @@ from linstabpy.linalg.factorize import factorize
 from linstabpy.linalg.shifted import shifted_operator
 from linstabpy.solvers.router.map_record import job_remaining_s, time_left_for_factor
 from linstabpy.solvers.router.stable_sweep import _matvec, _right_preconditioned_gmres
-from linstabpy.utils.petsc_core import _is_petsc_matrix
+from linstabpy.utils.petsc_core import _is_petsc_matrix, agree_flag
 
 DEFAULT_GMRES_RESTART = 50
 DEFAULT_GMRES_MAXITER = 200
@@ -31,6 +32,40 @@ WALK_COST_SLACK = 0.25
 WALK_PROBE_ITER_CAP = 4
 WALK_SOLVE_ITER_CAP = 4
 WALK_APPLY_FLOOR = 40
+
+
+def _comm_of(obj: Any) -> Any:
+    """Return a PETSc communicator stored on obj, or None."""
+    if obj is None:
+        return None
+    get_comm = getattr(obj, "getComm", None)
+    if callable(get_comm):
+        return get_comm()
+    for name in ("_mat", "_ksp"):
+        inner = getattr(obj, name, None)
+        get_comm = getattr(inner, "getComm", None)
+        if callable(get_comm):
+            return get_comm()
+    return None
+
+
+def _decision_comm(*objs: Any) -> Any:
+    """Return the communicator shared by these objects.
+
+    A scipy matrix has none. One rank then keeps its own flag.
+    When PETSc is already loaded, use COMM_WORLD.
+    """
+    for obj in objs:
+        comm = _comm_of(obj)
+        if comm is not None:
+            return comm
+    loaded = sys.modules.get("petsc4py")
+    if loaded is None:
+        return None
+    petsc = getattr(loaded, "PETSc", None)
+    if petsc is None:
+        return None
+    return petsc.COMM_WORLD
 
 
 class WalkDeferred(Exception):
@@ -153,7 +188,13 @@ class LineWalker:
     ) -> WalkPointResult:
         """Compute the leading gain at one frequency."""
         need_s = self.last_direct_wall_s if self.last_direct_wall_s > 0.0 else self.last_factor_s
-        if not time_left_for_factor(job_remaining_s(), need_s):
+        # One rank short of wall time stops the line before the next factor.
+        can_pay = agree_flag(
+            time_left_for_factor(job_remaining_s(), need_s),
+            _decision_comm(L0, self.factor),
+            op="land",
+        )
+        if not can_pay:
             raise WalkDeferred(f"remaining wall is shorter than the last factor ({need_s:.3f} s)")
         t0 = time.perf_counter()
         operator = shifted_operator(
@@ -236,7 +277,12 @@ class LineWalker:
         )
         gated.max_residual = max(forward_residual, float(gated.max_residual))
         gated.iterations = forward_iters + int(gated.iterations)
-        past_deadline = deadline is not None and time.perf_counter() >= deadline
+        comm = _decision_comm(operator, self.factor)
+        past_deadline = agree_flag(
+            deadline is not None and time.perf_counter() >= deadline,
+            comm,
+            op="lor",
+        )
         cheap = (
             not past_deadline
             and not gated.failed
@@ -251,6 +297,8 @@ class LineWalker:
                 n_applies=self.last_n_applies,
             )
         )
+        # Every rank must accept the walk. One rejection refactors.
+        cheap = agree_flag(cheap, comm, op="land")
         if cheap:
             gated.raise_on_fail = True
             try:
@@ -286,11 +334,16 @@ class LineWalker:
         # healthy but no cheaper than a new factor. "fallback" means the
         # walk answered and the answer missed the residual or the cap.
         # A deadline sets both over_budget and failed, so test it first.
-        if gated.over_budget:
+        over_budget = agree_flag(bool(gated.over_budget), comm, op="lor")
+        failed = agree_flag(bool(gated.failed), comm, op="lor")
+        missed = agree_flag(
+            float(gated.max_residual) > self.rtol or int(gated.iterations) > int(self.restart),
+            comm,
+            op="lor",
+        )
+        if over_budget:
             source = "budget"
-        elif gated.failed or (
-            float(gated.max_residual) > self.rtol or int(gated.iterations) > self.restart
-        ):
+        elif failed or missed:
             source = "fallback"
         else:
             source = "budget"
@@ -498,8 +551,16 @@ class _GatedPcSolve:
 
     def _solve(self, rhs: np.ndarray, *, adjoint: bool) -> np.ndarray:
         rhs_arr = np.asarray(rhs, dtype=complex).reshape(-1)
-        if self.failed or (self.deadline is not None and time.perf_counter() >= self.deadline):
-            if self.deadline is not None and time.perf_counter() >= self.deadline:
+        comm = _decision_comm(self._operator, self._pc)
+        # One rank past the deadline stops every rank before the next apply.
+        past = agree_flag(
+            self.deadline is not None and time.perf_counter() >= self.deadline,
+            comm,
+            op="lor",
+        )
+        failed = agree_flag(bool(self.failed), comm, op="lor")
+        if failed or past:
+            if past:
                 self.over_budget = True
             self.failed = True
             if self.raise_on_fail:
@@ -520,19 +581,25 @@ class _GatedPcSolve:
             maxiter=self.maxiter,
             restart=self.restart,
             deadline=apply_deadline,
+            comm=comm,
         )
         self.iterations += int(iters)
         self.max_residual = max(self.max_residual, float(residual))
         self.last = np.asarray(x, dtype=complex).reshape(-1).copy()
         if not adjoint:
             self.last_forward = self.last
-        if apply_deadline is not None and time.perf_counter() >= apply_deadline:
-            self.over_budget = True
-            self.failed = True
-        if int(iters) > self.restart:
-            self.failed = True
-        if residual > self.rtol:
-            self.failed = True
+        local_over = apply_deadline is not None and time.perf_counter() >= apply_deadline
+        self.over_budget = agree_flag(bool(self.over_budget or local_over), comm, op="lor")
+        self.failed = agree_flag(
+            bool(
+                self.failed
+                or self.over_budget
+                or int(iters) > self.restart
+                or float(residual) > self.rtol
+            ),
+            comm,
+            op="lor",
+        )
         if self.failed and self.raise_on_fail:
             raise WalkAborted("walk solve missed the residual or the wall budget")
         return x

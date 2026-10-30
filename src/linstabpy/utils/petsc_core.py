@@ -139,6 +139,23 @@ def _use_distributed_matrix(solver_cfg: dict | None = None) -> bool:
     return PETSc.COMM_WORLD.getSize() > 1
 
 
+def agree_flag(flag: bool, comm, *, op: str) -> bool:
+    """Return the same decision on every rank.
+
+    One rank, or no communicator, keeps ``flag``.
+    ``lor`` is true when any rank is true.
+    ``land`` is true only when every rank is true.
+    """
+    if op not in {"lor", "land"}:
+        raise ValueError(f"agree_flag op must be 'lor' or 'land', got {op!r}")
+    if comm is None or int(comm.getSize()) <= 1:
+        return bool(flag)
+    from mpi4py import MPI
+
+    reduce_op = MPI.LOR if op == "lor" else MPI.LAND
+    return bool(comm.tompi4py().allreduce(bool(flag), op=reduce_op))
+
+
 def require_complex(solver_cfg: dict | None = None) -> None:
     """Assert complex-scalar PETSc and install one-time direct-solver defaults.
 

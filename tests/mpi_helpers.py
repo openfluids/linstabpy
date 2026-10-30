@@ -5,22 +5,48 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 
 
-def run_mpi_python(n_ranks: int, script: str) -> subprocess.CompletedProcess[str]:
-    """Launch a Python script under mpiexec and return the completed process."""
+def run_mpi_python(
+    n_ranks: int, script: str, timeout: float | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Launch a Python script under mpiexec and return the completed process.
+
+    ``timeout`` kills the mpiexec process group when the ranks stop answering.
+    """
     # Pass env explicitly: when petsc4py is already imported in the parent,
     # inheriting os.environ implicitly via subprocess causes mpiexec to exit
     # with code 1 and no output. An explicit dict copy avoids this.
-    return subprocess.run(
-        ["mpiexec", "-n", str(n_ranks), sys.executable, "-c", script],
-        check=False,
-        capture_output=True,
+    command = ["mpiexec", "-n", str(n_ranks), sys.executable, "-c", script]
+    if timeout is None:
+        return subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=dict(os.environ),
+        )
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         env=dict(os.environ),
+        start_new_session=True,
     )
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        out, err = proc.communicate()
+        raise subprocess.TimeoutExpired(command, timeout, output=out, stderr=err) from None
+    return subprocess.CompletedProcess(command, proc.returncode, out, err)
 
 
 def parse_mpi_reports(stdout: str) -> list[dict]:

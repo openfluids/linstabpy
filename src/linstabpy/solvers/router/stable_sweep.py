@@ -30,7 +30,7 @@ from linstabpy.solvers.router.recycling import (
 )
 from linstabpy.utils._solver_cfg import as_bool as _as_bool
 from linstabpy.utils._solver_cfg import cfg_get as _cfg_get
-from linstabpy.utils.petsc_core import _is_petsc_matrix, vec_to_numpy
+from linstabpy.utils.petsc_core import _is_petsc_matrix, agree_flag, vec_to_numpy
 from linstabpy.utils.petsc_init import init_petsc_from_argv
 
 DEFAULT_GMRES_RESTART = 50
@@ -395,6 +395,7 @@ def _right_preconditioned_gmres(
     restart: int | None = None,
     x0: Array | None = None,
     deadline: float | None = None,
+    comm: Any = None,
 ) -> tuple[Array, int, float]:
     """Right-preconditioned GMRES with a bounded restart length."""
     b = np.asarray(rhs, dtype=complex).reshape(-1)
@@ -418,9 +419,17 @@ def _right_preconditioned_gmres(
         if residual <= rtol:
             return x, 0, residual
     total_iters = 0
+    use_deadline = agree_flag(deadline is not None, comm, op="lor")
+
+    def past_deadline() -> bool:
+        # One rank past the deadline stops every rank before the next apply.
+        if not use_deadline:
+            return False
+        local = deadline is not None and time.perf_counter() >= deadline
+        return agree_flag(local, comm, op="lor")
 
     while total_iters < maxiter:
-        if deadline is not None and time.perf_counter() >= deadline:
+        if past_deadline():
             break
         if total_iters > 0:
             r = b - np.asarray(matvec(x), dtype=complex).reshape(-1)
@@ -442,7 +451,7 @@ def _right_preconditioned_gmres(
         cycle_iters = 0
 
         for j in range(cycle):
-            if deadline is not None and time.perf_counter() >= deadline:
+            if past_deadline():
                 break
             z = np.asarray(precondition(q_vectors[j]), dtype=complex).reshape(-1)
             z_vectors.append(z)
