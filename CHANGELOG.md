@@ -9,6 +9,11 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [1.0.1] - 2026-10-30
 
+### Changed
+
+- The minimum Python is 3.11 (it was 3.10). Pillow 13, which fixes 30 open security
+  advisories, does not support 3.10, so Dependabot could not patch the 3.10 lock entry.
+
 ### Fixed
 
 - The provenance record no longer carries the host name that built Open MPI

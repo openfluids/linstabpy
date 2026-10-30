@@ -93,7 +93,7 @@ That assert is the whole gate. If it fails, the environment cannot run this code
 
 Constraints to know:
 
-* Python is `>=3.10,<3.14` here. Python 3.14 stays an `install.sh` freshness test; conda-forge `petsc4py` may not resolve it.
+* Python is `>=3.11,<3.15` here. conda-forge resolves Python 3.14 with complex PETSc 3.24.
 * Never add `petsc4py`, `slepc4py`, or `mpi4py` to the pip list. Those sdists compile PETSc from source and fight the conda MPI stack.
 * `environment.yml` is not a second reference build. If conda-forge PETSc differs in minor version from the `install.sh` build, record both versions with your results.
 * There is no `environment-gpu.yml`, deliberately. GPU PETSc is not a supported conda path. See [What is still missing](#what-is-still-missing) for the current GPU status.

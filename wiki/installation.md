@@ -106,11 +106,12 @@ LINSTABPY_SKIP_SYS_DEPS=1 bash install.sh
 
 This file is the CPU path for people who already use conda. conda-forge supplies
 Python, NumPy/SciPy, and a **complex-scalar** PETSc/SLEPc/`mpi4py` stack.
-pip then installs this package from `pyproject.toml` with `--no-deps` and
-`-e .`, so pip does not pull a second NumPy or compile PETSc.
+pip then installs `linstabpy` from PyPI with `--no-deps`, so pip does not pull a
+second NumPy or compile PETSc. No checkout is needed:
+`conda env create -f https://raw.githubusercontent.com/openfluids/linstabpy/main/environment.yml`.
 
-Python is `>=3.10,<3.15`. The installer default is 3.14; conda-forge
-`petsc4py` may not resolve 3.14 yet.
+Python is `>=3.11,<3.15`. The installer default is 3.14, and conda-forge
+resolves 3.14 with complex PETSc 3.24.
 
 ```bash
 # Unset PETSC_DIR, PETSC_ARCH, and SLEPC_DIR first.

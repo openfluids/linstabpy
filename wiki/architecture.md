@@ -45,7 +45,7 @@ Orchestration → Domain Analysis → Discretization / Operators → Linear Alge
 
 | Layer | Choice |
 |-------|--------|
-| Language | Python ≥3.10, <3.14 |
+| Language | Python ≥3.11, <3.15 |
 | Local arrays / sparse | NumPy, SciPy (CSC/CSR) |
 | Parallel runtime | MPI via `mpi4py` |
 | Distributed linear algebra | PETSc (`petsc4py`), **complex scalars required** |
@@ -837,7 +837,7 @@ Hardening guidance for operators: run inside standard HPC job isolation; treat c
 
 | Requirement | Detail |
 |-------------|--------|
-| Python | ≥3.10, <3.14 |
+| Python | ≥3.11, <3.15 |
 | MPI | Working MPI + `mpi4py` |
 | PETSc/SLEPc | **Complex scalar** builds via petsc4py/slepc4py |
 | MUMPS | Default sparse-direct backend through PETSc |
