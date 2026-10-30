@@ -122,11 +122,19 @@ def _mumps_version() -> str:
     return _probe_string(probe)
 
 
+def _without_builder(version: str) -> str:
+    """Cut the build machine out of an MPI version line.
+
+    Open MPI appends ``package: Open MPI root@<build host> Distribution``.
+    """
+    return version.split(", package:")[0]
+
+
 def _mpi_impl() -> str:
     def probe() -> str:
         from mpi4py import MPI
 
-        return MPI.Get_library_version().splitlines()[0]
+        return _without_builder(MPI.Get_library_version().splitlines()[0])
 
     return _probe_string(probe)
 

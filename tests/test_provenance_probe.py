@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Provenance probes drop the NUL padding some MPI libraries add."""
 
-from linstabpy.utils.provenance import _probe_string
+from linstabpy.utils.provenance import _probe_string, _without_builder
 
 
 def test_probe_string_drops_nul_padding():
@@ -18,3 +18,12 @@ def test_probe_string_reports_unavailable_for_empty_or_failing_probes():
         raise RuntimeError
 
     assert _probe_string(fail) == "unavailable"
+
+
+def test_mpi_version_drops_the_build_host():
+    line = (
+        "Open MPI v4.1.2, package: Open MPI root@build-node.example.org Distribution, "
+        "ident: 4.1.2, repo rev: v4.1.2, Nov 24, 2021"
+    )
+    assert _without_builder(line) == "Open MPI v4.1.2"
+    assert _without_builder("MPICH Version: 4.3.2") == "MPICH Version: 4.3.2"
