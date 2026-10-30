@@ -20,8 +20,9 @@ authors:
 repository-code: 'https://github.com/openfluids/linstabpy'
 url: 'https://github.com/openfluids/linstabpy'
 license: GPL-3.0-only
-# At the v1.0.0 tag, add `version: 1.0.0` and `date-released: YYYY-MM-DD`
-# (ISO 8601). There is no software DOI: the public repository is the archive.
+version: 1.0.0
+date-released: '2026-10-30'
+# There is no software DOI: the public repository is the archive.
 preferred-citation:
   type: article
   title: >-

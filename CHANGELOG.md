@@ -7,6 +7,8 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-30
+
 ### Changed (breaking)
 
 - The resolvent uses the physical frequency sign: `H(omega) = [(gamma - i*omega) I - L0]^-1`,
@@ -1519,7 +1521,8 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc11...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc11...v1.0.0
 [1.0.0rc11]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc10...v1.0.0rc11
 [1.0.0rc10]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc9...v1.0.0rc10
 [1.0.0rc9]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc8...v1.0.0rc9
