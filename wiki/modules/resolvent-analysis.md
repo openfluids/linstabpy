@@ -228,7 +228,7 @@ class ResolventOperator:
 ```
 
 **Forward chain:** optional \(B\) mult → filter → `lu.solve` → filter → optional \(C\) mult.
-**Adjoint chain:** optional \(C^H\) → filter_ct → `lu.solve_transpose` → filter_ct → optional \(B^H\).
+**Adjoint chain:** optional \(C^H\) → filter_ct → `lu.solve_adjoint` → filter_ct → optional \(B^H\).
 
 Helpers:
 
@@ -444,7 +444,7 @@ CFD mean flow → BaseFlow → Mesh/SBP → LNSE coefficients
     → W_diag (Chu energy weights)
     → [optional B/C masks or conservative B_tilde]
     → L_sigma = (gamma - i omega) I - L0
-    → Factorization (solve / solve_transpose)
+    → Factorization (solve / solve_adjoint)
     → H / Hᴴ matvecs
     → MatShell (Hᴴ W H or invW Hᴴ W H)
     → SLEPc gains σ, forcing v, response u

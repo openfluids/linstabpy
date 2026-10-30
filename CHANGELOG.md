@@ -154,8 +154,6 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   file writes `null` for infinite values (`lambda_over_L` at `beta = 0`).
 - A truncated cached NPZ is recomputed. Before, every later call stopped with
   `zipfile.BadZipFile` on rank 0.
-- With no `LINSTABPY_CASE_CONFIG`, the cache check uses the same default config
-  path as the run. An edited default config reused a stale result before.
 - The recorded git SHA comes from the package directory. It was `unknown`, or the
   SHA of another repository, when you ran from a case directory.
 - The top-level `preprocess` block applies in the case driver. The filter and the
@@ -180,7 +178,7 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
   process persisted.
 - Cost metrics read `LINSTABPY_GPUS` and `LINSTABPY_HARDWARE_TAG`. Only the old
   `LINSTAB2D_*` names were read, so the new names gave an unknown-variable
-  warning and `cost_gpus` stayed 0. Both spellings work.
+  warning and `cost_gpus` stayed 0. The old names are now ignored (see Removed).
 - With root-only assembly, the target-distance gate works. It rejected every mode
   with `postcheck failed` before. Asking for the residual gate in that mode,
   which cannot run there, is now a configuration error.

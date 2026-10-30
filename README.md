@@ -710,16 +710,17 @@ can save a small amount of work. Older parity configurations may spell this flag
 explicitly to preserve historical behavior. New configs should spell the intended
 value instead of relying on omission.
 
-`analysis.stability_acceptance.conjugate_aware` defaults to `true` in the current
-stability-acceptance path. It treats an eigenvalue and its complex conjugate as
-equally close to the target:
+`analysis.stability_acceptance.conjugate_aware` defaults to `true`, except when
+`beta != 0` and the base flow has a nonzero `W`: the driver then sets it to
+`false`. With `omega = eig(i*L0)` and a real `L0`, the spectrum is closed under
+`omega -> -conj(omega)`, so the distance to the target is
 
 ```text
-min(|omega - target|, |omega - conj(target)|)
+min(|omega - target|, |omega + conj(target)|)
 ```
 
-This is the right default for real-valued base flows, where oscillatory modes come
-in conjugate pairs. Set `conjugate_aware: false` when you need strict
+This is the right default for real-valued operators, where oscillatory modes come
+in pairs `omega` and `-conj(omega)`. Set `conjugate_aware: false` when you need strict
 non-redundant mode selection around one target branch, or when the operator is not
 real-valued and conjugate symmetry should not be admitted.
 
