@@ -57,7 +57,6 @@ cudss = [
 test = ["pytest", "pytest-cov", "sympy>=1.13"]
 dev = [
     {include-group = "test"},
-    "pytest-gremlins>=1.9.0 ; python_full_version >= '3.11'",
 ]
 parity = ["h5py"]
 wiki = ["mkdocs-material>=9.6"]
