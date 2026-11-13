@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "uv sync --only-group wiki",
-  "buildCommand": "python3 tools/generate_wiki_boundaries.py && python3 tools/generate_llms_full.py && uv run --only-group wiki mkdocs build --strict",
+  "installCommand": "UV_PROJECT_ENVIRONMENT=docs/.venv-wiki uv sync --project .. --only-group wiki",
+  "buildCommand": "python3 scripts/generate_wiki_boundaries.py && python3 scripts/generate_llms_full.py && UV_PROJECT_ENVIRONMENT=docs/.venv-wiki uv run --project .. --only-group wiki mkdocs build --strict",
   "outputDirectory": "site",
   "framework": null,
   "cleanUrls": true,

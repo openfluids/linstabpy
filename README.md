@@ -52,12 +52,12 @@ is `LinStabPy`; the repository, distribution, and import package name is
 
 It currently supports:
 
-- **Resolvent analysis:** leading [gain](wiki/core-concepts.md), forcing modes, and response modes
+- **Resolvent analysis:** leading [gain](https://linstabpy.vercel.app/core-concepts/), forcing modes, and response modes
 - **Temporal stability:** direct and [adjoint](https://grokipedia.com/page/Adjoint) eigenvalue problems
 - **Spatial stability:** streamwise-[wavenumber](https://grokipedia.com/page/Wavenumber) eigenvalue problems
 - **Coordinate systems:** Cartesian, cylindrical/axisymmetric, and curvilinear structured meshes
 - **Boundary treatment:** [Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) rows, [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) rows, sponge damping fields, and masking for structured grids with excluded points
-- **Energy norms:** [Chu](wiki/core-concepts.md) compressible energy norm with quadrature weighting
+- **Energy norms:** [Chu](https://linstabpy.vercel.app/core-concepts/) compressible energy norm with quadrature weighting
 
 > Conventions used in this repo. Temporal eigenvalues are `omega = eig(i * L0)` with `exp(-i omega t)` time dependence, so `Im(omega) > 0` is unstable. The resolvent is `H = C F ((gamma - i omega) I - L0)^{-1} F B` with gains from the weighted normal problem (the sign is explained in [wiki/resolvent-sign-convention.md](wiki/resolvent-sign-convention.md); `solver.resolvent_sign_convention: matlab_parity` restores the LinStab2D sign). SBP orders are 2, 4, 6, 8 only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS. If you come from math and HPC, the new vocabulary is mostly fluids side: base flow, sponge, Chu norm, [wavemaker](wiki/core-concepts.md). The solvers are standard [shift-invert](wiki/solver-glossary.md) [Krylov-Schur](wiki/solver-glossary.md).
 
@@ -268,7 +268,7 @@ An agent that reads web pages can start from <https://linstabpy.vercel.app/llms.
 ## Repository layout
 
 For a maintainer map of where numerical policy belongs, see
-`wiki/architecture.md` (the Architecture page of the docs site).
+<https://linstabpy.vercel.app/architecture/> (the Architecture page of the docs site).
 
 ```text
 .
@@ -287,8 +287,12 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
-|-- wiki/                          Documentation site source (MkDocs); development pages in wiki/development/
-|-- docs/                          Tutorial and README images
+|-- docs/                          Documentation site and tutorial
+|   |-- pages/                     Site pages (MkDocs); development pages in pages/development/
+|   |-- overrides/                 Site theme templates
+|   |-- scripts/                   Generators for the site's tables and llms-full.txt
+|   |-- tutorial/                  LaTeX tutorial
+|   `-- assets/                    README banner images
 |-- skills/linstabpy/              Agent skill for AI coding agents
 |-- tests/                         Pytest suite, file-size and provenance checks
 |-- install.sh                     Installer and host preflight (`--diagnose`)
@@ -404,7 +408,7 @@ instead of silently falling back to MUMPS or PETSc native LU.
 | `superlu_dist` | Experimental | Not built by default; PETSc requires a SuperLU_DIST build with GPU offload support for GPU use. |
 | `cudss` | Validated GPU backend | Not a PETSc factor type: the cuDSS LU (through `nvmath-python`, `pip install "linstabpy[cudss]"`) preconditions the right-preconditioned FGMRES path. One rank, one GPU; the adjoint uses a second factorization of the conjugate transpose. Solutions match MUMPS to 1e-12; see `wiki/development/compute-backends.md`. |
 
-See `wiki/development/compute-backends.md` for the backend audit, version floors, and the
+See <https://linstabpy.vercel.app/development/compute-backends/> for the backend audit, version floors, and the
 current GPU go/no-go notes.
 
 #### STRUMPACK is not thread safe

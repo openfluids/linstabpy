@@ -3,7 +3,7 @@ site_url: https://linstabpy.vercel.app/
 site_description: Sparse linear stability and resolvent analysis of compressible viscous flows
 repo_url: https://github.com/openfluids/linstabpy
 repo_name: openfluids/linstabpy
-docs_dir: wiki
+docs_dir: pages
 site_dir: site
 use_directory_urls: true
 strict: true

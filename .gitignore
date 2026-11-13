@@ -6,6 +6,7 @@ build/
 dist/
 .venv/
 .venv-*/
+docs/.venv-wiki/
 .pytest_cache/
 .coverage
 .coverage.*
@@ -62,7 +63,7 @@ examples/song/inputs/raw/*
 examples/savarino/reference/savarino_response_*.npz
 !examples/sawtooth/*.npz
 !docs/assets/*.png
-!wiki/**/*.png
+!docs/pages/**/*.png
 !examples/**/*.png
 examples/**/figures/**
 examples/**/output/**

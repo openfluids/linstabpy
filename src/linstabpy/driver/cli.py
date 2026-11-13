@@ -26,8 +26,8 @@ def _package_version() -> str:
 
 
 # Canonical driver env-var contract. Single source of truth: argparse --help
-# renders it, tools/generate_wiki_boundaries.py inlines it into
-# wiki/boundaries.md, and skills/.../generate_skill_refs.py copies it into the
+# renders it, docs/scripts/generate_wiki_boundaries.py inlines it into
+# docs/pages/boundaries.md, and skills/.../generate_skill_refs.py copies it into the
 # agent skill. Each entry: (name, default, purpose).
 CLI_ENV_VARS: tuple[tuple[str, str, str], ...] = (
     (

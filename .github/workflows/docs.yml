@@ -4,20 +4,20 @@ on:
   push:
     branches: [main]
     paths:
-      - "wiki/**"
-      - "mkdocs.yml"
-      - "tools/generate_llms_full.py"
-      - "tools/generate_wiki_boundaries.py"
+      - "docs/pages/**"
+      - "docs/mkdocs.yml"
+      - "docs/scripts/generate_llms_full.py"
+      - "docs/scripts/generate_wiki_boundaries.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
     paths:
-      - "wiki/**"
-      - "mkdocs.yml"
-      - "tools/generate_llms_full.py"
-      - "tools/generate_wiki_boundaries.py"
+      - "docs/pages/**"
+      - "docs/mkdocs.yml"
+      - "docs/scripts/generate_llms_full.py"
+      - "docs/scripts/generate_wiki_boundaries.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/docs.yml"
@@ -39,6 +39,6 @@ jobs:
           enable-cache: true
       # --only-group skips the numerical stack. MkDocs does not need it.
       - run: uv sync --only-group wiki
-      - run: python3 tools/generate_wiki_boundaries.py
-      - run: python3 tools/generate_llms_full.py
-      - run: uv run --only-group wiki mkdocs build --strict
+      - run: python3 docs/scripts/generate_wiki_boundaries.py
+      - run: python3 docs/scripts/generate_llms_full.py
+      - run: uv run --only-group wiki mkdocs build --strict -f docs/mkdocs.yml

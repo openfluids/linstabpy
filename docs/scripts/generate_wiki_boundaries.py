@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Inline generated contract tables into wiki/boundaries.md.
+"""Inline generated contract tables into docs/pages/boundaries.md.
 
 Sources of truth (parsed with stdlib ``ast`` so this script needs no
 dependencies and never imports the package):
@@ -9,13 +9,13 @@ dependencies and never imports the package):
 - ``TOP_LEVEL_ALLOWED`` / ``_ALLOWED_FD_ORDERS`` in ``src/linstabpy/config/schema.py``
 - ``_LAZY_EXPORTS`` in ``src/linstabpy/__init__.py``
 
-Each generated region in ``wiki/boundaries.md`` sits between
+Each generated region in ``docs/pages/boundaries.md`` sits between
 ``<!-- GENERATED:<KEY>-START -->`` and ``<!-- GENERATED:<KEY>-END -->``
 markers. Rewrites only those regions; everything else is left untouched.
 
 Usage:
-    python3 tools/generate_wiki_boundaries.py          # rewrite in place
-    python3 tools/generate_wiki_boundaries.py --check  # CI: fail if stale
+    python3 docs/scripts/generate_wiki_boundaries.py          # rewrite in place
+    python3 docs/scripts/generate_wiki_boundaries.py --check  # CI: fail if stale
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ import ast
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-BOUNDARIES = REPO / "wiki" / "boundaries.md"
+REPO = Path(__file__).resolve().parents[2]
+BOUNDARIES = REPO / "docs" / "pages" / "boundaries.md"
 
 
 def _eval(node: ast.AST):
@@ -125,7 +125,7 @@ def main(argv: list[str]) -> int:
     fresh = build()
     if check:
         if current != fresh:
-            print(f"{BOUNDARIES} is stale; run tools/generate_wiki_boundaries.py")
+            print(f"{BOUNDARIES} is stale; run docs/scripts/generate_wiki_boundaries.py")
             return 1
         print("wiki boundaries are in sync.")
         return 0

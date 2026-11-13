@@ -3,7 +3,7 @@
 # NPZ contract keys (generated)
 
 Source: `src/linstabpy/driver/payload.py` (`RUNTIME_NPZ_CONTRACT_KEYS`).
-Additive keys are fine; renames/removals need a migration note + test + reader updates (`wiki/development/runtime-npz-contract.md`).
+Additive keys are fine; renames/removals need a migration note + test + reader updates (`https://linstabpy.vercel.app/development/runtime-npz-contract/`).
 
 Total keys: 86.
 

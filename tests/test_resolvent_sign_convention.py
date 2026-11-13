@@ -6,7 +6,7 @@ Its late-time response is ``q(t) = exp(-i*omega*t) H f``.
 Here ``H = [(gamma - i*omega) I - L]^-1``.
 A matrix exponential of the augmented system integrates the ODE.
 That reference uses no resolvent code.
-``wiki/resolvent-sign-convention.md`` gives the derivation.
+``docs/pages/resolvent-sign-convention.md`` gives the derivation.
 """
 
 from __future__ import annotations

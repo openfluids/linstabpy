@@ -61,10 +61,10 @@ jobs:
           python-version-file: .python-version
 
       - name: Check wiki boundaries are current
-        run: python3 tools/generate_wiki_boundaries.py --check
+        run: python3 docs/scripts/generate_wiki_boundaries.py --check
 
       - name: Check llms-full.txt is current
-        run: python3 tools/generate_llms_full.py --check
+        run: python3 docs/scripts/generate_llms_full.py --check
 
       - name: Check skill generated refs are current
         run: python3 skills/linstabpy/scripts/generate_skill_refs.py --check
@@ -133,10 +133,10 @@ jobs:
         run: uv build --out-dir dist
 
       # The source archive carries the package, its tests and the legal
-      # files only. Examples, logs, docs and the wiki stay in the repository.
-      - name: Check the sdist holds no examples, docs or wiki
+      # files only. Examples, logs and the docs site stay in the repository.
+      - name: Check the sdist holds no examples or docs
         run: |
-          if tar tzf dist/*.tar.gz | grep -E '^[^/]+/(examples|wiki|skills|graft|docs|paper)/'; then
+          if tar tzf dist/*.tar.gz | grep -E '^[^/]+/(examples|skills|graft|docs|paper)/'; then
             echo "sdist contains repository-only folders" >&2
             exit 1
           fi

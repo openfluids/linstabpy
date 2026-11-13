@@ -76,33 +76,44 @@ commit SHA.
 5. On `main`, bump `pyproject.toml` to the next `.devN` and open a fresh
    `[Unreleased]` heading in the changelog.
 
-## Architecture wiki
+## Documentation site
 
-`wiki/` is hand-owned. This page, [compute backends](compute-backends.md), and the [runtime NPZ contract](runtime-npz-contract.md) live in `wiki/development/`; `docs/` holds only the tutorial and the README images. An early version was machine-generated, then
+`docs/` holds everything the website needs: `mkdocs.yml`, `vercel.json`,
+`pages/` (the Markdown pages), `overrides/` (theme templates) and `scripts/`
+(the generators). It also holds the LaTeX tutorial (`tutorial/`) and the README
+banners (`assets/`), which are not on the site.
+
+The pages are hand-owned. An early version was machine-generated, then
 rewritten by hand (prose, links, examples, nav), so edit pages directly.
-Two scripts generate parts of it, and CI runs both (`.github/workflows/docs.yml`):
+This page, [compute backends](compute-backends.md), and the
+[runtime NPZ contract](runtime-npz-contract.md) live in `docs/pages/development/`.
+Two scripts generate parts of the site, and CI runs both (`.github/workflows/docs.yml`):
 
-- `python3 tools/generate_wiki_boundaries.py` rewrites the generated regions
+- `python3 docs/scripts/generate_wiki_boundaries.py` rewrites the generated regions
   of [boundaries](../boundaries.md) (CLI variables, allowed YAML keys, lazy exports).
   It leaves the rest of the page unchanged.
-- `python3 tools/generate_llms_full.py` writes `wiki/llms-full.txt`. Do not
+- `python3 docs/scripts/generate_llms_full.py` writes `docs/pages/llms-full.txt`. Do not
   edit that file by hand.
 
 Add `--check` to either script to fail when its output is stale.
 
-Build the wiki in its own environment. `uv run` and `uv sync` make the
+Build the site in its own environment. `uv run` and `uv sync` make the
 project environment match `uv.lock` and `.python-version`, so pointed at
 the `.venv` that `install.sh` built they remove PETSc, SLEPc and mpi4py or
-replace the whole environment. Preview locally with
-`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs serve`.
+replace the whole environment. uv resolves a relative `UV_PROJECT_ENVIRONMENT`
+against the repository root, so the commands below, run from the repository
+root, keep the site environment in `docs/.venv-wiki`. Preview locally with
+`UV_PROJECT_ENVIRONMENT=docs/.venv-wiki uv run --only-group wiki mkdocs serve -f docs/mkdocs.yml`.
 The gate is
-`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs build --strict`
+`UV_PROJECT_ENVIRONMENT=docs/.venv-wiki uv run --only-group wiki mkdocs build --strict -f docs/mkdocs.yml`
 with zero warnings.
 
 The site is published at `https://linstabpy.vercel.app/`, which the paper
-cites. Vercel builds it from `main` with `vercel.json`.
+cites. The maintainer deploys it from `docs/` with the Vercel CLI
+(`vercel build`, then `vercel deploy --prebuilt`); `docs/vercel.json` holds the
+build commands and the response headers. A push does not deploy.
 `.github/workflows/docs.yml` runs the strict build on every pull request
-that touches the wiki, and publishes nothing.
+that touches the pages, and publishes nothing.
 
 ## CHANGELOG discipline
 

@@ -4,7 +4,7 @@
 
 LinStabPy answers two questions about a steady flow field you supply: stability (does a small disturbance grow on its own, at what frequency, with what shape?) and resolvent (at a given frequency, which harmonic forcing produces the largest response?). Base flows are loaded from files, never computed here. Cases are defined in YAML; results land in contract-stable `.npz` archives.
 
-How to use this file: find the task below, follow the link, and read that page. Links point at human-readable HTML pages; each page's Markdown source lives in the repo under `wiki/`.
+How to use this file: find the task below, follow the link, and read that page. Links point at human-readable HTML pages; each page's Markdown source lives in the repo under `docs/pages/`.
 
 Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- config and output travel by `LINSTABPY_CASE_CONFIG` and `LINSTABPY_CASE_OUTPUT_NPZ` env vars, and unknown CLI bare words and `--flags` warn on stderr but are otherwise ignored (`parse_known_args`, exit code unchanged), so a guessed command still runs the wrong case. Install is the hard part (one MPI stack, complex-scalar PETSc/SLEPc + MUMPS via `install.sh --diagnose` -> `install.sh` -> `install.sh --check`); nothing that solves will work until `--check` passes. On macOS always use `.venv/bin/python`, never `uv run`. Fixed conventions repo-wide: temporal eigenvalues `omega = eig(i*L0)` with `exp(-i*omega*t)` time dependence, unstable exactly when `Im(omega) > 0`; SBP orders are 2, 4, 6, 8 only; default shifted solve is `KSPPREONLY` + `PCLU` through MUMPS.
 

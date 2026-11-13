@@ -7,7 +7,7 @@
 # K^H (the dual-factor path in linalg/factorize.py). Run with
 #   mpiexec -n 1, CUDA_VISIBLE_DEVICES=<device>, PETSC_OPTIONS='-use_gpu_aware_mpi 0',
 #   OMP_NUM_THREADS = the job's cores (cuDSS analysis threads through the
-#   bundled threading layer; see wiki/development/compute-backends.md),
+#   bundled threading layer; see docs/pages/development/compute-backends.md),
 # in a venv with the cudss extra installed (pip install "linstabpy[cudss]").
 paths:
   # Point this at the directory written by savarino_to_npy.py.

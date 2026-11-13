@@ -1085,7 +1085,7 @@ def _load_store(
                     "One map never mixes conventions. To finish the old map, set "
                     f"solver.resolvent_sign_convention: {stored}. To use the current "
                     "convention, write to a new output_npz path. To convert an old map "
-                    "without recomputing, see wiki/resolvent-sign-convention.md."
+                    "without recomputing, see https://linstabpy.vercel.app/resolvent-sign-convention/."
                 )
             if "fingerprint_json" in data.files:
                 stored_fp = json.loads(str(data["fingerprint_json"]))
