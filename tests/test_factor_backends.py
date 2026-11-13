@@ -611,7 +611,7 @@ def test_absent_backend_probe_and_error_message() -> None:
     assert missing in message
     assert "PETSc" in message
     assert "Rebuild PETSc/petsc4py" in message
-    assert "wiki/development/compute-backends.md" in message
+    assert "https://linstabpy.vercel.app/development/compute-backends/" in message
 
 
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
@@ -639,7 +639,7 @@ def test_ensure_factor_backend_available_reports_the_truth_either_way(backend: s
     message = str(excinfo.value)
     assert f"'{backend}'" in message
     assert "Rebuild PETSc/petsc4py" in message
-    assert "wiki/development/compute-backends.md" in message
+    assert "https://linstabpy.vercel.app/development/compute-backends/" in message
 
 
 @pytest.mark.parametrize("backend", ["strumpack", "superlu_dist"])
@@ -673,7 +673,7 @@ def test_apply_factor_backend_reports_the_truth_either_way(backend: str) -> None
         message = str(excinfo.value)
         assert f"'{backend}'" in message
         assert "Rebuild PETSc/petsc4py" in message
-        assert "wiki/development/compute-backends.md" in message
+        assert "https://linstabpy.vercel.app/development/compute-backends/" in message
     finally:
         ksp.destroy()
         A.destroy()
@@ -731,7 +731,7 @@ def test_future_backend_knob_is_honoured_and_absence_fails_loudly(monkeypatch, b
         message = str(excinfo.value)
         assert f"PETSc factor backend '{backend}' is not available" in message
         assert "Rebuild PETSc/petsc4py" in message
-        assert "wiki/development/compute-backends.md" in message
+        assert "https://linstabpy.vercel.app/development/compute-backends/" in message
 
 
 def test_direct_linsolve_uses_mumps_backend(monkeypatch) -> None:
@@ -870,7 +870,7 @@ def test_strumpack_fgmres_backend_reports_the_truth_either_way() -> None:
     message = str(excinfo.value)
     assert "PETSc factor backend 'strumpack' is not available" in message
     assert "Rebuild PETSc/petsc4py" in message
-    assert "wiki/development/compute-backends.md" in message
+    assert "https://linstabpy.vercel.app/development/compute-backends/" in message
 
 
 @pytest.mark.parametrize("st_solver", ["fgmres_lu", "strumpack_fgmres"])

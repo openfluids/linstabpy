@@ -332,7 +332,7 @@ def apply_factor_backend(
             f"{'.'.join(str(v) for v in _get_petsc().Sys.getVersion())} ignores, "
             "so the factor would silently be computed in double precision. "
             "Use factor_precision='double' (the default). See "
-            "wiki/development/compute-backends.md."
+            "https://linstabpy.vercel.app/development/compute-backends/."
         )
     if backend == "strumpack":
         limit_strumpack_host_threads()
@@ -379,7 +379,7 @@ def ensure_factor_backend_available(backend: str) -> None:
         raise RuntimeError(
             f"PETSc factor backend '{backend}' is not available in this build "
             f"(PETSc {version}). Rebuild PETSc/petsc4py with that sparse-direct "
-            "solver enabled, then rerun. See wiki/development/compute-backends.md."
+            "solver enabled, then rerun. See https://linstabpy.vercel.app/development/compute-backends/."
         )
 
 

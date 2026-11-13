@@ -13,7 +13,7 @@ eigensolver with ``pc_type="lu"`` and for ``st_solver="strumpack_fgmres"``
 (whose default is ``strumpack``).
 A small complex PETSc LU probe checks requested backends.
 An unavailable backend fails loudly instead of falling back.
-See ``wiki/development/compute-backends.md`` for the backend contract and current evidence.
+See ``https://linstabpy.vercel.app/development/compute-backends/`` for the backend contract and current evidence.
 
 Current backend status stays conservative.
 ``mumps`` is the default and reference path.
@@ -538,7 +538,7 @@ def _configure_st_for_eigenvalue(
     then the path default.
     A probe checks availability.
     Unavailable backends fail loudly.
-    See ``wiki/development/compute-backends.md``.
+    See ``https://linstabpy.vercel.app/development/compute-backends/``.
     The environment knobs ``LINSTABPY_FACTOR_PRECISION``,
     ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
     ``LINSTABPY_MUMPS_ORDERING`` apply only from the environment at
