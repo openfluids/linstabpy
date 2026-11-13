@@ -4,7 +4,6 @@ Crosscutting helpers with no physics of their own: [PETSc](https://en.wikipedia.
 
 Solver objects (`KSP`, `PC`, `EPS`, `ST`, `MatShell`) are defined in the [solver glossary](../solver-glossary.md).
 
-
 ## Overview
 
 **Shared scientific utilities** are the common helpers used by mesh discretization, LNSE operator assembly, linear algebra, stability, and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis: shared services that implement no scientific workflow of their own.
@@ -40,7 +39,6 @@ src/linstabpy/
 - Unify YAML / environment / default precedence for solver policy across eigen, resolvent, and linear-solve paths.
 - Persist reproducible, privacy-safe cost and provenance sidecars next to run NPZ artifacts.
 
-
 ## Architectural Role
 
 In the staged LinStabPy pipeline, utilities are **tool support**, not a business stage:
@@ -72,7 +70,6 @@ flowchart TD
 | Linear Algebra Infrastructure | Matrix/vector conversion and initialization under factorization backends |
 | Case Orchestration | YAML load, cost/provenance collection, metrics validation before payload write |
 
-
 ## Public Package Surface
 
 `linstabpy.utils.__init__` re-exports a small, PETSc-free public set:
@@ -88,7 +85,6 @@ from .yaml_io import (
 ```
 
 Everything else is imported by qualified path (for example `linstabpy.utils.petsc_core`, `linstabpy.utils.petsc_init`, `linstabpy.metrics_schema`). That keeps help/version and pure-NumPy post-processing paths light.
-
 
 ## PETSc Core Bridge
 
@@ -211,7 +207,6 @@ Used by tests and assembly validation:
 
 Reports include a boolean `pass` against `abs_tol + rel_tol * scale` style thresholds.
 
-
 ## Solver Configuration Helpers (`_solver_cfg.py`)
 
 Solver modules share one precedence rule:
@@ -255,7 +250,6 @@ Resolvent reuses linear-solve policy by default but may override under `solver.r
 
 **Note:** Typed config in `config.typed` is the long-term seam; `_solver_cfg` remains the legacy mirror used heavily by solvers. Both must stay behavior-compatible during migration.
 
-
 ## YAML Case I/O (`yaml_io.py`)
 
 ### `load_config(path)`
@@ -273,7 +267,6 @@ Resolvent reuses linear-solve policy by default but may override under `solver.r
 | `parse_int_list` | Iterable of ints | Each value `max(1, int(v))` (positive clamp) |
 
 These parsers are part of the public `linstabpy.utils` surface for case authors and driver code.
-
 
 ## Cost Metrics (`cost_metrics.py`)
 
@@ -310,7 +303,6 @@ Builds the cost subsection dict:
 
 **Privacy:** Hardware tag defaults to `"unknown"`; machine identity is opt-in only.
 
-
 ## Provenance (`provenance.py`)
 
 `collect_provenance(config_path)` returns a **string-valued** dict whose key order is fixed by `_PROVENANCE_KEYS` (asserted at return):
@@ -334,7 +326,6 @@ Failed probes degrade to `"unavailable"` via `_probe_string` rather than abortin
 **Why [BLAS](https://en.wikipedia.org/wiki/BLAS) is first-class:** factorization cost is not comparable across BLAS families; reference Fortran BLAS has been measured substantially slower than MKL on the same code and commit. Cost rows without `blas` cannot be ranked against each other.
 
 **Privacy policy:** Artifacts may be published (papers, Zenodo). Hostname and hardware tags stay generic unless the operator deliberately sets environment labels.
-
 
 ## Metrics Schema (`metrics_schema.py`)
 
@@ -365,7 +356,6 @@ Optional problem keys include `stride_ksi` / `stride_eta` for older JSON compati
 - `METRICS_SIDECAR_KEYS` is the frozenset of all known keys across groups.
 - `FieldSpec(types, required=True)` encodes accepted Python/NumPy type unions.
 
-
 ## Floquet Reconstruction (`floquet.py`)
 
 ```text
@@ -384,7 +374,6 @@ Rebuilds a Floquet mode in physical space:
 - `V` 2-D with one axis equal to `len(used_ind)` → ensemble/fields axis; output `(n_fields, ny, nx)`-style.
 
 This is pure NumPy post-processing and is safe without PETSc.
-
 
 ## Runtime Sequence
 
@@ -421,7 +410,6 @@ sequenceDiagram
   Flq-->>App: physical-space modes
 ```
 
-
 ## Implementation Contracts and Pitfalls
 
 | Contract | Detail |
@@ -436,7 +424,6 @@ sequenceDiagram
 | **`petsc_vec` under MPI** | Always pass full-global arrays; helper slices by ownership |
 | **Dual config seams** | Prefer `config.typed.Config` for new code; keep `_solver_cfg` behavior aligned |
 
-
 ## Extension Guidelines
 
 1. **New solver policy knobs**, Add family constants and `_scfg_*` readers in `_solver_cfg` first so eigen/resolvent/linsolve stay consistent; mirror into `config.typed` when promoting to the typed seam.
@@ -444,13 +431,3 @@ sequenceDiagram
 3. **New metrics fields**, Extend `SCHEMA` with `FieldSpec`, document units, and ensure emitters and `validate_metrics` stay in lockstep. Prefer optional quality keys for analysis-mode-specific data.
 4. **New provenance probes**, Append to `_PROVENANCE_KEYS` and `collect_provenance` together; keep values strings; fail soft to `"unavailable"`.
 5. **Do not** put business orchestration, LNSE physics, or factorization strategy in this package, those belong to driver, operators, and `linalg`.
-
-
-## Summary
-
-Shared Scientific Utilities is the **infrastructure substrate** of LinStabPy:
-
-- **PETSc Core Bridge** guarantees correct one-time init order, complex-scalar enforcement, and a single SciPy ↔ PETSc conversion path for local and MPI layouts, shared by mesh filters and all solver backends.
-- **Config I/O, Metrics, and Provenance** unify case YAML parsing, solver-policy precedence, cost accounting, stack fingerprinting, Floquet post-process, and schema-validated metrics sidecars for reproducible HPC campaigns.
-
-Together they enable the factorize-once stability and resolvent pipelines without coupling mesh and solver packages, without initializing PETSc on library import, and without sacrificing artifact reproducibility or operator privacy defaults.

@@ -2,7 +2,7 @@
 
 ## What this reproduces
 
-This directory reproduces the resolvent-analysis validation and speed
+This directory reproduces the resolvent analysis validation and speed
 figures against the published Savarino et al. shock-wave/boundary-layer
 interaction (SWBLI) resolvent dataset, at the 30.8 deg oblique-shock
 interaction angle: the manuscript supplement figures S4-S6 (response-mode

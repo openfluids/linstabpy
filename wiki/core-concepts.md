@@ -7,7 +7,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 ## Stability vocabulary
 
-**Base flow.** A steady solution $\bar q(x, y)$ of the compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) equations, loaded from files and never computed here. Starting point of every analysis. Nondimensional, convective scaling: freestream density, velocity, and temperature equal 1. See [baseflow management](modules/baseflow-management.md).
+**Base flow.** A steady solution $\bar q(x, y)$ of the compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) equations, loaded from files and never computed here. Starting point of every analysis. Nondimensional, convective scaling: freestream density, velocity, and temperature equal 1. See [base flow](modules/baseflow.md).
 
 **Perturbation.** The small disturbance $q'(x, y, z, t)$ about the base flow. LinStabPy solves linear equations for $q'$ only. Nonlinear saturation is out of scope by construction.
 
@@ -19,7 +19,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Direct mode.** A right eigenvector of the stability problem: the spatial shape $v(x, y)$ of the disturbance. Modes are normalized in the Chu norm (or $L^2$ where stated) before any comparison or plot.
 
-**Spatial amplification.** At prescribed real spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$ and real frequency $\omega$, the spatial problem returns a complex streamwise wavenumber $\alpha$. Amplification along $x$ is read from $\mathrm{Im}(\alpha)$ while following one branch; the sign interpretation depends on the branch, so never judge convective or absolute behavior from a single point. Build the spectrum first, then track the branch. See the tutorial and [stability analysis](modules/stability-analysis.md).
+**Spatial amplification.** At prescribed real spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$ and real frequency $\omega$, the spatial problem returns a complex streamwise wavenumber $\alpha$. Amplification along $x$ is read from $\mathrm{Im}(\alpha)$ while following one branch; the sign interpretation depends on the branch, so never judge convective or absolute behavior from a single point. Build the spectrum first, then track the branch. See the tutorial and [stability analysis](modules/stability.md).
 
 **Generalized eigenvalue problem.** An eigenproblem of the form $A x = \lambda B x$ with $B \neq I$ (see [generalized eigenvectors](https://grokipedia.com/page/Generalized_eigenvector)). Ours is the spatial pencil $(L_c + \omega L_w)\, v = \alpha\, R\, v$. Boundary rows make $R$ singular, so $\lambda = \infty$ eigenvalues exist for the constrained subspace. Tiny or near-full problems go to dense [QZ](https://en.wikipedia.org/wiki/QZ_algorithm), which handles singular $B$ natively; production sizes use shift-invert [EPS](solver-glossary.md).
 
@@ -30,7 +30,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Modal vs non-modal.** Modal stability asks about $t \to \infty$: do all eigenvalues sit on the stable side. Non-modal stability asks about finite time: how far can a perturbation wander before (possibly) decaying. For normal operators the answers agree; for non-normal ones they can differ wildly, and the finite-time answer is an optimization problem, not an eigenvalue. See Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, *Appl. Mech. Rev.* 75(3), 030802, modal and non-modal stability.
 
-**Resolvent.** The operator $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. The sign of $\omega$ follows $\exp(-i\omega t)$, as for the eigenvalues; see the [sign convention](resolvent-sign-convention.md). See [resolvent analysis](modules/resolvent-analysis.md).
+**Resolvent.** The operator $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. The sign of $\omega$ follows $\exp(-i\omega t)$, as for the eigenvalues; see the [sign convention](resolvent-sign-convention.md). See [resolvent analysis](modules/resolvent.md).
 
 **Optimal energy gain.** The largest achievable energy ratio $\sigma_1^2 = \max_{f \neq 0} \|Hf\|_E^2 / \|f\|_F^2$: response energy in the Chu norm over forcing energy in the forcing norm. Computed as $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal eigenproblem, never from an explicit [SVD](https://grokipedia.com/page/Singular_value_decomposition) of $H$. "Optimal" means optimal over all forcing shapes at that $(\beta, \omega)$, not over frequencies.
 
@@ -38,7 +38,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Response mode.** The optimal output shape $u = Hv/\sigma$: what grows when the optimal forcing is applied. Always recovered by applying $H$, which is why the forward residual sits at roundoff by construction.
 
-**Gain map.** Leading gains sampled over a $(\beta, \omega)$ grid: spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) versus frequency. Peaks mark the flow's preferred amplifier settings. Production maps reuse anchor factorizations across nearby $\omega$ under a residual gate instead of refactoring per point. See [solver routing](modules/solver-routing.md).
+**Gain map.** Leading gains sampled over a $(\beta, \omega)$ grid: spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) versus frequency. Peaks mark the flow's preferred amplifier settings. Production maps reuse anchor factorizations across nearby $\omega$ under a residual gate instead of refactoring per point. See [solver routing](modules/solvers.md).
 
 **Discount ($\gamma$).** A real shift added as $(\gamma - i\omega) I - L_0$ with $\gamma > 0$ pushing poles off the imaginary axis. Keeps the shifted solve well posed near lightly damped eigenvalues. $\gamma = 0$ is the classical resolvent. Gains of a discounted resolvent answer the discounted question, so report $\gamma$ with the number.
 

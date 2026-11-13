@@ -97,31 +97,20 @@ nav:
   - Overview: overview.md
   - Architecture: architecture.md
   - Workflow: workflow.md
-  - Module guide:
+  - Modules:
       - modules/index.md
-      - Quick reference:
-          - Runtime driver: modules/driver.md
-          - LNSE assembly: modules/operators.md
-          - BC recipes: modules/boundary-conditions.md
-          - Structured mesh: modules/mesh.md
-          - Packed fields: modules/baseflow.md
-          - YAML and Config: modules/config.md
-          - Eigenvalues: modules/stability.md
-          - Resolvent: modules/resolvent.md
-          - Solvers: modules/solvers.md
-          - Sparse factors: modules/linalg.md
-      - Package notes:
-          - Case pipeline: modules/case-orchestration.md
-          - Configuration: modules/configuration-management.md
-          - Baseflow: modules/baseflow-management.md
-          - Mesh: modules/mesh-discretization.md
-          - LNSE operator: modules/lnse-operator-assembly.md
-          - Stability: modules/stability-analysis.md
-          - Resolvent: modules/resolvent-analysis.md
-          - Resolvent sign convention: resolvent-sign-convention.md
-          - Solver routing: modules/solver-routing.md
-          - Linear algebra: modules/linear-algebra.md
-          - Utilities: modules/shared-utilities.md
+      - Runtime driver: modules/driver.md
+      - LNSE assembly: modules/operators.md
+      - BC recipes: modules/boundary-conditions.md
+      - Structured mesh: modules/mesh.md
+      - Base flow: modules/baseflow.md
+      - Configuration: modules/config.md
+      - Stability analysis: modules/stability.md
+      - Resolvent analysis: modules/resolvent.md
+      - Resolvent sign convention: resolvent-sign-convention.md
+      - Solvers and routing: modules/solvers.md
+      - Linear algebra: modules/linalg.md
+      - Shared utilities: modules/shared-utilities.md
   - Boundaries: boundaries.md
   - Solver glossary: solver-glossary.md
   - Core concepts: core-concepts.md

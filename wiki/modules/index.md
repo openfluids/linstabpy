@@ -1,9 +1,6 @@
-# Module guide
+# Modules
 
-Short reference per package, then longer notes. Policy lives in the
-owning module; `docs/architecture.md` is the short map.
-
-## Quick reference
+One page per package. Each page starts with a short summary (owner, files, rules) and continues with the package notes. Policy lives in the owning module; [Architecture](../architecture.md) is the short map.
 
 | Package | Page |
 |---|---|
@@ -11,24 +8,12 @@ owning module; `docs/architecture.md` is the short map.
 | `operators` | [LNSE assembly](operators.md) |
 | `boundary_conditions` | [BC recipes](boundary-conditions.md) |
 | `mesh` | [Structured mesh](mesh.md) |
-| `baseflow` | [Packed fields](baseflow.md) |
-| `config` | [YAML and Config](config.md) |
-| `stability` | [Eigenvalues](stability.md) |
-| `resolvent` | [Resolvent](resolvent.md) |
-| `solvers` | [Solvers](solvers.md) |
-| `linalg` | [Sparse factors](linalg.md) |
+| `baseflow` | [Base flow](baseflow.md) |
+| `config` | [Configuration](config.md) |
+| `stability` | [Stability analysis](stability.md) |
+| `resolvent` | [Resolvent analysis](resolvent.md) |
+| `solvers` | [Solvers and routing](solvers.md) |
+| `linalg` | [Linear algebra](linalg.md) |
+| `utils` | [Shared utilities](shared-utilities.md) |
 
-## Package notes
-
-| Topic | Page |
-|---|---|
-| Case pipeline | [Case Orchestration](case-orchestration.md) |
-| Configuration | [Configuration Management](configuration-management.md) |
-| Baseflow | [Baseflow Management](baseflow-management.md) |
-| Mesh | [Mesh Discretization](mesh-discretization.md) |
-| LNSE assembly | [LNSE Operator Assembly](lnse-operator-assembly.md) |
-| Stability | [Stability Analysis](stability-analysis.md) |
-| Resolvent | [Resolvent Analysis](resolvent-analysis.md) |
-| Solver routing | [Solver Routing and Sweep Optimization](solver-routing.md) |
-| Linear algebra | [Linear Algebra Infrastructure](linear-algebra.md) |
-| Utilities | [Shared Scientific Utilities](shared-utilities.md) |
+The resolvent sign convention has its own page: [Resolvent sign convention](../resolvent-sign-convention.md).
