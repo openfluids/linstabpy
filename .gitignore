@@ -16,6 +16,7 @@ site/
 .vercel/
 .env*
 .DS_Store
+.jac
 
 # LaTeX build files (docs/tutorial)
 *.aux
