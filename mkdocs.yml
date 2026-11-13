@@ -97,9 +97,7 @@ nav:
   - Getting started: getting-started/index.md
   - Installation: installation.md
   - Troubleshooting: troubleshooting.md
-  - Overview: overview.md
   - Architecture: architecture.md
-  - Workflow: workflow.md
   - Modules:
       - modules/index.md
       - Runtime driver: modules/driver.md

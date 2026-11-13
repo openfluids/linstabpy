@@ -407,8 +407,8 @@ Honest gaps, so you can plan around them:
 ## Where to go next
 
 * Run the family: [example family map](#the-example-family-map) commands, then the parity comparison.
-* Read the [Overview](../overview.md) for scope and vocabulary.
-* Read the [Workflow](../workflow.md) before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
+* Read [Core concepts](../core-concepts.md) for scope and vocabulary.
+* Read the [Architecture](../architecture.md) page before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
 * Open one [module guide](../modules/index.md) package note when you need math or code detail. Start with LNSE Operator Assembly or Resolvent Analysis.
 * Keep the [Boundaries](../boundaries.md) page open while building cases. It lists every env var, flag, and output key.
 * Open the [solver glossary](../solver-glossary.md) beside any solver output.

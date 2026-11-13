@@ -11,6 +11,15 @@ Intuition first. You bring a steady flow field computed elsewhere. LinStabPy ans
 
 The discrete state is the primitive perturbation vector \( \mathbf{q}' \) at each grid point, giving 5 unknowns per point before boundary elimination (\( \rho', u', v', w', T' \)). The code assembles the [sparse](https://grokipedia.com/page/Sparse_matrix) matrix \( \mathcal{L}_0 \) such that \( \partial_t \mathbf{q}' = \mathcal{L}_0 \mathbf{q}' \) in the undisturbed interior, then applies sponge, dissipation, and boundary recipes in a fixed order. Everything downstream consumes that one operator family.
 
+From that operator the code computes:
+
+* **Temporal** eigenvalues, \( \omega = \mathrm{eig}(i\mathcal{L}_0) \), near a target
+* **Spatial** eigenvalues, the generalized problem for the streamwise [wavenumber](https://grokipedia.com/page/Wavenumber)
+* **[Adjoint](https://grokipedia.com/page/Adjoint)** modes and structural sensitivity (wavemaker) maps
+* **Resolvent** gains with forcing and response modes, at one frequency or over a \( (\beta, \omega) \) grid
+
+Inputs are a base flow stored as `.npy` or `.npz` arrays on a structured grid, and a YAML case file. LinStabPy does not compute the base flow, does not plot, and does not handle unstructured or full 3-D grids. It runs on [PETSc](https://en.wikipedia.org/wiki/PETSc) and SLEPc with MPI; the default sparse direct factorization is [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), with an optional [cuDSS](https://docs.nvidia.com/cuda/cudss/) GPU path. Every result is stored with the config hash, git SHA, backend, and cost.
+
 
 ## Governing Equations & Mathematical Formulation
 
@@ -97,7 +106,7 @@ Computed as \( \sigma = \sqrt{\operatorname{Re}(\lambda)} \) from the weighted n
 
     Growth rates, frequencies, [adjoint](https://grokipedia.com/page/Adjoint) modes, and where the flow is most sensitive to a structural perturbation.
 
-    [:octicons-arrow-right-24: Read Overview](overview.md)
+    [:octicons-arrow-right-24: Core concepts](core-concepts.md)
 
 - :material-layers-triple-outline:{ .lg .middle } __LNSE Discretization__
 
@@ -105,15 +114,15 @@ Computed as \( \sigma = \sqrt{\operatorname{Re}(\lambda)} \) from the weighted n
 
     Grids, SBP difference stencils (orders 2, 4, 6, 8), metric invariants, and energy-stable boundary condition recipes.
 
-    [:octicons-arrow-right-24: Explore Architecture](architecture.md)
+    [:octicons-arrow-right-24: Architecture](architecture.md)
 
-- :material-console-line:{ .lg .middle } __Orchestrated Workflow__
+- :material-console-line:{ .lg .middle } __Run order__
 
     ---
 
     End-to-end staged pipeline from mean-flow ingest and YAML config to [MPI](https://grokipedia.com/page/Message_Passing_Interface) execution and contract-stable NPZ payloads.
 
-    [:octicons-arrow-right-24: Study Workflow](workflow.md)
+    [:octicons-arrow-right-24: Run order](architecture.md#run-order)
 
 - :material-tune-vertical:{ .lg .middle } __Resolvent & Solvers__
 
@@ -164,10 +173,8 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 | Section | Core Focus | Target Audience |
 |---|---|---|
 | [**Getting started**](getting-started/index.md) | Install, first runs, examples, your first case | Start here |
-| [**Overview**](overview.md) | What LinStabPy computes and where it stops | First read, scope, vocabulary |
-| [**Architecture**](architecture.md) | Component relationships & C4 models | Contributors, system developers |
-| [**Workflow**](workflow.md) | Steps of a run in order | Running and orchestrating cases |
-| [**Module guide**](modules/index.md) | Per-package derivations and code notes | Advanced customization, algorithms |
+| [**Architecture**](architecture.md) | Packages, ownership of policy, run order, stored data, quality gates | Contributors, running and orchestrating cases |
+| [**Modules**](modules/index.md) | Per-package derivations and code notes | Advanced customization, algorithms |
 | [**Boundaries**](boundaries.md) | YAML schema, CLI flags, env vars, NPZ contract | Reference when building cases |
 | [**Solver glossary**](solver-glossary.md) | Every KSP, PC, EPS, ST, and MatShell term defined and linked | Open beside any solver page |
 | [**Core concepts**](core-concepts.md) | Base flow, growth rate, gain, Chu norm, wavemaker, sponge, and friends | Open beside any science page |

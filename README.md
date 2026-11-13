@@ -254,7 +254,7 @@ data with executable code. YAML keeps the comments next to the knobs.
 ## Repository layout
 
 For a maintainer map of where numerical policy belongs, see
-`docs/architecture.md`.
+`wiki/architecture.md` (the Architecture page of the docs site).
 
 ```text
 .
