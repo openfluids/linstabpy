@@ -51,11 +51,11 @@ ships packed `song_32deg.npz`), `examples/sawtooth/` (ships packed
 ## Runner
 
 ```bash
-bash run_all_examples.sh --list
-bash run_all_examples.sh --example 1 --skip-parity   # one example, no MATLAB check
-bash run_all_examples.sh                             # everything + parity + plots
-bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
+bash examples/run_all_examples.sh --list
+bash examples/run_all_examples.sh --example 1 --skip-parity   # one example, no MATLAB check
+bash examples/run_all_examples.sh                             # everything + parity + plots
+bash examples/run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 Without `-n` the runner defaults to half the detected physical cores.

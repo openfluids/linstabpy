@@ -29,8 +29,8 @@ PLOT_MODULES = (
 STALE_MODULE = re.compile(r"examples\.example_[0-9]|examples\.example_1_blasius_smoke")
 PUBLIC_PATH_FILES = (
     ROOT / "README.md",
-    ROOT / "run_all_examples.sh",
-    ROOT / "benchmark.sh",
+    ROOT / "examples" / "run_all_examples.sh",
+    ROOT / "examples" / "benchmark.sh",
     ROOT / "docs" / "tutorial" / "tutorial.tex",
 )
 

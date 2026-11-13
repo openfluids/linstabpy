@@ -97,7 +97,7 @@ mode vectors); `floquet_ext*` is omitted.
 After extraction, run the parity gate:
 
 ```bash
-bash run_all_examples.sh --fresh
+bash examples/run_all_examples.sh --fresh
 .venv/bin/python examples/linstab2d/compare_martini_examples.py
 ```
 

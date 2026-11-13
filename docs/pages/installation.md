@@ -40,7 +40,7 @@ cd linstabpy
 bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
-bash benchmark.sh
+bash examples/benchmark.sh
 ```
 
 The reference MATLAB base flows (`M09jet.mat`, `BL_BF.mat`, `Step_BF.mat`,
@@ -85,7 +85,7 @@ For reproducible comparisons, record the Python version printed by
 uses complex scalars, and that a small SLEPc non-Hermitian Krylov-Schur solve
 works from Python.
 
-`benchmark.sh` runs a small benchmark and writes benchmark artifacts under
+`examples/benchmark.sh` runs a small benchmark and writes benchmark artifacts under
 `benchmark_runs/<run-id>/`.
 
 By default, the installer does not call `sudo` or a package manager. If required
@@ -150,7 +150,7 @@ when that library is in the PETSc build. It is not a GPU install. See the
 ## macOS
 
 macOS uses the same `install.sh --diagnose` → `install.sh` → `install.sh --check` →
-`benchmark.sh` flow as Linux. The only difference is the [BLAS](https://en.wikipedia.org/wiki/BLAS)/ScaLAPACK setup
+`examples/benchmark.sh` flow as Linux. The only difference is the [BLAS](https://en.wikipedia.org/wiki/BLAS)/ScaLAPACK setup
 below.
 
 For the macOS PETSc/SLEPc path, install Homebrew OpenBLAS and ScaLAPACK before
@@ -298,8 +298,8 @@ A healthy Linux install should satisfy this sequence:
 ```bash
 bash install.sh --diagnose
 bash install.sh --check
-bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius
-bash benchmark.sh
+bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius
+bash examples/benchmark.sh
 ```
 
 One known-good Linux profile used during hardening was:
@@ -340,9 +340,9 @@ pressure, and reproducibility.
 Prefer the canonical example runner for MPI examples:
 
 ```bash
-bash run_all_examples.sh --mpi -m examples.linstab2d.example_1_blasius
-bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
+bash examples/run_all_examples.sh --mpi -m examples.linstab2d.example_1_blasius
+bash examples/run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 If `-n/--ranks` is omitted in `--mpi` mode, the runner starts from half of the

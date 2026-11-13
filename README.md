@@ -150,7 +150,7 @@ cd linstabpy
 bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
-bash benchmark.sh
+bash examples/benchmark.sh
 ```
 
 This repository has no required submodules. The data each example needs is listed
@@ -215,7 +215,7 @@ exact paths it wanted.
 
 ### Canonical example runner
 
-Use `run_all_examples.sh` as the single example runner for serial acceptance,
+Use `examples/run_all_examples.sh` as the single example runner for serial acceptance,
 cache cleanup, parity checks, and MPI launches. The runner computes each selected
 Martini example, then runs the matching `example_*_plots` module. Direct
 `.venv/bin/python -m examples.linstab2d.example_1_blasius` writes the NPZ only.
@@ -226,13 +226,13 @@ the plotting improvements proposed for the next figure pass.
 
 | Task | Command |
 |---|---|
-| List available examples | `bash run_all_examples.sh --list` |
-| Run all examples, plots, and Martini parity | `bash run_all_examples.sh` |
+| List available examples | `bash examples/run_all_examples.sh --list` |
+| Run all examples, plots, and Martini parity | `bash examples/run_all_examples.sh` |
 | Re-plot one example from an existing NPZ | `.venv/bin/python -m examples.linstab2d.example_1_plots` |
-| Recompute selected examples from cached PNGs/NPZs | `bash run_all_examples.sh --fresh --example 1 --skip-parity` |
-| Remove selected generated NPZ/PNG outputs first | `bash run_all_examples.sh --clean --example 1 --skip-parity` |
-| Run one example under MPI | `bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl` |
-| Pass PETSc/SLEPc options to one example | `bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor` |
+| Recompute selected examples from cached PNGs/NPZs | `bash examples/run_all_examples.sh --fresh --example 1 --skip-parity` |
+| Remove selected generated NPZ/PNG outputs first | `bash examples/run_all_examples.sh --clean --example 1 --skip-parity` |
+| Run one example under MPI | `bash examples/run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl` |
+| Pass PETSc/SLEPc options to one example | `bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor` |
 
 `--mpi` folds the old one-module MPI wrapper behavior into the same script: the
 runner probes a working MPI launcher, defaults to half of the detected physical
@@ -286,7 +286,9 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- odd_even/                  Odd-even decoupling on a wavy-wall mesh (paper figure)
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
-|   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
+|   |-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
+|   |-- run_all_examples.sh        Serial, parity, and MPI example runner
+|   `-- benchmark.sh               Install benchmark
 |-- docs/                          Documentation site and tutorial
 |   |-- pages/                     Site pages (MkDocs); development pages in pages/development/
 |   |-- overrides/                 Site theme templates
@@ -296,9 +298,7 @@ For a maintainer map of where numerical policy belongs, see
 |-- skills/linstabpy/              Agent skill for AI coding agents
 |-- tests/                         Pytest suite, file-size and provenance checks
 |-- install.sh                     Installer and host preflight (`--diagnose`)
-|-- environment.yml                CPU conda-forge complex PETSc + pip from pyproject
-|-- benchmark.sh                   Install benchmark
-`-- run_all_examples.sh            Serial, parity, and MPI example runner
+`-- environment.yml                CPU conda-forge complex PETSc + pip from pyproject
 ```
 
 Keep reusable code under `src/linstabpy/` and the public cases under

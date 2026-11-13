@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# run_all_examples.sh — recompute linstabpy examples and run the parity check.
+# examples/run_all_examples.sh — recompute linstabpy examples and run the parity check.
 #
 # USAGE
-#   ./run_all_examples.sh                                # use cached NPZs when present
-#   ./run_all_examples.sh --fresh                        # delete cached NPZs first
-#   ./run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
-#   ./run_all_examples.sh --example 0 --skip-parity      # run one example only
-#   ./run_all_examples.sh --mpi --example 1 -n 10        # run one example under MPI
-#   ./run_all_examples.sh --continue-on-error            # keep going after failures
+#   examples/run_all_examples.sh                                # use cached NPZs when present
+#   examples/run_all_examples.sh --fresh                        # delete cached NPZs first
+#   examples/run_all_examples.sh --clean                        # delete cached NPZs and PNGs first
+#   examples/run_all_examples.sh --example 0 --skip-parity      # run one example only
+#   examples/run_all_examples.sh --mpi --example 1 -n 10        # run one example under MPI
+#   examples/run_all_examples.sh --continue-on-error            # keep going after failures
 #
 # NOTE: Always use .venv/bin/python — do NOT replace with 'uv run'.
 #   petsc4py/slepc4py require a one-time patched install performed by install.sh.
@@ -19,7 +19,7 @@
 
 set -uo pipefail
 
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DEFAULT_PYTHON="$REPO/.venv/bin/python"
 if [[ -n "${LINSTABPY_PYTHON:-}" ]]; then
   PYTHON="$LINSTABPY_PYTHON"
@@ -48,7 +48,7 @@ EXAMPLE_SPECS=(
 
 usage() {
   cat <<EOF
-Usage: ./run_all_examples.sh [options]
+Usage: examples/run_all_examples.sh [options]
 
 Options:
   --fresh               Delete cached example NPZ artifacts before running
@@ -66,13 +66,13 @@ Options:
 
 Environment:
   LINSTABPY_PYTHON      Override the Python interpreter path (wins over LINSTABPY_PYTHON_BIN)
-  LINSTABPY_PYTHON_BIN  Override the Python interpreter path (lower precedence; set by benchmark.sh)
+  LINSTABPY_PYTHON_BIN  Override the Python interpreter path (lower precedence; set by examples/benchmark.sh)
   LINSTABPY_MPIEXEC     Override MPI launcher path/name (runner only; install uses LINSTABPY_PETSC_MPIEXEC / LINSTABPY_VERIFY_MPIEXEC)
   LINSTABPY_MPI_RANKS   Default MPI rank count
 
 Extra PETSc/SLEPc arguments may be passed after -- when exactly one example
 is selected, for example:
-  ./run_all_examples.sh --mpi --example 1 -n 1 -- -eps_monitor
+  examples/run_all_examples.sh --mpi --example 1 -n 1 -- -eps_monitor
 EOF
 }
 
@@ -122,7 +122,7 @@ select_example() {
 
   if [[ $matched -eq 0 ]]; then
     echo "ERROR: unknown example selector '$selector'." >&2
-    echo "Run ./run_all_examples.sh --list to see valid selectors." >&2
+    echo "Run examples/run_all_examples.sh --list to see valid selectors." >&2
     exit 1
   fi
 }

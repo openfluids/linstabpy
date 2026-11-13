@@ -21,8 +21,8 @@ from collections.abc import Mapping, Sequence
 from typing import TextIO
 
 #: Every ``LINSTABPY_*`` name read anywhere in the repo: runtime (``src/``),
-#: installer (``install.sh``), runners (``benchmark.sh``,
-#: ``run_all_examples.sh``), shipped examples, and test gating/harness vars.
+#: installer (``install.sh``), runners (``examples/benchmark.sh``,
+#: ``examples/run_all_examples.sh``), shipped examples, and test gating/harness vars.
 #: Deliberately excludes plausible-but-unread names (see
 #: :data:`KNOWN_INEFFECTIVE_VARS`): those must keep warning.
 KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
@@ -157,7 +157,7 @@ KNOWN_LINSTABPY_VARS: frozenset[str] = frozenset(
         "LINSTABPY_SLEPC_VERSION",
         "LINSTABPY_VERIFY_MPIEXEC",
         "LINSTABPY_WITH_H5PY",
-        # -- runners (benchmark.sh, run_all_examples.sh) --
+        # -- runners (examples/benchmark.sh, examples/run_all_examples.sh) --
         "LINSTABPY_MPIEXEC",
         "LINSTABPY_PYTHON_BIN",
         "LINSTABPY_MPI_RANKS",

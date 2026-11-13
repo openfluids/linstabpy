@@ -419,7 +419,7 @@ This prevents band-marking EVPs from being stranded on CPU MUMPS while resolvent
 
 ## Example registry
 
-The live example list is `run_all_examples.sh` `EXAMPLE_SPECS` (module,
+The live example list is `examples/run_all_examples.sh` `EXAMPLE_SPECS` (module,
 plot module, and label per example), not a YAML catalog. There is no
 packaged registry file; document expected artifacts alongside the case
 (module + NPZ name) instead.
@@ -512,6 +512,6 @@ Validation messages are joined with `"; "` and may be prefixed with `source` (e.
 1. **Frozen dataclasses** make policy snapshots safe to share across stages and ranks without accidental mutation.
 2. **Typed seam is the live path**; shared type sets and small helpers still come from `utils._solver_cfg`.
 3. **Schema is intentionally shallow** on nested solver trees; depth is handled by typed loaders and runtime preflight.
-4. **Example registry lives in the runner**; `run_all_examples.sh` `EXAMPLE_SPECS` is the single source of truth for example modules and artifacts.
+4. **Example registry lives in the runner**; `examples/run_all_examples.sh` `EXAMPLE_SPECS` is the single source of truth for example modules and artifacts.
 5. **Solver-level `factor_backend`** is documented in code as a past silent no-op; treat per-stage keys and env as higher priority.
 6. **Auto factor routing** stores DOF threshold on `EigenCfg`; concrete backend choice happens later when `ndof` is known (`resolve_auto_factor_backend` in the eigenvalue path).

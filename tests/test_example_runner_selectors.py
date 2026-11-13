@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Contracts between benchmark.sh and run_all_examples.sh."""
+"""Contracts between examples/benchmark.sh and examples/run_all_examples.sh."""
 
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES = ROOT / "examples"
 
 
 def _run_all_examples_list() -> str:
     proc = subprocess.run(
-        ["bash", str(ROOT / "run_all_examples.sh"), "--list"],
+        ["bash", str(EXAMPLES / "run_all_examples.sh"), "--list"],
         check=True,
         cwd=ROOT,
         text=True,
@@ -24,7 +25,7 @@ def _run_all_examples_list() -> str:
 
 
 def _benchmark_default_module() -> str:
-    text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
+    text = (EXAMPLES / "benchmark.sh").read_text(encoding="utf-8")
     match = re.search(
         r'EX1_MODULE="\$\{LINSTABPY_BENCHMARK_EX1_MODULE:-([^}]+)\}"',
         text,
@@ -35,7 +36,7 @@ def _benchmark_default_module() -> str:
 
 
 def _benchmark_example_0_module() -> str:
-    text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
+    text = (EXAMPLES / "benchmark.sh").read_text(encoding="utf-8")
     match = re.search(
         r'run_case "([^"]+)" "example_0_curvilinear_validation"',
         text,
@@ -54,7 +55,7 @@ def test_benchmark_example_0_module_is_valid_runner_selector():
 
 
 def test_benchmark_clears_npz_under_martini():
-    text = (ROOT / "benchmark.sh").read_text(encoding="utf-8")
+    text = (EXAMPLES / "benchmark.sh").read_text(encoding="utf-8")
     assert "examples/linstab2d/" in text
 
 
@@ -72,7 +73,7 @@ def test_runner_accepts_benchmark_default_module_on_mpi_path():
     proc = subprocess.run(
         [
             "bash",
-            str(ROOT / "run_all_examples.sh"),
+            str(EXAMPLES / "run_all_examples.sh"),
             "--mpi",
             "--skip-parity",
             "-n",

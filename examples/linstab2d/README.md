@@ -5,7 +5,7 @@ Six LinStab2D examples used for Table S1.
 Run from the repository root:
 
 ```
-./run_all_examples.sh
+examples/run_all_examples.sh
 .venv/bin/python examples/linstab2d/compare_martini_examples.py
 ```
 

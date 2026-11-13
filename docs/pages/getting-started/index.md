@@ -37,7 +37,7 @@ cd linstabpy
 bash install.sh --diagnose
 bash install.sh
 bash install.sh --check
-bash benchmark.sh
+bash examples/benchmark.sh
 ```
 
 What each step proves:
@@ -47,7 +47,7 @@ What each step proves:
 | `--diagnose` | Read-only host preflight. Checks compilers, MPI launchers, headers, dual-MPI conflicts, and that `mpiexec -n 1 /bin/true` works. Installs nothing. | :white_check_mark: No errors. If it complains, fix the host first. |
 | `install.sh` | Creates `.venv`, builds or installs Python with PETSc and SLEPc, repairs `mpi4py` when the wheel ABI mismatches your MPI, installs this repo editable. | :white_check_mark: Ends without error. It never calls `sudo` unless you opt in (see knobs below). |
 | `--check` | Verifies `petsc4py` and `slepc4py` import, PETSc uses complex scalars, and a tiny SLEPc non-Hermitian Krylov-Schur solve works from Python. | :white_check_mark: All probes pass. A real-scalar PETSc or a failed NHEP probe means the env is unusable for this code. |
-| `benchmark.sh` | Runs a small benchmark (example 0 plus a small example 1) and writes artifacts under `benchmark_runs/<run-id>/`. | :white_check_mark: A fresh run directory with a summary CSV and logs. |
+| `examples/benchmark.sh` | Runs a small benchmark (example 0 plus a small example 1) and writes artifacts under `benchmark_runs/<run-id>/`. | :white_check_mark: A fresh run directory with a summary CSV and logs. |
 
 Useful variants:
 
@@ -71,7 +71,7 @@ Knobs you may need (all in the README with full detail):
 | `LINSTABPY_MPI4PY_NO_BINARY=1` | Force `mpi4py` to build from source against your active MPI. |
 | `LINSTABPY_WITH_H5PY=1` | Also install `h5py` for MATLAB v7.3 file tooling. |
 
-Three launcher knobs, three jobs: `LINSTABPY_PETSC_MPIEXEC` picks the launcher PETSc/SLEPc configure probes, `LINSTABPY_VERIFY_MPIEXEC` picks the launcher install-time checks run under, and `LINSTABPY_MPIEXEC` picks the launcher `run_all_examples.sh` uses. Each defaults to the auto-detected working launcher; set them only when the probe picks the wrong MPI family. `benchmark.sh` re-exports its resolved launcher as `LINSTABPY_MPIEXEC` (and its interpreter as `LINSTABPY_PYTHON_BIN`) for its child runs.
+Three launcher knobs, three jobs: `LINSTABPY_PETSC_MPIEXEC` picks the launcher PETSc/SLEPc configure probes, `LINSTABPY_VERIFY_MPIEXEC` picks the launcher install-time checks run under, and `LINSTABPY_MPIEXEC` picks the launcher `examples/run_all_examples.sh` uses. Each defaults to the auto-detected working launcher; set them only when the probe picks the wrong MPI family. `examples/benchmark.sh` re-exports its resolved launcher as `LINSTABPY_MPIEXEC` (and its interpreter as `LINSTABPY_PYTHON_BIN`) for its child runs.
 
 Run everything through `.venv/bin/python` directly (scripts should do this so logs show the interpreter). For interactive shells, `source .venv/bin/activate` is convenient.
 
@@ -225,9 +225,9 @@ The case definition lives in `examples/linstab2d/example_1_blasius.yaml`: physic
 Six Martini examples form the core family. Run one, run all, then compare against MATLAB:
 
 ```bash
-bash run_all_examples.sh --list        # what exists
-bash run_all_examples.sh --example 1 --skip-parity   # one example, no MATLAB check
-bash run_all_examples.sh               # everything plus parity and plots
+bash examples/run_all_examples.sh --list        # what exists
+bash examples/run_all_examples.sh --example 1 --skip-parity   # one example, no MATLAB check
+bash examples/run_all_examples.sh               # everything plus parity and plots
 ```
 
 | # | Module | What it teaches | Needs |
@@ -244,8 +244,8 @@ Each example has a matching `example_N_plots.py` that renders figures from the N
 MPI form, with PETSc options passed after `--`:
 
 ```bash
-bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
+bash examples/run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 ```
 
 Without `-n`, the runner defaults to half the detected physical cores. Override the launcher with `LINSTABPY_MPIEXEC` and the rank count with `LINSTABPY_MPI_RANKS` when the machine needs explicit paths. Interpreter: `LINSTABPY_PYTHON` wins over `LINSTABPY_PYTHON_BIN`, else `.venv/bin/python`.
@@ -283,7 +283,7 @@ Read it as: gains identical to 10 digits, ranks 4 to 16 buy 22 percent less time
 
 Full 200-point gain map, same hardware, 5 jobs concurrent on 20 cores: 83.6 minutes as independent per-point jobs, 59.7 minutes through the line driver with anchor reuse. The router earns its keep on dense grids.
 
-Measure your own runs the same way: `benchmark.sh` writes wall times and logs under `benchmark_runs/<run-id>/`, and every result NPZ carries `cost_wall_*` keys plus provenance. When reporting a slow machine, send those plus the `--diagnose` output.
+Measure your own runs the same way: `examples/benchmark.sh` writes wall times and logs under `benchmark_runs/<run-id>/`, and every result NPZ carries `cost_wall_*` keys plus provenance. When reporting a slow machine, send those plus the `--diagnose` output.
 
 ## The tutorial PDF
 
@@ -371,7 +371,7 @@ Tracked files must stay under 60 MiB each:
 
 Large generated outputs, raw MATLAB exports, and machine-local benchmark products stay out of git. Regenerate or archive them externally.
 
-`benchmark.sh` artifacts live under `benchmark_runs/<run-id>/` with a summary CSV and logs. Send those plus full `--diagnose` and install output when reporting a broken machine.
+`examples/benchmark.sh` artifacts live under `benchmark_runs/<run-id>/` with a summary CSV and logs. Send those plus full `--diagnose` and install output when reporting a broken machine.
 
 
 ## Troubleshooting quick map

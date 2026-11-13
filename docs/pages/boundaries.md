@@ -158,7 +158,7 @@ validate_config(cfg, source='case.yaml')
 - Keep dissipation apply flags aligned across stability and resolvent stages
 - Use schema validation before long MPI jobs to fail fast on unknown keys
 - Store baseflow and mesh paths relative to a reproducible case directory
-- Document expected artifacts alongside the case (module + NPZ name); the live example list is `run_all_examples.sh` `EXAMPLE_SPECS`
+- Document expected artifacts alongside the case (module + NPZ name); the live example list is `examples/run_all_examples.sh` `EXAMPLE_SPECS`
 
 ### PETSc / SLEPc / MUMPS / optional cuDSS backend
 

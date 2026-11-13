@@ -5,7 +5,7 @@
 # to JSON.
 #
 # Usage:
-#   bash benchmark.sh [machine_label]
+#   bash examples/benchmark.sh [machine_label]   (works from any directory)
 #
 # Example 0 (curvilinear validation) is pure NumPy — runs single-process.
 # Example 1 runs the real Blasius case so install-time profiling
@@ -17,11 +17,12 @@ set -uo pipefail
 trap 'printf "\n[benchmark] interrupted\n"; exit 130' INT TERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${SCRIPT_DIR}/.venv"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+VENV_DIR="${REPO_ROOT}/.venv"
 PY_BIN="${VENV_DIR}/bin/python"
 MACHINE_LABEL="${1:-$(hostname 2>/dev/null || echo unknown-host)}"
 BENCH_ID="$(date -u +"%Y%m%dT%H%M%SZ")_${MACHINE_LABEL}"
-RESULTS_DIR="${SCRIPT_DIR}/benchmark_runs/${BENCH_ID}"
+RESULTS_DIR="${REPO_ROOT}/benchmark_runs/${BENCH_ID}"
 export LC_NUMERIC=C
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -52,10 +53,13 @@ if [ ! -x "${PY_BIN}" ]; then
     exit 1
 fi
 
-if [ ! -d "${SCRIPT_DIR}/examples" ]; then
+if [ ! -d "${REPO_ROOT}/examples" ]; then
     printf "${COL_ERR}[benchmark] examples/ directory not found.${COL_RST}\n"
     exit 1
 fi
+
+# The example modules (examples.linstab2d...) import from the repository root.
+cd "${REPO_ROOT}" || exit 1
 
 # ── Detect physical cores ──────────────────────────────────────────────────
 detect_physical_cores() {
@@ -168,7 +172,7 @@ JSONEOF
 # Usage: run_case <example_module> <label> <variant_name> <n_ranks>
 run_case() {
     local module="$1" label="$2" variant="$3" n_ranks="$4"
-    local npz_glob="${SCRIPT_DIR}/examples/linstab2d/${label}*.npz"
+    local npz_glob="${REPO_ROOT}/examples/linstab2d/${label}*.npz"
     local log_file="${RESULTS_DIR}/${label}_${variant}.log"
     local time_file="${RESULTS_DIR}/${label}_${variant}.time"
 

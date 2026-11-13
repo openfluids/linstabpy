@@ -18,7 +18,7 @@ Then refresh Python outputs and compare:
 
 ```bash
 .venv/bin/python examples/linstab2d/compare_martini_examples.py
-bash run_all_examples.sh --fresh
+bash examples/run_all_examples.sh --fresh
 ```
 
 Raw `.mat` → `martini_examples/` (gitignored). Fixtures → `LinStab2DResults/`.

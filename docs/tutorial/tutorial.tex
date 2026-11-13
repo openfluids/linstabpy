@@ -28,7 +28,7 @@
     {\small #3}%
   }{%
     \begin{notebox}
-    Figure file \path{#1} is not present. Run the matching example first, or use \code{bash run_all_examples.sh --fresh --example N --skip-parity} to regenerate it.
+    Figure file \path{#1} is not present. Run the matching example first, or use \code{bash examples/run_all_examples.sh --fresh --example N --skip-parity} to regenerate it.
     \end{notebox}
   }%
   \end{center}
@@ -270,7 +270,7 @@ examples/linstab2d/   Martini examples and MATLAB field constructors
 examples/song/      Song / Robinet SWBLI EVP case
 examples/savarino/  Savarino 30.8 deg resolvent case
 examples/sawtooth/  Lui 2022 suction-side SWBLI
-tools/              wiki and llms-full.txt generators
+docs/scripts/       site and llms-full.txt generators
 tests/              test suite, including the tracked-size check
 docs/tutorial/      tutorial source and generated PDF
 \end{outputbox}
@@ -279,25 +279,25 @@ Do not put reusable solver code under \path{examples/}. Put reusable code under 
 
 \subsection*{Use one example runner}
 
-\code{run_all_examples.sh} is the single documented runner. It covers serial example passes, cache cleanup, Martini parity, and MPI-safe launches. Direct module execution is still useful for local debugging, but use the runner for acceptance checks and MPI runs.
+\code{examples/run_all_examples.sh} is the single documented runner. It covers serial example passes, cache cleanup, Martini parity, and MPI-safe launches. Direct module execution is still useful for local debugging, but use the runner for acceptance checks and MPI runs.
 
 \begin{commandbox}
-bash run_all_examples.sh --list
-bash run_all_examples.sh
-bash run_all_examples.sh --fresh --example 1 --skip-parity
-bash run_all_examples.sh --clean --example 1 --skip-parity
+bash examples/run_all_examples.sh --list
+bash examples/run_all_examples.sh
+bash examples/run_all_examples.sh --fresh --example 1 --skip-parity
+bash examples/run_all_examples.sh --clean --example 1 --skip-parity
 \end{commandbox}
 
 For MPI runs, enable \code{--mpi}. If \code{-n/--ranks} is omitted, the runner starts from half of the detected physical cores. The runner also sets one OpenMP/BLAS thread per rank unless those variables were already set by the caller.
 
 \begin{commandbox}
-bash run_all_examples.sh --mpi -m examples.linstab2d.example_1_blasius
-bash run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
-bash run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
+bash examples/run_all_examples.sh --mpi -m examples.linstab2d.example_1_blasius
+bash examples/run_all_examples.sh --mpi -n 10 -m examples.linstab2d.example_3_streaky_bl
+bash examples/run_all_examples.sh --mpi -n 1 -m examples.linstab2d.example_1_blasius -- -eps_monitor
 \end{commandbox}
 
 \begin{notebox}
-The previous separate MPI wrapper has been folded into \code{run_all_examples.sh}. Override the MPI launcher or default rank count with \code{LINSTABPY_MPIEXEC} and \code{LINSTABPY_MPI_RANKS} when a machine needs explicit runtime paths.
+The previous separate MPI wrapper has been folded into \code{examples/run_all_examples.sh}. Override the MPI launcher or default rank count with \code{LINSTABPY_MPIEXEC} and \code{LINSTABPY_MPI_RANKS} when a machine needs explicit runtime paths.
 \end{notebox}
 
 \section*{4. First run: Blasius}
@@ -341,9 +341,9 @@ The Martini examples are the first complete tour through the library. They progr
 For acceptance, use the runner. For learning a single script, direct module execution is fine.
 
 \begin{commandbox}
-bash run_all_examples.sh --list
-bash run_all_examples.sh --fresh --example 2 --skip-parity
-bash run_all_examples.sh --clean --example 2 --skip-parity
+bash examples/run_all_examples.sh --list
+bash examples/run_all_examples.sh --fresh --example 2 --skip-parity
+bash examples/run_all_examples.sh --clean --example 2 --skip-parity
 \end{commandbox}
 
 Each example writes an \code{.npz} cache and one or more \code{.png} figures in \path{examples/}. When the \code{.npz} exists, the script usually plots from cache. Remove the matching \code{.npz}, or use \code{--clean}, when you need to recompute the numerical solve.
@@ -369,7 +369,7 @@ Example 0 is the numerical preflight. It has no flow physics. It builds a symmet
 
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_0_curvilinear_validation
-bash run_all_examples.sh --fresh --example 0 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 0 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -408,7 +408,7 @@ Run the native-resolution case:
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_1_blasius
 .venv/bin/python -m examples.linstab2d.example_1_plots
-bash run_all_examples.sh --fresh --example 1 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 1 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -461,7 +461,7 @@ Example 2 moves from Cartesian to cylindrical coordinates. It analyzes a Mach 0.
 
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_2_jet
-bash run_all_examples.sh --fresh --example 2 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 2 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -501,7 +501,7 @@ Example 3 is a stability example rather than a resolvent example. It uses a loca
 
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_3_streaky_bl
-bash run_all_examples.sh --fresh --example 3 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 3 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -551,7 +551,7 @@ Example 4 demonstrates a non-trivial geometry. The cavity is represented by a de
 
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_4_cavity
-bash run_all_examples.sh --fresh --example 4 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 4 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -595,7 +595,7 @@ Example 5 combines curvilinear coordinates with the axisymmetric model. It maps 
 
 \begin{commandbox}
 .venv/bin/python -m examples.linstab2d.example_5_paraboloid
-bash run_all_examples.sh --fresh --example 5 --skip-parity
+bash examples/run_all_examples.sh --fresh --example 5 --skip-parity
 \end{commandbox}
 
 Main knobs:
@@ -683,7 +683,7 @@ If the MATLAB NPZ bundles are absent, the comparison reports missing-bundle fail
 For a complete example pass, use the bundled runner:
 
 \begin{commandbox}
-bash run_all_examples.sh
+bash examples/run_all_examples.sh
 \end{commandbox}
 
 \section*{7. Song 2023 validation baseline}

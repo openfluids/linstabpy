@@ -27,11 +27,9 @@ _REGISTRY_SELF = REPO_ROOT / "src/linstabpy/config/env_registry.py"
 
 
 def _iter_scanned_files() -> list[Path]:
-    files: list[Path] = [
-        REPO_ROOT / "install.sh",
-        REPO_ROOT / "benchmark.sh",
-        REPO_ROOT / "run_all_examples.sh",
-    ]
+    # The runner scripts (examples/benchmark.sh, examples/run_all_examples.sh)
+    # are found by the examples/ walk below.
+    files: list[Path] = [REPO_ROOT / "install.sh"]
     for root in (REPO_ROOT / "src", REPO_ROOT / "examples", REPO_ROOT / "tests" / "tools"):
         for path in sorted(root.rglob("*")):
             if not path.is_file() or path.suffix in {".pyc", ".npz", ".h5", ".mat"}:
