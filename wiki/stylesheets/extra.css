@@ -7,6 +7,7 @@
 :root {
   --md-text-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --md-code-font: "JetBrains Mono", SFMono-Regular, Consolas, Menlo, monospace;
+  --cds-content-scale: 1;
 }
 
 body, .md-typeset {
@@ -16,7 +17,7 @@ body, .md-typeset {
 }
 
 .md-typeset {
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--cds-content-scale, 1));
 }
 
 /* Crisp headings without dated or quirky serif styling */
@@ -227,6 +228,30 @@ body, .md-typeset {
   transition: none !important;
 }
 
+.cds-sidebar-inner-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--cds-text-muted);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.7;
+  transition: all 0.15s ease;
+}
+
+.cds-sidebar-inner-toggle:hover {
+  opacity: 1;
+  background-color: var(--cds-surface-2);
+  color: var(--cds-text-primary);
+}
+
 /* Accessible Distinguishable Links in Body Copy (WCAG 2.1 AAA) */
 .md-typeset p a,
 .md-typeset li a:not(.md-nav__link),
@@ -416,10 +441,75 @@ body, .md-typeset {
 }
 
 /* ==========================================================================
+   Header Stepper: [ −  100%  + ] Segmented Pill Control
+   ========================================================================== */
+
+.cds-stepper {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--cds-surface-2);
+  border: 1px solid var(--cds-border);
+  border-radius: 9999px;
+  padding: 1px 3px;
+  margin-right: 8px;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.cds-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--cds-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.cds-stepper-btn:hover:not(:disabled) {
+  background-color: var(--cds-surface-3);
+  color: var(--cds-text-primary);
+}
+
+.cds-stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cds-stepper-label {
+  background: transparent;
+  border: none;
+  padding: 0 8px;
+  height: 26px;
+  min-height: 26px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--md-code-font);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.cds-stepper-label:hover {
+  color: var(--cds-clay);
+}
+
+/* ==========================================================================
    Math Equations: KaTeX, compact and proportional to body text
    Body is 0.8rem; KaTeX defaults (1.21em glyphs + 1em display margins)
    blow up both size and rhythm, so neutralize them here. em units inherit
-   the .md-typeset font size.
+   the font-stepper scale (--cds-content-scale) via .md-typeset.
    NOTE: katex.min.css loads AFTER this file (see mkdocs.yml extra_css),
    so inner overrides are triple-scoped to win on specificity.
    ========================================================================== */
@@ -514,7 +604,57 @@ body, .md-typeset {
   padding: 0 0.75rem;
 }
 
-/* Tablet and desktop viewports (>= 60em / 960px): Navigation sidebar width */
+/* ==========================================================================
+   Panel Toggles: Collapsible Navigation and TOC Sidebars
+   ========================================================================== */
+
+.cds-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--cds-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  margin: 0 4px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.cds-panel-toggle:hover {
+  background-color: var(--cds-surface-2);
+  color: var(--cds-text-primary);
+  border-color: var(--cds-border-subtle);
+}
+
+.cds-panel-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Highlighted state when a sidebar is collapsed */
+.cds-panel-toggle.is-collapsed {
+  color: var(--cds-clay);
+  background-color: var(--cds-clay-subtle);
+  border-color: var(--cds-clay-border);
+}
+
+.cds-panel-toggle svg {
+  stroke-width: 2;
+  transition: stroke 0.15s ease, transform 0.2s ease;
+}
+
+.cds-panel-toggle.is-collapsed svg {
+  stroke: var(--cds-clay);
+}
+
+/* Tablet and desktop viewports (>= 60em / 960px): Navigation sidebar collapse */
 @media screen and (min-width: 60em) {
   /* Left navigation sidebar: generous width for scientific module trees */
   .md-sidebar--primary {
@@ -524,6 +664,27 @@ body, .md-typeset {
     width: 100% !important;
     padding-right: 0.75rem !important;
     padding-left: 0.25rem !important;
+  }
+
+  /* Left sidebar collapsed state: zero width & flex shrink to zero */
+  [data-sidebar-primary="collapsed"] .md-sidebar--primary {
+    flex: 0 0 0px !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-right: none !important;
+    visibility: hidden !important;
+    overflow: hidden !important;
+  }
+
+  [data-sidebar-primary="collapsed"] .md-sidebar--primary .md-sidebar__scrollwrap {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
   }
 
   /* Main content area: dynamically fills all remaining width */
@@ -550,6 +711,34 @@ body, .md-typeset {
     padding-left: 0.75rem !important;
     padding-right: 0.25rem !important;
   }
+
+  /* Right sidebar collapsed state: zero width & flex shrink to zero */
+  [data-sidebar-secondary="collapsed"] .md-sidebar--secondary {
+    flex: 0 0 0px !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-left: none !important;
+    visibility: hidden !important;
+    overflow: hidden !important;
+  }
+
+  [data-sidebar-secondary="collapsed"] .md-sidebar--secondary .md-sidebar__scrollwrap {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Smooth toggle transitions ONLY when user interacts (prevents initial page load CLS) */
+body.sidebar-transitioning .md-sidebar--primary,
+body.sidebar-transitioning .md-sidebar--secondary,
+body.sidebar-transitioning .md-content {
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), flex 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease !important;
 }
 
 /* Responsive Table & Code Block Expansion */
