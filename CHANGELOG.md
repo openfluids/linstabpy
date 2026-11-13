@@ -10,6 +10,7 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 ### Changed
 
 - Documentation site reorganized: one page per package under Modules, one Architecture page (replaces Overview, Workflow and `docs/architecture.md`), and the developer pages (`DEVELOPMENT`, `COMPUTE_BACKENDS`, the runtime NPZ contract) moved from `docs/` to `wiki/development/`. Error messages that cited `docs/COMPUTE_BACKENDS.md` now cite `wiki/development/compute-backends.md`. Added a "For AI coding agents" section and `skills/linstabpy/README.md`.
+- Repository layout: all website files (`mkdocs.yml`, `vercel.json`, pages, theme templates, generators) are in `docs/`; `run_all_examples.sh` and `benchmark.sh` are in `examples/` and work from any directory; each run-log folder of `examples/logs/` sits in `logs/` next to its example; the ruff settings are in `pyproject.toml` and `CONTRIBUTING.md` is in `.github/`. Error messages cite the compute-backends page by its site URL.
 
 ## [1.0.1] - 2026-10-30
 
