@@ -58,7 +58,7 @@ sometimes it is CI that is wrong.
 
 ## What makes a pull request easy to review
 
-The [pull request template](.github/pull_request_template.md) has the full
+The [pull request template](pull_request_template.md) has the full
 checklist. In short:
 
 - **One thing at a time.** A focused change gets reviewed quickly. A change that
