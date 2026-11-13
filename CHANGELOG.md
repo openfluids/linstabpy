@@ -7,6 +7,10 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation site reorganized: one page per package under Modules, one Architecture page (replaces Overview, Workflow and `docs/architecture.md`), and the developer pages (`DEVELOPMENT`, `COMPUTE_BACKENDS`, the runtime NPZ contract) moved from `docs/` to `wiki/development/`. Error messages that cited `docs/COMPUTE_BACKENDS.md` now cite `wiki/development/compute-backends.md`. Added a "For AI coding agents" section and `skills/linstabpy/README.md`.
+
 ## [1.0.1] - 2026-10-30
 
 ### Changed
