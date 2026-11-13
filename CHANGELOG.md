@@ -7,10 +7,21 @@ and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-13
+
 ### Changed
 
 - Documentation site reorganized: one page per package under Modules, one Architecture page (replaces Overview, Workflow and `docs/architecture.md`), and the developer pages (`DEVELOPMENT`, `COMPUTE_BACKENDS`, the runtime NPZ contract) moved from `docs/` to `wiki/development/`. Error messages that cited `docs/COMPUTE_BACKENDS.md` now cite `wiki/development/compute-backends.md`. Added a "For AI coding agents" section and `skills/linstabpy/README.md`.
 - Repository layout: all website files (`mkdocs.yml`, `vercel.json`, pages, theme templates, generators) are in `docs/`; `run_all_examples.sh` and `benchmark.sh` are in `examples/` and work from any directory; each run-log folder of `examples/logs/` sits in `logs/` next to its example; the ruff settings are in `pyproject.toml` and `CONTRIBUTING.md` is in `.github/`. Error messages cite the compute-backends page by its site URL.
+
+### Added
+
+- Site page "Use with Claude Code" (`docs/pages/claude-code.md`): one session with the agent skill, from installing the skill to reading the NPZ, with output from real runs. The README, the site home, `llms.txt` and the skill README link to it.
+
+### Fixed
+
+- The skill, its NPZ reference and the site home read eigenvectors from `data["modes"]`, a key the NPZ does not have; they now read `data["direct_modes"]`.
+- The skill's validation snippets now also call `check_cli_ignored_keys`. `validate_config` alone accepts flat keys such as `Re` that the `linstabpy` command refuses.
 
 ## [1.0.1] - 2026-10-30
 
@@ -1554,7 +1565,8 @@ work — an MPI vector that was replicated across ranks instead of distributed, 
 SVD resolvent-postcheck residual that was not energy-norm consistent, and a
 relocated run-kit path. Prefer `0.0.3` or later.
 
-[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/openfluids/linstabpy/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/openfluids/linstabpy/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/openfluids/linstabpy/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc11...v1.0.0
 [1.0.0rc11]: https://github.com/openfluids/linstabpy/compare/v1.0.0rc10...v1.0.0rc11

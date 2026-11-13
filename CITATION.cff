@@ -20,8 +20,8 @@ authors:
 repository-code: 'https://github.com/openfluids/linstabpy'
 url: 'https://github.com/openfluids/linstabpy'
 license: GPL-3.0-only
-version: 1.0.1
-date-released: '2026-10-30'
+version: 1.0.2
+date-released: '2026-11-13'
 # There is no software DOI: the public repository is the archive.
 preferred-citation:
   type: article
