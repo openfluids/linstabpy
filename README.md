@@ -254,16 +254,16 @@ data with executable code. YAML keeps the comments next to the knobs.
 
 ## For AI coding agents
 
-`skills/linstabpy/` is an agent skill: a folder that an AI coding agent, such as Claude Code or Codex, loads to learn how to work with LinStabPy. It covers the install gate, the environment-variable CLI, the YAML case schema, the lazy Python API, and the NPZ output contract.
-
-To install it, copy or symlink the folder into the skills folder of your agent. For Claude Code:
+`skills/linstabpy/` is an agent skill: instructions that an AI coding agent such as Claude Code loads to install linstabpy, define and run a case, and read the results. The skill is in this repository, not in the pip package. From the repository root:
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -s "$PWD/skills/linstabpy" ~/.claude/skills/linstabpy
 ```
 
-An agent that reads web pages can start from <https://linstabpy.vercel.app/llms.txt>, an index of the documentation site. <https://linstabpy.vercel.app/llms-full.txt> holds the same pages in one file.
+[Use linstabpy with Claude Code](docs/pages/claude-code.md) ([on the site](https://linstabpy.vercel.app/claude-code/)) walks through one session with real output: install the skill, build the solver stack, run the examples, run your own case, read the NPZ, and the mistakes the skill prevents.
+
+An assistant without skills, such as a web chat, can read <https://linstabpy.vercel.app/llms.txt>, an index of the documentation site, or <https://linstabpy.vercel.app/llms-full.txt>, all pages in one file.
 
 ## Repository layout
 

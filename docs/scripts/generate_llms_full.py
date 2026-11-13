@@ -31,6 +31,7 @@ SITE = "https://linstabpy.vercel.app"
 # External links (github.com, ...) are skipped: header only, no inline body.
 PAGE_MAP = {
     "/getting-started/": "getting-started/index.md",
+    "/claude-code/": "claude-code.md",
     "/boundaries/": "boundaries.md",
     "/core-concepts/": "core-concepts.md",
     "/faq/": "faq.md",

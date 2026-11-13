@@ -8,7 +8,7 @@ import numpy as np
 
 data = np.load("results/my_case.npz")
 omega = data["omega"]  # complex eigenvalues; unstable iff imag > 0
-modes = data["modes"]  # eigenvectors
+modes = data["direct_modes"]  # eigenvectors, shape (5 * n_points, n_modes)
 ```
 
 Key names are a compatibility surface defined by

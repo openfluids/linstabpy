@@ -163,7 +163,7 @@ import numpy as np
 
 data = np.load("results/case_temporal.npz")
 omega = data["omega"]  # Complex eigenvalues
-modes = data["modes"]  # Eigenvectors [n_points, 5, n_modes]
+modes = data["direct_modes"]  # Eigenvectors, shape (5 * n_points, n_modes)
 print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(omega)):.4e}")
 ```
 
@@ -184,7 +184,7 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 
 The repository ships an agent skill, [`skills/linstabpy`](https://github.com/openfluids/linstabpy/tree/main/skills/linstabpy). It is a folder that an AI coding agent, such as Claude Code or Codex, loads to learn the install gate, the environment-variable CLI, the YAML case schema, and the NPZ output contract.
 
-To install it, copy or symlink the folder into the skills folder of your agent. For Claude Code, link it to `~/.claude/skills/linstabpy`.
+To install it, copy or symlink the folder into the skills folder of your agent. For Claude Code, link it to `~/.claude/skills/linstabpy`. [Use with Claude Code](claude-code.md) walks through a full session with the skill.
 
 An agent that reads web pages can start from [llms.txt](https://linstabpy.vercel.app/llms.txt), an index of this site. [llms-full.txt](https://linstabpy.vercel.app/llms-full.txt) holds the same pages in one file.
 

@@ -11,6 +11,7 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 ## Start here
 
 - [Getting started](https://linstabpy.vercel.app/getting-started/): Install, first runs (example 0 needs no data), the example family, your first own case. Read this before running anything.
+- [Use with Claude Code](https://linstabpy.vercel.app/claude-code/): One worked session with the linstabpy agent skill: install the skill, build the stack, run the examples and an own case through the env-var CLI, read the NPZ, with real output.
 - [Boundary interfaces](https://linstabpy.vercel.app/boundaries/): The machine surface: env-var CLI, YAML case schema, Python lazy imports, file inputs, NPZ outputs. Required reading for agents driving runs.
 - [Core concepts](https://linstabpy.vercel.app/core-concepts/): Exact definitions of base flow, growth rate, gain, Chu norm, wavemaker, sponge. Open beside any science page.
 - [FAQ](https://linstabpy.vercel.app/faq/): Which analysis do I need, shift-branch confusion, dissipation on/off, sawtooth wiggles, cache-valid surprise.
@@ -29,4 +30,4 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 - [Development workflow](https://linstabpy.vercel.app/development/development/): Branches, tests, changelog, release steps, and how the generated wiki files are checked.
 - [Compute backends](https://linstabpy.vercel.app/development/compute-backends/): Factor backend audit: MUMPS default, cuDSS, STRUMPACK, SuperLU_DIST, version floors, measured evidence.
 - [Runtime NPZ contract](https://linstabpy.vercel.app/development/runtime-npz-contract/): Key groups of the result archive and the rules for changing them.
-- [Repository README](https://github.com/openfluids/linstabpy#readme): Short install, example runner, numerical setup, parity with LinStab2D.
+- [Repository README](https://github.com/openfluids/linstabpy#readme): Short install, example runner, agent skill pointer, numerical setup, parity with LinStab2D.

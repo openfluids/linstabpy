@@ -45,12 +45,17 @@ compute. In sweeps, use one output path per run or export
 Always validate before running:
 
 ```python
-from linstabpy.config.schema import validate_config
+from linstabpy.config.schema import validate_config, check_cli_ignored_keys
 from linstabpy.utils.yaml_io import load_config
 
 cfg = load_config("cases/my_case.yaml")
 validate_config(cfg, source="cases/my_case.yaml")
+check_cli_ignored_keys(cfg, source="cases/my_case.yaml")
 ```
+
+`validate_config` accepts the flat keys the example scripts read
+(`Re`, `fd_order`, ...); `check_cli_ignored_keys` refuses them, as the
+`linstabpy` command does. A case for the command must pass both.
 
 This needs only PyYAML — no PETSc, no MPI. Start new cases from
 `../assets/minimal-case.yaml`.

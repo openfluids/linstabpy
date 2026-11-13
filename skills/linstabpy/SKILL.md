@@ -64,9 +64,11 @@ problem is the Python env, not MPI or data.
 
 ```bash
 .venv/bin/python -c "
-from linstabpy.config.schema import validate_config
+from linstabpy.config.schema import validate_config, check_cli_ignored_keys
 from linstabpy.utils.yaml_io import load_config
-validate_config(load_config('cases/my_case.yaml'), source='cases/my_case.yaml')"
+cfg = load_config('cases/my_case.yaml')
+validate_config(cfg, source='cases/my_case.yaml')
+check_cli_ignored_keys(cfg, source='cases/my_case.yaml')  # flat keys the command would refuse"
 export LINSTABPY_CASE_CONFIG=cases/my_case.yaml LINSTABPY_CASE_OUTPUT_NPZ=results/my_case.npz
 mpiexec -n 4 linstabpy
 ```
@@ -85,7 +87,7 @@ semantics, and snippets: `references/python-api.md`.
 
 Results are contract-stable `.npz`: `data = np.load(path)`,
 `omega = data["omega"]` (complex eigenvalues),
-`modes = data["modes"]`. Full key table with stability/resolvent/
+`modes = data["direct_modes"]` (eigenvectors, one column per mode). Full key table with stability/resolvent/
 provenance/cost groups: `references/npz-contract.md`.
 
 ## Load-bearing conventions

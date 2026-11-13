@@ -13,7 +13,7 @@ mkdir -p ~/.claude/skills
 ln -s "$PWD/skills/linstabpy" ~/.claude/skills/linstabpy
 ```
 
-Run the command from the repository root.
+Run the command from the repository root. A worked session, with real output, is on the site: <https://linstabpy.vercel.app/claude-code/> (source: `docs/pages/claude-code.md`).
 
 ## Web index
 
