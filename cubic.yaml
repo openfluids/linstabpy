@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://cubic.dev/schema/cubic-repository-config.schema.json
+# linstabpy is public: cubic reviews every pull request automatically.
+# Generated pages, run logs, binary data and vendored KaTeX are skipped.
+version: 1
+
+reviews:
+  enabled: true
+  sensitivity: medium
+  incremental_commits: true
+  check_drafts: false
+  custom_instructions: |
+    linstabpy builds the linearized compressible Navier-Stokes operator L0 on
+    2-D structured base flows and solves eigenvalue and resolvent problems
+    with PETSc/SLEPc and MUMPS under MPI. Conventions that must not change:
+    temporal eigenvalues omega = eig(i*L0) with exp(-i*omega*t), unstable
+    exactly when Im(omega) > 0; resolvent H = C F ((gamma - i*omega) I - L0)^-1
+    F B; SBP finite-difference orders 2, 4, 6, 8 only; Fortran-order
+    flattening to match the LinStab2D MATLAB reference. Flag real defects
+    first: sign or conjugation errors, wrong axis or index order, silent
+    dtype downcasts (complex to real, complex128 to complex64), float
+    equality, MPI collectives that not every rank reaches (deadlock), PETSc
+    objects never destroyed, a changed NPZ output key with no migration
+    note, and a test whose tolerance was loosened or whose reference was
+    regenerated from the new code.
+  ignore:
+    files:
+      - '**/assets/katex/**'
+      - '**/llms-full.txt'
+      - 'skills/linstabpy/references/generated/**'
+      - 'examples/**/logs/**'
+      - 'examples/logs/**'
+      - '**/*.lock'
+      - '**/*.min.js'
+      - '**/*.woff2'
+      - '**/*.npz'
+      - '**/*.mat'
+      - '**/*.h5'
+      - '**/*.csv'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.pdf'
+    max_changed_lines: 50000

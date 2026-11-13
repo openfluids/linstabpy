@@ -1,7 +1,122 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# linstabpy is public: CodeRabbit reviews every pull request automatically.
+# A repo file replaces the organization config as a whole.
+language: en-US
+tone_instructions: "Terse. Real defects first, the most severe first. No praise, no filler. Plain words: one idea per sentence, active voice."
+
 reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+
   auto_review:
     enabled: true
-    drafts: true
-    base_branches:
-      - ".*"
+    auto_pause_after_reviewed_commits: 0
+    drafts: false
+    base_branches: [".*"]
+    ignore_title_keywords: ["[wip]", "[skip review]"]
+    ignore_usernames: ["dependabot[bot]"]
+
+  # Generated, vendored and binary files: no review
+  path_filters:
+    - "!**/assets/katex/**"
+    - "!**/llms-full.txt"
+    - "!skills/linstabpy/references/generated/**"
+    - "!examples/**/logs/**"
+    - "!examples/logs/**"
+    - "!**/*.lock"
+    - "!**/*.min.js"
+    - "!**/*.woff2"
+    - "!**/*.npz"
+    - "!**/*.mat"
+    - "!**/*.h5"
+    - "!**/*.csv"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.pdf"
+
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: |
+        Linearized compressible Navier-Stokes stability and resolvent solver
+        on PETSc/SLEPc and MUMPS under MPI. Fixed conventions: omega =
+        eig(i*L0) with exp(-i*omega*t), unstable exactly when Im(omega) > 0;
+        resolvent H = C F ((gamma - i*omega) I - L0)^-1 F B; SBP orders 2, 4,
+        6, 8 only; Fortran-order flattening as in the LinStab2D MATLAB
+        reference. Flag: sign or conjugation errors, wrong axis or index
+        order, silent dtype downcasts, float equality, in-place aliasing of
+        NumPy arrays, MPI collectives that not every rank reaches, PETSc
+        objects never destroyed, a changed NPZ output key with no migration
+        note and test, a public API change with no CHANGELOG entry.
+    - path: "**/tests/**"
+      instructions: |
+        Tests assert numerical results with explicit tolerances, and each
+        tolerance states its reason. Parity tests compare with LinStab2D
+        MATLAB output or a published value, never with output of linstabpy
+        itself. Flag: a deleted, skipped or ignored test; a tolerance
+        loosened in the same PR that changes the code it checks; a reference
+        regenerated from the new code; only the happy path covered.
+    - path: "**/*.sh"
+      instructions: |
+        Bash for Linux and macOS (BSD tools). Flag: missing quoting, GNU-only
+        flags of sed, date, stat or head, unchecked failures, any sudo.
+    - path: ".github/workflows/**"
+      instructions: |
+        GitHub Actions. Flag: an action not pinned to a full commit SHA; no
+        top-level `permissions:`, or more than the job needs;
+        pull_request_target or workflow_run that runs PR code; untrusted
+        event text used directly in `run:`; a publish step with a long-lived
+        token where PyPI trusted publishing works.
+    - path: "**/*.md"
+      instructions: |
+        Docs in plain, direct English: short sentences, active voice. Flag: a
+        claim of speed, accuracy or parity with no script, test or log behind
+        it; broken relative links; local paths, internal ids or costs;
+        marketing words.
+
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    custom_checks:
+      - name: "Tests not weakened"
+        mode: error
+        instructions: |
+          Fail if the PR deletes, skips or ignores a test, or loosens a
+          tolerance, and the PR body gives no measured reason (the numbers
+          before and after).
+      - name: "Public text"
+        mode: warning
+        instructions: |
+          Fail if a file, the PR title or the PR body contains a local path
+          (/home/, /tmp/), a token, a secret, or an internal task id.
+
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    gitleaks:
+      enabled: true
+    osvScanner:
+      enabled: true
+    github-checks:
+      enabled: true
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+chat:
+  auto_reply: false
+
+knowledge_base:
+  learnings:
+    scope: auto
