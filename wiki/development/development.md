@@ -78,12 +78,12 @@ commit SHA.
 
 ## Architecture wiki
 
-`wiki/` is hand-owned. An early version was machine-generated, then
+`wiki/` is hand-owned. This page, [compute backends](compute-backends.md), and the [runtime NPZ contract](runtime-npz-contract.md) live in `wiki/development/`; `docs/` holds only the tutorial and the README images. An early version was machine-generated, then
 rewritten by hand (prose, links, examples, nav), so edit pages directly.
 Two scripts generate parts of it, and CI runs both (`.github/workflows/docs.yml`):
 
 - `python3 tools/generate_wiki_boundaries.py` rewrites the generated regions
-  of `wiki/boundaries.md` (CLI variables, allowed YAML keys, lazy exports).
+  of [boundaries](../boundaries.md) (CLI variables, allowed YAML keys, lazy exports).
   It leaves the rest of the page unchanged.
 - `python3 tools/generate_llms_full.py` writes `wiki/llms-full.txt`. Do not
   edit that file by hand.

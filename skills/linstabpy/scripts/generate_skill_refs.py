@@ -141,7 +141,7 @@ def _npz_keys() -> str:
         "# NPZ contract keys (generated)\n",
         "\nSource: `src/linstabpy/driver/payload.py` (`RUNTIME_NPZ_CONTRACT_KEYS`).\n",
         "Additive keys are fine; renames/removals need a migration note + "
-        "test + reader updates (`docs/runtime_npz_contract.md`).\n",
+        "test + reader updates (`wiki/development/runtime-npz-contract.md`).\n",
         f"\nTotal keys: {len(keys)}.\n",
     ]
     for prefix, title in _NPZ_GROUPS:

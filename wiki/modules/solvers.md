@@ -15,7 +15,7 @@ Objects: created in `solvers.*` and `linalg.factorize`.
 
 Reference sparse-direct path is MUMPS. GPU SuperLU_DIST complex CUDA was
 measured and rejected (order-one residuals). See
-[`docs/COMPUTE_BACKENDS.md`](https://github.com/openfluids/linstabpy/blob/main/docs/COMPUTE_BACKENDS.md).
+[compute backends](../development/compute-backends.md).
 
 ## Overview
 

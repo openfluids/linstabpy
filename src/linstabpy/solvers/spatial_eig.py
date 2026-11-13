@@ -10,7 +10,7 @@ Resolution order is YAML ``factor_backend``, then
 the reference direct path).
 A small complex PETSc LU probe checks requested backends.
 An unavailable backend fails loudly instead of falling back.
-See ``docs/COMPUTE_BACKENDS.md`` for the backend contract and current evidence.
+See ``wiki/development/compute-backends.md`` for the backend contract and current evidence.
 
 Current backend status stays conservative.
 ``mumps`` is the default and reference path.
@@ -97,7 +97,7 @@ def _eigs_generalized(
     Direct shift-invert resolves ``factor_backend`` from YAML, then
     ``LINSTABPY_FACTOR_BACKEND``, then the path default.
     A probe checks backend availability and failures are loud.
-    See ``docs/COMPUTE_BACKENDS.md``.
+    See ``wiki/development/compute-backends.md``.
     The factorization knobs ``LINSTABPY_FACTOR_PRECISION``,
     ``LINSTABPY_MUMPS_BLR`` with ``LINSTABPY_MUMPS_BLR_TOL``, and
     ``LINSTABPY_MUMPS_ORDERING`` apply from the environment today.

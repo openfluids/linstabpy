@@ -14,7 +14,7 @@ choices come from that shared policy layer.
 | `schema.py` | YAML shape |
 
 Backend selection for sparse-direct factor (see
-[`docs/COMPUTE_BACKENDS.md`](https://github.com/openfluids/linstabpy/blob/main/docs/COMPUTE_BACKENDS.md)):
+[compute backends](../development/compute-backends.md)):
 
 On the reference direct path (`st_solver` of `mumps`/`direct`/`lu`) the
 resolution order is `solver.eigen.factor_backend`, then

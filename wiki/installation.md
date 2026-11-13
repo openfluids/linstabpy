@@ -10,7 +10,7 @@ or `environment.yml`. GPU is not an install path yet.
 | `environment.yml` | conda env `linstabpy` | Same contract from conda-forge. pip installs this package only. |
 | GPU / `environment-gpu.yml` | — | Not shipped. See [GPU and extra stacks](#gpu-and-extra-stacks). |
 
-`docs/COMPUTE_BACKENDS.md` is the backend audit. This section is how you install.
+The [compute backends](development/compute-backends.md) page is the backend audit. This section is how you install.
 
 ## Prerequisites
 
@@ -144,8 +144,8 @@ EVP/resolvent residual. That has not happened.
 | SuperLU_DIST + CUDA, complex | Tested on one CUDA build; solve residuals were order one. Rejected for that path. |
 
 `LINSTABPY_FACTOR_BACKEND=strumpack` is an experimental **CPU** factor choice
-when that library is in the PETSc build. It is not a GPU install. See
-`docs/COMPUTE_BACKENDS.md`.
+when that library is in the PETSc build. It is not a GPU install. See the
+[compute backends](development/compute-backends.md) page.
 
 ## macOS
 

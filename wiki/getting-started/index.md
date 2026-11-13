@@ -203,7 +203,7 @@ Run the case, then the plots:
 
 What you get:
 
-* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](../core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in `docs/runtime_npz_contract.md`.
+* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](../core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in the [runtime NPZ contract](../development/runtime-npz-contract.md).
 * `example_1_blasius_baseflow.png`: the mean flow you linearized about. Always look at this before trusting modes.
 * `example_1_blasius_modes_forcing_response_{u,v}[_imag]_mosaic.png`: one mosaic per component. Each shows the optimal forcing (what to inject), the response (what grows), and their imaginary parts.
 
@@ -346,7 +346,7 @@ print(d["gains"])  # resolvent gains, if a resolvent stage ran
 print(d["provenance_config_hash"], d["provenance_linstabpy_git_sha"])
 ```
 
-Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, is what makes the run reproducible and is what the stability acceptance postchecks (`docs/runtime_npz_contract.md`) validate against.
+Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, is what makes the run reproducible and is what the stability acceptance postchecks (see the [runtime NPZ contract](../development/runtime-npz-contract.md)) validate against.
 
 Before trusting any spectrum, check the basics the README lists in full: requested `nev` versus converged `nconv`, subspace size `ncv`, [EPS](../solver-glossary.md) tolerance and convergence test, postcheck residuals, boundary leakage, and target distances. Converged Ritz pairs with bad full-operator residuals happen on interior non-Hermitian problems, and the postcheck is what catches them.
 

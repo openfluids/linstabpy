@@ -117,3 +117,7 @@ nav:
   - Core concepts: core-concepts.md
   - FAQ: faq.md
   - References: references.md
+  - Development:
+      - Development workflow: development/development.md
+      - Compute backends: development/compute-backends.md
+      - Runtime NPZ contract: development/runtime-npz-contract.md

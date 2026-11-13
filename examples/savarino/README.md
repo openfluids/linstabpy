@@ -102,7 +102,7 @@ GPU-capable solver block (FGMRES right-preconditioned by a STRUMPACK LU).
 are the same point on the cuDSS GPU backend (FGMRES right-preconditioned by a
 cuDSS LU; the `32` variant factors in single precision via `factor_precision:
 single`). Both run single-rank on one GPU -- see the "cuDSS GPU Backend"
-section of `docs/COMPUTE_BACKENDS.md`.
+section of `wiki/development/compute-backends.md`.
 
 ## Data
 
@@ -175,7 +175,7 @@ python pack_reference_modes.py
    than the CPU reference on a workstation-class card) and
    `savarino_point_cudss.yaml` / `savarino_point_cudss32.yaml` (cuDSS LU;
    same gains, and on the same card faster than the CPU reference --
-   measured numbers in `docs/COMPUTE_BACKENDS.md`).
+   measured numbers in `wiki/development/compute-backends.md`).
 6. **Collect** the per-point outputs into one run-record CSV:
    ```
    python collect_campaign.py campaign > campaign.csv

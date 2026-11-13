@@ -32,4 +32,4 @@ generated list by group in `generated/npz-keys.md`. Groups:
 
 Contract rule: additive keys are fine. Renames or removals require a
 migration note, test updates, and reader updates
-(`docs/runtime_npz_contract.md`).
+(`wiki/development/runtime-npz-contract.md`).

@@ -386,9 +386,9 @@ instead of silently falling back to MUMPS or PETSc native LU.
 | `mumps` | Validated default | CPU sparse-direct backend used by the current test suite. |
 | `strumpack` | Experimental, **run it on one host thread** | Not built by default; GPU claims are unvalidated for LinStabPy matrices. Multithreaded it returns a wrong solve now and then: see the note below. |
 | `superlu_dist` | Experimental | Not built by default; PETSc requires a SuperLU_DIST build with GPU offload support for GPU use. |
-| `cudss` | Validated GPU backend | Not a PETSc factor type: the cuDSS LU (through `nvmath-python`, `pip install "linstabpy[cudss]"`) preconditions the right-preconditioned FGMRES path. One rank, one GPU; the adjoint uses a second factorization of the conjugate transpose. Solutions match MUMPS to 1e-12; see `docs/COMPUTE_BACKENDS.md`. |
+| `cudss` | Validated GPU backend | Not a PETSc factor type: the cuDSS LU (through `nvmath-python`, `pip install "linstabpy[cudss]"`) preconditions the right-preconditioned FGMRES path. One rank, one GPU; the adjoint uses a second factorization of the conjugate transpose. Solutions match MUMPS to 1e-12; see `wiki/development/compute-backends.md`. |
 
-See `docs/COMPUTE_BACKENDS.md` for the backend audit, version floors, and the
+See `wiki/development/compute-backends.md` for the backend audit, version floors, and the
 current GPU go/no-go notes.
 
 #### STRUMPACK is not thread safe
