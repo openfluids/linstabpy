@@ -28,7 +28,6 @@ reviews:
       - '**/llms-full.txt'
       - 'skills/linstabpy/references/generated/**'
       - 'examples/**/logs/**'
-      - 'examples/logs/**'
       - '**/*.lock'
       - '**/*.min.js'
       - '**/*.woff2'
