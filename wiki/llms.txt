@@ -17,10 +17,8 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 
 ## Reference
 
-- [Overview](https://linstabpy.vercel.app/overview/): What LinStabPy computes, scope boundaries, system context, technical architecture.
-- [Architecture](https://linstabpy.vercel.app/architecture/): Packages, how they connect, main processes. Follows `docs/architecture.md` ownership map.
-- [Workflow](https://linstabpy.vercel.app/workflow/): Steps of a run in order: config to baseflow to mesh to L0 + BCs to factorize to eigen/resolvent to payload.
-- [Module guide](https://linstabpy.vercel.app/modules/): Per-package quick reference plus deep package notes (driver, operators, mesh, solvers, router, linalg).
+- [Architecture](https://linstabpy.vercel.app/architecture/): Packages, who owns which policy, run order (config to baseflow to mesh to L0 + BCs to factorize to eigen/resolvent to payload), stored data, quality gates.
+- [Modules](https://linstabpy.vercel.app/modules/): One page per package (driver, operators, BC recipes, mesh, baseflow, config, stability, resolvent, solvers and router, linalg, utilities): a short summary, then the package notes.
 - [Solver glossary](https://linstabpy.vercel.app/solver-glossary/): Every KSP, PC, EPS, ST, and MatShell term defined from zero with official PETSc/SLEPc links.
 
 ## Optional
@@ -28,4 +26,7 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 - [References](https://linstabpy.vercel.app/references/): Papers and manuals behind the wiki, grouped by what they justify.
 - [Installation](https://linstabpy.vercel.app/installation/): Full install guide: install.sh, conda, macOS, clusters, Intel MPI, GPU stacks, MPI rules.
 - [Troubleshooting](https://linstabpy.vercel.app/troubleshooting/): Known install and runtime failures with their fixes, and what to send when a machine is still broken.
+- [Development workflow](https://linstabpy.vercel.app/development/development/): Branches, tests, changelog, release steps, and how the generated wiki files are checked.
+- [Compute backends](https://linstabpy.vercel.app/development/compute-backends/): Factor backend audit: MUMPS default, cuDSS, STRUMPACK, SuperLU_DIST, version floors, measured evidence.
+- [Runtime NPZ contract](https://linstabpy.vercel.app/development/runtime-npz-contract/): Key groups of the result archive and the rules for changing them.
 - [Repository README](https://github.com/openfluids/linstabpy#readme): Short install, example runner, numerical setup, parity with LinStab2D.

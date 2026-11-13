@@ -180,6 +180,15 @@ print(f"Computed {len(omega)} eigenvalues. Leading growth rate: {np.max(np.imag(
 | [**Core concepts**](core-concepts.md) | Base flow, growth rate, gain, Chu norm, wavemaker, sponge, and friends | Open beside any science page |
 
 
+## For AI coding agents
+
+The repository ships an agent skill, [`skills/linstabpy`](https://github.com/openfluids/linstabpy/tree/main/skills/linstabpy). It is a folder that an AI coding agent, such as Claude Code or Codex, loads to learn the install gate, the environment-variable CLI, the YAML case schema, and the NPZ output contract.
+
+To install it, copy or symlink the folder into the skills folder of your agent. For Claude Code, link it to `~/.claude/skills/linstabpy`.
+
+An agent that reads web pages can start from [llms.txt](https://linstabpy.vercel.app/llms.txt), an index of this site. [llms-full.txt](https://linstabpy.vercel.app/llms-full.txt) holds the same pages in one file.
+
+
 ## Cite linstabpy
 
 If this software contributed to published work, please cite the linstabpy paper together with the LinStab2D methodology paper:

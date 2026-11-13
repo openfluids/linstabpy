@@ -34,14 +34,15 @@ PAGE_MAP = {
     "/boundaries/": "boundaries.md",
     "/core-concepts/": "core-concepts.md",
     "/faq/": "faq.md",
-    "/overview/": "overview.md",
     "/architecture/": "architecture.md",
-    "/workflow/": "workflow.md",
     "/modules/": "modules/index.md",
     "/solver-glossary/": "solver-glossary.md",
     "/references/": "references.md",
     "/installation/": "installation.md",
     "/troubleshooting/": "troubleshooting.md",
+    "/development/development/": "development/development.md",
+    "/development/compute-backends/": "development/compute-backends.md",
+    "/development/runtime-npz-contract/": "development/runtime-npz-contract.md",
 }
 
 _LINK_RE = re.compile(r"^- \[([^\]]+)\]\(([^)]+)\)(?::\s*(.*))?$")

@@ -32,6 +32,7 @@ budget.
 - [Overview](#overview)
 - [Installation](#installation)
 - [Quick start](#quick-start)
+- [For AI coding agents](#for-ai-coding-agents)
 - [Repository layout](#repository-layout)
 - [Numerical setup](#numerical-setup)
 - [Nondimensionalization](#nondimensionalization)
@@ -251,6 +252,19 @@ Plain JSON would remove those explanations. Long command-line flags would hide
 too much state in shell history or runner scripts. Python config files would mix
 data with executable code. YAML keeps the comments next to the knobs.
 
+## For AI coding agents
+
+`skills/linstabpy/` is an agent skill: a folder that an AI coding agent, such as Claude Code or Codex, loads to learn how to work with LinStabPy. It covers the install gate, the environment-variable CLI, the YAML case schema, the lazy Python API, and the NPZ output contract.
+
+To install it, copy or symlink the folder into the skills folder of your agent. For Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$PWD/skills/linstabpy" ~/.claude/skills/linstabpy
+```
+
+An agent that reads web pages can start from <https://linstabpy.vercel.app/llms.txt>, an index of the documentation site. <https://linstabpy.vercel.app/llms-full.txt> holds the same pages in one file.
+
 ## Repository layout
 
 For a maintainer map of where numerical policy belongs, see
@@ -273,7 +287,9 @@ For a maintainer map of where numerical policy belongs, see
 |   |-- song/                      Song / Robinet SWBLI EVP case
 |   |-- savarino/                  Savarino 30.8 deg resolvent case
 |   `-- sawtooth/                  Lui 2022 suction-side SWBLI, stride-2 field
-|-- docs/                          Architecture, backends, and tutorial
+|-- wiki/                          Documentation site source (MkDocs); development pages in wiki/development/
+|-- docs/                          Tutorial and README images
+|-- skills/linstabpy/              Agent skill for AI coding agents
 |-- tests/                         Pytest suite, file-size and provenance checks
 |-- install.sh                     Installer and host preflight (`--diagnose`)
 |-- environment.yml                CPU conda-forge complex PETSc + pip from pyproject

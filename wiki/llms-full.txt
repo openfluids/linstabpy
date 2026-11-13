@@ -17,10 +17,8 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 
 ## Reference
 
-- [Overview](https://linstabpy.vercel.app/overview/): What LinStabPy computes, scope boundaries, system context, technical architecture.
-- [Architecture](https://linstabpy.vercel.app/architecture/): Packages, how they connect, main processes. Follows `docs/architecture.md` ownership map.
-- [Workflow](https://linstabpy.vercel.app/workflow/): Steps of a run in order: config to baseflow to mesh to L0 + BCs to factorize to eigen/resolvent to payload.
-- [Module guide](https://linstabpy.vercel.app/modules/): Per-package quick reference plus deep package notes (driver, operators, mesh, solvers, router, linalg).
+- [Architecture](https://linstabpy.vercel.app/architecture/): Packages, who owns which policy, run order (config to baseflow to mesh to L0 + BCs to factorize to eigen/resolvent to payload), stored data, quality gates.
+- [Modules](https://linstabpy.vercel.app/modules/): One page per package (driver, operators, BC recipes, mesh, baseflow, config, stability, resolvent, solvers and router, linalg, utilities): a short summary, then the package notes.
 - [Solver glossary](https://linstabpy.vercel.app/solver-glossary/): Every KSP, PC, EPS, ST, and MatShell term defined from zero with official PETSc/SLEPc links.
 
 ## Optional
@@ -28,6 +26,9 @@ Critical facts agents get wrong: the `linstabpy` CLI takes NO case arguments -- 
 - [References](https://linstabpy.vercel.app/references/): Papers and manuals behind the wiki, grouped by what they justify.
 - [Installation](https://linstabpy.vercel.app/installation/): Full install guide: install.sh, conda, macOS, clusters, Intel MPI, GPU stacks, MPI rules.
 - [Troubleshooting](https://linstabpy.vercel.app/troubleshooting/): Known install and runtime failures with their fixes, and what to send when a machine is still broken.
+- [Development workflow](https://linstabpy.vercel.app/development/development/): Branches, tests, changelog, release steps, and how the generated wiki files are checked.
+- [Compute backends](https://linstabpy.vercel.app/development/compute-backends/): Factor backend audit: MUMPS default, cuDSS, STRUMPACK, SuperLU_DIST, version floors, measured evidence.
+- [Runtime NPZ contract](https://linstabpy.vercel.app/development/runtime-npz-contract/): Key groups of the result archive and the rules for changing them.
 - [Repository README](https://github.com/openfluids/linstabpy#readme): Short install, example runner, numerical setup, parity with LinStab2D.
 
 ---
@@ -246,7 +247,7 @@ Run the case, then the plots:
 
 What you get:
 
-* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](../core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in `docs/runtime_npz_contract.md`.
+* `example_1_blasius.npz`: gains, forcing and response modes, mesh, [Chu](../core-concepts.md) weights, BC provenance, solver metadata. Load with `numpy.load`. The key names form a compatibility surface documented in the [runtime NPZ contract](../development/runtime-npz-contract.md).
 * `example_1_blasius_baseflow.png`: the mean flow you linearized about. Always look at this before trusting modes.
 * `example_1_blasius_modes_forcing_response_{u,v}[_imag]_mosaic.png`: one mosaic per component. Each shows the optimal forcing (what to inject), the response (what grows), and their imaginary parts.
 
@@ -389,7 +390,7 @@ print(d["gains"])  # resolvent gains, if a resolvent stage ran
 print(d["provenance_config_hash"], d["provenance_linstabpy_git_sha"])
 ```
 
-Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, is what makes the run reproducible and is what the stability acceptance postchecks (`docs/runtime_npz_contract.md`) validate against.
+Keep the YAML next to the NPZ. That pair, plus the git SHA inside the archive, is what makes the run reproducible and is what the stability acceptance postchecks (see the [runtime NPZ contract](../development/runtime-npz-contract.md)) validate against.
 
 Before trusting any spectrum, check the basics the README lists in full: requested `nev` versus converged `nconv`, subspace size `ncv`, [EPS](../solver-glossary.md) tolerance and convergence test, postcheck residuals, boundary leakage, and target distances. Converged Ritz pairs with bad full-operator residuals happen on interior non-Hermitian problems, and the postcheck is what catches them.
 
@@ -450,8 +451,8 @@ Honest gaps, so you can plan around them:
 ## Where to go next
 
 * Run the family: [example family map](#the-example-family-map) commands, then the parity comparison.
-* Read the [Overview](../overview.md) for scope and vocabulary.
-* Read the [Workflow](../workflow.md) before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
+* Read [Core concepts](../core-concepts.md) for scope and vocabulary.
+* Read the [Architecture](../architecture.md) page before writing your own YAML. It documents stage order, the dissipation pair, and acceptance gates.
 * Open one [module guide](../modules/index.md) package note when you need math or code detail. Start with LNSE Operator Assembly or Resolvent Analysis.
 * Keep the [Boundaries](../boundaries.md) page open while building cases. It lists every env var, flag, and output key.
 * Open the [solver glossary](../solver-glossary.md) beside any solver output.
@@ -681,7 +682,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 ## Stability vocabulary
 
-**Base flow.** A steady solution $\bar q(x, y)$ of the compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) equations, loaded from files and never computed here. Starting point of every analysis. Nondimensional, convective scaling: freestream density, velocity, and temperature equal 1. See [baseflow management](modules/baseflow-management.md).
+**Base flow.** A steady solution $\bar q(x, y)$ of the compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) equations, loaded from files and never computed here. Starting point of every analysis. Nondimensional, convective scaling: freestream density, velocity, and temperature equal 1. See [base flow](modules/baseflow.md).
 
 **Perturbation.** The small disturbance $q'(x, y, z, t)$ about the base flow. LinStabPy solves linear equations for $q'$ only. Nonlinear saturation is out of scope by construction.
 
@@ -693,7 +694,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Direct mode.** A right eigenvector of the stability problem: the spatial shape $v(x, y)$ of the disturbance. Modes are normalized in the Chu norm (or $L^2$ where stated) before any comparison or plot.
 
-**Spatial amplification.** At prescribed real spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$ and real frequency $\omega$, the spatial problem returns a complex streamwise wavenumber $\alpha$. Amplification along $x$ is read from $\mathrm{Im}(\alpha)$ while following one branch; the sign interpretation depends on the branch, so never judge convective or absolute behavior from a single point. Build the spectrum first, then track the branch. See the tutorial and [stability analysis](modules/stability-analysis.md).
+**Spatial amplification.** At prescribed real spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) $\beta$ and real frequency $\omega$, the spatial problem returns a complex streamwise wavenumber $\alpha$. Amplification along $x$ is read from $\mathrm{Im}(\alpha)$ while following one branch; the sign interpretation depends on the branch, so never judge convective or absolute behavior from a single point. Build the spectrum first, then track the branch. See the tutorial and [stability analysis](modules/stability.md).
 
 **Generalized eigenvalue problem.** An eigenproblem of the form $A x = \lambda B x$ with $B \neq I$ (see [generalized eigenvectors](https://grokipedia.com/page/Generalized_eigenvector)). Ours is the spatial pencil $(L_c + \omega L_w)\, v = \alpha\, R\, v$. Boundary rows make $R$ singular, so $\lambda = \infty$ eigenvalues exist for the constrained subspace. Tiny or near-full problems go to dense [QZ](https://en.wikipedia.org/wiki/QZ_algorithm), which handles singular $B$ natively; production sizes use shift-invert [EPS](solver-glossary.md).
 
@@ -704,7 +705,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Modal vs non-modal.** Modal stability asks about $t \to \infty$: do all eigenvalues sit on the stable side. Non-modal stability asks about finite time: how far can a perturbation wander before (possibly) decaying. For normal operators the answers agree; for non-normal ones they can differ wildly, and the finite-time answer is an optimization problem, not an eigenvalue. See Frantz, Loiseau and Robinet (2023), *Krylov methods for large-scale dynamical systems*, *Appl. Mech. Rev.* 75(3), 030802, modal and non-modal stability.
 
-**Resolvent.** The operator $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. The sign of $\omega$ follows $\exp(-i\omega t)$, as for the eigenvalues; see the [sign convention](resolvent-sign-convention.md). See [resolvent analysis](modules/resolvent-analysis.md).
+**Resolvent.** The operator $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ mapping harmonic forcing to harmonic response at frequency $\omega$. Mathematically an instance of the [resolvent formalism](https://grokipedia.com/page/Resolvent_formalism). $B$ and $C$ restrict inputs and outputs (regions, variables), $F$ is an optional spatial filter inside the masks, $\gamma \ge 0$ is the discount below. Never formed as entries; applied through one factorization. The resolvent is the frequency-domain analogue of optimal-perturbation analysis below: same question (worst input, largest output), asked per frequency instead of per time horizon. The sign of $\omega$ follows $\exp(-i\omega t)$, as for the eigenvalues; see the [sign convention](resolvent-sign-convention.md). See [resolvent analysis](modules/resolvent.md).
 
 **Optimal energy gain.** The largest achievable energy ratio $\sigma_1^2 = \max_{f \neq 0} \|Hf\|_E^2 / \|f\|_F^2$: response energy in the Chu norm over forcing energy in the forcing norm. Computed as $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal eigenproblem, never from an explicit [SVD](https://grokipedia.com/page/Singular_value_decomposition) of $H$. "Optimal" means optimal over all forcing shapes at that $(\beta, \omega)$, not over frequencies.
 
@@ -712,7 +713,7 @@ Shared conventions: the perturbation state is $q' = [\rho', u', v', w', T']^T$ p
 
 **Response mode.** The optimal output shape $u = Hv/\sigma$: what grows when the optimal forcing is applied. Always recovered by applying $H$, which is why the forward residual sits at roundoff by construction.
 
-**Gain map.** Leading gains sampled over a $(\beta, \omega)$ grid: spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) versus frequency. Peaks mark the flow's preferred amplifier settings. Production maps reuse anchor factorizations across nearby $\omega$ under a residual gate instead of refactoring per point. See [solver routing](modules/solver-routing.md).
+**Gain map.** Leading gains sampled over a $(\beta, \omega)$ grid: spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) versus frequency. Peaks mark the flow's preferred amplifier settings. Production maps reuse anchor factorizations across nearby $\omega$ under a residual gate instead of refactoring per point. See [solver routing](modules/solvers.md).
 
 **Discount ($\gamma$).** A real shift added as $(\gamma - i\omega) I - L_0$ with $\gamma > 0$ pushing poles off the imaginary axis. Keeps the shifted solve well posed near lightly damped eigenvalues. $\gamma = 0$ is the classical resolvent. Gains of a discounted resolvent answer the discounted question, so report $\gamma$ with the number.
 
@@ -841,769 +842,48 @@ Open an issue with the section that failed you, the command, the error, and the 
 
 ---
 
-## Overview
-
-Source: https://linstabpy.vercel.app/overview/
-
-# Project overview
-
-| Attribute | Value |
-|-----------|--------|
-| **System** | LinStabPy |
-| **Project type** | CLI and scientific library |
-| **Domain** | Compressible flow linear stability and resolvent analysis |
-| **Audience** | Master students and researchers fluent in math, linear algebra, and HPC, plus CFD engineers and scientific developers |
-
----
-
-!!! info "Conventions"
-    The discrete perturbation state is $q' = [\rho', u', v', w', T']^T$ at each grid point. Assembly builds the [sparse](https://grokipedia.com/page/Sparse_matrix) matrix $L_0$ with $\partial_t q' = L_0 q'$ in the interior, then applies sponge, dissipation, and boundary conditions in that fixed order.
-
-    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with time factor $\exp(-i\omega t)$. Growth in time is $\mathrm{Im}(\omega) > 0$. Targets you pass in YAML live in $\omega$ space. This matches `stability/_eigenvalues.py`, which is the source of truth.
-
-    The [resolvent](https://grokipedia.com/page/Resolvent_formalism) at $(\beta, \omega)$ with real discount $\gamma$ is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. Gains are weighted [singular values](https://grokipedia.com/page/Singular_value_decomposition). The default energy is the diagonal Chu norm described in Architecture.
-
-    [SBP](https://grokipedia.com/page/Summation_by_parts) orders are exactly $2$, $4$, $6$, $8$ (even only, with validated boundary closures). The default shifted solve is `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)), driven by [SLEPc](https://en.wikipedia.org/wiki/SLEPc) `EPS` with Krylov-Schur and shift-invert. Every solver term here is defined in the [solver glossary](solver-glossary.md).
-
-
-## Project introduction
-
-### Project name and description
-
-**LinStabPy** is a Python toolkit for **linear stability** and **resolvent analysis** of [compressible](https://grokipedia.com/page/Compressible_flow) flows. It started as a Python port of LinStab2D style MATLAB workflows and now runs distributed on HPC through [MPI](https://grokipedia.com/page/Message_Passing_Interface), [PETSc](https://en.wikipedia.org/wiki/PETSc), and SLEPc.
-
-A run starts from two inputs you supply. One is the **base flow**, a steady compressible [Navier-Stokes](https://grokipedia.com/page/Navier–Stokes_equations) solution stored as arrays on a structured grid. The code linearizes about it and never computes it. The other is a short **YAML case file** with physics, numerics, and solver policy. From there the pipeline builds the **linearized Navier-Stokes (LNSE)** matrix $L_0$ with **summation-by-parts (SBP)** [finite differences](https://grokipedia.com/page/Finite_difference_method), enforces boundary conditions, and solves one or more of:
-
-* **Temporal** eigenproblem, $\omega = \mathrm{eig}(iL_0)$ near a target
-* **Spatial** eigenproblem, generalized $Ax = \lambda Rx$ for streamwise [wavenumber](https://grokipedia.com/page/Wavenumber)
-* **[Adjoint](https://grokipedia.com/page/Adjoint)** eigenproblem, $W^{-1} L_0^H W$ for receptivity and sensitivity
-* **Resolvent** problem, leading [gains](core-concepts.md) and forcing and [response modes](core-concepts.md) of $H$
-
-Large sparse algebra runs through **PETSc and SLEPc**. The spine is **factorize once, solve many**. One sparse direct factorization of the shifted operator serves all [Krylov](https://grokipedia.com/page/Krylov_subspace) iterations and all $H$ and $H^H$ applies at that shift. The default backend is **MUMPS**. An optional **[cuDSS](https://docs.nvidia.com/cuda/cudss/)** path exists for GPU factors.
-
-### What you get
-
-| Capability | What it gives you |
-|------------|-------------------|
-| Large LNSE eigen and resolvent studies on HPC without MATLAB | Same analysis semantics as LinStab2D, on clusters, with a reproducible Python stack |
-| Mean flow files turned into modes, gains, and sensitivity fields | A direct bridge from RANS, LES, or DNS averages to transition and control insight |
-| Temporal, spatial, and adjoint spectra with structural sensitivity | Growth rates, frequencies, wavenumbers, and wavemaker maps |
-| Resolvent gain maps over frequency $\omega$ and spanwise wavenumber $\beta$ | Quantified nonnormal amplification, even where all modes are stable |
-| YAML driven runs with schema checks and provenance | Config hash, git SHA, backend, and cost recorded with every result |
-
-In short, LinStabPy turns [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean flow dumps into stability spectra, resolvent gains, and sensitivity results for **[transition](http://www.scholarpedia.org/article/Transition_to_turbulence)** and **flow control** work.
-
-### How it is built
-
-* **Language and delivery.** Python CLI plus importable library. Plain `import linstabpy` stays light and does not initialize PETSc or MPI. The driver initializes them when a solve stage starts.
-* **Discretization.** Structured grids. SBP differences at even orders $2$ to $8$. Cartesian and cylindrical (axisymmetric) coefficient paths. Optional Mattsson style filters and artificial dissipation.
-* **State and operators.** LNSE for $q' = [\rho', u', v', w', T']$. Sparse $L_0$ with sponge and [Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) and [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) recipes applied last.
-* **Solvers.** SLEPc `EPS` for eigenproblems. Resolvent through a weighted normal `MatShell` with repeated shifted solves.
-* **Parallelism.** MPI distribution of matrices, vectors, and case orchestration through `petsc4py` and `slepc4py`. Complex scalars are required for production paths.
-* **Linear algebra core.** PETSc `KSP` and `PC`. Sparse direct [LU](https://grokipedia.com/page/LU_decomposition) through MUMPS by default. Optional GPU sparse direct through cuDSS as a PETSc [preconditioner](https://grokipedia.com/page/Preconditioner) shell.
-* **Local numerics and IO.** NumPy and SciPy for arrays and CSC and CSR assembly before PETSc conversion. Base flow from `npy` directories or `npz` archives. Cases from YAML.
-* **Architecture style.** Staged pipeline with a dedicated **solver router** for cost aware $\beta$ and frequency campaigns with anchors, factor reuse, and residual gates.
-
-
-## Who uses it
-
-### Roles
-
-```mermaid
-flowchart LR
-  subgraph users [Users]
-    FDR["Fluid dynamics researchers"]
-    ENG["CFD and aerospace engineers"]
-    DEV["Scientific software developers"]
-  end
-  SYS["LinStabPy"]
-  FDR -->|"spectra, adjoints, sensitivity, maps"| SYS
-  ENG -->|"base flow ingest, BC recipes, sweeps"| SYS
-  DEV -->|"library API, typed config, provenance"| SYS
-```
-
-| Role | Description |
-|------|-------------|
-| :microscope: **Fluid dynamics researchers** | People studying hydrodynamic stability, transition, and receptivity in compressible flow. |
-| :small_airplane: **CFD and aerospace engineers** | People who already hold a mean flow and need its linear modes and amplifier behavior. |
-| :material-laptop: **Scientific software developers** | People who embed LNSE stages in larger pipelines and need a clean API and contracts. |
-
-If you are a master student, start in the researcher row. You need the base flow idea, the $\omega$ convention above, and one example. MPI and Krylov details can wait until your first map campaign feels slow.
-
-### Usage scenarios
-
-| Scenario | Who | What happens |
-|----------|-----|--------------|
-| **Temporal eigenvalue analysis** | Researchers, engineers | Load mean flow and mesh, assemble $L_0$ with boundary conditions, factorize the shifted system, run SLEPc near the target, emit $\omega$, modes, residuals, and provenance. |
-| **Resolvent gain analysis** | Researchers, engineers | Build $H$ from $L_0$ at target $\omega$, solve the weighted normal eigenproblem, return gains with forcing and response pairs. |
-| **Gain map over $\beta$ and $\omega$** | Researchers on HPC | One $L_0$ per spanwise wavenumber $\beta$, frequency bands marked, anchors factorized, nearby $\omega$ points reuse factors as preconditioners under a residual gate. |
-| **Spatial eigenproblem** | Researchers, engineers | Assemble spatial block pair $(A, R)$, run generalized SLEPc for streamwise wavenumber and spatial growth. |
-| **Base flow ingest and operator prep** | Engineers, developers | `npy` or `npz` dumps pass through sponge, shock cleanup, and viscosity setup, then mesh and SBP, then BC ready $L_0$. |
-| **Library embedding** | Developers | Import analysis functions without PETSc init on import, use typed config, SciPy and PETSc bridges, metrics and provenance. |
-
-### What each role needs
-
-**Researchers need:**
-
-* Temporal and spatial spectra with a clear $\omega$ convention
-* Adjoint modes and [structural sensitivity](core-concepts.md) ([wavemaker](core-concepts.md)) fields
-* [Gain maps](core-concepts.md) over $\omega$ and $\beta$ with residuals attached
-* YAML cases that rerun bit reproducibly on MPI clusters
-
-**Engineers need:**
-
-* Ingest of `npy` and `npz` base flows without reformatting by hand
-* Dirichlet and Neumann recipes expressed as data, not code edits
-* Direct sparse solves with MUMPS, with GPU factors available
-* Sweeps that reuse factors instead of refactoring at every point
-
-**Developers need:**
-
-* Importable API that stays free of PETSc init on import
-* Typed config with schema validation
-* SciPy and PETSc conversion helpers in one place
-* Provenance and metrics with stable key names
-
-
-## System boundaries
-
-### Scope
-
-**In scope** starts from **loaded mean flow and mesh geometry** and ends at **results, metrics, and payloads**.
-
-Inside that envelope, LinStabPy:
-
-1. Assembles $L_0$ and spatial pairs on structured SBP grids
-2. Enforces boundary condition recipes
-3. Factorizes shifted systems once per shift
-4. Runs eigen and resolvent workflows, including parametric maps
-5. Orchestrates cases through CLI and driver code with validation, IO, and provenance
-
-It does **not** generate nonlinear base flows or ship visualization products.
-
-```mermaid
-flowchart TB
-  subgraph outside [Outside the boundary]
-    CFD["Nonlinear CFD solvers"]
-    GUI["Plotting and GUIs"]
-    UNS["Unstructured or full 3D frameworks"]
-    MULTI["General non-LNSE multiphysics"]
-    CLOUD["Cloud auth and tenancy"]
-  end
-
-  subgraph inside [LinStabPy]
-    BF["Base flow load and preprocess"]
-    MS["Structured mesh, SBP, filters"]
-    OP["LNSE coefficients and assembly"]
-    BC["BC recipes"]
-    ST["Temporal, spatial, adjoint eigensolvers"]
-    RS["Resolvent gains and maps"]
-    FA["Sparse factorization"]
-    RT["Solver routing"]
-    DR["CLI, config, IO, provenance"]
-  end
-
-  CFD -.->|"mean flow files only"| BF
-  BF --> MS --> OP --> BC
-  OP --> ST
-  OP --> RS
-  FA --> ST
-  FA --> RS
-  RT --> RS
-  DR --> BF
-  DR --> ST
-  DR --> RS
-  DR --> RT
-```
-
-### Included components
-
-| Component | Role |
-|-----------|------|
-| Base flow load and preprocess | Ingest mean fields and make them safe to linearize |
-| Structured mesh with SBP and filters | Discrete derivatives, norms, quadrature, stabilization |
-| LNSE coefficients and assembly | Build sparse $L_0$ and spatial pairs |
-| Boundary condition recipes | Enforce Dirichlet and Neumann rows and publish free degrees of freedom |
-| Temporal, spatial, and adjoint eigensolvers | Core stability product |
-| Resolvent operator, gains, and maps | Amplifier and receptivity product |
-| Sparse factorization layer | Factorize once, solve many |
-| Solver routing with anchors and sweeps | Cost aware parametric campaigns |
-| CLI and driver with config, IO, and provenance | Reproducible HPC entry and exit |
-
-**Internal modules.**
-Case Orchestration, Configuration Management, Baseflow Management, Mesh Discretization, LNSE Operator Assembly (including boundary conditions), Stability Analysis, Resolvent Analysis, Solver Routing and Sweep Optimization, Linear Algebra Infrastructure, Shared Scientific Utilities.
-
-### Excluded components
-
-| Excluded | Why |
-|----------|-----|
-| Nonlinear CFD solvers | Upstream data providers only, coupled through files |
-| GUIs and interactive visualization | Results are files for external tools |
-| Unstructured or fully 3D volume frameworks | Scope is structured grids |
-| General non-LNSE multiphysics | Single purpose toolkit |
-| Cloud deployment, auth, and tenancy | HPC CLI and library, not a hosted service |
-
-
-## External pieces
-
-### List
-
-| External piece | Type | What it does here |
-|----------------|------|-------------------|
-| **PETSc** | Library | Distributed `Mat` and `Vec`, `KSP` and `PC`, parallel runtime |
-| **SLEPc** | Library | `EPS` eigensolvers for temporal, spatial, adjoint, and resolvent normal problems |
-| **MUMPS** | Backend via PETSc | Default sparse direct LU for shifted systems |
-| **MPI** | Runtime | Process parallelism for matrices, vectors, and orchestration |
-| **cuDSS** | Optional backend | Optional GPU sparse direct path, wrapped as a PETSc shell |
-| **NumPy and SciPy** | Libraries | Arrays, CSC and CSR assembly, local kernels before PETSc conversion |
-| **Base flow file stores** | File input | Mean fields as `npy` directories or `npz` archives |
-| **YAML case config** | File input | Case, mesh, eigen, resolvent, and solver policy |
-
-### How they connect
-
-```mermaid
-flowchart LR
-  subgraph inputs [File inputs]
-    YAML["YAML case config"]
-    CFDData["Base flow files"]
-  end
-
-  subgraph linstab [LinStabPy]
-    Core["LNSE stability and resolvent"]
-  end
-
-  subgraph libs [Libraries and runtimes]
-    NP["NumPy and SciPy"]
-    MPI["MPI"]
-    PETSc["PETSc"]
-    SLEPc["SLEPc"]
-    MUMPS["MUMPS"]
-    cuDSS["cuDSS, optional"]
-  end
-
-  YAML -->|"merge and validate"| Core
-  CFDData -->|"mean flow and mesh"| Core
-  Core -->|"local arrays, CSC and CSR"| NP
-  Core -->|"distributed runtime"| MPI
-  Core -->|"Mats, Vecs, KSP, PC"| PETSc
-  PETSc --> MUMPS
-  PETSc -.-> cuDSS
-  Core -->|"EPS problems"| SLEPc
-  SLEPc --> PETSc
-```
-
-**File inputs.**
-
-* **YAML case config.** Merged with environment overrides and defaults, then schema checked for eigen, resolvent, mesh, MPI, and router policy before any heavy stage runs.
-* **Base flow file stores.** Nondimensional primitives and mesh plus optional sponge fields. No live coupling to a CFD process.
-
-**Libraries and runtimes.**
-
-* **NumPy and SciPy.** Host side fields and sparse assembly before distributed conversion.
-* **MPI with PETSc.** Distributed execution fabric, matrices and vectors, direct and preconditioned solves.
-* **MUMPS through PETSc.** Primary sparse direct backend.
-* **cuDSS, optional.** GPU direct factor where selected by resource policy.
-* **SLEPc.** Eigenvalue and gain eigenproblems on PETSc objects.
-
-### Which dependencies matter most
-
-| Dependency | Criticality | Notes |
-|------------|-------------|-------|
-| PETSc with MPI | Required for distributed paths | Core parallel algebra and orchestration runtime |
-| SLEPc | Required for eigen and resolvent outputs | Built on PETSc structures |
-| MUMPS | Default direct path | Reached as a PETSc backend, not a separate app |
-| NumPy and SciPy | Required | Local numerics and IO bridge |
-| cuDSS | Optional | Probed for capability, chosen under RAM and cost policy |
-| Base flow files | Required as data source | One way file dependency |
-| YAML configs | Required for CLI campaigns | Policy source of truth after merge and validation |
-
-LinStabPy **consumes** CFD artifacts and HPC libraries. Edges are library linkage and file IO, not service APIs.
-
-
-## System context
-
-### Context diagram
-
-```mermaid
-graph TB
-  Researcher["Fluid dynamics researcher"]
-  Engineer["CFD and aerospace engineer"]
-  Developer["Scientific software developer"]
-
-  LinStabPy["LinStabPy: compressible LNSE stability and resolvent on HPC"]
-
-  YAMLConfig["YAML case config"]
-  CFDStore["Base flow file stores"]
-  NumPySciPy["NumPy and SciPy"]
-  MPIRuntime["MPI"]
-  PETScLib["PETSc"]
-  SLEPcLib["SLEPc"]
-  MUMPSLib["MUMPS"]
-  CuDSSLib["cuDSS, optional"]
-
-  Researcher -->|"YAML cases, MPI jobs, spectra, gains"| LinStabPy
-  Engineer -->|"base flows, BC policy, sweeps"| LinStabPy
-  Developer -->|"API, typed config, metrics"| LinStabPy
-
-  YAMLConfig -->|"case and solver policy"| LinStabPy
-  CFDStore -->|"mean flow and mesh"| LinStabPy
-  LinStabPy -->|"arrays, CSC and CSR"| NumPySciPy
-  LinStabPy -->|"process parallelism"| MPIRuntime
-  LinStabPy -->|"distributed Mats, Vecs, KSP, PC"| PETScLib
-  LinStabPy -->|"eigen and gain problems"| SLEPcLib
-  PETScLib -->|"sparse direct LU"| MUMPSLib
-  PETScLib -.->|"optional GPU factor"| CuDSSLib
-  SLEPcLib -->|"uses PETSc objects"| PETScLib
-```
-
-### Main flows
-
-#### Flow A. Temporal eigenvalue analysis
-
-1. Launch CLI or call the stability API.
-2. Initialize PETSc and MPI. Merge and validate YAML, env, and defaults.
-3. Load and preprocess mean flow. Build structured mesh with SBP.
-4. Compute LNSE coefficients. Assemble sparse $L_0$. Apply BC recipes.
-5. Factorize the shifted operator at the $\omega$ target.
-6. Run SLEPc near the target. Validate modes by residuals and boundary leakage.
-7. Emit eigenvalues, vectors, metrics, and provenance.
-
-#### Flow B. Resolvent gain analysis
-
-1. Resolve frequency, weights, $B$ and $C$ maps, and backend policy.
-2. Reuse the same base flow, mesh, and $L_0$ foundation as Flow A.
-3. Factorize $((\gamma - i\omega) I - L_0)$. Apply $H$ and $H^H$ through that factor.
-4. Run SLEPc on the weighted normal shell. Extract gains with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$.
-5. Package gains, modes, residuals, and solver metrics.
-
-#### Flow C. Gain map over $\beta$ and $\omega$
-
-1. Validate map, router, and resource policy.
-2. Assemble one $L_0$ per spanwise wavenumber $\beta$.
-3. Mark frequency bands. Walk lines with **anchor factorizations**, preconditioner reuse, residual gated refactor, and optional stable sweeps.
-4. Probe MUMPS, LU, and cuDSS backends under RAM and cost policy.
-5. Record leading gains with cost samples and certification metadata.
-
-#### Flow D. Spatial stability
-
-1. Resolve `solver.spatial` policy, with fallback to `solver.eigen`.
-2. Assemble spatial block pair from prepared coefficients and mesh.
-3. Configure direct shift-invert backend. Run generalized SLEPc solve for streamwise wavenumber and growth.
-
-### Decisions visible at this level
-
-| Decision | What it means | Consequence |
-|----------|---------------|-------------|
-| **Port MATLAB workflows to Python HPC** | Keep LinStab2D analysis semantics, add MPI orchestration | Familiar quantities, no MATLAB runtime |
-| **File based CFD boundary** | Mean flow enters only as `npy` and `npz` | Clean split from nonlinear solvers |
-| **PETSc and SLEPc as algebra stack** | No custom distributed eigensolver | Strong fit with cluster numerical ecosystems |
-| **Factorize once, solve many** | Direct factors serve shift-invert and resolvent applies | MUMPS and optional cuDSS appear explicitly |
-| **YAML with schema as contract** | Validate before heavy compute | Config files are first class inputs |
-| **No GUI and no cloud tenancy** | CLI with library and file payloads | Plotting and multi tenant ops stay outside |
-| **Structured SBP only** | Exclude unstructured and full 3D frameworks | Narrow, deep scope |
-| **Lazy library import** | Public API without PETSc init on import | Embeddable without forcing MPI at import time |
-
-
-## Technical architecture
-
-### Stack
-
-| Layer | Choice |
-|-------|----------------|
-| **Language and packaging** | Python, CLI entry plus importable package |
-| **Configuration** | YAML cases, env overrides, defaults, typed models, schema checks |
-| **Local arrays and sparse** | NumPy, SciPy CSC and CSR |
-| **Discretization** | Structured mesh, SBP orders $2$, $4$, $6$, $8$, filters, pole treatments |
-| **Parallel runtime** | MPI |
-| **Distributed algebra** | PETSc `Mat` and `Vec`, `KSP`, `PC` |
-| **Eigen and gain algebra** | SLEPc `EPS` |
-| **Sparse direct backends** | MUMPS by default through PETSc, optional cuDSS |
-| **Data in** | `npy` directories, `npz` archives, YAML |
-| **Data out** | Result payloads with eigenvalues and vectors, gains, modes, metrics, provenance |
-
-### Patterns
-
-| Pattern | Where it shows up |
-|---------|-------------------|
-| **Staged pipeline** | Config, base flow, mesh, operators and BCs, factorize, solve, payload |
-| **File and library boundary** | Domain science inside, CFD files and PETSc and SLEPc and MPI outside |
-| **Factorize once, solve many** | Shared layer under shift-invert eigen and resolvent applies |
-| **Strategy and backend registry** | MUMPS, LU, and cuDSS selection under cost and RAM policy |
-| **Router optimized sweep** | Anchors, recycling, residual gates, stable sweeps for $\beta$ and $\omega$ maps |
-| **Declarative BC recipes** | Dirichlet and Neumann rules sequenced onto operators with free degree sets |
-| **Lazy facade API** | Public surface defers heavy runtime init |
-
-### Key design choices
-
-1. **Single policy source.** Merged, validated YAML with env and defaults drives mesh, eigen, resolvent, MPI, and router behavior.
-2. **Single operator family.** Stability, adjoint, sensitivity, and resolvent consume BC enforced assembled operators, not ad hoc matrices per product.
-3. **HPC first.** MPI distributed vectors and matrices with case orchestration are first class. MATLAB parity is a workflow goal, not the scaling ceiling.
-4. **Cost aware maps.** Large $\beta$ and $\omega$ studies use the router. Factorization cost is explicit in metrics and certification, not hidden in a double loop.
-5. **Strict boundary.** Nonlinear CFD, visualization, unstructured 3D, general multiphysics, and cloud tenancy stay out of scope.
-6. **Dual use.** CLI and driver for full cases, importable library for embedding. Both share the same pipeline without forcing PETSc on import.
-
-### What connects most strongly inside
-
-At context level the software is one bubble. The strongest internal relations, which explain why PETSc and SLEPc and MUMPS matter, are:
-
-* Case Orchestration calls Configuration, Baseflow, Stability, Resolvent, Routing, Operators, and Linear Algebra
-* Operator Assembly composes Mesh and consumes Baseflow data
-* Stability and Resolvent consume Operators for $L_0$ and Linear Algebra for factorized shifted solves
-* Routing calls Resolvent and Linear Algebra for map walks and anchor reuse
-
-Package detail lives in Architecture and the Module guide.
-
-
-## Summary
-
-**LinStabPy** is an HPC Python **CLI and library** for **compressible LNSE stability and resolvent analysis** on **structured SBP grids**. It starts from **base flow files** and **YAML cases** and delivers **spectra, modes, gains, sensitivity, metrics, and provenance**. It excludes CFD generation, GUIs, and cloud service layers.
-
-**People** are researchers, engineers, and developers.
-**System** is LinStabPy.
-**External pieces** are YAML and base flow file stores, NumPy and SciPy, MPI, PETSc, SLEPc, MUMPS, and optional cuDSS.
-
-This overview sets the boundary for the rest of the docs.
-
----
-
 ## Architecture
 
 Source: https://linstabpy.vercel.app/architecture/
 
 # Architecture
 
-**LinStabPy** is a Python CLI and library for linear stability and resolvent analysis of compressible viscous flows. It ports LinStab2D style linearized Navier-Stokes (LNSE) workflows from MATLAB to an MPI enabled HPC stack on [PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc), with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) by default, optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)).
+**LinStabPy** is a Python CLI and library for linear stability and resolvent analysis of compressible viscous flows. It ports LinStab2D linearized Navier-Stokes (LNSE) workflows from MATLAB to an MPI HPC stack on [PETSc](https://en.wikipedia.org/wiki/PETSc) and [SLEPc](https://en.wikipedia.org/wiki/SLEPc), with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)) by default, optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)).
 
-This page describes the packages, how they connect, the main processes, and how a case runs. It follows the tree and the module notes in `docs/architecture.md`.
+This page lists the packages and who owns which policy, the order in which a case runs, the stored data, and the quality gates. Package details are on the [module pages](modules/index.md).
 
 !!! info "Conventions"
-    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last.
+    Temporal [eigenvalues](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) are $\omega = \mathrm{eig}(i L_0)$ with $\exp(-i\omega t)$ time dependence. Unstable means $\mathrm{Im}(\omega) > 0$. The shift-invert target lives in $\omega$ space. The [resolvent](https://grokipedia.com/page/Resolvent_formalism) is $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$ with $\sigma = \sqrt{\mathrm{Re}(\lambda)}$ from the weighted normal problem. [SBP](https://grokipedia.com/page/Summation_by_parts) orders are $2$, $4$, $6$, $8$ only. The default shifted solve is `KSPPREONLY` with `PCLU` through MUMPS, driven by SLEPc Krylov-Schur with `ST=SINVERT`. Assembly order is fixed: raw blocks, `inv(B/1j)` scaling, sponge, dissipation, then BC rows last. The state vector is $q = [\rho, u, v, w, T]$.
 
 
-## Architecture overview
+## Design rules
 
-### Architecture design philosophy
+1. **Staged pipeline.** `driver/run.py` runs the stages in a fixed order: config, base flow, mesh, coefficients, $L_0$ with BCs, factorize, solve, payload. It records wall time and RSS per stage.
+2. **One operator family.** Temporal, adjoint, spatial, single-frequency resolvent, and $\beta$-$\omega$ maps all consume BC-enforced LNSE operators. The spatial path reuses the temporal preparation helpers.
+3. **Factorize once, solve many.** `linalg.factorize` is shared by shift-invert eigenproblems and by every $H$ and $H^H$ apply at one shift.
+4. **Config is the single policy source.** YAML, then environment, then defaults, then schema validation into typed `Config` subsections. Invalid structure or FD orders fail before any factorization.
+5. **Lazy imports.** `import linstabpy` and the package, mesh, BC, linalg, stability, resolvent, and router packages resolve names through PEP 562 `__getattr__`. PETSc and MPI start only on solve paths. Importing `driver.run` is the intentional boundary.
+6. **SciPy and PETSc paths.** Local assembly uses SciPy CSC/CSR. The production path converts to distributed PETSc `Mat` through `utils/petsc_core.py`, which keeps mesh and solver packages independent.
+7. **Declarative BCs and cost-aware routing.** Case behavior comes from YAML and BC rules. The router decides between reuse and refactor from measured factor cost, memory, and residuals.
+8. **Reproducibility.** Config hash, git SHA, a metrics schema, and fixed NPZ contract keys.
 
-LinStabPy is designed as a **staged scientific pipeline**, not a service mesh or multi-tenant application. The system starts from [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) mean-flow dumps and YAML case policy, and ends at spectra, modes, [gains](core-concepts.md), metrics, and provenance payloads.
-
-Core design tenets:
-
-| Principle | Manifestation in the codebase |
-|-----------|-------------------------------|
-| **Staged pipeline** | Driver coordinates discrete stages: config → baseflow → mesh → L0 → factorize → solve → payload, with stage timing and heartbeats |
-| **Factorize-once, solve-many** | Shared `linalg.factorize` core underpins shift-invert eigenproblems and resolvent \(H\) applies |
-| **Config as single policy source** | YAML + environment + defaults → schema validation → typed `Config` subsections |
-| **Lazy loading** | PEP 562 `__getattr__` on package, mesh, BC, linalg, stability, resolvent, and router so help/version paths stay light and do not initialize PETSc/MPI |
-| **SciPy and PETSc dual paths** | Local CSC/CSR assembly is possible; production path converts to distributed PETSc `Mat` |
-| **Separation of concerns** | Physics (coefficients/assembly) vs. numerics (mesh/SBP) vs. routing (cost-aware sweeps) |
-| **Reproducibility** | Config hash, git SHA, metrics schema, fixed NPZ contract keys |
-
-The architectural style is a **modular layered scientific toolkit**:
-
-```text
-Orchestration → Domain Analysis → Discretization / Operators → Linear Algebra → Utilities
-```
-
-### Core architecture patterns
-
-1. **Pipeline and staged orchestration.** `driver/run.py` sequences the scientific stages in a fixed order.
-2. **Shared kernel with multiple products.** One BC enforced LNSE operator family feeds temporal eigen, [adjoint](https://grokipedia.com/page/Adjoint) and sensitivity, spatial eigen, single frequency resolvent, and $\beta$ and $\omega$ maps.
-3. **Strategy with backend registry.** Factor backends (MUMPS, [LU](https://grokipedia.com/page/LU_decomposition), cuDSS) are selected and probed under policy and RAM constraints.
-4. **Facade with lazy public API.** `import linstabpy` exposes analysis entry points without initializing [MPI](https://grokipedia.com/page/Message_Passing_Interface) or PETSc.
-5. **Declarative configuration and BC recipes.** Case behavior comes from YAML and BC rules, not hardcoded geometry branches.
-6. **Cost aware routing.** Anchor factorization, [preconditioner](https://grokipedia.com/page/Preconditioner) reuse, residual gates, break-even logic, and RAM autoselect turn single point resolvent into scalable campaigns.
-
-### Technology stack overview
+The layers, from the entry point down: orchestration, analysis domains, discretization and operators, linear algebra, utilities.
 
 | Layer | Choice |
 |-------|--------|
-| Language | Python ≥3.11, <3.15 |
-| Local arrays / sparse | NumPy, SciPy (CSC/CSR) |
+| Language | Python 3.11 to 3.14 |
+| Local arrays and sparse | NumPy, SciPy (CSC/CSR) |
 | Parallel runtime | MPI via `mpi4py` |
-| Distributed linear algebra | PETSc (`petsc4py`), **complex scalars required** |
-| Eigenproblems | SLEPc (`slepc4py`), EPS / weighted normal problems |
-| Sparse direct solvers | MUMPS (default via PCLU); optional cuDSS (GPU shell PC) |
-| Configuration | PyYAML; typed dataclasses + schema validation |
-| Packaging | conda-forge environment + editable pip install |
-| Outputs | NPZ result payloads; `metrics.json` + provenance |
+| Distributed linear algebra | PETSc (`petsc4py`), complex scalars required |
+| Eigenproblems | SLEPc (`slepc4py`), EPS and weighted normal problems |
+| Sparse direct solvers | MUMPS through `PCLU` (default); optional cuDSS as a GPU shell PC |
+| Configuration | PyYAML, typed dataclasses, schema validation |
+| Outputs | NPZ result payloads, `metrics.json`, provenance |
 
-**Environment note:** `environment.yml` targets conda-forge **complex-scalar** PETSc/SLEPc. GPU PETSc is not a supported conda path; cuDSS is an optional, non-conda path. Plain `import linstabpy` does **not** initialize PETSc or MPI.
-
-### High-level deployable mental model
-
-```mermaid
-flowchart TB
-  subgraph Entry
-    A1["CLI: linstabpy.driver.cli"]
-    A2["Library: import linstabpy"]
-  end
-
-  subgraph Pipeline["Staged HPC Pipeline"]
-    direction TB
-    P1["Config validate + typed policy"]
-    P2["Baseflow load + preprocess"]
-    P3["Mesh + SBP + filters"]
-    P4["Coefficients + L0 + BC"]
-    P5["Factorize shifted systems"]
-    P6a["Stability EPS"]
-    P6b["Resolvent H / gains"]
-    P6c["Router beta-omega map"]
-    P7["NPZ + metrics + provenance"]
-    P1 --> P2 --> P3 --> P4 --> P5
-    P5 --> P6a
-    P5 --> P6b
-    P4 --> P6c
-    P6c --> P6b
-    P6a --> P7
-    P6b --> P7
-    P6c --> P7
-  end
-
-  subgraph Backends
-    B1["PETSc Mat/Vec/KSP"]
-    B2["SLEPc EPS"]
-    B3["MUMPS / LU / cuDSS"]
-  end
-
-  A1 --> P1
-  A2 --> P4
-  A2 --> P6a
-  A2 --> P6b
-  A2 --> P6c
-  P5 --> B1
-  P5 --> B3
-  P6a --> B2
-  P6b --> B2
-```
+`environment.yml` targets conda-forge complex-scalar PETSc/SLEPc. GPU PETSc is not a supported conda path; cuDSS is an optional, non-conda path.
 
 
-## System context
-
-Roles, scope, and external pieces are defined once in [overview](overview.md). The architecture-relevant cut is how the two entry points reach the runtime:
-
-```mermaid
-flowchart LR
-  subgraph Users
-    U1["Researchers / Engineers"]
-    U2["Library API consumers"]
-  end
-
-  subgraph Inputs
-    YAML["YAML case config"]
-    CFD["CFD baseflow npy/npz"]
-  end
-
-  subgraph LinStabPy
-    CLI["driver.cli / run"]
-    LIB["linstabpy public API"]
-  end
-
-  subgraph Runtime
-    MPI["MPI / mpi4py"]
-    PETSc["PETSc"]
-    SLEPc["SLEPc"]
-    MUMPS["MUMPS"]
-    cuDSS["cuDSS optional"]
-    NP["NumPy / SciPy"]
-  end
-
-  subgraph Outputs
-    NPZ["Results NPZ"]
-    MET["metrics.json + provenance"]
-  end
-
-  U1 --> CLI
-  U2 --> LIB
-  YAML --> CLI
-  CFD --> CLI
-  CLI --> MPI
-  CLI --> PETSc
-  CLI --> SLEPc
-  PETSc --> MUMPS
-  PETSc --> cuDSS
-  CLI --> NP
-  LIB --> PETSc
-  CLI --> NPZ
-  CLI --> MET
-```
-
-The CLI needs the full stack: MPI with PETSc and SLEPc plus MUMPS underneath, SciPy for local assembly, YAML and base-flow files in, NPZ results with metrics and provenance out. The library needs only NumPy and SciPy until a solve starts; PETSc enters lazily with the first distributed matrix or factorize call. Optional cuDSS factors ride as a PETSc preconditioner shell wherever the backend policy selects them. Solver vocabulary on this page is defined in the [solver glossary](solver-glossary.md).
-
-
-## Container view
-
-Packages here are cohesive Python modules with a runtime and data contract. They run in one MPI process group as a single Python application.
-
-### Domain module division
-
-| Domain | Type | Code paths | Role |
-|--------|------|------------|------|
-| **Case Orchestration** | Core | `driver/`, `__init__.py` | PETSc/MPI init, staged runs, CLI, payload, public lazy API |
-| **Configuration Management** | Supporting | `config/` | Merge/validate YAML·env·defaults; typed solver policy |
-| **Baseflow Management** | Core | `baseflow/` | Mean-flow ingest, sponge, shock cleanup, viscosity |
-| **Mesh Discretization** | Core | `mesh/` | Geometry, SBP ops, filters, deformation, masking |
-| **LNSE Operator Assembly** | Core | `operators/`, `boundary_conditions/` | Coefficients, L0/spatial assembly, BC recipes, Chu norm |
-| **Stability Analysis** | Core | `stability/`, `solvers/eigenvalue.py`, `spatial_eig.py` | Temporal/adjoint/spatial EPS + sensitivity |
-| **Resolvent Analysis** | Core | `resolvent/` | H operator, weighted gains, forcing models |
-| **Solver Routing** | Core | `solvers/router/` | \(\beta\)/\(\omega\) maps, anchors, residual gates, RAM autoselect |
-| **Linear Algebra** | Infrastructure | `linalg/`, `mumps_options.py` | Factor backends, shifted ops, cuDSS |
-| **Shared Utilities** | Infrastructure | `utils/`, `metrics_schema.py` | PETSc bridge, YAML, cost, provenance, Floquet |
-
-### Domain module architecture
-
-```mermaid
-flowchart TB
-  subgraph Orchestration["Case Orchestration"]
-    CLI["cli.py"]
-    RUN["run.py"]
-    PRE["preflight.py"]
-    PAY["payload.py / io.py"]
-  end
-
-  subgraph Config["Configuration Management"]
-    SCH["schema.py"]
-    TYP["typed.py"]
-    DEF["defaults.py"]
-  end
-
-  subgraph PhysicsPrep["Physics Preparation"]
-    BF["baseflow"]
-    MESH["mesh + SBP"]
-  end
-
-  subgraph Operators["LNSE Operator Assembly"]
-    COEF["coefficients"]
-    ASM["assembly"]
-    SPAT["spatial"]
-    BC["boundary_conditions"]
-    EN["energy_norm"]
-  end
-
-  subgraph Analysis["Analysis Domains"]
-    STAB["stability"]
-    RES["resolvent"]
-    RTR["solvers/router"]
-  end
-
-  subgraph Solvers["Solver Backends"]
-    EIG["solvers/eigenvalue"]
-    SEIG["solvers/spatial_eig"]
-  end
-
-  subgraph LA["Linear Algebra Infrastructure"]
-    FAC["factorize"]
-    BE["backends"]
-    SH["shifted"]
-    CU["cudss_factor"]
-  end
-
-  subgraph Utils["Shared Utilities"]
-    PC["petsc_core / petsc_init"]
-    YIO["yaml_io"]
-    PROV["provenance / cost_metrics"]
-  end
-
-  CLI --> RUN
-  RUN --> PRE
-  RUN --> Config
-  RUN --> BF
-  RUN --> MESH
-  RUN --> ASM
-  RUN --> STAB
-  RUN --> RES
-  RUN --> RTR
-  RUN --> PAY
-
-  ASM --> COEF
-  ASM --> BC
-  ASM --> MESH
-  ASM --> BF
-  SPAT --> COEF
-
-  STAB --> EIG
-  STAB --> SEIG
-  STAB --> FAC
-  RES --> FAC
-  RTR --> RES
-  RTR --> FAC
-  RTR --> ASM
-
-  FAC --> BE
-  FAC --> PC
-  EIG --> FAC
-```
-
-### Storage design
-
-LinStabPy is **file-oriented**, not database-backed.
-
-| Store | Form | Contract |
-|-------|------|----------|
-| Case policy | YAML on disk / env overrides | Merged into typed `Config`; schema-validated |
-| Mean flow | npy directory or npz | Primitives `RHO,U,V,W,T` on `(ny,nx)`; optional sponge |
-| Runtime operators | In-memory SciPy CSC or PETSc `Mat` | Sparse \(5 N_{gp} \times 5 N_{gp}\) (or reduced free DOFs) |
-| Results | NPZ | Fixed key contract in `driver.payload` |
-| Metrics | JSON | `metrics_schema.SCHEMA`: provenance, problem, cost, quality |
-| Provenance | Embedded in metrics / payload | Config hash/MD5, git SHA, hostname, factor backend/precision |
-
-There is no persistent application database. Reproducibility is achieved through config hashing, schema versioning, and immutable result contracts rather than transactional storage.
-
-### Inter-domain module communication
-
-Communication is **in-process Python calls** (service calls, composition, and data hand-off of arrays/matrices), not network RPC.
-
-```mermaid
-flowchart LR
-  CO["Case Orchestration"]
-  CM["Configuration"]
-  BM["Baseflow"]
-  MD["Mesh"]
-  OA["LNSE Assembly + BC"]
-  SA["Stability"]
-  RA["Resolvent"]
-  RR["Router"]
-  LI["Linear Algebra"]
-  UT["Utilities"]
-
-  CO -->|"config dependency"| CM
-  CO -->|"data"| BM
-  CO -->|"service"| SA
-  CO -->|"service"| RA
-  CO -->|"service"| RR
-  CO --> OA
-  CO --> LI
-
-  OA -->|"composition"| MD
-  OA -->|"data"| BM
-  OA --> LI
-
-  SA -->|"service"| LI
-  SA -->|"data"| OA
-  RA -->|"service"| LI
-  RA -->|"data"| OA
-  RR -->|"service"| RA
-  RR -->|"service"| LI
-  RR -->|"data"| OA
-
-  BM -->|"data"| MD
-  MD --> UT
-  SA --> UT
-  RA --> UT
-  LI --> UT
-```
-
-**Strength highlights**
-
-- Orchestration ↔ Stability/Resolvent: primary service calls
-- Assembly ↔ Mesh / Baseflow: composition and data (~strongest physics coupling)
-- Stability / Resolvent / Router ↔ Factorization: shared factorize-once spine
-
-**Boundary-conditions note:** The `boundary_conditions/` package is physically separate but **logically part of LNSE Operator Assembly**; BC application is the last non-interchangeable step of operator finalization.
-
-
-## Component view
-
-### Project structure
+## Packages
 
 ```text
 src/linstabpy/
@@ -1623,1304 +903,179 @@ src/linstabpy/
 └── utils/                   # PETSc init/core, YAML, metrics, provenance
 ```
 
-**Public library surface** (lazy exports from `linstabpy.__init__`):
-
-- `build_lnse_system`, `build_lnse_operator`
-- `compute_chu_norm`
-- `temporal_eigenvalues`, `adjoint_eigenvalues`
-- `wavemaker`
-- `resolvent_analysis`, `resolvent_map`
-- `BaseFlow`
-
-**CLI entry:** `linstabpy.driver.cli.main` → lazy import of `driver.run` (so `--version` / `--help` avoid PETSc).
-
-### Core functional components
-
-#### Case orchestration (`driver`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `cli.py` | Argparse; cache check (config hash / git SHA); force-recompute env |
-| `run.py` | Full pipeline: init PETSc/MPI, load config/fields, mesh, assemble L0, stability/resolvent stages, payload |
-| `preflight.py` | Non-blocking semantic advisories (dissipation vs mesh coupling, freestream scale, etc.) |
-| `payload.py` / `io.py` | NPZ contract keys; save/load results |
-
-Notable runtime behaviors:
-
-- Stage wall-time and RSS delta logging; optional stage heartbeats
-- Env knobs: `LINSTABPY_CASE_CONFIG`, `LINSTABPY_CASE_OUTPUT_NPZ`, `LINSTABPY_FORCE_RECOMPUTE`, …
-- Alpha-filter treated as an **operator-level** property (not stage-dependent)
-
-#### Configuration (`config`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `schema.py` | Lenient allowed-key validation + FD-order checks → `ConfigValidationError` |
-| `typed.py` | Dataclasses: `Config`, `EigenCfg`, `LinSolveCfg`, `ResolventCfg`, `SpatialCfg`, `MeshCfg`, `MpiCfg` |
-| `defaults.py` | Dissipation and other apply defaults |
-
-**Resolution order:** YAML case → environment → defaults.
-
-#### Baseflow (`baseflow`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `BaseFlow` | `(ny, nx)` fields `RHO,U,V,W,T` + `Re,Ma,Pr,kappa,T_0`; viscosity via `sutherland_air` |
-| `grid_fields` | npy directory / npz load |
-| preprocess / sponge / shock_cleanup / viscosity | Readiness for linearization |
-
-#### Mesh (`mesh`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `Mesh` | Mutable runtime carrier; views `MeshGeometry`, `MeshOperators`, `MeshRuntimeState` |
-| SBP (`sbp.py`, `sbp_generator.py`, `fdweights.py`) | Differentiation, norms, dissipation, Mohseni–Colonius pole treatments |
-| `filters` | Mattsson-style stabilization attached to mesh runtime |
-
-PETSc-dependent mesh objects are lazy-imported.
-
-#### LNSE operator assembly (`operators` + `boundary_conditions`)
-
-**Canonical PETSc assembly order** (documented in `assembly.py`; **non-interchangeable**):
-
-1. Assemble raw block operator from coefficients + FD stencils
-2. Apply analytical `inv(B/1j)` left scaling → L0
-3. Add sponge damping
-4. Add artificial dissipation
-5. **Last:** apply BC recipe (Dirichlet/Neumann); free-DOF sets  
-
-State vector: **`q = [ρ, u, v, w, T]`**.  
-Supports Cartesian and cylindrical coefficient paths; SciPy CSC and PETSc `Mat` backends.
-
-| Sub-module | Role |
-|------------|------|
-| Temporal Operator Assembly | Large sparse L0 for temporal/resolvent paths |
-| Physical Coefficients | LNSE coeffs, metrics, Chu energy-norm weights |
-| Spatial Operator Assembly | Spatial block operators reusing temporal helpers |
-| Boundary Condition Recipes | Declarative Dirichlet/Neumann rules and free-DOF masks |
-
-#### Stability (`stability` + `solvers`)
-
-| Sub-module | Role |
-|------------|------|
-| Stability Eigenvalue Services | `temporal_eigenvalues` / `adjoint_eigenvalues` / spatial entry; acceptance |
-| Eigen Solver Backends | SLEPc EPS shift-invert; residual reorder; conjugate-pair completeness |
-| Structural Sensitivity | `wavemaker` from direct + adjoint modes |
-
-#### Resolvent (`resolvent`)
-
-\[
-H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
-\]
-
-- Factorize shifted operator once; reuse for forward/adjoint applies
-- Weighted normal operator shell for SLEPc; gains \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
-- Optional conservative momentum forcing maps
-
-#### Solver router (`solvers/router`)
-
-| Piece | Role |
-|-------|------|
-| `resolvent_map` | Per-\(\beta\) L0 assembly; schedule frequency lines |
-| `band_marking` | Label STABLE / SMOOTH / NEAR_POLE bands |
-| `map_walk` / `anchors` | Real factor at anchors; later \(\omega\) uses factor as PC; residual gate → refactor |
-| `stable_sweep` | Stable-regime sweep strategies |
-| `recycling` / `break_even` | Cost-aware reuse decisions |
-| `ram_autoselect` | Backend choice under memory policy |
-| `certification` | Consistency / RSVD certification hooks |
-
-**Config nuance:** Every path, the map router included, reads dissipation from `numerics.operator_dissipation` through `config.defaults.stage_dissipation_epsilon`. The old top-level `dissipation_epsilon` / `eps_resolv` keys are refused.
-
-### Technical support components
-
-#### Linear algebra (`linalg`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `factorize` / `Factorization` | solve, transpose solve, block solve, refactorize, destroy |
-| `backends` | Normalize/probe availability, precision, MUMPS BLR/ordering |
-| `shifted_operator` | Build \((\gamma - i\omega) I - L_0\) (or the LinStab2D \(L_0 - (\gamma + i\omega) I\) under `matlab_parity`) |
-| `cudss_factor` | Optional GPU factor as PETSc PC shell |
-
-**Default path:** KSPPREONLY + PCLU + MUMPS.
-
-#### Shared utilities (`utils` + `metrics_schema`)
-
-| Component | Responsibility |
-|-----------|----------------|
-| `petsc_init` / `petsc_core` | Init ordering (`mpi4py` before PETSc; thread level MULTIPLE when needed); SciPy↔PETSc conversion |
-| YAML I/O, cost metrics, provenance | Cross-cutting reproducibility and ops telemetry |
-| Floquet helpers | Supporting periodic-flow utilities |
-| `metrics_schema` | Versioned metrics JSON groups |
-
-### Component responsibility division (summary)
-
-```mermaid
-flowchart TB
-  subgraph CoreBusiness
-    ORCH["Orchestration: CLI run payload"]
-    BF["Baseflow: ingest preprocess"]
-    MESH["Mesh: SBP filters geometry"]
-    OP["Operators+BC: L0 spatial norms"]
-    ST["Stability: temporal adjoint spatial wavemaker"]
-    RS["Resolvent: H gains modes"]
-    RT["Router: beta-omega maps anchors"]
-  end
-
-  subgraph Infra
-    CFG["Config: schema typed defaults"]
-    LA["Linalg: factorize backends shifted"]
-    UT["Utils: PETSc bridge metrics provenance"]
-  end
-
-  ORCH --> CFG
-  ORCH --> BF
-  ORCH --> MESH
-  ORCH --> OP
-  ORCH --> ST
-  ORCH --> RS
-  ORCH --> RT
-  OP --> BF
-  OP --> MESH
-  ST --> OP
-  ST --> LA
-  RS --> OP
-  RS --> LA
-  RT --> OP
-  RT --> RS
-  RT --> LA
-  LA --> UT
-  MESH --> UT
-  ST --> UT
-  RS --> UT
-```
-
-### Component interaction relationships
-
-- **Library consumers** may call assembly and analysis APIs directly, bypassing full CLI orchestration, but still depend on the same operator and factorization contracts.
-- **Router** is the only domain that systematically **re-assembles per \(\beta\)** and **walks many \(\omega\)** with measured cost feedback.
-- **Stability and Resolvent** never own mesh generation; they consume finalized operators and energy weights.
-- **Utilities** never own case flow; they underpin conversion, init, and telemetry.
-
-
-## Key processes
-
-### Core functional processes
-
-#### Temporal eigenvalue stability analysis (primary product path)
-
-End-to-end [hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) for compressible flows: load mean flow, assemble LNSE + BCs, factorize shifted systems, compute temporal (and optionally adjoint) eigenvalues/eigenvectors.
-
-```mermaid
-flowchart TD
-  Start["Case Launch"] --> InitRuntime["Initialize PETSc and MPI"]
-  InitRuntime --> ResolveConfig["Merge and Validate YAML Config"]
-  ResolveConfig --> LoadBaseflow["Load CFD Mean-Flow Fields"]
-  LoadBaseflow --> PreprocessBF["Preprocess Sponge Viscosity Shock Cleanup"]
-  PreprocessBF --> BuildMesh["Build Structured Mesh and SBP Operators"]
-  BuildMesh --> GenCoeffs["Compute LNSE Physical Coefficients"]
-  GenCoeffs --> AssembleL0["Assemble Sparse L0 Operator"]
-  AssembleL0 --> ApplyBCs["Apply Dirichlet Neumann BC Recipes"]
-  ApplyBCs --> FactorShift["Factorize Shifted LNSE System"]
-  FactorShift --> EigenSolve["SLEPc Temporal Adjoint Eigen Solve"]
-  EigenSolve --> ValidateModes["Validate Modes Residuals Weights"]
-  ValidateModes --> EmitPayload["Emit Spectra Modes Metrics Provenance"]
-  EmitPayload --> End["Case Complete"]
-```
-
-```mermaid
-sequenceDiagram
-  participant CLI as driver_cli
-  participant RUN as driver_run
-  participant CFG as config
-  participant BF as baseflow
-  participant M as mesh
-  participant OP as operators_BC
-  participant LA as linalg
-  participant ST as stability_solvers
-  participant OUT as payload_io
-
-  CLI->>RUN: run case
-  RUN->>CFG: load validate typed Config
-  RUN->>BF: load_case_fields preprocess viscosity
-  RUN->>M: Mesh SBP filters
-  RUN->>OP: coefficients L0 BC recipe
-  RUN->>LA: factorize shifted L0
-  RUN->>ST: SLEPc temporal adjoint EPS
-  ST->>LA: repeated solves
-  RUN->>OUT: eigenvalues modes metrics provenance
-```
-
-**Key steps**
-
-1. Runtime initialization, PETSc/MPI, logging, distributed orchestration
-2. Configuration resolution, YAML/env/defaults; eigen/mesh/MPI policy
-3. Baseflow ingest, npy/npz → `BaseFlow` + preprocess/transport
-4. Mesh discretization, structured mesh, SBP (2, 4, 6, 8), filters, runtime state
-5. Coefficient generation, Cartesian or cylindrical compressible LNSE coeffs
-6. Operator assembly and BCs, [sparse](https://grokipedia.com/page/Sparse_matrix) L0 for \(q=[\rho,u,v,w,T]\); free DOFs
-7. [Shift-invert](solver-glossary.md) factorization, MUMPS/LU/cuDSS factorize-once
-8. Eigenanalysis, SLEPc [EPS](solver-glossary.md); residuals; optional structural sensitivity
-9. Result emission, NPZ + metrics + provenance
-
-#### Resolvent gain analysis (single frequency)
-
-Shares prep through L0, then specializes in \(((\gamma - i\omega) I - L_0)\) factors and weighted gain extraction.
-
-```mermaid
-flowchart TD
-  Start["Resolvent Case Start"] --> InitRuntime["Initialize Runtime"]
-  InitRuntime --> ResolveCfg["Resolve Frequency Weights Backend Policy"]
-  ResolveCfg --> PrepMean["Provide Mesh-Aligned BaseFlow"]
-  PrepMean --> SBPOps["Supply SBP Diff and Norm Operators"]
-  SBPOps --> AssembleL0["Assemble L0 with BCs and Energy Maps"]
-  AssembleL0 --> FactorOmega["Factor L0 minus i omega I"]
-  FactorOmega --> BuildH["Build Resolvent H and H Hermitian Actions"]
-  BuildH --> WeightedShell["Form Weighted Normal Operator Shell"]
-  WeightedShell --> GainEPS["SLEPc Extract Gains and Mode Pairs"]
-  GainEPS --> ResidualCheck["Validate Residuals"]
-  ResidualCheck --> PackageOut["Package Gains Modes Metrics"]
-  PackageOut --> End["Resolvent Complete"]
-```
-
-#### Beta–frequency resolvent gain map (cost-critical production path)
-
-```mermaid
-flowchart TD
-  Start["Map Campaign Launch"] --> ValidateMap["Validate Map Router Resource Policy"]
-  ValidateMap --> LoopBeta["For Each Spanwise Beta"]
-  LoopBeta --> AssembleBeta["Assemble LNSE Operator for Beta"]
-  AssembleBeta --> MarkBands["Mark Frequency Bands"]
-  MarkBands --> ScheduleWalk["Schedule Frequency Line Walk"]
-  ScheduleWalk --> AnchorFactor["Factor Measured Anchors"]
-  AnchorFactor --> WalkFreq["Walk Frequencies with PC Reuse"]
-  WalkFreq --> ResidualGate{"Residual Gate OK?"}
-  ResidualGate -->|Yes| ComputeGain["Compute Leading Resolvent Gain"]
-  ResidualGate -->|No| Refactor["Refactor Anchor and Continue"]
-  Refactor --> ComputeGain
-  ComputeGain --> MoreFreq{"More Frequencies?"}
-  MoreFreq -->|Yes| WalkFreq
-  MoreFreq -->|No| MoreBeta{"More Betas?"}
-  MoreBeta -->|Yes| LoopBeta
-  MoreBeta -->|No| RecordMap["Record Map Cost Samples Certification"]
-  RecordMap --> End["Map Complete"]
-```
-
-#### Spatial stability eigenproblem
-
-Config `solver.spatial` (fallback `solver.eigen`) → spatial block operators → generalized SLEPc EPS.
-
-```mermaid
-flowchart TD
-  Start["Spatial Eigen Start"] --> ResolveSpatial["Resolve solver.spatial Policy"]
-  ResolveSpatial --> SupplyBF["Supply Mean-Flow Fields"]
-  SupplyBF --> MeshIndex["Provide Mesh Indexing and SBP"]
-  MeshIndex --> SpatialOps["Assemble Spatial Block Operators"]
-  SpatialOps --> FactorBackend["Configure Shift-Invert Factor Backend"]
-  FactorBackend --> SpatialEPS["Run Generalized SLEPc Spatial EPS"]
-  SpatialEPS --> ReturnModes["Return Spatial Modes and Metadata"]
-  ReturnModes --> End["Spatial Eigen Complete"]
-```
-
-#### Baseflow ingest and operator prep (shared foundation)
-
-```mermaid
-flowchart TD
-  Start["Prep Stage Start"] --> SchemaCheck["Validate Case Schema and FD Orders"]
-  SchemaCheck --> LoadFields["Ingest npy or npz Primitives"]
-  LoadFields --> Preprocess["Shock Cleanup Sponge Viscosity Fill"]
-  Preprocess --> MeshCreate["Create or Deform Mesh Attach SBP Filters"]
-  MeshCreate --> Coeffs["Generate LNSE Coefficients"]
-  Coeffs --> BCRecipe["Apply BC Recipes Free-DOF Sets"]
-  BCRecipe --> FinalizeL0["Finalize Sparse L0 for Downstream Solves"]
-  FinalizeL0 --> End["Operator Ready"]
-```
-
-#### Adjoint and structural sensitivity (supporting path)
-
-```mermaid
-flowchart TD
-  Start["Direct Modes Available"] --> AdjointSolve["Run Adjoint Eigen Solve"]
-  AdjointSolve --> CombineModes["Combine Direct and Adjoint Modes"]
-  CombineModes --> Sensitivity["Compute Structural Sensitivity"]
-  Sensitivity --> EmitSens["Emit Sensitivity Fields and Metadata"]
-  EmitSens --> End["Sensitivity Complete"]
-```
-
-### Technical processing workflows
-
-| Concern | Mechanism |
-|---------|-----------|
-| PETSc init ordering | `mpi4py` before PETSc; complex scalars mandatory for production |
-| Operator finalization | Fixed order: raw blocks → inv(B) scale → sponge → dissipation → BC last |
-| Shift construction | `linalg.shifted` builds \((\gamma - i\omega) I - L_0\) (and related) once per target |
-| Eigen drive | SLEPc EPS shift-invert using factorization as PC/solve backend |
-| Resolvent drive | MatShell weighted normal operator; repeated H / Hᴴ applies via factors |
-| Map routing | Band mark → anchors → PC reuse → residual gate → optional stable sweep |
-| Backend choice | Probe + RAM autoselect among MUMPS/LU/cuDSS |
-
-### Data flow paths
-
-```text
-YAML + npy/npz
-    → Config (typed) + BaseFlow (ny,nx fields)
-    → Mesh (X,Y, Dx,Dy, W, filters)
-    → Coefficients + Energy weights (Chu W_diag / invW_diag)
-    → L0 PETSc Mat + free-DOF IS + BC-enforced rows
-    → Factorization handle(s)
-    → Spectra / gains / modes (distributed Vec → gathered arrays)
-    → NPZ payload + metrics.json (provenance, cost, quality)
-```
-
-**Key data objects**
-
-| Object | Contract |
-|--------|----------|
-| `BaseFlow` | Parameters + `(ny,nx)` primitives; optional MU / dμ/dT |
-| `Mesh` / operators | `X,Y`, SBP `Dx,Dy,…`, weights `W`, optional dissipation |
-| `LNSESystem` / L0 | Sparse \(5 N_{gp} \times 5 N_{gp}\) (or reduced free DOFs) |
-| BC recipe | Rules → enforced rows + free-DOF index sets |
-| Energy weights | Chu norm diagonals `W_diag` / `invW_diag` |
-| Runtime NPZ | Fixed keys in `driver.payload` |
-| Metrics JSON | provenance, problem, cost, quality groups |
-
-### Exception handling and quality gates
-
-| Gate | Behavior |
-|------|----------|
-| **Schema validation** | Unknown top-level keys / invalid FD orders → `ConfigValidationError` (fail fast before HPC cost) |
-| **Preflight advisories** | Non-blocking warnings (dissipation vs mesh coupling, freestream scale) |
-| **Residual gates (eigen)** | Mode residual checks, target distance, conjugate-pair completeness |
-| **Residual gates (resolvent/map)** | Force refactor when PC-reuse accuracy degrades |
-| **Acceptance services** | `stability/acceptance.py` post-checks before payload commit |
-| **Certification hooks** | Router consistency / RSVD-style certification metadata |
-| **Cache / recompute** | CLI config-hash and git-SHA cache checks; `LINSTABPY_FORCE_RECOMPUTE` override |
-
-There is no distributed saga or compensating transaction model: failures abort the stage with logged metrics where available; partial map results may still be recorded depending on campaign progress.
-
-
-## Technical implementation
-
-### Core module implementation
-
-#### Orchestration hub
-
-`driver/run.py` is a large (~1.8k line) façade that owns stage sequencing, timing, and payload emission. This concentration is intentional for scientific reproducibility (one place defines "a case") but is an architectural pressure point for change risk. Library users can bypass it by calling domain APIs directly.
-
-#### Operator assembly
-
-Assembly is the mathematical heart of the system:
-
-- Coefficients encode compressible LNSE physics (Cartesian/cylindrical).
-- SBP stencils supply discrete derivatives and norms with summation-by-parts stability properties.
-- Left scaling by analytical `inv(B/1j)` produces the [temporal operator](core-concepts.md) L0 used by eigen and resolvent paths.
-- Sponge and artificial dissipation are operator-level stabilizations.
-- BC recipes mutate rows/columns and publish free-DOF sets **last**, so solvers never see unconstrained boundary rows.
-
-#### Factorization layer
-
-`Factorization` is the performance spine:
-
-- Default: **KSPPREONLY + PCLU + MUMPS**
-- API: solve, transpose solve, block solve, refactorize, destroy
-- Optional cuDSS as a PETSc PC shell for GPU-capable deployments
-- Shifted systems built once per \((\beta,\omega)\) (or eigen shift) and reused across SLEPc iterations and resolvent matvecs
-
-#### Analysis products
-
-- **Stability:** SLEPc EPS on shifted L0; adjoint path; wavemaker from direct×adjoint
-- **Resolvent:** \(H = C F ((\gamma - i\omega) I - L_0)^{-1} F B\); weighted normal eigenproblem; \(\sigma = \sqrt{\mathrm{Re}(\lambda)}\)
-- **Router:** per-\(\beta\) assembly + frequency line walks with measured anchors and residual-gated reuse
-
-### Key algorithm design
-
-| Algorithm area | Design choice | Rationale |
-|----------------|---------------|-----------|
-| Spatial discretization | SBP FD orders 2, 4, 6, 8 + Mattsson-style filters | Energy-stable structured discretization; MATLAB LinStab2D parity |
-| Axisymmetric poles | Mohseni–Colonius treatments | Correct pole behavior on cylindrical grids |
-| Temporal eigen | Shift-invert via direct factors | Dense spectral regions near targets; robust on stiff LNSE |
-| Resolvent gains | Weighted normal MatShell + SLEPc | Avoid forming dense H; reuse factors for H and Hᴴ |
-| Map campaigns | Anchor factors as PC + residual gate | Amortize factorization across nearby \(\omega\); protect accuracy |
-| Backend policy | RAM autoselect + MUMPS BLR options | Fit large free-DOF systems into node memory |
-| Energy inner product | Chu norm diagonals | Physically meaningful compressible disturbance energy |
-
-### Data structure design
-
-| Structure | Representation | Notes |
-|-----------|----------------|-------|
-| Mean-flow fields | NumPy `(ny, nx)` arrays on `BaseFlow` | Mesh-aligned primitives |
-| Mesh operators | Sparse differentiation/norm matrices | Attached to `Mesh` runtime views |
-| L0 / spatial blocks | SciPy CSC **or** PETSc `Mat` | Production path is PETSc distributed |
-| Free DOFs | PETSc index sets / masks | After BC enforcement |
-| Factors | Opaque `Factorization` handle | Owns KSP/PC lifecycle |
-| Modes / gains | Distributed `Vec` → NumPy in payload | Gathered for NPZ contract |
-| Map records | Structured arrays + cost samples | Router recording + certification |
-
-State dimension scales as **5 degrees of freedom per grid point** (density, three velocities, temperature), reduced by Dirichlet eliminations.
-
-### Performance optimization strategies
-
-1. **Factorize-once, solve-many**, Dominant cost is sparse direct factorization; eigen iterations and resolvent applies reuse factors.
-2. **Anchor + PC reuse on maps**, Pay full factor cost at anchors; nearby frequencies reuse as right preconditioners until residual gate trips.
-3. **Break-even / recycling logic**, Router estimates when refactor is cheaper than struggling iterative reuse.
-4. **RAM autoselect**, Choose MUMPS/LU/cuDSS under memory policy; MUMPS BLR compression where available.
-5. **Lazy imports**, Keep CLI help and library import off the PETSc critical path.
-6. **Stage metrics**, Wall time and RSS deltas identify which stage dominates (assembly vs factor vs EPS).
-7. **Optional parallelism across \(\beta\)**, Conceptual extension: parallelize independent \(\beta\) lines when memory allows; keep per-line \(\omega\) walks sequential for factor reuse.
-8. **SciPy local path**, Useful for small debugging assemblies without full MPI cost.
-
-**Primary bottlenecks**
-
-- Sparse direct factor memory and time (grows superlinearly with free DOFs)
-- Per-\(\beta\) reassembly on large maps
-- Monolithic `run.py` and large assembly/coefficient modules (developer throughput, not FLOPs)
-- Dual dissipation config paths (silent no-op risk → wasted or wrong HPC runs)
-
-### Scalability design
-
-| Axis | Strategy |
-|------|----------|
-| **Grid size** | MPI-distributed PETSc matrices; direct sparse solvers |
-| **Parameter space (\(\beta,\omega\))** | Router map campaigns with cost-aware reuse |
-| **Analysis modes** | Same L0 family → many products without separate physics stacks |
-| **Hardware** | CPU complex PETSc/MUMPS default; optional cuDSS GPU factors |
-| **Embedding** | Library API for pipeline integration; CLI for batch cases |
-| **Extension points** | New BC recipes; new factor backends via registry; new router band strategies; spatial/temporal coefficient models |
-
-### Security design
-
-LinStabPy is a **trusted scientific HPC toolkit**, not a multi-tenant service. Security posture is appropriate to that model:
-
-| Concern | Approach |
-|---------|----------|
-| Multi-tenant auth / isolation | **Out of scope**, runs under cluster user accounts and MPI job schedulers |
-| Input trust | YAML and npy/npz are trusted researcher inputs; schema validation rejects unknown keys and bad FD orders but is not a sandbox |
-| Code execution | No dynamic code execution from case files beyond configured numeric policy |
-| Secrets | No cloud credentials subsystem; provenance records host/git/config hash, not secrets |
-| Supply chain | conda-forge PETSc/SLEPc pins; editable package install in controlled envs |
-| Result integrity | Config hash, git SHA, metrics schema, residual/certification gates support scientific integrity more than adversarial security |
-
-Hardening guidance for operators: run inside standard HPC job isolation; treat case directories as trusted; do not expose the CLI as an unauthenticated network service.
-
-
-## Deployment architecture
-
-### Runtime environment requirements
-
-| Requirement | Detail |
-|-------------|--------|
-| Python | ≥3.11, <3.15 |
-| MPI | Working MPI + `mpi4py` |
-| PETSc/SLEPc | **Complex scalar** builds via petsc4py/slepc4py |
-| MUMPS | Default sparse-direct backend through PETSc |
-| NumPy/SciPy/PyYAML | Local numerics and config |
-| Optional cuDSS | GPU sparse direct; not the supported conda default path |
-| Resources | Memory-bound for large free-DOF factors; multi-rank for distributed Mat |
-
-**Init constraints**
-
-- Initialize `mpi4py` before PETSc
-- Prefer thread level MULTIPLE when backends require it
-- Do not expect `import linstabpy` alone to set up the parallel runtime
-
-### Deployment topology structure
-
-```mermaid
-flowchart TB
-  subgraph UserSpace["User / CI workspace"]
-    YAML["Case YAML"]
-    DATA["Baseflow npy or npz"]
-    OUT["NPZ + metrics.json"]
-  end
-
-  subgraph Launch["Launch layer"]
-    SCHED["HPC scheduler mpirun sbatch"]
-    CLI["linstabpy.driver.cli"]
-  end
-
-  subgraph Ranks["MPI process group"]
-    R0["Rank 0 orchestration logging"]
-    R1["Rank 1 PETSc ownership"]
-    Rn["Rank N distributed Mat Vec"]
-  end
-
-  subgraph Native["Native solver stack"]
-    PETSc["PETSc"]
-    SLEPc["SLEPc"]
-    MUMPS["MUMPS"]
-    GPU["Optional cuDSS"]
-  end
-
-  YAML --> CLI
-  DATA --> CLI
-  SCHED --> CLI
-  CLI --> R0
-  CLI --> R1
-  CLI --> Rn
-  R0 --> PETSc
-  R1 --> PETSc
-  Rn --> PETSc
-  PETSc --> MUMPS
-  PETSc --> GPU
-  PETSc --> SLEPc
-  R0 --> OUT
-```
-
-**Typical deployment unit:** one MPI job = one case (or one map campaign). There is no long-running application server.
-
-**Library embedding topology:** parent Python process imports `linstabpy`, explicitly initializes PETSc/MPI when needed, and calls public analysis APIs; I/O may be owned by the parent pipeline.
-
-### Scalability in deployment
-
-- **Strong scaling:** PETSc distribution of sparse operators and vectors across ranks
-- **Parameter scaling:** router \(\beta\) loops and frequency walks; future multi-\(\beta\) parallelism where memory permits
-- **Vertical scaling:** larger-memory nodes for MUMPS factors; BLR compression; optional GPU factors
-- **Throughput scaling:** many independent cases via scheduler array jobs (embarrassingly parallel across cases)
-
-### Monitoring and operations
-
-| Signal | Source | Use |
-|--------|--------|-----|
-| Stage wall time | Driver stage logging | Find slow prep vs factor vs EPS |
-| RSS / peak memory | Cost metrics | Backend and mesh sizing |
-| Optional GPU memory | Metrics when enabled | cuDSS capacity planning |
-| Residuals / acceptance | Stability & resolvent validators | Scientific quality gate |
-| Map cost samples | Router recording | Tune anchors and break-even |
-| Provenance | Config hash, git SHA, hostname, backend/precision | Reproduce and audit runs |
-| Preflight advisories | `preflight.py` | Catch policy/mesh mismatches early |
-| Heartbeats | Optional stage heartbeats | Long-running map health on HPC |
-
-**Operations guidance**
-
-1. Validate YAML with schema before large allocations.
-2. Start with single-frequency or single-shift cases before full \(\beta\)–\(\omega\) maps.
-3. Watch factor memory first; adjust ranks, BLR, or backend via RAM policy.
-4. Ensure dissipation enable + strength are set consistently (router top-level vs nested operator paths).
-5. Archive NPZ + `metrics.json` together for provenance.
-6. Use config-hash caching and `LINSTABPY_FORCE_RECOMPUTE` deliberately in CI or parameter sweeps.
-
-### Development guidance
-
-| Audience | Guidance |
-|----------|----------|
-| **New contributors** | Learn the stage order and assembly order first; treat BC-last and factorize-once as invariants |
-| **Physics developers** | Extend `operators/coefficients` and BC recipes; keep SciPy and PETSc paths aligned |
-| **Solver developers** | Extend `linalg/backends` and router walk strategies; never bypass residual gates silently |
-| **API consumers** | Prefer lazy public exports; initialize PETSc only on real solve paths |
-| **Maintainers** | Consider splitting `run.py` into stage modules behind one façade; unify dissipation config; publish short ADRs for assembly order, factor policy, and router gates |
-
-### Architecture risks and recommendations
-
-| Item | Severity | Notes / recommendation |
-|------|----------|------------------------|
-| No checked-in ADRs | Medium | Publish ADRs for assembly ordering, factor backend policy, residual gates, dissipation single source of truth |
-| Monolithic `driver/run.py` | Medium | Extract prep / assemble / stability / resolvent / emit stages; keep one façade |
-| Large assembly / coefficients / router modules | Medium | Add internal seams without breaking public contracts |
-| Dual dissipation config paths | Resolved | Every stage reads `numerics.operator_dissipation` through `stage_dissipation_epsilon`; the old top-level keys are refused |
-| Typed config still migrating | Info | Consolidate `typed.py` with `utils._solver_cfg` dual resolution |
-| Spatial path less CLI-central | Low | Document spatial and map entry points beside lazy public API |
-| GPU path optional / non-conda | Info | Keep CPU complex PETSc as supported default; document cuDSS clearly |
-
-
-## Summary
-
-LinStabPy implements a **clean, domain-aligned LNSE analysis architecture**:
-
-- YAML-driven **Case Orchestration** feeds mesh-aligned **Baseflow** into **SBP Mesh** discretization.
-- **LNSE Operator Assembly** (with declarative **BC recipes**) produces a single family of BC-enforced operators.
-- A shared **Linear Algebra** factorization layer underpins **Stability**, **Resolvent**, and cost-aware **Router** campaigns on **PETSc/SLEPc**.
-- Package boundaries match scientific responsibilities; external CFD generation, GUIs, and unstructured 3D frameworks remain firmly out of scope.
-
-The main architectural pressures are **orchestration monolith size**, **dual config paths for dissipation/solver policy**, and **missing formal ADRs**, not a mismatch between intended domains and the codebase layout.
-
----
-
-*LinStabPy, linear stability and resolvent analysis of compressible flows.*
-
----
-
-## Workflow
-
-Source: https://linstabpy.vercel.app/workflow/
-
-# Core workflows
-
-!!! info "Conventions"
-    $\omega = \mathrm{eig}(i L_0)$, $\exp(-i\omega t)$ in time, unstable exactly when $\mathrm{Im}(\omega) > 0$. [Resolvent](https://grokipedia.com/page/Resolvent_formalism) $H = C F ((\gamma - i\omega) I - L_0)^{-1} F B$. [SBP](https://grokipedia.com/page/Summation_by_parts) orders $2$, $4$, $6$, $8$. Default shift solve `KSPPREONLY` with `PCLU` through [MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software)). Assembly order is fixed with BC rows last.
-
-## Workflow overview
-
-### System positioning
-
-LinStabPy is a Python CLI/library toolkit for **linear stability and resolvent analysis of [compressible](https://grokipedia.com/page/Compressible_flow) flows**. It ports LinStab2D-style LNSE workflows to [MPI](https://grokipedia.com/page/Message_Passing_Interface)-enabled HPC. Operationally it is a **staged scientific pipeline**:
-
-**config → baseflow → mesh/SBP → coefficients → L0 + BCs → factorize → eigen/resolvent → payload**
-
-The goal is to turn mean flow dumps into stability modes, resolvent [gains](core-concepts.md), and sensitivity results for [transition](http://www.scholarpedia.org/article/Transition_to_turbulence) prediction, receptivity, and flow-control design, without MATLAB, on reproducible YAML-driven MPI runs.
-
-**In scope:** baseflow ingest/preprocess, structured SBP meshes, LNSE assembly and BC recipes, temporal/spatial/[adjoint](https://grokipedia.com/page/Adjoint) eigenproblems, resolvent gains and β–ω maps, [sparse](https://grokipedia.com/page/Sparse_matrix) factorization (MUMPS/[LU](https://grokipedia.com/page/LU_decomposition)/optional [cuDSS](https://docs.nvidia.com/cuda/cudss/)), cost-aware solver routing, CLI orchestration, provenance.
-
-**Out of scope:** nonlinear [CFD](https://grokipedia.com/page/Computational_fluid_dynamics) that produces the mean flow, GUIs/visualization products, unstructured or full 3D volume frameworks, multiphysics outside LNSE, cloud multi-tenancy.
-
-### System main workflows
-
-| Workflow | Role | Importance | Primary entry |
-|---|---|---|---|
-| **Temporal eigenvalue stability analysis** | Primary scientific product: spectra, modes, optional adjoint/sensitivity | Highest | `driver/run.py`, `stability._eigenvalues` |
-| **Resolvent gain analysis** | Optimal forcing/response and energy gains at target ω | Very high | `resolvent.analysis`, driver stages |
-| **Beta–frequency resolvent gain map** | Production parametric HPC campaign over (β, ω) | Very high (cost-critical) | `solvers/router/resolvent_map.py` |
-| **Spatial Stability Eigenproblem** | Streamwise wavenumber / spatial growth | High | `solvers/spatial_eig.py`, spatial assembly |
-| **Baseflow ingest and operator prep** | Shared foundation for all analysis products | High (shared spine) | driver preflight/setup |
-| **Adjoint and structural sensitivity** | Control/receptivity extension of temporal path | Supporting | `stability` adjoint + `wavemaker` |
-
-### Core execution paths
-
-There are two complementary execution surfaces:
-
-1. **CLI / case driver path** (`src/linstabpy/driver/run.py`), heavy runtime hub: [PETSc](https://en.wikipedia.org/wiki/PETSc)/MPI init, staged logging/heartbeats, config resolution, distributed vectors, end-to-end orchestration, payload emission.
-2. **Library API path** (`import linstabpy`), lightweight: **does not** start PETSc/MPI on import; public symbols load lazily (`temporal_eigenvalues`, `resolvent_analysis`, `resolvent_map`, `build_lnse_system`, `BaseFlow`, etc.).
-
-Both paths converge on the same operator core and factorization spine.
-
-```mermaid
-flowchart TD
-    EntryCLI["CLI or driver run.py"]
-    EntryLib["Library lazy API"]
-    SharedPrep["Shared prep: config baseflow mesh L0 BCs"]
-    BranchEigen["Temporal spatial adjoint eigen"]
-    BranchRes["Single-point resolvent"]
-    BranchMap["Beta frequency gain map"]
-    FactorCore["Factorize-once solve-many linalg"]
-    PayloadOut["Payload metrics provenance"]
-
-    EntryCLI --> SharedPrep
-    EntryLib --> SharedPrep
-    SharedPrep --> BranchEigen
-    SharedPrep --> BranchRes
-    SharedPrep --> BranchMap
-    BranchEigen --> FactorCore
-    BranchRes --> FactorCore
-    BranchMap --> FactorCore
-    FactorCore --> PayloadOut
-```
-
-### Key process nodes
-
-| Node | Domain | Contract |
-|---|---|---|
-| Runtime init | Case Orchestration | PETSc/MPI, rank-0 logging, stage timers, heartbeats |
-| Config merge/validate | Configuration | YAML + env + defaults → typed policy; schema gate |
-| BaseFlow load/preprocess | Baseflow | npy/npz → mesh-aligned primitives + transport |
-| Mesh + SBP | Mesh | Geometry, even-order SBP (2, 4, 6, 8), filters, masking, poles |
-| Coefficients | LNSE Assembly | Cartesian/cylindrical LNSE coeffs from mean flow |
-| L0 + BC recipes | LNSE Assembly | Sparse operator for `q = [ρ, u, v, w, T]`; free-DOF sets |
-| Factorization | Linear Algebra | Default KSPPREONLY + PCLU + MUMPS; optional cuDSS/iterative |
-| SLEPc EPS / gain | Stability / Resolvent | Shift-invert eigen or weighted normal operator |
-| Router walk | Solver Routing | Anchors, PC reuse, residual gates, certification |
-| Payload | Case Orchestration | Spectra/modes/gains, cost metrics, provenance NPZ |
-
-### Process coordination mechanisms
-
-- **Single orchestration hub:** `driver/run.py` sequences stages; domains do not call each other ad hoc across the full case.
-- **One operator family, many products:** temporal, adjoint, spatial, resolvent, and maps all consume BC-enforced LNSE operators (spatial reuses temporal prep helpers).
-- **Factorize-once, solve-many:** shared performance spine for [shift-invert](solver-glossary.md) eigen and resolvent \(H\) actions.
-- **Config as reproducibility gate:** invalid structure/FD orders fail before expensive factors.
-- **MPI coordination:** distributed Mat/Vec via PETSc; rank-0 owns human-readable logs and many I/O decisions.
-- **Router feedback loop:** measured factor time/memory/compression samples inform reuse, backend choice, and certification on map campaigns.
-
-
-## Main workflows
-
-### Baseflow ingest and operator prep (shared foundation)
-
-**Why it matters:** Converts on-disk CFD mean flow into a mathematically consistent, BC-ready discrete LNSE operator. Every analysis product depends on this path.
-
-**Entry:** driver preflight/setup stages; library callers that build systems via `build_lnse_system` / related assembly APIs.
-
-#### Execution order and dependencies
-
-```mermaid
-flowchart TD
-    PrepStart["Prep stage start"]
-    SchemaCheck["Validate case schema and FD orders"]
-    LoadFields["Ingest npy or npz primitives"]
-    Preprocess["Shock cleanup sponge viscosity fill"]
-    MeshCreate["Create or deform mesh attach SBP filters"]
-    Coeffs["Generate LNSE coefficients"]
-    BCRecipe["Apply BC recipes free-DOF sets"]
-    FinalizeL0["Finalize sparse L0 SciPy or PETSc"]
-    PrepEnd["Operator ready"]
-
-    PrepStart --> SchemaCheck
-    SchemaCheck --> LoadFields
-    LoadFields --> Preprocess
-    Preprocess --> MeshCreate
-    MeshCreate --> Coeffs
-    Coeffs --> BCRecipe
-    BCRecipe --> FinalizeL0
-    FinalizeL0 --> PrepEnd
-```
-
-| Step | Operation | Inputs | Outputs | Code anchors |
-|---|---|---|---|---|
-| 1 | Schema validation | Merged case dict | Pass or `ConfigValidationError` | `config/schema.py` |
-| 2 | Field I/O | npy dir or npz | Dict of 2-D float fields | `baseflow/grid_fields.py` |
-| 3 | Preprocess/transport | Raw primitives | Cleaned BaseFlow + μ, sponge | `preprocess`, `sponge`, `viscosity` |
-| 4 | Mesh/SBP | x, y, FD order, deformation | `Mesh` + operators + runtime state | `mesh/mesh.py`, `mesh/sbp.py` |
-| 5 | Coefficients | BaseFlow + metrics | Physical LNSE coefficient blocks | `operators/coefficients.py` |
-| 6 | BC recipes | YAML-style rules, mesh indices | Enforced rows/cols, free-DOF sets | `boundary_conditions/recipe.py`, `dirichlet.py` |
-| 7 | Finalize L0 | Coeffs, FD mats, sponge, backend request | SciPy CSC or PETSc `Mat` L0 | `operators/assembly.py` |
-
-**State transitions:** `raw files → validated config → BaseFlow (ny,nx) → MeshRuntimeState → coefficient tensors → sparse L0 (constrained) → free-DOF mask`.
-
-**Notes for implementers:**
-
-- BaseFlow fields are contractually **(ny, nx)** on the computational mesh.
-- SBP covers even **orders 2, 4, 6, 8**, including Mohseni–Colonius pole treatments for axisymmetric grids.
-- Boundary conditions are a separate package but **functionally part of operator assembly**.
-- SciPy CSC is typical for local assembly; PETSc Mat is used for distributed solve paths (`utils/petsc_core.py` bridge).
-
-
-### Temporal eigenvalue stability analysis (primary product path)
-
-**Why it matters:** [Hydrodynamic stability](https://grokipedia.com/page/Hydrodynamic_stability) spectra and [eigenvectors](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) for transition and control studies; reference orchestration pattern for other modes.
-
-**Entry:** `src/linstabpy/driver/run.py` or `temporal_eigenvalues` / stability APIs.
-
-#### End-to-end flow
-
-```mermaid
-flowchart TD
-    StartNode["Case launch"]
-    InitRuntime["Initialize PETSc and MPI"]
-    ResolveConfig["Merge and validate YAML config"]
-    LoadBaseflow["Load CFD mean-flow fields"]
-    PreprocessBF["Preprocess sponge viscosity shock cleanup"]
-    BuildMesh["Build structured mesh and SBP operators"]
-    GenCoeffs["Compute LNSE physical coefficients"]
-    AssembleL0["Assemble sparse L0 operator"]
-    ApplyBCs["Apply Dirichlet Neumann BC recipes"]
-    FactorShift["Factorize shifted LNSE system"]
-    EigenSolve["SLEPc temporal adjoint eigen solve"]
-    ValidateModes["Validate modes residuals weights"]
-    EmitPayload["Emit spectra modes metrics provenance"]
-    EndNode["Case complete"]
-
-    StartNode --> InitRuntime
-    InitRuntime --> ResolveConfig
-    ResolveConfig --> LoadBaseflow
-    LoadBaseflow --> PreprocessBF
-    PreprocessBF --> BuildMesh
-    BuildMesh --> GenCoeffs
-    GenCoeffs --> AssembleL0
-    AssembleL0 --> ApplyBCs
-    ApplyBCs --> FactorShift
-    FactorShift --> EigenSolve
-    EigenSolve --> ValidateModes
-    ValidateModes --> EmitPayload
-    EmitPayload --> EndNode
-```
-
-#### Key technical process details
-
-1. **Runtime initialization**
-   - `init_petsc_from_argv()` then MPI/PETSc imports in the driver.
-   - Stage wall-clock and RSS deltas (`_stage_start` / `_log_stage`); optional heartbeats via `LINSTABPY_STAGE_HEARTBEAT_SECONDS` (default 30s).
-   - Config path from `LINSTABPY_CASE_CONFIG` (required).
-
-2. **Configuration resolution**
-   - Merge YAML, environment, defaults into typed objects (`config/typed.py`).
-   - Schema rejects unknown top-level structure and invalid FD orders while remaining lenient for legacy flat keys.
-
-3. **Shared prep**
-   - Same baseflow → mesh → coefficients → L0 + BC path as in [Baseflow ingest and operator prep](#baseflow-ingest-and-operator-prep-shared-foundation).
-   - Driver uses `load_case_fields`, `Mesh`, `build_lnse_system_result`, BC analysis helpers.
-
-4. **Shift-invert factorization**
-   - Factorization layer (`linalg/factorize.py`): **direct-by-default** factorize-once, solve-many.
-   - Default: **KSPPREONLY + PCLU + MUMPS**.
-   - Iterative policy is **explicit** (not silent fallback) for memory-bound cases.
-   - Optional cuDSS shelled as PETSc PC when GPU factors are selected.
-   - Interfaces: solve, transpose solve, block solve, refactorize, destroy.
-
-5. **Eigenanalysis**
-   - [SLEPc](https://en.wikipedia.org/wiki/SLEPc) [EPS](solver-glossary.md) via `stability/_eigenvalues.py` and `solvers/eigenvalue.py`.
-   - Temporal and adjoint paths; residual reordering; safe PETSc info access.
-   - Acceptance helpers: target-distance postcheck, conjugate-pair completeness, stability acceptance (`stability/acceptance.py`).
-
-6. **Result emission**
-   - `build_runtime_payload` packages eigenvalues, eigenvectors, metrics, provenance.
-   - Output NPZ path from env or `{prefix}_{config_md5}_{git_sha8}.npz`.
-
-#### Input / output data flow
-
-| Direction | Artifacts |
-|---|---|
-| **In** | YAML case; npy/npz mean flow (`ρ,u,v,w,T`, mesh, sponge); MPI ranks; factor backend policy |
-| **Internal** | BaseFlow, Mesh/SBP, L0, free-DOF sets, factored shifted operators, EPS workspace |
-| **Out** | Eigenvalues/eigenvectors, residual metrics, acceptance flags, cost/RSS stage logs, provenance (config hash, git SHA) |
-
-#### Dependencies
-
-```
-Configuration → Baseflow → Mesh → Operator Assembly → Linear Algebra → Stability → Payload
-```
-
-Orchestration **service-calls** Stability and **module-depends** on Operator Assembly and Linear Algebra.
-
-
-### Resolvent gain analysis
-
-**Why it matters:** Amplifier/receptivity analysis via optimal forcing and response at chosen frequencies.
-
-**Mathematical core:**
-
-\[
-H = C\,F\,((\gamma - i\omega) I - L_0)^{-1}\,F\,B
-\]
-
-Under `solver.resolvent_sign_convention: matlab_parity` the code inverts the older LinStab2D matrix instead. See [resolvent sign convention](resolvent-sign-convention.md).
-
-Gains from the weighted eigenproblem on forms such as \(H^{H} W H\) (energy weights \(W\), often [Chu](core-concepts.md) norm), implemented as PETSc **[MatShell](solver-glossary.md)** + SLEPc.
-
-#### Flow
-
-```mermaid
-flowchart TD
-    ResStart["Resolvent case start"]
-    InitRT["Initialize runtime"]
-    ResCfg["Resolve frequency weights backend policy"]
-    PrepMean["Provide mesh-aligned BaseFlow"]
-    SBPOps["Supply SBP diff and norm operators"]
-    AsmL0["Assemble L0 with BCs and energy maps"]
-    FactorOm["Factor L0 minus i omega I"]
-    BuildH["Build resolvent H and H Hermitian actions"]
-    WShell["Form weighted normal operator shell"]
-    GainEPS["SLEPc extract gains and mode pairs"]
-    ResCheck["Validate residuals"]
-    PkgOut["Package gains modes metrics"]
-    ResEnd["Resolvent complete"]
-
-    ResStart --> InitRT
-    InitRT --> ResCfg
-    ResCfg --> PrepMean
-    PrepMean --> SBPOps
-    SBPOps --> AsmL0
-    AsmL0 --> FactorOm
-    FactorOm --> BuildH
-    BuildH --> WShell
-    WShell --> GainEPS
-    GainEPS --> ResCheck
-    ResCheck --> PkgOut
-    PkgOut --> ResEnd
-```
-
-#### Key nodes
-
-| Step | Detail | Code |
-|---|---|---|
-| Policy | ω, weights, backend, NCV-related sizing | `config/typed.py`, resolvent sections |
-| L0 + energy | Same assembly spine; `compute_chu_norm` for compressible energy inner product | `operators/assembly.py`, `energy_norm.py` |
-| Factor (L0 − iωI) | Reused across many H applies | `linalg/factorize.py` |
-| H / Hᴴ | Input map B, output map C; PETSc-aware vectors | `resolvent/operator.py` |
-| Weighted normal | `invW * Hᴴ * W * H(v)` MatShell | `resolvent/gain.py` |
-| Analysis driver | Optimal pairs, gains, residual norms; MATLAB-aligned path | `resolvent/analysis.py` |
-
-**I/O:** Inputs extend temporal prep with frequency list/weights and forcing/response maps; outputs are gains, forcing/[response mode](core-concepts.md) shapes, residual certificates, solver metrics.
-
-
-### Beta–frequency resolvent gain map (cost-critical campaign)
-
-**Why it matters:** Production-scale parametric studies of leading resolvent gain over spanwise [wavenumber](https://grokipedia.com/page/Wavenumber) β and frequency ω, with **cost-aware** factorization reuse.
-
-**Entry:** `src/linstabpy/solvers/router/resolvent_map.py` (public `resolvent_map`).
-
-#### Campaign flow
-
-```mermaid
-flowchart TD
-    MapStart["Map campaign launch"]
-    ValMap["Validate map router resource policy"]
-    LoopBeta["For each spanwise beta"]
-    AsmBeta["Assemble LNSE operator for beta"]
-    MarkBands["Mark frequency bands"]
-    SchedWalk["Schedule frequency line walk"]
-    AnchorFac["Factor measured anchors"]
-    WalkFreq["Walk frequencies with PC reuse"]
-    ResGate{"Residual gate OK?"}
-    CompGain["Compute leading resolvent gain"]
-    Refactor["Refactor anchor and continue"]
-    MoreFreq{"More frequencies?"}
-    MoreBeta{"More betas?"}
-    RecMap["Record map cost samples certification"]
-    MapEnd["Map complete"]
-
-    MapStart --> ValMap
-    ValMap --> LoopBeta
-    LoopBeta --> AsmBeta
-    AsmBeta --> MarkBands
-    MarkBands --> SchedWalk
-    SchedWalk --> AnchorFac
-    AnchorFac --> WalkFreq
-    WalkFreq --> ResGate
-    ResGate -->|Yes| CompGain
-    ResGate -->|No| Refactor
-    Refactor --> CompGain
-    CompGain --> MoreFreq
-    MoreFreq -->|Yes| WalkFreq
-    MoreFreq -->|No| MoreBeta
-    MoreBeta -->|Yes| LoopBeta
-    MoreBeta -->|No| RecMap
-    RecMap --> MapEnd
-```
-
-#### Routing mechanics (implementation-aligned)
-
-1. **Per-β operator assembly**, one BC-enforced LNSE operator per spanwise wavenumber (β enters the linearized physics).
-2. **Band marking**, labels such as NEAR_POLE, SMOOTH, STABLE (`band_marking.py`) guide walk strategy.
-3. **Line walk (`map_walk.LineWalker`)**
-   - First frequencies on a line pay a **real factor** and measure cost.
-   - Later points apply \(K(\omega)^{-1}\) using that factor as a **right [preconditioner](https://grokipedia.com/page/Preconditioner)**.
-   - **Residual gate** forces a new factor when accuracy degrades; walks may abort or defer (`WalkDeferred`).
-4. **Stable-regime sweeps (`stable_sweep.py`)**, anchor-preconditioned sweeps across nearby frequencies; records factor time, memory, compression for routing feedback.
-5. **Backend policy**, `linalg/backends.py` normalizes/probes MUMPS/LU/cuDSS; RAM autoselect and break-even logic influence choices.
-6. **Leading gain**, still from SLEPc/resolvent analysis at each scheduled point.
-7. **Recording**, map arrays, cost keys (wall assemble/factor/solve, peak RSS/GPU, ranks, git SHA, etc.), certification metadata; atomic save patterns in `map_record`.
-
-#### Dissipation coordination (map-specific operational rule)
-
-Whether SBP sawtooth dissipation is needed depends on the **mesh**:
-
-- On **rectilinear** tensor meshes, metric cross-terms vanish; dissipation can be a costly no-op on gain accuracy.
-- On **curvilinear-in-both-directions** meshes, undamped operators can show spurious near-singular resonances.
-- The router reads `numerics.operator_dissipation` like every other path: `enabled` builds Q_diss on the mesh and `epsilon` is the strength. The old top-level `dissipation_epsilon` is refused.
-
-#### Sequence: orchestration vs router vs linear algebra
-
-```mermaid
-sequenceDiagram
-    participant Driver as CaseOrchestration
-    participant Cfg as Configuration
-    participant Asm as LNSEAssembly
-    participant Router as ResolventMapRouter
-    participant Walk as LineWalker
-    participant LA as FactorizationLayer
-    participant Res as ResolventAnalysis
-    participant Out as PayloadRecord
-
-    Driver->>Cfg: Validate map router resource policy
-    Driver->>Router: Launch resolvent_map campaign
-    loop Each beta
-        Router->>Asm: Assemble L0 for beta plus BCs
-        Router->>Router: Mark frequency bands
-        Router->>Walk: Schedule line walk
-        Walk->>LA: Factor anchor measure cost
-        loop Frequencies on line
-            Walk->>LA: Solve with factor as PC or refactor
-            Walk->>Res: Leading gain via SLEPc
-            Walk->>Walk: Residual gate decide reuse
-        end
-    end
-    Router->>Out: Map gains cost samples certification
-```
-
-
-### Spatial stability eigenproblem
-
-**Why it matters:** Spatial growth/decay and streamwise wavenumber analysis via generalized eigenproblems.
-
-```mermaid
-flowchart TD
-    SpStart["Spatial eigen start"]
-    SpCfg["Resolve solver.spatial policy"]
-    SpBF["Supply mean-flow fields"]
-    SpMesh["Provide mesh indexing and SBP"]
-    SpOps["Assemble spatial block operators"]
-    SpFac["Configure shift-invert factor backend"]
-    SpEPS["Run generalized SLEPc spatial EPS"]
-    SpOut["Return spatial modes and metadata"]
-    SpEnd["Spatial eigen complete"]
-
-    SpStart --> SpCfg
-    SpCfg --> SpBF
-    SpBF --> SpMesh
-    SpMesh --> SpOps
-    SpOps --> SpFac
-    SpFac --> SpEPS
-    SpEPS --> SpOut
-    SpOut --> SpEnd
-```
-
-| Step | Behavior |
-|---|---|
-| Config | `solver.spatial` with **fallback to `solver.eigen`** when spatial YAML absent |
-| Assembly | `operators/spatial.py` reuses temporal preparation/index helpers; SciPy and PETSc block-matrix paths |
-| Solve | `solvers/spatial_eig.py`, generalized SLEPc EPS, direct shift-invert backend selection akin to temporal |
-| Output | Spatial eigenvalues/modes and solver metadata |
-
-
-### Adjoint and structural sensitivity (supporting path)
-
-Extends temporal eigenanalysis without a separate full case pipeline:
-
-```mermaid
-flowchart TD
-    SensStart["Direct modes available"]
-    AdjSolve["Run adjoint eigen solve"]
-    Combine["Combine direct and adjoint modes"]
-    SensComp["Compute structural sensitivity wavemaker"]
-    SensEmit["Emit sensitivity fields and metadata"]
-    SensEnd["Sensitivity complete"]
-
-    SensStart --> AdjSolve
-    AdjSolve --> Combine
-    Combine --> SensComp
-    SensComp --> SensEmit
-    SensEmit --> SensEnd
-```
-
-- Adjoint path: `adjoint_eigenvalues` (lazy export from `stability._eigenvalues`).
-- [Structural sensitivity](core-concepts.md): `wavemaker` in `stability/sensitivity.py` combining direct/adjoint information for control and receptivity insight.
-- Factorization supports transpose solves needed by adjoint-related linear actions.
-
-
-### Cross-workflow dependency summary
+| Package | Code paths | Role | Page |
+|---------|------------|------|------|
+| Case orchestration | `driver/`, `__init__.py` | PETSc/MPI init, staged runs, CLI, payload, public lazy API | [Runtime driver](modules/driver.md) |
+| Configuration | `config/` | Merge and validate YAML, env, defaults; typed solver policy | [Configuration](modules/config.md) |
+| Base flow | `baseflow/` | Mean-flow ingest, sponge, shock cleanup, viscosity | [Base flow](modules/baseflow.md) |
+| Mesh | `mesh/` | Geometry, SBP operators, filters, deformation, masking | [Structured mesh](modules/mesh.md) |
+| LNSE assembly | `operators/`, `boundary_conditions/` | Coefficients, $L_0$ and spatial assembly, BC recipes, Chu norm | [LNSE assembly](modules/operators.md), [BC recipes](modules/boundary-conditions.md) |
+| Stability | `stability/`, `solvers/eigenvalue.py`, `solvers/spatial_eig.py` | Temporal, adjoint, and spatial EPS, sensitivity | [Stability analysis](modules/stability.md) |
+| Resolvent | `resolvent/` | $H$ operator, weighted gains, forcing models | [Resolvent analysis](modules/resolvent.md) |
+| Solver routing | `solvers/router/` | $\beta$-$\omega$ maps, anchors, residual gates, RAM autoselect | [Solvers and routing](modules/solvers.md) |
+| Linear algebra | `linalg/`, `mumps_options.py` | Factor backends, shifted operators, cuDSS | [Linear algebra](modules/linalg.md) |
+| Shared utilities | `utils/`, `metrics_schema.py` | PETSc bridge, YAML, cost, provenance, Floquet | [Shared utilities](modules/shared-utilities.md) |
+
+`boundary_conditions/` is a separate package for import hygiene and MATLAB module parity. Functionally it belongs to LNSE assembly: BC application is the last step of operator finalization.
+
+Public library surface (lazy exports from `linstabpy.__init__`): `build_lnse_system`, `build_lnse_operator`, `compute_chu_norm`, `temporal_eigenvalues`, `adjoint_eigenvalues`, `wavemaker`, `resolvent_analysis`, `resolvent_map`, `BaseFlow`. The CLI entry is `linstabpy.driver.cli.main`, which imports `driver.run` only after handling `--version` and `--help`.
+
+Calls between packages are in-process Python calls:
 
 ```mermaid
 flowchart LR
-    CfgDom["ConfigurationManagement"]
-    OrchDom["CaseOrchestration"]
-    BFDom["BaseflowManagement"]
-    MeshDom["MeshDiscretization"]
-    OpDom["LNSEOperatorAssembly"]
-    LADom["LinearAlgebra"]
-    StabDom["StabilityAnalysis"]
-    ResDom["ResolventAnalysis"]
-    RtrDom["SolverRouting"]
-    UtilDom["SharedUtilities"]
+  CO["Case orchestration"]
+  CM["Configuration"]
+  BM["Base flow"]
+  MD["Mesh"]
+  OA["LNSE assembly + BC"]
+  SA["Stability"]
+  RA["Resolvent"]
+  RR["Router"]
+  LI["Linear algebra"]
+  UT["Utilities"]
 
-    CfgDom --> OrchDom
-    OrchDom --> BFDom
-    OrchDom --> OpDom
-    OrchDom --> StabDom
-    OrchDom --> ResDom
-    OrchDom --> RtrDom
-    OrchDom --> LADom
-    BFDom --> MeshDom
-    OpDom --> MeshDom
-    OpDom --> BFDom
-    OpDom --> LADom
-    StabDom --> OpDom
-    StabDom --> LADom
-    ResDom --> OpDom
-    ResDom --> LADom
-    RtrDom --> OpDom
-    RtrDom --> ResDom
-    RtrDom --> LADom
-    MeshDom --> UtilDom
-    StabDom --> UtilDom
-    ResDom --> UtilDom
-    LADom --> UtilDom
+  CO --> CM
+  CO --> BM
+  CO --> SA
+  CO --> RA
+  CO --> RR
+  CO --> OA
+  CO --> LI
+  OA --> MD
+  OA --> BM
+  OA --> LI
+  SA --> LI
+  SA --> OA
+  RA --> LI
+  RA --> OA
+  RR --> RA
+  RR --> LI
+  RR --> OA
+  BM --> MD
+  MD --> UT
+  SA --> UT
+  RA --> UT
+  LI --> UT
 ```
 
-
-## Flow coordination and control
-
-### Multi-module coordination mechanisms
-
-| Mechanism | How it works |
-|---|---|
-| **Staged pipeline ownership** | Driver owns stage order, logging, heartbeats, and payload; domains expose pure-ish services |
-| **Request/result objects** | Operator assembly uses structured requests (backend selection, sponge, finalization order) |
-| **Typed config seam** | `config/typed.py` mirrors `utils._solver_cfg` so call sites migrate without behavior change |
-| **Lazy public API** | Package `__init__` defers heavy imports; PETSc starts only on real solve paths (driver imports init early by design) |
-| **BC recipe orchestration** | `BCRule` / `BCRecipe` sequence declarative rules and return combined index sets for free DOFs |
-| **Router as campaign controller** | Map orchestration schedules β loops and frequency walks; LineWalker localizes reuse policy |
-| **Backend registry** | Central probe/normalize of factor backends before factorization commits resources |
-
-### State management and synchronization
-
-**Logical case state progression:**
-
-```mermaid
-stateDiagram-v2
-    [*] --> Unconfigured
-    Unconfigured --> ConfigValid: schema_and_typed_merge
-    ConfigValid --> BaseflowReady: load_and_preprocess
-    BaseflowReady --> MeshReady: mesh_sbp_filters
-    MeshReady --> OperatorReady: coeffs_L0_BCs
-    OperatorReady --> FactorReady: factorize_shift
-    FactorReady --> Solved: eigen_or_resolvent
-    Solved --> Accepted: residual_acceptance_gates
-    Accepted --> Emitted: payload_npz
-    Emitted --> [*]
-    ConfigValid --> Failed: ConfigValidationError
-    FactorReady --> Failed: factor_backend_or_STRUMPACK_errors
-    Solved --> Degraded: residual_gate_refactor_or_defer
-    Degraded --> FactorReady: refactor_anchor
-    Degraded --> Failed: walk_abort
-```
-
-**MPI/runtime synchronization:**
-
-- PETSc `COMM_WORLD` ranks share distributed matrices/vectors.
-- Rank 0 performs prefixed progress logs; stage complete lines are machine-parseable (`stage=... elapsed=... rss_peak_delta_bytes=...`).
-- Heartbeat thread/interval keeps long factors/EPS visible to operators without changing numerical state.
-- Factor objects encapsulate lifecycle: create → solve* N → refactorize (same nonzero pattern) → destroy.
-
-**Immutable/read-only defaults:** driver uses shared empty read-only NumPy arrays as hot-path defaults to avoid accidental mutation and allocation churn.
-
-### Data passing and sharing
-
-| Data | Producer | Consumers | Form |
-|---|---|---|---|
-| Typed/merged config | config + yaml_io | all stages | dict / dataclasses |
-| BaseFlow | grid_fields + preprocess | coefficients, assembly, energy norm | dataclass, (ny,nx) arrays |
-| Mesh geometry/operators/runtime | mesh.py, sbp.py | assembly, BCs, filters | Mesh + view slices |
-| L0 | assembly.py | eigen, resolvent, router | SciPy CSC or PETSc Mat |
-| Free-DOF / BC index sets | BC recipe/dirichlet | reduced solves, validation | index arrays/masks |
-| Factorization handle | factorize.py | EPS shift-invert, H applies, walks | Factorization object |
-| Gains/modes/spectra | stability/resolvent | payload, map_record | NumPy + metadata dicts |
-| Cost samples | cost_metrics, router | certification, ops tuning | structured cost keys |
-| Provenance | provenance helpers | output naming, reproducibility | config MD5, git SHA, env |
-
-**Bridge policy:** SciPy ↔ PETSc conversion lives in `utils/petsc_core.py` to avoid circular imports between mesh and solver layers; complex-mode and distribution policy are encoded there.
-
-### Execution control and scheduling
-
-1. **Case-level scheduling**, driver selects eigen vs resolvent vs map stages from config; preflight advisories (config/baseflow/result) surface before/after heavy work.
-2. **Eigen control**, shift-invert targets, backend from `solver.eigen` / env overrides; iterative eigen solver types listed explicitly in cfg helpers.
-3. **Map scheduling**,
-   - Outer loop: β
-   - Inner: frequency line walk with anchor placement
-   - Residual gate: continue / refactor / defer / abort
-   - Optional stable sweep engine for smooth bands
-4. **Resource control**, RAM autoselect, MUMPS ordering/BLR/precision options, optional GPU cuDSS path; cost break-even influences when reuse beats refactor.
-5. **Concurrency model**, MPI process parallelism for distributed linear algebra; per-line anchor walks stay **sequential** to preserve factor reuse. Parallelism across β lines is an optimization opportunity when memory allows.
-6. **Output control**, env overrides for config path, output NPZ, log prefix; atomic map writes reduce partial-result corruption.
+Library consumers may call assembly and analysis APIs directly and skip the driver. They still depend on the same operator and factorization contracts. Stability and resolvent never own mesh generation; they consume finished operators and energy weights. Utilities never own case flow.
 
 
-## Exception handling and recovery
+## Ownership
 
-### Error detection and handling
+Keep policy in the owning module rather than recreating pass-through files.
 
-| Class | Detection | Typical response |
+| Area | Owning module | What belongs there |
 |---|---|---|
-| **Config / schema** | Unknown keys, bad FD orders, invalid merged structure | Fail fast: `ConfigValidationError` before mesh/factor |
-| **Baseflow I/O** | Missing/invalid field names, non-2D floats | Raise at load; preflight baseflow advisories |
-| **BC recipe** | Invalid symbols, inconsistent borders/variables | Validation in recipe analyze/apply |
-| **Backend availability** | Requested MUMPS/LU/cuDSS not present | Probe in `backends.py`; error before factor commit |
-| **Factorization** | PETSc/MUMPS/STRUMPACK failures | Dedicated errors (e.g. STRUMPACK factorization failure path in eigen services); destroy partial state |
-| **Refactorize contract** | Nonzero pattern change | `NotImplementedError`/PETSc error if CSR pattern cannot be verified |
-| **Eigen/resolvent quality** | Residual norms, target distance, conjugate-pair gaps | Acceptance helpers; reorder/filter modes; advisories |
-| **Map walk quality** | Residual gate fail | Refactor anchor; defer walk; mark reason codes (OK/PENDING/FAILED) |
-| **Env parse** | Bad heartbeat seconds etc. | `ValueError` with clear message |
+| Boundary-condition recipes | `linstabpy.boundary_conditions.recipe` | YAML recipe parsing, rule validation, effective rows, column-zeroed Dirichlet rows, overlap reporting, and SciPy/PETSc/spatial dispatch. |
+| LNSE assembly | `linstabpy.operators.assembly` | Coefficient preparation, backend choice, operator construction order, boundary-condition application, and the `LNSESystem` result object. |
+| Solver policy | `linstabpy.utils._solver_cfg`, `linstabpy.config.typed` | Dict/env resolution, PETSc/SLEPc defaults, MUMPS/KSP/EPS setup, and resolvent linear-solver selection. |
+| Runtime pipeline | `linstabpy.driver.run` | Case loading, mesh construction, Chu norm, assembly, stability/resolvent stages, postchecks, acceptance, and `.npz` persistence. |
+| Packed-field ingest | `linstabpy.baseflow.grid_fields` | One loader for npz or an npy directory. Filter, boundary sponge, and shock live in `baseflow.preprocess`. |
+| Result archive | `linstabpy.driver.payload`, `linstabpy.driver.io` | Payload grouping and NPZ/sidecar write. `io.py` does not import the driver. |
+| Mesh state | `linstabpy.mesh.mesh` | Structured geometry, derivative operators, filters, dissipation state, and sponge state. |
 
-### Exception recovery mechanisms
+Rules that go with the table:
+
+- **Boundary conditions.** `BCRecipe` is the seam. Public YAML files pass lists of dictionaries; the recipe layer normalizes them. When changing BC behavior, update the recipe analysis and every backend wrapper together. Do not duplicate row-selection logic in assembly, runtime code, or example scripts.
+- **LNSE assembly.** `LNSESystem` is the assembly handoff. The construction order is part of the numerical contract: prepare coefficients, build the raw operator, apply the inverse mass/metric block, apply sponge and operator dissipation, then apply boundary conditions. Keep this order explicit in `operators.assembly`. Runtime callers ask for an assembled system and do not rebuild pieces of the sequence.
+- **Solver policy.** `Config` in `config.typed` reads YAML and environment variables. PETSc/SLEPc objects are created inside the solver modules, but defaults and fallbacks come from the shared policy layer. The launcher, `mpi4py`, PETSc, and SLEPc must agree on one MPI stack; installer checks report the chosen stack.
+- **Dissipation.** Every path, the map router included, reads dissipation from `numerics.operator_dissipation` through `config.defaults.stage_dissipation_epsilon`. The old top-level `dissipation_epsilon` and `eps_resolv` keys are refused.
+- **Mesh state.** `Mesh` is the main structured-grid object. Deformation and masking must preserve numerical behavior. A geometry-only optimization is allowed only when tests show that derivative operators, filters, weights, and saved outputs stay equivalent for the relevant cases.
+- **Packed fields.** Every packed case uses the same eight keys: `x`, `y`, `rho`, `u`, `v`, `w`, `T`, `sponge`. YAML names the file; the loader does not guess a Song filename. Martini `.mat` constructors live in `examples/linstab2d/matlab_baseflow.py`.
+- **Runtime and NPZ output.** Example scripts set `LINSTABPY_CASE_CONFIG` and call `linstabpy.driver.run`. Martini generated-mesh examples build their own fields; packed-field cases go through `load_case_fields`. The compatibility surface for saved results is `RUNTIME_NPZ_CONTRACT_KEYS` in `linstabpy.driver.payload`; the grouped explanation is the [runtime NPZ contract](development/runtime-npz-contract.md) page. Additive fields are acceptable. Renames or removals need a migration note, test updates, and reader updates.
+
+
+## Run order
+
+Every analysis product shares the preparation stages. Step 7 is where the paths split.
+
+| Step | Operation | Inputs | Outputs | Code |
+|---|---|---|---|---|
+| 1 | Runtime init: `init_petsc_from_argv()`, then MPI/PETSc imports; config path from `LINSTABPY_CASE_CONFIG` (required) | argv, env | PETSc/MPI ready, rank-0 logging | `driver/run.py` |
+| 2 | Config merge and schema validation | YAML, env, defaults | Typed `Config`, or `ConfigValidationError` | `config/schema.py`, `config/typed.py` |
+| 3 | Field I/O | npy directory or npz | Dict of 2-D float fields | `baseflow/grid_fields.py` |
+| 4 | Preprocess and transport | Raw primitives | `BaseFlow` with mu and sponge | `baseflow/preprocess.py`, `sponge.py`, `viscosity.py` |
+| 5 | Mesh and SBP | x, y, FD order, deformation | `Mesh` with operators and runtime state | `mesh/mesh.py`, `mesh/sbp.py` |
+| 6 | Coefficients | `BaseFlow`, metrics | Cartesian or cylindrical LNSE coefficient blocks | `operators/coefficients.py` |
+| 7 | $L_0$ finalization and BC recipes | Coefficients, FD matrices, sponge, backend request | SciPy CSC or PETSc `Mat` $L_0$, free-DOF sets | `operators/assembly.py`, `boundary_conditions/` |
+| 8 | Factorization | Shifted $L_0$ | `Factorization` handle | `linalg/factorize.py` |
+| 9 | Solve: SLEPc EPS or weighted normal shell | Factor, weights | Eigenvalues, modes, gains | `stability/`, `resolvent/`, `solvers/` |
+| 10 | Postcheck and acceptance | Modes, residuals | Accepted modes, advisories | `stability/acceptance.py`, `driver/preflight.py` |
+| 11 | Payload | Results, cost, provenance | NPZ and `metrics.json` | `driver/payload.py`, `driver/io.py` |
+
+State progression: raw files, validated config, `BaseFlow` on `(ny, nx)`, mesh runtime state, coefficient tensors, constrained sparse $L_0$ with free-DOF mask, factor, solution, accepted result, emitted payload.
 
 ```mermaid
-flowchart TD
-    Detect["Detect failure or quality breach"]
-    Class{"Failure class?"}
-    FailFast["Fail fast free resources"]
-    Refactor["Refactorize or new anchor"]
-    Defer["Defer walk segment"]
-    AcceptSoft["Soft accept with advisories"]
-    RetryPol["Explicit policy retry only if configured"]
-    EmitPartial["Emit certified partial map or error payload"]
-    Abort["Abort case non-zero"]
+flowchart TB
+  subgraph Entry
+    A1["CLI: linstabpy.driver.cli"]
+    A2["Library: import linstabpy"]
+  end
 
-    Detect --> Class
-    Class -->|Config BC backend missing| FailFast
-    Class -->|Residual gate map| Refactor
-    Class -->|Walk budget exceeded| Defer
-    Class -->|Mode quality marginal| AcceptSoft
-    Class -->|Transient solver| RetryPol
-    FailFast --> Abort
-    Refactor --> EmitPartial
-    Defer --> EmitPartial
-    AcceptSoft --> EmitPartial
-    RetryPol --> Detect
-    EmitPartial --> Abort
+  subgraph Pipeline["Staged pipeline"]
+    direction TB
+    P1["Config validate + typed policy"]
+    P2["Base flow load + preprocess"]
+    P3["Mesh + SBP + filters"]
+    P4["Coefficients + L0 + BC"]
+    P5["Factorize shifted systems"]
+    P6a["Stability EPS"]
+    P6b["Resolvent H / gains"]
+    P6c["Router beta-omega map"]
+    P7["NPZ + metrics + provenance"]
+    P1 --> P2 --> P3 --> P4 --> P5
+    P5 --> P6a
+    P5 --> P6b
+    P4 --> P6c
+    P6c --> P6b
+    P6a --> P7
+    P6b --> P7
+    P6c --> P7
+  end
+
+  A1 --> P1
+  A2 --> P4
+  A2 --> P6a
+  A2 --> P6b
+  A2 --> P6c
 ```
 
-**Recovery principles:**
+Two entry paths converge on the same operator core and factorization layer. The CLI and driver path (`driver/run.py`) initializes PETSc/MPI, resolves config, logs stages and heartbeats, and writes the payload. The library path (`import linstabpy`) starts nothing on import and loads public symbols on first use.
 
-- **Prefer fail-fast on reproducibility gates** (config, missing backends) over running expensive wrong physics.
-- **Prefer refactor over silent inaccurate gains** on map residual gates.
-- **Iterative linear solvers are not an automatic downgrade** from direct factors; they require explicit solver policy (avoids hidden accuracy changes).
-- **Adjoint self-test / heal paths** exist in the factorization layer for iterative [KSP](solver-glossary.md) edge cases (bounded iterations), keeping adjoint consistency checks local to the LA layer.
-- **Resource cleanup:** factorization `destroy`, PETSc object lifecycle, and stage-scoped timing even on failure paths where implemented.
+### Temporal eigenvalues (primary product)
 
-### Fault tolerance strategy design
+Steps 1 to 8 above, then:
 
-| Layer | Strategy |
-|---|---|
-| **Input** | Lenient-but-structured schema; preflight advisories without skipping hard validation |
-| **Numeric** | SBP dissipation policy mesh-aware; free-DOF reduction; residual validation on modes/gains |
-| **Linear algebra** | Direct default for reference accuracy; BLR/ordering knobs; optional GPU path; pattern-checked refactorize |
-| **Campaign** | Per-frequency reason codes; atomic savez; cost samples for post-mortem; certification metadata |
-| **Operations** | Heartbeats + stage RSS deltas for HPC job monitoring; rank-0 log prefix for aggregation |
-| **Reproducibility** | Config hash in outputs; git SHA provenance; env-isolated output paths for concurrent timing runs |
+- **Shift-invert factorization.** `linalg/factorize.py` factorizes with the backend chosen by `resolve_factor_backend` and the MUMPS options. The default is `KSPPREONLY` + `PCLU` + MUMPS. Iterative solves are an explicit opt-in for memory-bound cases, not a silent fallback. The API is solve, transpose solve, block solve, refactorize, destroy.
+- **Eigenanalysis.** SLEPc EPS through `stability/_eigenvalues.py` and `solvers/eigenvalue.py`. EPS iterations call repeated solves against the factor. Post-processing: residual norms and reordering, target-distance check, conjugate-pair completeness, `stability/acceptance.py`.
+- **Output.** `build_runtime_payload` packs eigenvalues, eigenvectors, metrics, and provenance. The NPZ path comes from the environment or defaults to `{prefix}_{config_md5}_{git_sha8}.npz`.
 
-### Failure retry and degradation
+### Adjoint and structural sensitivity
 
-- **Retry:** Not a generic infinite retry loop. Map walks **locally** recover via refactor when residual gates fail. Explicit iterative policies may allow bounded KSP iterations.
-- **Degradation ladder (conceptual):**
-  1. Direct factor reuse (best cost/accuracy when residual OK)
-  2. Refactor at new anchor (restore accuracy, pay cost)
-  3. Stable-sweep / band-specific strategy
-  4. Backend change under RAM policy (e.g. memory-bound iterative, **opt-in**)
-  5. Defer/abort frequency or β line with recorded reason
-- **Partial success:** [Gain maps](core-concepts.md) can record completed (β, ω) cells with FAILED/PENDING markers rather than discarding the entire campaign when a single line breaks.
-- **Operator guidance:** On [STRUMPACK](https://portal.nersc.gov/project/sparse/strumpack/)/MUMPS failure, verify backend build, matrix [conditioning](https://en.wikipedia.org/wiki/Condition_number)/BC setup, and memory; do not "retry harder" without config change.
+`adjoint_eigenvalues` (lazy export from `stability._eigenvalues`) runs the adjoint solve after the direct modes exist. `wavemaker` in `stability/sensitivity.py` combines direct and adjoint modes. The factorization layer provides the transpose solves the adjoint needs.
 
+### Resolvent gain (single frequency)
 
-## Key process implementation
+The preparation matches the temporal path. Then:
 
-### Core algorithm processes
+1. Factor $((\gamma - i\omega) I - L_0)$ once. Under `solver.resolvent_sign_convention: matlab_parity` the code inverts the older LinStab2D matrix instead; see the [resolvent sign convention](resolvent-sign-convention.md).
+2. Apply $H$ and $H^H$ through the factor: input map $B$, solve, output map $C$ (`resolvent/operator.py`). `compute_chu_norm` supplies the energy weights.
+3. Build the weighted normal operator `invW * H^H * W * H(v)` as a PETSc `MatShell` (`resolvent/gain.py`).
+4. Run SLEPc on the shell, validate residuals, and return gains with forcing and response modes (`resolvent/analysis.py`).
 
-#### LNSE temporal operator assembly
+### Gain map over $\beta$ and $\omega$
 
-**Intent:** Build large sparse \(L_0\) acting on \(q = [\rho, u, v, w, T]\) (size scale `5 * ngp`).
+Entry: `solvers/router/resolvent_map.py` (public `resolvent_map`).
 
-**Pipeline characteristics (from assembly service):**
-
-1. Prepare coefficients from BaseFlow (Cartesian vs cylindrical; axis conventions vs MATLAB port).
-2. Attach FD/SBP differentiation and metrics.
-3. Apply sponge and optional operator dissipation (\(L_0 \leftarrow L_0 - \varepsilon Q_{\mathrm{diss}}\) when enabled).
-4. Enforce BC recipes ([Dirichlet](https://grokipedia.com/page/Dirichlet_boundary_condition) zero rows/cols + pin; [Neumann](https://grokipedia.com/page/Neumann_boundary_condition) as applicable).
-5. Finalize backend: SciPy CSC and/or PETSc Mat with **fixed transformation order**.
-
-**Business rule:** Physics linearization is entirely driven by mesh-aligned mean flow; wrong preprocess (shock/sponge/viscosity) propagates directly into spectra and gains.
-
-#### Shift-invert eigenvalue process
-
-**Intent:** Extract eigenvalues of LNSE near targets via SLEPc EPS.
-
-**Technical spine:**
-
-1. Form shifted operators as required by EPS SI strategy.
-2. Factorize with selected backend (`resolve_factor_backend`, MUMPS options).
-3. EPS iterations call repeated solves against the factor.
-4. Post-process: residual norms, reordering, conjugate-pair checks, acceptance vs target.
-
-**Performance:** Factorization dominates; subsequent matvecs/solves amortize cost, same pattern as resolvent.
-
-#### Resolvent gain process
-
-**Intent:** Leading optimal gain and structures of \(H\).
-
-1. Factor \(((\gamma - i\omega) I - L_0)\).
-2. Matvecs of \(H\) and \(H^{H}\) via B, solves, C (`ResolventOperator`).
-3. Build `WeightedNormalOperator` shell for \(W\)-inner-product gain problem.
-4. SLEPc on shell; validate residuals; return forcing/response pairs.
-
-**Coordination constraint:** SLEPc/MPI init ordering must be respected (shared with eigen path); package import stays light via type-only PETSc imports in places.
-
-#### Anchor-preconditioned frequency walk
-
-**Intent:** Minimize factor count across dense ω grids.
+1. **Per-$\beta$ assembly.** One BC-enforced operator per spanwise wavenumber.
+2. **Band marking.** `band_marking.py` labels frequency bands NEAR_POLE, SMOOTH, or STABLE to choose the walk strategy.
+3. **Line walk.** `map_walk.LineWalker` pays a real factor for the first frequencies on a line and records factor time, memory, and compression. Later points apply $K(\omega)^{-1}$ with that factor as a right preconditioner. A residual gate forces a new factor when accuracy degrades; a walk may be deferred (`WalkDeferred`) or aborted.
+4. **Stable-regime sweeps.** `stable_sweep.py` runs anchor-preconditioned sweeps across nearby frequencies.
+5. **Backend policy.** `linalg/backends.py` normalizes and probes MUMPS, LU, and cuDSS. RAM autoselect and break-even logic influence the choice.
+6. **Leading gain.** Computed by the resolvent analysis at each scheduled point.
+7. **Recording.** Map arrays, cost keys (wall assemble/factor/solve, peak RSS and GPU memory, ranks, git SHA), and certification metadata. `map_record` saves atomically.
 
 ```mermaid
 flowchart TD
@@ -2950,156 +1105,111 @@ flowchart TD
     Done -->|Yes| WalkEnd
 ```
 
-### Data processing pipelines
+Dissipation depends on the mesh. On rectilinear tensor meshes the metric cross-terms vanish, so dissipation can be a costly no-op for gain accuracy. On meshes curvilinear in both directions, an undamped operator can show spurious near-singular resonances. Enable it in pairs: `enabled` builds $Q_{\mathrm{diss}}$ on the mesh and `epsilon` is the strength.
 
-#### Mean-flow to operator pipeline
+The outer loop is $\beta$ and the inner loop is the frequency line. Each point ends in one of: continue, refactor, defer, abort. Walks on one line stay sequential to preserve factor reuse; parallelism across $\beta$ lines is not implemented.
 
+### Spatial eigenproblem
+
+- **Config.** `solver.spatial`, with fallback to `solver.eigen` when no spatial YAML section exists.
+- **Assembly.** `operators/spatial.py` reuses the temporal preparation and index helpers, with SciPy and PETSc block-matrix paths.
+- **Solve.** `solvers/spatial_eig.py` runs a generalized SLEPc EPS with a direct shift-invert backend chosen as for the temporal case. Output: spatial eigenvalues, modes, and solver metadata.
+
+
+## Stored data
+
+LinStabPy is file-oriented. There is no database; reproducibility comes from config hashing, schema versions, and fixed result contracts.
+
+| Store | Form | Contract |
+|-------|------|----------|
+| Case policy | YAML on disk, env overrides | Merged into typed `Config`; schema-validated |
+| Mean flow | npy directory or npz | Primitives `RHO,U,V,W,T` on `(ny,nx)`; optional sponge |
+| Runtime operators | In-memory SciPy CSC or PETSc `Mat` | Sparse $5 N_{gp} \times 5 N_{gp}$, or reduced free DOFs |
+| Results | NPZ | Fixed key contract in `driver.payload` |
+| Metrics | JSON | `metrics_schema.SCHEMA`: provenance, problem, cost, quality |
+| Provenance | Embedded in metrics and payload | Config hash/MD5, git SHA, hostname, factor backend and precision |
+
+```text
+YAML + npy/npz
+    → Config (typed) + BaseFlow (ny,nx fields)
+    → Mesh (X,Y, Dx,Dy, W, filters)
+    → Coefficients + Energy weights (Chu W_diag / invW_diag)
+    → L0 PETSc Mat + free-DOF IS + BC-enforced rows
+    → Factorization handle(s)
+    → Spectra / gains / modes (distributed Vec → gathered arrays)
+    → NPZ payload + metrics.json (provenance, cost, quality)
 ```
-CFD npy/npz
-  → field validation (names, shapes)
-  → BaseFlow dataclass
-  → shock cleanup / sponge / Sutherland (or configured) viscosity
-  → Mesh geometry (+ deformation, masking, poles)
-  → SBP D, norms, filters, optional Q_diss
-  → physical coefficient blocks
-  → sparse assembly + sponge + dissipation
-  → BC enforcement + free-DOF sets
-  → SciPy and/or PETSc L0
-```
 
-#### Result and metrics pipeline
+| Object | Contract |
+|--------|----------|
+| `BaseFlow` | Parameters (`Re,Ma,Pr,kappa,T_0`) and `(ny,nx)` primitives; optional MU and dmu/dT |
+| `Mesh` and operators | `X,Y`, SBP `Dx,Dy,...`, weights `W`, optional dissipation |
+| `LNSESystem` ($L_0$) | Sparse, size scale `5 * ngp`, or reduced free DOFs |
+| BC recipe | Rules, enforced rows, free-DOF index sets |
+| Energy weights | Chu norm diagonals `W_diag` and `invW_diag` |
+| Factors | Opaque `Factorization` handle that owns the KSP/PC lifecycle |
+| Modes and gains | Distributed `Vec`, gathered to NumPy for the payload |
+| Map records | Structured arrays, cost samples, certification |
 
-```
-Solver raw outputs
-  → residual/acceptance filters
-  → payload builder / map_record
-  → cost_metrics (wall stages, RSS, GPU mem, ranks)
-  → provenance (config hash, git SHA, PETSc options tags)
-  → NPZ / atomic savez emission
-```
+`driver/run.py` is about 1.8k lines and owns stage sequencing, timing, and payload emission. One place defines "a case", which helps reproducibility but raises change risk. Library users can bypass it.
 
-Driver stage logging provides an ops-facing timeline parallel to scientific outputs.
 
-### Business rule execution
+## Runtime behavior
 
-| Rule | Enforcement point |
-|---|---|
-| Reproducible cases are YAML-driven | config merge + schema before heavy stages |
-| State ordering is ρ,u,v,w,T | assembly and public API docs |
-| Direct sparse solve is default accuracy path | factorize policy; tests/examples |
-| Iterative LA only when explicitly chosen | solver-type allowlists |
-| Map dissipation reads one block | `config.defaults.stage_dissipation_epsilon`; top-level `dissipation_epsilon` is refused |
-| Spatial config may inherit eigen policy | spatial_eig fallback |
-| Library import must stay side-effect light | lazy `_LAZY_EXPORTS` in package `__init__` |
-| Rank-0 logging only for human progress | `_log` guards |
-| Gains/modes require residual accountability | analysis validation + acceptance modules |
+- **Logging.** Rank 0 writes the human-readable log. Stage lines are machine-parseable: `stage complete: stage=<name> elapsed=<s> rss_peak_delta_bytes=<n>`. Heartbeats default to every 30 s (`LINSTABPY_STAGE_HEARTBEAT_SECONDS`).
+- **Environment.** `LINSTABPY_CASE_CONFIG`, `LINSTABPY_CASE_OUTPUT_NPZ`, `LINSTABPY_FORCE_RECOMPUTE`, and the log prefix. Use a dedicated output NPZ per concurrent run.
+- **Cache.** The CLI reuses an NPZ when config hash and git SHA match, unless `LINSTABPY_FORCE_RECOMPUTE` is set.
+- **MPI.** PETSc `COMM_WORLD` ranks share distributed matrices and vectors. One MPI job runs one case or one map campaign. There is no server process.
+- **Init order.** Initialize `mpi4py` before PETSc, with thread level MULTIPLE when a backend requires it. `import linstabpy` alone does not set up the parallel runtime.
+- **Requirements.** Python 3.11 to 3.14, working MPI with `mpi4py`, complex-scalar PETSc/SLEPc, MUMPS through PETSc, NumPy, SciPy, PyYAML. cuDSS is optional. Large cases are memory-bound by the sparse factors.
+- **Factor lifecycle.** Create, solve N times, refactorize (same nonzero pattern), destroy.
 
-### Technical implementation details
 
-#### Runtime driver (`driver/run.py`)
+## Quality gates and errors
 
-- Initializes PETSc from argv at import of the driver module (case path intentionally heavy).
-- Resolves config/output paths via environment with documented fallbacks.
-- Stages work with perf counters and peak RSS deltas for HPC observability.
-- Wires: `load_case_fields`, `Mesh`, `build_lnse_system_result`, BC analysis, `temporal_eigenvalues` / `_solve_near_target`, `resolvent_analysis`, router helpers, `build_runtime_payload`.
-- Stability acceptance and conjugate-pair checks gate scientific quality before trusting payloads.
+| Gate | Behavior |
+|------|----------|
+| Schema validation | Unknown top-level keys and invalid FD orders raise `ConfigValidationError` before any mesh or factor work |
+| Base flow I/O | Missing field names or non-2-D arrays raise at load |
+| BC recipe | Invalid symbols or inconsistent borders and variables fail in recipe analysis and application |
+| Backend availability | A requested MUMPS, LU, or cuDSS backend that is not present fails in the probe in `backends.py`, before factorization |
+| Factorization | PETSc, MUMPS, and STRUMPACK failures raise dedicated errors and destroy partial state |
+| Refactorize | A changed nonzero pattern raises `NotImplementedError` or a PETSc error |
+| Preflight advisories | Non-blocking warnings (dissipation versus mesh coupling, freestream scale); the run continues |
+| Eigen quality | Residual norms, target distance, conjugate-pair completeness (`stability/acceptance.py`) before the payload is written |
+| Resolvent and map quality | Residual gate forces a refactor when preconditioner reuse loses accuracy; reason codes OK, PENDING, FAILED per point |
+| Certification | Router consistency and RSVD-style certification metadata |
 
-#### Factorization layer (`linalg/factorize.py`)
+Principles:
 
-- Factorize-once, solve-many for SI LNSE workflows.
-- Default **KSPPREONLY + PCLU + MUMPS**.
-- Supports solve, transpose solve, block solve, refactorize, destroy.
-- Optional cuDSS factor path as PC shell.
-- Lazy PETSc accessor pattern so non-driver imports need not initialize PETSc until use.
+- Fail fast on reproducibility gates (config, missing backends) rather than run expensive wrong physics.
+- Refactor rather than return inaccurate gains from a failed residual gate.
+- Iterative linear solvers are never an automatic downgrade from direct factors. They need an explicit solver policy.
+- A gain map records completed $(\beta, \omega)$ cells with FAILED or PENDING markers when one line breaks, instead of discarding the campaign.
+- On a STRUMPACK or MUMPS failure, check the backend build, the matrix conditioning and BC setup, and memory. Retrying without a config change does not help.
 
-#### Router (`solvers/router`)
 
-- `resolvent_map`: turnkey β/frequency orchestration; largest hub in package.
-- `map_walk`: measured anchors + residual gate.
-- `stable_sweep`: anchor-preconditioned stable-regime engine.
-- Supporting: anchors, recycling, break_even, ram_autoselect, certification, band_marking, map_record.
-
-#### Mesh/SBP (`mesh`)
-
-- `Mesh` with geometry / operators / runtime-state views for explicit consumer contracts.
-- `sbp.py`: Strand / Mattsson–Nordström style operators; pole matrices for axisymmetric grids.
-
-#### External runtime contract
-
-| External system | Role in workflows |
-|---|---|
-| PETSc | Distributed Mat/Vec, KSP/PC |
-| SLEPc | EPS for eigen and gain problems |
-| MUMPS | Default sparse direct factor |
-| MPI | Process parallelism |
-| cuDSS | Optional GPU direct factor |
-| NumPy/SciPy | I/O, CSC/CSR assembly, local kernels |
-| YAML + npy/npz | Sole primary I/O surface for cases and baseflow |
-
-### Performance optimization processes
-
-| Strategy | Where applied | Effect |
-|---|---|---|
-| Factorize-once solve-many | Eigen SI, resolvent H, map PC reuse | Amortizes dominant cost |
-| Anchor + residual gate | Frequency lines | Fewer full LU factors at controlled accuracy |
-| Stable sweeps | Smooth/stable bands | Cheap ω coverage with preconditioners |
-| Backend/RAM autoselect | Large cases | Avoids OOM; chooses MUMPS/BLR/cuDSS/iterative policy |
-| SciPy assemble → PETSc solve | Operator path | Fast local build, scalable solve |
-| Lazy imports | Library users | Fast startup; PETSc only when needed |
-| Stage RSS/wall metrics | Driver + router | Data-driven anchor and backend tuning |
-| Optional dissipation off on rectilinear meshes | Map prep | Avoids nnz/time penalty with negligible gain change |
-| MPI distribution | Global Mat/Vec | Memory scale-out for large ngp |
-
-**Optimization opportunities (architecture-aligned):**
-
-1. Deeper reuse of one prepared L0 across mixed temporal + resolvent stages in a single case.
-2. Residual-gate thresholds tuned per backend accuracy profile (MUMPS BLR vs cuDSS).
-3. Parallel β lines when memory permits; keep per-line walks sequential for factor reuse.
-4. Richer structural-sensitivity packaging on the standard payload path.
-5. Feed multi-node cost samples more aggressively into anchor placement.
-
-### Operability guidance
-
-**Development**
-
-- Extend physics in coefficients/assembly; keep BC recipes declarative.
-- New analysis products should consume finalized L0 + factorization APIs rather than bypassing them.
-- Preserve lazy export surface in `__init__.py` for embedders.
-
-**Operations / HPC**
-
-- Monitor `[prefix] stage complete: ...` and heartbeats for stuck factors.
-- On map jobs, track `cost_wall_factor_s` vs `cost_wall_solve_s` and residual-driven refactor rate.
-- Set `LINSTABPY_CASE_CONFIG` and dedicated `LINSTABPY_CASE_OUTPUT_NPZ` per concurrent run.
-- Verify dissipation flags in pairs on curvilinear meshes; confirm undamped intent on rectilinear.
-
-**Troubleshooting quick map**
+## Troubleshooting map
 
 | Symptom | Likely stage | First checks |
 |---|---|---|
-| Immediate abort | Config/schema | YAML keys, FD orders |
-| Bad spectra/gains | Baseflow/BC/assembly | Field alignment, BC recipe, sponge |
-| Factor crash / OOM | Linear algebra | Backend probe, ranks, BLR, iterative opt-in |
-| Noisy map ridges | Router/mesh dissipation | metric cross-coupling, epsilon dual enable |
-| Slow dense ω grid | Map walk | Anchor spacing, residual threshold, stable sweep |
+| Immediate abort | Config or schema | YAML keys, FD orders |
+| Bad spectra or gains | Base flow, BC, assembly | Field alignment, BC recipe, sponge |
+| Factor crash or out of memory | Linear algebra | Backend probe, ranks, BLR, iterative opt-in |
+| Noisy map ridges | Router and mesh dissipation | Metric cross-coupling, dissipation `enabled` and `epsilon` set together |
+| Slow dense $\omega$ grid | Map walk | Anchor spacing, residual threshold, stable sweep |
 
-
-## Document summary
-
-LinStabPy core workflows form a **single staged LNSE pipeline** with multiple scientific products. **Baseflow ingest and operator prep** produce a BC-enforced \(L_0\); **temporal/spatial/adjoint eigenanalysis** and **resolvent analysis** share that operator and a **factorize-once** PETSc/MUMPS spine; **β–ω gain maps** add cost-aware routing with anchors, preconditioner reuse, and residual gates. Coordination is hub-and-spoke through the case driver and router, with configuration as the reproducibility gate and residual/acceptance checks as the scientific quality gate. Exception handling favors fail-fast validation, explicit accuracy policies, and campaign-local refactor/defer rather than silent degradation, supporting reliable MPI-scale stability and resolvent studies for research and aerospace engineering users.
+On map jobs, compare `cost_wall_factor_s` with `cost_wall_solve_s` and watch the residual-driven refactor rate. See [Troubleshooting](troubleshooting.md) for install and runtime problems.
 
 ---
 
-## Module guide
+## Modules
 
 Source: https://linstabpy.vercel.app/modules/
 
-# Module guide
+# Modules
 
-Short reference per package, then longer notes. Policy lives in the
-owning module; `docs/architecture.md` is the short map.
-
-## Quick reference
+One page per package. Each page starts with a short summary (owner, files, rules) and continues with the package notes. Policy lives in the owning module; [Architecture](../architecture.md) is the short map.
 
 | Package | Page |
 |---|---|
@@ -3107,27 +1217,15 @@ owning module; `docs/architecture.md` is the short map.
 | `operators` | [LNSE assembly](operators.md) |
 | `boundary_conditions` | [BC recipes](boundary-conditions.md) |
 | `mesh` | [Structured mesh](mesh.md) |
-| `baseflow` | [Packed fields](baseflow.md) |
-| `config` | [YAML and Config](config.md) |
-| `stability` | [Eigenvalues](stability.md) |
-| `resolvent` | [Resolvent](resolvent.md) |
-| `solvers` | [Solvers](solvers.md) |
-| `linalg` | [Sparse factors](linalg.md) |
+| `baseflow` | [Base flow](baseflow.md) |
+| `config` | [Configuration](config.md) |
+| `stability` | [Stability analysis](stability.md) |
+| `resolvent` | [Resolvent analysis](resolvent.md) |
+| `solvers` | [Solvers and routing](solvers.md) |
+| `linalg` | [Linear algebra](linalg.md) |
+| `utils` | [Shared utilities](shared-utilities.md) |
 
-## Package notes
-
-| Topic | Page |
-|---|---|
-| Case pipeline | [Case Orchestration](case-orchestration.md) |
-| Configuration | [Configuration Management](configuration-management.md) |
-| Baseflow | [Baseflow Management](baseflow-management.md) |
-| Mesh | [Mesh Discretization](mesh-discretization.md) |
-| LNSE assembly | [LNSE Operator Assembly](lnse-operator-assembly.md) |
-| Stability | [Stability Analysis](stability-analysis.md) |
-| Resolvent | [Resolvent Analysis](resolvent-analysis.md) |
-| Solver routing | [Solver Routing and Sweep Optimization](solver-routing.md) |
-| Linear algebra | [Linear Algebra Infrastructure](linear-algebra.md) |
-| Utilities | [Shared Scientific Utilities](shared-utilities.md) |
+The resolvent sign convention has its own page: [Resolvent sign convention](../resolvent-sign-convention.md).
 
 ---
 
@@ -3218,7 +1316,7 @@ A typical LinStabPy solve wires all four: a distributed `Mat` holds the shifted 
 
 **[`MATSOLVERMUMPS`](https://petsc.org/release/manualpages/Mat/MATSOLVERMUMPS/) ([MUMPS](https://mumps-solver.org/))** is the default backend: a [MUltifrontal](https://en.wikipedia.org/wiki/Multifrontal_method) Massively Parallel sparse direct Solver that factors distributed matrices across MPI ranks. "Multifrontal" names the algorithm family (dense frontal matrices eliminated in a tree order). Practical knobs exposed here: ordering selection mapped to MUMPS `ICNTL(7)` (`amd`, `pord`, `metis`, `qamd`, `auto`), optional block low-rank compression (`LINSTABPY_MUMPS_BLR` with tolerance), and precision selection. MUMPS uses dynamic pivoting, which is why the temporal eigensolver retries a failed STRUMPACK factor (static pivoting, `ZERO_PIVOT`) once with MUMPS.
 
-**Other backends, one line each.** STRUMPACK: structured and rank-compressed direct and approximate solver, experimental here, used through FGMRES. [SuperLU_DIST](https://portal.nersc.gov/project/sparse/superlu/): distributed-memory sparse LU, experimental here, GPU offload unvalidated. cuDSS: NVIDIA GPU sparse direct LU, validated here *as a preconditioner inside FGMRES* (one rank, one GPU, with a second factorization of the conjugate transpose for [adjoint](https://grokipedia.com/page/Adjoint) applies), matching MUMPS to 1e-12 on tested cases, not as a PETSc-native factor type. The backend audit lives in `docs/COMPUTE_BACKENDS.md`.
+**Other backends, one line each.** STRUMPACK: structured and rank-compressed direct and approximate solver, experimental here, used through FGMRES. [SuperLU_DIST](https://portal.nersc.gov/project/sparse/superlu/): distributed-memory sparse LU, experimental here, GPU offload unvalidated. cuDSS: NVIDIA GPU sparse direct LU, validated here *as a preconditioner inside FGMRES* (one rank, one GPU, with a second factorization of the conjugate transpose for [adjoint](https://grokipedia.com/page/Adjoint) applies), matching MUMPS to 1e-12 on tested cases, not as a PETSc-native factor type. The backend audit is the [compute backends](development/compute-backends.md) page.
 
 **[`PCBJACOBI`](https://petsc.org/release/manualpages/PC/PCBJACOBI/) and [`PCASM`](https://petsc.org/release/manualpages/PC/PCASM/)** are [domain-decomposition](https://grokipedia.com/page/Domain_decomposition_methods) preconditioners: block Jacobi (each rank factors its own diagonal block, no overlap) and additive Schwarz (overlapping blocks). They appear as the baseline direction for the memory-bound iterative eigensolver path. One API trap the code documents: sub-preconditioner options must be applied *after* `EPS.setUp()`, or they attach to nothing.
 
@@ -3393,7 +1491,7 @@ or `environment.yml`. GPU is not an install path yet.
 | `environment.yml` | conda env `linstabpy` | Same contract from conda-forge. pip installs this package only. |
 | GPU / `environment-gpu.yml` | — | Not shipped. See [GPU and extra stacks](#gpu-and-extra-stacks). |
 
-`docs/COMPUTE_BACKENDS.md` is the backend audit. This section is how you install.
+The [compute backends](development/compute-backends.md) page is the backend audit. This section is how you install.
 
 ## Prerequisites
 
@@ -3527,8 +1625,8 @@ EVP/resolvent residual. That has not happened.
 | SuperLU_DIST + CUDA, complex | Tested on one CUDA build; solve residuals were order one. Rejected for that path. |
 
 `LINSTABPY_FACTOR_BACKEND=strumpack` is an experimental **CPU** factor choice
-when that library is in the PETSc build. It is not a GPU install. See
-`docs/COMPUTE_BACKENDS.md`.
+when that library is in the PETSc build. It is not a GPU install. See the
+[compute backends](development/compute-backends.md) page.
 
 ## macOS
 
@@ -3834,6 +1932,687 @@ Send:
 - the versions printed by `install.sh --check`
 
 Installer experiments belong in the private working notes, not in this tree.
+
+---
+
+## Development workflow
+
+Source: https://linstabpy.vercel.app/development/development/
+
+# Development and Release Workflow
+
+linstabpy is developed in small, verified increments. The public target is
+`1.0.0`: one field loader, one YAML shape, and no compatibility shims.
+
+## Branches
+
+| Branch | Role |
+|---|---|
+| `main` | The only long-lived branch. Always passes the full suite. Every release is tagged here. |
+| Topic branches | `feat/*`, `fix/*`, `refactor/*`, `test/*`, `docs/*`. Short-lived; branch from `main`, PR back into `main`. |
+| Feature branches `vX.Y-*` | A feature that needs more validation before a release (for example `v1.1-prescribed-forcing`). Kept rebased on `main`; merged when its release is cut. |
+
+## Versioning
+
+- **Patch `0.0.x` / `1.0.x`** — one small, verified increment.
+- **Minor `x.y.0`** — a completed milestone.
+- **Major `1.0.0`** — first committed-stable public API.
+
+`pyproject.toml`'s `version` on `main` equals the latest tag, or the next
+target with a `.devN` suffix between releases, so an install from an untagged
+commit never claims to be a release.
+
+## The micro-release loop
+
+1. **Pick a slice** that forms one coherent piece of work.
+2. **Implement** on a topic branch.
+3. **Verify** — the merge gate below. Keep it green at every commit.
+4. **Changelog** — add entries under `[Unreleased]` in `CHANGELOG.md` as the
+   work lands.
+5. **Merge** — when the slice is coherent and green, open a PR into `main`.
+6. **Tag** — on merge, cut the next tag on `main`.
+
+## Merge gate — what must hold before a PR into `main`
+
+1. **Full suite green on a machine with PETSc/SLEPc** —
+   `PYTHONPATH=src .venv/bin/python -m pytest tests/ -q`.
+2. **PETSc-free lane green** — loader, YAML, I/O, schema, and operator
+   tests that collect without `mpi4py`.
+3. **Frozen-numerics intact** — the hash-frozen validated-math files
+   (operator coefficients, energy norm, SBP operators/generator) are unchanged.
+   Any genuine math change carries an independent `< 1e-10` oracle parity,
+   and the freeze hash is never re-baselined to pass.
+4. **Lint/format clean** — `ruff check .` and `ruff format --check .`.
+5. **No stray changes** — only files that trace to the slice; named-file staging
+   only (never `git add -A`).
+6. **Changelog updated** — the slice's user-visible changes are recorded.
+
+GitHub Actions runs the PETSc-free lane and the tracked-file-size check.
+It does not compile PETSc. The full suite is the workstation merge gate.
+
+## Where verification runs
+
+The development machines are memory-limited; the full merge gate runs on a
+big-memory verification workstation. The loop:
+
+1. Commit on the development machine and push the topic branch.
+2. On the verification workstation, check out that branch (`git fetch && git
+   checkout <branch> && git pull --ff-only`) and run the full merge gate there
+   — the suite, the PETSc-free lane, and lint.
+3. Merge the PR into `main` only after the gate is green on the verification
+   workstation. A state that is green only on a development laptop is never
+   merged.
+
+Never copy edited sources to the verification machine by hand (no rsync/scp):
+it runs exactly what the branch has, so every result stays traceable to a
+commit SHA.
+
+## Releasing — cutting a tag on `main`
+
+1. In `CHANGELOG.md`, move the `[Unreleased]` entries into a new dated section.
+2. Set `pyproject.toml` `version` to that tag.
+3. Merge the release PR into `main` through the gate.
+4. Annotated tag: `git tag -a vX.Y.Z <commit> -m "…"` then
+   `git push origin vX.Y.Z`. **Never move a published tag**.
+5. On `main`, bump `pyproject.toml` to the next `.devN` and open a fresh
+   `[Unreleased]` heading in the changelog.
+
+## Architecture wiki
+
+`wiki/` is hand-owned. This page, [compute backends](compute-backends.md), and the [runtime NPZ contract](runtime-npz-contract.md) live in `wiki/development/`; `docs/` holds only the tutorial and the README images. An early version was machine-generated, then
+rewritten by hand (prose, links, examples, nav), so edit pages directly.
+Two scripts generate parts of it, and CI runs both (`.github/workflows/docs.yml`):
+
+- `python3 tools/generate_wiki_boundaries.py` rewrites the generated regions
+  of [boundaries](../boundaries.md) (CLI variables, allowed YAML keys, lazy exports).
+  It leaves the rest of the page unchanged.
+- `python3 tools/generate_llms_full.py` writes `wiki/llms-full.txt`. Do not
+  edit that file by hand.
+
+Add `--check` to either script to fail when its output is stale.
+
+Build the wiki in its own environment. `uv run` and `uv sync` make the
+project environment match `uv.lock` and `.python-version`, so pointed at
+the `.venv` that `install.sh` built they remove PETSc, SLEPc and mpi4py or
+replace the whole environment. Preview locally with
+`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs serve`.
+The gate is
+`UV_PROJECT_ENVIRONMENT=.venv-wiki uv run --only-group wiki mkdocs build --strict`
+with zero warnings.
+
+The site is published at `https://linstabpy.vercel.app/`, which the paper
+cites. Vercel builds it from `main` with `vercel.json`.
+`.github/workflows/docs.yml` runs the strict build on every pull request
+that touches the wiki, and publishes nothing.
+
+## CHANGELOG discipline
+
+- [Keep a Changelog](https://keepachangelog.com/) format.
+- Every user-visible change gets an entry under `[Unreleased]` **as it lands**.
+- Sections, in order: **Added / Changed / Fixed / Removed / Verified**.
+- A withdrawn version number is never reused.
+
+## Notes
+
+- Plans and the task graph live in the private working repository, not here.
+- Example PNGs under `examples/**/*.png` are tracked.
+- Coverage on GitHub is the omit list (`src/` minus `solvers/`, `linalg/`,
+  and the PETSc helpers). Do not set `fail_under` on the whole package.
+
+---
+
+## Compute backends
+
+Source: https://linstabpy.vercel.app/development/compute-backends/
+
+# Compute Backends
+
+`linstabpy` uses PETSc LU factorization for sparse-direct solve paths. The
+default factor backend is `mumps`, and that remains the reference path for
+temporal EVP, spatial EVP, resolvent, and linear-solve validation.
+
+## Build-Stack Isolation Strategy
+
+`install.sh` keeps one virtual environment per PETSc/SLEPc build stack. The
+unselected/default stack is the CPU MUMPS reference build and continues to use
+`.venv`. Non-default stacks use side-by-side directories named
+`.venv-<stack>`, for example `.venv-gpu-strumpack`. This layout is deliberate:
+`--force` for a non-default stack may only remove that stack's own directory and
+must never delete or overwrite the validated CPU `.venv`.
+
+Use `bash install.sh --dry-run` to inspect the resolved stack, virtual
+environment path, PETSc configure branch, and any planned destructive action
+without creating or deleting a virtual environment. The stack can be selected
+with `--stack <name>` or `LINSTABPY_BUILD_STACK=<name>`.
+
+| Stack | Virtual environment | PETSc configure branch | Rule |
+|---|---|---|---|
+| default / CPU reference | `.venv` | complex scalar PETSc/SLEPc with MUMPS, METIS, and ParMETIS downloads | This remains the only reference build. Default behavior must not change unless a separate change explicitly updates the CPU build contract. |
+| `gpu-strumpack` design branch | `.venv-gpu-strumpack` | complex scalar PETSc/SLEPc with `--with-cuda` and `--download-strumpack` plus graph-partitioning dependencies | Strategy only until the GPU-build recipes are run. `--force` is isolated to `.venv-gpu-strumpack` and must refuse any action that targets `.venv`. |
+| `superlu_dist` (manual, not in `install.sh`) | `.venv-superlu_dist` | complex scalar PETSc/SLEPc with `--download-superlu_dist` plus METIS/ParMETIS graph-partitioning downloads | `install.sh` does not ship a `superlu_dist` build stack today. Build manually: run `./install.sh --stack superlu_dist --force` only after adding the stack branch to `install.sh`, or configure PETSc directly with `--download-superlu_dist --download-metis --download-parmetis`. The GPU variant adds `--with-cuda`. Keep this isolated to `.venv-superlu_dist`; `--force` must never target `.venv`. |
+
+This section documents the intended build separation only. It is not a claim
+that any non-default branch has been built, validated, or measured.
+
+### SuperLU_DIST build notes
+
+A PETSc build with SuperLU_DIST requires the graph-partitioning libraries that
+the reference stack already downloads. A minimal configure addition on top of
+the default stack is:
+
+```text
+--download-superlu_dist --download-metis --download-parmetis
+```
+
+For a CUDA-enabled build, append `--with-cuda`. Because `install.sh` does not
+yet wire this stack, the build must be done manually in an isolated directory
+and paired with a side-by-side `.venv-superlu_dist`. Do not target `.venv`.
+
+SuperLU_DIST has two distinct roles in `linstabpy` (see Current Status and
+Mixed-Precision Factorization Knob below):
+
+- **CPU mixed-precision iterative-refinement (live)**: FP32 factor with FP64
+  iterative refinement via `pc_precision single`. This is the B.4/B.6 path and
+  is not rejected.
+- **Complex sparse-direct solve on the tested CUDA build (rejected)**: the
+  complex SuperLU_DIST CUDA path produced order-one residuals. See Current
+  Status for the finding.
+
+Backend selection precedence is:
+
+1. YAML solver subsection `factor_backend`;
+2. existing per-solver environment override, such as
+   `LINSTABPY_EIGEN_PC_FACTOR_SOLVER_TYPE`;
+3. `LINSTABPY_FACTOR_BACKEND`;
+4. the call-site default.
+
+Requested backends are checked with a tiny complex PETSc LU setup probe. An
+unavailable backend fails loudly instead of silently falling back.
+
+### NVPL CPU BLAS/LAPACK (Grace aarch64) build notes
+
+NVIDIA Performance Libraries (NVPL) provide BLAS and LAPACK implementations
+optimised for the Grace Armv9.0-A architecture. Linking PETSc/SLEPc against
+NVPL at build time is the highest-ROI, zero-code path for accelerating dense
+CPU operations (SBP assembly, Padé construction, BLAS-heavy solver phases) on
+Grace aarch64 hardware. No code change is required; the linkage is entirely
+a configure-time choice.
+
+**When to use this:** only on a Grace aarch64 workstation with NVPL installed.
+The recipe is written here as a preparation step; on-hardware activation and
+verification are deferred to Grace hardware.
+
+**Install NVPL.** Via the OS package manager (places libraries on standard
+system paths, no further path configuration needed) or by extracting the
+standalone tarball and setting `nvpl_ROOT`:
+
+```bash
+export nvpl_ROOT=/path/to/nvpl
+export LD_LIBRARY_PATH="${nvpl_ROOT}/lib:${LD_LIBRARY_PATH}"
+export LIBRARY_PATH="${nvpl_ROOT}/lib:${LIBRARY_PATH}"
+```
+
+**Library variants.** NVPL ships four BLAS interface libraries and matching
+LAPACK libraries; choose one BLAS and one LAPACK:
+
+| Integer width | Threading | BLAS library | LAPACK library |
+|---|---|---|---|
+| LP64 (32-bit, default) | sequential | `libnvpl_blas_lp64_seq` | `libnvpl_lapack_lp64_seq` |
+| LP64 | OpenMP (GCC gomp) | `libnvpl_blas_lp64_gomp` | `libnvpl_lapack_lp64_gomp` |
+| ILP64 (64-bit) | sequential | `libnvpl_blas_ilp64_seq` | `libnvpl_lapack_ilp64_seq` |
+| ILP64 | OpenMP (GCC gomp) | `libnvpl_blas_ilp64_gomp` | `libnvpl_lapack_ilp64_gomp` |
+
+Each interface library must be paired with the shared core: `libnvpl_blas_core`
+and `libnvpl_lapack_core`.
+
+Only the LP64-sequential pair is reproduced from a published worked PETSc
+configure example; the other three rows follow NVPL's documented
+`libnvpl_{blas,lapack}_<int_type>_<threading_type>` naming convention but were
+not each seen in a worked example. Confirm the exact `.so` name on the target
+system (`ls "${nvpl_ROOT}/lib"`) before committing to an ILP64 or `_gomp`
+variant.
+
+For the default `linstabpy` case (32-bit PETSc indices, LP64 BLAS/LAPACK,
+single-threaded BLAS within each MPI rank) the sequential LP64 pair is the
+right choice. For a hybrid MPI + threaded-BLAS placement (see Hybrid MPI +
+Threaded-BLAS Placement above), switch to the `_gomp` variant and set
+`OMP_NUM_THREADS` accordingly.
+
+If you build PETSc with `--with-64-bit-blas-indices`, use the ILP64 variant
+instead. Note that MUMPS and most other PETSc external packages do not accept
+64-bit BLAS indices; prefer LP64 unless the package list has been verified.
+
+**PETSc configure.** Point PETSc at the chosen library pair with
+`--with-blaslapack-lib`. Do not set `--with-blaslapack-dir` at the same
+time — the two flags are mutually exclusive.
+
+LP64 sequential example (replace `${nvpl_ROOT}/lib` with the actual
+library directory, e.g. `/usr/lib/aarch64-linux-gnu` for a
+package-manager install):
+
+```text
+./configure \
+  --with-scalar-type=complex \
+  --with-blaslapack-lib="-L${nvpl_ROOT}/lib \
+    -lnvpl_lapack_lp64_seq -lnvpl_lapack_core \
+    -lnvpl_blas_lp64_seq   -lnvpl_blas_core"
+```
+
+Keep all other flags from the reference CPU/MUMPS stack unchanged
+(`--download-mumps`, `--download-metis`, etc.). SLEPc inherits the BLAS/LAPACK
+linkage from its parent PETSc build automatically; no separate NVPL step is
+needed for SLEPc.
+
+Because `install.sh` does not yet wire an NVPL stack, the build must be done
+manually in an isolated directory and paired with a side-by-side virtual
+environment (e.g. `.venv-nvpl`). Do not target `.venv`.
+
+**complex128 (Z) verification — deferred to Grace aarch64 hardware.**
+`linstabpy` builds with `--with-scalar-type=complex`, so all shifted solves
+use complex-double (Z) BLAS/LAPACK symbols (`zgemm`, `zgetrf`, etc.). Once
+the build completes on Grace hardware, confirm the Z symbols resolve to NVPL
+rather than a fallback implementation:
+
+```bash
+# 1. ldd on the built libpetsc shared library — look for libnvpl_blas* and
+#    libnvpl_lapack* in the output:
+ldd /path/to/petsc-install/lib/libpetsc.so | grep nvpl
+
+# 2. Check NumPy's BLAS/LAPACK wiring (if NumPy was also built against NVPL):
+.venv-nvpl/bin/python -c "import numpy; numpy.show_config()"
+
+# 3. Confirm a PETSc complex-scalar hello builds and links:
+.venv-nvpl/bin/python -c \
+  "import petsc4py; petsc4py.init(); \
+   from petsc4py import PETSc; \
+   v = PETSc.Vec().createSeq(4); v.set(1+2j); print('complex PETSc OK', v.norm())"
+```
+
+The `ldd` check is the primary gate: if `libnvpl_blas*` and
+`libnvpl_lapack*` appear in the output, the Z symbols are routing through
+NVPL. Run this on Grace before using the build for production stability or
+resolvent computations.
+
+**NumPy and SciPy.** For the Python stack, modern Meson-based NumPy/SciPy
+builds accept NVPL via:
+
+```bash
+python -m build --wheel \
+  -Csetup-args=-Dblas=nvpl-blas-lp64-omp \
+  -Csetup-args=-Dlapack=nvpl-lapack-lp64-omp
+```
+
+This is secondary to the PETSc linkage; the PETSc Z-symbol check above is
+the verification that matters for `linstabpy` correctness.
+
+<!-- SOURCES -->
+<!--
+NVPL BLAS Developer Guide — library variants (lp64/ilp64, seq/gomp), naming
+convention, libnvpl_blas_core:
+  https://docs.nvidia.com/nvpl/latest/blas/programming_model/building_and_linking.html
+  https://docs.nvidia.com/nvpl/latest/blas/packaging.html
+
+NVPL LAPACK Developer Guide — library variants, libnvpl_lapack_core:
+  https://docs.nvidia.com/nvpl/latest/lapack/programming_model/building_and_linking.html
+  https://docs.nvidia.com/nvpl/latest/lapack/index.html
+
+NVPL install / nvpl_ROOT / LD_LIBRARY_PATH:
+  https://docs.nvidia.com/nvpl/latest/install.html
+
+TACC BLAS/LAPACK guide — confirmed PETSc configure example with
+  -lnvpl_lapack_lp64_seq -lnvpl_lapack_core -lnvpl_blas_lp64_seq -lnvpl_blas_core:
+  https://docs.tacc.utexas.edu/tutorials/blas-lapack/
+
+PETSc configure BLAS/LAPACK flags (--with-blaslapack-lib, --with-64-bit-blas-indices,
+  mutual exclusivity with --with-blaslapack-dir):
+  https://petsc.org/release/install/install/
+  https://petsc.org/release/manual/blas-lapack/
+
+NVPL NumPy/SciPy Meson build (-Dblas=nvpl-blas-lp64-omp):
+  https://docs.nvidia.com/nvpl/latest/numerical-python.html
+-->
+
+## cuDSS GPU Backend
+
+`factor_backend: cudss` factors the operator with NVIDIA cuDSS through
+`nvmath-python` and applies it as a preconditioner inside the existing
+right-preconditioned FGMRES path. It is not a PETSc factor package: configure
+the iterative solver family, not the direct one.
+
+```yaml
+solver:
+  resolvent:
+    type: iterative
+    ksp_type: fgmres
+    pc_type: lu
+    ksp_pc_side: right
+    factor_backend: cudss
+    # factor_precision: single   # opt-in, see below
+```
+
+Install with `pip install "linstabpy[petsc,cudss]"`: the `cudss` extra brings
+the nvmath-python/cuDSS wheels (needs a CUDA 12 runtime and an NVIDIA GPU
+supported by cuDSS), and the `petsc` extra provides the PETSc/SLEPc bindings
+the iterative path runs on. A standard CPU build of PETSc/SLEPc is enough --
+the GPU work happens inside cuDSS, so this backend needs no GPU-enabled PETSc
+build and no STRUMPACK. The backend is
+one-rank: run without MPI parallelism. The adjoint uses a second cuDSS
+factorization of the conjugate transpose because cuDSS has no transposed or
+adjoint solve; the existing dual-factor machinery builds and gates it.
+
+Measured on a 450k-unknown SWBLI resolvent operator (complex double,
+2.0-2.3e7 nonzeros, one RTX A6000): factorization 5.7-9.0 s against
+41-55 s for STRUMPACK on the same card; FGMRES converges in 1-2 iterations;
+solutions match a MUMPS reference to 1.2e-12. A refactorization on the kept
+analysis costs a full numeric factorization (9.0-9.2 s); the analysis
+(3.3-3.4 s with the threading layer) is what a frequency line saves.
+
+Two environment overrides: `LINSTABPY_CUDSS_MT_LIB` points at the cuDSS
+OpenMP threading layer (auto-discovered in the installed wheels by default;
+`none` disables it) and `LINSTABPY_CUDSS_THREADS` sets the host threads for
+the analysis phase (default: the process CPU affinity).
+
+## Mixed-Precision Factorization Knob
+
+`LINSTABPY_FACTOR_PRECISION` (environment) and the YAML `factor_precision`
+field select the factor precision. The default is `double`, which is inert.
+
+`factor_precision: single` works with the `cudss` backend only. The
+factorization runs in complex64 — measured 6-9x faster and half the device
+memory — while FGMRES stays in complex double and restores the solution to
+1e-12. The backend force-enables the two measures required for convergence:
+MC64-style matching (`MAX_DIAG_PRODUCT`) and double-precision equilibration
+before the cast. The validated scope is the production right-hand-side
+family (forcing-masked vectors); the adjoint self-test for this
+configuration draws its probes from that family and fails loudly when no
+family is attached.
+
+For PETSc factor backends, `single` is refused. The historical
+`superlu_dist` route drove it through the PETSc `-pc_precision` option,
+which PETSc 3.24 ignores — the factor would silently be computed in double
+while provenance recorded single. The guard in
+`linstabpy/linalg/backends.py` explains this and names the cudss route.
+`double` remains the reference and default path everywhere.
+
+## MUMPS BLR Low-Rank Compression Knob
+
+MUMPS block-low-rank (BLR) compression can be requested only for the MUMPS factor
+backend. It is off by default, so the default MUMPS options path is unchanged.
+Set `LINSTABPY_MUMPS_BLR=1` or the matching YAML field `mumps_blr: true` in the
+relevant solver subsection to enable it. The BLR dropping tolerance is controlled
+by `LINSTABPY_MUMPS_BLR_TOL` or `mumps_blr_tol`; the default tolerance is
+`1e-4`. Environment variables take precedence over YAML, which takes precedence
+over the defaults.
+
+Today only the environment variables are enforced at factorization time, and
+they apply to every MUMPS LU `linstabpy` sets up in the process. The YAML
+`mumps_blr` and `mumps_blr_tol` fields are validated and carried in the typed
+config but are not yet consumed by the solver call sites; wiring the
+per-solver config through is future work, as with `factor_precision`.
+
+When BLR is enabled with backend `mumps`, `linstabpy` sets these PETSc options
+and leaves them in the PETSc options database for the process so MUMPS can
+consume them during the later factorization setup:
+
+```text
+-mat_mumps_icntl_35 1
+-mat_mumps_cntl_7 <tolerance>
+```
+
+`ICNTL(35)=1` requests MUMPS BLR factorization, and `CNTL(7)` sets the BLR
+dropping tolerance. No `ICNTL(36)`, `ICNTL(37)`, or `ICNTL(38)` values are set by
+`linstabpy`; PETSc/MUMPS defaults are left in charge unless a later, documented
+configuration surface is added. Enabling BLR with any non-MUMPS backend raises a
+`ValueError` naming `LINSTABPY_MUMPS_BLR` and the selected backend.
+
+BLR changes the numerical factorization and can affect shifted-solve residuals,
+eigenvalue postchecks, and resolvent gains. Treat it as an explicit accuracy /
+memory trade-off to verify for each case. No performance claim is made here.
+
+## MUMPS Ordering Knob
+
+MUMPS fill-reducing ordering can be requested only for the MUMPS factor backend.
+It is unset by default. When unset, `linstabpy` neither sets nor clears
+`mat_mumps_icntl_7` — the knob expresses no opinion, so an `ICNTL(7)` value
+installed by other writers is preserved, and with no writer at all MUMPS keeps
+its default automatic ordering selection (`ICNTL(7)=7`). Set the ordering with
+`mumps_ordering: metis` in YAML or `LINSTABPY_MUMPS_ORDERING=metis` in the
+environment. The old `mumps_icntl_7` boolean is gone.
+
+Environment `LINSTABPY_MUMPS_ORDERING` wins over YAML `mumps_ordering`. When
+both are unset, `linstabpy` expresses no opinion. User-supplied PETSc CLI
+options are still process-global and should not be mixed with these
+higher-level config surfaces in the same run. Set `LINSTABPY_MUMPS_ORDERING` to
+one of the named values below.
+
+| `mumps_ordering` value | PETSc/MUMPS option |
+|---|---|
+| `amd` | `-mat_mumps_icntl_7 0` |
+| `pord` | `-mat_mumps_icntl_7 4` |
+| `metis` | `-mat_mumps_icntl_7 5` |
+| `qamd` | `-mat_mumps_icntl_7 6` |
+| `auto` | `-mat_mumps_icntl_7 7` |
+
+When the ordering knob is enabled with any non-MUMPS backend, `linstabpy` raises
+a `ValueError` naming `LINSTABPY_MUMPS_ORDERING` and the selected backend.
+Unknown ordering names also raise a `ValueError` listing the allowed values. No
+performance claim is made for any ordering choice here.
+
+## Hybrid MPI + Threaded-BLAS Placement
+
+Use one deliberate parallel shape at a time. The reference sparse-direct MUMPS
+path is pure MPI: many ranks, `OMP_NUM_THREADS=1`, and matching BLAS mirrors set
+to one. That is the validated default because MUMPS parallelism comes primarily
+from MPI ranks. A hybrid shape -- fewer MPI ranks with threaded BLAS inside each
+rank -- is a placement option for dense-heavy phases and for future many-core
+BLAS stacks such as the NVPL BLAS work tracked by the Grace-class backend path.
+This section is placement guidance only; it is not a measured speedup claim.
+
+For a workstation with `physical_cores` physical cores and `ranks` MPI ranks,
+choose
+
+```text
+threads_per_rank = physical_cores // ranks
+```
+
+Do not count SMT/HT siblings as physical cores. Keep the non-oversubscription
+invariant explicit:
+
+```text
+ranks * OMP_NUM_THREADS <= physical cores
+```
+
+A portable starting point is:
+
+```bash
+export OMP_NUM_THREADS=<threads_per_rank>
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+export OPENBLAS_NUM_THREADS="$OMP_NUM_THREADS"
+export MKL_NUM_THREADS="$OMP_NUM_THREADS"
+export NUMEXPR_NUM_THREADS="$OMP_NUM_THREADS"
+```
+
+Use pure MPI for the current CPU/MUMPS reference path, for example one rank per
+physical core and `OMP_NUM_THREADS=1`. Use hybrid placement only when the run is
+expected to spend meaningful time in threaded dense kernels, or when evaluating a
+threaded vendor BLAS stack; then reduce the number of ranks so that the product
+of ranks and threads never exceeds the physical-core count.
+
+A copy-paste sanity check for a workstation with `N` physical cores is:
+
+```bash
+physical_cores=N; ranks=<ranks>; threads_per_rank=$(( physical_cores / ranks )); \
+OMP_NUM_THREADS=$threads_per_rank OMP_PROC_BIND=close OMP_PLACES=cores \
+OPENBLAS_NUM_THREADS=$threads_per_rank MKL_NUM_THREADS=$threads_per_rank \
+NUMEXPR_NUM_THREADS=$threads_per_rank PHYSICAL_CORES=$physical_cores \
+mpirun -n "$ranks" python -c 'import os; from mpi4py import MPI; rank = MPI.COMM_WORLD.rank; ranks = MPI.COMM_WORLD.size; threads = int(os.environ["OMP_NUM_THREADS"]); affinity = len(os.sched_getaffinity(0)); physical_cores = int(os.environ["PHYSICAL_CORES"]); print(f"rank={rank} threads={threads} affinity={affinity} ranks*threads={ranks * threads} physical_cores={physical_cores}")'
+```
+
+Pass rule: each rank must report `OMP_NUM_THREADS <= affinity` for its CPU
+affinity size, and the job-level product must satisfy
+`ranks * OMP_NUM_THREADS <= physical cores`. If either condition fails, reduce
+`OMP_NUM_THREADS`, reduce the rank count, or fix the launcher binding before
+using the result.
+
+## Current Status
+
+| Backend | Status | Notes |
+|---|---|---|
+| `mumps` | Default/reference. | CPU sparse-direct path used for accepted solver results. Keep this path byte-identical unless a separate change explicitly updates the default solver contract. |
+| `strumpack` | Experimental with automatic MUMPS fallback. | STRUMPACK can be selected through PETSc as a LU factor backend, but larger shifted EVP operators can fail during `EPS.setUp`: STRUMPACK reports `ZERO_PIVOT` (PETSc err 76, surfaced as opaque `factorization failed`) when static pivoting encounters a pivot below about `sqrt(eps)·||A||_1` (~`1e-8` in the reproduced case). Tiny-pivot replacement is off and PETSc 3.24 does not expose STRUMPACK's `replace_tiny_pivots` option. `linstabpy` catches this STRUMPACK setup failure and retries once with MUMPS, whose dynamic partial pivoting factorizes the same matrices. The STRUMPACK+FGMRES path remains diagnostic for small/probe cases. |
+| `superlu_dist` | Two roles — see notes. | **CPU mixed-precision IR (live)**: `factor_precision: single` uses `pc_precision single` to enable FP32 factorization with FP64 iterative refinement; this path is not rejected and is the target of the B.4/B.6 work. **Complex+CUDA GPU solve (rejected for the tested build)**: the complex SuperLU_DIST path on the local CUDA build produced order-one solve residuals and an inconsistent EVP spectrum; changing iterative-refinement and GPU-offload flags did not fix it. The rejection applies specifically to complex sparse-direct solving on that CUDA build, not to the backend wholesale. |
+| `cudss` | Validated GPU sparse-direct backend on the iterative path. | Not a PETSc factor package: the cuDSS LU runs as the preconditioner inside the right-preconditioned FGMRES path (`type: iterative`, `factor_backend: cudss`). Single rank, one GPU. See the "cuDSS GPU Backend" section above. |
+
+The STRUMPACK result is a diagnostic result, not a production default. For the
+current direct shift-invert route, STRUMPACK `ZERO_PIVOT` falls back to MUMPS
+automatically and records `factor_backend_fallback="mumps"` in the returned
+solver info. The diagnostic local recovery path is:
+
+```text
+ST = sinvert
+KSP = fgmres
+PC = lu
+PCFactorSetMatSolverType = strumpack
+KSP side = right
+KSP rtol = 1e-10
+```
+
+Do not replace the default MUMPS `PREONLY+LU` ST path with this configuration
+without a separate productization pass. A proper STRUMPACK route needs PETSc to
+expose `replace_tiny_pivots` plus FGMRES recovery, then a solver-surface design,
+failure handling, and performance measurements on the target hardware.
+
+## Correctness Gate
+
+Backend choice does not decide correctness. Stability acceptance is enforced by
+the existing postcheck gate in `linstabpy.utils.stability_acceptance` using the
+explicit full-operator residual and the target-distance gate. A backend may
+converge according to PETSc/SLEPc and still be rejected if the postcheck fails.
+
+The STRUMPACK+FGMRES comparison test is therefore diagnostic:
+
+- CPU MUMPS build: MUMPS reference solve passes, STRUMPACK branch skips when the
+  backend is unavailable.
+- CUDA STRUMPACK build: STRUMPACK+FGMRES solve passes against the stored MUMPS
+  reference spectrum, while MUMPS skips if that PETSc build lacks MUMPS.
+
+This split is intentional because the tested CUDA STRUMPACK environment does not
+also provide MUMPS. A same-build MUMPS-vs-STRUMPACK comparison should replace
+the stored reference check when a PETSc build contains both backends.
+
+## What Is Deferred
+
+No speedup claim is made here. The evidence so far is numerical:
+
+- STRUMPACK `PREONLY+LU` can fail with `ZERO_PIVOT` on larger shifted EVP
+  operators because static pivoting cannot reorder around a tiny pivot; this is
+  not fixed by 64-bit indices and is not a pure memory-size wall.
+- MUMPS factorizes the same matrices through dynamic partial pivoting, so
+  `linstabpy` falls back to MUMPS automatically for this STRUMPACK setup
+  failure.
+- STRUMPACK `FGMRES+LU` can recover a small shifted solve and the Blasius
+  temporal EVP comparison, but enabling STRUMPACK tiny-pivot replacement through
+  PETSc is an upstream item for PETSc versions that expose that option.
+- SuperLU_DIST complex sparse-direct CUDA solves are not reliable in the tested build. The CPU mixed-precision iterative-refinement role (FP32 factor + FP64 refine via `pc_precision single`) is a separate live path and is not part of this rejection.
+
+Real backend adoption still needs end-to-end timings, peak memory, factorization
+reuse behavior, and repeated right-hand-side costs on the actual case sizes.
+
+---
+
+## Runtime NPZ contract
+
+Source: https://linstabpy.vercel.app/development/runtime-npz-contract/
+
+# Runtime NPZ Output Contract
+
+The shared driver writes one compressed `.npz` file per run through
+`linstabpy.driver.io.save_results`. The archive is the handoff between long
+computations, parity checks, plotting scripts, and campaign summaries, so key
+names should be treated as a compatibility surface.
+
+The checked contract lives in
+`linstabpy.driver.payload.RUNTIME_NPZ_CONTRACT_KEYS`.
+`build_runtime_payload` groups the keys before `io.py` writes them. Runtime
+outputs may include extra arrays, but the checked keys should not be renamed
+or removed without a migration note and an update to downstream readers.
+
+## Groups
+
+Core spectra and resolvent:
+
+- `omega`, `direct_modes`
+- `gains`, `responses`, `forcings`
+- `resolvent_rho_fwd`, `resolvent_rho_adj`
+- `omega_target`, `St`, `beta`
+
+Mesh, state, and weights:
+
+- `X`, `Y`, `U`, `sponge`
+- `W_diag`, `invW_diag`
+- `fd_order`, `alpha_filter`
+
+Boundary-condition provenance:
+
+- `bc_indices`, `bc_total_indices`
+- `bc_effective_dirichlet_indices`
+- `bc_column_zeroed_dirichlet_indices`
+- `bc_effective_neumann_indices`, `bc_overlap_indices`
+
+Stability solver metadata:
+
+- `stability_eps_nev`, `stability_eps_ncv`, `stability_eps_nconv`
+- `stability_eps_iterations`, `stability_eps_reason`, `stability_ksp_reason`
+- `stability_eps_conv_test`, `stability_eps_tol`, `stability_eps_max_it`
+- `stability_true_residual`, `stability_reduce_dirichlet`
+- `stability_residual_estimates`, `stability_residual_absolute`
+- `stability_residual_relative`, `stability_residual_backward`
+
+Stability postcheck and acceptance:
+
+- `stability_postcheck_residual_abs`
+- `stability_postcheck_residual_rel`
+- `stability_postcheck_target_distance`
+- `stability_all_omega`
+- `stability_all_postcheck_rel`
+- `stability_all_target_distance`
+- `stability_all_reject_reason_code`
+- `stability_acceptance_postcheck_rel_max`
+- `stability_acceptance_target_distance_max`
+- `stability_acceptance_omega_real_abs_max`
+- `stability_acceptance_omega_imag_abs_max`
+- `stability_acceptance_conjugate_aware`
+- `stability_accepted_count`
+- `stability_accepted_indices`
+- `stability_rejected_indices`
+- `stability_missing_conjugate_partner_indices`
+- `stability_partner_rejected_indices`
+
+Numerical policy and provenance:
+
+- `numerics_operator_dissipation_enabled`
+- `numerics_operator_dissipation_epsilon`
+- `numerics_operator_dissipation_order_diss`
+- `numerics_operator_dissipation_apply_to_stability`
+- `numerics_operator_dissipation_apply_to_resolvent`
+- `solver_eigen_st_solver_used`
+- `solver_apply_to_resolvent_effective`
+- `provenance_config_hash`
+- `provenance_linstabpy_git_sha`
+- `resolvent_sign_convention` (`physical` or `matlab_parity`; see
+  [resolvent sign convention](../resolvent-sign-convention.md); a file without this key was written with
+  the old LinStab2D sign, that is `matlab_parity`)
+
+Cost keys are merged by `save_results` from `collect_cost_metrics`. They are
+part of the contract even though the payload builder does not set them.
+
+## Rules For Changes
+
+Additive keys are fine when a new diagnostic or provenance field is useful.
+Renames and removals are not silent cleanup: update this document, update
+`RUNTIME_NPZ_CONTRACT_KEYS`, update tests, and adjust every reader that consumes
+the old name.
 
 ---
 
