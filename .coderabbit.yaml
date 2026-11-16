@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # linstabpy is public: CodeRabbit reviews every pull request automatically.
-# A repo file replaces the organization config as a whole.
+# With inheritance: true this file merges with the organization config.
+inheritance: true
 language: en-US
 tone_instructions: "Terse. Real defects first, the most severe first. No praise, no filler. Plain words: one idea per sentence, active voice."
 
