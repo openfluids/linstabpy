@@ -1,17 +1,17 @@
-![linstabpy banner](docs/assets/readme-banner-v3.jpg)
+![linstabpy banner](https://raw.githubusercontent.com/openfluids/linstabpy/main/docs/assets/readme-banner-v3.jpg)
 
 [![PyPI](https://img.shields.io/pypi/v/linstabpy.svg)](https://pypi.org/project/linstabpy/)
-[![Release](https://img.shields.io/github/v/release/openfluids/linstabpy)](https://github.com/openfluids/linstabpy/releases)
 [![Python](https://img.shields.io/pypi/pyversions/linstabpy.svg)](https://pypi.org/project/linstabpy/)
-[![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-
-**Documentation:** https://linstabpy.vercel.app/
+[![Release](https://img.shields.io/github/v/release/openfluids/linstabpy)](https://github.com/openfluids/linstabpy/releases)
+[![PETSc](https://img.shields.io/badge/solvers-PETSc%20%7C%20SLEPc%20%7C%20MUMPS-blue.svg)](https://petsc.org/)
 
 `linstabpy` performs [sparse](https://grokipedia.com/page/Sparse_matrix) linear stability and [resolvent](https://grokipedia.com/page/Resolvent_formalism) analysis of
 [compressible](https://grokipedia.com/page/Compressible_flow) viscous flows. It builds the linearized compressible [Navier–Stokes](https://grokipedia.com/page/Navier–Stokes_equations)
 operators for two-dimensional structured base flows and solves the [eigenvalue](https://grokipedia.com/page/Eigenvalues_and_eigenvectors) and
 resolvent problems through [PETSc](https://en.wikipedia.org/wiki/PETSc)/[SLEPc](https://en.wikipedia.org/wiki/SLEPc) with sparse direct factorization ([MUMPS](https://en.wikipedia.org/wiki/MUMPS_(software))).
+
+**Documentation:** https://linstabpy.vercel.app/
 
 It began as a Python port of the MATLAB `LinStab2D` code (Martini and Schmidt,
 2024) and has grown into a standalone framework: it adopts the operator
